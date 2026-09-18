@@ -3,6 +3,7 @@ import * as z from 'zod'
 /** Menu keys of the data settings submenu panels (order = menu order) */
 export const DATA_PANEL_KEYS = [
   'data',
+  'trash',
   'local_backup',
   'webdav',
   'nutstore',

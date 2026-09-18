@@ -34,11 +34,10 @@ const mocks = vi.hoisted(() => ({
   updateAppStatus: vi.fn().mockResolvedValue(undefined),
   hideMiniApp: vi.fn().mockResolvedValue(undefined),
   removeCustomMiniApp: vi.fn().mockResolvedValue(undefined),
-  closeWorkspace: vi.fn(),
-  navigationLayout: 'sidebar' as 'sidebar' | 'tabs' | 'both',
-  miniAppFavoriteIds: [] as string[],
-  toggleMiniApp: vi.fn(),
+  setMiniAppPinned: vi.fn(),
   openTab: vi.fn(),
+  closeWorkspace: vi.fn(),
+  navigationLayout: 'both' as 'sidebar' | 'tabs' | 'both',
   request: vi.fn().mockResolvedValue(null),
   toastError: vi.fn(),
   useMiniAppVisibility: vi.fn(() => ({
@@ -70,19 +69,16 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
-  useSidebarFavorites: () => ({
-    miniAppFavoriteIds: mocks.miniAppFavoriteIds,
-    toggleMiniApp: mocks.toggleMiniApp
-  })
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({ shortcuts: [], setPinned: mocks.setMiniAppPinned })
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
-    closeWorkspace: mocks.closeWorkspace,
-    navigationLayout: mocks.navigationLayout,
     // TabsProvider recreates openTab when its tab list changes.
-    openTab: (url: string, options: unknown) => mocks.openTab(url, options)
+    openTab: (url: string, options: unknown) => mocks.openTab(url, options),
+    closeWorkspace: mocks.closeWorkspace,
+    navigationLayout: mocks.navigationLayout
   })
 }))
 
@@ -250,13 +246,9 @@ describe('MiniAppsPage', () => {
     mocks.allApps = []
     mocks.pinned = []
     mocks.openedKeepAliveMiniApps = []
-    mocks.miniAppFavoriteIds = []
-    mocks.navigationLayout = 'sidebar'
     mocks.updateAppStatus.mockClear()
     mocks.hideMiniApp.mockReset().mockImplementation((appId: string) => mocks.updateAppStatus(appId, 'disabled'))
     mocks.removeCustomMiniApp.mockClear()
-    mocks.closeWorkspace.mockClear()
-    mocks.toggleMiniApp.mockClear()
     mocks.openTab.mockClear()
     mocks.request.mockReset().mockResolvedValue(null)
     mocks.toastError.mockClear()
@@ -368,31 +360,6 @@ describe('MiniAppsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'common.delete' }))
     await waitFor(() => expect(mocks.removeCustomMiniApp).toHaveBeenCalledWith('custom'))
-  })
-
-  it('closes a removed mini app workspace in the sidebar layout', () => {
-    mocks.apps = [stubApp({ appId: 'calculator', name: 'Calculator', url: 'https://calculator.example.com' })]
-    mocks.miniAppFavoriteIds = ['calculator']
-
-    render(<MiniAppsPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'miniApp.remove_from_sidebar' }))
-
-    expect(mocks.toggleMiniApp).toHaveBeenCalledWith('calculator')
-    expect(mocks.closeWorkspace).toHaveBeenCalledWith('mini-app:calculator')
-  })
-
-  it('keeps the tab open when a mini app favorite is removed in the combined layout', () => {
-    mocks.apps = [stubApp({ appId: 'calculator', name: 'Calculator', url: 'https://calculator.example.com' })]
-    mocks.miniAppFavoriteIds = ['calculator']
-    mocks.navigationLayout = 'both'
-
-    render(<MiniAppsPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'miniApp.remove_from_sidebar' }))
-
-    expect(mocks.toggleMiniApp).toHaveBeenCalledWith('calculator')
-    expect(mocks.closeWorkspace).not.toHaveBeenCalled()
   })
 
   it('adds a launchpad entry that opens the add dialog in create mode', () => {

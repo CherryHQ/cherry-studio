@@ -1,6 +1,8 @@
 {
   "agent.builtin.cherry_assistant.description": "Cherry Studio 內建顧問，可診斷問題、引導操作、彙整 FAQ、提交錯誤或功能需求，以及搜尋或建立 Skill。",
   "agent.builtin.cherry_support.description": "Cherry Studio 官方支援 Agent，提供設定引導、問題診斷、FAQ 與意見回饋",
+  "agent.session.dsh.bun_unavailable": "DSH 無法啟動，因為內建執行環境無法使用。請重新安裝 Cherry Studio 後再試一次。",
+  "agent.session.dsh.bun_unavailable_dev": "DSH 無法啟動，因為內建執行環境無法使用。請在開發儲存庫中執行 pnpm download:binaries 後再試一次。",
   "agent.session.new": "新任務",
   "agent.session.run_status.busy": "Agent 工作階段忙碌中，請稍後再試。",
   "agent.session.run_status.unavailable": "Agent 工作階段已無法使用。",

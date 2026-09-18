@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
 
 import { loggerService } from '@logger'
+import { AgentBrowserRuntimeHost } from '@renderer/components/AgentBrowserRuntimeHost'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import {
@@ -15,14 +16,14 @@ import {
   type TabsContextValue,
   useConversationNavigationOwner
 } from '@renderer/hooks/tab'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import {
   getTabWorkspaceKey,
-  getWorkspaceFavorite,
-  getWorkspaceKeyForFavorite,
+  getWorkspaceKeyForShortcut,
   getWorkspaceKeyForUrl,
+  getWorkspaceShortcutTarget,
   isNavigationWorkspaceKey,
   isTabVisibleInTabBar,
   LAUNCHPAD_WORKSPACE_KEY,
@@ -224,7 +225,7 @@ export function TabsProvider({
   const { i18n } = useTranslation()
   const [preferredNavigationLayout] = usePreference('ui.navigation.layout')
   const navigationLayout: NavigationLayout = includePinnedTabs ? preferredNavigationLayout : 'tabs'
-  const { favorites: sidebarFavorites, ensureFavoritesPinned } = useSidebarFavorites()
+  const { shortcuts: sidebarShortcuts, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
 
   // Pinned tabs - persistent storage. The setter natively supports functional
   // updates resolved against the latest persisted value, so callers can use
@@ -643,19 +644,20 @@ export function TabsProvider({
     [addTab, navigationLayout, setActiveTab, tabs]
   )
 
-  const ensureWorkspaceFavorites = useCallback(
+  const ensureWorkspaceShortcuts = useCallback(
     (workspaceKeys: readonly NavigationWorkspaceKey[]) => {
-      const favoriteKeys = new Set(sidebarFavorites.flatMap((favorite) => getWorkspaceKeyForFavorite(favorite) ?? []))
-      const additions = workspaceKeys.flatMap((workspaceKey) => {
-        if (favoriteKeys.has(workspaceKey)) return []
-        const favorite = getWorkspaceFavorite(workspaceKey)
-        if (!favorite) return []
-        favoriteKeys.add(workspaceKey)
-        return [favorite]
-      })
-      if (additions.length > 0) ensureFavoritesPinned(additions)
+      const shortcutKeys = new Set(
+        sidebarShortcuts.flatMap((shortcut) => getWorkspaceKeyForShortcut(shortcut.target) ?? [])
+      )
+      for (const workspaceKey of workspaceKeys) {
+        if (shortcutKeys.has(workspaceKey)) continue
+        const target = getWorkspaceShortcutTarget(workspaceKey)
+        if (!target) continue
+        shortcutKeys.add(workspaceKey)
+        setSidebarShortcutPinned(target, true)
+      }
     },
-    [ensureFavoritesPinned, sidebarFavorites]
+    [setSidebarShortcutPinned, sidebarShortcuts]
   )
 
   const activateWorkspace = useCallback(
@@ -663,7 +665,7 @@ export function TabsProvider({
       const resolvedWorkspaceKey = isNavigationWorkspaceKey(workspaceKey) ? workspaceKey : getWorkspaceKeyForUrl(route)
       if (!resolvedWorkspaceKey) return openTabRaw(route, options)
 
-      if (navigationLayout === 'sidebar') ensureWorkspaceFavorites([resolvedWorkspaceKey])
+      if (navigationLayout === 'sidebar') ensureWorkspaceShortcuts([resolvedWorkspaceKey])
 
       const existingTab = projectedTabsRef.current.find((tab) => getTabWorkspaceKey(tab) === resolvedWorkspaceKey)
       if (existingTab) {
@@ -682,7 +684,7 @@ export function TabsProvider({
         workspaceKey: resolvedWorkspaceKey
       })
     },
-    [activeTabId, closeTabs, ensureWorkspaceFavorites, navigationLayout, openTabRaw, setActiveTab]
+    [activeTabId, closeTabs, ensureWorkspaceShortcuts, navigationLayout, openTabRaw, setActiveTab]
   )
 
   const openFocusedRoute = useCallback(
@@ -819,7 +821,7 @@ export function TabsProvider({
         const workspaceKey = getTabWorkspaceKey(tab)
         return workspaceKey ? [workspaceKey] : []
       })
-      ensureWorkspaceFavorites(workspaceKeys)
+      ensureWorkspaceShortcuts(workspaceKeys)
 
       const needsRewrite =
         normalized.activeTabId !== activeTabId ||
@@ -905,7 +907,7 @@ export function TabsProvider({
 
     setPinnedTabs([])
     setNormalTabs(topLayoutTabs)
-  }, [activeTabId, ensureWorkspaceFavorites, navigationLayout, normalTabs, setPinnedTabs, storesPinned, tabs])
+  }, [activeTabId, ensureWorkspaceShortcuts, navigationLayout, normalTabs, setPinnedTabs, storesPinned, tabs])
 
   /**
    * Pin a tab in the tab bar. Pinned pages survive the soft budget but remain
@@ -1065,7 +1067,10 @@ export function TabsProvider({
 
   return (
     <CloseConversationTabsContext value={closeConversationTabs}>
-      <TabsContext value={value}>{children}</TabsContext>
+      <TabsContext value={value}>
+        {children}
+        <AgentBrowserRuntimeHost />
+      </TabsContext>
     </CloseConversationTabsContext>
   )
 }

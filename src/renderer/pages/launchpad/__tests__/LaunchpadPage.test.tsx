@@ -6,23 +6,27 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import {
+  createSidebarShortcutId,
+  type SidebarShortcutItem,
+  type SidebarShortcutTarget
+} from '@shared/data/preference/preferenceTypes'
 import type { SiteMiniApp } from '@shared/data/types/miniApp'
 
 const mocks = vi.hoisted(() => ({
-  closeWorkspace: vi.fn(),
   navigate: vi.fn(),
-  navigationLayout: 'sidebar' as 'sidebar' | 'tabs' | 'both',
-  openRoute: vi.fn(),
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
-  setSidebarFavorites: vi.fn(() => Promise.resolve()),
-  sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
+  setSidebarFavorites: vi.fn<(value: SidebarShortcutItem[]) => Promise<void>>(() => Promise.resolve()),
+  sidebarFavorites: [] as SidebarShortcutItem[],
   setAppOrder: vi.fn(() => Promise.resolve()),
   appOrder: [] as SidebarAppId[],
   sortableCalls: [] as any[],
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  closeWorkspace: vi.fn(),
+  openRoute: vi.fn(),
+  navigationLayout: 'both' as 'sidebar' | 'tabs' | 'both'
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -110,16 +114,28 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({
+    shortcuts: mocks.sidebarFavorites,
+    isPinned: (target: SidebarShortcutTarget) =>
+      mocks.sidebarFavorites.some((item) => item.id === createSidebarShortcutId(target)),
+    setPinned: (target: SidebarShortcutTarget, pinned: boolean, fallbackLabel?: string) => {
+      const id = createSidebarShortcutId(target)
+      void mocks.setSidebarFavorites(
+        pinned
+          ? [...mocks.sidebarFavorites, { type: 'shortcut', id, target, fallbackLabel }]
+          : mocks.sidebarFavorites.filter((item) => item.id !== id)
+      )
+    }
+  })
+}))
+
 vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     closeWorkspace: mocks.closeWorkspace,
     navigationLayout: mocks.navigationLayout,
     openRoute: mocks.openRoute
   })
-}))
-
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => mocks.navigate
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -143,6 +159,10 @@ vi.mock('@renderer/i18n/label', () => ({
       notes: 'Notes',
       openclaw: 'OpenClaw'
     })[key]
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mocks.navigate
 }))
 
 vi.mock('react-i18next', () => ({
@@ -179,8 +199,12 @@ vi.mock('react-i18next', () => ({
 
 import LaunchpadPage from '../LaunchpadPage'
 
-const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
-const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
+const shortcut = (providerId: string, resourceId: string): SidebarShortcutItem => {
+  const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
+  return { type: 'shortcut', id: createSidebarShortcutId(target), target }
+}
+const appFavorite = (id: SidebarAppId) => shortcut('core.app', id)
+const miniAppFavorite = (id: string) => shortcut('core.mini-app', id)
 const createMiniApp = (appId: string, overrides: Partial<SiteMiniApp> = {}): SiteMiniApp => ({
   appId,
   kind: 'site',
@@ -201,12 +225,12 @@ afterEach(() => {
 
 describe('LaunchpadPage', () => {
   beforeEach(() => {
-    mocks.navigationLayout = 'sidebar'
     mocks.pinnedMiniApps = []
     mocks.openedMiniApps = []
     mocks.sidebarFavorites = [appFavorite('assistants')]
     mocks.appOrder = []
     mocks.sortableCalls.length = 0
+    mocks.navigationLayout = 'both'
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
     mocks.setAppOrder.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
@@ -288,69 +312,24 @@ describe('LaunchpadPage', () => {
     expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
   })
 
-  it('keeps the launchpad workspace when an app opens in Sidebar layout', async () => {
+  it('navigates apps inside the current launchpad tab', async () => {
     const user = userEvent.setup()
 
     render(<LaunchpadPage />)
 
     await user.click(screen.getByRole('button', { name: 'Knowledge' }))
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
+  })
+
+  it('opens app workspaces through TabsProvider in Sidebar layout', async () => {
+    mocks.navigationLayout = 'sidebar'
+    render(<LaunchpadPage />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Knowledge' }))
 
     expect(mocks.openRoute).toHaveBeenCalledWith('/app/knowledge', undefined)
-    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
-  })
-
-  it('replaces the current launchpad tab when an app opens in tabs layout', async () => {
-    const user = userEvent.setup()
-    mocks.navigationLayout = 'tabs'
-
-    render(<LaunchpadPage />)
-
-    await user.click(screen.getByRole('button', { name: 'Knowledge' }))
-
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
-    expect(mocks.openRoute).not.toHaveBeenCalled()
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('knowledge')])
-  })
-
-  it('does not rewrite Sidebar favorites when a tabs-layout app is already pinned', async () => {
-    const user = userEvent.setup()
-    mocks.navigationLayout = 'tabs'
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge')]
-
-    render(<LaunchpadPage />)
-
-    await user.click(screen.getByRole('button', { name: 'Knowledge' }))
-
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
-    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
-  })
-
-  it('preserves the legacy Launchpad behavior in the combined layout', async () => {
-    const user = userEvent.setup()
-    mocks.navigationLayout = 'both'
-
-    render(<LaunchpadPage />)
-
-    await user.click(screen.getByRole('button', { name: 'Knowledge' }))
-
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
-    expect(mocks.openRoute).not.toHaveBeenCalled()
-    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
-  })
-
-  it('preserves query parameters when replacing the launchpad tab in tabs layout', async () => {
-    const user = userEvent.setup()
-    mocks.navigationLayout = 'tabs'
-
-    render(<LaunchpadPage />)
-
-    await user.click(screen.getByRole('button', { name: 'DSH' }))
-
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: '/app/code',
-      search: { tool: 'deepseek-harness' }
-    })
-    expect(mocks.openRoute).not.toHaveBeenCalled()
+    expect(mocks.navigate).not.toHaveBeenCalled()
   })
 
   it('opens the dedicated DeepSeek Harness CodeMate view from its app shortcut', async () => {
@@ -361,7 +340,10 @@ describe('LaunchpadPage', () => {
 
     await user.click(shortcut)
 
-    expect(mocks.openRoute).toHaveBeenCalledWith('/app/code?tool=deepseek-harness', undefined)
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/app/code',
+      search: { tool: 'deepseek-harness' }
+    })
   })
 
   it('suppresses only the dragged launchpad item click', () => {
@@ -375,11 +357,11 @@ describe('LaunchpadPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Knowledge' }))
     fireEvent.click(screen.getByRole('button', { name: 'Chat' }))
 
-    expect(mocks.openRoute).toHaveBeenCalledTimes(1)
-    expect(mocks.openRoute).toHaveBeenCalledWith('/app/chat', undefined)
+    expect(mocks.navigate).toHaveBeenCalledTimes(1)
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/chat' })
   })
 
-  it('opens chat and agent apps as separate destinations', async () => {
+  it('opens chat and agent apps fresh in the current tab', async () => {
     const user = userEvent.setup()
 
     render(<LaunchpadPage />)
@@ -387,28 +369,12 @@ describe('LaunchpadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Chat' }))
     await user.click(screen.getByRole('button', { name: 'Agent' }))
 
-    expect(mocks.openRoute).toHaveBeenCalledWith('/app/chat', undefined)
-    expect(mocks.openRoute).toHaveBeenCalledWith('/app/agents', undefined)
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/chat' })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/agents' })
   })
 
-  it('opens concrete mini apps without writing favorites directly in Sidebar layout', async () => {
+  it('navigates concrete mini apps inside the current launchpad tab', async () => {
     const user = userEvent.setup()
-    mocks.pinnedMiniApps = [createMiniApp('calculator')]
-
-    render(<LaunchpadPage />)
-
-    await user.click(screen.getByRole('button', { name: 'Calculator' }))
-
-    expect(mocks.openRoute).toHaveBeenCalledWith('/app/mini-app/calculator', {
-      title: 'Calculator',
-      icon: 'calculator-logo'
-    })
-    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
-  })
-
-  it('favorites an unpinned mini app when replacing the launchpad tab in tabs layout', async () => {
-    const user = userEvent.setup()
-    mocks.navigationLayout = 'tabs'
     mocks.pinnedMiniApps = [createMiniApp('calculator')]
 
     render(<LaunchpadPage />)
@@ -416,7 +382,6 @@ describe('LaunchpadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Calculator' }))
 
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/mini-app/calculator' })
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), miniAppFavorite('calculator')])
   })
 
   it('sorts every pinned mini app by order key and persists to order keys, not favorites', () => {
@@ -437,7 +402,7 @@ describe('LaunchpadPage', () => {
     })
 
     // The launchpad persists mini app order to the shared order key (independent of
-    // the sidebar favorites), never writing `ui.sidebar.favorites`.
+    // the sidebar favorites), never writing `ui.sidebar_shortcut`.
     expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('pinned', [
       expect.objectContaining({ appId: 'docs' }),
       expect.objectContaining({ appId: 'calculator' })
@@ -596,7 +561,10 @@ describe('LaunchpadPage', () => {
 
     await user.click(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge'))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('knowledge')])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
+      appFavorite('assistants'),
+      { ...appFavorite('knowledge'), fallbackLabel: 'Knowledge' }
+    ])
   })
 
   it('removes an existing sidebar app icon from the context menu', async () => {
@@ -610,19 +578,5 @@ describe('LaunchpadPage', () => {
     await user.click(screen.getByTestId('menu-launchpad.unpin-from-sidebar.knowledge'))
 
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants')])
-    expect(mocks.closeWorkspace).toHaveBeenCalledWith('app:knowledge')
-  })
-
-  it('does not close an open tab when a Sidebar favorite is removed in the combined layout', async () => {
-    const user = userEvent.setup()
-    mocks.navigationLayout = 'both'
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge')]
-
-    render(<LaunchpadPage />)
-
-    await user.click(screen.getByTestId('menu-launchpad.unpin-from-sidebar.knowledge'))
-
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants')])
-    expect(mocks.closeWorkspace).not.toHaveBeenCalled()
   })
 })

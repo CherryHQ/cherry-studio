@@ -9,12 +9,11 @@
  * - Scoped reorder (single + batch) via OrderEndpoints
  */
 
-import { application } from '@application'
 import { topicService } from '@data/services/TopicService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateTopicSchema,
-  DeleteTopicsQuerySchema,
+  DeleteTopicQuerySchema,
   DuplicateTopicSchema,
   LatestTopicQuerySchema,
   ListTopicsQuerySchema,
@@ -36,13 +35,6 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateTopicSchema.parse(body)
       return topicService.create(parsed)
-    },
-
-    DELETE: async ({ query }) => {
-      const parsed = DeleteTopicsQuerySchema.parse(query)
-      const result = topicService.deleteByIds(parsed.ids)
-      application.get('AiStreamManager').clearConversationTaskStatuses(result.deletedIds)
-      return result
     }
   },
 
@@ -70,11 +62,15 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
       return topicService.update(params.id, parsed)
     },
 
-    DELETE: async ({ params }) => {
-      topicService.delete(params.id)
-      application.get('AiStreamManager').clearConversationTaskStatuses([params.id])
+    DELETE: async ({ params, query }) => {
+      DeleteTopicQuerySchema.parse(query)
+      topicService.delete(params.id, { permanent: true })
       return undefined
     }
+  },
+
+  '/topics/:id/restore': {
+    POST: async ({ params }) => topicService.restore(params.id)
   },
 
   '/topics/:id/move': {
@@ -97,15 +93,6 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
       return topicService.duplicate(params.id, parsed)
     }
   },
-
-  '/assistants/:assistantId/topics': {
-    DELETE: async ({ params }) => {
-      const result = topicService.deleteByAssistantId(params.assistantId)
-      application.get('AiStreamManager').clearConversationTaskStatuses(result.deletedIds)
-      return result
-    }
-  },
-
   '/topics/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)

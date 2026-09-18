@@ -3,10 +3,12 @@ import type React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import MiniAppIcon from '../MiniAppIcon'
+import type * as MiniAppsLogoModule from '../miniAppsLogo'
 
 // Mirror production: only preset keys resolve to a CompoundIcon; everything else
 // (an uploaded logo's `file://` URL) returns undefined and renders as an image.
-vi.mock('@renderer/components/icons/miniAppsLogo', () => {
+vi.mock('@renderer/components/icons/miniAppsLogo', async (importOriginal) => {
+  const actual = await importOriginal<typeof MiniAppsLogoModule>()
   const CompoundLogo = ({
     'aria-label': ariaLabel,
     className,
@@ -33,13 +35,21 @@ vi.mock('@renderer/components/icons/miniAppsLogo', () => {
     getMiniAppsLogoRef: (logo: unknown) =>
       logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'ling' || logo === 'loading-logo'
         ? { kind: 'provider', key: logo, meta: { id: logo, colorPrimary: '#000000' } }
-        : undefined,
-    useMiniAppLogo: (logo: unknown) =>
-      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'ling' ? CompoundLogo : undefined
+        : actual.getMiniAppsLogoRef(logo as string | undefined),
+    useMiniAppLogo: (logo: unknown) => (logo !== 'loading-logo' ? CompoundLogo : undefined)
   }
 })
 
 describe('MiniAppIcon', () => {
+  it.each(['minimax', 'zeroone', 'mintop3', '3mintop', 'claude', 'ling'])(
+    'keeps the aliased %s artwork inside the sidebar glyph target',
+    (logo) => {
+      const { getByLabelText } = render(
+        <MiniAppIcon app={{ logo, name: 'Mini App' }} appearance="bare" size={18} artworkSize={14} />
+      )
+      expect(getByLabelText('Mini App')).toHaveStyle({ width: '14px', height: '14px' })
+    }
+  )
   const baseApp = {
     appId: 'test-app-1' as any,
     presetMiniAppId: 'test-preset',

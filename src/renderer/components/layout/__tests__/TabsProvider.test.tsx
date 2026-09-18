@@ -9,18 +9,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TAB_LIMITS } from '@renderer/services/TabLruManager'
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import {
+  createSidebarShortcutId,
+  type SidebarShortcutItem,
+  type SidebarShortcutTarget
+} from '@shared/data/preference/preferenceTypes'
 
 let currentLanguage = 'en'
 let navigationLayout: 'sidebar' | 'tabs' | 'both' = 'tabs'
 const sidebarMocks = vi.hoisted(() => ({
-  ensureFavoritesPinned: vi.fn(),
-  favorites: [
-    { type: 'app' as const, id: 'assistants' as const },
-    { type: 'app' as const, id: 'agents' as const },
-    { type: 'app' as const, id: 'files' as const }
-  ] as SidebarFavoriteItem[]
+  setPinned: vi.fn(),
+  shortcuts: [] as SidebarShortcutItem[]
 }))
+
+function appShortcut(resourceId: string): SidebarShortcutItem {
+  const target: SidebarShortcutTarget = {
+    kind: 'resource',
+    locator: { providerId: 'core.app', resourceId }
+  }
+  return { type: 'shortcut', id: createSidebarShortcutId(target), target }
+}
 
 const PINNED_FILES_TAB: Tab = {
   id: 'files',
@@ -107,10 +115,10 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: () => [navigationLayout, vi.fn()]
 }))
 
-vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
-  useSidebarFavorites: () => ({
-    favorites: sidebarMocks.favorites,
-    ensureFavoritesPinned: sidebarMocks.ensureFavoritesPinned
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({
+    shortcuts: sidebarMocks.shortcuts,
+    setPinned: sidebarMocks.setPinned
   })
 }))
 
@@ -484,17 +492,12 @@ beforeEach(() => {
   pinnedTabsValue = [PINNED_FILES_TAB]
   normalTabsValue = []
   activeTabIdValue = ''
-  sidebarMocks.favorites = [
-    { type: 'app', id: 'assistants' },
-    { type: 'app', id: 'agents' },
-    { type: 'app', id: 'files' }
-  ]
-  sidebarMocks.ensureFavoritesPinned.mockImplementation((items: readonly SidebarFavoriteItem[]) => {
-    for (const item of items) {
-      if (!sidebarMocks.favorites.some((favorite) => favorite.type === item.type && favorite.id === item.id)) {
-        sidebarMocks.favorites = [...sidebarMocks.favorites, item]
-      }
-    }
+  sidebarMocks.shortcuts = [appShortcut('assistants'), appShortcut('agents'), appShortcut('files')]
+  sidebarMocks.setPinned.mockImplementation((target: SidebarShortcutTarget, pinned: boolean) => {
+    const id = createSidebarShortcutId(target)
+    sidebarMocks.shortcuts = pinned
+      ? [...sidebarMocks.shortcuts.filter((shortcut) => shortcut.id !== id), { type: 'shortcut', id, target }]
+      : sidebarMocks.shortcuts.filter((shortcut) => shortcut.id !== id)
   })
   conversationTabActionRender.mockClear()
 })
@@ -680,7 +683,7 @@ describe('TabsProvider', () => {
     expect((screen.getByTestId('workspace-tabs').textContent ?? '').split(',')).toHaveLength(1)
   })
 
-  it('favorites a new Sidebar workspace with one preference write', async () => {
+  it('pins a new Sidebar workspace with one shortcut write', async () => {
     navigationLayout = 'sidebar'
     pinnedTabsValue = []
 
@@ -693,8 +696,11 @@ describe('TabsProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open notes' }))
 
     await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('app:notes:/app/notes'))
-    expect(sidebarMocks.ensureFavoritesPinned).toHaveBeenCalledTimes(1)
-    expect(sidebarMocks.ensureFavoritesPinned).toHaveBeenCalledWith([{ type: 'app', id: 'notes' }])
+    expect(sidebarMocks.setPinned).toHaveBeenCalledTimes(1)
+    expect(sidebarMocks.setPinned).toHaveBeenCalledWith(
+      { kind: 'resource', locator: { providerId: 'core.app', resourceId: 'notes' } },
+      true
+    )
   })
 
   it('uses one focused route and returns to its source workspace', async () => {
@@ -1002,7 +1008,7 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('focused:/settings/appearance')
   })
 
-  it('auto-favorites a non-favorite workspace when tabs collapse into Sidebar layout', async () => {
+  it('auto-pins a workspace shortcut when tabs collapse into Sidebar layout', async () => {
     navigationLayout = 'sidebar'
     pinnedTabsValue = []
     normalTabsValue = [
@@ -1016,7 +1022,12 @@ describe('TabsProvider', () => {
       </TabsProvider>
     )
 
-    await waitFor(() => expect(sidebarMocks.ensureFavoritesPinned).toHaveBeenCalledWith([{ type: 'app', id: 'notes' }]))
+    await waitFor(() =>
+      expect(sidebarMocks.setPinned).toHaveBeenCalledWith(
+        { kind: 'resource', locator: { providerId: 'core.app', resourceId: 'notes' } },
+        true
+      )
+    )
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('notes-id:app:notes:/app/notes')
   })
 

@@ -1,7 +1,13 @@
 import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
-import { isSidebarAppId, SIDEBAR_APPS, type SidebarAppId } from '@renderer/utils/sidebar'
+import {
+  createSidebarShortcutTarget,
+  isSidebarAppId,
+  SIDEBAR_APPS,
+  SIDEBAR_SHORTCUT_PROVIDER_IDS,
+  type SidebarAppId
+} from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import type { SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 
 export const LAUNCHPAD_WORKSPACE_KEY = 'launchpad'
 
@@ -44,18 +50,22 @@ export function isNavigationWorkspaceKey(value: string | undefined): value is Na
   return isSidebarAppId(value.slice('app:'.length))
 }
 
-export function getWorkspaceFavorite(workspaceKey: NavigationWorkspaceKey): SidebarFavoriteItem | undefined {
+export function getWorkspaceShortcutTarget(workspaceKey: NavigationWorkspaceKey): SidebarShortcutTarget | undefined {
   if (workspaceKey === LAUNCHPAD_WORKSPACE_KEY) return undefined
   if (workspaceKey.startsWith('mini-app:')) {
-    return { type: 'mini_app', id: workspaceKey.slice('mini-app:'.length) }
+    return createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, workspaceKey.slice('mini-app:'.length))
   }
 
-  return { type: 'app', id: workspaceKey.slice('app:'.length) as SidebarAppId }
+  return createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, workspaceKey.slice('app:'.length))
 }
 
-export function getWorkspaceKeyForFavorite(favorite: SidebarFavoriteItem): NavigationWorkspaceKey | undefined {
-  if (favorite.type === 'mini_app') return `mini-app:${favorite.id}`
-  return favorite.type === 'app' && isSidebarAppId(favorite.id) ? `app:${favorite.id}` : undefined
+export function getWorkspaceKeyForShortcut(target: SidebarShortcutTarget): NavigationWorkspaceKey | undefined {
+  if (target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP) {
+    return `mini-app:${target.locator.resourceId}`
+  }
+  return target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.APP && isSidebarAppId(target.locator.resourceId)
+    ? `app:${target.locator.resourceId}`
+    : undefined
 }
 
 export interface SidebarWorkspaceSession {

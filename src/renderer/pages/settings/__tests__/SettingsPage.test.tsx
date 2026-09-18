@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -64,6 +65,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'agent.settings.toolsMcp.mcp.tab': 'MCP',
+        'deviceConnections.title': '设备互联',
         'selection.name': '划词助手',
         'settings.appearance.title': '外观',
         'settings.channels.title': '频道',
@@ -92,6 +94,7 @@ vi.mock('react-i18next', () => ({
 
 describe('SettingsPage', () => {
   beforeEach(() => {
+    MockUsePreferenceUtils.resetMocks()
     isMacTransparentWindowMock.mockReturnValue(false)
     navigateMock.mockReset()
   })
@@ -132,7 +135,26 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-models' })
   })
 
-  it('keeps document processing and OCR together and places experimental settings in the system group', () => {
+  it('exposes device connections as its own settings destination without developer mode', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', false)
+    render(<SettingsPage />)
+
+    const deviceConnectionsItem = screen.getByRole('button', { name: '设备互联' })
+    fireEvent.click(deviceConnectionsItem)
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/device-connections' })
+  })
+
+  it('keeps the navigation layout laboratory destination', () => {
+    render(<SettingsPage />)
+
+    const labItem = screen.getByRole('button', { name: '实验室' })
+    fireEvent.click(labItem)
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/lab' })
+  })
+
+  it('keeps document processing and OCR together in tools and dependencies in the system group', () => {
     render(<SettingsPage />)
 
     expect(screen.getByText('工具')).toBeInTheDocument()
@@ -143,14 +165,10 @@ describe('SettingsPage', () => {
     expect(ocrItem.nextElementSibling).toHaveAttribute('data-testid', 'menu-divider')
 
     const dependenciesItem = screen.getByRole('button', { name: '环境依赖' })
-    const labItem = screen.getByRole('button', { name: '实验室' })
     expect(screen.queryByRole('button', { name: '系统' })).not.toBeInTheDocument()
     expect(screen.getByText('系统').nextElementSibling).toBe(dependenciesItem)
-    expect(dependenciesItem.nextElementSibling).toBe(labItem)
     fireEvent.click(dependenciesItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/dependencies' })
-    fireEvent.click(labItem)
-    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/lab' })
   })
 
   it('places Skills below MCP and prompt management directly below Skills', () => {
@@ -176,7 +194,7 @@ describe('SettingsPage', () => {
     expect(screen.getByText('效率')).toBeInTheDocument()
     expect(screen.queryByText('快捷入口')).not.toBeInTheDocument()
 
-    const efficiencyItems = ['频道', '定时任务', '快捷键', '快捷助手', '划词助手', '截图'].map((name) =>
+    const efficiencyItems = ['频道', '设备互联', '定时任务', '快捷键', '快捷助手', '划词助手', '截图'].map((name) =>
       screen.getByRole('button', { name })
     )
     const menuItems = screen.getAllByTestId('menu-item')

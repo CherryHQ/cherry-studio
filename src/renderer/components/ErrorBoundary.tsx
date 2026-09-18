@@ -50,7 +50,7 @@ const ErrorBoundaryCustomized = ({
   onError?: (error: Error, info: ErrorInfo) => void
 }) => {
   const handleError = (error: Error, info: ErrorInfo) => {
-    logger.error('Caught a render error', error)
+    logger.error('Caught a render error', error, { componentStack: info.componentStack, operation: 'react.render' })
     onError?.(error, info)
   }
   return (

@@ -75,9 +75,9 @@ export async function captureDshConnectionSnapshot(
 
   const modelId = requestedModelId ?? agent.model
   const parsed = parseUniqueModelId(modelId)
-  const [provider, model, skills, workspaceSkillPaths] = await Promise.all([
-    providerService.getByProviderId(parsed.providerId),
-    modelService.getByKey(parsed.providerId, parsed.modelId),
+  const provider = providerService.getByProviderId(parsed.providerId)
+  const model = modelService.getByKey(parsed.providerId, parsed.modelId)
+  const [skills, workspaceSkillPaths] = await Promise.all([
     skillService.list({ agentId: agent.id }),
     skillService.listLocalSkillPaths(session.workspace.path)
   ])
@@ -115,6 +115,7 @@ export async function captureDshConnectionSnapshot(
           mcpTools,
           linkedChannel,
           notificationContext,
+          browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           effectiveLanguage,
           gatewayCredentials

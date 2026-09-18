@@ -28,6 +28,8 @@ vi.mock('@data/services/JobService', () => ({
   jobService: { getRunStatesByScheduleIds: vi.fn(), list: vi.fn() }
 }))
 
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
@@ -103,6 +105,16 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
 
 describe('AgentTaskService (read side)', () => {
   beforeEach(() => {
+    MockMainDbServiceUtils.resetMocks()
+    MockMainDbServiceUtils.setDb({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            all: () => [{ id: AGENT_ID }, { id: 'other-agent' }, { id: 'other' }]
+          })
+        })
+      })
+    })
     notifyDataApiDataChangeMock.mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValue([])
@@ -133,6 +145,28 @@ describe('AgentTaskService (read side)', () => {
       { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] }
     ])
   })
+
+  it.each(['membership', 'projection'] as const)(
+    'publishes task and run-log effects in one %s notification',
+    (kind) => {
+      agentTaskService.notifyRunChange(TASK_ID, 'job-1', kind)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [TASK_ID] },
+        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
+        { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] },
+        {
+          endpoint: '/agents/:agentId/tasks/:taskId/logs',
+          kind,
+          routeParams: { taskId: TASK_ID },
+          entityIds: ['job-1']
+        }
+      ])
+    }
+  )
 
   describe('getTask', () => {
     it('returns a task by id without requiring the owning agent id', () => {

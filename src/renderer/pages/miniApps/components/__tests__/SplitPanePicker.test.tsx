@@ -51,8 +51,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     removeCustomMiniApp: vi.fn()
   })
 }))
-vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
-  useSidebarFavorites: () => ({ miniAppFavoriteIds: [], toggleMiniApp: vi.fn() })
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({ shortcuts: [], setPinned: vi.fn() })
 }))
 vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({ closeWorkspace: mocks.closeWorkspace, navigationLayout: 'tabs' })
