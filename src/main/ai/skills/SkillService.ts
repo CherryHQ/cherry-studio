@@ -1461,11 +1461,14 @@ export class SkillService {
 
   // A pre-suffix install stored a reserved device name bare (`CON`); a reinstall derives the
   // suffixed form, so resolve the stem row for a same-origin install instead of duplicating it.
+  // The stem must match exactly: a differently-cased same-URL row is a different skill, and
+  // stealing its folder would overwrite an unrelated sibling.
   private findReservedAlias(folderName: string, source: string, sourceUrl: string | null): InstalledSkill | null {
     const stem = reservedFolderNameStem(folderName)
     if (!stem) return null
     const candidate = this.findCatalogSkillCaseInsensitive(stem)
-    if (!candidate || candidate.source !== source || (candidate.sourceUrl ?? null) !== (sourceUrl ?? null)) {
+    if (!candidate || candidate.folderName !== stem) return null
+    if (candidate.source !== source || (candidate.sourceUrl ?? null) !== (sourceUrl ?? null)) {
       return null
     }
     return candidate
