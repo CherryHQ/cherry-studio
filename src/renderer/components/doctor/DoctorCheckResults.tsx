@@ -363,7 +363,7 @@ function CheckDescription({ result }: { readonly result?: DoctorCheckResult }) {
   if (result.status === 'error') {
     return <p className={className}>{t('settings.doctor.checks.error')}</p>
   }
-  if (result.status === 'skip') {
+  if (result.status === 'skip' && 'skippedBy' in result) {
     return (
       <p className={className}>
         {t('settings.doctor.checks.skipped', { check: t(doctorCheckTitleKey(result.skippedBy)) })}
