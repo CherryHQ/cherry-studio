@@ -296,6 +296,27 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
     expect(mocks.resolveApiGatewayRuntime).not.toHaveBeenCalled()
   })
 
+  it('substitutes a stand-in credential for a keyless local provider', async () => {
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+    const keylessProvider = {
+      ...nativeProvider,
+      id: 'omlx',
+      presetProviderId: 'omlx',
+      authOptional: true,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'http://127.0.0.1:8000'
+        }
+      }
+    } as unknown as Provider
+    const model = makeModel({ id: 'omlx::qwen3-coder', providerId: 'omlx', apiModelId: 'qwen3-coder' })
+
+    const injection = await resolveDshProviderInjectionFromSnapshot('session-1', keylessProvider, model)
+
+    expect(injection.apiKey).toBe('no-key-required')
+  })
+
   it('falls back to the gateway without consuming native key rotation', async () => {
     const injection = await resolveDshProviderInjectionFromSnapshot('session-1', vertexProvider, makeModel())
 

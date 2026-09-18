@@ -1,26 +1,15 @@
-import { defineProvider } from './types'
+import { openaiCompatible } from './types'
 
-export default defineProvider({
+export default openaiCompatible({
   id: 'omlx',
   name: 'oMLX',
-  availableInEditions: ['global', 'cn'],
+  baseUrl: 'http://localhost:8000',
+  anthropic: 'http://localhost:8000',
   authOptional: true,
-  defaultChatEndpoint: 'openai-chat-completions',
-  endpointConfigs: {
-    'anthropic-messages': {
-      adapterFamily: 'anthropic',
-      baseUrl: 'http://localhost:8000'
-    },
-    'openai-chat-completions': {
-      adapterFamily: 'openai-compatible',
-      baseUrl: 'http://localhost:8000',
-      reasoningFormat: { type: 'openai-chat' }
-    }
-  },
-  metadata: {
-    website: {
-      docs: 'https://github.com/jundot/omlx',
-      official: 'https://omlx.ai'
-    }
+  reasoningFormat: { type: 'openai-chat' },
+  availableInEditions: ['global', 'cn'],
+  website: {
+    docs: 'https://github.com/jundot/omlx',
+    official: 'https://omlx.ai'
   }
 })

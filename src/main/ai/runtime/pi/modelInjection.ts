@@ -309,7 +309,12 @@ export function resolvePiProviderInjectionFromSnapshot(
   }
 
   const resolvedApiKey = providerService.resolveApiKey(provider.id)
-  if (!resolvedApiKey.value.trim()) throw new PiMissingApiKeyError(provider.id)
+  if (!resolvedApiKey.value.trim()) {
+    // Keyless local servers (registry authOptional) need no credential; the
+    // placeholder keeps the pi-side auth storage non-empty.
+    if (provider.authOptional !== true) throw new PiMissingApiKeyError(provider.id)
+    return buildPiProviderInjection(provider, model, PI_PLACEHOLDER_API_KEY)
+  }
   if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
     throw new Error(`Pi provider credentials changed during materialization: ${provider.id}`)
   }

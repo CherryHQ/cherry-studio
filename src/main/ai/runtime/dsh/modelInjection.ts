@@ -318,7 +318,12 @@ export async function resolveDshProviderInjectionFromSnapshot(
     return buildDshGatewayInjection(provider, model, gateway, reasoningEffort)
   }
   const resolvedApiKey = providerService.resolveApiKey(provider.id)
-  if (!resolvedApiKey.value.trim()) throw new DshMissingApiKeyError(provider.id)
+  if (!resolvedApiKey.value.trim()) {
+    // Keyless local servers (registry authOptional) need no credential; dsh
+    // still wants a non-empty credential value.
+    if (provider.authOptional !== true) throw new DshMissingApiKeyError(provider.id)
+    return buildDshProviderInjection(provider, model, 'no-key-required', undefined, reasoningEffort)
+  }
   if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
     throw new Error(`dsh provider credentials changed during materialization: ${provider.id}`)
   }
