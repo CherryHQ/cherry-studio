@@ -1,4 +1,4 @@
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { ImageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 
 import { createImageGenerationModel } from '../imageGenerationModel'
@@ -27,7 +27,7 @@ export interface ComfyuiProvider extends ProviderV3 {
  * would answer them with an HTML page.
  */
 export function createComfyuiProvider(settings: ComfyuiProviderSettings = {}): ComfyuiProvider {
-  const unsupported = (surface: string) => () => {
+  const unsupported = (surface: string): never => {
     throw new Error(`ComfyUI does not serve ${surface}. Use a workflow from the paintings page instead.`)
   }
 
@@ -37,10 +37,13 @@ export function createComfyuiProvider(settings: ComfyuiProviderSettings = {}): C
     fetch: settings.fetch
   })
 
-  const provider = {
-    specificationVersion: 'v3' as const,
-    languageModel: unsupported('chat completions') as unknown as (modelId: string) => LanguageModelV3,
-    embeddingModel: unsupported('embeddings') as unknown as (modelId: string) => EmbeddingModelV3,
+  // The factories are typed by the interface rather than cast into it: a
+  // `never`-returning body satisfies both model types, so the contract stays
+  // checked instead of erased by an `unknown` hop.
+  const provider: ComfyuiProvider = {
+    specificationVersion: 'v3',
+    languageModel: () => unsupported('chat completions'),
+    embeddingModel: () => unsupported('embeddings'),
     imageModel: (modelId: string) => createImageGenerationModel(modelId, { provider: COMFYUI_PROVIDER_NAME, transport })
   }
 

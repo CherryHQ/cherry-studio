@@ -65,14 +65,12 @@ export async function listWorkflows(
   signal?: AbortSignal,
   options: ComfyuiRequestOptions = {}
 ): Promise<string[]> {
-  const doFetch = options.fetch ?? fetch
-  const response = await doFetch(`${baseURL}/v2/userdata?path=${WORKFLOW_DIR}`, { signal, headers: options.headers })
-  if (!response.ok) {
-    throw createPaintingGenerateError('REMOTE_ERROR', {
-      message: await readErrorMessage(response, t('paintings.comfyui.list_failed'))
-    })
-  }
-  const entries = (await response.json()) as UserDataEntry[]
+  const entries = await requestJson<UserDataEntry[]>(
+    `${baseURL}/v2/userdata?path=${WORKFLOW_DIR}`,
+    'paintings.comfyui.list_failed',
+    signal,
+    options
+  )
   const prefix = `${WORKFLOW_DIR}/`
   return entries
     .filter((entry) => entry.type === 'file' && entry.name.endsWith(WORKFLOW_FILE_EXTENSION))
@@ -87,16 +85,29 @@ export async function listWorkflows(
     })
 }
 
-async function fetchJson<T>(url: string, signal?: AbortSignal, options: ComfyuiRequestOptions = {}): Promise<T> {
+/**
+ * The one place a GET is issued: the listing and every read the transport makes
+ * go through it, so the headers, the fetch override and the structured failure
+ * have a single owner.
+ */
+async function requestJson<T>(
+  url: string,
+  fallbackKey: string,
+  signal?: AbortSignal,
+  options: ComfyuiRequestOptions = {}
+): Promise<T> {
   const doFetch = options.fetch ?? fetch
   const response = await doFetch(url, { signal, headers: options.headers })
   if (!response.ok) {
     throw createPaintingGenerateError('REMOTE_ERROR', {
-      message: await readErrorMessage(response, t('paintings.comfyui.request_failed'))
+      message: await readErrorMessage(response, t(fallbackKey))
     })
   }
   return (await response.json()) as T
 }
+
+const fetchJson = <T,>(url: string, signal?: AbortSignal, options: ComfyuiRequestOptions = {}): Promise<T> =>
+  requestJson<T>(url, 'paintings.comfyui.request_failed', signal, options)
 
 /**
  * Turn ComfyUI's validation payload into something a user can act on. The

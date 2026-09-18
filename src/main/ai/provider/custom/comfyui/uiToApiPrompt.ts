@@ -94,6 +94,9 @@ const NON_SCALAR_WIDGET_TYPES = new Set(['COLOR', 'COLORS', 'RANGE'])
  * their outputs pass through to their input like the frontend's graphToPrompt. */
 const FRONTEND_ONLY_CLASSES = new Set(['Reroute', 'Note', 'MarkdownNote'])
 
+/** The editor's value source: it carries a value, never a graph edge. */
+const PRIMITIVE_NODE = 'PrimitiveNode'
+
 export type Reference = [string, number]
 
 /** One hop of an alias resolution: the producer to keep following, or a final value. */
@@ -387,6 +390,20 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     aliases[String(id)] = alias
   }
 
+  /**
+   * The frontend applies a PrimitiveNode's value to the widget it feeds and
+   * drops the node; the prompt has to read the same way. Consumers get the
+   * value itself, so `Value: 3` feeding `steps` becomes `steps: 3`.
+   */
+  function emitPrimitive(node: UiNode, remap: Map<number, number>) {
+    const value = Array.isArray(node.widgets_values) ? node.widgets_values[0] : undefined
+    const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
+    ;(node.outputs ?? []).forEach((_, slot) => {
+      alias[slot] = () => ({ value: wrapWidgetValue(value) })
+    })
+    aliases[String(remap.get(node.id)!)] = alias
+  }
+
   function emit(
     node: UiNode,
     links: Map<number, UiLink>,
@@ -394,6 +411,10 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     bindings: Map<number, Map<number, unknown>>
   ) {
     const id = remap.get(node.id)!
+    if (node.type === PRIMITIVE_NODE) {
+      emitPrimitive(node, remap)
+      return
+    }
     // Frontend-only classes (MarkdownNote, Note, Reroute, ...) have no backend
     // node and make the whole prompt fail validation. A consumer of one still
     // has to resolve, so pass its outputs through like the frontend does for

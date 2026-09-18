@@ -670,6 +670,50 @@ describe('convertUiWorkflowToPrompt', () => {
     expect(prompt['1'].inputs).not.toHaveProperty('format.crf')
   })
 
+  it('applies a PrimitiveNode’s value to the widget it feeds and drops the node', () => {
+    const { prompt, warnings } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          { id: 1, type: 'EmptyLatentImage', widgets_values: [512, 512, 1] },
+          {
+            id: 2,
+            type: 'PrimitiveNode',
+            outputs: [{ name: 'INT', links: [6] }],
+            widgets_values: [30]
+          },
+          {
+            id: 3,
+            type: 'KSampler',
+            inputs: [
+              { name: 'model', link: 3 },
+              { name: 'seed', link: 4 },
+              { name: 'steps', link: 6 },
+              { name: 'positive', link: 7 },
+              { name: 'negative', link: 8 },
+              { name: 'latent_image', link: 5 }
+            ],
+            widgets_values: [0, 'fixed', 20, 8, 'res_multistep', 'simple', 1]
+          },
+          { id: 4, type: 'CheckpointLoaderSimple', widgets_values: ['model.safetensors'] }
+        ],
+        links: [
+          link(3, 4, 0, 3, 0),
+          link(4, 4, 0, 3, 1),
+          link(5, 1, 0, 3, 5),
+          link(6, 2, 0, 3, 2),
+          link(7, 4, 0, 3, 3),
+          link(8, 4, 0, 3, 4)
+        ]
+      },
+      objectInfo
+    )
+
+    // The value lands on the widget, and the editor-only node never reaches the prompt.
+    expect(prompt['3'].inputs.steps).toBe(30)
+    expect(prompt['2']).toBeUndefined()
+    expect(warnings).toEqual([])
+  })
+
   it('reads positional values in the server’s declared input order', () => {
     const { prompt, warnings } = convertUiWorkflowToPrompt(
       { nodes: [{ id: 1, type: 'OrderedSampler', widgets_values: ['first', 2] }], links: [] },
