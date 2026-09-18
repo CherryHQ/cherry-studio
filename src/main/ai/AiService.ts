@@ -54,7 +54,7 @@ import {
   isNonChatModel,
   isRerankModel
 } from '@shared/utils/model'
-import { isOllamaProvider } from '@shared/utils/provider'
+import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -1284,6 +1284,7 @@ export class AiService extends BaseService {
       modelId: resolveWireModelId(model, endpoint.endpointType),
       baseUrl: routeToEndpoint(endpoint.baseUrl).baseURL,
       supportsModelListing: provider.modelListSource !== 'registry',
+      isExternalCli: isExternalCliProvider(provider),
       supportsChat: chatPrimary || !isNonChatModel(model),
       listModels: async (signal: AbortSignal) => {
         const models = await listModelsFromProvider(

@@ -4237,6 +4237,7 @@
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "Cherry アカウントにサインインしていません。",
   "settings.doctor.checks.provider-cherry-account.title": "Cherry アカウント",
   "settings.doctor.checks.provider-model-conversation.confirmation": "{{endpoint}} の {{model}}（{{modelId}}）に短いテストメッセージを1件送信しますか？プロバイダーの利用料金が発生する場合があります。",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "このプロバイダーは外部 CLI を使用するため、API による会話チェックには対応していません。",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "このモデルは会話に対応していないため、スキップしました。",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "{{category}}。会話テストを完了できませんでした。",
   "settings.doctor.checks.provider-model-conversation.title": "モデルの会話テスト",

@@ -273,7 +273,7 @@ export const DOCTOR_CHECK_CATALOG = {
     execution: 'confirmation',
     includeByDefault: false,
     fixes: [],
-    details: ['not_chat_model', 'request_failed'],
+    details: ['external_cli', 'not_chat_model', 'request_failed'],
     requires: []
   },
   'network-dns-resolution': {

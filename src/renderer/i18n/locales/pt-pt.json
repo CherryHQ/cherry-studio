@@ -4237,6 +4237,7 @@
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "Não há nenhuma conta Cherry com sessão iniciada.",
   "settings.doctor.checks.provider-cherry-account.title": "Conta Cherry",
   "settings.doctor.checks.provider-model-conversation.confirmation": "Enviar uma mensagem de teste curta para {{model}} ({{modelId}}) em {{endpoint}}? Isto poderá gerar custos de utilização do fornecedor.",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "Este fornecedor utiliza uma CLI externa; as verificações de conversação através da API não são suportadas.",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "Este modelo não suporta conversações; esta verificação foi ignorada.",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "{{category}}. The conversation test could not be completed.",
   "settings.doctor.checks.provider-model-conversation.title": "Teste de conversação do modelo",

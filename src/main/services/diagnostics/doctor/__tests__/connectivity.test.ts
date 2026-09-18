@@ -287,6 +287,17 @@ describe('model connectivity against an HTTP provider', () => {
     expect(requests).toEqual([])
   })
 
+  it('skips API conversation checks for providers using external CLI authentication', async () => {
+    dbh.db.update(userProviderTable).set({ presetProviderId: 'claude-code' }).run()
+    const started = await start()
+    expect(started.report.pendingChecks).toEqual([])
+    expect(result(started.report, 'provider-model-conversation')).toMatchObject({
+      status: 'skip',
+      detail: { variant: 'external_cli' }
+    })
+    expect(requests).toEqual([])
+  })
+
   it('does not ask for confirmation or generate for an image-only model', async () => {
     dbh.db
       .update(userModelTable)
