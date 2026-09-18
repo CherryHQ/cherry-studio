@@ -130,7 +130,9 @@ export function useModelSelectorData({
   }, [apiKeyLimits])
 
   const quotaStatsParams = useMemo(() => {
-    if (quotaPeriods.length === 0) return undefined
+    // `useQuery` treats absent options as enabled, so skipping has to be said explicitly — passing
+    // `undefined` sent a query-less request that the endpoint rejects, once per picker render.
+    if (quotaPeriods.length === 0) return { enabled: false }
     const minFrom = Math.min(...quotaPeriods.map((p) => periodStartOf(p)))
     return {
       query: {

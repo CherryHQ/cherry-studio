@@ -50,6 +50,8 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
   const now = Date.now()
   const statsParams = useMemo(
     () =>
+      // A key with no declared ceiling has nothing to count, and `useQuery` fetches unless told
+      // otherwise — so the no-entry branch must disable rather than pass `undefined`.
       entry
         ? {
             query: {
@@ -60,14 +62,14 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
               limit: 50
             }
           }
-        : undefined,
+        : { enabled: false },
     // Recompute only when the limit entry changes, not on every render tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [entry?.period, entry?.limit, anchor, timezone]
   )
 
   const { data: usageData } = useQuery('/ai-usage-records/stats', statsParams)
-  const usedCount = usageData?.buckets.find((b) => b.groupBy === 'apiKey' && b.apiKeyId === keyId)?.requestCount ?? 0
+  const usedCount = usageData?.buckets?.find((b) => b.groupBy === 'apiKey' && b.apiKeyId === keyId)?.requestCount ?? 0
 
   const renewsAt = useMemo(() => {
     if (!entry) return null

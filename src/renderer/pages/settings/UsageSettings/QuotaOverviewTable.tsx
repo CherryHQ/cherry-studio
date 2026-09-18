@@ -117,7 +117,9 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
   const periods = useMemo(() => [...new Set(allKeyEntries.map((e) => e.period))], [allKeyEntries])
 
   const statsParams = useMemo(() => {
-    if (periods.length === 0) return undefined
+    // Absent options mean "enabled" to `useQuery`, so an empty table must opt out explicitly
+    // instead of firing a query-less request the endpoint rejects.
+    if (periods.length === 0) return { enabled: false }
     const minFrom = Math.min(...periods.map((p) => periodStarts.get(p) ?? 0))
     return {
       query: {
