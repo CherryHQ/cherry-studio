@@ -4523,6 +4523,8 @@
   "settings.provider.api_host_preview": "ĞŸÑ€ĞµĞ´Ğ¿Ñ€Ğ¾ÑĞ¼Ğ¾Ñ‚Ñ€: {{url}}",
   "settings.provider.api_host_tooltip": "ĞŸĞµÑ€ĞµĞ¾Ğ¿Ñ€ĞµĞ´ĞµĞ»ÑĞ¹Ñ‚Ğµ Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ ĞºĞ¾Ğ³Ğ´Ğ° Ğ¿Ñ€Ğ¾Ğ²Ğ°Ğ¹Ğ´ĞµÑ€ Ñ‚Ñ€ĞµĞ±ÑƒĞµÑ‚ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒÑĞºĞ¸Ğ¹ Ğ°Ğ´Ñ€ĞµÑ, ÑĞ¾Ğ²Ğ¼ĞµÑÑ‚Ğ¸Ğ¼Ñ‹Ğ¹ Ñ OpenAI.",
   "settings.provider.api_key.copy": "ĞšĞ¾Ğ¿Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ",
+  "settings.provider.api_key.count_one": "{{count}} ключ",
+  "settings.provider.api_key.count_other": "{{count}} ключей",
   "settings.provider.api_key.enabled_suffix": "Ğ²ĞºĞ»ÑÑ‡ĞµĞ½Ğ¾",
   "settings.provider.api_key.hide_key": "Ğ¡ĞºÑ€Ñ‹Ñ‚ÑŒ ĞºĞ»ÑÑ‡",
   "settings.provider.api_key.label": "ĞšĞ»ÑÑ‡ API",

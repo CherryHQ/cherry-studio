@@ -4523,6 +4523,8 @@
   "settings.provider.api_host_preview": "Vorschau: {{url}}",
   "settings.provider.api_host_tooltip": "Nur überschreiben, wenn Ihr Anbieter einen benutzerdefinierten OpenAI-kompatiblen Endpunkt erfordert.",
   "settings.provider.api_key.copy": "Kopieren",
+  "settings.provider.api_key.count_one": "{{count}} Schlüssel",
+  "settings.provider.api_key.count_other": "{{count}} Schlüssel",
   "settings.provider.api_key.enabled_suffix": "aktiviert",
   "settings.provider.api_key.hide_key": "Schlüssel ausblenden",
   "settings.provider.api_key.label": "API-Schlüssel",

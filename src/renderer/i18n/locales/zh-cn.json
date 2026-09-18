@@ -4523,6 +4523,8 @@
   "settings.provider.api_host_preview": "é¢„è§ˆï¼š{{url}}",
   "settings.provider.api_host_tooltip": "ä»…åœ¨æœåŠ¡å•†éœ€è¦è‡ªå®šä¹‰çš„ OpenAI å…¼å®¹åœ°å€æ—¶è¦†ç›–ã€‚",
   "settings.provider.api_key.copy": "å¤åˆ¶",
+  "settings.provider.api_key.count_one": "{{count}} 密钥",
+  "settings.provider.api_key.count_other": "{{count}} 密钥",
   "settings.provider.api_key.enabled_suffix": "å·²å¯ç”¨",
   "settings.provider.api_key.hide_key": "éšè—å¯†é’¥",
   "settings.provider.api_key.label": "API å¯†é’¥",

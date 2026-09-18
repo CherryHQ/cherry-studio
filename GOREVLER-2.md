@@ -132,6 +132,28 @@ Bir özellik eksik görünüyorsa önce "kapalı mı?" diye bak; çoğu kez yaz�
 | **R1 (yarısı)** | 🟡 kısmi | **Sinyal bitti:** kesilme artık algılanıyor, normalize ediliyor ve `MessageStats.finishReason` olarak saklanıyor (`stats` JSON sütunu, **migrasyon gerekmedi**). Tek nokta: `observers/usage.ts` `onStepFinish`. 8 test. **Ekran YOK:** kullanıcı henüz kesilmeyi göremiyor ve sürdüremiyor — aşağıya bak |
 | **J3** | ⛔ gereksiz | `ProviderService.resolveApiKey` **zaten senkron round-robin** yapıyor, JS tek iş parçacıklı olduğu için anahtar seçiminde yarış durumu yok. Geriye kalan gerçek ihtiyaç — aynı anahtara paralel istekleri oran sınırına göre sıraya almak — **H1**'in işi, ayrı bir madde değil |
 
+### ✅ Ekranda doğrulandı (derlenmiş sürüm, 2026-09-19)
+
+Uygulama açıldı, `Bootstrap complete (767 ms)`, tek hata `TrayService` (önceden var olan).
+Ekran görüntüleriyle teyit edilenler:
+
+- **Kota bölümü** (Ayarlar → Kullanım Analizi) — boş durumu dahil, Türkçe
+- **Model seçicide pasif rozetleri** — ⚠ "API anahtarı yok" DeepSeek modellerinde
+- **Oto geçiş düğmesi** — composer'da, ipucu metniyle
+- **"6 başarısız olanları devre dışı bırak"** — silme yerine devre dışı bırakma değişikliği
+
+**Uygulamayı çalıştırmanın yakaladığı, testlerin yakalamadığı iki hata:**
+
+1. `GET /ai-usage-records/stats` kota limiti tanımlı değilken **sorgusuz** gönderiliyordu ve her
+   model seçici açılışında doğrulama hatası logluyordu. `useQuery` seçenek verilmezse isteği
+   **atar** — `undefined` geçmek "atma" demek değil, `{ enabled: false }` gerekiyor. Üç çağrı
+   yerinde aynı hata vardı. Tip kontrolü, testler ve derleme hepsi yeşildi. (`79ef264`)
+2. **Sağlayıcı sınırsız anahtar kabul ediyor ama giriş görünmüyordu.** Maskelenmiş anahtar
+   yazısının kendisi düğmeydi, hiçbir işaret yoktu; sayı rozeti de yalnızca 1'den fazla anahtar
+   varken çıkıyordu — yani ipucuna en çok ihtiyaç duyulan tek-anahtar durumunda hiç. Artık her
+   sağlayıcıda her zaman "N anahtar ›" görünüyor. `ApiKey.tsx` tek ve ortak bileşen, yani
+   değişiklik bütün sağlayıcılarda geçerli.
+
 ### ⚠️ Depoda önceden var olan, bize ait OLMAYAN hatalar
 
 Bunları kendi değişikliğinin sonucu sanma. İkisi de bu oturum başlamadan önceki commit

@@ -4523,6 +4523,8 @@
   "settings.provider.api_host_preview": "AperÃ§u : {{url}}",
   "settings.provider.api_host_tooltip": "Remplacer seulement lorsque le fournisseur nÃ©cessite une adresse compatible OpenAI personnalisÃ©e.",
   "settings.provider.api_key.copy": "Copier",
+  "settings.provider.api_key.count_one": "{{count}} clé",
+  "settings.provider.api_key.count_other": "{{count}} clés",
   "settings.provider.api_key.enabled_suffix": "activÃ©",
   "settings.provider.api_key.hide_key": "Masquer la clÃ©",
   "settings.provider.api_key.label": "ClÃ© API",

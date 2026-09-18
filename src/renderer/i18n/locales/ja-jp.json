@@ -4523,6 +4523,8 @@
   "settings.provider.api_host_preview": "ãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ï¼š{{url}}",
   "settings.provider.api_host_tooltip": "ã‚µãƒ¼ãƒ“ã‚¹ãƒ—ãƒ­ãƒã‚¤ãƒ€ãƒ¼ãŒã‚«ã‚¹ã‚¿ãƒ OpenAIäº’æ›ã‚¢ãƒ‰ãƒ¬ã‚¹ã‚’å¿…è¦ã¨ã™ã‚‹å ´åˆã®ã¿ä¸Šæ›¸ãã—ã¦ãã ã•ã„ã€‚",
   "settings.provider.api_key.copy": "ã‚³ãƒ”ãƒ¼",
+  "settings.provider.api_key.count_one": "{{count}} キー",
+  "settings.provider.api_key.count_other": "{{count}} キー",
   "settings.provider.api_key.enabled_suffix": "æœ‰åŠ¹",
   "settings.provider.api_key.hide_key": "ã‚­ãƒ¼ã‚’éš ã™",
   "settings.provider.api_key.label": "APIã‚­ãƒ¼",

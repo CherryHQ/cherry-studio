@@ -4523,6 +4523,8 @@
   "settings.provider.api_host_preview": "Preview: {{url}}",
   "settings.provider.api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
   "settings.provider.api_key.copy": "Copy",
+  "settings.provider.api_key.count_one": "{{count}} key",
+  "settings.provider.api_key.count_other": "{{count}} keys",
   "settings.provider.api_key.enabled_suffix": "enabled",
   "settings.provider.api_key.hide_key": "Hide key",
   "settings.provider.api_key.label": "API Key",

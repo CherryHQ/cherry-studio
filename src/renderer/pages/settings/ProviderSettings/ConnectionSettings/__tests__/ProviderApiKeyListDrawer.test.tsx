@@ -37,7 +37,9 @@ vi.mock('@renderer/hooks/useProvider', () => ({
     addApiKey: addApiKeyMock,
     updateApiKey: updateApiKeyMock,
     deleteApiKey: deleteApiKeyMock
-  })
+  }),
+  // The quota row inside each key reads the provider for its tier and renewal anchor.
+  useProvider: () => ({ provider: { id: 'openai', apiKeys: mockKeys }, updateApiKey: updateApiKeyMock })
 }))
 
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({

@@ -4523,6 +4523,8 @@
   "settings.provider.api_host_preview": "Xem trÆ°á»›c: {{url}}",
   "settings.provider.api_host_tooltip": "Chá»‰ ghi Ä‘Ã¨ khi nhÃ  cung cáº¥p cá»§a báº¡n yÃªu cáº§u má»™t Ä‘iá»ƒm cuá»‘i tÆ°Æ¡ng thÃ­ch OpenAI tÃ¹y chá»‰nh.",
   "settings.provider.api_key.copy": "Sao chÃ©p",
+  "settings.provider.api_key.count_one": "{{count}} khóa",
+  "settings.provider.api_key.count_other": "{{count}} khóa",
   "settings.provider.api_key.enabled_suffix": "Ä‘Ã£ báº­t",
   "settings.provider.api_key.hide_key": "áº¨n khÃ³a",
   "settings.provider.api_key.label": "KhÃ³a API",
