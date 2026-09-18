@@ -523,6 +523,41 @@ describe('convertUiWorkflowToPrompt', () => {
     expect(prompt['1'].inputs).not.toHaveProperty('stale positional')
   })
 
+  it('wraps a curve widget value in the frontend envelope', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          {
+            id: 1,
+            type: 'CurveNode',
+            widgets_values: [
+              {
+                points: [
+                  [0, 0],
+                  [1, 1]
+                ],
+                interpolation: 'monotone_cubic'
+              }
+            ]
+          }
+        ],
+        links: []
+      },
+      { CurveNode: { input: { required: { curve: ['CURVE', {}] } } } }
+    )
+
+    expect(prompt['1'].inputs.curve).toEqual({
+      __type__: 'CURVE',
+      __value__: {
+        points: [
+          [0, 0],
+          [1, 1]
+        ],
+        interpolation: 'monotone_cubic'
+      }
+    })
+  })
+
   it('expands a DynamicCombo value with its selected option children', () => {
     const { prompt } = convertUiWorkflowToPrompt(
       {

@@ -89,6 +89,12 @@ interface AliasStep {
   type?: string
 }
 
+interface WidgetNames {
+  names: string[]
+  /** Widgets whose API value must carry the frontend's CURVE envelope. */
+  curves: Set<string>
+}
+
 /** Backend widget inputs for a node class, in declaration order. DynamicCombo
  * (v3) inputs expand into the combo value plus the selected option's child
  * inputs, dot-prefixed the way the frontend names them (`format.bit_depth`). */
@@ -98,8 +104,8 @@ function widgetInputNames(
   spec: JsonObject = info.input ?? {},
   prefix?: string,
   values?: unknown[],
-  names: string[] = []
-): string[] {
+  acc: WidgetNames = { names: [], curves: new Set() }
+): WidgetNames {
   for (const section of ['required', 'optional'] as const) {
     const sectionSpec = spec[section] as JsonObject | undefined
     if (!sectionSpec) continue
@@ -111,20 +117,25 @@ function widgetInputNames(
       const config = (entry.length > 1 && typeof entry[1] === 'object' ? entry[1] : {}) as JsonObject
       if (config.advanced && !includeAdvanced) continue
       if (Array.isArray(type) || WIDGET_TYPES.has(type as string)) {
-        names.push(fullName)
-        if (config[CONTROL_AFTER_GENERATE]) names.push(CONTROL_AFTER_GENERATE)
+        acc.names.push(fullName)
+        if (config[CONTROL_AFTER_GENERATE]) acc.names.push(CONTROL_AFTER_GENERATE)
+        continue
+      }
+      if (type === 'CURVE') {
+        acc.names.push(fullName)
+        acc.curves.add(fullName)
         continue
       }
       if (type === 'COMFY_DYNAMICCOMBO_V3' && values) {
-        names.push(fullName)
-        if (config[CONTROL_AFTER_GENERATE]) names.push(CONTROL_AFTER_GENERATE)
-        const selected = values[names.length - 1]
+        acc.names.push(fullName)
+        if (config[CONTROL_AFTER_GENERATE]) acc.names.push(CONTROL_AFTER_GENERATE)
+        const selected = values[acc.names.length - 1]
         const option = (config.options as JsonObject[] | undefined)?.find((candidate) => candidate.key === selected)
-        widgetInputNames(info, includeAdvanced, (option?.inputs ?? {}) as JsonObject, fullName, values, names)
+        widgetInputNames(info, includeAdvanced, (option?.inputs ?? {}) as JsonObject, fullName, values, acc)
       }
     }
   }
-  return names
+  return acc
 }
 
 export const isReference = (value: unknown): value is Reference =>
@@ -256,16 +267,24 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
       return namedValues(raw, linked)
     }
     if (!Array.isArray(raw)) return {}
-    let names = widgetInputNames(info, false, undefined, undefined, raw)
+    const baseNames = widgetInputNames(info, false, undefined, undefined, raw)
+    let names = baseNames.names
+    const curves = baseNames.curves
     const values = raw
     if (values.length !== names.length) {
       const widerNames = widgetInputNames(info, true, undefined, undefined, values)
-      if (values.length === widerNames.length) names = widerNames
+      if (values.length === widerNames.names.length) {
+        names = widerNames.names
+        curves.clear()
+        for (const curveName of widerNames.curves) curves.add(curveName)
+      }
     }
     const out: Record<string, unknown> = {}
     names.forEach((name, index) => {
       if (name === CONTROL_AFTER_GENERATE || index >= values.length || linked.has(name)) return
-      out[name] = wrapWidgetValue(values[index])
+      // A curve widget value rides the frontend's envelope; the backend
+      // unwraps it during execution.
+      out[name] = curves.has(name) ? { __type__: 'CURVE', __value__: values[index] } : wrapWidgetValue(values[index])
     })
     if (values.length !== names.length) {
       warnings.push(`${node.type}: ${values.length} widget values for ${names.length} widgets`)
