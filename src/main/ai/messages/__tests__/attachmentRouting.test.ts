@@ -398,6 +398,31 @@ describe('prepareChatMessages — routing', () => {
     expect(getByIdMock).not.toHaveBeenCalled()
     expect(out.parts).toEqual([materialized])
   })
+
+  it('notes a legacy local binary without fileEntryId instead of emitting a native file part', async () => {
+    resolveMock.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:application/zip;base64,UEsD',
+      mediaType: 'application/zip',
+      filename: 'archive.zip'
+    })
+    const legacy = {
+      type: 'file',
+      url: 'file:///x/archive.zip',
+      mediaType: 'application/octet-stream',
+      filename: 'archive.zip'
+    } as CherryMessagePart
+
+    const [out] = await prepareChatMessages([userMessage([legacy])] as UIMessage[], {
+      attachments: [],
+      nativeSupport: ALL,
+      isToolCapable: true
+    })
+
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
+    expect(textOf(out.parts)).toEqual(['Cannot read the attached file "archive.zip" as text (unsupported file type).'])
+  })
 })
 
 describe('collectFileAttachments', () => {

@@ -253,7 +253,10 @@ async function prepareChatMessage<T extends UIMessage>(
             type: 'text',
             text: `[${rejectedKind} attachment omitted: this model does not accept ${rejectedKind} input]`
           })
-        } else if (prepared.kind === 'unrecognized') {
+        } else if (
+          prepared.kind === 'unrecognized' ||
+          (prepared.kind === 'recognized' && contentFileType(prepared, '') === FILE_TYPE.OTHER)
+        ) {
           kept.push({ type: 'text', text: `Cannot read the attached file "${name}" as text (unsupported file type).` })
         } else {
           kept.push(prepared.part)

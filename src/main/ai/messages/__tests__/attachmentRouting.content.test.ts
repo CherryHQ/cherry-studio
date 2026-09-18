@@ -277,6 +277,18 @@ describe('chat attachment content admission into AI SDK', () => {
     expect(readMock).toHaveBeenCalledTimes(1)
   })
 
+  it('does not send a legacy local ZIP without fileEntryId as a native file part', async () => {
+    const zip = Buffer.from('504b03041400000000000000000000000000000000000000000000', 'hex')
+    const target = path.join(tmpDir, 'legacy-archive.zip')
+    await fs.writeFile(target, zip)
+
+    const content = await sdkContent(part('legacy-archive.zip', pathToFileURL(target).href))
+
+    expect(content).toEqual([
+      expect.objectContaining({ type: 'text', text: expect.stringContaining('unsupported file type') })
+    ])
+  })
+
   it('does not admit ZIP bytes as native PDF based only on a .pdf extension', async () => {
     readMock.mockResolvedValueOnce({
       content: Buffer.from('504b03041400000000000000000000000000000000000000000000', 'hex').toString('base64'),
