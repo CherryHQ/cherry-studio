@@ -1381,5 +1381,6 @@ describe('listModels — oMLX', () => {
     const models = await listModels(provider, undefined, { throwOnError: true })
 
     expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-coder', 'vlm-vision'])
+    expect(models[1].capabilities).toEqual([MODEL_CAPABILITY.IMAGE_RECOGNITION])
   })
 })

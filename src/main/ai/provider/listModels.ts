@@ -832,7 +832,7 @@ const omlxFetcher: ModelFetcher = {
     // drop the diffusion families.
     const response = await getFromApi({
       url: `${withoutTrailingSlash(getBaseUrl(provider))}/v1/models/status`,
-      headers: { ...getProviderAppHeaders(provider), ...getExtraHeaders(provider) },
+      headers: defaultHeaders(provider),
       responseSchema: z.object({ models: z.array(OmlxModelStatusSchema) }),
       abortSignal: signal
     })
@@ -841,7 +841,12 @@ const omlxFetcher: ModelFetcher = {
       (m) => m.id
     )
       .filter((m) => !(m.config_model_type ?? '').startsWith('diffusion'))
-      .map((m) => toModel(m.id, provider, { ownedBy: 'omlx' }))
+      .map((m) =>
+        toModel(m.id, provider, {
+          ownedBy: 'omlx',
+          ...(m.model_type === 'vlm' ? { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] } : {})
+        })
+      )
   }
 }
 
