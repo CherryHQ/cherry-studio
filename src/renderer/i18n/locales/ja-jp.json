@@ -1828,6 +1828,8 @@
   "library.config.agent.field.env_vars.help": "1行に1つのKEY=VALUE",
   "library.config.agent.field.env_vars.label": "環境変数",
   "library.config.agent.field.env_vars.placeholder": "KEY=値\nANOTHER_KEY=別の値",
+  "library.config.agent.field.fallback_model.empty": "Not set — use chat retry preference",
+  "library.config.agent.field.fallback_model.label": "Fallback model",
   "library.config.agent.field.heartbeat_enabled.label": "ハートビートチェック",
   "library.config.agent.field.heartbeat_interval.label": "ハートビート間隔（分）",
   "library.config.agent.field.model.hint": "主な推論と実行",

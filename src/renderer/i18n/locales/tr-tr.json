@@ -1828,6 +1828,8 @@
   "library.config.agent.field.env_vars.help": "Her satıra bir KEY=VALUE",
   "library.config.agent.field.env_vars.label": "Ortam değişkenleri",
   "library.config.agent.field.env_vars.placeholder": "KEY=value\nANOTHER_KEY=another_value",
+  "library.config.agent.field.fallback_model.empty": "Not set — use chat retry preference",
+  "library.config.agent.field.fallback_model.label": "Fallback model",
   "library.config.agent.field.heartbeat_enabled.label": "Durum denetimi",
   "library.config.agent.field.heartbeat_interval.label": "Durum denetimi aralığı (dakika)",
   "library.config.agent.field.model.hint": "Temel muhakeme ve yürütme",

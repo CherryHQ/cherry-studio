@@ -42,6 +42,15 @@ Settings UI lives in `src/renderer/pages/settings/ModelSettings/ModelSettings.ts
 (toggle + max attempts + backoff + multi-model picker via `ModelSelector`
 with `multiple` / `selectionType="id"`).
 
+Agent edit settings also provide one agent-specific fallback model. It is stored as
+`configuration.fallback_model_ids` on the agent; an empty list follows the global
+chat preference. A configured agent fallback enables fallback for that agent even
+when the global chat retry toggle is off. Agent-session fallback remains limited
+to one replay before any turn content. Claude Code rebuilds its query in its
+driver; Pi and DSH rebuild their connection behind a stable host event stream.
+Pi/DSH skip fallback while background work is active because rebuilding would
+tear down those runtime-owned tasks.
+
 These keys are generated from `scripts/data-classify/data/target-key-definitions.json`
 — edit there and regenerate, never edit `preferenceSchemas.ts` by hand.
 

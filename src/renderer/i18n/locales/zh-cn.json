@@ -1828,6 +1828,8 @@
   "library.config.agent.field.env_vars.help": "每行一个 KEY=VALUE",
   "library.config.agent.field.env_vars.label": "环境变量",
   "library.config.agent.field.env_vars.placeholder": "KEY=value\nANOTHER_KEY=another_value",
+  "library.config.agent.field.fallback_model.empty": "未设置 — 使用聊天重试偏好",
+  "library.config.agent.field.fallback_model.label": "备用模型",
   "library.config.agent.field.heartbeat_enabled.label": "心跳检测",
   "library.config.agent.field.heartbeat_interval.label": "心跳间隔 (分钟)",
   "library.config.agent.field.model.hint": "负责主要推理和执行",

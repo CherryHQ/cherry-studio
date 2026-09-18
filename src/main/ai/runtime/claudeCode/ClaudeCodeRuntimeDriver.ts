@@ -876,7 +876,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         error,
         currentModelId: this.input.modelId,
         hasTurnActivity: this.adapter?.hasTurnActivity === true,
-        policy: readRetryPolicy()
+        policy: this.readFallbackPolicy()
       })
       if (!decision) return false
       this.fallbackAttempted = true
@@ -928,6 +928,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       })
       return false
     }
+  }
+
+  private readFallbackPolicy() {
+    const global = readRetryPolicy()
+    const configured = agentService.getAgent(this.input.agentId)?.configuration?.fallback_model_ids
+    return configured?.length ? { ...global, enabled: true, fallbackModelIds: configured } : global
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {

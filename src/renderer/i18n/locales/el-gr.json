@@ -1828,6 +1828,8 @@
   "library.config.agent.field.env_vars.help": "Ένα ΚΛΕΙΔΙ=ΤΙΜΗ ανά γραμμή",
   "library.config.agent.field.env_vars.label": "Μεταβλητές περιβάλλοντος",
   "library.config.agent.field.env_vars.placeholder": "KEY=τιμή\nANOTHER_KEY=άλλη_τιμή",
+  "library.config.agent.field.fallback_model.empty": "Not set — use chat retry preference",
+  "library.config.agent.field.fallback_model.label": "Fallback model",
   "library.config.agent.field.heartbeat_enabled.label": "Έλεγχος παλμών",
   "library.config.agent.field.heartbeat_interval.label": "Διάστημα καρδιακού παλμού (λεπτά)",
   "library.config.agent.field.model.hint": "Κύριος συλλογισμός και εκτέλεση",
