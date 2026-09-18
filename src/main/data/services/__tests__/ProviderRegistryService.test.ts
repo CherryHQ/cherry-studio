@@ -1120,6 +1120,71 @@ describe('ProviderRegistryService', () => {
       ])
     })
 
+    it('keeps the registry endpoint wire when the persisted value selects the same format type', async () => {
+      const endpointWire = {
+        off: {
+          operations: [
+            { target: 'thinking.type', value: { source: 'literal', value: 'disabled' }, delivery: 'provider-option' }
+          ]
+        },
+        auto: {
+          operations: [
+            { target: 'thinking.type', value: { source: 'literal', value: 'auto' }, delivery: 'provider-option' }
+          ]
+        },
+        effort: {
+          operations: [
+            { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' }
+          ]
+        }
+      }
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'kimi-k2.5', name: 'Kimi K2.5', capabilities: ['reasoning'] }]
+      })
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'moonshot', modelId: 'kimi-k2.5' }]
+      })
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'moonshot',
+            name: 'Moonshot AI',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: {
+              'openai-chat-completions': {
+                baseUrl: 'https://api.moonshot.cn/v1',
+                reasoningFormat: { type: 'openai-chat', wire: endpointWire }
+              }
+            },
+            metadata: {}
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+      // An unmodified preset row carries the selector projection (`{ type }`,
+      // never the wire) produced by buildPersistedEndpointConfigs.
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'moonshot',
+        presetProviderId: 'moonshot',
+        name: 'Moonshot AI',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://api.moonshot.cn/v1',
+            reasoningFormat: { type: 'openai-chat' }
+          }
+        } as never,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const result = providerRegistryService.lookupModel('moonshot', 'kimi-k2.5')
+
+      expect(result.reasoningProfile.format).toBe('openai-chat')
+      expect(result.reasoningProfile.wire).toEqual(endpointWire)
+    })
+
     it('keeps the default openai-chat format when a custom provider has no reasoningFormat', async () => {
       setupRegistryData()
       await dbh.db.insert(userProviderTable).values({

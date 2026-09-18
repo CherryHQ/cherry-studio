@@ -23,6 +23,7 @@ import type {
   ProtoReasoningSupport,
   ProviderModelReasoningContract,
   ProviderReasoningFormat,
+  ProviderReasoningFormatSelector,
   ReasoningEffort as ReasoningEffortType,
   ReasoningFormatType,
   ReasoningWireDialect,
@@ -233,6 +234,22 @@ export function resolveReasoningProfileFromRegistry(input: {
       : baseWire
 
   return { format: formatType, support: input.contract?.support, wire }
+}
+
+/**
+ * Prefer the registry endpoint's full reasoning format when the persisted value
+ * selects the same type. Persisted selectors never carry the wire, so resolving
+ * them directly would discard the endpoint's catalog wire (e.g. Moonshot's
+ * `thinking.type`) in favor of the generic profile default. A selector for a
+ * different type is a genuine user override (e.g. `self-hosted`) and passes
+ * through untouched, as does a persisted value carrying its own wire.
+ */
+function selectEndpointReasoningFormat(
+  persisted: ProviderReasoningFormat | ProviderReasoningFormatSelector | undefined,
+  registry: ProviderReasoningFormat | undefined
+): ProviderReasoningFormat | ProviderReasoningFormatSelector | undefined {
+  if (!persisted || !registry || persisted.type !== registry.type) return persisted ?? registry
+  return 'wire' in persisted && persisted.wire ? persisted : registry
 }
 
 /**
@@ -947,8 +964,10 @@ class ProviderRegistryService {
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType,
       format: endpointType
-        ? (context.endpointConfigs?.[endpointType]?.reasoningFormat ??
-          profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat)
+        ? selectEndpointReasoningFormat(
+            context.endpointConfigs?.[endpointType]?.reasoningFormat,
+            profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat
+          )
         : undefined,
       contract,
       wireDialect: reasoning?.wireDialect,
@@ -1019,8 +1038,10 @@ class ProviderRegistryService {
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
       format: effectiveEndpoint
-        ? (provider.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat ??
-          profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat)
+        ? selectEndpointReasoningFormat(
+            provider.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat,
+            profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat
+          )
         : undefined,
       contract,
       wireDialect,
