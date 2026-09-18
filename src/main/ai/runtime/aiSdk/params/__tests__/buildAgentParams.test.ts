@@ -56,8 +56,10 @@ const {
   applyResponsesInstructions,
   buildAgentParams,
   composeStopWhen,
+  extractCallOverridesBodyParams,
   resolveToolCallLimit,
-  resolveTools
+  resolveTools,
+  stripRequestBodyFromCallOverrides
 } = await import('../buildAgentParams')
 
 beforeEach(() => {
@@ -2134,5 +2136,53 @@ describe('assistant browser tool selection', () => {
       ...Object.keys(temporary.tools ?? {}),
       ...temporary.deferredEntries.map((entry) => entry.name)
     ]).not.toContain('browser_open')
+  })
+})
+
+describe('call override request-body routing', () => {
+  const SELF_HOSTED_KEYS = new Set(['chat_template_kwargs'])
+
+  it('extracts wire-declared body keys and preserves sibling fields', () => {
+    const body = extractCallOverridesBodyParams(
+      {
+        providerOptions: {
+          'openai-compatible': {
+            'chat_template_kwargs.enable_thinking': false,
+            chat_template_kwargs: { foo: 'bar' }
+          }
+        }
+      } as CallOverrides,
+      'openai-compatible',
+      SELF_HOSTED_KEYS
+    )
+    expect(body).toEqual({ chat_template_kwargs: { enable_thinking: false, foo: 'bar' } })
+  })
+
+  it('leaves provider-option wires such as NVIDIA NIM in providerOptions', () => {
+    const callOverrides = {
+      providerOptions: { nvidia: { 'chat_template_kwargs.enable_thinking': false, reasoning_effort: 'high' } }
+    } as CallOverrides
+    expect(extractCallOverridesBodyParams(callOverrides, 'nvidia', new Set())).toEqual({})
+    expect(stripRequestBodyFromCallOverrides(callOverrides, {}, 'nvidia', new Set())).toBe(callOverrides)
+  })
+
+  it('extracts catalog-declared body targets beyond the template prefixes', () => {
+    const body = extractCallOverridesBodyParams(
+      { providerOptions: { poe: { 'extra_body.thinking_budget': 4096 } } } as CallOverrides,
+      'poe',
+      new Set(['extra_body'])
+    )
+    expect(body).toEqual({ extra_body: { thinking_budget: 4096 } })
+  })
+
+  it('strips only the keys extraction moved to the body', () => {
+    const callOverrides = {
+      providerOptions: {
+        'openai-compatible': { 'chat_template_kwargs.enable_thinking': false, reasoningEffort: 'high' }
+      }
+    } as CallOverrides
+    const body = extractCallOverridesBodyParams(callOverrides, 'openai-compatible', SELF_HOSTED_KEYS)
+    const stripped = stripRequestBodyFromCallOverrides(callOverrides, body, 'openai-compatible', SELF_HOSTED_KEYS)
+    expect(stripped?.providerOptions?.['openai-compatible']).toEqual({ reasoningEffort: 'high' })
   })
 })
