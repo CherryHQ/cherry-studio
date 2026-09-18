@@ -55,6 +55,12 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
     vi.mocked(which.sync)
       .mockReset()
       .mockReturnValue(null as never)
+    vi.mocked(fs.statSync).mockImplementation((p) => {
+      if (!fs.existsSync(p)) {
+        throw new Error('ENOENT')
+      }
+      return { isFile: () => true } as fs.Stats
+    })
 
     // Mock path.join to concatenate paths with backslashes (Windows-style)
     vi.mocked(path.join).mockImplementation((...args) => args.join('\\'))
@@ -315,7 +321,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
     it('returns normalized path when valid bash.exe exists', () => {
       const customPath = 'C:\\PortableGit\\bin\\bash.exe'
-      vi.mocked(fs.existsSync).mockImplementation((p) => p === 'C:\\PortableGit\\bin\\bash.exe')
+      vi.mocked(fs.statSync).mockReturnValue({ isFile: () => true } as fs.Stats)
 
       const result = validateGitBashPath(customPath)
 
@@ -323,7 +329,9 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
     })
 
     it('returns null when file does not exist', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
+      vi.mocked(fs.statSync).mockImplementation(() => {
+        throw new Error('ENOENT')
+      })
 
       const result = validateGitBashPath('C:\\missing\\bash.exe')
 
@@ -332,7 +340,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
     it('returns null when path is not bash.exe', () => {
       const customPath = 'C:\\PortableGit\\bin\\git.exe'
-      vi.mocked(fs.existsSync).mockReturnValue(true)
+      vi.mocked(fs.statSync).mockReturnValue({ isFile: () => true } as fs.Stats)
 
       const result = validateGitBashPath(customPath)
 
@@ -522,6 +530,19 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         // Should fall back to common paths check
         expect(result).toBeNull()
+      })
+
+      it('should reject an auto-discovered directory named bash.exe', () => {
+        const gitPath = 'C:\\Git\\cmd\\git.exe'
+        const bashPath = 'C:\\Git\\bin\\bash.exe'
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
+        vi.mocked(fs.existsSync).mockImplementation((p) => p === bashPath)
+        vi.mocked(fs.statSync).mockImplementation((p) => {
+          if (p !== bashPath) throw new Error('ENOENT')
+          return { isFile: () => false } as fs.Stats
+        })
+
+        expect(findGitBash()).toBeNull()
       })
     })
 
@@ -771,9 +792,16 @@ describe('validateGitBashPath filename validation', () => {
 
   it('rejects the Git Bash terminal launcher', () => {
     const launcherPath = 'C:\\PortableGit\\git-bash.exe'
-    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(fs.statSync).mockReturnValue({ isFile: () => true } as fs.Stats)
 
     expect(validateGitBashPath(launcherPath)).toBeNull()
+  })
+
+  it('rejects a directory named bash.exe', () => {
+    const directoryPath = 'C:\\PortableGit\\bin\\bash.exe'
+    vi.mocked(fs.statSync).mockReturnValue({ isFile: () => false } as fs.Stats)
+
+    expect(validateGitBashPath(directoryPath)).toBeNull()
   })
 })
 

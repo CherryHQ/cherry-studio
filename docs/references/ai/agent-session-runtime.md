@@ -576,7 +576,8 @@ old policy.
 
 pi runs in-process through the SDK, but Cherry still owns the runtime boundary.
 The driver must not import the user's standalone pi setup from `~/.pi/agent`,
-and must not silently trust executable or prompt resources from a workspace.
+apart from the scoped Windows `shellPath` exception below, and must not silently
+trust executable or prompt resources from a workspace.
 
 Allowed in v1:
 
@@ -625,11 +626,18 @@ Allowed in v1:
   Context files are workspace **text**, a different trust class than executable
   extensions (which stay off). This is the only project-discovered resource pi
   loads; everything else below is still disabled.
+- On Windows, the non-empty top-level `shellPath` from the user's global pi
+  `settings.json`. Cherry reads this one field directly, validates that it names
+  an available `bash.exe`, and copies it into the in-memory settings manager and
+  managed Bash tool. It does not construct pi's file-backed settings manager or
+  read a workspace `.pi/settings.json`; an invalid configured path fails startup
+  instead of silently changing execution environments.
 
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
-- User-global pi resources under the standalone pi home (`~/.pi/agent`) or user
-  skill folders such as `~/.agents/skills`.
+- User-global pi resources under the standalone pi home (`~/.pi/agent`) other
+  than the explicitly scoped Windows `shellPath` above, or user skill folders
+  such as `~/.agents/skills`.
 - Disk prompts from any pi home, including Cherry-owned `SYSTEM.md` and
   `APPEND_SYSTEM.md`; Cherry's `PromptBuilder` is the only persona source.
 - Workspace project resources: `.pi/extensions`, `.pi/skills`, `.pi/prompts`,
@@ -647,9 +655,11 @@ they are passed by Cherry code, not discovered from disk; likewise enabled
 managed skills load via `additionalSkillPaths` because Cherry supplies those
 paths explicitly.
 
-The trust boundary is therefore **executable/prompt resources off, workspace
-text on**: `noExtensions`/`noSkills`/`noPromptTemplates`/`noThemes` keep arbitrary
-code and Cherry-managed resources from being disk-discovered, while
+The trust boundary is therefore **disk-discovered executable/prompt resources
+off, workspace text on**. The validated global Windows `shellPath` is the sole
+executable-selection exception: `noExtensions`/`noSkills`/`noPromptTemplates`/
+`noThemes` keep arbitrary code and Cherry-managed resources from being
+disk-discovered, while
 `projectTrusted: true` + `noContextFiles: false` load only the workspace's own
 `AGENTS.md`/`CLAUDE.md` text. If future work enables the still-disabled workspace
 resources (extensions, project skills/prompts/themes), it must add a Cherry-owned

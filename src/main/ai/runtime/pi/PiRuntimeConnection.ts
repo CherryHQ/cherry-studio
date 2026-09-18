@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readdirSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 
 import type { AssistantMessage, AssistantMessageEvent } from '@earendil-works/pi-ai'
@@ -34,6 +34,7 @@ import {
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
+import { autoDiscoverGitBash, validateGitBashPath } from '@main/utils/commandResolver'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -95,6 +96,46 @@ export function buildPiLoginPathPrefix(
   platform: NodeJS.Platform = process.platform
 ): string | undefined {
   return platform !== 'win32' && loginPath ? `export PATH="$PATH":${quoteShellWord(loginPath)}` : undefined
+}
+
+function readPiShellPathSetting(settingsPath: string): string | undefined {
+  try {
+    const settings: unknown = JSON.parse(readFileSync(settingsPath, 'utf8'))
+    if (typeof settings !== 'object' || settings === null || Array.isArray(settings)) return undefined
+    const shellPath = (settings as Record<string, unknown>).shellPath
+    return typeof shellPath === 'string' && shellPath.trim().length > 0 ? shellPath.trim() : undefined
+  } catch (error) {
+    logger.debug('Pi shell settings are unavailable or invalid; using Cherry shell discovery', {
+      settingsPath,
+      error
+    })
+    return undefined
+  }
+}
+
+function resolvePiShellPath(): string | undefined {
+  if (process.platform !== 'win32') return undefined
+  const settingsPath = application.getPath('external.pi.settings_file')
+  const configuredShellPath = readPiShellPathSetting(settingsPath)
+  if (configuredShellPath) {
+    const shellPath = validateGitBashPath(configuredShellPath)
+    if (!shellPath) {
+      throw new Error(`Configured Pi shellPath is unavailable or is not bash.exe: ${configuredShellPath}`)
+    }
+    logger.debug('Resolved Pi shell path', { source: 'pi-global-settings', shellPath })
+    return shellPath
+  }
+
+  const shellPath = autoDiscoverGitBash() ?? undefined
+  if (shellPath) {
+    const configuredOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+    const source =
+      configuredOverride && [configuredOverride, path.resolve(configuredOverride)].includes(shellPath)
+        ? 'cherry-environment-override'
+        : 'cherry-discovery'
+    logger.debug('Resolved Pi shell path', { source, shellPath })
+  }
+  return shellPath
 }
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
@@ -267,10 +308,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       if (!model)
         throw new Error(`pi model ${runtimeProviderName}/${injection.modelId} could not be resolved after injection`)
 
-      // The workspace is always trusted: the user picked it by hand in Cherry, so there is
-      // no separate "do you trust this project?" prompt. What actually loads from it is
-      // still governed by the explicit `no*` flags below.
-      const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: true })
+      // shellPath is the only standalone Pi setting admitted to the isolated runtime.
+      // Workspace Pi settings remain outside Cherry's executable-resource trust boundary.
+      const shellPath = resolvePiShellPath()
+      const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
 
@@ -371,6 +412,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
       // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
       const managedBashTool = pi.createBashToolDefinition(workspacePath, {
+        commandPrefix: loginPathPrefix,
+        shellPath,
         spawnHook: (context) => ({
           ...context,
           env: mergePiBashExecutionEnv(context.env)
