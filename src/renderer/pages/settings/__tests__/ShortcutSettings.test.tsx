@@ -229,6 +229,42 @@ describe('ShortcutSettings shortcut recorder', () => {
     expect(screen.queryByText('settings.shortcuts.unavailable_on_wayland')).not.toBeInTheDocument()
   })
 
+  it('retains inline warnings for every conflicting shortcut at once', () => {
+    shortcutsMock.shortcuts = [
+      makeShortcut({ command: 'app.search', binding: ['CommandOrControl', '0'], label: 'Search everywhere' }),
+      makeShortcut({
+        command: 'app.settings.open',
+        binding: ['CommandOrControl', '1'],
+        label: 'Open settings'
+      })
+    ]
+    renderShortcutSettings()
+    const notify = registrationConflictMock.mock.calls[0]?.[0]
+
+    act(() => {
+      notify({
+        key: 'shortcut.app.search',
+        accelerator: 'CommandOrControl+0',
+        hasConflict: true,
+        reason: 'wayland'
+      })
+      notify({
+        key: 'shortcut.app.settings.open',
+        accelerator: 'CommandOrControl+1',
+        hasConflict: true,
+        reason: 'occupied_by_other_application'
+      })
+    })
+
+    expect(screen.getByText('settings.shortcuts.unavailable_on_wayland')).toBeInTheDocument()
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+
+    act(() => notify({ key: 'shortcut.app.search', hasConflict: false }))
+
+    expect(screen.queryByText('settings.shortcuts.unavailable_on_wayland')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+  })
+
   it('records physical key shortcuts and stops propagation while recording', async () => {
     const parentKeyDown = vi.fn()
     renderShortcutSettings(parentKeyDown)

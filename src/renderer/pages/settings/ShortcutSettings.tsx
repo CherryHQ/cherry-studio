@@ -102,10 +102,9 @@ const ShortcutSettings: FC = () => {
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [pendingKeys, setPendingKeys] = useState<ShortcutBinding>([])
   const [conflictLabel, setConflictLabel] = useState<string | null>(null)
-  const [systemConflict, setSystemConflict] = useState<{
-    key: ShortcutPreferenceKey
-    reason: ShortcutRegistrationConflictReason
-  } | null>(null)
+  const [systemConflicts, setSystemConflicts] = useState<
+    Partial<Record<ShortcutPreferenceKey, ShortcutRegistrationConflictReason>>
+  >({})
   const [searchQuery, setSearchQuery] = useState('')
   const [activeGroup, setActiveGroup] = useState<ShortcutSettingsFilterGroup>('all')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
@@ -197,21 +196,32 @@ const ShortcutSettings: FC = () => {
   }
 
   const clearSystemConflict = (key?: ShortcutPreferenceKey) => {
-    setSystemConflict((current) => {
-      if (!key || current?.key === key) {
-        return null
+    setSystemConflicts((current) => {
+      if (!key) {
+        return {}
       }
-      return current
+      if (!(key in current)) {
+        return current
+      }
+      const { [key]: _removed, ...rest } = current
+      return rest
     })
   }
 
   useEffect(() => {
     return window.api.shortcut.onRegistrationConflict(({ key, hasConflict, reason }) => {
-      setSystemConflict((current) => {
+      setSystemConflicts((current) => {
         if (hasConflict) {
-          return { key, reason }
+          if (current[key] === reason) {
+            return current
+          }
+          return { ...current, [key]: reason }
         }
-        return current?.key === key ? null : current
+        if (!(key in current)) {
+          return current
+        }
+        const { [key]: _removed, ...rest } = current
+        return rest
       })
 
       if (hasConflict) {
@@ -423,12 +433,13 @@ const ShortcutSettings: FC = () => {
     const displayShortcut = displayKeys.length > 0 ? formatShortcutDisplay(displayKeys, isMac) : ''
     const isEditable = record.keybinding.editable !== false
     const isBindingModified = !isBindingEqual(displayKeys, record.defaultPreference.binding)
-    const hasSystemConflict = systemConflict?.key === record.key
+    const systemConflictReason = systemConflicts[record.key]
+    const hasSystemConflict = systemConflictReason !== undefined
     const conflictMessage =
       conflictLabel ??
       (hasSystemConflict
         ? t(
-            systemConflict?.reason === 'wayland'
+            systemConflictReason === 'wayland'
               ? 'settings.shortcuts.unavailable_on_wayland'
               : 'settings.shortcuts.occupied_by_other_application'
           )
