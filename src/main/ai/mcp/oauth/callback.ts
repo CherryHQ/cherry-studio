@@ -114,8 +114,8 @@ export class CallBackServer {
   }
 
   async close() {
-    const server = await this.server
-    server.close()
+    // Listen may have failed (getServer rejected) or close may run twice (timeout + finally).
+    await this.server.then((server) => server.close()).catch(() => undefined)
   }
 
   /**

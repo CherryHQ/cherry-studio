@@ -49,4 +49,10 @@ describe('CallBackServer.waitForAuthCode', () => {
     await vi.advanceTimersByTimeAsync(2000)
     expect(events.listenerCount('auth-code-received')).toBe(0)
   })
+
+  it('close resolves when listen failed so a bind failure can reject first', async () => {
+    const failed = new CallBackServer({ port: 99999, path: '/oauth/callback', events: new EventEmitter() })
+    await expect(failed.getServer).rejects.toThrow()
+    await expect(failed.close()).resolves.toBeUndefined()
+  })
 })

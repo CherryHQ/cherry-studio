@@ -579,74 +579,99 @@ export class McpRuntimeService extends BaseService {
     // transport exactly once.
     const candidates = getTransportCandidates(server)
     const transportTypes: (McpServerType | undefined)[] = candidates ?? [undefined]
-    let lastError: unknown
 
-    for (let i = 0; i < transportTypes.length; i++) {
-      const candidateType = transportTypes[i]
-      const transport = await createServerTransport(candidateType)
-      try {
-        await client.connect(transport, connectOptions)
-        return
-      } catch (error: any) {
-        if (
-          error instanceof Error &&
-          isMcpOAuthEnabled(server) &&
-          (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
-        ) {
-          logger.debug(`Authentication required for server: ${server.name}`)
-          await this.finishOAuth({
-            client,
-            server,
-            transport: transport as SSEClientTransport | StreamableHTTPClientTransport,
-            authProvider,
-            createServerTransport,
-            typeOverride: candidateType
-          })
+    // The SDK opens the browser during connect(), so the localhost callback must already be
+    // listening — a redirect landing before listen() completes is refused, and awaiting here
+    // turns a bind failure into an immediate error instead of a 5-minute auth-code timeout.
+    const oauthCallback = isMcpOAuthEnabled(server) ? await this.startOAuthCallback(authProvider) : undefined
+    try {
+      let lastError: unknown
+
+      for (let i = 0; i < transportTypes.length; i++) {
+        const candidateType = transportTypes[i]
+        const transport = await createServerTransport(candidateType)
+        try {
+          await client.connect(transport, connectOptions)
           return
+        } catch (error: any) {
+          if (
+            error instanceof Error &&
+            isMcpOAuthEnabled(server) &&
+            oauthCallback &&
+            (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
+          ) {
+            logger.debug(`Authentication required for server: ${server.name}`)
+            await this.finishOAuth({
+              client,
+              server,
+              transport: transport as SSEClientTransport | StreamableHTTPClientTransport,
+              createServerTransport,
+              typeOverride: candidateType,
+              callbackServer: oauthCallback
+            })
+            return
+          }
+          lastError = error
+          // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
+          // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
+          if (i === transportTypes.length - 1 || !candidates || !isTransportFallbackError(error, sdk)) {
+            break
+          }
+          getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${candidates[i + 1]}'`, {
+            error: redactDeep(error)
+          })
+          // Close the whole client (not just the transport) so the SDK resets its internal
+          // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
+          // re-auth path, which relies on client.close() clearing _transport first.
+          await client.close().catch(() => undefined)
         }
-        lastError = error
-        // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
-        // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
-        if (i === transportTypes.length - 1 || !candidates || !isTransportFallbackError(error, sdk)) {
-          break
-        }
-        getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${candidates[i + 1]}'`, {
-          error: redactDeep(error)
-        })
-        // Close the whole client (not just the transport) so the SDK resets its internal
-        // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
-        // re-auth path, which relies on client.close() clearing _transport first.
-        await client.close().catch(() => undefined)
       }
-    }
 
-    // Release the last (failed) transport/connection so it isn't leaked until GC.
-    await client.close().catch(() => undefined)
-    throw lastError ?? new Error('Failed to connect to MCP server')
+      // Release the last (failed) transport/connection so it isn't leaked until GC.
+      await client.close().catch(() => undefined)
+      throw lastError ?? new Error('Failed to connect to MCP server')
+    } finally {
+      await oauthCallback?.close()
+    }
+  }
+
+  /**
+   * Starts the localhost OAuth callback and waits until it listens. Awaiting surfaces a bind
+   * failure (e.g. the port is already in use) immediately instead of after the auth-code timeout.
+   */
+  private async startOAuthCallback(authProvider: McpOAuthClientProvider): Promise<CallBackServer> {
+    const callbackServer = new CallBackServer({
+      port: authProvider.config.callbackPort,
+      path: authProvider.config.callbackPath || '/oauth/callback',
+      events: new EventEmitter()
+    })
+    try {
+      await callbackServer.getServer
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code
+      throw new Error(
+        `OAuth callback could not listen on 127.0.0.1:${authProvider.config.callbackPort}${code ? ` (${code})` : ''}: free the port and retry`
+      )
+    }
+    return callbackServer
   }
 
   private async finishOAuth({
     client,
     server,
     transport,
-    authProvider,
     createServerTransport,
-    typeOverride
+    typeOverride,
+    callbackServer
   }: {
     client: Client
     server: McpServer
     transport: SSEClientTransport | StreamableHTTPClientTransport
-    authProvider: McpOAuthClientProvider
     createServerTransport: (typeOverride?: McpServerType) => Promise<McpTransport>
     typeOverride?: McpServerType
+    callbackServer: CallBackServer
   }): Promise<void> {
     getServerLogger(server).debug(`Starting OAuth flow`)
-    const events = new EventEmitter()
-    const callbackServer = new CallBackServer({
-      port: authProvider.config.callbackPort,
-      path: authProvider.config.callbackPath || '/oauth/callback',
-      events
-    })
 
     const timeoutId = setTimeout(() => {
       getServerLogger(server).warn(`OAuth flow timed out`)
@@ -672,7 +697,6 @@ export class McpRuntimeService extends BaseService {
       )
     } finally {
       clearTimeout(timeoutId)
-      void callbackServer.close()
     }
   }
 
