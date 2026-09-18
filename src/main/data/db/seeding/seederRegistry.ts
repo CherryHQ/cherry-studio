@@ -5,6 +5,7 @@ import { CherryAssistantSeeder } from './seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from './seeders/cherrySupportSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
 import { LegacyFileCleanupPolicySeeder } from './seeders/legacyFileCleanupPolicySeeder'
+import { LocalBackupDefaultSeeder } from './seeders/localBackupDefaultSeeder'
 import { LocalModelSeeder } from './seeders/LocalModelSeeder'
 import { LongTextPastePreferenceUpgradeSeeder } from './seeders/longTextPastePreferenceUpgradeSeeder'
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
@@ -30,6 +31,7 @@ export const seeders: ISeeder[] = [
   new DefaultAssistantSeeder(),
   new LongTextPastePreferenceUpgradeSeeder(),
   new WebSearchPreferenceUpgradeSeeder(),
+  new LocalBackupDefaultSeeder(),
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),

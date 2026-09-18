@@ -239,6 +239,9 @@ export function buildPathRegistry() {
     'feature.backup.restore.file': path.join(appUserDataData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
 
+    // Where automatic local backups land when the user has not chosen a folder.
+    'feature.backup.auto_local': path.join(appUserData, 'Backups'),
+
     // Stored in the profile it authorizes for reset.
     'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),
 
