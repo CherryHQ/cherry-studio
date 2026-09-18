@@ -1143,6 +1143,8 @@
   "common.language": "語言",
   "common.layout.single_column": "切換為單欄",
   "common.layout.two_columns": "切換為雙欄",
+  "common.link.copy": "複製連結",
+  "common.link.open_browser": "在內建瀏覽器開啟",
   "common.loading": "載入中...",
   "common.maximize": "最大化",
   "common.minimize": "最小化",

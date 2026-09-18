@@ -1143,6 +1143,8 @@
   "common.language": "Ngôn ngữ",
   "common.layout.single_column": "Chuyển sang một cột",
   "common.layout.two_columns": "Chuyển sang hai cột",
+  "common.link.copy": "Sao chép liên kết",
+  "common.link.open_browser": "Mở trong trình duyệt tích hợp",
   "common.loading": "Đang tải...",
   "common.maximize": "Tối đa hóa",
   "common.minimize": "Giảm thiểu",

@@ -1143,6 +1143,8 @@
   "common.language": "Limbă",
   "common.layout.single_column": "Comută la o coloană",
   "common.layout.two_columns": "Comută la două coloane",
+  "common.link.copy": "Copiază linkul",
+  "common.link.open_browser": "Deschide în browserul integrat",
   "common.loading": "Se încarcă...",
   "common.maximize": "Maximizează",
   "common.minimize": "Minimizează",

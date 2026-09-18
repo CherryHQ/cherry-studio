@@ -1143,6 +1143,8 @@
   "common.language": "Язык",
   "common.layout.single_column": "Переключить на один столбец",
   "common.layout.two_columns": "Переключить на два столбца",
+  "common.link.copy": "Копировать ссылку",
+  "common.link.open_browser": "Открыть во встроенном браузере",
   "common.loading": "Загрузка...",
   "common.maximize": "Максимизировать",
   "common.minimize": "Минимизировать",
