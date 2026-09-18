@@ -185,14 +185,8 @@ releaseInfo:
     Cherry Studio 2.1.0 - System Doctor, Browser Control, and Office Transform
 
     ✨ New Features
-    - [Doctor] Add System Doctor for AI diagnosis, system checks, guided fixes, saving diagnostic information, and reporting problems.
-    - [Doctor] Chat and Agent diagnoses are now separate from full system reports; opening feedback or export no longer starts a health check automatically.
-    - [Doctor] Add checks for installation, permissions, storage, providers, MCP, managed tools, and recent errors.
-    - [Browser] Agents can control their built-in browser; search browsing history, import browser data, and clear history or cache separately.
-    - [Browser] Show an animated pointer for Agent actions in the visible browser pane.
-    - [Browser] Browser agents can discover and invoke native website WebMCP tools.
-    - [Browser] Browser agents can find page elements, inspect console and network activity, and recover elements after page re-renders.
-    - [Browser] Assistants can use the built-in browser within each conversation.
+    - [Doctor] Add System Doctor with AI diagnosis, system checks, guided fixes, diagnostic export, and feedback. Checks cover installation, permissions, storage, providers, MCP, managed tools, and recent errors. Diagnose individual chats or Agent sessions separately from full system reports; opening feedback or export does not start a health check.
+    - [Browser] Agents and chat assistants can use the built-in browser, with an animated pointer showing Agent actions. Agents can find page elements, recover them after page updates, inspect console and network activity, and use website WebMCP tools. Also supports browsing history search, browser data import, and separate history or cache clearing.
     - [Office] Add the office-transform skill: agents can extract worksheet ranges, document paragraphs, PDF pages, and slide shapes into new files.
     - [Selection] Turn on “Select region” to pick a worksheet range, Word paragraph, PDF page, or slide and quote it as a precise structural reference.
     - [Web Search] Add Serply as a web search provider.
@@ -236,14 +230,8 @@ releaseInfo:
     Cherry Studio 2.1.0 - 系统诊断、浏览器控制与 Office 转换
 
     ✨ 新功能
-    - [诊断] 新增系统诊断功能，支持 AI 诊断、系统检查、引导修复、保存诊断信息和反馈问题。
-    - [诊断] 对话和智能体诊断与全系统报告分离；打开反馈或导出不再自动启动健康检查。
-    - [诊断] 新增安装、权限、存储、服务商、MCP、托管工具和最近错误的检查项。
-    - [浏览器] 智能体可控制内置浏览器；搜索浏览历史、导入浏览器数据、单独清理历史或缓存。
-    - [浏览器] 在可见浏览器窗格中显示智能体操作的动画指针。
-    - [浏览器] 浏览器智能体可发现并调用网站的 WebMCP 工具。
-    - [浏览器] 浏览器智能体可查找页面元素、检查控制台和网络活动、页面重渲染后恢复元素。
-    - [浏览器] 助手可在对话中使用内置浏览器。
+    - [诊断] 新增系统诊断，支持 AI 诊断、系统检查、引导修复、导出诊断信息和问题反馈，涵盖安装、权限、存储、服务商、MCP、托管工具及最近错误。可单独诊断对话或智能体会话，与全系统报告分离；打开反馈或导出不会自动启动健康检查。
+    - [浏览器] 智能体和对话助手均可使用内置浏览器，并以动画指针展示智能体操作。智能体支持查找页面元素、在页面更新后恢复元素、检查控制台和网络活动，以及调用网站的 WebMCP 工具；同时支持搜索浏览历史、导入浏览器数据和单独清理历史或缓存。
     - [Office] 新增 office-transform 技能：智能体可将工作表范围、文档段落、PDF 页面和幻灯片形状提取为新文件。
     - [选择] 开启”选择区域”可选取工作表范围、Word 段落、PDF 页面或幻灯片，作为精确的结构化引用。
     - [网络搜索] 新增 Serply 网络搜索服务商。
