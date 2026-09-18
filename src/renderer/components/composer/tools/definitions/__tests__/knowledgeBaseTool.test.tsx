@@ -108,6 +108,9 @@ describe('knowledgeBaseTool token reconcile', () => {
 describe('KnowledgeBaseComposerRuntime auto-link', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Drop-path tests consume fewer mockImplementationOnce handlers than they queue;
+    // leftovers must not leak into the next test's first PATCH.
+    mocks.updateAssistant.mockReset()
     mocks.quickPanel.isVisible = false
     mocks.quickPanel.symbol = ''
   })
@@ -139,7 +142,7 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
     const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     knowledgeLauncher.action?.({ quickPanel, source: 'root-panel', triggerInfo: { type: 'button' } } as never)
     await waitFor(() => expect(quickPanel.open).toHaveBeenCalled())
-    return { list: vi.mocked(quickPanel.open).mock.calls[0][0].list, deliver }
+    return { list: vi.mocked(quickPanel.open).mock.calls[0][0].list, deliver, unmount: view.unmount }
   }
 
   it('queues a second pick behind the first link and carries the first id into its PATCH', async () => {
@@ -212,6 +215,33 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
     await Promise.all([firstPick as Promise<unknown>, queuedPick as Promise<unknown>])
 
     // Only the first link PATCHed; the queued one was dropped at the identity check.
+    expect(mocks.updateAssistant).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops a queued link when the runtime unmounts before it runs', async () => {
+    // Chat unmounts the tool runtime while a switch's assistant query loads (no previous
+    // data is kept): the frozen refs can no longer observe the switch, so only liveness
+    // can drop the queued link instead of patching the previous assistant.
+    let resolveFirstPatch: (assistant: unknown) => void = () => {}
+    const firstPatch = new Promise<unknown>((resolve) => {
+      resolveFirstPatch = resolve
+    })
+    mocks.updateAssistant.mockImplementationOnce(() => firstPatch).mockImplementationOnce(async () => ({}))
+
+    const { list, unmount } = await openRuntimePanel([kb('kb-1'), kb('kb-2')], [])
+
+    const firstPick = list[0].action?.({ item: { ...list[0], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(1))
+
+    const queuedPick = list[1].action?.({ item: { ...list[1], isSelected: true } })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    unmount()
+    resolveFirstPatch({})
+    await Promise.all([firstPick as Promise<unknown>, queuedPick as Promise<unknown>])
+
+    // Only the dispatched PATCH ran; the queued one was dropped at the liveness check.
     expect(mocks.updateAssistant).toHaveBeenCalledTimes(1)
   })
 
