@@ -17,6 +17,10 @@ let package = Package(
             name: "ConversationIslandCoreTests",
             dependencies: ["ConversationIslandCore"],
             resources: [.copy("Fixtures")]
+        ),
+        .testTarget(
+            name: "ConversationIslandHelperTests",
+            dependencies: ["ConversationIslandHelper", "ConversationIslandCore"]
         )
     ]
 )

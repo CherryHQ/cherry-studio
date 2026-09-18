@@ -1,6 +1,7 @@
 import AppKit
 import ConversationIslandCore
 import Foundation
+import QuartzCore
 import SwiftUI
 
 private enum InputEvent: Sendable {
@@ -81,6 +82,8 @@ private final class StandardInputReader: @unchecked Sendable {
 
 @MainActor
 final class HelperController {
+    private static let surfaceTransitionDuration = 0.18
+
     private let viewModel = IslandViewModel()
     private var session = SessionState()
     private var inputReader: StandardInputReader?
@@ -198,15 +201,15 @@ final class HelperController {
         }
 
         let wasVisible = panel.isVisible
-        panel.setFrame(placement.bounds.cgRect, display: false)
         let entrance = MotionPlan.entrance(reducedMotion: payload.reducedMotion)
 
         if !wasVisible {
+            panel.setFrame(placement.bounds.cgRect, display: false)
             viewModel.setMotionTarget(entrance.from)
             viewModel.apply(revision: revision, payload: payload, placement: placement)
             panel.orderFrontRegardless()
         } else {
-            withAnimation(payload.reducedMotion ? nil : .easeInOut(duration: 0.14)) {
+            transitionVisibleSurface(to: placement, reducedMotion: payload.reducedMotion) {
                 viewModel.apply(revision: revision, payload: payload, placement: placement)
             }
         }
@@ -290,12 +293,28 @@ final class HelperController {
             case .cancelCollapse:
                 collapseWorkItem?.cancel()
                 collapseWorkItem = nil
+            case let .previewExpanded(expanded):
+                previewExpansion(expanded)
             case let .emitExpanded(expanded):
                 guard let revision = session.revision else {
                     continue
                 }
                 send(.setExpanded(revision: revision, expanded: expanded))
             }
+        }
+    }
+
+    private func previewExpansion(_ expanded: Bool) {
+        guard
+            panel.isVisible,
+            let payload = session.payload,
+            let placement = placement(for: payload, expanded: expanded)
+        else {
+            return
+        }
+
+        transitionVisibleSurface(to: placement, reducedMotion: payload.reducedMotion) {
+            viewModel.previewExpansion(expanded, placement: placement)
         }
     }
 
@@ -355,7 +374,11 @@ final class HelperController {
     }
 
     private func repositionVisibleSnapshot() {
-        guard session.isVisible, let payload = session.payload, let placement = placement(for: payload) else {
+        guard
+            session.isVisible,
+            let payload = session.payload,
+            let placement = placement(for: payload, expanded: viewModel.visualExpanded)
+        else {
             return
         }
         panel.setFrame(placement.bounds.cgRect, display: false)
@@ -363,13 +386,36 @@ final class HelperController {
     }
 
     private func placement(for payload: PresentationPayload) -> IslandPlacement? {
+        placement(for: payload, expanded: payload.expanded)
+    }
+
+    private func placement(for payload: PresentationPayload, expanded: Bool) -> IslandPlacement? {
         guard let screen = screen(displayId: payload.displayId) else {
             return nil
         }
-        let size = payload.expanded
-            ? IslandGeometry.expandedSize(activityCount: payload.activities.count)
+        let size = expanded
+            ? IslandGeometry.expandedSize(activityCount: payload.activityCount)
             : IslandGeometry.compactSize
         return IslandGeometry.placement(on: ScreenGeometry(screen), size: size)
+    }
+
+    private func transitionVisibleSurface(
+        to placement: IslandPlacement,
+        reducedMotion: Bool,
+        updateView: () -> Void
+    ) {
+        guard !reducedMotion else {
+            panel.setFrame(placement.bounds.cgRect, display: false)
+            withAnimation(nil, updateView)
+            return
+        }
+
+        withAnimation(.easeInOut(duration: Self.surfaceTransitionDuration), updateView)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.surfaceTransitionDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(placement.bounds.cgRect, display: true)
+        }
     }
 
     private func screen(displayId: Int64) -> NSScreen? {

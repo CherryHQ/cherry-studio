@@ -20,7 +20,7 @@ final class HoverStateTests: XCTestCase {
         var state = HoverState(expanded: false, dismissing: false)
         _ = state.reduce(.pointerEntered)
 
-        XCTAssertEqual(state.reduce(.expandDelayElapsed), [.emitExpanded(true)])
+        XCTAssertEqual(state.reduce(.expandDelayElapsed), [.previewExpanded(true), .emitExpanded(true)])
         XCTAssertEqual(state.reduce(.expandDelayElapsed), [])
     }
 
@@ -36,7 +36,7 @@ final class HoverStateTests: XCTestCase {
         var state = HoverState(expanded: true, dismissing: false)
         _ = state.reduce(.pointerExited)
 
-        XCTAssertEqual(state.reduce(.collapseDelayElapsed), [.emitExpanded(false)])
+        XCTAssertEqual(state.reduce(.collapseDelayElapsed), [.previewExpanded(false), .emitExpanded(false)])
         XCTAssertEqual(state.reduce(.collapseDelayElapsed), [])
     }
 

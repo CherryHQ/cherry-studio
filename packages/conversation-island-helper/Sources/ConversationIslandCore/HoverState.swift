@@ -11,6 +11,7 @@ public enum HoverEffect: Equatable, Sendable {
     case scheduleCollapse(milliseconds: Int)
     case cancelExpand
     case cancelCollapse
+    case previewExpanded(Bool)
     case emitExpanded(Bool)
 }
 
@@ -152,7 +153,8 @@ public struct HoverState: Equatable, Sendable {
         }
 
         hasPendingExpand = false
-        return [.emitExpanded(true)]
+        expanded = true
+        return [.previewExpanded(true), .emitExpanded(true)]
     }
 
     private mutating func handleCollapseDelayElapsed() -> [HoverEffect] {
@@ -161,7 +163,8 @@ public struct HoverState: Equatable, Sendable {
         }
 
         hasPendingCollapse = false
-        return [.emitExpanded(false)]
+        expanded = false
+        return [.previewExpanded(false), .emitExpanded(false)]
     }
 
     private mutating func cancelExpand(into effects: inout [HoverEffect]) {

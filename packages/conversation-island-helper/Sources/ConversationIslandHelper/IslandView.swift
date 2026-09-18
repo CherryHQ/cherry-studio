@@ -8,6 +8,7 @@ final class IslandViewModel: ObservableObject {
     @Published private(set) var revision: Int64?
     @Published private(set) var payload: PresentationPayload?
     @Published private(set) var placement: IslandPlacement?
+    @Published private(set) var visualExpanded = false
     @Published private(set) var motionTarget = MotionTarget.visible
     @Published private(set) var isVisible = false
 
@@ -15,7 +16,13 @@ final class IslandViewModel: ObservableObject {
         self.revision = revision
         self.payload = payload
         self.placement = placement
+        visualExpanded = payload.expanded
         isVisible = true
+    }
+
+    func previewExpansion(_ expanded: Bool, placement: IslandPlacement) {
+        visualExpanded = expanded
+        self.placement = placement
     }
 
     func reposition(_ placement: IslandPlacement) {
@@ -37,19 +44,26 @@ struct IslandView: View {
     let onOpenActivity: (Int64, String) -> Void
 
     var body: some View {
-        Group {
-            if let revision = viewModel.revision,
-               let payload = viewModel.payload,
-               let placement = viewModel.placement
-            {
-                surface(revision: revision, payload: payload, placement: placement)
-                    .id(ContentIdentity(revision: revision, expanded: payload.expanded))
-                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+        GeometryReader { geometry in
+            Group {
+                if let revision = viewModel.revision,
+                   let payload = viewModel.payload,
+                   let placement = viewModel.placement
+                {
+                    surface(
+                        revision: revision,
+                        payload: payload,
+                        placement: placement,
+                        visualExpanded: viewModel.visualExpanded,
+                        size: geometry.size
+                    )
                     .onHover { hovering in
                         onHoverChanged(revision, hovering)
                     }
                     .preferredColorScheme(payload.theme.appearance == .dark ? .dark : .light)
+                }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
         .opacity(viewModel.motionTarget.opacity)
         .scaleEffect(
@@ -63,7 +77,9 @@ struct IslandView: View {
     private func surface(
         revision: Int64,
         payload: PresentationPayload,
-        placement: IslandPlacement
+        placement: IslandPlacement,
+        visualExpanded: Bool,
+        size: CGSize
     ) -> some View {
         let model = SurfaceModel(payload: payload)
         let colors = SurfaceColors(theme: payload.theme, presentation: placement.presentation)
@@ -77,6 +93,7 @@ struct IslandView: View {
                     activityCountText: activityCountText,
                     activityCount: activityCount,
                     placement: placement,
+                    surfaceWidth: size.width,
                     theme: payload.theme,
                     reducedMotion: payload.reducedMotion,
                     colors: colors
@@ -130,14 +147,14 @@ struct IslandView: View {
                 }
             }
         }
-        .frame(width: placement.bounds.width, height: placement.bounds.height, alignment: .top)
+        .frame(width: size.width, height: size.height, alignment: .top)
         .foregroundStyle(colors.primaryText)
         .background {
-            background(presentation: placement.presentation, expanded: payload.expanded, colors: colors)
+            background(presentation: placement.presentation, colors: colors)
         }
-        .clipShape(surfaceShape(presentation: placement.presentation, expanded: payload.expanded))
+        .clipShape(surfaceShape(presentation: placement.presentation, expanded: visualExpanded))
         .overlay {
-            surfaceShape(presentation: placement.presentation, expanded: payload.expanded)
+            surfaceShape(presentation: placement.presentation, expanded: visualExpanded)
                 .stroke(colors.border, lineWidth: placement.presentation == .capsule ? 1 : 0)
         }
         .accentColor(primaryColor(payload.theme))
@@ -150,6 +167,7 @@ struct IslandView: View {
         activityCountText: String,
         activityCount: Int,
         placement: IslandPlacement,
+        surfaceWidth: CGFloat,
         theme: PresentationTheme,
         reducedMotion: Bool,
         colors: SurfaceColors
@@ -158,7 +176,7 @@ struct IslandView: View {
             onOpenActivity(revision, primary.activityId)
         } label: {
             if placement.presentation == .notch, let notchWidth = placement.notchWidth {
-                let sideWidth = max(0, (placement.bounds.width - notchWidth) / 2)
+                let sideWidth = max(0, (surfaceWidth - notchWidth) / 2)
                 HStack(spacing: 0) {
                     compactStatus(primary, theme: theme, reducedMotion: reducedMotion, colors: colors)
                         .padding(.leading, 10)
@@ -337,7 +355,6 @@ struct IslandView: View {
     @ViewBuilder
     private func background(
         presentation: IslandPresentation,
-        expanded: Bool,
         colors: SurfaceColors
     ) -> some View {
         if presentation == .notch {
@@ -377,11 +394,6 @@ struct IslandView: View {
         }
         return .custom(family, size: size).weight(weight)
     }
-}
-
-private struct ContentIdentity: Hashable {
-    let revision: Int64
-    let expanded: Bool
 }
 
 private struct SurfaceColors {
@@ -451,11 +463,22 @@ private struct StatusDot: View {
 
 private struct SurfaceShape: Shape {
     let presentation: IslandPresentation
-    let expanded: Bool
+    var expansionProgress: CGFloat
+
+    init(presentation: IslandPresentation, expanded: Bool) {
+        self.presentation = presentation
+        expansionProgress = expanded ? 1 : 0
+    }
+
+    var animatableData: CGFloat {
+        get { expansionProgress }
+        set { expansionProgress = newValue }
+    }
 
     func path(in rect: CGRect) -> Path {
         if presentation == .capsule {
-            return RoundedRectangle(cornerRadius: expanded ? 12 : 19, style: .continuous)
+            let cornerRadius = 19 - 7 * expansionProgress
+            return RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .path(in: rect)
         }
 
