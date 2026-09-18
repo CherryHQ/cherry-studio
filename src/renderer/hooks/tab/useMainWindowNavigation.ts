@@ -6,6 +6,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
 import { isSettingsPath, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
+import { normalizeMainWindowRoute } from '@shared/utils/navigationRoute'
 
 import { useTabs } from './useTabs'
 
@@ -96,23 +97,25 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
  *   request-id dedupe, delivered to `attachTab`.
  *
  * Settings paths land in the singleton settings tab; everything else goes
- * through `openTab`'s exact-URL dedupe.
+ * through the layout-aware `openRoute` boundary.
  */
 export function useMainWindowNavigation() {
   const openSettingsRoute = useOpenSettingsRoute()
-  const { attachTab, openTab } = useTabs()
+  const { attachTab, openRoute } = useTabs()
   const initData = useWindowInitData<MainWindowInitData>()
   const handledNavigationRequestIdRef = useRef<number | null>(null)
 
   const handleRoute = useCallback(
     (to: string) => {
-      if (isSettingsPath(to)) {
-        openSettingsRoute(to)
-      } else {
-        openTab(to)
+      const targetPath = normalizeMainWindowRoute(to)
+      if (isSettingsPath(targetPath)) {
+        openSettingsRoute(targetPath)
+        return
       }
+
+      openRoute(targetPath)
     },
-    [openSettingsRoute, openTab]
+    [openRoute, openSettingsRoute]
   )
 
   useIpcOn('navigation.open_route_requested', ({ to }) => handleRoute(to))

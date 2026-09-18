@@ -19,6 +19,7 @@ const stubApp = (id: string): MiniAppType => ({
 const mocks = vi.hoisted(() => ({
   openMiniAppInSplit: vi.fn(),
   openTab: vi.fn(),
+  closeWorkspace: vi.fn(),
   onClose: vi.fn(),
   miniApps: [] as MiniAppType[]
 }))
@@ -52,6 +53,9 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
   useSidebarShortcuts: () => ({ shortcuts: [], setPinned: vi.fn() })
+}))
+vi.mock('@renderer/hooks/tab', () => ({
+  useTabs: () => ({ closeWorkspace: mocks.closeWorkspace, navigationLayout: 'tabs' })
 }))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openMiniAppInSplit: mocks.openMiniAppInSplit })

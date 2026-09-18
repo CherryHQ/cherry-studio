@@ -12,9 +12,12 @@ import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickP
 import { WEB_SEARCH_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
+import { useTabs } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
@@ -63,6 +66,8 @@ const WebSearchProviderIcon: FC<{ iconRef?: IconRef; providerName?: string }> = 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { navigationLayout } = useTabs()
+  const { mode: windowFrameMode } = useWindowFrame()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider: modelProvider } = useProviderById(model?.providerId)
   const {
@@ -146,7 +151,11 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         if (!confirmed) return
 
         navigatedAway = true
-        await navigate({ to: '/settings/websearch' })
+        if (navigationLayout === 'both' || windowFrameMode === 'window') {
+          await navigate({ to: '/settings/websearch' })
+        } else {
+          openSettingsTab('/settings/websearch')
+        }
         return
       }
 
@@ -156,7 +165,18 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
       void updateAssistant({ settings: { enableWebSearch: true } })
     },
-    [assistant, disabledReason, enableWebSearch, navigate, t, updateAssistant, model, searchUnavailableReason]
+    [
+      assistant,
+      disabledReason,
+      enableWebSearch,
+      model,
+      navigate,
+      navigationLayout,
+      searchUnavailableReason,
+      t,
+      updateAssistant,
+      windowFrameMode
+    ]
   )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')

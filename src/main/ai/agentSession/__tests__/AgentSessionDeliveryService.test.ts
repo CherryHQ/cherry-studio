@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   hasLiveStream: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
+  clearConversationTaskStatuses: vi.fn(),
   abortAndDrain: vi.fn(),
   hasTerminalPersistenceInFlight: vi.fn(),
   whenTerminalDispatchSettled: vi.fn(),
@@ -147,6 +148,7 @@ const manager = {
   hasUnsettledTopicWork: mocks.hasUnsettledTopicWork,
   hasLiveStream: mocks.hasLiveStream,
   pauseRuntimeTurn: mocks.pauseRuntimeTurn,
+  clearConversationTaskStatuses: mocks.clearConversationTaskStatuses,
   abortAndDrain: mocks.abortAndDrain,
   hasTerminalPersistenceInFlight: mocks.hasTerminalPersistenceInFlight,
   whenTerminalDispatchSettled: mocks.whenTerminalDispatchSettled,
@@ -756,6 +758,7 @@ describe('AgentSessionDeliveryService', () => {
     releaseRuntime()
 
     await expect(deleting).resolves.toEqual({ deletedIds: ['target'] })
+    expect(mocks.clearConversationTaskStatuses).toHaveBeenCalledWith(['agent-session:target'])
     await competingAdmission
     expect(competingAdmissionEntered).toBe(true)
   })

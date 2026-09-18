@@ -248,6 +248,13 @@
       "description": "Left sidebar shortcuts, an ordered list of generic resource targets with provider-owned activation"
     },
     {
+      "targetKey": "ui.navigation.layout",
+      "type": "PreferenceTypes.NavigationLayout",
+      "defaultValue": "both",
+      "status": "classified",
+      "description": "Main-window navigation layout: sidebar workspaces, top tabs, or the legacy combined layout"
+    },
+    {
       "targetKey": "ui.launchpad.app_order",
       "type": "PreferenceTypes.SidebarFavorite[]",
       "defaultValue": [],

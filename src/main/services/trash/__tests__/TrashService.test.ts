@@ -39,6 +39,7 @@ const jobManager = {
 }
 const busyTopicIds = new Set<string>()
 const aiStreamManager = {
+  clearConversationTaskStatuses: vi.fn(),
   hasUnsettledTopicWork: vi.fn((topicId: string) => busyTopicIds.has(topicId)),
   withDispatchLock: vi.fn(async (_topicId: string, operation: () => Promise<unknown>) => operation())
 }
@@ -185,11 +186,20 @@ describe('TrashService', () => {
     })
 
     expect(topicService.deleteByAssistantId).toHaveBeenCalledExactlyOnceWith('assistant-a')
+    expect(aiStreamManager.clearConversationTaskStatuses).toHaveBeenCalledWith(['topic-a', 'topic-b'])
     expect(aiStreamManager.withDispatchLock.mock.calls.map(([topicId]) => topicId)).toEqual([
       'topic-a',
       'topic-a',
       'topic-b'
     ])
+  })
+
+  it('clears task status after archiving Topics', async () => {
+    topicService.deleteByIds.mockReturnValue({ deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 })
+
+    await new TrashService().archiveTopics(['topic-b', 'topic-a'])
+
+    expect(aiStreamManager.clearConversationTaskStatuses).toHaveBeenCalledWith(['topic-a', 'topic-b'])
   })
 
   it('archives an Assistant without touching Topic runtime when related Topics are preserved', async () => {

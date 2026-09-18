@@ -31,7 +31,10 @@ const { sessionGetById, runtimeBusy } = vi.hoisted(() => ({
 }))
 
 vi.mock('../../context/AgentChatContextProvider', () => ({
-  agentChatContextProvider: { prepareAgentSessionDispatch: prepareDispatchMock }
+  agentChatContextProvider: {
+    isPersistentConversation: true,
+    prepareAgentSessionDispatch: prepareDispatchMock
+  }
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -130,6 +133,15 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     await run
 
     expect(sendSpy).toHaveBeenCalledWith(expect.objectContaining({ listeners: [primary, extra] }))
+  })
+
+  it('indexes Agent Session runs as persistent conversations', async () => {
+    const run = startAgentSessionRun({ sessionId: 's', userParts: [text('a')], listeners: [listener('primary')] })
+    await flush()
+    prepareResolvers[0]()
+    await run
+
+    expect(sendSpy).toHaveBeenCalledWith(expect.objectContaining({ isPersistentConversation: true }))
   })
 
   it('passes notification authority through the Agent Session admission contract', async () => {

@@ -103,7 +103,7 @@ describe('mainWindowNavigation', () => {
       openRouteInMainWindow('/knowledge')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'navigation.open_route_requested', {
-        to: '/knowledge'
+        to: '/app/knowledge'
       })
       expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith()
     })
@@ -114,7 +114,7 @@ describe('mainWindowNavigation', () => {
       expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
       expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith({
         kind: 'navigation',
-        to: '/knowledge',
+        to: '/app/knowledge',
         requestId: expect.any(Number)
       })
     })
