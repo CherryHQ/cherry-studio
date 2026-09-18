@@ -9,6 +9,7 @@ import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKno
 import {
   externalKnowledgeCredentialStore,
   type ExternalKnowledgeCredential,
+  type ExternalKnowledgeCredentialReferenceListResult,
   type ExternalKnowledgeCredentialReadResult,
   type ExternalKnowledgeTokenSet,
   type TokenRotationResult
@@ -40,11 +41,13 @@ type ConnectionStore = Pick<
   | 'markConnected'
   | 'markValidated'
   | 'markReauthorizationRequired'
-  | 'updateApplication'
+  | 'commitReauthorization'
   | 'remove'
 >
 
 type CredentialStore = {
+  assertAvailable(): void
+  listReferences(): Promise<ExternalKnowledgeCredentialReferenceListResult>
   read(credentialReference: string): Promise<ExternalKnowledgeCredentialReadResult>
   put(credentialReference: string, credential: ExternalKnowledgeCredential): Promise<void>
   rotateTokens(
@@ -106,12 +109,16 @@ type AuthorizationSession = {
   signal: AbortSignal
   generation: number
   connectionId: string
-  credentialReference: string
+  stateCredentialReference: string
+  candidateCredentialReference: string
+  expectedCredentialReference: string | null
   appCredentialSource: ExternalKnowledgeConnection['appCredentialSource']
+  applicationName: string | null
   credentials: FeishuApplicationCredentials
   device: FeishuDeviceAuthorization
   expiresAt: number
   initial: boolean
+  candidateCommitted: boolean
   completion?: Promise<ExternalKnowledgeConnection>
 }
 
@@ -308,8 +315,7 @@ export class ExternalKnowledgeRuntime {
         applicationName: applicationCredentials.applicationName,
         initial: false,
         connection,
-        generation,
-        replaceCredential: replacement !== undefined
+        generation
       })
     )
   }
@@ -333,15 +339,21 @@ export class ExternalKnowledgeRuntime {
     if (!session) return
     this.authorizationSessions.delete(authorizationSessionId)
     session.controller.abort()
-    const state = this.credentialStates.get(session.credentialReference)
+    const state = this.credentialStates.get(session.stateCredentialReference)
     if (state && this.isCurrentCredentialGeneration(state, session.generation)) {
-      this.advanceCredentialGeneration(session.credentialReference, state)
+      this.advanceCredentialGeneration(session.stateCredentialReference, state)
     }
     if (session.completion) await Promise.allSettled([session.completion])
-    if (session.initial) {
-      await this.credentials.remove(session.credentialReference)
+    if (!session.candidateCommitted) {
+      try {
+        await this.credentials.remove(session.candidateCredentialReference)
+      } catch {
+        // Startup reconciliation retries orphan cleanup.
+      }
+    }
+    if (session.initial && !session.candidateCommitted) {
       this.connections.remove(session.connectionId)
-      this.credentialStates.delete(session.credentialReference)
+      this.credentialStates.delete(session.stateCredentialReference)
     }
   }
 
@@ -486,35 +498,19 @@ export class ExternalKnowledgeRuntime {
     initial: boolean
     connection?: ExternalKnowledgeConnection
     generation?: number
-    replaceCredential?: boolean
   }): Promise<BeginAuthorizationResult> {
+    this.credentials.assertAvailable()
     const controller = new AbortController()
-    const credentialReference = input.connection?.credentialReference ?? `feishu:${randomUUID()}`
-    const state = this.getCredentialState(credentialReference)
-    const generation = input.generation ?? this.advanceCredentialGeneration(credentialReference, state)
+    const candidateCredentialReference = `feishu:${randomUUID()}`
+    const expectedCredentialReference = input.connection?.credentialReference ?? null
+    const stateCredentialReference = expectedCredentialReference ?? candidateCredentialReference
+    const state = this.getCredentialState(stateCredentialReference)
+    const generation = input.generation ?? this.advanceCredentialGeneration(stateCredentialReference, state)
     this.assertCredentialGeneration(state, generation)
     const signal = AbortSignal.any([this.lifetime.signal, state.controller.signal, controller.signal])
     let connection = input.connection
-    let storedInitialCredential = false
 
     try {
-      if (input.replaceCredential && connection) {
-        connection = this.connections.updateApplication(connection.id, {
-          appId: input.appCredentials.appId,
-          appCredentialSource: input.appCredentialSource,
-          applicationName: input.applicationName ?? null
-        })
-      }
-
-      if (input.initial || input.replaceCredential) {
-        await this.credentials.put(credentialReference, {
-          ...input.appCredentials,
-          grantedScopes: []
-        })
-        storedInitialCredential = input.initial
-        this.assertCredentialGeneration(state, generation)
-      }
-
       const device: FeishuDeviceAuthorization = await this.runCredentialRequest(state, generation, signal, () =>
         this.provider.beginDeviceAuthorization(input.appCredentials, signal)
       )
@@ -524,10 +520,9 @@ export class ExternalKnowledgeRuntime {
         connection = this.connections.create({
           appId: input.appCredentials.appId,
           appCredentialSource: input.appCredentialSource,
-          credentialReference,
+          credentialReference: candidateCredentialReference,
           applicationName: input.applicationName ?? null
         })
-        storedInitialCredential = false
       }
       if (!connection) throw new ExternalKnowledgeRuntimeError('not-found')
 
@@ -538,12 +533,16 @@ export class ExternalKnowledgeRuntime {
         signal,
         generation,
         connectionId: connection.id,
-        credentialReference,
+        stateCredentialReference,
+        candidateCredentialReference,
+        expectedCredentialReference,
         appCredentialSource: input.appCredentialSource,
+        applicationName: input.applicationName ?? null,
         credentials: input.appCredentials,
         device,
         expiresAt,
-        initial: input.initial
+        initial: input.initial,
+        candidateCommitted: false
       })
       return {
         authorizationSessionId,
@@ -554,9 +553,11 @@ export class ExternalKnowledgeRuntime {
       }
     } catch (error) {
       try {
-        if (input.initial && storedInitialCredential) await this.credentials.remove(credentialReference)
+        await this.credentials.remove(candidateCredentialReference)
+      } catch {
+        // Startup reconciliation retries orphan cleanup.
       } finally {
-        if (input.initial && !connection) this.credentialStates.delete(credentialReference)
+        if (input.initial && !connection) this.credentialStates.delete(stateCredentialReference)
       }
       throw error
     }
@@ -566,7 +567,7 @@ export class ExternalKnowledgeRuntime {
     authorizationSessionId: string,
     session: AuthorizationSession
   ): Promise<ExternalKnowledgeConnection> {
-    const state = this.getCredentialState(session.credentialReference)
+    const state = this.getCredentialState(session.stateCredentialReference)
     const signal = session.signal
     let interval = session.device.interval * 1000
     try {
@@ -600,22 +601,40 @@ export class ExternalKnowledgeRuntime {
           state,
           generation: session.generation
         })
-        const storedTokens = this.absoluteTokens(token)
-        await this.credentials.put(session.credentialReference, {
-          ...session.credentials,
-          ...storedTokens
-        })
-        this.assertCredentialGeneration(state, session.generation)
         const identity = await this.runCredentialRequest(state, session.generation, signal, () =>
           this.provider.getUserIdentity(token.accessToken, signal)
         )
         this.assertCredentialGeneration(state, session.generation)
         const connection = this.requireConnection(session.connectionId)
         if (!session.initial) this.assertMatchingIdentity(connection, identity)
-        const connected = this.connections.markConnected(session.connectionId, {
-          ...identity,
-          grantedScopes: token.grantedScopes
+        await this.credentials.put(session.candidateCredentialReference, {
+          ...session.credentials,
+          ...this.absoluteTokens(token)
         })
+        this.assertCredentialGeneration(state, session.generation)
+        const connected = session.initial
+          ? this.connections.markConnected(session.connectionId, {
+              ...identity,
+              grantedScopes: token.grantedScopes
+            })
+          : this.connections.commitReauthorization(session.connectionId, {
+              expectedCredentialReference: session.expectedCredentialReference!,
+              candidateCredentialReference: session.candidateCredentialReference,
+              appId: session.credentials.appId,
+              appCredentialSource: session.appCredentialSource,
+              applicationName: session.applicationName,
+              identity: { ...identity, grantedScopes: token.grantedScopes }
+            })
+        session.candidateCommitted = true
+        if (session.expectedCredentialReference) {
+          this.rekeyCredentialState(
+            session.expectedCredentialReference,
+            session.candidateCredentialReference,
+            state,
+            session.generation
+          )
+          await this.retireCredential(session.expectedCredentialReference, signal)
+        }
         state.validatedGeneration = session.generation
         return connected
       }
@@ -624,7 +643,14 @@ export class ExternalKnowledgeRuntime {
     } catch (error) {
       if (error instanceof FeishuProviderError && error.terminal) {
         this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
-        throw this.authorizationError(error)
+        error = this.authorizationError(error)
+      }
+      if (!session.candidateCommitted) {
+        try {
+          await this.credentials.remove(session.candidateCredentialReference)
+        } catch {
+          // Startup reconciliation retries orphan cleanup.
+        }
       }
       throw error
     } finally {
@@ -673,8 +699,44 @@ export class ExternalKnowledgeRuntime {
     }
   }
 
+  private rekeyCredentialState(
+    expectedReference: string,
+    candidateReference: string,
+    state: CredentialRuntimeState,
+    generation: number
+  ): void {
+    this.assertCredentialGeneration(state, generation)
+    if (this.credentialStates.get(expectedReference) !== state) {
+      throw new DOMException('External Knowledge credential operation was superseded', 'AbortError')
+    }
+    this.credentialStates.delete(expectedReference)
+    this.credentialStates.set(candidateReference, state)
+  }
+
+  private async retireCredential(credentialReference: string, signal: AbortSignal): Promise<void> {
+    const stored = await this.credentials.read(credentialReference).catch(() => null)
+    if (stored?.status === 'ok' && stored.credential.refreshToken) {
+      try {
+        await this.provider.revokeUserToken(
+          { appId: stored.credential.appId, appSecret: stored.credential.appSecret },
+          stored.credential.refreshToken,
+          signal
+        )
+      } catch {
+        // Credential retirement is best-effort after the durable reference swap.
+      }
+    }
+    try {
+      await this.credentials.remove(credentialReference)
+    } catch {
+      // Startup reconciliation retries orphan cleanup.
+    }
+  }
+
   private async reconcileConnections(): Promise<void> {
-    for (const connection of this.connections.list()) {
+    const connections = this.connections.list()
+    const referenced = new Set(connections.map((connection) => connection.credentialReference))
+    for (const connection of connections) {
       if (connection.authorizationStatus === 'reauthorization-required') continue
       const stored = await this.credentials.read(connection.credentialReference)
       if (stored.status !== 'ok' || stored.credential.appId !== connection.appId) {
@@ -692,6 +754,12 @@ export class ExternalKnowledgeRuntime {
           this.markReauthorizationRequired(connection.id)
         }
       }
+    }
+
+    const references = await this.credentials.listReferences()
+    if (references.status !== 'ok') return
+    for (const credentialReference of references.credentialReferences) {
+      if (!referenced.has(credentialReference)) await this.credentials.remove(credentialReference)
     }
   }
 
@@ -905,7 +973,7 @@ export class ExternalKnowledgeRuntime {
     state.requestTail = undefined
     state.nextAllowedAt = 0
     for (const [sessionId, session] of this.authorizationSessions) {
-      if (session.credentialReference !== credentialReference) continue
+      if (session.stateCredentialReference !== credentialReference) continue
       this.authorizationSessions.delete(sessionId)
       session.controller.abort()
     }

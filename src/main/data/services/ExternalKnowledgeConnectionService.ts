@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -30,12 +30,6 @@ const CreateExternalKnowledgeConnectionSchema = z.strictObject({
   applicationName: NullableNonBlankStringSchema.optional()
 })
 
-const ExternalKnowledgeApplicationSchema = z.strictObject({
-  appId: z.string().trim().min(1).max(256),
-  appCredentialSource: z.enum(['personal-agent', 'custom-app']),
-  applicationName: NullableNonBlankStringSchema
-})
-
 const ConnectedExternalKnowledgeIdentitySchema = z.strictObject({
   accountUserId: z.string().trim().min(1),
   accountOpenId: z.string().trim().min(1),
@@ -46,8 +40,23 @@ const ConnectedExternalKnowledgeIdentitySchema = z.strictObject({
   grantedScopes: ExternalKnowledgeGrantedScopesSchema.min(1)
 })
 
+const CommitExternalKnowledgeReauthorizationSchema = z
+  .strictObject({
+    expectedCredentialReference: ExternalKnowledgeCredentialReferenceSchema,
+    candidateCredentialReference: ExternalKnowledgeCredentialReferenceSchema,
+    appId: z.string().trim().min(1).max(256),
+    appCredentialSource: z.enum(['personal-agent', 'custom-app']),
+    applicationName: NullableNonBlankStringSchema,
+    identity: ConnectedExternalKnowledgeIdentitySchema
+  })
+  .refine((input) => input.expectedCredentialReference !== input.candidateCredentialReference, {
+    path: ['candidateCredentialReference'],
+    message: 'Candidate credential reference must differ from the active reference'
+  })
+
 export type CreateExternalKnowledgeConnectionInput = z.input<typeof CreateExternalKnowledgeConnectionSchema>
 export type ConnectedExternalKnowledgeIdentity = z.input<typeof ConnectedExternalKnowledgeIdentitySchema>
+export type CommitExternalKnowledgeReauthorizationInput = z.input<typeof CommitExternalKnowledgeReauthorizationSchema>
 
 function nullableTimestampToISO(value: number | null): string | null {
   return value === null ? null : timestampToISO(value)
@@ -173,21 +182,41 @@ export class ExternalKnowledgeConnectionService {
     return connection
   }
 
-  updateApplication(
-    id: string,
-    input: z.input<typeof ExternalKnowledgeApplicationSchema>
-  ): ExternalKnowledgeConnection {
-    const parsed = parseOrThrow(ExternalKnowledgeApplicationSchema, input, 'replace external knowledge application')
+  commitReauthorization(id: string, input: CommitExternalKnowledgeReauthorizationInput): ExternalKnowledgeConnection {
+    const parsed = parseOrThrow(
+      CommitExternalKnowledgeReauthorizationSchema,
+      input,
+      'commit external knowledge reauthorization'
+    )
+    const now = Date.now()
     const [row] = this.db
       .update(externalKnowledgeConnectionTable)
-      .set({ ...parsed, authorizationStatus: 'reauthorization-required' })
-      .where(eq(externalKnowledgeConnectionTable.id, id))
+      .set({
+        credentialReference: parsed.candidateCredentialReference,
+        appId: parsed.appId,
+        appCredentialSource: parsed.appCredentialSource,
+        applicationName: parsed.applicationName,
+        ...parsed.identity,
+        authorizationStatus: 'connected',
+        authorizedAt: now,
+        lastValidatedAt: now
+      })
+      .where(
+        and(
+          eq(externalKnowledgeConnectionTable.id, id),
+          eq(externalKnowledgeConnectionTable.credentialReference, parsed.expectedCredentialReference),
+          eq(externalKnowledgeConnectionTable.authorizationStatus, 'reauthorization-required')
+        )
+      )
       .returning()
       .all()
-    if (!row) throw DataApiErrorFactory.notFound('ExternalKnowledgeConnection', id)
+    if (!row) {
+      if (!this.getById(id)) throw DataApiErrorFactory.notFound('ExternalKnowledgeConnection', id)
+      throw DataApiErrorFactory.concurrentModification('ExternalKnowledgeConnection', id)
+    }
     const connection = rowToEntity(row)
     this.notifyProjectionChange(id)
-    logger.info('External Knowledge application replaced', { connectionId: id })
+    logger.info('External Knowledge reauthorization committed', { connectionId: id })
     return connection
   }
 

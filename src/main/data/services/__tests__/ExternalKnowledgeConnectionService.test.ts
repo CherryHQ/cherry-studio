@@ -88,26 +88,105 @@ describe('ExternalKnowledgeConnectionService', () => {
     })
   })
 
-  it('replaces non-secret application metadata without discarding the authorized account identity', () => {
+  it('commits reauthorization with one guarded credential-reference swap', () => {
     const pending = externalKnowledgeConnectionService.create(createInput)
     const connected = externalKnowledgeConnectionService.markConnected(pending.id, connectedIdentity)
     externalKnowledgeConnectionService.markReauthorizationRequired(pending.id)
 
-    const replaced = externalKnowledgeConnectionService.updateApplication(pending.id, {
+    const replaced = externalKnowledgeConnectionService.commitReauthorization(pending.id, {
+      expectedCredentialReference: createInput.credentialReference,
+      candidateCredentialReference: 'cred_candidate',
       appId: 'cli_replacement',
       appCredentialSource: 'personal-agent',
-      applicationName: 'Cherry Studio Knowledge'
+      applicationName: 'Cherry Studio Knowledge',
+      identity: {
+        ...connectedIdentity,
+        accountOpenId: 'ou_replacement_app',
+        displayName: 'Updated User'
+      }
     })
 
     expect(replaced).toMatchObject({
       id: connected.id,
+      credentialReference: 'cred_candidate',
       appId: 'cli_replacement',
       appCredentialSource: 'personal-agent',
       applicationName: 'Cherry Studio Knowledge',
-      authorizationStatus: 'reauthorization-required',
-      accountOpenId: connected.accountOpenId,
+      authorizationStatus: 'connected',
+      accountUserId: connected.accountUserId,
+      accountOpenId: 'ou_replacement_app',
       tenantKey: connected.tenantKey,
-      authorizedAt: connected.authorizedAt
+      grantedScopes: connectedIdentity.grantedScopes
+    })
+  })
+
+  it('rejects a stale reauthorization CAS without changing the committed connection', () => {
+    const pending = externalKnowledgeConnectionService.create(createInput)
+    externalKnowledgeConnectionService.markConnected(pending.id, connectedIdentity)
+    externalKnowledgeConnectionService.markReauthorizationRequired(pending.id)
+    const committed = externalKnowledgeConnectionService.commitReauthorization(pending.id, {
+      expectedCredentialReference: createInput.credentialReference,
+      candidateCredentialReference: 'cred_winner',
+      appId: 'cli_winner',
+      appCredentialSource: 'custom-app',
+      applicationName: 'Winner',
+      identity: connectedIdentity
+    })
+
+    expect(() =>
+      externalKnowledgeConnectionService.commitReauthorization(pending.id, {
+        expectedCredentialReference: createInput.credentialReference,
+        candidateCredentialReference: 'cred_loser',
+        appId: 'cli_loser',
+        appCredentialSource: 'custom-app',
+        applicationName: 'Loser',
+        identity: connectedIdentity
+      })
+    ).toThrowError(expect.objectContaining({ code: ErrorCode.CONCURRENT_MODIFICATION, status: 409 }))
+    expect(externalKnowledgeConnectionService.getById(pending.id)).toEqual(committed)
+  })
+
+  it('reports a missing connection separately from a stale credential reference', () => {
+    const pending = externalKnowledgeConnectionService.create(createInput)
+    externalKnowledgeConnectionService.markConnected(pending.id, connectedIdentity)
+    externalKnowledgeConnectionService.markReauthorizationRequired(pending.id)
+    const input = {
+      expectedCredentialReference: 'cred_stale',
+      candidateCredentialReference: 'cred_candidate',
+      appId: 'cli_replacement',
+      appCredentialSource: 'custom-app' as const,
+      applicationName: null,
+      identity: connectedIdentity
+    }
+
+    expect(() => externalKnowledgeConnectionService.commitReauthorization(pending.id, input)).toThrowError(
+      expect.objectContaining({ code: ErrorCode.CONCURRENT_MODIFICATION, status: 409 })
+    )
+    externalKnowledgeConnectionService.remove(pending.id)
+    expect(() => externalKnowledgeConnectionService.commitReauthorization(pending.id, input)).toThrowError(
+      expect.objectContaining({ code: ErrorCode.NOT_FOUND, status: 404 })
+    )
+  })
+
+  it('rejects using the active credential reference as its own candidate', () => {
+    const pending = externalKnowledgeConnectionService.create(createInput)
+    externalKnowledgeConnectionService.markConnected(pending.id, connectedIdentity)
+    externalKnowledgeConnectionService.markReauthorizationRequired(pending.id)
+
+    expect(() =>
+      externalKnowledgeConnectionService.commitReauthorization(pending.id, {
+        expectedCredentialReference: createInput.credentialReference,
+        candidateCredentialReference: createInput.credentialReference,
+        appId: 'cli_replacement',
+        appCredentialSource: 'custom-app',
+        applicationName: null,
+        identity: connectedIdentity
+      })
+    ).toThrowError(expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR, status: 422 }))
+    expect(externalKnowledgeConnectionService.getById(pending.id)).toMatchObject({
+      credentialReference: createInput.credentialReference,
+      appId: createInput.appId,
+      authorizationStatus: 'reauthorization-required'
     })
   })
 

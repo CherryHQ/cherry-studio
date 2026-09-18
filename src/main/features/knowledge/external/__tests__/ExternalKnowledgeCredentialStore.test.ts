@@ -150,6 +150,46 @@ describe('ExternalKnowledgeCredentialStore', () => {
     })
   })
 
+  it('enumerates credential references only from a valid decryptable file', async () => {
+    const safeStorage = createSafeStorage()
+    const store = new ExternalKnowledgeCredentialStore({ filePath, safeStorage })
+
+    await expect(store.listReferences()).resolves.toEqual({ status: 'missing' })
+    await store.put('credential-one', { appId: 'cli_one', appSecret: 'secret-one', grantedScopes: [] })
+    await store.put('credential-two', { appId: 'cli_two', appSecret: 'secret-two', grantedScopes: [] })
+    await expect(store.listReferences()).resolves.toEqual({
+      status: 'ok',
+      credentialReferences: expect.arrayContaining(['credential-one', 'credential-two'])
+    })
+
+    vi.mocked(safeStorage.isEncryptionAvailable).mockReturnValue(false)
+    await expect(store.listReferences()).resolves.toEqual({ status: 'undecryptable' })
+  })
+
+  it('does not rewrite a corrupt file while attempting to enumerate references', async () => {
+    const store = new ExternalKnowledgeCredentialStore({ filePath, safeStorage: createSafeStorage() })
+    await mkdir(path.dirname(filePath), { recursive: true })
+    const corruptContents = JSON.stringify({ version: 1, entries: {}, unexpected: secretValues[0] })
+    await writeFile(filePath, corruptContents, { mode: 0o600 })
+
+    await expect(store.listReferences()).resolves.toEqual({ status: 'corrupt' })
+    await expect(readFile(filePath, 'utf8')).resolves.toBe(corruptContents)
+  })
+
+  it('probes encryption availability synchronously before starting authorization', () => {
+    const safeStorage = createSafeStorage()
+    const store = new ExternalKnowledgeCredentialStore({ filePath, safeStorage })
+
+    expect(() => store.assertAvailable()).not.toThrow()
+    vi.mocked(safeStorage.isEncryptionAvailable).mockReturnValue(false)
+    expect(() => store.assertAvailable()).toThrowError(
+      expect.objectContaining({
+        code: 'encryption-unavailable',
+        message: 'Knowledge credential storage is unavailable'
+      })
+    )
+  })
+
   it('fails closed when platform encryption is unavailable', async () => {
     const safeStorage = createSafeStorage()
     vi.mocked(safeStorage.isEncryptionAvailable).mockReturnValue(false)

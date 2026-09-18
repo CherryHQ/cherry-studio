@@ -55,6 +55,10 @@ export type ExternalKnowledgeCredentialReadResult =
   | { status: 'ok'; credential: ExternalKnowledgeCredential }
   | { status: 'missing' | 'corrupt' | 'undecryptable' }
 
+export type ExternalKnowledgeCredentialReferenceListResult =
+  | { status: 'ok'; credentialReferences: string[] }
+  | { status: 'missing' | 'corrupt' | 'undecryptable' }
+
 export type TokenRotationResult = 'updated' | 'missing' | 'stale' | 'corrupt' | 'undecryptable'
 
 export type SafeStorageAdapter = Pick<typeof safeStorage, 'isEncryptionAvailable' | 'encryptString' | 'decryptString'>
@@ -107,9 +111,25 @@ export class ExternalKnowledgeCredentialStore {
     }
   }
 
+  assertAvailable(): void {
+    if (!this.encryption.isEncryptionAvailable()) {
+      throw new ExternalKnowledgeCredentialStoreError(
+        'encryption-unavailable',
+        'Knowledge credential storage is unavailable'
+      )
+    }
+  }
+
+  async listReferences(): Promise<ExternalKnowledgeCredentialReferenceListResult> {
+    const current = await this.readFile()
+    if (current.status !== 'ok') return current
+    if (!this.encryption.isEncryptionAvailable()) return { status: 'undecryptable' }
+    return { status: 'ok', credentialReferences: Object.keys(current.file.entries) }
+  }
+
   async put(credentialReference: string, credential: ExternalKnowledgeCredential): Promise<void> {
     await this.mutate(async () => {
-      this.assertEncryptionAvailable()
+      this.assertAvailable()
       const current = await this.readFile()
       if (current.status === 'corrupt') {
         throw new ExternalKnowledgeCredentialStoreError('corrupt', 'Knowledge credential storage is corrupt')
@@ -180,6 +200,7 @@ export class ExternalKnowledgeCredentialStore {
         throw new ExternalKnowledgeCredentialStoreError('corrupt', 'Knowledge credential storage is corrupt')
       }
       if (!(credentialReference in current.file.entries)) return
+      this.assertAvailable()
 
       const entries = { ...current.file.entries }
       delete entries[credentialReference]
@@ -256,15 +277,6 @@ export class ExternalKnowledgeCredentialStore {
 
   private decryptValue(value: string): string {
     return this.encryption.decryptString(Buffer.from(value, 'base64'))
-  }
-
-  private assertEncryptionAvailable(): void {
-    if (!this.encryption.isEncryptionAvailable()) {
-      throw new ExternalKnowledgeCredentialStoreError(
-        'encryption-unavailable',
-        'Knowledge credential storage is unavailable'
-      )
-    }
   }
 
   private async replace(file: CredentialFile): Promise<void> {
