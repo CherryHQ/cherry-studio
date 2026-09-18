@@ -868,6 +868,10 @@ const AgentComposerInner = ({
     getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||
     rootPanelVisible ||
     knowledgeBasePanelVisible
+  // Sticky once requested, mirroring ChatComposer: useKnowledgeBases empties its list
+  // while disabled, so a closed panel would collapse a loaded list and dead-end the launcher.
+  const knowledgeBasesRequestedRef = useRef(false)
+  if (knowledgeBasesDataEnabled) knowledgeBasesRequestedRef.current = true
   const {
     skills: availableSkills,
     loading: isAvailableSkillsLoading,
@@ -879,7 +883,7 @@ const AgentComposerInner = ({
     [availableSkills]
   )
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
-    enabled: knowledgeBasesDataEnabled
+    enabled: knowledgeBasesDataEnabled || knowledgeBasesRequestedRef.current
   })
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)

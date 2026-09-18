@@ -5121,6 +5121,31 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
   })
+
+  it('keeps the knowledge-base query enabled after a request was made once', async () => {
+    // useKnowledgeBases empties its list while disabled: if the gate followed the
+    // editing session down to false, a loaded list would collapse to [] and the
+    // knowledge launcher would disable itself with a bogus "no knowledge base".
+    const message = { id: 'msg-1', topicId: topic.id }
+    const parts = [{ type: 'text', text: 'original message' }]
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    // Editing a message is one of the data triggers: the query must come up enabled.
+    await waitFor(() => expect(mocks.knowledgeBaseHookArgs.at(-1)).toEqual([{ enabled: true }]))
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+
+    expect(mocks.knowledgeBaseHookArgs.at(-1)).toEqual([{ enabled: true }])
+  })
 })
 
 async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = width + 240) {

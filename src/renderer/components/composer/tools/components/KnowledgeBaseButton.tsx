@@ -66,7 +66,7 @@ const useKnowledgeBaseToolController = ({
   const panelNeedsData =
     isQuickPanelVisible &&
     (quickPanelSymbol === ComposerPanelSymbol.Root || quickPanelSymbol === ComposerPanelSymbol.KnowledgeBase)
-  const knowledgeBasesReady = dataRequested || panelNeedsData || (selectedBases?.length ?? 0) > 0
+  const knowledgeBasesReady = dataRequested && !panelNeedsData
   const onSelectRef = useRef(onSelect)
   const selectedBasesRef = useRef<KnowledgeBase[]>(selectedBases ?? [])
   const basesRef = useRef<KnowledgeBase[]>(bases)
@@ -81,6 +81,8 @@ const useKnowledgeBaseToolController = ({
   tRef.current = t
 
   const isEnabled = (selectedBases?.length ?? 0) > 0
+  // Disabled means "no knowledge bases exist": only after the picker was opened and
+  // settled — never while a panel is open (the list may still be streaming in).
   const isDisabled = disabled || (knowledgeBasesReady && bases.length === 0)
   const fallbackDisabledReason = disabled
     ? t('chat.input.knowledge_base_disabled_by_files')

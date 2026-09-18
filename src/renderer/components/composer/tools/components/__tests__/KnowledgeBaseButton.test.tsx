@@ -428,4 +428,71 @@ describe('KnowledgeBaseToolRuntime', () => {
       ])
     )
   })
+
+  it('keeps the launcher enabled while a panel is open and the list is still loading', async () => {
+    // The panel-open window is also the load window: bases may still be streaming in,
+    // so an empty list must not disable the launcher mid-load (review regression — a
+    // disabled launcher is the only path back to the picker, it must not dead-end).
+    const launcher = createLauncherApi()
+    const quickPanel = { open: vi.fn() }
+
+    const view = render(
+      <KnowledgeBaseToolRuntime
+        launcher={launcher}
+        bases={[]}
+        unconfiguredBaseIds={new Set()}
+        selectedBases={[]}
+        onSelect={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls.at(-1)![0]
+    knowledgeLauncher.action?.({ quickPanel, source: 'root-panel', triggerInfo: { type: 'button' } } as never)
+    await waitFor(() => expect(quickPanel.open).toHaveBeenCalled())
+
+    // The picker stays open (panel visible) while the knowledge list is still empty.
+    mocks.quickPanel.isVisible = true
+    mocks.quickPanel.symbol = ComposerPanelSymbol.KnowledgeBase
+    view.rerender(
+      <KnowledgeBaseToolRuntime
+        launcher={launcher}
+        bases={[]}
+        unconfiguredBaseIds={new Set()}
+        selectedBases={[]}
+        onSelect={vi.fn()}
+      />
+    )
+
+    await waitFor(() => {
+      const [item] = vi.mocked(launcher.registerLaunchers).mock.calls.at(-1)![0]
+      expect(item).toMatchObject({ disabled: false, disabledReason: undefined })
+    })
+  })
+
+  it('disables the launcher only after the picker closed on a settled empty list', async () => {
+    const launcher = createLauncherApi()
+    const quickPanel = { open: vi.fn() }
+
+    render(
+      <KnowledgeBaseToolRuntime
+        launcher={launcher}
+        bases={[]}
+        unconfiguredBaseIds={new Set()}
+        selectedBases={[]}
+        onSelect={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls.at(-1)![0]
+    knowledgeLauncher.action?.({ quickPanel, source: 'root-panel', triggerInfo: { type: 'button' } } as never)
+    await waitFor(() => expect(quickPanel.open).toHaveBeenCalled())
+
+    // The picker has been opened once and closed; the list is genuinely empty.
+    await waitFor(() => {
+      const [item] = vi.mocked(launcher.registerLaunchers).mock.calls.at(-1)![0]
+      expect(item).toMatchObject({ disabled: true, disabledReason: 'No knowledge base' })
+    })
+  })
 })
