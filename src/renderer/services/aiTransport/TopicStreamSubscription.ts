@@ -2,7 +2,7 @@ import type { UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import type { StreamChunkPayload } from '@shared/ai/transport'
+import type { StreamChunkPayload, StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -77,6 +77,11 @@ export class TopicStreamSubscription {
   // Live chunks arriving while an attach is in flight wait here until replay
   // is routed, so the overlay reader never sees a delta before its opener.
   #attachBuffer: StreamChunkPayload[] | null = null
+  // Terminal events arriving mid-flight wait here for the same reason: settling
+  // a branch now would drop its replay and buffered chunks as post-terminal.
+  #attachTerminals: Array<
+    { kind: 'done'; data: StreamDonePayload } | { kind: 'error'; data: StreamErrorPayload }
+  > | null = null
   #disposed = false
   #topicOpen = false
   #terminalAttemptWatermark: number | undefined
@@ -410,47 +415,67 @@ export class TopicStreamSubscription {
     if (this.#ipcUnsubs.length > 0) return
     this.#ipcUnsubs.push(
       ipcApi.on('ai.stream.chunk', (data) => this.#routeChunk(data)),
-      ipcApi.on('ai.stream.done', (data) => {
-        if (data.topicId !== this.#topicId) return
-        const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
-        const terminal: ExecutionTerminal = {
-          ...(data.attemptId !== undefined ? { attemptId: data.attemptId } : {}),
-          isAbort: data.status === 'paused',
-          isError: false
-        }
-        this.#applyTerminal(
-          data.executionId,
-          terminal,
-          data.anchorMessageId,
-          data.attemptId,
-          data.isTopicDone ? data.topicAttemptWatermark : undefined
-        )
-        if (topicStateChanged) this.#notifyTopicStateChange()
-      }),
-      ipcApi.on('ai.stream.error', (data) => {
-        if (data.topicId !== this.#topicId) return
-        const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
-        this.#enqueueError(
-          data.error,
-          data.executionId,
-          data.anchorMessageId,
-          data.attemptId,
-          data.isTopicDone ? data.topicAttemptWatermark : undefined
-        )
-        const terminal: ExecutionTerminal = {
-          ...(data.attemptId !== undefined ? { attemptId: data.attemptId } : {}),
-          isAbort: false,
-          isError: true
-        }
-        this.#applyTerminal(
-          data.executionId,
-          terminal,
-          data.anchorMessageId,
-          data.attemptId,
-          data.isTopicDone ? data.topicAttemptWatermark : undefined
-        )
-        if (topicStateChanged) this.#notifyTopicStateChange()
-      })
+      ipcApi.on('ai.stream.done', (data) => this.#handleStreamDone(data)),
+      ipcApi.on('ai.stream.error', (data) => this.#handleStreamError(data))
+    )
+  }
+
+  #handleStreamDone(data: StreamDonePayload): void {
+    if (data.topicId !== this.#topicId) return
+    const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
+    if (this.#attachBuffer !== null) {
+      this.#attachTerminals?.push({ kind: 'done', data })
+    } else {
+      this.#applyDonePayload(data)
+    }
+    if (topicStateChanged) this.#notifyTopicStateChange()
+  }
+
+  #handleStreamError(data: StreamErrorPayload): void {
+    if (data.topicId !== this.#topicId) return
+    const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
+    if (this.#attachBuffer !== null) {
+      this.#attachTerminals?.push({ kind: 'error', data })
+    } else {
+      this.#applyErrorPayload(data)
+    }
+    if (topicStateChanged) this.#notifyTopicStateChange()
+  }
+
+  #applyDonePayload(data: StreamDonePayload): void {
+    const terminal: ExecutionTerminal = {
+      ...(data.attemptId !== undefined ? { attemptId: data.attemptId } : {}),
+      isAbort: data.status === 'paused',
+      isError: false
+    }
+    this.#applyTerminal(
+      data.executionId,
+      terminal,
+      data.anchorMessageId,
+      data.attemptId,
+      data.isTopicDone ? data.topicAttemptWatermark : undefined
+    )
+  }
+
+  #applyErrorPayload(data: StreamErrorPayload): void {
+    this.#enqueueError(
+      data.error,
+      data.executionId,
+      data.anchorMessageId,
+      data.attemptId,
+      data.isTopicDone ? data.topicAttemptWatermark : undefined
+    )
+    const terminal: ExecutionTerminal = {
+      ...(data.attemptId !== undefined ? { attemptId: data.attemptId } : {}),
+      isAbort: false,
+      isError: true
+    }
+    this.#applyTerminal(
+      data.executionId,
+      terminal,
+      data.anchorMessageId,
+      data.attemptId,
+      data.isTopicDone ? data.topicAttemptWatermark : undefined
     )
   }
 
@@ -460,6 +485,7 @@ export class TopicStreamSubscription {
     // instant its listener registers are not missed.
     this.#setupIpcListeners()
     this.#attachBuffer = []
+    this.#attachTerminals = []
     const branchesAtAttach = [...this.#branches.values()]
     this.#attachInFlight = (async () => {
       let shouldReattach = false
@@ -476,12 +502,20 @@ export class TopicStreamSubscription {
               replay = capAttachReplayChunks(chunks, MAX_ATTACH_REPLAY_CHUNKS)
             }
             const live = this.#attachBuffer
+            const queuedTerminals = this.#attachTerminals
             this.#attachBuffer = null
+            this.#attachTerminals = null
             for (const payload of replay) this.#routeChunk(payload)
             // Pre-attach live chunks already covered by the snapshot above are
             // dropped; only genuinely new chunks drain after replay, in order.
             const fresh = live ? dropCoveredOverflow(replay, live) : undefined
             if (fresh) for (const payload of fresh) this.#routeChunk(payload)
+            // Mid-flight terminals settle branches only after their data is
+            // routed, so replay and buffered chunks are never dropped as late.
+            for (const queued of queuedTerminals ?? []) {
+              if (queued.kind === 'done') this.#applyDonePayload(queued.data)
+              else this.#applyErrorPayload(queued.data)
+            }
             break
           }
           case 'not-found':
@@ -516,8 +550,11 @@ export class TopicStreamSubscription {
       } finally {
         this.#attachInFlight = null
         // Non-attached exits leave live chunks undeliverable; drop them so a
-        // later attach never replays stale state out of order.
+        // later attach never replays stale state out of order. Queued mid-flight
+        // terminals drop with them — the attach outcome above already settles
+        // the branches authoritatively.
         this.#attachBuffer = null
+        this.#attachTerminals = null
         if (shouldReattach && !this.#disposed) void this.#ensureAttached()
       }
     })()
