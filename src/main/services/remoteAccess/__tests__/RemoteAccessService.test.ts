@@ -1,3 +1,5 @@
+import { createServer, type Server } from 'node:http'
+
 import nacl from 'tweetnacl'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -100,6 +102,34 @@ describe('remote Agent listener follows Device Connections', () => {
       instanceId: 'desktop-instance',
       serverPublicKey: publicKey
     })
+  })
+
+  it('reopens on the same port after a backup, so a connected device finds it again', async () => {
+    await boot()
+    const port = (await service.getConnectionInfo())!.port
+
+    service.pause().dispose()
+    expect((await service.getConnectionInfo())!.port).toBe(port)
+  })
+
+  it('moves to a free port when another program took the previous one during a backup', async () => {
+    await boot()
+    const port = (await service.getConnectionInfo())!.port
+    const hold = service.pause()
+    expect(await service.getConnectionInfo()).toBeUndefined()
+
+    const squatter: Server = createServer()
+    await new Promise<void>((resolve) => squatter.listen({ host: '0.0.0.0', port }, resolve))
+    try {
+      hold.dispose()
+      const moved = (await service.getConnectionInfo())!.port
+      expect(moved).not.toBe(port)
+
+      service.pause().dispose()
+      expect((await service.getConnectionInfo())!.port).toBe(moved)
+    } finally {
+      await new Promise((resolve) => squatter.close(resolve))
+    }
   })
 
   it('never starts the listener for a discovery read, only for a trusted desktop request', async () => {
