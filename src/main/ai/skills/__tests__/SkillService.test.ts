@@ -871,7 +871,7 @@ describe('SkillService', () => {
         expect.stringContaining(path.join('skills', 'recruit-init')),
         'marketplace',
         'https://raw.githubusercontent.com/owner/repo/refs/heads/dev/skills/recruit-init/SKILL.md',
-        { githubRoot: false }
+        { allowFolderMigration: false }
       )
     })
 
@@ -1019,7 +1019,7 @@ describe('SkillService', () => {
           expect.stringContaining(`${path.sep}repo`),
           'marketplace',
           `https://github.com/owner/repo/tree/${oid}`,
-          { githubRoot: true }
+          { allowFolderMigration: true }
         )
       } finally {
         vi.mocked(parseSkillMetadata).mockReset()
@@ -1580,6 +1580,61 @@ describe('SkillService', () => {
       }
     })
 
+    it('updates a pre-suffix reserved folder name in place when a local reinstall renames it', async () => {
+      const root = await createTempDir('local-reserved-rename-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      // Same directory reinstalled after only the frontmatter name changed: the local file URL
+      // pins the exact directory, so the stem row is the same skill despite the new name.
+      const sourceDir = await createTempDir('reserved-rename-source-')
+      const sourceUrl = pathToFileURL(sourceDir).href
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Old Name',
+        folderName: 'CON',
+        source: 'local',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# new')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'CON',
+        name: 'New Name',
+        description: 'Renamed skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory: string) => path.join(directory, 'SKILL.md'))
+      const skillService = new SkillService()
+      // The publish is stubbed so no reserved folder is created on disk: Windows cannot create
+      // one, and the assertion target is the catalog resolution, not the copy.
+      const publishSpy = vi.spyOn(skillService['installer'], 'install').mockResolvedValue(undefined)
+
+      try {
+        const installed = await skillService['installSkillDir'](sourceDir, 'local', sourceUrl)
+
+        expect(installed).toMatchObject({ id: SKILL_ID_1, folderName: 'CON', name: 'New Name' })
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        expect(publishSpy).toHaveBeenCalledWith(sourceDir, path.join(dataSkillsRoot, 'CON'))
+      } finally {
+        publishSpy.mockRestore()
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+        vi.mocked(findSkillMdPath).mockReset()
+      }
+    })
+
     it('does not resolve the reserved alias for a differently-cased same-URL row', async () => {
       const root = await createTempDir('github-reserved-sibling-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')
@@ -1710,7 +1765,7 @@ describe('SkillService', () => {
         expect.any(String),
         'marketplace',
         'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md',
-        { githubRoot: false }
+        { allowFolderMigration: false }
       )
     })
 
@@ -2176,7 +2231,7 @@ describe('SkillService', () => {
           canonicalExtractDir,
           'marketplace',
           'https://clawhub.ai/ivangdavila/skills/code',
-          { githubRoot: false }
+          { allowFolderMigration: false }
         )
       } finally {
         createTempDirSpy.mockRestore()
