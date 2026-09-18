@@ -17,4 +17,5 @@ ingestion jobs, renderer IPC, and agent retrieval tools.
 | [Knowledge Service](./knowledge-service.md) | Current backend shape: service split, IPC, storage, item status, retrieval, and agent tools |
 | [Knowledge Operation Guards](./operation-guards.md) | Guard and recovery semantics for `addItems`, `deleteItems`, and `reindexItems` |
 | [Knowledge Workflow Architecture](./workflow-architecture.md) | The workflow model: scheduling, durable JobManager jobs, per-base mutation lock, crash semantics |
+| [Feishu Connection Remediation Design](./feishu-connection-fix-design.md) | Layer 1 fixes for stable identity, atomic credential replacement, runtime validation, and protocol hardening |
 | [Knowledge Storage and Retrieval](./experiment/knowledge-technical-design.md) | Current raw-file layout, per-base index schema, retrieval, and migration validation |
