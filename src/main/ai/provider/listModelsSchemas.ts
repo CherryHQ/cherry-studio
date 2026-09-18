@@ -295,7 +295,8 @@ export const AIHubMixModelsResponseSchema = z.object({
 export const OmlxModelStatusSchema = z.looseObject({
   id: z.string(),
   model_type: z.string().optional(),
-  config_model_type: z.string().optional()
+  config_model_type: z.string().optional(),
+  is_hidden: z.boolean().optional()
 })
 
 export const OmlxModelStatusResponseSchema = z.object({

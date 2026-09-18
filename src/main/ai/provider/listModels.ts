@@ -833,19 +833,25 @@ const omlxFetcher: ModelFetcher = {
       responseSchema: OmlxModelStatusResponseSchema,
       abortSignal: signal
     })
-    return dedup(
-      // The markitdown virtual model rides the same chat completions endpoint,
-      // so the server's own model_type list of chat-servable kinds.
-      response.models.filter((m) => m.model_type === 'llm' || m.model_type === 'vlm' || m.model_type === 'markitdown'),
-      (m) => m.id
-    )
-      .filter((m) => !(m.config_model_type ?? '').startsWith('diffusion'))
-      .map((m) =>
-        toModel(m.id, provider, {
-          ownedBy: 'omlx',
-          ...(m.model_type === 'vlm' ? { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] } : {})
-        })
+    return (
+      dedup(
+        // The markitdown virtual model rides the same chat completions endpoint,
+        // so the server's own model_type list of chat-servable kinds.
+        response.models.filter(
+          (m) => m.model_type === 'llm' || m.model_type === 'vlm' || m.model_type === 'markitdown'
+        ),
+        (m) => m.id
       )
+        .filter((m) => !(m.config_model_type ?? '').startsWith('diffusion'))
+        // The server hides models on purpose (operator-managed); keep them out.
+        .filter((m) => m.is_hidden !== true)
+        .map((m) =>
+          toModel(m.id, provider, {
+            ownedBy: 'omlx',
+            ...(m.model_type === 'vlm' ? { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] } : {})
+          })
+        )
+    )
   }
 }
 

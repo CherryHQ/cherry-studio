@@ -1373,7 +1373,8 @@ describe('listModels — oMLX', () => {
           { id: 'qwen3-coder', model_type: 'llm', config_model_type: 'qwen3_5' },
           { id: 'vlm-vision', model_type: 'vlm', config_model_type: 'qwen3_5' },
           { id: 'diffusiongemma-26B', model_type: 'vlm', config_model_type: 'diffusion_gemma' },
-          { id: 'markitdown', model_type: 'markitdown', config_model_type: 'markitdown' }
+          { id: 'markitdown', model_type: 'markitdown', config_model_type: 'markitdown' },
+          { id: 'hidden-model', model_type: 'llm', config_model_type: 'qwen3_5', is_hidden: true }
         ]
       }
     })
