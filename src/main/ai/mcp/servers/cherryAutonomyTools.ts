@@ -24,8 +24,10 @@ import {
   type CompletedBackgroundTask,
   getDetachedBackgroundTask,
   listDetachedBackgroundTasks,
-  startDetachedBackgroundTask
+  startDetachedBackgroundTask,
+  stopDetachedBackgroundTask
 } from '@main/ai/agents/backgroundTasks'
+import { saveBackgroundTaskRecord } from '@main/ai/agents/backgroundTaskStore'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -171,13 +173,13 @@ const BACKGROUND_TASK_DESCRIPTION = [
 ].join('')
 
 const BackgroundTaskInputSchema = z.object({
-  action: z.enum(['start', 'status', 'list']).describe('The action to perform'),
+  action: z.enum(['start', 'status', 'list', 'stop', 'kill']).describe('The action to perform'),
   command: z.string().optional().describe("Shell command to run detached (required for 'start')."),
   name: z
     .string()
     .optional()
     .describe("Optional short label used in records and completion notifications (for 'start')."),
-  task_id: z.string().optional().describe("Task id returned by start (required for 'status').")
+  task_id: z.string().optional().describe("Task id returned by start (required for 'status', 'stop', and 'kill').")
 })
 type BackgroundTaskInput = z.output<typeof BackgroundTaskInputSchema>
 
@@ -844,8 +846,15 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
         command,
         cwd: ctx.workspacePath,
         name: args.name,
-        onExit: (task) => notifyBackgroundTaskCompletion(ctx, task)
+        onExit: (task) => {
+          saveBackgroundTaskRecord(ctx.agentId, task.record)
+          notifyBackgroundTaskCompletion(ctx, task)
+        }
       })
+      saveBackgroundTaskRecord(
+        ctx.agentId,
+        (await getDetachedBackgroundTask(backgroundTaskStorageDir(ctx), record.id)) ?? record
+      )
       return { content: [{ type: 'text', text: JSON.stringify(record, null, 2) }] }
     }
     case 'status': {
@@ -853,11 +862,22 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
       if (!taskId) throw new Error("'task_id' is required for status")
       const record = await getDetachedBackgroundTask(backgroundTaskStorageDir(ctx), taskId)
       if (!record) throw new Error(`Task "${taskId}" not found`)
+      saveBackgroundTaskRecord(ctx.agentId, record)
       return { content: [{ type: 'text', text: JSON.stringify(record, null, 2) }] }
     }
     case 'list': {
       const tasks = await listDetachedBackgroundTasks(backgroundTaskStorageDir(ctx))
+      for (const task of tasks) saveBackgroundTaskRecord(ctx.agentId, task)
       return { content: [{ type: 'text', text: JSON.stringify({ tasks }, null, 2) }] }
+    }
+    case 'stop':
+    case 'kill': {
+      const taskId = args.task_id?.trim() ?? ''
+      if (!taskId) throw new Error("'task_id' is required for stop/kill")
+      const record = await stopDetachedBackgroundTask(backgroundTaskStorageDir(ctx), taskId, args.action === 'kill')
+      if (!record) throw new Error(`Task "${taskId}" is not running or cannot be verified`)
+      saveBackgroundTaskRecord(ctx.agentId, record)
+      return { content: [{ type: 'text', text: JSON.stringify(record, null, 2) }] }
     }
   }
 }
