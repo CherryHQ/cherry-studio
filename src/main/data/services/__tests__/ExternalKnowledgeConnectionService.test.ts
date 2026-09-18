@@ -80,6 +80,29 @@ describe('ExternalKnowledgeConnectionService', () => {
     })
   })
 
+  it('replaces non-secret application metadata without discarding the authorized account identity', () => {
+    const pending = externalKnowledgeConnectionService.create(createInput)
+    const connected = externalKnowledgeConnectionService.markConnected(pending.id, connectedIdentity)
+    externalKnowledgeConnectionService.markReauthorizationRequired(pending.id)
+
+    const replaced = externalKnowledgeConnectionService.updateApplication(pending.id, {
+      appId: 'cli_replacement',
+      appCredentialSource: 'personal-agent',
+      applicationName: 'Cherry Studio Knowledge'
+    })
+
+    expect(replaced).toMatchObject({
+      id: connected.id,
+      appId: 'cli_replacement',
+      appCredentialSource: 'personal-agent',
+      applicationName: 'Cherry Studio Knowledge',
+      authorizationStatus: 'reauthorization-required',
+      accountOpenId: connected.accountOpenId,
+      tenantKey: connected.tenantKey,
+      authorizedAt: connected.authorizedAt
+    })
+  })
+
   it('lists the most recently updated connection first and reads one by id', () => {
     const older = externalKnowledgeConnectionService.create(createInput)
     const newer = externalKnowledgeConnectionService.create({

@@ -30,6 +30,12 @@ const CreateExternalKnowledgeConnectionSchema = z.strictObject({
   applicationName: NullableNonBlankStringSchema.optional().default(null)
 })
 
+const ExternalKnowledgeApplicationSchema = z.strictObject({
+  appId: z.string().trim().min(1).max(256),
+  appCredentialSource: z.enum(['personal-agent', 'custom-app']),
+  applicationName: NullableNonBlankStringSchema
+})
+
 const ConnectedExternalKnowledgeIdentitySchema = z.strictObject({
   accountOpenId: z.string().trim().min(1),
   accountUnionId: NullableNonBlankStringSchema,
@@ -171,6 +177,24 @@ export class ExternalKnowledgeConnectionService {
     const connection = rowToEntity(row)
     this.notifyProjectionChange(id)
     logger.info('External Knowledge connection requires reauthorization', { connectionId: id })
+    return connection
+  }
+
+  updateApplication(
+    id: string,
+    input: z.input<typeof ExternalKnowledgeApplicationSchema>
+  ): ExternalKnowledgeConnection {
+    const parsed = parseOrThrow(ExternalKnowledgeApplicationSchema, input, 'replace external knowledge application')
+    const [row] = this.db
+      .update(externalKnowledgeConnectionTable)
+      .set({ ...parsed, authorizationStatus: 'reauthorization-required' })
+      .where(eq(externalKnowledgeConnectionTable.id, id))
+      .returning()
+      .all()
+    if (!row) throw DataApiErrorFactory.notFound('ExternalKnowledgeConnection', id)
+    const connection = rowToEntity(row)
+    this.notifyProjectionChange(id)
+    logger.info('External Knowledge application replaced', { connectionId: id })
     return connection
   }
 

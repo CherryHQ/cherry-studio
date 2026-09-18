@@ -109,8 +109,11 @@ export class KnowledgeService extends BaseService {
     await this.externalKnowledgeRuntime.cancelUserAuthorization(authorizationSessionId)
   }
 
-  async reconnectFeishuConnection(connectionId: string): Promise<BeginAuthorizationResult> {
-    return await this.externalKnowledgeRuntime.beginReconnect(connectionId)
+  async reconnectFeishuConnection(
+    connectionId: string,
+    replacement?: BeginUserAuthorizationInput
+  ): Promise<BeginAuthorizationResult> {
+    return await this.externalKnowledgeRuntime.beginReconnect(connectionId, replacement)
   }
 
   async validateFeishuConnection(connectionId: string): Promise<ExternalKnowledgeConnection> {

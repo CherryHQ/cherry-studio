@@ -34,7 +34,14 @@ const MAX_REQUEST_ATTEMPTS = 3
 
 type ConnectionStore = Pick<
   typeof externalKnowledgeConnectionService,
-  'list' | 'getById' | 'create' | 'markConnected' | 'markValidated' | 'markReauthorizationRequired' | 'remove'
+  | 'list'
+  | 'getById'
+  | 'create'
+  | 'markConnected'
+  | 'markValidated'
+  | 'markReauthorizationRequired'
+  | 'updateApplication'
+  | 'remove'
 >
 
 type CredentialStore = {
@@ -88,8 +95,16 @@ type RegistrationSession = {
   poll: Promise<{ appId: string; appSecret: string }>
 }
 
+type ResolvedApplicationCredentials = {
+  source: ExternalKnowledgeConnection['appCredentialSource']
+  credentials: FeishuApplicationCredentials
+  applicationName?: string
+}
+
 type AuthorizationSession = {
   controller: AbortController
+  signal: AbortSignal
+  generation: number
   connectionId: string
   credentialReference: string
   appCredentialSource: ExternalKnowledgeConnection['appCredentialSource']
@@ -98,6 +113,17 @@ type AuthorizationSession = {
   expiresAt: number
   initial: boolean
   completion?: Promise<ExternalKnowledgeConnection>
+}
+
+type CredentialRuntimeState = {
+  phase: 'active' | 'removing'
+  generation: number
+  controller: AbortController
+  refreshFlight?: Promise<string>
+  validationFlight?: Promise<ExternalKnowledgeConnection>
+  validatedGeneration?: number
+  requestTail?: Promise<void>
+  nextAllowedAt: number
 }
 
 export type BeginUserAuthorizationInput =
@@ -156,9 +182,7 @@ export class ExternalKnowledgeRuntime {
   private accepting = false
   private readonly registrationSessions = new Map<string, RegistrationSession>()
   private readonly authorizationSessions = new Map<string, AuthorizationSession>()
-  private readonly refreshFlights = new Map<string, Promise<string>>()
-  private readonly requestTails = new Map<string, Promise<void>>()
-  private readonly credentialControllers = new Map<string, AbortController>()
+  private readonly credentialStates = new Map<string, CredentialRuntimeState>()
   private readonly inFlight = new Set<Promise<unknown>>()
 
   constructor(options: RuntimeOptions = {}) {
@@ -179,7 +203,7 @@ export class ExternalKnowledgeRuntime {
     } catch (error) {
       this.accepting = false
       this.lifetime.abort()
-      this.credentialControllers.clear()
+      this.credentialStates.clear()
       throw error
     }
   }
@@ -188,15 +212,13 @@ export class ExternalKnowledgeRuntime {
     if (!this.accepting && this.lifetime.signal.aborted) return
     this.accepting = false
     this.lifetime.abort()
-    for (const controller of this.credentialControllers.values()) controller.abort()
+    for (const state of this.credentialStates.values()) state.controller.abort()
     for (const session of this.registrationSessions.values()) session.controller.abort()
     for (const session of this.authorizationSessions.values()) session.controller.abort()
     this.registrationSessions.clear()
     this.authorizationSessions.clear()
     await Promise.allSettled([...this.inFlight])
-    this.refreshFlights.clear()
-    this.requestTails.clear()
-    this.credentialControllers.clear()
+    this.credentialStates.clear()
   }
 
   async beginAppRegistration(): Promise<BeginAppRegistrationResult> {
@@ -218,6 +240,7 @@ export class ExternalKnowledgeRuntime {
         }
       })
     )
+    this.assertAccepting()
     const registrationSessionId = randomUUID()
     const poll = this.track(
       this.registration.poll('feishu', begun.deviceCode, {
@@ -245,44 +268,46 @@ export class ExternalKnowledgeRuntime {
 
   async beginUserAuthorization(input: BeginUserAuthorizationInput): Promise<BeginAuthorizationResult> {
     this.assertAccepting()
-    let appCredentialSource: ExternalKnowledgeConnection['appCredentialSource']
-    let appCredentials: FeishuApplicationCredentials
-    let applicationName: string | undefined
-
-    if (input.kind === 'personal-agent') {
-      const registration = this.registrationSessions.get(input.registrationSessionId)
-      if (!registration) throw new ExternalKnowledgeRuntimeError('session-not-found')
-      try {
-        appCredentials = await registration.poll
-      } catch (error) {
-        throw this.authorizationError(error)
-      } finally {
-        this.registrationSessions.delete(input.registrationSessionId)
-      }
-      appCredentialSource = 'personal-agent'
-      applicationName = 'Cherry Studio Knowledge'
-    } else {
-      appCredentialSource = 'custom-app'
-      appCredentials = { appId: input.appId, appSecret: input.appSecret }
-      applicationName = input.applicationName
-    }
+    const applicationCredentials = await this.resolveApplicationCredentials(input)
+    this.assertAccepting()
 
     return await this.track(
-      this.beginAuthorization({ appCredentialSource, appCredentials, applicationName, initial: true })
+      this.beginAuthorization({
+        appCredentialSource: applicationCredentials.source,
+        appCredentials: applicationCredentials.credentials,
+        applicationName: applicationCredentials.applicationName,
+        initial: true
+      })
     )
   }
 
-  async beginReconnect(connectionId: string): Promise<BeginAuthorizationResult> {
+  async beginReconnect(
+    connectionId: string,
+    replacement?: BeginUserAuthorizationInput
+  ): Promise<BeginAuthorizationResult> {
     this.assertAccepting()
-    const connection = this.requireConnection(connectionId)
-    const stored = await this.readCredential(connection)
+    let connection = this.requireConnection(connectionId)
+    const state = this.getCredentialState(connection.credentialReference)
+    const currentGeneration = state.generation
+    const applicationCredentials = replacement
+      ? await this.resolveApplicationCredentials(replacement)
+      : await this.readStoredApplicationCredentials(connection, { state, generation: currentGeneration })
+    this.assertAccepting()
+    this.assertCredentialGeneration(state, currentGeneration)
+    connection = this.requireConnection(connectionId)
+    if (connection.authorizationStatus !== 'reauthorization-required') {
+      connection = this.connections.markReauthorizationRequired(connectionId)
+    }
+    const generation = this.advanceCredentialGeneration(connection.credentialReference, state)
     return await this.track(
       this.beginAuthorization({
-        appCredentialSource: connection.appCredentialSource,
-        appCredentials: { appId: stored.appId, appSecret: stored.appSecret },
-        applicationName: connection.applicationName ?? undefined,
+        appCredentialSource: applicationCredentials.source,
+        appCredentials: applicationCredentials.credentials,
+        applicationName: applicationCredentials.applicationName,
         initial: false,
-        connection
+        connection,
+        generation,
+        replaceCredential: replacement !== undefined
       })
     )
   }
@@ -298,108 +323,119 @@ export class ExternalKnowledgeRuntime {
   }
 
   async cancelUserAuthorization(authorizationSessionId: string): Promise<void> {
+    await this.track(this.cancelAuthorization(authorizationSessionId))
+  }
+
+  private async cancelAuthorization(authorizationSessionId: string): Promise<void> {
     const session = this.authorizationSessions.get(authorizationSessionId)
     if (!session) return
     this.authorizationSessions.delete(authorizationSessionId)
     session.controller.abort()
+    const state = this.credentialStates.get(session.credentialReference)
+    if (state && this.isCurrentCredentialGeneration(state, session.generation)) {
+      this.advanceCredentialGeneration(session.credentialReference, state)
+    }
     if (session.completion) await Promise.allSettled([session.completion])
     if (session.initial) {
-      this.connections.remove(session.connectionId)
       await this.credentials.remove(session.credentialReference)
+      this.connections.remove(session.connectionId)
+      this.credentialStates.delete(session.credentialReference)
     }
   }
 
   async acquireAccessToken(connectionId: string, upstreamSignal?: AbortSignal): Promise<string> {
     this.assertAccepting()
     const connection = this.requireConnection(connectionId)
-    const signal = this.credentialSignal(connection.credentialReference, upstreamSignal)
+    const state = this.getCredentialState(connection.credentialReference)
+    const generation = state.generation
+    const signal = this.credentialSignal(state, upstreamSignal)
     if (connection.authorizationStatus === 'reauthorization-required') {
       throw new ExternalKnowledgeRuntimeError('reauthorization-required')
     }
-    const stored = await this.readCredential(connection)
+    const stored = await this.readCredential(connection, { state, generation })
     if (stored.accessToken && (stored.accessTokenExpiresAt ?? 0) > this.now() + ACCESS_TOKEN_REFRESH_WINDOW_MS) {
       return stored.accessToken
     }
     if (!stored.refreshToken || (stored.refreshTokenExpiresAt ?? 0) <= this.now()) {
-      this.markReauthorizationRequired(connection.id)
+      this.markReauthorizationRequiredIfCurrent(connection.id, state, generation)
       throw new ExternalKnowledgeRuntimeError('reauthorization-required')
     }
 
-    const existing = this.refreshFlights.get(connection.credentialReference)
+    const existing = state.refreshFlight
     if (existing) return await existing
-    const flight = this.track(this.refresh(connection, stored, signal))
-    this.refreshFlights.set(connection.credentialReference, flight)
+    const flight = this.track(this.refresh(connection, stored, signal, state, generation))
+    state.refreshFlight = flight
     try {
       return await flight
     } finally {
-      if (this.refreshFlights.get(connection.credentialReference) === flight) {
-        this.refreshFlights.delete(connection.credentialReference)
+      if (state.refreshFlight === flight) {
+        state.refreshFlight = undefined
       }
     }
   }
 
   async runAuthorizedRequest<T>(
     connectionId: string,
-    operation: (accessToken: string, signal: AbortSignal) => Promise<T>
+    operation: (accessToken: string, signal: AbortSignal, assertCurrent: () => void) => Promise<T>
   ): Promise<T> {
     this.assertAccepting()
     const connection = this.requireConnection(connectionId)
-    const previous = this.requestTails.get(connection.credentialReference) ?? Promise.resolve()
-    const signal = this.credentialSignal(connection.credentialReference)
+    const state = this.getCredentialState(connection.credentialReference)
+    const generation = state.generation
+    const assertCurrent = () => this.assertCredentialGeneration(state, generation)
+    const previous = state.requestTail ?? Promise.resolve()
+    const signal = this.credentialSignal(state)
     const task = previous
       .catch(() => undefined)
       .then(async () => {
-        signal.throwIfAborted()
+        assertCurrent()
+        await this.waitForCredentialBackoff(state, signal)
+        assertCurrent()
         const accessToken = await this.acquireAccessToken(connectionId, signal)
-        for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt++) {
-          try {
-            return await operation(accessToken, signal)
-          } catch (error) {
-            if (!(error instanceof FeishuProviderError)) throw error
-            if (error.terminal) {
-              this.markReauthorizationRequired(connectionId)
-              throw new ExternalKnowledgeRuntimeError(
-                error.code === 'app-scope-missing' ? 'scope-missing' : 'reauthorization-required'
-              )
-            }
-            if (error.code !== 'transient' || attempt === MAX_REQUEST_ATTEMPTS) throw error
-            await this.sleep(error.retryAfterMs ?? 500 * 2 ** (attempt - 1), signal)
-          }
+        assertCurrent()
+        await this.ensureConnectionValidated(connection, accessToken, state, generation, signal)
+        assertCurrent()
+        try {
+          return await this.runCredentialRequest(state, generation, signal, () =>
+            operation(accessToken, signal, assertCurrent)
+          )
+        } catch (error) {
+          assertCurrent()
+          if (!(error instanceof FeishuProviderError) || !error.terminal) throw error
+          this.markReauthorizationRequiredIfCurrent(connectionId, state, generation)
+          throw new ExternalKnowledgeRuntimeError(
+            error.code === 'app-scope-missing' ? 'scope-missing' : 'reauthorization-required'
+          )
         }
-        throw new ExternalKnowledgeRuntimeError('authorization-failed')
       })
     const tail = task.then(
       () => undefined,
       () => undefined
     )
-    this.requestTails.set(connection.credentialReference, tail)
+    state.requestTail = tail
     void tail.finally(() => {
-      if (this.requestTails.get(connection.credentialReference) === tail) {
-        this.requestTails.delete(connection.credentialReference)
+      if (state.requestTail === tail) {
+        state.requestTail = undefined
       }
     })
     return await this.track(task)
   }
 
   async validateConnection(connectionId: string): Promise<ExternalKnowledgeConnection> {
-    const connection = this.requireConnection(connectionId)
-    return await this.runAuthorizedRequest(connectionId, async (accessToken, signal) => {
-      const identity = await this.provider.getUserIdentity(accessToken, signal)
-      if (connection.authorizationStatus === 'connected' && this.identityChanged(connection, identity)) {
-        this.markReauthorizationRequired(connectionId)
-        throw new ExternalKnowledgeRuntimeError('reauthorization-required')
-      }
-      const current = await this.readCredential(connection)
-      const validated = { ...identity, grantedScopes: current.grantedScopes }
-      return connection.authorizationStatus === 'pending-authorization'
-        ? this.connections.markConnected(connectionId, validated)
-        : this.connections.markValidated(connectionId, validated)
-    })
+    return await this.runAuthorizedRequest(connectionId, async () => this.requireConnection(connectionId))
   }
 
   async removeUnreferencedConnection(connectionId: string): Promise<void> {
     this.assertAccepting()
+    await this.track(this.removeConnection(connectionId))
+  }
+
+  private async removeConnection(connectionId: string): Promise<void> {
     const connection = this.requireConnection(connectionId)
+    const state = this.getCredentialState(connection.credentialReference)
+    state.phase = 'removing'
+    state.generation++
+    state.controller.abort()
     const authorizationCompletions: Promise<unknown>[] = []
     for (const [sessionId, session] of this.authorizationSessions) {
       if (session.connectionId !== connectionId) continue
@@ -407,31 +443,38 @@ export class ExternalKnowledgeRuntime {
       session.controller.abort()
       if (session.completion) authorizationCompletions.push(session.completion)
     }
-    this.credentialControllers.get(connection.credentialReference)?.abort()
-    const pendingRequest = this.requestTails.get(connection.credentialReference)
-    const pendingRefresh = this.refreshFlights.get(connection.credentialReference)
+    const pendingRequest = state.requestTail
+    const pendingRefresh = state.refreshFlight
     await Promise.allSettled([
       ...authorizationCompletions,
       ...(pendingRequest ? [pendingRequest] : []),
       ...(pendingRefresh ? [pendingRefresh] : [])
     ])
-    this.credentialControllers.delete(connection.credentialReference)
-    const stored = await this.credentials.read(connection.credentialReference)
-    if (stored.status === 'ok' && stored.credential.refreshToken) {
-      try {
-        await this.track(
-          this.provider.revokeUserToken(
-            { appId: stored.credential.appId, appSecret: stored.credential.appSecret },
-            stored.credential.refreshToken,
-            this.lifetime.signal
+    try {
+      const stored = await this.credentials.read(connection.credentialReference)
+      if (stored.status === 'ok' && stored.credential.refreshToken) {
+        try {
+          await this.track(
+            this.provider.revokeUserToken(
+              { appId: stored.credential.appId, appSecret: stored.credential.appSecret },
+              stored.credential.refreshToken,
+              this.lifetime.signal
+            )
           )
-        )
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') throw error
+        } catch (error) {
+          if (error instanceof Error && error.name === 'AbortError') throw error
+        }
       }
+      await this.credentials.remove(connection.credentialReference)
+      this.connections.remove(connectionId)
+      this.credentialStates.delete(connection.credentialReference)
+    } catch (error) {
+      if (this.connections.getById(connectionId)) {
+        state.phase = 'active'
+        this.advanceCredentialGeneration(connection.credentialReference, state)
+      }
+      throw error
     }
-    await this.credentials.remove(connection.credentialReference)
-    this.connections.remove(connectionId)
   }
 
   private async beginAuthorization(input: {
@@ -440,60 +483,80 @@ export class ExternalKnowledgeRuntime {
     applicationName?: string
     initial: boolean
     connection?: ExternalKnowledgeConnection
+    generation?: number
+    replaceCredential?: boolean
   }): Promise<BeginAuthorizationResult> {
     const controller = new AbortController()
-    const signal = AbortSignal.any([this.lifetime.signal, controller.signal])
     const credentialReference = input.connection?.credentialReference ?? `feishu:${randomUUID()}`
+    const state = this.getCredentialState(credentialReference)
+    const generation = input.generation ?? this.advanceCredentialGeneration(credentialReference, state)
+    this.assertCredentialGeneration(state, generation)
+    const signal = AbortSignal.any([this.lifetime.signal, state.controller.signal, controller.signal])
     let connection = input.connection
+    let storedInitialCredential = false
 
-    if (input.initial) {
-      await this.credentials.put(credentialReference, {
-        ...input.appCredentials,
-        grantedScopes: []
-      })
-    }
-
-    let device: FeishuDeviceAuthorization
     try {
-      device = await this.track(this.provider.beginDeviceAuthorization(input.appCredentials, signal))
-    } catch (error) {
-      if (input.initial) await this.credentials.remove(credentialReference)
-      throw error
-    }
+      if (input.replaceCredential && connection) {
+        connection = this.connections.updateApplication(connection.id, {
+          appId: input.appCredentials.appId,
+          appCredentialSource: input.appCredentialSource,
+          applicationName: input.applicationName ?? null
+        })
+      }
 
-    if (input.initial) {
-      try {
+      if (input.initial || input.replaceCredential) {
+        await this.credentials.put(credentialReference, {
+          ...input.appCredentials,
+          grantedScopes: []
+        })
+        storedInitialCredential = input.initial
+        this.assertCredentialGeneration(state, generation)
+      }
+
+      const device: FeishuDeviceAuthorization = await this.runCredentialRequest(state, generation, signal, () =>
+        this.provider.beginDeviceAuthorization(input.appCredentials, signal)
+      )
+      this.assertCredentialGeneration(state, generation)
+
+      if (input.initial) {
         connection = this.connections.create({
           appId: input.appCredentials.appId,
           appCredentialSource: input.appCredentialSource,
           credentialReference,
           applicationName: input.applicationName ?? null
         })
-      } catch (error) {
-        await this.credentials.remove(credentialReference)
-        throw error
+        storedInitialCredential = false
       }
-    }
-    if (!connection) throw new ExternalKnowledgeRuntimeError('not-found')
+      if (!connection) throw new ExternalKnowledgeRuntimeError('not-found')
 
-    const authorizationSessionId = randomUUID()
-    const expiresAt = this.now() + device.expiresIn * 1000
-    this.authorizationSessions.set(authorizationSessionId, {
-      controller,
-      connectionId: connection.id,
-      credentialReference,
-      appCredentialSource: input.appCredentialSource,
-      credentials: input.appCredentials,
-      device,
-      expiresAt,
-      initial: input.initial
-    })
-    return {
-      authorizationSessionId,
-      connection,
-      userCode: device.userCode,
-      verificationUri: device.verificationUri,
-      expiresAt: new Date(expiresAt).toISOString()
+      const authorizationSessionId = randomUUID()
+      const expiresAt = this.now() + device.expiresIn * 1000
+      this.authorizationSessions.set(authorizationSessionId, {
+        controller,
+        signal,
+        generation,
+        connectionId: connection.id,
+        credentialReference,
+        appCredentialSource: input.appCredentialSource,
+        credentials: input.appCredentials,
+        device,
+        expiresAt,
+        initial: input.initial
+      })
+      return {
+        authorizationSessionId,
+        connection,
+        userCode: device.userCode,
+        verificationUri: device.verificationUri,
+        expiresAt: new Date(expiresAt).toISOString()
+      }
+    } catch (error) {
+      try {
+        if (input.initial && storedInitialCredential) await this.credentials.remove(credentialReference)
+      } finally {
+        if (input.initial && !connection) this.credentialStates.delete(credentialReference)
+      }
+      throw error
     }
   }
 
@@ -501,16 +564,16 @@ export class ExternalKnowledgeRuntime {
     authorizationSessionId: string,
     session: AuthorizationSession
   ): Promise<ExternalKnowledgeConnection> {
-    const signal = AbortSignal.any([this.lifetime.signal, session.controller.signal])
+    const state = this.getCredentialState(session.credentialReference)
+    const signal = session.signal
     let interval = session.device.interval * 1000
     try {
       while (this.now() < session.expiresAt) {
+        this.assertCredentialGeneration(state, session.generation)
         let token: FeishuUserTokenSet
         try {
-          token = await this.provider.exchangeDeviceAuthorization(
-            session.credentials,
-            session.device.deviceCode,
-            signal
+          token = await this.runCredentialRequest(state, session.generation, signal, () =>
+            this.provider.exchangeDeviceAuthorization(session.credentials, session.device.deviceCode, signal)
           )
         } catch (error) {
           if (!(error instanceof FeishuProviderError)) throw error
@@ -524,29 +587,44 @@ export class ExternalKnowledgeRuntime {
             continue
           }
           if (error.terminal) {
-            this.markReauthorizationRequired(session.connectionId)
+            this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
             throw this.authorizationError(error)
           }
           throw error
         }
 
-        this.assertScopes(token.grantedScopes, session.appCredentialSource, session.connectionId)
+        this.assertCredentialGeneration(state, session.generation)
+        this.assertScopes(token.grantedScopes, session.appCredentialSource, session.connectionId, {
+          state,
+          generation: session.generation
+        })
         const storedTokens = this.absoluteTokens(token)
         await this.credentials.put(session.credentialReference, {
           ...session.credentials,
           ...storedTokens
         })
-        const identity = await this.provider.getUserIdentity(token.accessToken, signal)
-        return this.connections.markConnected(session.connectionId, {
+        this.assertCredentialGeneration(state, session.generation)
+        const identity = await this.runCredentialRequest(state, session.generation, signal, () =>
+          this.provider.getUserIdentity(token.accessToken, signal)
+        )
+        this.assertCredentialGeneration(state, session.generation)
+        const connection = this.requireConnection(session.connectionId)
+        if (connection.accountOpenId !== null && this.identityChanged(connection, identity)) {
+          this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
+          throw new ExternalKnowledgeRuntimeError('reauthorization-required')
+        }
+        const connected = this.connections.markConnected(session.connectionId, {
           ...identity,
           grantedScopes: token.grantedScopes
         })
+        state.validatedGeneration = session.generation
+        return connected
       }
-      this.markReauthorizationRequired(session.connectionId)
+      this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
       throw new ExternalKnowledgeRuntimeError('authorization-failed')
     } catch (error) {
       if (error instanceof FeishuProviderError && error.terminal) {
-        this.markReauthorizationRequired(session.connectionId)
+        this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
         throw this.authorizationError(error)
       }
       throw error
@@ -558,30 +636,36 @@ export class ExternalKnowledgeRuntime {
   private async refresh(
     connection: ExternalKnowledgeConnection,
     stored: ExternalKnowledgeCredential,
-    signal: AbortSignal
+    signal: AbortSignal,
+    state: CredentialRuntimeState,
+    generation: number
   ): Promise<string> {
     try {
-      const token = await this.provider.refreshUserToken(
-        { appId: stored.appId, appSecret: stored.appSecret },
-        stored.refreshToken!,
-        signal
+      const token = await this.runCredentialRequest(state, generation, signal, () =>
+        this.provider.refreshUserToken(
+          { appId: stored.appId, appSecret: stored.appSecret },
+          stored.refreshToken!,
+          signal
+        )
       )
-      this.assertScopes(token.grantedScopes, connection.appCredentialSource, connection.id)
+      this.assertCredentialGeneration(state, generation)
+      this.assertScopes(token.grantedScopes, connection.appCredentialSource, connection.id, { state, generation })
       const rotation = await this.credentials.rotateTokens(
         connection.credentialReference,
         stored.refreshToken!,
         this.absoluteTokens(token)
       )
+      this.assertCredentialGeneration(state, generation)
       if (rotation === 'updated') return token.accessToken
       if (rotation === 'stale') {
-        const current = await this.readCredential(connection)
+        const current = await this.readCredential(connection, { state, generation })
         if (current.accessToken && (current.accessTokenExpiresAt ?? 0) > this.now()) return current.accessToken
       }
-      this.markReauthorizationRequired(connection.id)
+      this.markReauthorizationRequiredIfCurrent(connection.id, state, generation)
       throw new ExternalKnowledgeRuntimeError('credential-unavailable')
     } catch (error) {
       if (error instanceof FeishuProviderError && error.terminal) {
-        this.markReauthorizationRequired(connection.id)
+        this.markReauthorizationRequiredIfCurrent(connection.id, state, generation)
         throw new ExternalKnowledgeRuntimeError(
           error.code === 'app-scope-missing' ? 'scope-missing' : 'reauthorization-required'
         )
@@ -598,58 +682,140 @@ export class ExternalKnowledgeRuntime {
         this.markReauthorizationRequired(connection.id)
         continue
       }
-      if (!stored.credential.refreshToken) {
+      if (!stored.credential.refreshToken || (stored.credential.refreshTokenExpiresAt ?? 0) <= this.now()) {
         this.markReauthorizationRequired(connection.id)
         continue
       }
       try {
         this.assertScopes(stored.credential.grantedScopes, connection.appCredentialSource, connection.id)
-        const accessToken = await this.acquireAccessToken(connection.id)
-        const identity = await this.provider.getUserIdentity(accessToken, this.lifetime.signal)
-        const current = await this.readCredential(connection)
-        if (connection.authorizationStatus === 'connected') {
-          if (this.identityChanged(connection, identity)) {
-            this.markReauthorizationRequired(connection.id)
-          } else {
-            this.connections.markValidated(connection.id, { ...identity, grantedScopes: current.grantedScopes })
-          }
-        } else {
-          this.connections.markConnected(connection.id, {
-            ...identity,
-            grantedScopes: current.grantedScopes
-          })
-        }
       } catch (error) {
-        if (
-          error instanceof ExternalKnowledgeRuntimeError ||
-          (error instanceof FeishuProviderError && error.terminal)
-        ) {
+        if (error instanceof ExternalKnowledgeRuntimeError) {
           this.markReauthorizationRequired(connection.id)
         }
       }
     }
   }
 
-  private async readCredential(connection: ExternalKnowledgeConnection): Promise<ExternalKnowledgeCredential> {
+  private async readCredential(
+    connection: ExternalKnowledgeConnection,
+    expected?: { state: CredentialRuntimeState; generation: number }
+  ): Promise<ExternalKnowledgeCredential> {
     const stored = await this.credentials.read(connection.credentialReference)
+    if (expected) this.assertCredentialGeneration(expected.state, expected.generation)
     if (stored.status !== 'ok' || stored.credential.appId !== connection.appId) {
-      this.markReauthorizationRequired(connection.id)
+      if (expected) {
+        this.markReauthorizationRequiredIfCurrent(connection.id, expected.state, expected.generation)
+      } else {
+        this.markReauthorizationRequired(connection.id)
+      }
       throw new ExternalKnowledgeRuntimeError('credential-unavailable')
     }
     return stored.credential
   }
 
+  private async ensureConnectionValidated(
+    connection: ExternalKnowledgeConnection,
+    accessToken: string,
+    state: CredentialRuntimeState,
+    generation: number,
+    signal: AbortSignal
+  ): Promise<ExternalKnowledgeConnection> {
+    if (state.validatedGeneration === generation) return this.requireConnection(connection.id)
+    if (state.validationFlight) return await state.validationFlight
+
+    const flight = this.track(this.validateIdentity(connection, accessToken, state, generation, signal))
+    state.validationFlight = flight
+    try {
+      const validated = await flight
+      this.assertCredentialGeneration(state, generation)
+      state.validatedGeneration = generation
+      return validated
+    } finally {
+      if (state.validationFlight === flight) state.validationFlight = undefined
+    }
+  }
+
+  private async validateIdentity(
+    connection: ExternalKnowledgeConnection,
+    accessToken: string,
+    state: CredentialRuntimeState,
+    generation: number,
+    signal: AbortSignal
+  ): Promise<ExternalKnowledgeConnection> {
+    const identity = await this.runCredentialRequest(state, generation, signal, () =>
+      this.provider.getUserIdentity(accessToken, signal)
+    )
+    this.assertCredentialGeneration(state, generation)
+    if (connection.accountOpenId !== null && this.identityChanged(connection, identity)) {
+      this.markReauthorizationRequiredIfCurrent(connection.id, state, generation)
+      throw new ExternalKnowledgeRuntimeError('reauthorization-required')
+    }
+    const current = await this.readCredential(connection, { state, generation })
+    this.assertCredentialGeneration(state, generation)
+    const validated = { ...identity, grantedScopes: current.grantedScopes }
+    return connection.authorizationStatus === 'pending-authorization'
+      ? this.connections.markConnected(connection.id, validated)
+      : this.connections.markValidated(connection.id, validated)
+  }
+
+  private async readStoredApplicationCredentials(
+    connection: ExternalKnowledgeConnection,
+    expected?: { state: CredentialRuntimeState; generation: number }
+  ): Promise<ResolvedApplicationCredentials> {
+    const stored = await this.readCredential(connection, expected)
+    return {
+      source: connection.appCredentialSource,
+      credentials: { appId: stored.appId, appSecret: stored.appSecret },
+      applicationName: connection.applicationName ?? undefined
+    }
+  }
+
+  private async resolveApplicationCredentials(
+    input: BeginUserAuthorizationInput
+  ): Promise<ResolvedApplicationCredentials> {
+    if (input.kind === 'custom-app') {
+      return {
+        source: 'custom-app',
+        credentials: { appId: input.appId, appSecret: input.appSecret },
+        applicationName: input.applicationName
+      }
+    }
+
+    const registration = this.registrationSessions.get(input.registrationSessionId)
+    if (!registration) throw new ExternalKnowledgeRuntimeError('session-not-found')
+    try {
+      return {
+        source: 'personal-agent',
+        credentials: await registration.poll,
+        applicationName: 'Cherry Studio Knowledge'
+      }
+    } catch (error) {
+      throw this.authorizationError(error)
+    } finally {
+      this.registrationSessions.delete(input.registrationSessionId)
+    }
+  }
+
   private assertScopes(
     grantedScopes: readonly string[],
     source: ExternalKnowledgeConnection['appCredentialSource'],
-    connectionId: string
+    connectionId: string,
+    expected?: { state: CredentialRuntimeState; generation: number }
   ): void {
     if (missingKnowledgeScopes(grantedScopes).length > 0) {
-      this.markReauthorizationRequired(connectionId)
+      if (expected) {
+        this.markReauthorizationRequiredIfCurrent(connectionId, expected.state, expected.generation)
+      } else {
+        this.markReauthorizationRequired(connectionId)
+      }
       throw new ExternalKnowledgeRuntimeError('scope-missing')
     }
     if (source === 'personal-agent' && grantedScopes.some((scope) => !FEISHU_AUTOMATIC_ALLOWED_SCOPES.has(scope))) {
-      this.markReauthorizationRequired(connectionId)
+      if (expected) {
+        this.markReauthorizationRequiredIfCurrent(connectionId, expected.state, expected.generation)
+      } else {
+        this.markReauthorizationRequired(connectionId)
+      }
       throw new ExternalKnowledgeRuntimeError('automatic-scope-mismatch')
     }
   }
@@ -681,6 +847,16 @@ export class ExternalKnowledgeRuntime {
     }
   }
 
+  private markReauthorizationRequiredIfCurrent(
+    connectionId: string,
+    state: CredentialRuntimeState,
+    generation: number
+  ): void {
+    if (this.isCurrentCredentialGeneration(state, generation)) {
+      this.markReauthorizationRequired(connectionId)
+    }
+  }
+
   private authorizationError(error: unknown): ExternalKnowledgeRuntimeError {
     if (error instanceof FeishuProviderError && error.code === 'app-scope-missing') {
       return new ExternalKnowledgeRuntimeError('scope-missing')
@@ -695,13 +871,80 @@ export class ExternalKnowledgeRuntime {
     if (!this.accepting) throw new ExternalKnowledgeRuntimeError('stopped')
   }
 
-  private credentialSignal(credentialReference: string, upstreamSignal?: AbortSignal): AbortSignal {
-    let controller = this.credentialControllers.get(credentialReference)
-    if (!controller || controller.signal.aborted) {
-      controller = new AbortController()
-      this.credentialControllers.set(credentialReference, controller)
+  private getCredentialState(credentialReference: string): CredentialRuntimeState {
+    const existing = this.credentialStates.get(credentialReference)
+    if (existing) {
+      if (existing.phase === 'removing') throw new ExternalKnowledgeRuntimeError('not-found')
+      return existing
     }
-    return AbortSignal.any([this.lifetime.signal, controller.signal, ...(upstreamSignal ? [upstreamSignal] : [])])
+    const state: CredentialRuntimeState = {
+      phase: 'active',
+      generation: 0,
+      controller: new AbortController(),
+      nextAllowedAt: 0
+    }
+    this.credentialStates.set(credentialReference, state)
+    return state
+  }
+
+  private advanceCredentialGeneration(credentialReference: string, state: CredentialRuntimeState): number {
+    state.controller.abort()
+    state.controller = new AbortController()
+    state.generation++
+    state.refreshFlight = undefined
+    state.validationFlight = undefined
+    state.validatedGeneration = undefined
+    state.requestTail = undefined
+    state.nextAllowedAt = 0
+    for (const [sessionId, session] of this.authorizationSessions) {
+      if (session.credentialReference !== credentialReference) continue
+      this.authorizationSessions.delete(sessionId)
+      session.controller.abort()
+    }
+    return state.generation
+  }
+
+  private isCurrentCredentialGeneration(state: CredentialRuntimeState, generation: number): boolean {
+    return state.phase === 'active' && state.generation === generation && !state.controller.signal.aborted
+  }
+
+  private assertCredentialGeneration(state: CredentialRuntimeState, generation: number): void {
+    if (!this.isCurrentCredentialGeneration(state, generation)) {
+      throw new DOMException('External Knowledge credential operation was superseded', 'AbortError')
+    }
+  }
+
+  private credentialSignal(state: CredentialRuntimeState, upstreamSignal?: AbortSignal): AbortSignal {
+    return AbortSignal.any([this.lifetime.signal, state.controller.signal, ...(upstreamSignal ? [upstreamSignal] : [])])
+  }
+
+  private async waitForCredentialBackoff(state: CredentialRuntimeState, signal: AbortSignal): Promise<void> {
+    const waitMs = state.nextAllowedAt - this.now()
+    if (waitMs > 0) await this.sleep(waitMs, signal)
+  }
+
+  private async runCredentialRequest<T>(
+    state: CredentialRuntimeState,
+    generation: number,
+    signal: AbortSignal,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt++) {
+      await this.waitForCredentialBackoff(state, signal)
+      this.assertCredentialGeneration(state, generation)
+      try {
+        const result = await operation()
+        this.assertCredentialGeneration(state, generation)
+        return result
+      } catch (error) {
+        this.assertCredentialGeneration(state, generation)
+        if (!(error instanceof FeishuProviderError) || error.code !== 'transient') throw error
+        const backoffMs = error.retryAfterMs ?? 500 * 2 ** (attempt - 1)
+        state.nextAllowedAt = Math.max(state.nextAllowedAt, this.now() + backoffMs)
+        if (attempt === MAX_REQUEST_ATTEMPTS) throw error
+      }
+    }
+    throw new ExternalKnowledgeRuntimeError('authorization-failed')
   }
 
   private track<T>(promise: Promise<T>): Promise<T> {

@@ -86,8 +86,10 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
       application.get('KnowledgeService').cancelFeishuUserAuthorization(authorizationSessionId)
     )
   },
-  'knowledge.feishu.connection.reconnect': async ({ connectionId }) =>
-    externalKnowledgeCommand(() => application.get('KnowledgeService').reconnectFeishuConnection(connectionId)),
+  'knowledge.feishu.connection.reconnect': async ({ connectionId, credentials }) =>
+    externalKnowledgeCommand(() =>
+      application.get('KnowledgeService').reconnectFeishuConnection(connectionId, credentials)
+    ),
   'knowledge.feishu.connection.validate': async ({ connectionId }) =>
     externalKnowledgeCommand(() => application.get('KnowledgeService').validateFeishuConnection(connectionId)),
   'knowledge.feishu.connection.remove': async ({ connectionId }) => {

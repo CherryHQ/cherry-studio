@@ -52,6 +52,33 @@ describe('Knowledge External Connection IPC schemas', () => {
     expect(reconnect.safeParse({ connectionId: 'not-a-uuid' }).success).toBe(false)
   })
 
+  it('accepts replacement application credentials for a connection that cannot reuse its stored credential', () => {
+    const reconnect = knowledgeRequestSchemas['knowledge.feishu.connection.reconnect'].input
+    const connectionId = '01960000-0000-7000-8000-000000000001'
+
+    expect(
+      reconnect.safeParse({
+        connectionId,
+        credentials: { kind: 'custom-app', appId: 'cli_manual', appSecret: 'private-secret' }
+      }).success
+    ).toBe(true)
+    expect(
+      reconnect.safeParse({
+        connectionId,
+        credentials: {
+          kind: 'personal-agent',
+          registrationSessionId: '01960000-0000-7000-8000-000000000002'
+        }
+      }).success
+    ).toBe(true)
+    expect(
+      reconnect.safeParse({
+        connectionId,
+        credentials: { kind: 'custom-app', appId: 'cli_manual', appSecret: 'private-secret', accessToken: 'x' }
+      }).success
+    ).toBe(false)
+  })
+
   it('does not permit credentials or tokens in connection command outputs', () => {
     const output = knowledgeRequestSchemas['knowledge.feishu.authorization.complete'].output
 

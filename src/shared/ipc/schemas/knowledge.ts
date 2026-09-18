@@ -36,6 +36,15 @@ import { defineRoute } from '../define'
 const baseIdSchema = z.string().trim().min(1)
 const sessionIdSchema = z.uuid()
 const connectionIdSchema = z.uuidv7()
+const feishuApplicationCredentialsSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('personal-agent'), registrationSessionId: sessionIdSchema }),
+  z.strictObject({
+    kind: z.literal('custom-app'),
+    appId: z.string().trim().min(1).max(256),
+    appSecret: z.string().min(1).max(1024),
+    applicationName: z.string().trim().min(1).max(256).optional()
+  })
+])
 const beginAuthorizationOutputSchema = z.strictObject({
   authorizationSessionId: sessionIdSchema,
   connection: ExternalKnowledgeConnectionSchema,
@@ -64,15 +73,7 @@ export const knowledgeRequestSchemas = {
     output: z.void()
   }),
   'knowledge.feishu.authorization.begin': defineRoute({
-    input: z.discriminatedUnion('kind', [
-      z.strictObject({ kind: z.literal('personal-agent'), registrationSessionId: sessionIdSchema }),
-      z.strictObject({
-        kind: z.literal('custom-app'),
-        appId: z.string().trim().min(1).max(256),
-        appSecret: z.string().min(1).max(1024),
-        applicationName: z.string().trim().min(1).max(256).optional()
-      })
-    ]),
+    input: feishuApplicationCredentialsSchema,
     output: beginAuthorizationOutputSchema
   }),
   'knowledge.feishu.authorization.complete': defineRoute({
@@ -84,7 +85,10 @@ export const knowledgeRequestSchemas = {
     output: z.void()
   }),
   'knowledge.feishu.connection.reconnect': defineRoute({
-    input: z.strictObject({ connectionId: connectionIdSchema }),
+    input: z.strictObject({
+      connectionId: connectionIdSchema,
+      credentials: feishuApplicationCredentialsSchema.optional()
+    }),
     output: beginAuthorizationOutputSchema
   }),
   'knowledge.feishu.connection.validate': defineRoute({

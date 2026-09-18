@@ -61,6 +61,21 @@ describe('knowledgeHandlers', () => {
     expect(JSON.stringify(result)).not.toContain('private-secret')
   })
 
+  it('forwards replacement application credentials only into the reconnect command', async () => {
+    const started = { authorizationSessionId: 'session-1' }
+    knowledgeService.reconnectFeishuConnection.mockResolvedValue(started)
+    const input = {
+      connectionId: '01960000-0000-7000-8000-000000000001',
+      credentials: { kind: 'custom-app' as const, appId: 'cli_manual', appSecret: 'replacement-secret' }
+    }
+
+    const result = await knowledgeHandlers['knowledge.feishu.connection.reconnect'](input, ctx)
+
+    expect(knowledgeService.reconnectFeishuConnection).toHaveBeenCalledWith(input.connectionId, input.credentials)
+    expect(result).toBe(started)
+    expect(JSON.stringify(result)).not.toContain('replacement-secret')
+  })
+
   it('rejects invalid Feishu command parameters before invoking KnowledgeService', async () => {
     const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
 
