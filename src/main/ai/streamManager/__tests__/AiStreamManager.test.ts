@@ -3124,11 +3124,7 @@ describe('AiStreamManager', () => {
       expect(mockMainLoggerService.error).toHaveBeenCalledWith('Execution loop error', {
         topicId: 'a',
         modelId: 'provider-a::model-a',
-        err: {
-          name: null,
-          message: 'You have no credits remaining.',
-          stack: null
-        }
+        err: { errorMessage: 'You have no credits remaining.' }
       })
       expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
       expect(mgr.inspect('a')!.status).toBe('error')

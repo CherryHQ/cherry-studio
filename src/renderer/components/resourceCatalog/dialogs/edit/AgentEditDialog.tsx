@@ -45,6 +45,7 @@ import {
   diffAgentSaveIntent,
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
+import { MAX_HEARTBEAT_INTERVAL_MINUTES, MIN_HEARTBEAT_INTERVAL_MINUTES } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import {
@@ -79,6 +80,7 @@ import {
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
   resource: AgentDetail | null
@@ -568,6 +570,11 @@ function AgentEditDialogContent({
             groupsLoading={isGroupsLoading}
             groupsError={groupsError}
             onCreateGroup={() => setCreateGroupDialogOpen(true)}
+            agentId={resource.id}
+            beforeHeartbeatOpen={async () => {
+              await flush()
+              return failedSaveKeyRef.current === null
+            }}
           />
         </TabsContent>
         <TabsContent
@@ -627,7 +634,9 @@ function AgentBasicFields({
   groups,
   groupsLoading,
   groupsError,
-  onCreateGroup
+  onCreateGroup,
+  agentId,
+  beforeHeartbeatOpen
 }: {
   form: UseFormReturn<AgentEditFormValues>
   modelFilter?: ModelSelectorFilter
@@ -645,9 +654,12 @@ function AgentBasicFields({
   groupsLoading: ReturnType<typeof useGroups>['isLoading']
   groupsError: ReturnType<typeof useGroups>['error']
   onCreateGroup: () => void
+  agentId: string
+  beforeHeartbeatOpen: () => Promise<boolean>
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
+  const [heartbeatOpen, setHeartbeatOpen] = useState(false)
 
   return (
     <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
@@ -745,11 +757,27 @@ function AgentBasicFields({
         permissionModeCards={getPermissionModeCards(agentType)}
       />
       {caps.heartbeat ? (
-        <HeartbeatSettingsField
-          form={form}
-          enabled={heartbeatEnabled}
-          onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
-        />
+        <div>
+          <HeartbeatSettingsField
+            form={form}
+            enabled={heartbeatEnabled}
+            onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
+          />
+          <div className="flex justify-end pb-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                if (await beforeHeartbeatOpen()) setHeartbeatOpen(true)
+              }}>
+              {t('agent.heartbeat.edit')}
+            </Button>
+          </div>
+          {heartbeatOpen ? (
+            <HeartbeatEditorDialog agentId={agentId} enabled={heartbeatEnabled} onOpenChange={setHeartbeatOpen} />
+          ) : null}
+        </div>
       ) : null}
     </div>
   )
@@ -908,8 +936,8 @@ function HeartbeatSettingsField({
               </FormLabel>
               <FormControl>
                 <InputNumber
-                  min={1}
-                  max={1440}
+                  min={MIN_HEARTBEAT_INTERVAL_MINUTES}
+                  max={MAX_HEARTBEAT_INTERVAL_MINUTES}
                   step={1}
                   className="h-9 w-full"
                   value={field.value || null}

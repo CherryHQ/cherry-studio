@@ -702,7 +702,7 @@ export class AgentsMigrator extends BaseMigrator {
   /**
    * Migrate v1 `scheduled_tasks` + `channel_task_subscriptions` into v2
    * `job_schedule` + `agent_channel_task`. v1 `task_run_logs` are intentionally
-   * discarded — see breaking-changes/2026-05-19-agent-task-migration.md.
+   * discarded.
    */
   private async migrateScheduledTasksTs(db: MigrationContext['db']): Promise<void> {
     // Idempotency on retry: drop any partial agent.task schedules from a
