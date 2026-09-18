@@ -8,7 +8,7 @@ import { InputNumber } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
-import { apiKeyLimitId } from '@shared/utils/apiKeyLimit'
+import { apiKeyLimitId, apiKeyModelLimitId } from '@shared/utils/apiKeyLimit'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const PERIOD_TO_MS = { daily: DAY_MS, monthly: 30 * DAY_MS } as const
@@ -16,14 +16,17 @@ const PERIOD_TO_MS = { daily: DAY_MS, monthly: 30 * DAY_MS } as const
 interface Props {
   providerId: string
   keyId: string
+  /** When set, manages a model-scoped limit that takes precedence over the key-level one. */
+  modelId?: string
 }
 
-export const ApiKeyQuotaLimit = ({ providerId, keyId }: Props) => {
+export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
   const { t } = useTranslation()
   const [storedLimits, setLimits] = usePreference('chat.routing.api_key_limits')
   // Preferences read as null until the store hydrates, and this drawer renders before that.
   const limits = storedLimits ?? {}
-  const entry = limits[apiKeyLimitId(providerId, keyId)]
+  const limitKey = modelId ? apiKeyModelLimitId(providerId, keyId, modelId) : apiKeyLimitId(providerId, keyId)
+  const entry = limits[limitKey]
 
   const now = Date.now()
   const statsParams = useMemo(
@@ -61,9 +64,8 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId }: Props) => {
   }, [entry?.period])
 
   const update = (next: { limit: number; period: 'daily' | 'monthly' } | undefined) => {
-    const id = apiKeyLimitId(providerId, keyId)
-    const { [id]: _removed, ...rest } = limits
-    void setLimits(next ? { ...rest, [id]: next } : rest)
+    const { [limitKey]: _removed, ...rest } = limits
+    void setLimits(next ? { ...rest, [limitKey]: next } : rest)
   }
 
   return (

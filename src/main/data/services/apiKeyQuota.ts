@@ -4,7 +4,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { apiKeyLimitId } from '@shared/utils/apiKeyLimit'
+import { apiKeyLimitId, apiKeyModelLimitId } from '@shared/utils/apiKeyLimit'
 
 import { aiUsageRecordService } from './AiUsageRecordService'
 
@@ -13,7 +13,7 @@ const logger = loggerService.withContext('ApiKeyQuota')
 const DAY_MS = 24 * 60 * 60 * 1000
 const PERIOD_MS = { daily: DAY_MS, monthly: 30 * DAY_MS } as const
 
-export { apiKeyLimitId }
+export { apiKeyLimitId, apiKeyModelLimitId }
 
 function requestsSince(from: number): Map<string, number> {
   const stats = aiUsageRecordService.stats({
@@ -30,13 +30,34 @@ function requestsSince(from: number): Map<string, number> {
   return counts
 }
 
+/**
+ * Resolve the effective limit for a key, checking model-scoped first then key-scoped.
+ * Returns undefined when no limit is declared (= unlimited).
+ */
+export function resolveKeyLimit(
+  limits: Record<string, { limit: number; period: 'daily' | 'monthly' }>,
+  providerId: string,
+  keyId: string,
+  modelId?: string
+) {
+  if (modelId) {
+    const modelLimit = limits[apiKeyModelLimitId(providerId, keyId, modelId)]
+    if (modelLimit) return modelLimit
+  }
+  return limits[apiKeyLimitId(providerId, keyId)]
+}
+
 /** Keys still under their declared ceiling. Keys with no declared limit always count as available. */
-function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id'>>(providerId: string, keys: readonly T[]): T[] {
+function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id'>>(
+  providerId: string,
+  keys: readonly T[],
+  modelId?: string
+): T[] {
   const limits = application.get('PreferenceService').get('chat.routing.api_key_limits')
   const countsByPeriod = new Map<keyof typeof PERIOD_MS, Map<string, number>>()
 
   return keys.filter((key) => {
-    const limit = limits[apiKeyLimitId(providerId, key.id)]
+    const limit = resolveKeyLimit(limits, providerId, key.id, modelId)
     if (!limit) return true
 
     let counts = countsByPeriod.get(limit.period)
@@ -52,9 +73,13 @@ function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id'>>(providerId: string, 
  * Drops credentials that already reached their declared ceiling. Returns the input untouched when
  * every key is exhausted — letting the provider reject the call beats refusing to send one.
  */
-export function filterKeysWithinQuota(providerId: string, keys: readonly ApiKeyEntry[]): ApiKeyEntry[] {
+export function filterKeysWithinQuota(
+  providerId: string,
+  keys: readonly ApiKeyEntry[],
+  modelId?: string
+): ApiKeyEntry[] {
   try {
-    const withinQuota = keysWithinQuota(providerId, keys)
+    const withinQuota = keysWithinQuota(providerId, keys, modelId)
     return withinQuota.length > 0 ? withinQuota : [...keys]
   } catch (error) {
     // A quota lookup must never block a request the user asked for.
@@ -71,13 +96,14 @@ export function filterKeysWithinQuota(providerId: string, keys: readonly ApiKeyE
 export function isProviderQuotaExhausted(
   providerId: string,
   // Deliberately narrower than ApiKeyEntry: the runtime Provider carries keys without their secret.
-  keys: readonly Pick<ApiKeyEntry, 'id' | 'isEnabled'>[]
+  keys: readonly Pick<ApiKeyEntry, 'id' | 'isEnabled'>[],
+  modelId?: string
 ): boolean {
   const usable = keys.filter((key) => key.isEnabled)
   if (usable.length === 0) return false
 
   try {
-    return keysWithinQuota(providerId, usable).length === 0
+    return keysWithinQuota(providerId, usable, modelId).length === 0
   } catch (error) {
     // Unknown means available: a failed lookup must not push a working provider down the ranking.
     logger.warn('quota lookup failed, treating the provider as available', { providerId, error })

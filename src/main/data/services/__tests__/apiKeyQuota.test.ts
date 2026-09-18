@@ -12,7 +12,7 @@ vi.mock('../AiUsageRecordService', () => ({
   aiUsageRecordService: { stats: (...args: unknown[]) => stats(...args) }
 }))
 
-const { apiKeyLimitId, filterKeysWithinQuota } = await import('../apiKeyQuota')
+const { apiKeyLimitId, apiKeyModelLimitId, filterKeysWithinQuota } = await import('../apiKeyQuota')
 
 const key = (id: string) => ({ id, key: `secret-${id}`, isEnabled: true }) as ApiKeyEntry
 
@@ -74,5 +74,35 @@ describe('filterKeysWithinQuota', () => {
     })
 
     expect(filterKeysWithinQuota('groq', [key('a'), key('b')])).toHaveLength(2)
+  })
+
+  it('model-scoped limit takes precedence over key-level limit', () => {
+    withLimits({
+      [apiKeyLimitId('deepseek', 'a')]: { limit: 100, period: 'daily' },
+      [apiKeyModelLimitId('deepseek', 'a', 'deepseek-v4-flash')]: { limit: 5, period: 'daily' }
+    })
+    withRequestCounts({ a: 5 })
+
+    expect(filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek-v4-flash')).toEqual([key('b')])
+  })
+
+  it('falls back to key-level limit when no model-scoped limit exists', () => {
+    withLimits({
+      [apiKeyLimitId('deepseek', 'a')]: { limit: 10, period: 'daily' }
+    })
+    withRequestCounts({ a: 10 })
+
+    expect(filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek-v4-flash')).toEqual([key('b')])
+  })
+
+  it('two keys with separate model-scoped limits filter independently', () => {
+    withLimits({
+      [apiKeyModelLimitId('deepseek', 'a', 'deepseek-v4-flash')]: { limit: 20, period: 'daily' },
+      [apiKeyModelLimitId('deepseek', 'b', 'deepseek-v4-flash')]: { limit: 15, period: 'daily' }
+    })
+    withRequestCounts({ a: 20, b: 10 })
+
+    const result = filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek-v4-flash')
+    expect(result).toEqual([key('b')])
   })
 })
