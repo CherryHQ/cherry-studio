@@ -1,4 +1,4 @@
-import { Check, Copy, Edit3, Plus, Trash2, X } from 'lucide-react'
+import { AlertCircle, Check, CheckCircle2, Copy, Edit3, Loader2, Plus, Trash2, X, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
@@ -15,6 +15,7 @@ import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { apiKeyListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { ApiKeyQuotaLimit } from './ApiKeyQuotaLimit'
 import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
+import { type ApiKeyProbeState, useApiKeyProbe } from './useApiKeyProbe'
 
 interface ProviderApiKeyListDrawerProps {
   providerId: string
@@ -55,6 +56,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
   const { t } = useTranslation()
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const { addApiKey, updateApiKey, deleteApiKey } = useProviderMutations(providerId)
+  const { probe, results: probeResults, probeModelName } = useApiKeyProbe(providerId)
   const apiKeys = useMemo(() => apiKeysData?.keys ?? [], [apiKeysData?.keys])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<DraftState | null>(null)
@@ -145,8 +147,11 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
     )
     if (saved) {
       cancelEdit()
+      // A key that was never exercised looks identical to a working one, which is how a
+      // dead key gets discovered mid-conversation instead of here.
+      void probe(key)
     }
-  }, [addApiKey, cancelEdit, draft, persist, updateApiKey, validateDraft])
+  }, [addApiKey, cancelEdit, draft, persist, probe, updateApiKey, validateDraft])
 
   const removeKey = useCallback(
     async (id: string) => {
@@ -195,6 +200,9 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
                   <ApiKeyDisplayRow
                     entry={entry}
                     saving={saving}
+                    probe={probeResults[entry.key]}
+                    probeModelName={probeModelName}
+                    onProbe={() => void probe(entry.key)}
                     onEdit={() => startEdit(entry)}
                     onRemove={() => void removeKey(entry.id)}
                     onToggleEnabled={(next) => void toggleEnabled(entry, next)}
@@ -296,12 +304,55 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
 interface ApiKeyDisplayRowProps {
   entry: ApiKeyEntry
   saving: boolean
+  probe?: ApiKeyProbeState
+  probeModelName?: string
+  onProbe: () => void
   onEdit: () => void
   onRemove: () => void
   onToggleEnabled: (enabled: boolean) => void
 }
 
-function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: ApiKeyDisplayRowProps) {
+function ApiKeyProbeBadge({ probe }: { probe: ApiKeyProbeState }) {
+  const { t } = useTranslation()
+
+  if (probe.status === 'probing') {
+    return (
+      <span className="inline-flex items-center gap-1 text-muted-foreground text-xs">
+        <Loader2 className="size-3 animate-spin" aria-hidden />
+        {t('settings.provider.api_key.probe.running')}
+      </span>
+    )
+  }
+
+  if (probe.status === 'ok') {
+    return (
+      <span className="inline-flex items-center gap-1 text-success text-xs">
+        <CheckCircle2 className="size-3" aria-hidden />
+        {t('settings.provider.api_key.probe.ok', { latency: probe.latency })}
+      </span>
+    )
+  }
+
+  return (
+    <Tooltip content={probe.message}>
+      <span className="inline-flex items-center gap-1 text-destructive text-xs">
+        <AlertCircle className="size-3" aria-hidden />
+        {t('settings.provider.api_key.probe.failed')}
+      </span>
+    </Tooltip>
+  )
+}
+
+function ApiKeyDisplayRow({
+  entry,
+  saving,
+  probe,
+  probeModelName,
+  onProbe,
+  onEdit,
+  onRemove,
+  onToggleEnabled
+}: ApiKeyDisplayRowProps) {
   const { t } = useTranslation()
   const maskedKey = maskApiKey(entry.key)
   const handleCopy = useCallback(() => {
@@ -319,8 +370,21 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
           onClick={handleCopy}>
           {maskedKey === entry.key ? '••••••••' : maskedKey}
         </button>
+        {probe ? <ApiKeyProbeBadge probe={probe} /> : null}
       </div>
       <div className={apiKeyListClasses.keyRowActions}>
+        {probeModelName ? (
+          <Tooltip content={t('settings.provider.api_key.probe.tooltip', { model: probeModelName })}>
+            <button
+              type="button"
+              className={apiKeyListClasses.keyIconButton}
+              aria-label={t('settings.provider.api_key.probe.action')}
+              disabled={saving || probe?.status === 'probing'}
+              onClick={onProbe}>
+              <Zap />
+            </button>
+          </Tooltip>
+        ) : null}
         <Tooltip content={t('settings.provider.api_key.copy')}>
           <button
             type="button"
