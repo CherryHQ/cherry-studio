@@ -169,10 +169,9 @@ export class SkillInstaller {
   }
 
   /**
-   * Settle a migration marker by asking the catalog which side of the commit survived the crash.
-   * Post-commit (a row points at the replacement) the marker is a leftover: drop it and keep the
-   * replacement. Pre-commit (no row does) the replacement is uncommitted: restore the old folder
-   * and drop the replacement before reconcile adopts it as a duplicate skill.
+   * Settle a migration marker against the catalog. Post-commit the marker is dropped and the
+   * replacement kept; pre-commit the replacement is dropped first, then the old folder restored
+   * (or an empty marker dropped when the old folder was already gone).
    */
   private async recoverInterruptedMigration(
     storageRoot: string,
@@ -186,41 +185,74 @@ export class SkillInstaller {
       return
     }
 
+    // Drop the uncommitted replacement before consuming the marker: a failed cleanup keeps the
+    // marker for the next boot instead of orphaning a duplicate for reconcile to adopt.
+    const newPath = path.join(storageRoot, newName)
+    if (await pathExists(newPath)) {
+      await this.safeRemoveDirectory(newPath, 'uncommitted skill replacement')
+      if (await pathExists(newPath)) {
+        logger.warn('Uncommitted skill replacement survived cleanup; keeping migration marker', {
+          marker,
+          newPath
+        })
+        return
+      }
+    }
+
     const oldPath = path.join(storageRoot, oldName)
     if (await pathExists(oldPath)) {
       logger.warn('Leaving skill migration backup in place; original folder reappeared', { marker, oldPath })
       return
     }
+    let markerEntries: string[]
     try {
-      await fs.promises.rename(marker, oldPath)
+      markerEntries = await fs.promises.readdir(marker)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
       throw error
     }
-    logger.info('Recovered interrupted skill migration', { oldPath, marker })
-
-    // The replacement was installed by the same migration that created the marker: installs refuse
-    // to migrate onto an existing directory, and no catalog row owns it while the old row stands.
-    if (!isFolderTracked?.(newName)) {
-      await this.safeRemoveDirectory(path.join(storageRoot, newName), 'uncommitted skill replacement')
+    // An empty marker means the old folder was already gone: drop it without resurrecting an
+    // empty folder; reconcile prunes the stale row now that no replacement remains.
+    if (markerEntries.length === 0) {
+      await this.safeRemoveDirectory(marker, 'empty skill migration backup')
+      return
     }
+    await fs.promises.rename(marker, oldPath)
+    logger.info('Recovered interrupted skill migration', { oldPath, marker })
   }
 
   /**
-   * Move a replaced library folder aside to a migration rollback marker that names the replacement
-   * (`.<old>.migrating-to.<new>.bak`) instead of deleting it. The marker name is the write-ahead
-   * record: startup recovery restores the old folder while no catalog row points at the replacement
-   * and drops the marker once one does. Returns null when there is nothing to preserve.
+   * Move a replaced library folder aside to a migration rollback marker naming the replacement.
+   * Always created before publishing: an empty marker records an already-gone old folder.
    */
-  async backupReplacedFolderForMigration(dirPath: string, newFolderName: string): Promise<string | null> {
+  async backupReplacedFolderForMigration(dirPath: string, newFolderName: string): Promise<string> {
     const backupPath = path.join(path.dirname(dirPath), `.${path.basename(dirPath)}.migrating-to.${newFolderName}.bak`)
     try {
       await fs.promises.rename(dirPath, backupPath)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
-      throw error
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      await fs.promises.mkdir(backupPath, { recursive: true })
     }
     return backupPath
+  }
+
+  /**
+   * Undo `backupReplacedFolderForMigration`: move the preserved folder back, or drop an empty
+   * marker whose old folder was already gone (renaming it back would resurrect an empty folder).
+   */
+  async restoreMigrationBackup(backupPath: string, oldPath: string): Promise<void> {
+    let entries: string[]
+    try {
+      entries = await fs.promises.readdir(backupPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+    if (entries.length === 0) {
+      await this.safeRemoveDirectory(backupPath, 'empty skill migration marker')
+      return
+    }
+    await fs.promises.rename(backupPath, oldPath)
   }
 
   /**
