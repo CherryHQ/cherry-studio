@@ -24,13 +24,39 @@ describe('isVisibleAgentSessionPart', () => {
     expect(isVisibleAgentSessionPart({ type: 'reasoning', state: 'streaming', text: '' })).toBe(true)
     expect(
       isVisibleAgentSessionPart({
-        type: 'tool-read_file',
+        type: 'tool-Read',
         state: 'output-available',
         toolCallId: 't1',
         input: {},
         output: {}
       })
     ).toBe(true)
+  })
+
+  it('keeps tool parts the renderer gives a card, and drops cardless tool-only turns', () => {
+    // Runtime builtin tool (pi/dsh `bash`) renders through the agent timeline card.
+    expect(
+      isVisibleAgentSessionPart({ type: 'tool-bash', state: 'output-available', toolCallId: 't1', input: {} } as never)
+    ).toBe(true)
+    // MCP-resolved tools always render the generic MCP card.
+    expect(
+      isVisibleAgentSessionPart({
+        type: 'dynamic-tool',
+        toolName: 'anything_at_all',
+        state: 'output-available',
+        toolCallId: 't2',
+        input: {}
+      } as never)
+    ).toBe(true)
+    // An unrecognized builtin-wire tool renders no card, so a turn of only it is empty.
+    expect(
+      isVisibleAgentSessionPart({
+        type: 'tool-some_future_runtime_tool',
+        state: 'output-available',
+        toolCallId: 't3',
+        input: {}
+      } as never)
+    ).toBe(false)
   })
 
   it('judges whole part arrays with the same rule the renderer uses for the fallback', () => {

@@ -18,8 +18,8 @@ export const APPROVAL_RESPONDED = 'approval-responded'
 export const CLAUDE_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
 export const PI_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
 const CHERRY_AGENT_TRANSPORTS = new Set<string>(Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport))
-const PI_RUNTIME_BUILTIN_TOOL_NAMES = new Set<string>(
-  AGENT_RUNTIME_CAPABILITIES.pi.builtinTools().map((tool) => tool.id)
+const CHERRY_RUNTIME_BUILTIN_TOOL_NAMES = new Set<string>(
+  Object.values(AGENT_RUNTIME_CAPABILITIES).flatMap((caps) => caps.builtinTools().map((tool) => tool.id))
 )
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
@@ -51,7 +51,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Canonical tool identity for a tool part: cherry-runtime parts (tagged via
- * `providerMetadata.cherry.transport`) map their runtime-native tool name onto the shared
+ * `providerMetadata.cherry.transport`, or carrying a cherry-owned render name that
+ * survives persistence) map their runtime-native tool name onto the shared
  * `AgentToolsType` name; all other parts keep their wire name.
  */
 export function getCanonicalToolName(part: CherryMessagePart): string | undefined {
@@ -59,9 +60,10 @@ export function getCanonicalToolName(part: CherryMessagePart): string | undefine
   const toolPart = part as unknown as ToolResponsePart
   const toolName = getToolName(toolPart).trim()
   if (!toolName) return undefined
-  return hasCherryTransport(toolPart.callProviderMetadata)
-    ? (CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(toolName) ?? toolName)
-    : toolName
+  if (!hasCherryTransport(toolPart.callProviderMetadata) && !CHERRY_RUNTIME_TOOL_RENDER_NAMES.has(toolName)) {
+    return toolName
+  }
+  return CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(toolName) ?? toolName
 }
 
 function normalizeToolName(part: ToolResponsePart): string {
@@ -146,8 +148,10 @@ function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
 
 function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
   if (isMetaToolName(toolName)) return 'builtin'
-  if (AGENT_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
-  if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
+  // Cherry owns these names, so classification must not depend on ephemeral
+  // transport metadata — reloaded turns would otherwise degrade to cardless parts.
+  if (AGENT_TOOL_NAMES.has(toolName)) return 'provider'
+  if (CHERRY_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName)) return 'provider'
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'
   if (toolName === GENERATE_IMAGE_TOOL_NAME) return 'builtin'

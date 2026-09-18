@@ -277,7 +277,7 @@ describe('ClaudeCodeStreamAdapter', () => {
     )
   })
 
-  it('reports api_retry before the stream adapter marks the turn active', () => {
+  it('drops api_retry with no active turn — a turn-less retry has no boundary to clear it', () => {
     const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
 
     const result = adapter.handleMessage({
@@ -294,10 +294,7 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     expect(result).toEqual({ type: 'continue' })
     expect(parts).toEqual([])
-    expect(statusEvents).toContainEqual({
-      type: 'api-retry',
-      retry: { attempt: 3, maxRetries: 10, retryDelayMs: 1234, errorStatus: 500, errorCategory: 'server_error' }
-    })
+    expect(statusEvents).not.toContainEqual(expect.objectContaining({ type: 'api-retry' }))
     expect(loggerMocks.debug).not.toHaveBeenCalledWith(expect.stringContaining('Received system message subtype:'))
   })
 
