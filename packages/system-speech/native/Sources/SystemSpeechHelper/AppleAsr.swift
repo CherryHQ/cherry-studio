@@ -1,3 +1,4 @@
+import AVFAudio
 import Foundation
 import Speech
 
@@ -65,6 +66,50 @@ enum AppleAsr {
             throw error
         } catch {
             throw HelperError(code: .assetInstallationFailed)
+        }
+    }
+
+    static func transcribe(locale identifier: String, inputPath: String) async throws -> TranscribeResult {
+        guard #available(macOS 26.0, *) else {
+            throw HelperError(code: .unsupportedOs)
+        }
+
+        guard let supported = await SpeechTranscriber.supportedLocale(
+            equivalentTo: Locale(identifier: identifier)
+        ) else {
+            throw HelperError(code: .unsupportedLocale)
+        }
+
+        let transcriber = SpeechTranscriber(locale: supported, preset: .transcription)
+        guard await AssetInventory.status(forModules: [transcriber]) == .installed else {
+            throw HelperError(code: .assetRequired)
+        }
+
+        do {
+            let audioFile = try AVAudioFile(forReading: URL(fileURLWithPath: inputPath))
+            let analyzer = SpeechAnalyzer(modules: [transcriber])
+            let resultTask = Task { () throws -> String in
+                var segments: [String] = []
+                for try await result in transcriber.results where result.isFinal {
+                    segments.append(String(result.text.characters))
+                }
+                return segments.joined()
+            }
+
+            do {
+                try await analyzer.start(inputAudioFile: audioFile, finishAfterFile: true)
+                return TranscribeResult(locale: supported.identifier, text: try await resultTask.value)
+            } catch {
+                resultTask.cancel()
+                await analyzer.cancelAndFinishNow()
+                throw error
+            }
+        } catch let error as HelperError {
+            throw error
+        } catch is CancellationError {
+            throw HelperError(code: .cancelled)
+        } catch {
+            throw HelperError(code: .transcriptionFailed)
         }
     }
 }

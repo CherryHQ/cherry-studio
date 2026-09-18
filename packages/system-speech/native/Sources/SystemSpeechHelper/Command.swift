@@ -131,3 +131,13 @@ struct SynthesizeSuccess: Encodable, Sendable {
     let operation = "synthesize"
     let result: SynthesizeResult
 }
+
+struct TranscribeResult: Encodable, Sendable {
+    let locale: String
+    let text: String
+}
+
+struct TranscribeSuccess: Encodable, Sendable {
+    let operation = "transcribe"
+    let result: TranscribeResult
+}

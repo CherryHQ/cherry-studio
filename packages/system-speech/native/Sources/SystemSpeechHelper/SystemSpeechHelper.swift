@@ -41,8 +41,9 @@ enum SystemSpeechHelper {
         case let .synthesize(voiceId, text, outputPath):
             let result = try await AppleTts.synthesize(voiceId: voiceId, text: text, outputPath: outputPath)
             write(SuccessEnvelope(value: SynthesizeSuccess(result: result)))
-        case .transcribe:
-            throw HelperError(code: .nativeHelperFailed)
+        case let .transcribe(locale, inputPath):
+            let result = try await AppleAsr.transcribe(locale: locale, inputPath: inputPath)
+            write(SuccessEnvelope(value: TranscribeSuccess(result: result)))
         }
     }
 
