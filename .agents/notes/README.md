@@ -11,4 +11,4 @@ Notes live at `{lifecycle}/{class}/yyyy-mm-dd-topic.md`:
 
 Every note opens with `# Agent Note: <title>` and a `Status:` line, states its `## Problem`, and carries a mandatory `## Alternatives considered`. Each note has a `.zh.md` counterpart mirroring its structure.
 
-This system is being adopted per [the docs-governance proposal](proposed/process/2026-08-18-docs-governance-and-spec-workflow.md), which defines the format, the note-worthiness threshold, and the rollout. The full ruleset and format gate land with that proposal's Phase 1.
+This system is being adopted per [the docs-governance proposal](proposed/process/2026-08-18-docs-governance-and-spec-workflow.md), which defines the format, the note-worthiness threshold, and the rollout. The format is now enforced: `pnpm docs:check-notes` (`scripts/verify-agent-note-format.ts`, part of `pnpm docs:check`) checks the placement, the header block, and the sections each lifecycle owes. The bilingual pairing gate lands with that proposal's Phase 2.
