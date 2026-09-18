@@ -1,10 +1,7 @@
 import { EmojiIcon } from '@cherrystudio/ui'
-import MiniAppLogo from '@renderer/components/icons/MiniAppIcon'
 import { isEmoji } from '@renderer/utils/naming'
 
-import type { SidebarMiniAppTab, SidebarUser } from './types'
-
-type MiniAppIconSize = 'sm' | 'md' | 'lg'
+import type { SidebarUser } from './types'
 
 export function ActiveIndicator({ className, glow = false }: { className?: string; glow?: boolean }) {
   return (
@@ -13,7 +10,7 @@ export function ActiveIndicator({ className, glow = false }: { className?: strin
         className={`pointer-events-none absolute inset-0 border border-[var(--sidebar-active-border)] ${className ?? ''}`}
       />
       {glow && (
-        <div className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 flex items-center">
+        <div className="pointer-events-none absolute top-1/2 right-0 flex -translate-y-1/2 items-center">
           <div className="h-[24px] w-[10px] rounded-tl-[8px] rounded-bl-[8px] bg-[var(--sidebar-glow-bg)] blur-[6px]" />
           <div className="absolute right-0 h-[10px] w-[3px] rounded-[100px] bg-[var(--sidebar-glow-line)] blur-[2px]" />
         </div>
@@ -24,27 +21,8 @@ export function ActiveIndicator({ className, glow = false }: { className?: strin
 
 export function DefaultLogo({ title }: { title: string }) {
   return (
-    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 font-medium text-primary text-sm">
+    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 text-sm font-medium text-primary">
       {title ? title.slice(0, 1).toUpperCase() : ''}
-    </div>
-  )
-}
-
-export function MiniAppIcon({ tab, size = 'sm' }: { tab: SidebarMiniAppTab; size?: MiniAppIconSize }) {
-  const pixelSize = size === 'sm' ? 16 : size === 'md' ? 18 : 24
-  const { miniApp } = tab
-
-  if (miniApp.logo) {
-    return <MiniAppLogo app={{ logo: miniApp.logo, name: tab.title }} appearance="sidebar" size={pixelSize} />
-  }
-
-  const fontSize = size === 'sm' ? 'text-[8px]' : size === 'md' ? 'text-[9px]' : 'text-xs'
-
-  return (
-    <div
-      className={`${fontSize} flex flex-shrink-0 items-center justify-center rounded-full bg-muted text-white`}
-      style={{ width: pixelSize, height: pixelSize, background: miniApp.color }}>
-      {tab.title?.[0] ?? ''}
     </div>
   )
 }
@@ -85,7 +63,7 @@ export function UserAvatar({
       {user.avatar && !isTextAvatar(user.avatar) ? (
         <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
       ) : isEmojiAvatar ? (
-        <EmojiIcon emoji={user.avatar!} fluid fontSize={10} />
+        <EmojiIcon emoji={user.avatar!} fluid />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
           {getUserAvatarFallback(user)}

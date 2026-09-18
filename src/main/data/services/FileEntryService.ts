@@ -18,6 +18,26 @@
  * module-level layering rules.
  */
 
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+  type SQLWrapper
+} from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
+import * as z from 'zod'
+import { ZodError } from 'zod'
+
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { persistentRefAbsenceConditions } from '@data/db/schemas/fileRelations'
@@ -41,11 +61,8 @@ import {
   InternalEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import type { CanonicalFilePath } from '@shared/utils/file'
-import { and, asc, count, eq, gt, isNotNull, isNull, lt, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
-import { v7 as uuidv7 } from 'uuid'
-import * as z from 'zod'
-import { ZodError } from 'zod'
+import type { FileType } from '@shared/types/file'
+import { type CanonicalFilePath, fileTypeMap } from '@shared/utils/file'
 
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -112,8 +129,10 @@ export interface FindEntriesQuery {
 export type ListFilesSortBy = 'name' | 'createdAt' | 'updatedAt' | 'size' | 'ext'
 
 export interface ListCursorQuery {
+  readonly ids?: readonly FileEntryId[]
   readonly origin?: FileEntryOrigin
   readonly inTrash?: boolean
+  readonly fileType?: FileType
   readonly sortBy?: ListFilesSortBy
   readonly sortOrder?: 'asc' | 'desc'
   readonly cursor?: string
@@ -276,6 +295,9 @@ export interface FileEntryService {
   /** Remove the row (CASCADE drops dependent persistent file refs). No-op if already gone. */
   delete(id: FileEntryId): void
 
+  /** Hard-delete trashed entries older than the retention cutoff. */
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): FileEntryId[]
+
   /** Tx-scoped variant of `delete` for composing write flows. */
   deleteTx(tx: DbOrTx, id: FileEntryId): void
 }
@@ -372,6 +394,21 @@ const DEFAULT_LIST_SORT_ORDER: ListSortOrder = 'asc'
 const FILE_ENTRY_SIZE_NULL_SORT_VALUE = -1
 // SafeExtSchema rejects whitespace, so this non-empty cursor key is reserved for NULL ext and sorts before real ext values.
 const FILE_ENTRY_EXT_NULL_SORT_VALUE = ' '
+const FILE_EXTENSIONS_BY_TYPE = new Map<FileType, string[]>()
+for (const [extension, fileType] of Object.entries(fileTypeMap)) {
+  const extensions = FILE_EXTENSIONS_BY_TYPE.get(fileType) ?? []
+  extensions.push(extension)
+  FILE_EXTENSIONS_BY_TYPE.set(fileType, extensions)
+}
+const KNOWN_FILE_EXTENSIONS = Object.keys(fileTypeMap)
+
+function getFileTypeFilterCondition(fileType: FileType): SQL {
+  const normalizedExtension = sql<string>`lower(${fileEntryTable.ext})`
+  if (fileType === 'other') {
+    return or(isNull(fileEntryTable.ext), notInArray(normalizedExtension, KNOWN_FILE_EXTENSIONS))!
+  }
+  return inArray(normalizedExtension, FILE_EXTENSIONS_BY_TYPE.get(fileType) ?? [])
+}
 
 function getListSortValue(row: FileEntryRow, sortBy: ListSortBy): string | number {
   switch (sortBy) {
@@ -614,6 +651,9 @@ class FileEntryServiceImpl implements FileEntryService {
 
   listCursor(query: ListCursorQuery = {}): FileEntryListResponse {
     const filterConditions: SQL[] = []
+    if (query.ids) {
+      filterConditions.push(inArray(fileEntryTable.id, query.ids))
+    }
     if (query.origin) {
       filterConditions.push(eq(fileEntryTable.origin, query.origin))
     }
@@ -621,6 +661,9 @@ class FileEntryServiceImpl implements FileEntryService {
       filterConditions.push(isNotNull(fileEntryTable.deletedAt))
     } else {
       filterConditions.push(isNull(fileEntryTable.deletedAt))
+    }
+    if (query.fileType) {
+      filterConditions.push(getFileTypeFilterCondition(query.fileType))
     }
 
     const sortBy = query.sortBy ?? DEFAULT_LIST_SORT_BY
@@ -834,6 +877,29 @@ class FileEntryServiceImpl implements FileEntryService {
 
   deleteTx(tx: DbOrTx, id: FileEntryId): void {
     tx.delete(fileEntryTable).where(eq(fileEntryTable.id, id)).run()
+  }
+
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): FileEntryId[] {
+    const rows = tx
+      .select({ id: fileEntryTable.id })
+      .from(fileEntryTable)
+      .where(
+        and(
+          isNotNull(fileEntryTable.deletedAt),
+          lt(fileEntryTable.deletedAt, cutoffMs),
+          // A trashed file can still back a live painting or message — the ref rows
+          // FK-cascade, so purging here would strip the image out from under it.
+          // It stays in the trash until the last holder is gone.
+          ...persistentRefAbsenceConditions()
+        )
+      )
+      .limit(limit)
+      .all()
+    const ids = rows.map((row) => row.id)
+    if (ids.length === 0) return ids
+
+    tx.delete(fileEntryTable).where(inArray(fileEntryTable.id, ids)).run()
+    return ids
   }
 }
 

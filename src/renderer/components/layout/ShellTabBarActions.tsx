@@ -1,3 +1,6 @@
+import { CircleArrowUp, PictureInPicture2, Search, Settings } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
@@ -8,8 +11,6 @@ import { getSidebarLayout, type SidebarVisibleLayout } from '@renderer/component
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi } from '@renderer/ipc'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { CircleArrowUp, PictureInPicture2, Search, Settings } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 import { WindowControls } from '../WindowControls'
 import { HelpMenu } from './HelpMenu'
@@ -34,6 +35,7 @@ export function ShellTabBarActions() {
       .request('quick_assistant.show')
       .catch((error) => logger.error('Failed to open Quick Assistant', error as Error))
   }
+
   const handleSettingsClick = () => {
     openSettingsTab()
   }

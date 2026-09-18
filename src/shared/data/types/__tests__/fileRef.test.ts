@@ -39,7 +39,8 @@ describe('FileRefSourceType', () => {
       'job',
       'translate_history',
       'provider_logo',
-      'mini_app_logo'
+      'mini_app_logo',
+      'mini_app_file'
     ])
   })
 })

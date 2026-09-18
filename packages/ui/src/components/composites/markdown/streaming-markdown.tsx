@@ -18,6 +18,10 @@ export interface StreamingMarkdownProps {
   footnoteLabel?: string
   animated?: false | AnimateOptions
   parseIncompleteMarkdown?: boolean
+  /** Keep custom syntax intact when splitting the stream into renderable blocks. */
+  parseMarkdownIntoBlocksFn?: (source: string) => string[]
+  /** Preserve local file hrefs for a custom anchor while retaining URL hardening. */
+  preserveFileLinkHrefs?: boolean
 }
 
 const DEFAULT_ANIMATED: AnimateOptions = {
@@ -37,7 +41,9 @@ export function StreamingMarkdown({
   className,
   footnoteLabel,
   animated,
-  parseIncompleteMarkdown = true
+  parseIncompleteMarkdown = true,
+  parseMarkdownIntoBlocksFn,
+  preserveFileLinkHrefs
 }: StreamingMarkdownProps): ReactElement {
   // Stable reference so Streamdown's internal memo on JSON.stringify(animated)
   // sees the same identity across renders.
@@ -51,6 +57,7 @@ export function StreamingMarkdown({
       id={id}
       mode="streaming"
       parseIncompleteMarkdown={parseIncompleteMarkdown}
+      parseMarkdownIntoBlocksFn={parseMarkdownIntoBlocksFn}
       components={components}
       plugins={plugins}
       extraRehypePlugins={rehypePlugins}
@@ -58,7 +65,8 @@ export function StreamingMarkdown({
       animated={resolvedAnimated}
       disallowedElements={disallowedElements}
       className={className}
-      footnoteLabel={footnoteLabel}>
+      footnoteLabel={footnoteLabel}
+      preserveFileLinkHrefs={preserveFileLinkHrefs}>
       {children}
     </MarkdownCore>
   )

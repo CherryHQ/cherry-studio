@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
 type TestModel = {
   id: `${string}::${string}`
@@ -41,7 +41,10 @@ const state = vi.hoisted(() => ({
   clearExecutionMessages: vi.fn(),
   resetTemporaryTopic: vi.fn(),
   ipcRequest: vi.fn(),
-  loggerError: vi.fn()
+  loggerError: vi.fn(),
+  isMac: false,
+  theme: 'light',
+  windowStyle: 'default'
 }))
 
 import HomeWindow, { finalizeLiveMessages } from '../HomeWindow'
@@ -72,14 +75,20 @@ vi.mock('@data/hooks/usePreference', () => ({
       'feature.quick_assistant.read_clipboard_at_startup': false,
       'feature.quick_assistant.assistant_id': state.quickAssistantId,
       'app.language': 'en-US',
-      'ui.window_style': 'default'
+      'ui.window_style': state.windowStyle
     }
     return [values[key], vi.fn()]
   }
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
-  useTheme: () => ({ theme: 'light' })
+  useTheme: () => ({ theme: state.theme })
+}))
+
+vi.mock('@renderer/utils/platform', () => ({
+  get isMac() {
+    return state.isMac
+  }
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -248,6 +257,20 @@ describe('HomeWindow', () => {
     state.resetTemporaryTopic.mockClear()
     state.ipcRequest.mockReset()
     state.ipcRequest.mockResolvedValue(undefined)
+    state.isMac = false
+    state.theme = 'light'
+    state.windowStyle = 'default'
+  })
+
+  it('uses an opaque floating surface for the Windows dark-mode first render', () => {
+    state.theme = 'dark'
+
+    const { container } = render(<HomeWindow draggable={false} />)
+
+    // Windows needs the opaque floating-surface token because its native window is not transparent.
+    expect(container.querySelector('[data-ui~="quick-assistant.view"]')).toHaveStyle({
+      backgroundColor: 'var(--popover)'
+    })
   })
 
   it('uses the configured quick model in model-only mode', () => {

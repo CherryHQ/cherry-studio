@@ -1,5 +1,6 @@
-import type { JobContext } from '@main/core/job/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { JobContext } from '@main/core/job/types'
 
 import type { FileProcessingJobPayload } from '../shared'
 
@@ -22,7 +23,7 @@ const {
   resolveProcessorConfigByFeatureMock: vi.fn(),
   processorRegistryMock: {} as Record<string, unknown>,
   capabilityHandlerMock: {
-    mode: 'background' as 'background' | 'remote-poll',
+    mode: 'background',
     prepare: vi.fn()
   },
   fsStatMock: vi.fn(),

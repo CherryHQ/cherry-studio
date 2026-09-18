@@ -1,8 +1,3 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
-import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
-import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   Brain,
   CalendarDays,
@@ -24,6 +19,12 @@ import {
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
+
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import MessageTools from '../tools/MessageTools'

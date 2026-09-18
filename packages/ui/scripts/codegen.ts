@@ -12,6 +12,7 @@
  */
 
 import * as fs from 'fs'
+
 import { IndentationText, NewLineKind, Project, QuoteKind, VariableDeclarationKind } from 'ts-morph'
 
 const project = new Project({
@@ -23,6 +24,14 @@ const project = new Project({
     indentationText: IndentationText.TwoSpaces
   }
 })
+
+type IconComponentEntry = {
+  dirName: string
+  colorName: string
+  modulePath?: string
+}
+
+const getIconModulePath = ({ dirName, modulePath }: IconComponentEntry) => modulePath ?? `./${dirName}`
 
 // ---------------------------------------------------------------------------
 // generateIconIndex
@@ -176,8 +185,9 @@ export function generateMeta(opts: {
   dirName: string
   colorPrimary: string
   colorScheme: 'mono' | 'color'
+  artworkKind?: 'tile'
 }): void {
-  const { outPath, dirName, colorPrimary, colorScheme } = opts
+  const { outPath, dirName, colorPrimary, colorScheme, artworkKind } = opts
 
   const sf = project.createSourceFile('meta.ts', '', { overwrite: true })
 
@@ -196,7 +206,7 @@ export function generateMeta(opts: {
         initializer: `{
   id: '${dirName}',
   colorPrimary: '${colorPrimary}',
-  colorScheme: '${colorScheme}',
+  colorScheme: '${colorScheme}',${artworkKind ? `\n  artworkKind: '${artworkKind}',` : ''}
 }`
       }
     ]
@@ -209,11 +219,7 @@ export function generateMeta(opts: {
 // generateBarrelIndex
 // ---------------------------------------------------------------------------
 
-export function generateBarrelIndex(opts: {
-  outPath: string
-  entries: Array<{ dirName: string; colorName: string }>
-  header?: string
-}): void {
+export function generateBarrelIndex(opts: { outPath: string; entries: IconComponentEntry[]; header?: string }): void {
   const { outPath, entries, header } = opts
 
   const sf = project.createSourceFile('index.ts', '', { overwrite: true })
@@ -228,10 +234,11 @@ export function generateBarrelIndex(opts: {
     })
   }
 
-  for (const { dirName, colorName } of entries) {
+  for (const entry of entries) {
+    const { colorName } = entry
     sf.addExportDeclaration({
       namedExports: [{ name: `${colorName}Icon`, alias: colorName }],
-      moduleSpecifier: `./${dirName}`
+      moduleSpecifier: getIconModulePath(entry)
     })
   }
 
@@ -324,7 +331,7 @@ export function generateMetaCatalog(opts: {
  */
 export function generateIconLoaders(opts: {
   outPath: string
-  entries: Array<{ dirName: string; colorName: string }>
+  entries: IconComponentEntry[]
   loadersName: string
   keyTypeName: string
 }): void {
@@ -353,9 +360,10 @@ export function generateIconLoaders(opts: {
   })
 
   const objectBody = entries
-    .map(({ dirName, colorName }) => {
+    .map((entry) => {
+      const { dirName, colorName } = entry
       const key = /^\d/.test(dirName) || dirName.includes('-') ? `'${dirName}'` : dirName
-      return `  ${key}: () => import('./${dirName}').then(({ ${colorName}Icon }) => ${colorName}Icon)`
+      return `  ${key}: () => import('${getIconModulePath(entry)}').then(({ ${colorName}Icon }) => ${colorName}Icon)`
     })
     .join(',\n')
 
@@ -391,7 +399,7 @@ export function generateIconLoaders(opts: {
  */
 export function generateCatalog(opts: {
   outPath: string
-  entries: Array<{ dirName: string; colorName: string }>
+  entries: IconComponentEntry[]
   catalogName: string
   keyTypeName: string
 }): void {
@@ -421,9 +429,10 @@ export function generateCatalog(opts: {
     namedImports: [{ name: keyTypeName, isTypeOnly: true }]
   })
 
-  for (const { dirName, colorName } of entries) {
+  for (const entry of entries) {
+    const { colorName } = entry
     sf.addImportDeclaration({
-      moduleSpecifier: `./${dirName}`,
+      moduleSpecifier: getIconModulePath(entry),
       namedImports: [`${colorName}Icon`]
     })
   }

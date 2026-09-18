@@ -8,10 +8,11 @@
  *
  * Pipeline per `tool_call`:
  *   1. disabledTools  → block (all modes, including bypassPermissions)
- *   2. global-install → block bash that installs into shared/global locations (all modes)
- *   3. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
- *   4. bypass         → skip ordinary approvals; non-bypassable delegation still asks
- *   5. approval       → per permission mode: auto-allow, fail closed without a
+ *   2. SQLite guard   → block native writes to protected user data (all modes)
+ *   3. global-install → block bash that installs into shared/global locations (all modes)
+ *   4. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
+ *   5. bypass         → skip ordinary approvals; non-bypassable delegation still asks
+ *   6. approval       → per permission mode: auto-allow, fail closed without a
  *      responder, or register + emit a runtime-neutral approval request, then
  *      block / allow / apply the edited input.
  *
@@ -21,15 +22,19 @@
  * part by the time the approval request references its `toolCallId`.
  */
 import { randomUUID } from 'node:crypto'
-import { lstat, realpath } from 'node:fs/promises'
+import { realpath } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
+
 import { loggerService } from '@logger'
+import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
 import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { canonicalizePathForContainment } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
@@ -55,10 +60,6 @@ const EDIT_TOOLS = new Set<string>(
 const META_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'meta').map((tool) => tool.name)
 )
-
-/** Unicode spaces pi's `normalizePath` folds to a plain space before resolving (reproduced here so
- *  containment matches pi's own `resolveToCwd`). */
-const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g
 
 export interface PiApprovalContext {
   /** Agent-session id — keys the neutral registry so close()/abort target the right approvals. */
@@ -96,7 +97,7 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
       return createPiToolAuthorizer(ctx)({
         toolName: event.toolName,
         toolCallId: event.toolCallId,
-        input: event.input as Record<string, unknown>,
+        input: event.input,
         signal: extCtx.signal
       })
     })
@@ -120,15 +121,29 @@ export type PiToolAuthorizer = (
 export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer {
   return async ({ toolName, toolCallId, input, signal, onApprovalPending }) => {
     // (1) disabledTools — block regardless of permission mode.
-    if (ctx.isDisabled(toolName)) {
+    const browserPermission = resolveBrowserToolPermission(toolName)
+    if (ctx.isDisabled(toolName) || browserPermission === 'deny') {
       return { block: true, reason: `Tool "${toolName}" is disabled for this agent.` }
+    }
+
+    const sqliteDecision = await evaluateUserDataSqliteGuard({
+      runtime: 'pi',
+      toolName,
+      args: input,
+      cwd: ctx.workspacePath,
+      workspacePath: ctx.workspacePath,
+      signal
+    })
+    if (sqliteDecision) {
+      logger.info('Blocked a write to user data SQLite', { sessionId: ctx.sessionId, toolName })
+      return { block: true, reason: sqliteDecision.reason }
     }
 
     const mode = ctx.getPermissionMode() ?? 'default'
     const approvalRequired = ctx.approvalRequiredTools.has(toolName)
     const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
 
-    // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
+    // (3)/(4) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
     // in every mode: shared/global installs mutate the cross-agent environment, so this is an
     // explicit safety block rather than an approval that Full Access can lift.
     if (toolName === 'bash') {
@@ -150,14 +165,14 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       }
     }
 
-    // (4) Full Access bypasses ordinary approval policy. Cross-Session delegation is the explicit
+    // (5) Full Access bypasses ordinary approval policy. Cross-Session delegation is the explicit
     // exception: its one-hop live-approval ceiling must hold in every permission mode.
     if (bypass) return
 
-    // (5) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
+    // (6) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
     // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
     // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
-    if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
+    if ((browserPermission === 'allow' || ctx.autoApprovedTools.has(toolName)) && !approvalRequired) return
     if (
       !(await requiresApproval(
         mode,
@@ -297,7 +312,7 @@ async function isToolPathInsideAllowedRoots(
   const [canonicalWorkspace, canonicalAgentData, canonicalTarget] = await Promise.all([
     canonicalizeExistingPath(workspacePath),
     canonicalizeExistingPath(agentDataPath),
-    canonicalizeToolTarget(resolved, allowMissingTarget)
+    canonicalizePathForContainment(resolved, { allowMissing: allowMissingTarget })
   ])
   if (!canonicalWorkspace || !canonicalAgentData || !canonicalTarget) return false
 
@@ -319,45 +334,10 @@ async function canonicalizeExistingPath(target: string): Promise<string | undefi
   }
 }
 
-async function canonicalizeToolTarget(target: string, allowMissing: boolean): Promise<string | undefined> {
-  try {
-    return await realpath(target)
-  } catch (error) {
-    if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    // A dangling symlink exists but cannot be canonicalized; treat it as ambiguous, not as a new file.
-    try {
-      await lstat(target)
-      return undefined
-    } catch (statError) {
-      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    }
-  }
-
-  let parent = path.dirname(target)
-  while (true) {
-    try {
-      const canonicalParent = await realpath(parent)
-      return path.resolve(canonicalParent, path.relative(parent, target))
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-      try {
-        await lstat(parent)
-        return undefined
-      } catch (statError) {
-        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-      }
-      const next = path.dirname(parent)
-      if (next === parent) return undefined
-      parent = next
-    }
-  }
-}
-
 /** Resolve a raw tool `path` to an absolute path, mirroring pi's `resolveToCwd`; returns undefined
  *  for inputs whose resolution is ambiguous (e.g. `file://` URLs) so the caller requires approval. */
 function resolveToolPath(raw: string, workspacePath: string): string | undefined {
-  let p = raw.replace(UNICODE_SPACES, ' ')
-  if (p.startsWith('@')) p = p.slice(1) // pi's stripAtPrefix
+  let p = normalizePiNativePathInput(raw)
   if (p === '~') p = os.homedir()
   else if (p.startsWith('~/') || (process.platform === 'win32' && p.startsWith('~\\'))) {
     p = path.join(os.homedir(), p.slice(2))

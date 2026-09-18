@@ -77,4 +77,28 @@ describe('useDebouncedRender', () => {
     expect(renderFunction).not.toHaveBeenCalled()
     expect(result.current.isLoading).toBe(false)
   })
+
+  it('renders immediately with triggerImmediateRender and cancels pending debounced renders', async () => {
+    const renderFunction = vi.fn(async () => {})
+    const { result } = renderHook(() => useDebouncedRender('', renderFunction, { debounceDelay: 100 }))
+    const container = document.createElement('div')
+    result.current.containerRef.current = container
+
+    act(() => {
+      result.current.triggerRender('first')
+    })
+
+    act(() => {
+      result.current.triggerImmediateRender('second')
+    })
+
+    expect(renderFunction).toHaveBeenCalledOnce()
+    expect(renderFunction).toHaveBeenCalledWith('second', container)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100)
+    })
+
+    expect(renderFunction).toHaveBeenCalledOnce()
+  })
 })

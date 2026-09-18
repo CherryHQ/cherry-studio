@@ -1,0 +1,2 @@
+{"level":"error","message":"Provider request failed with status 429 Too Many Requests","module":"AiStreamManager","process":"main","timestamp":"2026-08-20 12:00:00"}
+{"level":"error","message":"Web search failed: rate limit exceeded for GLM Web Search","timestamp":"2026-08-19 08:00:00"}

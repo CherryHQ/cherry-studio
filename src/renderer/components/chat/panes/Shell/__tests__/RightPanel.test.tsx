@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ErrorInfo, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { getRightPaneWidthPolicy } from '../../../shell/paneLayout'
 import {
   RightPanel,
   type RightPanelCapability,
@@ -18,10 +20,20 @@ import {
   useRightPanelState
 } from '../RightPanel'
 
+const LIST_POLICY = getRightPaneWidthPolicy('navigation-list')
+const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
+
 const commandMock = vi.hoisted(() => ({ handler: undefined as (() => void) | undefined }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  Tooltip: ({ children, content, isDisabled }: PropsWithChildren<{ content?: unknown; isDisabled?: boolean }>) => (
+    <div
+      data-testid="tooltip-trigger"
+      data-content={typeof content === 'string' ? content : undefined}
+      data-disabled={isDisabled ? 'true' : undefined}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/ErrorBoundary', async () => {
@@ -84,12 +96,18 @@ vi.mock('../../../shell/RightPaneHost', () => ({
   // Mirrors the host's phase reporting: it enters the full-width phase with the click and only
   // leaves it once the box has settled, which is what "settle pane" stands in for.
   PersistentRightPaneHost: ({
+    cacheKey,
     children,
     maximized,
+    maxWidth,
+    minWidth,
     open,
     onFullWidthPhaseChange
   }: PropsWithChildren<{
+    cacheKey?: string
     maximized?: boolean
+    maxWidth?: number
+    minWidth?: number
     open: boolean
     onFullWidthPhaseChange?: (active: boolean) => void
   }>) => {
@@ -98,7 +116,13 @@ vi.mock('../../../shell/RightPaneHost', () => ({
     }, [maximized, onFullWidthPhaseChange])
 
     return (
-      <div data-testid="right-pane-host" data-maximized={String(Boolean(maximized))} data-open={String(open)}>
+      <div
+        data-testid="right-pane-host"
+        data-cache-key={cacheKey}
+        data-maximized={String(Boolean(maximized))}
+        data-max-width={maxWidth}
+        data-min-width={minWidth}
+        data-open={String(open)}>
         <button type="button" onClick={() => onFullWidthPhaseChange?.(false)}>
           settle pane
         </button>
@@ -148,6 +172,7 @@ const capabilities = [
   },
   {
     component: StatefulPanel,
+    widthPreset: 'navigation-list',
     resolve: (scope) => ({
       id: 'second',
       instanceKey: 'second',
@@ -402,6 +427,30 @@ describe('RightPanel', () => {
     expect(screen.getByText('first:0')).toBeInTheDocument()
   })
 
+  it('drops the close tooltip once the panel closes, so it cannot park at the viewport origin', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    const findCloseTooltip = () =>
+      screen
+        .getAllByTestId('tooltip-trigger')
+        .find((node) => node.getAttribute('data-content') === 'common.close_sidebar')
+    expect(findCloseTooltip()).not.toHaveAttribute('data-disabled')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
+
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'false')
+    // Re-query after the close rather than reusing the pre-close node: the
+    // tooltip wrapper may remount on state change, which would make an
+    // assertion against the stale reference flaky even when behavior is right.
+    expect(findCloseTooltip()).toHaveAttribute('data-disabled', 'true')
+  })
+
   it('keeps shell controls available when a content-composed panel fails to render', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const scope = { ...readyScope, firstHeaderMode: 'content' as const }
@@ -433,6 +482,32 @@ describe('RightPanel', () => {
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'false')
 
     consoleError.mockRestore()
+  })
+
+  it('keeps inspector sizing uncapped when switching to a width-limited list and back', async () => {
+    const user = userEvent.setup()
+    render(
+      <Harness defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    const host = screen.getByTestId('right-pane-host')
+    expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
+    expect(host).not.toHaveAttribute('data-max-width')
+
+    await user.click(screen.getByRole('button', { name: 'open second' }))
+
+    expect(host).toHaveAttribute('data-cache-key', LIST_POLICY.cacheKey)
+    expect(host).toHaveAttribute('data-max-width', String(LIST_POLICY.maxWidth))
+    expect(host).toHaveAttribute('data-min-width', String(LIST_POLICY.minWidth))
+
+    await user.click(screen.getByRole('button', { name: 'open first' }))
+
+    expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
+    expect(host).not.toHaveAttribute('data-max-width')
   })
 
   it('rejects duplicate panel ids', () => {

@@ -1,5 +1,6 @@
-import type { KnowledgeRagConfigFormValues } from '@renderer/pages/knowledge/types'
 import { describe, expect, it } from 'vitest'
+
+import type { KnowledgeRagConfigFormValues } from '@renderer/pages/knowledge/types'
 
 import {
   getKnowledgeRagChunkValidationErrors,

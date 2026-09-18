@@ -1,11 +1,12 @@
-import { toast } from '@renderer/services/toast'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import type { SelectorShellBottomAction, SelectorShellProps } from '../../SelectorShell'
 import { ModelSelector } from '../ModelSelector'
@@ -161,9 +162,9 @@ const provider: Provider = {
   apiKeys: [],
   authType: 'api-key',
   reportsActualCost: false,
-  settings: {} as Provider['settings'],
+  settings: {},
   isEnabled: true
-} as Provider
+}
 
 function makeModel(modelId: UniqueModelId): Model {
   return {
@@ -174,7 +175,7 @@ function makeModel(modelId: UniqueModelId): Model {
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 function makeModelItem(modelId: UniqueModelId, overrides: Partial<ModelSelectorModelItem> = {}) {
@@ -183,6 +184,7 @@ function makeModelItem(modelId: UniqueModelId, overrides: Partial<ModelSelectorM
   return {
     key: modelId,
     type: 'model' as const,
+    groupKind: 'provider' as const,
     model,
     provider,
     modelId,
@@ -194,8 +196,8 @@ function makeModelItem(modelId: UniqueModelId, overrides: Partial<ModelSelectorM
 }
 
 function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModelSelectorDataResult {
-  const firstItem = makeModelItem('openai::gpt-4' as UniqueModelId)
-  const secondItem = makeModelItem('openai::gpt-3.5' as UniqueModelId)
+  const firstItem = makeModelItem('openai::gpt-4')
+  const secondItem = makeModelItem('openai::gpt-3.5')
   const listItems: FlatListItem[] = [
     {
       key: 'provider-openai',
@@ -252,9 +254,9 @@ describe('ModelSelector', () => {
     vi.restoreAllMocks()
   })
 
-  it('shows the provider and model identifier when a model name needs disambiguation', () => {
-    const item = makeModelItem('openai::gpt-4-variant-a' as UniqueModelId, {
-      model: { ...makeModel('openai::gpt-4-variant-a' as UniqueModelId), name: 'GPT-4' },
+  it('shows only the model identifier under a persistent provider group', () => {
+    const item = makeModelItem('openai::gpt-4-variant-a', {
+      model: { ...makeModel('openai::gpt-4-variant-a'), name: 'GPT-4' },
       modelIdentifier: 'gpt-4-variant-a',
       showIdentifier: true
     })
@@ -281,7 +283,32 @@ describe('ModelSelector', () => {
       />
     )
 
-    expect(screen.getByText(/OpenAI · gpt-4-variant-a/)).toBeInTheDocument()
+    expect(screen.getByText('| gpt-4-variant-a')).toBeInTheDocument()
+    expect(screen.queryByText(/OpenAI · gpt-4-variant-a/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the provider in a pinned row without a provider group', () => {
+    const item = makeModelItem('openai::gpt-4-variant-a', {
+      key: 'openai::gpt-4-variant-a_pinned',
+      groupKind: 'pinned',
+      model: { ...makeModel('openai::gpt-4-variant-a'), name: 'GPT-4' },
+      modelIdentifier: 'gpt-4-variant-a',
+      isPinned: true,
+      showIdentifier: true
+    })
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems: [item], modelItems: [item] }))
+
+    render(
+      <ModelSelector
+        multiple={false}
+        open
+        trigger={<button type="button">Open</button>}
+        value={item.model}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('| OpenAI · gpt-4-variant-a')).toBeInTheDocument()
   })
 
   it('selects a model and closes the selector in single-select mode', async () => {
@@ -302,6 +329,26 @@ describe('ModelSelector', () => {
 
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::gpt-4' }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('honors the explicitly supplied disabled state', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        isModelDisabled={(model) => model.id === 'openai::gpt-4'}
+        trigger={<button type="button">open</button>}
+        onSelect={onSelect}
+      />
+    )
+
+    const disabledModel = screen.getAllByRole('option')[0]
+    expect(disabledModel).toHaveAttribute('aria-disabled', 'true')
+    await user.click(disabledModel)
+
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('tears down the lazy shell before resetting an active tag filter on close', async () => {
@@ -381,7 +428,7 @@ describe('ModelSelector', () => {
       <ModelSelector
         open
         multiple={false}
-        value={makeModel('openai::gpt-4' as UniqueModelId)}
+        value={makeModel('openai::gpt-4')}
         noneOptionLabel="No model"
         trigger={<button type="button">open</button>}
         onOpenChange={onOpenChange}
@@ -549,7 +596,7 @@ describe('ModelSelector', () => {
     mocks.scrollToIndex.mockClear()
     mocks.useModelSelectorData.mockReturnValue(
       makeData({
-        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId],
+        resolvedSelectedModelIds: ['openai::gpt-4'],
         visibleSelectedModelIdSet: new Set(['openai::gpt-4' as UniqueModelId])
       })
     )

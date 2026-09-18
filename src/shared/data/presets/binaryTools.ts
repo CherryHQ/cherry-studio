@@ -54,6 +54,8 @@ export function validateBinaryToolDefinition(tool: BinaryToolGrammar): void {
 export interface BinaryToolPreset {
   name: string
   tool: string
+  /** Exact npm packages whose lifecycle scripts mise may run during installation. */
+  npmAllowBuilds?: readonly string[]
   displayName: string
   icon?: string
   repoUrl: string

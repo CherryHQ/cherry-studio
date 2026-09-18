@@ -1,5 +1,6 @@
-import type { McpServer } from '@shared/data/types/mcpServer'
 import { useTranslation } from 'react-i18next'
+
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { getCommandPreview } from './utils'
 
@@ -18,7 +19,7 @@ const PreviewField = ({ label, value }: { label: string; value: string }) =>
   value ? (
     <div className="space-y-1">
       <div className="font-semibold">{label}</div>
-      <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-2">{value}</pre>
+      <pre className="rounded-md bg-muted p-2 break-all whitespace-pre-wrap">{value}</pre>
     </div>
   ) : null
 

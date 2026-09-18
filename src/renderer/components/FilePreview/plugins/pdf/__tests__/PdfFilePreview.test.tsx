@@ -1,11 +1,12 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 
 import PdfFilePreview from '../PdfFilePreview'
 import { PdfRangeTooLargeError } from '../PdfFileRangeTransport'
@@ -14,11 +15,14 @@ const mocks = vi.hoisted(() => ({
   eventBusOff: vi.fn(),
   eventBusOn: vi.fn(),
   getDocument: vi.fn(),
+  linkServiceGoToDestination: vi.fn(),
   linkServiceSetDocument: vi.fn(),
   linkServiceSetViewer: vi.fn(),
   loadingTaskDestroy: vi.fn(),
   pdfDocument: {
     destroy: vi.fn(),
+    getOutline: vi.fn(),
+    getPage: vi.fn(),
     numPages: 3
   },
   pdfViewerCleanup: vi.fn(),
@@ -30,14 +34,14 @@ const mocks = vi.hoisted(() => ({
   pdfViewerSetDocument: vi.fn(),
   pdfViewerUpdateScale: vi.fn(),
   rangeTransportInstances: [] as Array<{
-    abort: ReturnType<typeof vi.fn>
+    abort: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     fail: (error: unknown) => void
     handle: unknown
     length: number
   }>,
   safeOpen: vi.fn(),
   toastError: vi.fn(),
-  viewerInstances: [] as Array<{ pageColors: { background?: string; foreground: string } }>
+  viewerInstances: [] as Array<{ pageColors: { background?: string } | null }>
 }))
 
 vi.mock('pdfjs-dist', () => ({
@@ -108,6 +112,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
   }
 
   class MockPDFLinkService {
+    goToDestination = mocks.linkServiceGoToDestination
     setDocument = mocks.linkServiceSetDocument
     setViewer = mocks.linkServiceSetViewer
   }
@@ -115,7 +120,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
   class MockPDFViewer {
     cleanup = mocks.pdfViewerCleanup
     firstPagePromise = Promise.resolve()
-    pageColors: { background?: string; foreground: string }
+    pageColors: { background?: string } | null
     setDocument = mocks.pdfViewerSetDocument
     private currentPage = 1
     private scale = 1
@@ -123,7 +128,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
     constructor(
       private options: {
         eventBus: MockEventBus
-        pageColors: { background?: string; foreground: string }
+        pageColors: { background?: string } | null
       }
     ) {
       this.pageColors = options.pageColors
@@ -207,6 +212,7 @@ vi.mock('@cherrystudio/ui', () => ({
       ) : null}
     </div>
   ),
+  Input: (props: React.ComponentPropsWithoutRef<'input'>) => <input {...props} />,
   Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
   Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
     <div {...props}>{children}</div>
@@ -229,8 +235,36 @@ const filePath = '/tmp/workspace/paper.pdf' as AbsoluteFilePath
 let initialDataTheme: string | null
 let themeBackground: string
 
-function renderPreview(refreshKey = 0, size = 1024) {
-  return render(<PdfFilePreview filePath={filePath} fileName="paper.pdf" metadata={{ size }} refreshKey={refreshKey} />)
+function renderPreview(refreshKey = 0, size = 1024, onSelectionReference?: (reference: unknown) => void) {
+  return render(
+    <PdfFilePreview
+      filePath={filePath}
+      fileName="paper.pdf"
+      metadata={{ size, modifiedAt: 1 }}
+      refreshKey={refreshKey}
+      onSelectionReference={onSelectionReference as never}
+    />
+  )
+}
+
+/** Mounts a page the way pdf.js's PDFViewer would, and returns it for clicking. */
+function renderPage(pageNumber: string | null): HTMLDivElement {
+  const viewer = screen.getByTestId('pdfjs-viewer')
+  const page = document.createElement('div')
+  page.className = 'page'
+  if (pageNumber !== null) page.setAttribute('data-page-number', pageNumber)
+  page.textContent = 'rendered page'
+  viewer.appendChild(page)
+  return page
+}
+
+/** The <a href> pdf.js's annotation layer renders for a link annotation. */
+function renderLinkAnnotation(page: HTMLDivElement): HTMLAnchorElement {
+  const link = document.createElement('a')
+  link.href = 'https://example.com/'
+  link.textContent = 'ref'
+  page.appendChild(link)
+  return link
 }
 
 async function flushPdfEffects() {
@@ -240,6 +274,215 @@ async function flushPdfEffects() {
 }
 
 describe('PdfFilePreview', () => {
+  it('reports the clicked page as a reference with the page text as excerpt, and marks it as picked', async () => {
+    mocks.pdfDocument.getPage.mockResolvedValue({
+      getTextContent: async () => ({
+        items: [{ str: 'results were' }, { str: 'reproduced' }, { type: 'endOfContent' }]
+      })
+    })
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('3')
+
+    fireEvent.click(page)
+
+    await waitFor(() =>
+      expect(onSelectionReference).toHaveBeenLastCalledWith({
+        path: filePath,
+        anchor: { format: 'pdf', page: 3 },
+        excerpt: 'results were reproduced',
+        fileStamp: { size: 1024, mtimeMs: 1 }
+      })
+    )
+    expect(mocks.pdfDocument.getPage).toHaveBeenCalledWith(3)
+    expect(page).toHaveAttribute('data-pdf-picked', 'true')
+    expect(screen.getByTestId('pdfjs-viewer-container')).toHaveAttribute('data-picker', 'true')
+  })
+
+  it('clears the pick on a second click and reports null outside any page', async () => {
+    mocks.pdfDocument.getPage.mockResolvedValue({ getTextContent: async () => ({ items: [{ str: 'page text' }] }) })
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('2')
+    const chrome = renderPage(null)
+
+    fireEvent.click(page)
+    await waitFor(() => expect(page).toHaveAttribute('data-pdf-picked', 'true'))
+    fireEvent.click(page)
+    expect(page).not.toHaveAttribute('data-pdf-picked')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+
+    fireEvent.click(chrome)
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+  })
+
+  it("empties the held reference before the new page's text arrives", async () => {
+    mocks.pdfDocument.getPage.mockImplementation(async (pageNumber: number) => ({
+      getTextContent: async () => ({ items: [{ str: `page ${pageNumber} text` }] })
+    }))
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const firstPage = renderPage('1')
+    const secondPage = renderPage('2')
+
+    fireEvent.click(firstPage)
+    await waitFor(() =>
+      expect(onSelectionReference).toHaveBeenLastCalledWith(
+        expect.objectContaining({ anchor: { format: 'pdf', page: 1 } })
+      )
+    )
+
+    // Nothing is awaited between the click and these assertions, so the page-text microtasks have
+    // not run: that is the window in which the host must already hold nothing.
+    fireEvent.click(secondPage)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+    expect(secondPage).toHaveAttribute('data-pdf-picked', 'true')
+    expect(firstPage).not.toHaveAttribute('data-pdf-picked')
+
+    await act(flushPdfEffects)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(
+      expect.objectContaining({ anchor: { format: 'pdf', page: 2 }, excerpt: 'page 2 text' })
+    )
+  })
+
+  it('keeps the pick and its marker across a viewer rebuild, and still clears on the next click', async () => {
+    mocks.pdfDocument.getPage.mockResolvedValue({ getTextContent: async () => ({ items: [{ str: 'page text' }] }) })
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('2')
+
+    fireEvent.click(page)
+    await waitFor(() =>
+      expect(onSelectionReference).toHaveBeenLastCalledWith(
+        expect.objectContaining({ anchor: { format: 'pdf', page: 2 } })
+      )
+    )
+    const callsWhenPicked = onSelectionReference.mock.calls.length
+
+    // Replacing the viewer's children is what pdf.js does when it re-renders its page list: the pick must
+    // survive the rebuild, and the rebuild must report nothing.
+    screen.getByTestId('pdfjs-viewer').replaceChildren()
+    const rebuilt = renderPage('2')
+
+    await waitFor(() => expect(rebuilt).toHaveAttribute('data-pdf-picked', 'true'))
+    expect(onSelectionReference).toHaveBeenCalledTimes(callsWhenPicked)
+
+    fireEvent.click(rebuilt)
+
+    expect(rebuilt).not.toHaveAttribute('data-pdf-picked')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+  })
+
+  it('does not mark a page whose text is empty and reports null', async () => {
+    mocks.pdfDocument.getPage.mockResolvedValue({ getTextContent: async () => ({ items: [] }) })
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('1')
+
+    fireEvent.click(page)
+
+    await waitFor(() => expect(onSelectionReference).toHaveBeenLastCalledWith(null))
+    await waitFor(() =>
+      expect(screen.getByTestId('pdfjs-viewer').querySelector('[data-pdf-picked]')).not.toBeInTheDocument()
+    )
+  })
+
+  it('does not report a pick whose text arrives after the preview unmounted', async () => {
+    let resolveText: (value: { items: Array<{ str: string }> }) => void = () => {}
+    mocks.pdfDocument.getPage.mockResolvedValue({
+      getTextContent: () =>
+        new Promise((resolve) => {
+          resolveText = resolve
+        })
+    })
+    const onSelectionReference = vi.fn()
+    const view = renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('2')
+
+    fireEvent.click(page)
+    await act(flushPdfEffects)
+    const callsBeforeUnmount = onSelectionReference.mock.calls.length
+
+    view.unmount()
+    resolveText({ items: [{ str: 'late text' }] })
+    await act(flushPdfEffects)
+
+    expect(onSelectionReference).not.toHaveBeenCalledWith(expect.objectContaining({ excerpt: 'late text' }))
+    expect(onSelectionReference).toHaveBeenCalledTimes(callsBeforeUnmount)
+  })
+
+  it('prevents a link annotation from navigating when the click is a pick', async () => {
+    mocks.pdfDocument.getPage.mockResolvedValue({ getTextContent: async () => ({ items: [{ str: 'page text' }] }) })
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const link = renderLinkAnnotation(renderPage('1'))
+
+    let observed: boolean | undefined
+    // jsdom logs "Not implemented: navigation" for an unprevented <a href> click, so observe
+    // defaultPrevented at document and cancel it ourselves before jsdom gets there.
+    const observe = (event: Event) => {
+      observed = event.defaultPrevented
+      event.preventDefault()
+    }
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(link)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(true)
+    await waitFor(() =>
+      expect(onSelectionReference).toHaveBeenLastCalledWith(
+        expect.objectContaining({ anchor: { format: 'pdf', page: 1 } })
+      )
+    )
+
+    cleanup()
+    renderPreview(0, 1024, undefined)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const plainLink = renderLinkAnnotation(renderPage('1'))
+
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(plainLink)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(false)
+  })
+
+  it('does not mark the viewer or react to clicks when the host is not capturing', async () => {
+    renderPreview(0, 1024, undefined)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('1')
+
+    fireEvent.click(page)
+
+    expect(mocks.pdfDocument.getPage).not.toHaveBeenCalled()
+    expect(screen.getByTestId('pdfjs-viewer-container')).not.toHaveAttribute('data-picker')
+    expect(page).not.toHaveAttribute('data-pdf-picked')
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.pdfViewerPageNumbers.length = 0
@@ -247,6 +490,7 @@ describe('PdfFilePreview', () => {
     mocks.rangeTransportInstances.length = 0
     mocks.viewerInstances.length = 0
     mocks.pdfDocument.numPages = 3
+    mocks.pdfDocument.getPage.mockReset()
     initialDataTheme = document.documentElement.getAttribute('data-theme')
     themeBackground = 'rgb(10, 11, 12)'
     const getPropertyValue = CSSStyleDeclaration.prototype.getPropertyValue
@@ -257,6 +501,8 @@ describe('PdfFilePreview', () => {
       return property === '--background' ? themeBackground : getPropertyValue.call(this, property)
     })
     mocks.loadingTaskDestroy.mockResolvedValue(undefined)
+    mocks.linkServiceGoToDestination.mockResolvedValue(undefined)
+    mocks.pdfDocument.getOutline.mockResolvedValue([])
     mocks.safeOpen.mockResolvedValue(undefined)
     mocks.getDocument.mockReturnValue({
       destroy: mocks.loadingTaskDestroy,
@@ -296,7 +542,7 @@ describe('PdfFilePreview', () => {
       expect.objectContaining({
         annotationMode: 1,
         abortSignal: expect.any(AbortSignal),
-        pageColors: { background: 'rgb(10, 11, 12)', foreground: 'CanvasText' },
+        pageColors: { background: 'rgb(10, 11, 12)' },
         supportsPinchToZoom: true
       })
     )
@@ -338,7 +584,72 @@ describe('PdfFilePreview', () => {
     })
   })
 
-  it('updates PDF page colors when the app theme changes without rebuilding the viewer', async () => {
+  it('allows text selection and direct page jumps', async () => {
+    const user = userEvent.setup()
+    renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+
+    // `selectable` overrides the renderer's global user-select:none contract.
+    expect(screen.getByTestId('pdfjs-viewer')).toHaveClass('selectable')
+
+    const pageInput = screen.getByRole('textbox', { name: 'file_preview.pdf.page_number' })
+    await user.clear(pageInput)
+    await user.type(pageInput, '3{Enter}')
+
+    expect(mocks.pdfViewerPageNumbers).toContain(3)
+  })
+
+  it.each(['{Enter}', '{Tab}'])('normalizes an out-of-range page at the last page on %s', async (commitKey) => {
+    const user = userEvent.setup()
+    renderPreview()
+    const pageInput = screen.getByRole('textbox', { name: 'file_preview.pdf.page_number' })
+    await waitFor(() => expect(pageInput).toBeEnabled())
+
+    await user.clear(pageInput)
+    await user.type(pageInput, '3{Enter}')
+    await waitFor(() => expect(pageInput).toHaveValue('3'))
+    expect(screen.getByRole('button', { name: 'common.next' })).toBeDisabled()
+
+    await user.clear(pageInput)
+    await user.type(pageInput, `999${commitKey}`)
+
+    expect(pageInput).toHaveValue('3')
+    expect(screen.getByRole('button', { name: 'common.next' })).toBeDisabled()
+  })
+
+  it('shows the PDF outline and navigates to its destinations', async () => {
+    const user = userEvent.setup()
+    const destination = [{ num: 4, gen: 0 }, { name: 'XYZ' }, 0, 0, null]
+    mocks.pdfDocument.getOutline.mockResolvedValueOnce([
+      {
+        title: 'Introduction',
+        dest: destination,
+        url: null,
+        items: [{ title: 'Background', dest: 'background', url: null, items: [] }]
+      }
+    ])
+
+    renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    await user.click(screen.getByRole('button', { name: 'file_preview.pdf.outline.title' }))
+
+    expect(await screen.findByRole('navigation', { name: 'file_preview.pdf.outline.title' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Background' }))
+
+    expect(mocks.linkServiceGoToDestination).toHaveBeenCalledWith('background')
+  })
+
+  it('explains when a PDF has no outline', async () => {
+    const user = userEvent.setup()
+    renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+
+    await user.click(screen.getByRole('button', { name: 'file_preview.pdf.outline.title' }))
+
+    expect(await screen.findByText('file_preview.pdf.outline.empty')).toBeInTheDocument()
+  })
+
+  it('preserves PDF colors while updating the page background when the app theme changes', async () => {
     renderPreview()
     await waitFor(() => expect(mocks.viewerInstances).toHaveLength(1))
 
@@ -350,8 +661,7 @@ describe('PdfFilePreview', () => {
 
     await waitFor(() =>
       expect(mocks.viewerInstances[0].pageColors).toEqual({
-        background: 'rgb(30, 31, 32)',
-        foreground: 'CanvasText'
+        background: 'rgb(30, 31, 32)'
       })
     )
     expect(mocks.pdfViewerConstructor).toHaveBeenCalledTimes(1)
@@ -434,7 +744,14 @@ describe('PdfFilePreview', () => {
     await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(1))
     const firstTransport = mocks.rangeTransportInstances[0]
 
-    view.rerender(<PdfFilePreview filePath={filePath} fileName="paper.pdf" metadata={{ size: 1024 }} refreshKey={1} />)
+    view.rerender(
+      <PdfFilePreview
+        filePath={filePath}
+        fileName="paper.pdf"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={1}
+      />
+    )
 
     await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(2))
     expect(firstTransport.abort).toHaveBeenCalled()

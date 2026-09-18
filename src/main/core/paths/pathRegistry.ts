@@ -12,9 +12,10 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
-import { app } from 'electron'
 
 import { CHERRY_HOME, LOGS_DIR } from './constants'
 
@@ -79,6 +80,7 @@ export function buildPathRegistry() {
     'app.root.resources': appRootResources,
     'app.root.resources.scripts': path.join(appRootResources, 'scripts'),
     'app.root.resources.binaries': path.join(appRootResources, 'binaries'),
+    'app.utility_process': path.join(app.getAppPath(), 'out', 'utility-process'), // utility-process entry bundles
     'app.exe_file': app.getPath('exe'),
     'app.install': path.dirname(app.getPath('exe')), // directory containing the executable
     'app.logs': LOGS_DIR,
@@ -107,11 +109,14 @@ export function buildPathRegistry() {
     // bundled data when present (see ProviderRegistryUpdaterService). Writable.
     'feature.provider_registry.override': appUserDataProviderRegistryOverride,
 
+    // Isolated preload for site `<webview>` guests. Local mini apps keep their capability bridge.
+    'feature.webview.preload_file': path.join(app.getAppPath(), 'out/preload/webview.js'),
+
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
 
     // onnxruntime-node native binary (napi addon + shared lib), downloaded on first
-    // use of local embedding or local OCR — see OnnxRuntimeBinaryService.
+    // use of local embedding or local OCR — see ai/localModel's shared artifacts.
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
@@ -137,6 +142,17 @@ export function buildPathRegistry() {
     // DeepSeek Harness
     'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),
 
+    // Code CLI session data. `root` is handed to the binary as `--gemini_dir`; the
+    // CLI itself resolves its settings under the fixed `antigravity-cli/` subdir.
+    'feature.cli.antigravity.root': path.join(appUserDataData, 'CodeCli', 'Antigravity'),
+    'feature.cli.antigravity.settings.file': path.join(
+      appUserDataData,
+      'CodeCli',
+      'Antigravity',
+      'antigravity-cli',
+      'settings.json'
+    ),
+
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
@@ -149,6 +165,9 @@ export function buildPathRegistry() {
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
 
+    // Cherry Cloud account credentials (device identity is retained when the session is cleared)
+    'feature.cherry_account.credentials_file': path.join(appUserData, 'Credentials', 'cherry-account.json'),
+
     // Trace
     'feature.trace': path.join(appUserDataRuntime, 'trace'),
 
@@ -159,11 +178,15 @@ export function buildPathRegistry() {
     'feature.ovms.ovocr': path.join(CHERRY_HOME, 'ovms', 'ovocr'),
 
     // Agents
+    'feature.code_cli.skills.builtin': path.join(appRootResources, 'code-cli-skills'), // conditional Code Mate skill templates (read-only)
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
     'feature.agents.claude.root': path.join(appUserDataData, 'Agents', '.claude'), // v1 userData/.claude is copied here during v2 migration
     'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
+    // Claude Code's own session transcripts under Cherry's config dir. A registry key
+    // (not a joined path) so the orphan sweep can never be pointed at the user's ~/.claude.
+    'feature.agents.claude.projects': path.join(appUserDataData, 'Agents', '.claude', 'projects'),
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
     // NOTE(app-managed-dirs): pi dirs are new in this PR and freely relocatable —
     // pi resume tokens persist the pi session id, never a filesystem path.
@@ -187,6 +210,22 @@ export function buildPathRegistry() {
     'feature.files.data': path.join(appUserDataData, 'Files'),
     'feature.notes.data': path.join(appUserDataData, 'Notes'),
     'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
+
+    // Mini apps
+    // Installed mini app packages, one directory per appId
+    'feature.mini_app.packages': path.join(appUserDataData, 'MiniApps', 'packages'),
+    // Rollback snapshots, PARALLEL to packages/ — `.` is a legal appId character, so a
+    // snapshot held beside the install trees is also a legal appId's own directory
+    'feature.mini_app.snapshots': path.join(appUserDataData, 'MiniApps', 'snapshots'),
+    // Per-app data (saves), OUTSIDE the package tree — updates rename packages/<id> wholesale
+    'feature.mini_app.data': path.join(appUserDataData, 'MiniApps', 'data'),
+    // Publish journals, one `<appId>.json` per app
+    'feature.mini_app.publish_journal': path.join(appUserDataData, 'MiniApps', '.publish-journal'),
+    // Builtin packages ship INSIDE the app bundle, so this one is not under userData
+    'feature.mini_app.builtin': path.join(appRootResources, 'builtin-mini-apps'),
+    // Per-app activity logs, one `<appId>/activity.<day>.log` tree each — under the logs
+    // directory, NOT the app's data: "clear data" must not erase what the app did
+    'feature.mini_app.logs': path.join(LOGS_DIR, 'mini-apps'),
 
     // OCR
     'feature.ocr.tesseract': path.join(appUserData, 'tesseract'),
@@ -213,6 +252,7 @@ export function buildPathRegistry() {
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
 
     // Feature-owned temp dirs (all under app.temp)
+    'feature.browser.import.temp': path.join(appTemp, 'browser-import'),
     'feature.backup.temp': path.join(appTemp, 'backup'),
     'feature.cli.temp': path.join(appTemp, 'cli'),
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
@@ -232,14 +272,59 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
-    'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
-    'external.deepseek_harness.config': path.join(os.homedir(), '.dsh'),
+    'external.browser.chrome': isMac
+      ? path.join(sysHome, 'Library/Application Support/Google/Chrome')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Google/Chrome/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'google-chrome'),
+    'external.browser.edge': isMac
+      ? path.join(sysHome, 'Library/Application Support/Microsoft Edge')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Microsoft/Edge/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'microsoft-edge'),
+    'external.browser.brave': isMac
+      ? path.join(sysHome, 'Library/Application Support/BraveSoftware/Brave-Browser')
+      : isWin
+        ? path.join(
+            process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'),
+            'BraveSoftware/Brave-Browser/User Data'
+          )
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'BraveSoftware/Brave-Browser'),
+    'external.browser.vivaldi': isMac
+      ? path.join(sysHome, 'Library/Application Support/Vivaldi')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Vivaldi/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'vivaldi'),
+    'external.browser.opera': isMac
+      ? path.join(sysHome, 'Library/Application Support/com.operasoftware.Opera')
+      : isWin
+        ? path.join(process.env.APPDATA || path.join(sysHome, 'AppData/Roaming'), 'Opera Software/Opera Stable')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'opera'),
+    'external.browser.chromium': isMac
+      ? path.join(sysHome, 'Library/Application Support/Chromium')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Chromium/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'chromium'),
+    'external.browser.dia': path.join(sysHome, 'Library/Application Support/Dia/User Data'),
+    'external.browser.comet': isWin
+      ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Perplexity/Comet/User Data')
+      : path.join(sysHome, 'Library/Application Support/Comet'),
+    'external.browser.firefox': isMac
+      ? path.join(sysHome, 'Library/Application Support/Firefox/Profiles')
+      : isWin
+        ? path.join(process.env.APPDATA || path.join(sysHome, 'AppData/Roaming'), 'Mozilla/Firefox/Profiles')
+        : path.join(sysHome, '.mozilla/firefox'),
+    'external.openclaw.config': path.join(sysHome, '.openclaw'),
+    'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
+    'external.hermes.default_home': isWin
+      ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
+      : path.join(sysHome, '.hermes'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
       : isMac
-        ? path.join(os.homedir(), 'Library', 'Application Support', 'obsidian', 'obsidian.json')
-        : path.join(os.homedir(), '.config', 'obsidian', 'obsidian.json')
+        ? path.join(sysHome, 'Library', 'Application Support', 'obsidian', 'obsidian.json')
+        : path.join(sysHome, '.config', 'obsidian', 'obsidian.json')
   } as const)
 }
 
@@ -279,15 +364,21 @@ const NO_ENSURE = [
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
+  'app.utility_process',
   'app.session.webview',
   'app.database.migrations',
   'feature.provider_registry.data',
+  'feature.webview.preload_file',
+  'feature.code_cli.skills.builtin',
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
+  'feature.mini_app.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
-  'feature.agents.system_workspaces'
+  'feature.agents.system_workspaces',
+  // Claude Code owns materialization of its transcript store.
+  'feature.agents.claude.projects'
 ] as const satisfies readonly NoEnsureEntry[]
 
 /** Whether Application.getPath() should auto-create the directory for this key. */

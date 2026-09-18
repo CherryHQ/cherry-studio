@@ -1,9 +1,10 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { TRANSLATE_HISTORY_DEFAULT_LIMIT } from '@shared/data/api/schemas/translate'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('translate/useTranslateHistories')
 
@@ -33,7 +34,8 @@ export const useTranslateHistories = ({
     hasNext,
     loadNext,
     refresh: pageRefresh,
-    reset
+    reset,
+    mutate
   } = useInfiniteQuery('/translate/histories', {
     query,
     limit: pageSize,
@@ -75,8 +77,17 @@ export const useTranslateHistories = ({
     await pageRefresh()
   }, [pageRefresh])
 
+  // Broadcast listener: revalidate the current cache without dropping
+  // already-loaded pages. Resetting (issue #19687) shrinks an infinite
+  // query back to size=1, the scroll container collapses, and the
+  // browser then triggers a redundant page-2 fetch — making the list
+  // appear to flicker while the user's reading position is silently
+  // lost. Calling `mutate()` with no argument revalidates the current
+  // pages in place, which is the same behaviour a regular mutation
+  // (`refresh: ['/translate/histories']`) already takes via
+  // `invalidatePathPatterns`.
   useDataChange('/translate/histories', () => {
-    void reload()
+    void mutate()
   })
 
   // Loading / error / ready discriminator. Empty `items` is ambiguous on its

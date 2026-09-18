@@ -1,7 +1,12 @@
 import { resolve } from 'path'
+
 import { defineConfig } from 'vitest/config'
 
 import electronViteConfig from './electron.vite.config'
+
+// The repository intentionally remains CommonJS while Vite bundles its TypeScript
+// config files. Native config loading cannot parse that combination yet.
+process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING = 'true'
 
 // Pin the test timezone to UTC so date-dependent tests are deterministic on every
 // machine. CI runners default to UTC; without this, tests that bucket UTC timestamps
@@ -121,6 +126,24 @@ export default defineConfig({
           }
         }
       },
+      // preload 单元测试配置
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            '@shared': resolve('src/shared')
+          }
+        },
+        test: {
+          name: 'preload',
+          environment: 'node',
+          // vitest shards per (groupOrder, pool) bucket and rejects buckets smaller
+          // than the shard count; preload's single test file must share main's forks
+          // pool (CI always runs it alongside main) instead of crashing --shard=i/3.
+          pool: 'forks',
+          include: ['src/preload/**/*.{test,spec}.ts', 'src/preload/**/__tests__/**/*.{test,spec}.ts']
+        }
+      },
       // provider-registry 包单元测试配置
       {
         extends: true,
@@ -187,10 +210,8 @@ export default defineConfig({
     },
     testTimeout: 20000,
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: false
-      }
-    }
+    // Vitest 4 uses all available parallelism by default. Cap workers so the
+    // full suite does not starve subprocess, worker-thread, and timing tests.
+    maxWorkers: '50%'
   }
 })

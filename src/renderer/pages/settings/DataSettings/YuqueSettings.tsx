@@ -1,3 +1,6 @@
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -12,8 +15,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('YuqueSettings')
 
@@ -92,9 +93,9 @@ const YuqueSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.yuque.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-yuque-repo-url" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <Input
             type="text"
             value={yuqueUrl || ''}
@@ -104,7 +105,7 @@ const YuqueSettings: FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-yuque-token" className="scroll-mt-6">
         <SettingRowTitle>
           {t('settings.data.yuque.token')}
           <InfoTooltip
@@ -116,7 +117,7 @@ const YuqueSettings: FC = () => {
             onClick={handleYuqueHelpClick}
           />
         </SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <RowFlex className="w-full min-w-0 items-center gap-1.25">
             <Input
               type="password"

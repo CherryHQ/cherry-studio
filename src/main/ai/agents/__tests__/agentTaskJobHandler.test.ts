@@ -1,6 +1,9 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { JobContext, JobSettledEvent } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
@@ -11,12 +14,6 @@ vi.mock('@data/services/JobService', () => ({
   jobService: {
     listRecentTerminalByScheduleId: vi.fn(),
     getById: vi.fn()
-  }
-}))
-
-vi.mock('@data/services/AgentTaskService', () => ({
-  agentTaskService: {
-    notifyReadModelChange: vi.fn()
   }
 }))
 
@@ -52,6 +49,7 @@ function makeTerminal(status: 'completed' | 'failed' | 'cancelled', id = `job-${
     error: null,
     parentId: null,
     cancelRequested: false,
+    cancelRequestedAt: null,
     metadata: {},
     timeoutMs: null,
     createdAt: '2026-05-20T00:00:00.000Z',
@@ -78,26 +76,29 @@ function makeSettled(overrides: Partial<JobSettledEvent<AgentTaskInput>>): JobSe
     attempt: 0,
     metadata: {},
     ...overrides
-  } as JobSettledEvent<AgentTaskInput>
+  }
 }
 
 describe('AgentTaskJobHandler', () => {
+  setupTestDatabase()
   const pauseSpy = vi.fn()
 
   beforeEach(() => {
     vi.mocked(application.get).mockImplementation((name: string) => {
       if (name === 'JobManager') return { pauseJobScheduleById: pauseSpy } as never
+      if (name === 'DbService') return MockMainDbServiceExport.dbService as never
       throw new Error(`Unexpected application.get('${name}')`)
     })
     pauseSpy.mockReset()
     pauseSpy.mockResolvedValue(true)
     vi.mocked(jobService.listRecentTerminalByScheduleId).mockReset()
     vi.mocked(jobService.getById).mockReset()
-    vi.mocked(agentTaskService.notifyReadModelChange).mockReset()
+    vi.spyOn(agentTaskService, 'notifyRunChange').mockImplementation(() => {})
     vi.mocked(runAgentTask).mockReset()
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.clearAllMocks()
   })
 
@@ -123,9 +124,23 @@ describe('AgentTaskJobHandler', () => {
     })
   })
 
+  describe('onEnqueued', () => {
+    it('announces log membership while a scheduled job is still pending', () => {
+      agentTaskJobHandler.onEnqueued?.({ ...makeTerminal('completed', 'j1'), status: 'pending', startedAt: null })
+
+      expect(vi.mocked(agentTaskService.notifyRunChange).mock.calls).toEqual([['s1', 'j1', 'membership']])
+    })
+
+    it('does not announce task logs for an ad-hoc job', () => {
+      agentTaskJobHandler.onEnqueued?.({ ...makeTerminal('completed', 'j1'), status: 'pending', scheduleId: null })
+
+      expect(agentTaskService.notifyRunChange).not.toHaveBeenCalled()
+    })
+  })
+
   describe('execute', () => {
     it('delegates to runAgentTask with the JobContext', async () => {
-      vi.mocked(runAgentTask).mockResolvedValueOnce({ sessionId: 'sess-1', result: 'ok' })
+      vi.mocked(runAgentTask).mockResolvedValueOnce({ result: 'ok' })
       const ctx = {
         jobId: 'j1',
         input: { agentId: 'a', prompt: 'p', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE, reuseRevision: 0 }
@@ -133,15 +148,15 @@ describe('AgentTaskJobHandler', () => {
 
       const out = await agentTaskJobHandler.execute(ctx)
 
-      expect(out).toEqual({ sessionId: 'sess-1', result: 'ok' })
+      expect(out).toEqual({ result: 'ok' })
       expect(runAgentTask).toHaveBeenCalledWith(ctx)
     })
 
     it('publishes the run-state change before running so open task lists leave the previous state', async () => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeTerminal('completed', 'j1'))
       vi.mocked(runAgentTask).mockImplementationOnce(async () => {
-        expect(agentTaskService.notifyReadModelChange).toHaveBeenCalledWith(['s1'])
-        return { sessionId: 'sess-1', result: 'ok' }
+        expect(vi.mocked(agentTaskService.notifyRunChange).mock.calls).toEqual([['s1', 'j1', 'projection']])
+        return { result: 'ok' }
       })
 
       await agentTaskJobHandler.execute({ jobId: 'j1' } as JobContext<AgentTaskInput>)
@@ -154,7 +169,7 @@ describe('AgentTaskJobHandler', () => {
 
       await agentTaskJobHandler.execute({ jobId: 'j1' } as JobContext<AgentTaskInput>)
 
-      expect(agentTaskService.notifyReadModelChange).not.toHaveBeenCalled()
+      expect(agentTaskService.notifyRunChange).not.toHaveBeenCalled()
     })
   })
 
@@ -203,11 +218,11 @@ describe('AgentTaskJobHandler', () => {
       expect(pauseSpy).not.toHaveBeenCalled()
     })
 
-    it('publishes the run-state change on every terminal status, not just failures', async () => {
-      await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'completed' }))
-      await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'cancelled' }))
+    it.each(['completed', 'failed', 'cancelled'] as const)('publishes one run-state change on %s', async (status) => {
+      vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValueOnce([])
+      await agentTaskJobHandler.onSettled?.(makeSettled({ status }))
 
-      expect(vi.mocked(agentTaskService.notifyReadModelChange).mock.calls).toEqual([[['s1']], [['s1']]])
+      expect(vi.mocked(agentTaskService.notifyRunChange).mock.calls).toEqual([['s1', 'job-1', 'projection']])
     })
 
     it('does not act when the failed job has no scheduleId (ad-hoc enqueue)', async () => {
@@ -215,6 +230,7 @@ describe('AgentTaskJobHandler', () => {
 
       expect(jobService.listRecentTerminalByScheduleId).not.toHaveBeenCalled()
       expect(pauseSpy).not.toHaveBeenCalled()
+      expect(agentTaskService.notifyRunChange).not.toHaveBeenCalled()
     })
 
     it('swallows pauseJobScheduleById errors so onSettled cannot throw', async () => {

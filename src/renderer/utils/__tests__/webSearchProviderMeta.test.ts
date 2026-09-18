@@ -1,5 +1,6 @@
-import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
+
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
 import {
   createWebSearchMenuEntry,
@@ -53,6 +54,12 @@ describe('webSearchProviderMeta', () => {
     expect(getWebSearchProviderIconRef('fetch')).toMatchObject({ kind: 'provider', key: 'cherryin' })
     expect(getWebSearchProviderOfficialWebsite('jina')).toBe('https://jina.ai/reader')
     expect(getWebSearchProviderApiKeyWebsite('jina')).toBe('https://jina.ai')
+    expect(getWebSearchProviderIconRef('parallel')).toMatchObject({ kind: 'provider', key: 'parallel' })
+    expect(getWebSearchProviderOfficialWebsite('parallel')).toBe('https://parallel.ai')
+    expect(getWebSearchProviderApiKeyWebsite('parallel')).toBe('https://platform.parallel.ai')
+    expect(getWebSearchProviderIconRef('serply')).toMatchObject({ kind: 'provider', key: 'serply' })
+    expect(getWebSearchProviderOfficialWebsite('serply')).toBe('https://serply.io')
+    expect(getWebSearchProviderApiKeyWebsite('serply')).toBe('https://serply.io')
     expect(getWebSearchProviderApiKeyWebsite('fetch')).toBeUndefined()
   })
 

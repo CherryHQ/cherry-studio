@@ -1,10 +1,11 @@
+import { PictureInPicture2 } from 'lucide-react'
+import React, { useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Input, Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Model } from '@shared/data/types/model'
-import { PictureInPicture2 } from 'lucide-react'
-import React, { useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface InputBarProps {
   text: string

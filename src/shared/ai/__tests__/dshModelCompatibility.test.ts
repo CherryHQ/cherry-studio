@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import { isDshCompatibleModel, resolveDshApi } from '../dshModelCompatibility'
 
@@ -52,7 +53,7 @@ describe('isDshCompatibleModel', () => {
       authMethods: ['oauth'],
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
-    } as Partial<Provider>)
+    })
     expect(isDshCompatibleModel(loginProvider, makeModel({}))).toBe(true)
   })
 
@@ -72,8 +73,10 @@ describe('isDshCompatibleModel', () => {
     ).toBe(false)
   })
 
-  it('still requires a known context window and text input on the gateway route', () => {
-    expect(isDshCompatibleModel(azureProvider, makeModel({ contextWindow: undefined }))).toBe(false)
-    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: [] }))).toBe(false)
+  it('does not use input modalities as a compatibility restriction', () => {
+    expect(isDshCompatibleModel(azureProvider, makeModel({ contextWindow: undefined }))).toBe(true)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: [] }))).toBe(true)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['image'] }))).toBe(true)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['audio'] }))).toBe(true)
   })
 })

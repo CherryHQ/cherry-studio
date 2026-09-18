@@ -12,7 +12,9 @@ const runtimeEntries = Object.fromEntries(
     entryName,
     specifier === '@cherrystudio/dsh-bridge/plugin'
       ? path.join(import.meta.dirname, 'src/plugin.ts')
-      : require_.resolve(specifier)
+      : specifier === '@cherrystudio/dsh-bridge/bin'
+        ? path.join(import.meta.dirname, 'src/runtimeBin.ts')
+        : require_.resolve(specifier)
   ])
 )
 
@@ -43,6 +45,21 @@ export default defineConfig([
     ],
     noExternal: () => true,
     plugins: [
+      {
+        name: 'isolate-dsh-windows-sandbox',
+        transform(code, id) {
+          if (!/[\\/]@deepseek-ai[\\/]dsh-sandbox-local[\\/]lib[\\/]index\.js$/.test(id)) return
+          // SDK 0.1.2-rc.1 statically imports Win32 bindings even on macOS/Linux.
+          // Keep the ACL package external so its separate runner remains resolvable.
+          const windowsImport =
+            'import { AclWriteGrant, assertTempRootOutsideWorkspace, tempWriteSid, workspaceWriteSid } from "@deepseek-ai/dsh-sandbox-windows-acl";'
+          if (!code.includes(windowsImport)) throw new Error('Could not isolate the DSH Windows sandbox import')
+          return code.replace(
+            windowsImport,
+            'const { AclWriteGrant, assertTempRootOutsideWorkspace, tempWriteSid, workspaceWriteSid } = process.platform === "win32" ? await import("@deepseek-ai/dsh-sandbox-windows-acl") : {};'
+          )
+        }
+      },
       {
         name: 'inline-dsh-llm-version',
         transform(code, id) {

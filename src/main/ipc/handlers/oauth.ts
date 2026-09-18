@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { OAuthSignInCancelledError } from '@main/services/oauth/errors'
+import { authorizeTokenDanceApiKey } from '@main/services/tokenDanceOAuth'
 import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
@@ -27,6 +28,7 @@ export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
   'oauth.has_token': ({ providerId }) => runtime().hasToken(providerId),
   'oauth.get_account': ({ providerId }) => runtime().getAccount(providerId),
   'oauth.logout': ({ providerId }) => runtime().logout(providerId),
+  'oauth.tokendance.authorize_api_key': () => authorizeTokenDanceApiKey(),
   // External-CLI login probe. `claude-code` is the only provider whose
   // `authMethods` includes `'external-cli'` today; reject anything else rather
   // than silently returning the Claude probe for an unrelated providerId. A

@@ -20,6 +20,7 @@ renderer-side transport that connects to them.
 | [Core Architecture](./core-architecture.md) | End-to-end call flow: `ai.stream.open` IpcApi route → context provider → AiStreamManager → runtime → broadcast / persist |
 | [Stream Manager](./stream-manager.md) | Active-stream registry, listeners, reconnect, abort, queue/yield/continuation steering, persistence backends |
 | [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, follow-up admission, resume persistence, and the registered Claude Code, Pi, and DSH drivers |
+| [Agent Lifecycle](./agent-lifecycle.md) | Archive, restore, purge, schedule recovery, ownership boundaries, and Agent-side backup quiescing |
 | [Adding an Agent Runtime](./adding-a-runtime.md) | Operational checklist for a new runtime: capability descriptor, driver package, registration points, design rules |
 | [Adapter Family](./adapter-family.md) | How `provider.endpointConfigs[ep].adapterFamily` picks the right `@ai-sdk/*` package per request |
 | [Provider State Ownership](./provider-state-ownership.md) | Where provider facts, endpoint dialects, connection overrides, and per-request controls belong |
@@ -36,7 +37,10 @@ renderer-side transport that connects to them.
 | [Provider Resolution](./provider-resolution.md) | `Provider.endpointConfigs` schema, endpoint resolution chain, variant suffixes, custom provider extensions (aihubmix, newapi) |
 | [Model Retry & Fallback](./model-retry.md) | `ai-retry` integration: same-model transient retry + user-configured fallback models, `wrapModel` hook, `chat.retry.*` preferences, embedding/rerank policies |
 | [Observability (trace / telemetry)](./observability.md) | `AiSdkSpanAdapter`, root span propagation, OTel attribute shape, local span projection, sinks |
+| [Local Models](./local-models.md) | The local embedding / OCR bundle catalog, on-disk registry, and verified acquisition of models and shared native runtimes |
 | [AI Usage Records](./ai-usage-records.md) | Best-effort per-provider-invocation usage/cost analytics: capture ownership, immutable attribution snapshots, message projection, bounded query API, migration, freshness |
+| [Browser Use Design](./browser-use-design.md) | Browser automation ownership, capability gaps, and delivery roadmap |
+| [Browser Use Implementation](./browser-use-implementation.md) | Session engine, MCP contracts, and implementation plan |
 
 ### Renderer-side glue
 
@@ -44,6 +48,7 @@ renderer-side transport that connects to them.
 |---|---|
 | [IPC Transport](./ipc-transport.md) | `useChat` + `IpcChatTransport`: `sendMessages` / `reconnectToStream`, dispatch service, topic-status mirror |
 | [Execution Overlay](./execution-overlay.md) | `TopicStreamSubscription` + `useExecutionOverlay`: ref-counted attach, execution + anchor demux, one-shot `readUIMessageStream` per turn (the renderer half of the same merge function Main uses) |
+| [Text Translation](./translation.md) | `translate.open` prompt streams, renderer-owned result handling, and Home `data-translation` persistence |
 | [Tool Approval](./tool-approval.md) | Approval registry, Main-as-writer model, persistent decisions, `useToolApproval` hook |
 
 ## Where the code lives
@@ -64,14 +69,14 @@ src/main/ai/
 │   └── dsh/                      ← DeepSeek Harness runtime connection
 ├── agentSession/                 ← agent-session topic host
 │   └── AgentSessionRuntimeService.ts
-├── agents/                       ← AgentJobsService, AgentTaskJobHandler, runAgentTask, prompt, heartbeat, builtin/
+├── agents/                       ← AgentLifecycleService, AgentJobsService, runAgentTask, prompt, heartbeat, builtin/
 ├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat) + security/
 ├── streamManager/                ← AiStreamManager + listeners + persistence backends
 │   ├── AiStreamManager.ts        ← active-stream registry and dispatch owner
 │   ├── context/                  ← ChatContextProvider implementations + dispatch
 │   ├── lifecycle/                ← chat / prompt-only stream lifecycles
 │   ├── listeners/                ← WebContents / Persistence / SSE / channel-adapter
-│   ├── persistence/              ← MessageService / TemporaryChat / Translation backends
+│   ├── persistence/              ← MessageService / TemporaryChat backends
 │   └── pipeStreamLoop.ts         ← shared chunk-pipe primitive
 ├── provider/                     ← provider config, endpoint resolution, custom providers
 │   ├── custom/                   ← provider-specific adapters, transports, and wire profiles
@@ -83,7 +88,7 @@ src/main/ai/
 │   └── servers/                  ← in-memory MCP server implementations (browser, filesystem)
 ├── skills/                       ← SkillService, SkillInstaller
 ├── contextBuild/                 ← context-window policy, compression, persisted tool output
-├── inference/                    ← local embedding/OCR inference workers and model sources
+├── localModel/                   ← local model catalog, acquisition, installation, utility-process inference
 ├── tokens/                       ← token estimation and modality profiles
 ├── tools/                        ← unified tool registry
 │   └── adapters/

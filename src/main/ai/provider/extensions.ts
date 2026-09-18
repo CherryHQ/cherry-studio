@@ -13,12 +13,13 @@ import type { MistralProviderSettings } from '@ai-sdk/mistral'
 import type { PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
 import type { TogetherAIProviderSettings } from '@ai-sdk/togetherai'
-import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import type { GitHubCopilotProviderSettings } from '@opeoginni/github-copilot-openai-compatible'
-import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import type { VoyageProviderSettings } from 'voyage-ai-provider'
+
+import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { AihubmixProviderSettings } from './custom/aihubmix/aihubmixProvider'
 import type { DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
@@ -37,6 +38,7 @@ import type { NewApiProviderSettings } from './custom/newapiProvider'
 import type { OvmsProviderSettings } from './custom/ovms/ovmsProvider'
 import type { PpioProviderSettings } from './custom/ppio/ppioProvider'
 import type { SiliconProviderSettings } from './custom/silicon/siliconProvider'
+import type { TokenhubProviderSettings } from './custom/tokenhub/tokenhubProvider'
 import type { ZhipuProviderSettings } from './custom/zhipuProvider'
 
 let moonshotWebSearchToolFactory: typeof createKimiWebSearchToolFor | undefined
@@ -357,6 +359,16 @@ export const DashScopeExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
 
 /**
+ * TokenHub (Tencent) Extension - OpenAI-compatible chat + embedding, image via the
+ * `/v1/wand/*` endpoints (hunyuan / seedream sync, vidu submit+poll).
+ */
+export const TokenhubExtension = ProviderExtension.create({
+  name: 'tokenhub',
+  supportsImageGeneration: true,
+  create: async (settings) => (await import('./custom/tokenhub/tokenhubProvider')).createTokenhubProvider(settings)
+} as const satisfies ProviderExtensionConfig<TokenhubProviderSettings, ProviderV3, 'tokenhub'>)
+
+/**
  * Voyage AI Extension - embeddings and reranking
  */
 export const VoyageExtension = ProviderExtension.create({
@@ -406,6 +418,7 @@ export const extensions = [
   OvmsExtension,
   ModelscopeExtension,
   DashScopeExtension,
+  TokenhubExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension,

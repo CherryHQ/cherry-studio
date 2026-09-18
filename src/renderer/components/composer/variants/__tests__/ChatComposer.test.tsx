@@ -1,20 +1,25 @@
-import { cacheService } from '@data/CacheService'
-import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
-import { toast } from '@renderer/services/toast'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { IpcChannel } from '@shared/IpcChannel'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
+import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
+import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import type * as UseProviderModule from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { IpcChannel } from '@shared/IpcChannel'
+
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
+import type { ComposerToolFooterAction } from '../../toolLauncher'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
-import type * as ComposerSpeedControlModule from '../shared/ComposerSpeedControl'
 
 const mocks = vi.hoisted(() => ({
   createTopic: vi.fn(),
@@ -55,6 +60,7 @@ const mocks = vi.hoisted(() => ({
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   toolLaunchers: [] as any[],
   toolLaunchersVersion: 0,
+  registeredFooterActions: new Map<string, ComposerToolFooterAction[]>(),
   dispatchLauncher: vi.fn(),
   unifiedPanelOpen: vi.fn(),
   unifiedPanelAvailable: true,
@@ -105,9 +111,9 @@ function createDeferred<T>() {
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
   targets: Set<Element>
-  observe: ReturnType<typeof vi.fn>
-  unobserve: ReturnType<typeof vi.fn>
-  disconnect: ReturnType<typeof vi.fn>
+  observe: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  unobserve: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  disconnect: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
@@ -157,7 +163,9 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
         replaceDraft: mocks.replaceDraft,
-        getDraft: mocks.getDraft
+        // Bind the draft getter to this surface instance; during topic switches the old surface can unmount after the new renders.
+        // Avoid reading shared `surfaceProps`, which would point at the new topic.
+        getDraft: () => mocks.getDraft(props)
       })
     }, [props])
 
@@ -261,7 +269,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     addNewTopic: vi.fn(),
     onTextChange: vi.fn(),
     toolsRegistry: {
-      registerLaunchers: vi.fn(() => vi.fn())
+      registerLaunchers: vi.fn((key: string, _entries: unknown[], footerActions: ComposerToolFooterAction[] = []) => {
+        mocks.registeredFooterActions.set(key, footerActions)
+        return vi.fn()
+      })
     },
     triggers: {
       getLaunchers: vi.fn(() => []),
@@ -279,11 +290,11 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherVersion: () => mocks.toolLaunchersVersion
 }))
 
-vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', async (importOriginal) => {
-  const actual = await importOriginal<typeof ComposerSpeedControlModule>()
+vi.mock('@renderer/components/ModelSpeedControl', async (importOriginal) => {
+  const actual = await importOriginal<typeof ModelSpeedControlModule>()
   return {
     ...actual,
-    ComposerSpeedControl: (props: {
+    ModelSpeedControl: (props: {
       model: Model
       reasoningEffort: string
       serviceTier: string
@@ -305,6 +316,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 vi.mock('../SelectedModelsTrigger', () => ({
   SelectedModelsTrigger: ({
     models,
+    providers,
     assistantModel,
     fallbackLabel,
     iconOnly,
@@ -321,7 +333,11 @@ vi.mock('../SelectedModelsTrigger', () => ({
       data-model-count={String(models.length)}
       data-disabled={String(Boolean(disabled))}
       data-suppress-selection-popover={String(Boolean(suppressSelectionPopover))}>
-      <span className={iconOnly ? 'sr-only' : undefined}>{models.length === 0 ? fallbackLabel : models[0].name}</span>
+      <span className={iconOnly ? 'sr-only' : undefined}>
+        {models.length === 0
+          ? fallbackLabel
+          : `${models[0].name} | ${providers.find((provider: Provider) => provider.id === models[0].providerId)?.name}`}
+      </span>
       <button
         type="button"
         onClick={() => onModelsChange(models.filter((currentModel: Model) => currentModel.id !== modelB.id))}>
@@ -337,11 +353,8 @@ vi.mock('../SelectedModelsTrigger', () => ({
   )
 }))
 
-vi.mock('@renderer/components/EmojiIcon', () => ({
-  default: ({ emoji }: { emoji: string }) => <span>{emoji}</span>
-}))
-
 vi.mock('@renderer/components/ModelSelector', () => ({
+  getProviderDisplayName: (provider: Provider) => provider.name,
   ModelSelector: (props: any) => {
     const {
       onSelect,
@@ -510,13 +523,24 @@ vi.mock('@renderer/hooks/useModel', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  getProviderDisplayName: () => 'Provider',
-  useProviders: (...args: unknown[]) => {
-    mocks.providerHookArgs.push(args)
-    return { providers: [{ id: 'provider', name: 'Provider', models: [mocks.model ?? model, modelB] }] }
+vi.mock('@renderer/hooks/useProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof UseProviderModule>()
+
+  return {
+    ...actual,
+    getProviderDisplayName: () => 'Provider',
+    useProviders: (...args: unknown[]) => {
+      mocks.providerHookArgs.push(args)
+      const options = args[1] as { enabled?: boolean } | undefined
+      return {
+        providers:
+          options?.enabled === false
+            ? []
+            : [{ id: 'provider', name: 'Provider', models: [mocks.model ?? model, modelB] }]
+      }
+    }
   }
-}))
+})
 
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
@@ -625,9 +649,10 @@ const StartEditingButton = ({ message, parts }: { message: any; parts: any }) =>
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    mocks.registeredFooterActions.clear()
     MockCacheUtils.resetMocks()
     resizeObserverMockInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = {
         callback,
         targets: new Set(),
@@ -647,8 +672,8 @@ describe('ChatComposer', () => {
         observe: instance.observe,
         unobserve: instance.unobserve,
         disconnect: instance.disconnect
-      } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+      }
+    })
 
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.get).mockReturnValue(undefined)
@@ -884,12 +909,12 @@ describe('ChatComposer', () => {
     expect(nextConversationControlsChange).toHaveBeenLastCalledWith(null)
   })
 
-  it('defers optional resource catalogs on a normal single-model conversation', () => {
+  it('loads provider metadata needed by a normal single-model trigger', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(mocks.knowledgeBaseHookArgs.at(-1)).toEqual([{ enabled: false }])
     expect(mocks.modelHookArgs.at(-1)).toEqual([{ enabled: true }, { fetchEnabled: false }])
-    expect(mocks.providerHookArgs.at(-1)).toEqual([undefined, { enabled: false }])
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('Model A | Provider')
   })
 
   it('snapshots a newly selected reasoning effort before its assistant PATCH finishes', async () => {
@@ -1111,13 +1136,13 @@ describe('ChatComposer', () => {
       disabled: false,
       searchAliases: ['clear context']
     })
-    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual([
-      'composer:customize-toolbar',
-      'composer:clear-context'
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual(['composer:clear-context'])
+    expect(mocks.registeredFooterActions.get('composer-toolbar-settings')?.map((item) => item.id)).toEqual([
+      'composer:customize-toolbar'
     ])
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
 
     const clearContextSwitch = screen.getByRole('switch', { name: 'chat.input.new.context' })
@@ -1152,7 +1177,10 @@ describe('ChatComposer', () => {
     const clearContextButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
       name: 'chat.input.new.context'
     })
-    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual(['composer:customize-toolbar'])
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems).toEqual([])
+    expect(mocks.registeredFooterActions.get('composer-toolbar-settings')?.map((item) => item.id)).toEqual([
+      'composer:customize-toolbar'
+    ])
     const draftBefore = mocks.surfaceProps?.text
 
     fireEvent.click(clearContextButton)
@@ -1264,7 +1292,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
     expect(screen.getByText('tool menu')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
-    expect(screen.getByText('Model A')).toBeInTheDocument()
+    expect(screen.getByText(/Model A/)).toBeInTheDocument()
   })
 
   it.each(['home', 'docked'] as const)(
@@ -1328,13 +1356,13 @@ describe('ChatComposer', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Model A')).not.toHaveClass('sr-only')
+    expect(screen.getByText(/Model A/)).not.toHaveClass('sr-only')
 
     await notifyComposerBottomToolbarWidth(420)
 
     await waitFor(() => {
       expect(screen.getByText('Assistant 1')).toHaveClass('sr-only')
-      expect(screen.getByText('Model A')).toHaveClass('sr-only')
+      expect(screen.getByText(/Model A/)).toHaveClass('sr-only')
     })
   })
 
@@ -1344,7 +1372,7 @@ describe('ChatComposer', () => {
     await notifyComposerBottomToolbarWidth(420, 420)
 
     expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Model A')).not.toHaveClass('sr-only')
+    expect(screen.getByText(/Model A/)).not.toHaveClass('sr-only')
   })
 
   it('passes attachment capabilities through the provider without effect mirroring', () => {
@@ -1632,7 +1660,7 @@ describe('ChatComposer', () => {
 
     expect(screen.getByTestId('assistant-selector')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
-    expect(screen.getByText('Model A')).toBeInTheDocument()
+    expect(screen.getByText(/Model A/)).toBeInTheDocument()
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
     expect(mocks.updateTopic).not.toHaveBeenCalled()
   })
@@ -1696,7 +1724,7 @@ describe('ChatComposer', () => {
     expect(onCreateEmptyTopic).toHaveBeenLastCalledWith({ assistantId: 'assistant-1' })
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
     const newTopicSwitch = screen.getByRole('switch', { name: 'chat.conversation.new' })
     expect(newTopicSwitch).toBeChecked()
@@ -1717,7 +1745,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.rootPanelLeadingItems?.map((item) => item.id)).toEqual(['composer:new-conversation'])
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
     expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('chat.conversation.new')
   })
@@ -2169,7 +2197,7 @@ describe('ChatComposer', () => {
             payload: syncedFile,
             index: 0,
             textOffset: 0
-          } as ComposerSerializedToken
+          }
         ]
       })
     })
@@ -2273,7 +2301,7 @@ describe('ChatComposer', () => {
               promptText: knowledgePrompt,
               index: 0,
               textOffset: 'summarize '.length
-            } as ComposerSerializedToken
+            }
           ]
         })
       })
@@ -2721,7 +2749,10 @@ describe('ChatComposer', () => {
   it('keeps a mentioned-model selection made while previewing history', async () => {
     seedInputHistory(['history entry'])
     mocks.mentionedModels = [model]
-    mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: []
+    }))
 
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
@@ -2859,7 +2890,10 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
       drafts.set(key, value)
     })
-    mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: []
+    }))
     const topicTwo = { ...topic, id: 'topic-2' }
     const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -2950,6 +2984,10 @@ describe('ChatComposer', () => {
     })
     mocks.knowledgeBasesLoading = true
     mocks.modelPending = true
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: surfaceProps?.draftTokens?.map(serializeComposerToken) ?? []
+    }))
     const topicTwo = { ...topic, id: 'topic-2' }
     const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
@@ -3065,6 +3103,74 @@ describe('ChatComposer', () => {
         expect.any(Number)
       )
     })
+  })
+
+  it('persists text and tokens from the same live composer snapshot', async () => {
+    const knowledgePrompt = 'The user attached knowledge base "Base 1" (id: base-1).'
+    const liveDraft = {
+      text: `summarize ${knowledgePrompt}`,
+      tokens: [
+        {
+          id: 'knowledge:base-1',
+          kind: 'knowledge',
+          label: 'Base 1',
+          promptText: knowledgePrompt,
+          index: 0,
+          textOffset: 'summarize '.length
+        } as ComposerSerializedToken
+      ]
+    }
+    mocks.getDraft.mockReturnValue(liveDraft)
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      // The editor snapshot can be newer than the React text prop during token synchronization.
+      mocks.surfaceProps?.onTextChange('summarize')
+    })
+
+    await waitFor(() => {
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'chat.composer_draft.topic-1',
+        expect.objectContaining({
+          text: liveDraft.text,
+          tokens: liveDraft.tokens
+        }),
+        expect.any(Number)
+      )
+    })
+  })
+
+  it('persists the live draft snapshot when the chat composer unmounts', () => {
+    const knowledgePrompt = 'The user attached knowledge base "Base 1" (id: base-1).'
+    const liveDraft = {
+      text: `summarize ${knowledgePrompt}`,
+      tokens: [
+        {
+          id: 'knowledge:base-1',
+          kind: 'knowledge',
+          label: 'Base 1',
+          promptText: knowledgePrompt,
+          index: 0,
+          textOffset: 'summarize '.length
+        } as ComposerSerializedToken
+      ]
+    }
+    mocks.getDraft.mockReturnValue(liveDraft)
+
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    vi.mocked(cacheService.set).mockClear()
+
+    view.unmount()
+
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'chat.composer_draft.topic-1',
+      expect.objectContaining({
+        text: liveDraft.text,
+        tokens: liveDraft.tokens
+      }),
+      expect.any(Number)
+    )
   })
 
   it('persists token-only draft changes when the serialized text stays unchanged', async () => {
@@ -3225,13 +3331,13 @@ describe('ChatComposer', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Model A')).not.toHaveClass('sr-only')
+    expect(screen.getByText(/Model A/)).not.toHaveClass('sr-only')
 
     await notifyComposerBottomToolbarWidth(420)
 
     await waitFor(() => {
       expect(screen.getByText('Assistant 1')).toHaveClass('sr-only')
-      expect(screen.getByText('Model A')).toHaveClass('sr-only')
+      expect(screen.getByText(/Model A/)).toHaveClass('sr-only')
     })
   })
 
@@ -3295,6 +3401,27 @@ describe('ChatComposer', () => {
     })
   })
 
+  it('keeps the selected model in the next send after the assistant model refresh completes', async () => {
+    const user = userEvent.setup()
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(<ChatHomeComposer topic={topic} onSend={onSend} />)
+
+    await user.click(screen.getByText('select model 2'))
+
+    mocks.assistant = { ...mocks.assistant, modelId: modelB.id }
+    mocks.model = modelB
+    view.rerender(<ChatHomeComposer topic={topic} onSend={onSend} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
+      expect(mocks.mentionedModels).toEqual([])
+    })
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'use the new model', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith('use the new model', expect.objectContaining({ mentionedModels: [modelB.id] }))
+  })
+
   it('does not hydrate draft home model selection from mentioned-model cache', () => {
     vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
       key.startsWith('inputbar-mentioned-models-') ? [model, modelB] : ''
@@ -3314,7 +3441,7 @@ describe('ChatComposer', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
 
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
-    expect(screen.getByText('Model A')).toBeInTheDocument()
+    expect(screen.getByText(/Model A/)).toBeInTheDocument()
   })
 
   it('does not read or write mentioned-model rich-text cache', () => {
@@ -3418,6 +3545,87 @@ describe('ChatComposer', () => {
 
     expect(screen.getByTestId('model-selector')).toBeInTheDocument()
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-disabled', 'false')
+  })
+
+  it('does not carry models selected during an edit into the next normal send', async () => {
+    const user = userEvent.setup()
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [{ type: 'text', text: 'old prompt' }] as any[]
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
+      </MessageEditingProvider>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    await user.click(screen.getByText('toggle model multi select'))
+    await user.click(screen.getByText('select models 1 and 2'))
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'edited prompt', tokens: [] })
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'false')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'next prompt', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith('next prompt', expect.objectContaining({ mentionedModels: [model.id] }))
+  })
+
+  it('restores the resolved runtime model when editing started while model loading was pending', async () => {
+    const user = userEvent.setup()
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
+    mocks.model = undefined
+    mocks.modelPending = true
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [{ type: 'text', text: 'old prompt' }] as any[]
+    const view = render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
+      </MessageEditingProvider>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    mocks.model = model
+    mocks.modelPending = false
+    view.rerender(
+      <MessageEditingProvider>
+        <StartEditingButton message={message} parts={parts} />
+        <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
+      </MessageEditingProvider>
+    )
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'edited prompt', tokens: [] })
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'next prompt', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith('next prompt', expect.objectContaining({ mentionedModels: [model.id] }))
   })
 
   it('hydrates Composer from an edited message and restores the previous draft on cancel', async () => {
@@ -3732,7 +3940,7 @@ describe('ChatComposer', () => {
 
     view.rerender(
       <MessageEditingProvider>
-        <StartEditingOnMount enabled={false} message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <StartEditingOnMount enabled={false} message={message} parts={[{ type: 'text', text: 'old' }]} />
         <ChatComposer topic={nextTopic} onSend={onSend} />
       </MessageEditingProvider>
     )
@@ -4435,7 +4643,7 @@ describe('ChatComposer', () => {
     expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
-  it('does not save an assistant reply whose text has provider metadata Composer cannot round-trip', async () => {
+  it('saves an assistant reply whose text has provider metadata', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const forkAndResend = vi.fn().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
@@ -4464,10 +4672,9 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
     await mocks.surfaceProps?.onSendDraft({ text: 'edited reply', tokens: [] })
 
-    expect(editMessage).not.toHaveBeenCalled()
+    expect(editMessage).toHaveBeenCalled()
     expect(forkAndResend).not.toHaveBeenCalled()
-    expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id)
-    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
   it('does not fork and resend an edited file-only draft before the file token is reflected in the editor', async () => {
@@ -4550,7 +4757,7 @@ describe('ChatComposer', () => {
             payload: syncedFile,
             index: 0,
             textOffset: 0
-          } as ComposerSerializedToken
+          }
         ]
       })
     })

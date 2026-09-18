@@ -6,9 +6,10 @@ import { link, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { exists } from '@main/utils/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeChildProcess>()
@@ -188,7 +189,7 @@ describe('publishFileNoClobber', () => {
       dev: largeParentDev,
       ino: largeParentIno
     }) as typeof parentStat
-    vi.mocked(stat).mockResolvedValueOnce(largeParentStat as never)
+    vi.mocked(stat).mockResolvedValueOnce(largeParentStat)
     await writeFile(staged, 'new content')
 
     await publishFileNoClobber(staged, target)

@@ -1,14 +1,17 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse as parseYaml } from 'yaml'
+
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { parse as parseYaml } from 'yaml'
 
 import { clearCliConfig, writeCliConfigDraft } from '../index'
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+const resolvedSpecPath = (target: CliConfigTarget) => `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
+const hermesConfigPath = resolvedSpecPath('hermes-config')
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.request }
@@ -86,27 +89,29 @@ describe('writeCliConfigDraft', () => {
   let existing: Record<string, string>
 
   beforeEach(() => {
+    mocks.request.mockClear()
+    vi.mocked(dataApiService.get).mockClear()
     written = null
     writes = []
     existing = {}
     // Draft building still reads on-disk config files renderer-side
-    // (`code_cli.read_config`); the mock keeps resolving `~/…` spec paths to
-    // `/resolved~/…` for the `existing` fixture.
+    // (`code_cli.read_config`); the mock maps declarative spec paths to
+    // deterministic `/resolved…` entries for the `existing` fixture.
     mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
       if (route === 'code_cli.read_config') {
         return {
           files: (input.targets as CliConfigTarget[]).map((target) => {
-            const resolvedPath = `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
+            const resolvedPath = resolvedSpecPath(target)
             return { target, path: resolvedPath, content: resolvedPath in existing ? existing[resolvedPath] : null }
           })
         }
       }
       // The disk mutation is main-process now (`code_cli.write_config` carries
       // a target, never a path). Translate each write target back to the
-      // same `/resolved~/…` path so the content fixtures stay unchanged.
+      // same deterministic path so the content fixtures stay unchanged.
       for (const file of input.files as CliConfigWriteFile[]) {
         if ('delete' in file) throw new Error('writeCliConfigDraft must not delete config files')
-        const nextWrite = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
+        const nextWrite = { path: resolvedSpecPath(file.target), content: file.content }
         written = nextWrite
         writes.push(nextWrite)
       }
@@ -169,7 +174,7 @@ describe('writeCliConfigDraft', () => {
   })
 
   it('preserves user-owned YAML presentation while updating the Hermes model', async () => {
-    existing['/resolved~/.hermes/config.yaml'] = [
+    existing[hermesConfigPath] = [
       '# user-owned comment',
       'model:',
       '  context_length: 200000 # keep inline comment',
@@ -204,7 +209,7 @@ describe('writeCliConfigDraft', () => {
   })
 
   it('fills in an empty Hermes model section instead of rejecting it', async () => {
-    existing['/resolved~/.hermes/config.yaml'] = ['# user-owned comment', 'model:', 'telemetry: false', ''].join('\n')
+    existing[hermesConfigPath] = ['# user-owned comment', 'model:', 'telemetry: false', ''].join('\n')
     mockGet({
       '/providers/deepseek': () => openaiCompatProvider,
       '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -224,7 +229,7 @@ describe('writeCliConfigDraft', () => {
   })
 
   it('names the Hermes config file and path when it cannot be parsed', async () => {
-    existing['/resolved~/.hermes/config.yaml'] = 'model: [unclosed\n'
+    existing[hermesConfigPath] = 'model: [unclosed\n'
     mockGet({
       '/providers/deepseek': () => openaiCompatProvider,
       '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -232,7 +237,7 @@ describe('writeCliConfigDraft', () => {
     })
 
     await expect(writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })).rejects.toThrow(
-      /Failed to parse .+ at \/resolved~\/\.hermes\/config\.yaml:/
+      /Failed to parse .+ at \/resolvedconfig\.yaml:/
     )
   })
 
@@ -653,7 +658,7 @@ describe('writeCliConfigDraft', () => {
     // that remote compaction is on, regardless of the actual toggle — so a provider whose
     // display name really is "OpenAI" must never be written verbatim unless that mode is on.
     it('avoids the "OpenAI" name collision when the provider is actually named OpenAI (remote compaction off)', async () => {
-      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' }
       mockGet({
         '/providers/deepseek': () => openaiNamedProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -668,7 +673,7 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('writes the literal "OpenAI" name when remote compaction is actually on', async () => {
-      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' }
       mockGet({
         '/providers/deepseek': () => openaiNamedProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -1412,7 +1417,7 @@ describe('writeCliConfigDraft', () => {
         for (const file of input.files as CliConfigWriteFile[]) {
           // This path asserts writes only; delete entries never reach it (the suite pins that).
           const nextWrite = {
-            path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`,
+            path: resolvedSpecPath(file.target),
             content: (file as { content: string }).content
           }
           written = nextWrite

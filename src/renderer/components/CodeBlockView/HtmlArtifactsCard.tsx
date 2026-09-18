@@ -1,13 +1,14 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
-import { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { DownloadIcon, LinkIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 
 const HtmlArtifactsPopup = lazy(() => import('./HtmlArtifactsPopup'))
 
@@ -65,14 +66,14 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
           <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
             <Icon icon="material-icon-theme:html" className="text-[20px]" />
           </span>
-          <span className="min-w-0 truncate font-medium text-[13px] text-foreground leading-5">{title}</span>
+          <span className="min-w-0 truncate text-[13px] leading-5 font-medium text-foreground">{title}</span>
           {isStreaming ? (
-            <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
+            <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
               <span className="size-1.5 animate-pulse rounded-full bg-primary" />
               {t('html_artifacts.generating', 'Generating content...')}
             </span>
           ) : (
-            <span className="shrink-0 rounded-sm bg-background px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground leading-4">
+            <span className="shrink-0 rounded-sm bg-background px-1.5 py-0.5 text-[10px] leading-4 font-medium text-muted-foreground">
               HTML
             </span>
           )}

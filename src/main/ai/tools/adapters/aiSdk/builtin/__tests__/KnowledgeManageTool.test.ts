@@ -1,7 +1,8 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const addItems = vi.fn()
 const deleteConcepts = vi.fn()
@@ -56,7 +57,7 @@ function callExecute(args: ManageArgs, ctx: { knowledgeBaseIds?: string[] } = {}
         knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
         abortSignal: new AbortController().signal
       }
-    } as ToolExecutionOptions
+    }
   )
 }
 
@@ -92,16 +93,16 @@ describe('kb_manage', () => {
     expect(deleteConcepts).not.toHaveBeenCalled()
   })
 
-  it('adds a file by absolute path, deriving the source name from the basename', async () => {
+  it('adds a file by absolute path, storing the full path as source (REGRESSION #19954)', async () => {
     const result = await callExecute(
       { baseId: 'kb-1', action: 'add', type: 'file', path: '/Users/me/docs/report.pdf' },
       { knowledgeBaseIds: ['kb-1'] }
     )
 
     expect(addItems).toHaveBeenCalledWith('kb-1', [
-      { type: 'file', data: { source: 'report.pdf', path: '/Users/me/docs/report.pdf' } }
+      { type: 'file', data: { source: '/Users/me/docs/report.pdf', path: '/Users/me/docs/report.pdf' } }
     ])
-    expect(result).toEqual({ action: 'add', added: ['report.pdf'] })
+    expect(result).toEqual({ action: 'add', added: ['/Users/me/docs/report.pdf'] })
   })
 
   it('rejects a non-absolute file path via schema validation and does not add', async () => {

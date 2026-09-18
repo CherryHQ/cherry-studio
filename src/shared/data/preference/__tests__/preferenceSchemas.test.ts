@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { PreferenceSchemas } from '../preferenceSchemas'
 import { DefaultPreferences } from '../preferenceSchemas'
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '../preferenceTypes'
 
 describe('DefaultPreferences', () => {
   it('leaves the client ID empty until runtime generates a UUID', () => {
@@ -44,16 +45,31 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['feature.quick_assistant.show_in_tab_bar']).toBe(true)
   })
 
-  it('defaults sidebar favorites to the canonical five app tabs for new users', () => {
-    const sidebarFavoritesDefault: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
-      { id: 'assistants', type: 'app' },
-      { id: 'agents', type: 'app' },
-      { id: 'translate', type: 'app' },
-      { id: 'paintings', type: 'app' },
-      { id: 'knowledge', type: 'app' }
+  it('preserves the legacy favorites shape independently of resource shortcut defaults', () => {
+    const legacyFavorites: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
+      { type: 'app', id: 'agents' },
+      { type: 'app', id: 'assistants' },
+      { type: 'app', id: 'translate' },
+      { type: 'app', id: 'paintings' },
+      { type: 'app', id: 'knowledge' }
     ]
+    expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(legacyFavorites)
 
-    expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
+    const sidebarShortcutsDefault: PreferenceSchemas['default']['ui.sidebar_shortcut'] = [
+      'agents',
+      'assistants',
+      'translate',
+      'paintings',
+      'knowledge'
+    ].map((resourceId) => {
+      const target: SidebarShortcutTarget = {
+        kind: 'resource',
+        locator: { providerId: 'core.app', resourceId }
+      }
+      return { type: 'shortcut', id: createSidebarShortcutId(target), target }
+    })
+
+    expect(DefaultPreferences.default['ui.sidebar_shortcut']).toEqual(sidebarShortcutsDefault)
   })
 
   it('pins permission mode on the agent composer toolbar for new users', () => {
@@ -76,6 +92,10 @@ describe('DefaultPreferences', () => {
     const messageNavigationDefault: PreferenceSchemas['default']['chat.message.navigation_mode'] = 'anchor'
 
     expect(DefaultPreferences.default['chat.message.navigation_mode']).toBe(messageNavigationDefault)
+  })
+
+  it('shows estimated input tokens by default for new users', () => {
+    expect(DefaultPreferences.default['chat.input.show_estimated_tokens']).toBe(true)
   })
 
   it('does not keep legacy classic/modern layout preferences', () => {

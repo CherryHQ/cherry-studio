@@ -1,9 +1,12 @@
-import type { Topic } from '@renderer/types/topic'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Topic } from '@renderer/types/topic'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import Chat from '../Chat'
 
@@ -13,6 +16,7 @@ const renderCounters = vi.hoisted(() => ({
   eventEmit: vi.fn(),
   setBranchLiveState: vi.fn()
 }))
+const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
@@ -169,26 +173,30 @@ vi.mock('../ChatContent', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
-  default: ({
-    open,
-    onClose,
-    citations
-  }: {
-    open: boolean
-    onClose: () => void
-    citations: Array<{ number: number; url: string }>
-  }) => (
-    <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
-      {open && citations.map((citation) => <span key={citation.number}>{citation.url}</span>)}
-      {open && (
-        <button type="button" onClick={onClose}>
-          close citations
-        </button>
-      )}
-    </div>
-  )
-}))
+vi.mock('@renderer/components/chat/citations/CitationsPanel', () => {
+  citationsPanelModuleLoads.value += 1
+
+  return {
+    default: ({
+      open,
+      onClose,
+      citations
+    }: {
+      open: boolean
+      onClose: () => void
+      citations: Array<{ number: number; url: string }>
+    }) => (
+      <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
+        {open && citations.map((citation) => <span key={citation.number}>{citation.url}</span>)}
+        {open && (
+          <button type="button" onClick={onClose}>
+            close citations
+          </button>
+        )}
+      </div>
+    )
+  }
+})
 
 function renderChat(activeTopic: Topic) {
   return render(<Chat activeTopic={activeTopic} />)
@@ -206,25 +214,45 @@ describe('Chat panels', () => {
   }
 
   beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/assistants/:id', {
+      id: 'assistant-1',
+      name: 'Assistant',
+      prompt: '',
+      emoji: '😀',
+      description: '',
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS },
+      modelId: null,
+      modelName: null,
+      groupId: null,
+      orderKey: 'a0',
+      mcpServerIds: [],
+      knowledgeBaseIds: [],
+      createdAt: activeTopic.createdAt,
+      updatedAt: activeTopic.updatedAt
+    })
     renderCounters.chatContent = 0
     renderCounters.navbar = 0
     renderCounters.eventEmit.mockReset()
     renderCounters.setBranchLiveState.mockReset()
   })
 
-  it('opens and closes the citations panel from chat content', () => {
+  it('loads citations on first open and keeps the panel mounted while closing', async () => {
+    const user = userEvent.setup()
     renderChat(activeTopic)
 
-    expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+    expect(citationsPanelModuleLoads.value).toBe(0)
+    expect(screen.queryByTestId('citations-panel')).not.toBeInTheDocument()
     expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'branch shortcuts' })).toBeInTheDocument()
     expect(screen.getByTestId('topic-right-pane-viewport')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'open citations' }))
-    expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
+    await user.click(screen.getByRole('button', { name: 'open citations' }))
+    expect(await screen.findByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-count', '1')
+    expect(citationsPanelModuleLoads.value).toBe(1)
 
-    fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
+    await user.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 
@@ -233,7 +261,7 @@ describe('Chat panels', () => {
     const view = renderChat(activeTopic)
 
     await user.click(screen.getByRole('button', { name: 'open citations' }))
-    expect(screen.getByText('https://topic-1.example')).toBeInTheDocument()
+    expect(await screen.findByText('https://topic-1.example')).toBeInTheDocument()
 
     view.rerender(<Chat activeTopic={{ ...activeTopic, id: 'topic-2' }} />)
     expect(screen.queryByText('https://topic-1.example')).not.toBeInTheDocument()

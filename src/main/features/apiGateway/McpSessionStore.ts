@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
-import { loggerService } from '@logger'
-import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import type { McpServer as McpBridgeServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
+
+import { loggerService } from '@logger'
+import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('McpSessionStore')

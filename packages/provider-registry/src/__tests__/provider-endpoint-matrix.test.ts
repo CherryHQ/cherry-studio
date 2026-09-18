@@ -24,7 +24,7 @@ const endpointsOf = (providerId: string, modelId: string): string[] | undefined 
     .overrides?.map((o) => splitOverrideWireId(o))
     .find((o) => o.modelId === modelId)
   if (!entry) throw new Error(`Missing override: ${providerId}/${modelId}`)
-  return entry.endpointTypes as string[] | undefined
+  return entry.endpointTypes
 }
 
 describe('dashscope (Bailian) endpoint matrix', () => {
@@ -78,7 +78,7 @@ describe('deepseek endpoint matrix', () => {
       {
         id: 'web-search',
         modelScope: 'model-dependent',
-        modelIdPrefixes: ['deepseek-v4-flash', 'deepseek-v4-pro'],
+        modelIdPrefixes: ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'],
         endpointTypes: ['openai-responses']
       }
     ])
@@ -150,11 +150,18 @@ describe('opencode (Zen Go) endpoint matrix', () => {
     expect(endpointsOf('opencode', 'gpt-5-6-luna')).toEqual(['openai-responses'])
   })
 
-  it.each(['qwen3-8-max', 'qwen3-7-max', 'minimax-m3'])('pins %s to the Anthropic-compatible endpoint', (modelId) => {
-    expect(endpointsOf('opencode', modelId)).toEqual(['anthropic-messages'])
+  it('pins Muse Spark 1.3 Contributor to Responses and excludes Chat Completions', () => {
+    expect(endpointsOf('opencode', 'muse-spark-1-3-contributor')).toEqual(['openai-responses'])
   })
 
-  it.each(['hy3', 'kimi-k3', 'glm-5-2'])('pins %s to Chat Completions', (modelId) => {
+  it.each(['qwen3-8-flash', 'qwen3-8-max', 'qwen3-7-max', 'minimax-m3'])(
+    'pins %s to the Anthropic-compatible endpoint',
+    (modelId) => {
+      expect(endpointsOf('opencode', modelId)).toEqual(['anthropic-messages'])
+    }
+  )
+
+  it.each(['hy4-preview', 'hy3', 'kimi-k3', 'glm-5-2'])('pins %s to Chat Completions', (modelId) => {
     expect(endpointsOf('opencode', modelId)).toEqual(['openai-chat-completions'])
   })
 })

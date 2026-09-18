@@ -6,6 +6,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { Mutex } from 'async-mutex'
+import { valid as semverValid } from 'semver'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -41,8 +44,6 @@ import type {
   BinaryRemoveResult,
   BinaryToolSnapshot
 } from '@shared/types/binary'
-import { Mutex } from 'async-mutex'
-import { valid as semverValid } from 'semver'
 
 import { sanitizedCommandError } from './commandError'
 import { provideManagedPython } from './pythonRuntime'
@@ -223,7 +224,8 @@ export type ManagedCliInventoryEntry = {
 }
 
 /** A code-owned fixed tool definition. Structural — never a persisted custom entry. */
-type FixedToolDefinition = { name: string; tool: string }
+type FixedToolDefinition = { name: string; tool: string; npmAllowBuilds?: readonly string[] }
+type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -248,14 +250,30 @@ type IsolatedEnvSnapshot = {
 const normalizeToolIdentity = (tool: string): string =>
   (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
 
+function addNpmAllowBuildsOption(tool: string, packages?: readonly string[]): string {
+  if (!packages?.length) return tool
+  // mise 2026.7.14 splits ToolArg on `@` before parsing options, so scoped values use TOML Unicode escapes.
+  const allowBuilds = JSON.stringify(packages).replaceAll('@', '\\u0040')
+  const option = `allow_builds=${allowBuilds}`
+  return tool.endsWith(']') ? `${tool.slice(0, -1)},${option}]` : `${tool}[${option}]`
+}
+
 const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, FixedToolDefinition>([
   ...PRESETS_BINARY_TOOLS.map((preset): [string, FixedToolDefinition] => [
     preset.name,
-    { name: preset.name, tool: preset.tool }
+    {
+      name: preset.name,
+      tool: preset.tool,
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
+    }
   ]),
   ...CODE_CLI_TOOL_PRESETS.map((preset): [string, FixedToolDefinition] => [
     preset.executable,
-    { name: preset.executable, tool: preset.miseTool }
+    {
+      name: preset.executable,
+      tool: preset.miseTool,
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
+    }
   ])
 ])
 // Re-exported for main-process callers and tests.
@@ -472,15 +490,15 @@ export class BinaryManager extends BaseService {
     const installed: Record<string, MiseInstallEntry[]> = {}
     // Backend state is derived once and drives the independent application fact:
     // a missing backend is `backend_unavailable`, a failed/malformed query is
-    // `query_failed`. Neither may ever collapse a tool to `absent`.
-    let queryFailed = false
+    // `query_failed` with sanitized details. Neither may ever collapse a tool to `absent`.
+    let queryFailureMessage: string | null = null
     if (this.miseBin) {
       try {
         Object.assign(installed, await this.listMiseInstalls())
       } catch (err) {
-        queryFailed = true
+        queryFailureMessage = this.errorMessage(err)
         logger.warn('Failed to query installed versions via mise ls', {
-          error: err instanceof Error ? err.message : String(err)
+          error: queryFailureMessage
         })
       }
     }
@@ -515,8 +533,8 @@ export class BinaryManager extends BaseService {
     // recipe options, `applied` proves package identity, not optional capabilities.
     const backendUnknown: BinaryApplication | null = !this.miseBin
       ? { status: 'unknown', reason: 'backend_unavailable' }
-      : queryFailed
-        ? { status: 'unknown', reason: 'query_failed' }
+      : queryFailureMessage !== null
+        ? { status: 'unknown', reason: 'query_failed', message: queryFailureMessage }
         : null
 
     type DerivedTool = { application?: BinaryApplication; mise?: { path: string; version?: string } }
@@ -1282,7 +1300,7 @@ export class BinaryManager extends BaseService {
   }
 
   private async installWithMise(
-    definition: CustomToolDefinition,
+    definition: InstallableToolDefinition,
     targetVersion: string | undefined,
     definitions: CustomToolDefinition[]
   ): Promise<string> {
@@ -1304,7 +1322,7 @@ export class BinaryManager extends BaseService {
       const runtimeVersion = pinnedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
       runtime = `${runtimeTool}@${runtimeVersion}`
     }
-    const toolSpec = `${definition.tool}@${requested}`
+    const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${requested}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
@@ -1493,7 +1511,7 @@ export class BinaryManager extends BaseService {
    * version, so there is no pin to hand back.
    */
   private async applyDefinition(
-    definition: CustomToolDefinition,
+    definition: InstallableToolDefinition,
     targetVersion: string | undefined,
     definitions: CustomToolDefinition[]
   ): Promise<void> {
