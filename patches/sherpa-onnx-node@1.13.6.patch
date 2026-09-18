@@ -1,0 +1,13 @@
+diff --git a/addon.js b/addon.js
+--- a/addon.js
++++ b/addon.js
+@@ -19 +19,8 @@
+-let addon = addonStaticImport;
++// PATCHED by Cherry Studio (patches/sherpa-onnx-node@1.13.6.patch): the native binary is no
++// longer bundled — it is downloaded on first use into {userData}/Toolchain/sherpa-onnx and its
++// absolute path is threaded in via CHERRY_SHERPA_ONNX_BINDING_PATH (set by the inference
++// utility process before its first lazy require — see src/main/ai/localModel's shared artifacts).
++// Checked ahead of the bundled lookups so a development run loads the same copy a packaged one does.
++let addon = process.env.CHERRY_SHERPA_ONNX_BINDING_PATH
++    ? require(process.env.CHERRY_SHERPA_ONNX_BINDING_PATH)
++    : addonStaticImport;

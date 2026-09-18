@@ -85,23 +85,23 @@ Commit: `git commit -S --signoff -m 'refactor(local-model): support platform nat
 - Test: `src/main/ai/localModel/acquisition/__tests__/modelSource.test.ts`
 - Test: `src/main/core/paths/__tests__/pathRegistry.test.ts`
 
-- [ ] **Step 1: Add failing catalog and mirror tests**
+- [x] **Step 1: Add failing catalog and mirror tests**
 
 Assert that `asr` maps to `funasr-nano-int8`, the bundle requires `sherpa-onnx`, every declared model file has a digest, and `hf-mirror` resolves the same path shape as HuggingFace. Assert the two new centralized path keys exist.
 
-- [ ] **Step 2: Run the focused tests and confirm failure**
+- [x] **Step 2: Run the focused tests and confirm failure**
 
 Run: `pnpm test:main src/main/ai/localModel/catalog/__tests__/catalog.test.ts src/main/ai/localModel/acquisition/__tests__/modelSource.test.ts src/main/core/paths/__tests__/pathRegistry.test.ts`
 
 Expected: failures for the missing capability, bundle, mirror, artifact, and paths.
 
-- [ ] **Step 3: Port the verified PR 19981 catalog data**
+- [x] **Step 3: Port the verified PR 19981 catalog data**
 
 Add the model files and exact SHA-256 values from PR 19981, add `sherpa-onnx` platform packages, add `hf-mirror` between the regional default and final fallback, and add `feature.sherpa_onnx.binary` plus `feature.asr.funasr` through `pathRegistry.ts`.
 
 Pin `sherpa-onnx-node` at `1.13.6`; patch only its binding lookup to prefer `CHERRY_SHERPA_ONNX_BINDING_PATH`. Run `pnpm install` so the lockfile records the dependency and patch.
 
-- [ ] **Step 4: Run focused tests and commit**
+- [x] **Step 4: Run focused tests and commit**
 
 Expected: catalog, mirror, and path tests pass.
 

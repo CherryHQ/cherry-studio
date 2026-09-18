@@ -65,6 +65,13 @@ describe('buildPathRegistry', () => {
     expect(shouldAutoEnsure('app.utility_process')).toBe(false)
   })
 
+  it('keeps the FunASR runtime and model under Cherry-owned toolchain and runtime roots', () => {
+    const registry = buildPathRegistry() as Record<string, string>
+
+    expect(registry['feature.sherpa_onnx.binary']).toBe(path.join('/mock/userData', 'Toolchain', 'sherpa-onnx'))
+    expect(registry['feature.asr.funasr']).toBe(path.join('/mock/userData', 'Runtime', 'models', 'funasr-nano'))
+  })
+
   it('keeps pi runtime state under the Agents data directory', () => {
     const registry = buildPathRegistry()
     const piRoot = path.join('/mock/userData', 'Data', 'Agents', '.pi')

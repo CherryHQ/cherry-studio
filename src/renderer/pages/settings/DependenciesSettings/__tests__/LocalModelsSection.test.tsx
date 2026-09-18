@@ -68,12 +68,14 @@ vi.mock('@cherrystudio/ui', () => ({
 
 const EMBEDDING = 'qwen3-embedding-0.6b'
 const OCR = 'pp-ocrv6-medium'
+const ASR = 'funasr-nano-int8'
 
 /** What the registry reports as installable; the cards are rendered from it. */
 const LISTED_MODELS = {
   models: [
     { id: EMBEDDING, capability: 'embedding' },
-    { id: OCR, capability: 'ocr' }
+    { id: OCR, capability: 'ocr' },
+    { id: ASR, capability: 'asr' }
   ]
 }
 
@@ -86,6 +88,14 @@ function mockRoutes(handler: (route: string, input?: { id: string }) => unknown)
 
 /** The embedding card is the first of the two rendered list items. */
 const embeddingCard = () => screen.getAllByRole('listitem')[0]
+
+const asrCard = () => {
+  const card = screen
+    .getAllByRole('listitem')
+    .find((item) => within(item).queryByText('settings.dependencies.localModels.asr.name'))
+  if (!card) throw new Error('ASR card not found')
+  return card
+}
 
 describe('LocalModelsSection', () => {
   beforeEach(() => {
@@ -223,6 +233,39 @@ describe('LocalModelsSection', () => {
     expect(mockRequest).not.toHaveBeenCalledWith('local_model.remove', { id: EMBEDDING })
   })
 
+  it('starts the FunASR download only after its Download button is clicked', async () => {
+    const user = userEvent.setup()
+    mockRoutes((route, input) => {
+      if (route === 'local_model.download' && input?.id === ASR) return Promise.resolve({ result: 'ready' })
+      return Promise.resolve()
+    })
+    publishLocalModelStatus(ASR, { status: 'not_downloaded', percent: 0 })
+
+    render(<LocalModelsSection />)
+    await screen.findAllByRole('listitem')
+
+    expect(within(asrCard()).getByText('settings.dependencies.localModels.asr.name')).toBeInTheDocument()
+    expect(mockRequest).not.toHaveBeenCalledWith('local_model.download', { id: ASR })
+
+    await user.click(within(asrCard()).getByText('settings.dependencies.localModels.download'))
+
+    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.download', { id: ASR }))
+  })
+
+  it('keeps supported cards available when one runtime is unsupported', async () => {
+    mockRoutes(() => Promise.resolve())
+    publishLocalModelStatus(EMBEDDING, { status: 'unsupported', percent: 0 })
+
+    render(<LocalModelsSection />)
+    await screen.findAllByRole('listitem')
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(
+      within(embeddingCard()).getByText('settings.dependencies.localModels.notice.unsupported')
+    ).toBeInTheDocument()
+    expect(within(embeddingCard()).queryByText('settings.dependencies.localModels.download')).not.toBeInTheDocument()
+  })
+
   it('replaces a stale incomplete-cache notice when the retry itself fails in transport', async () => {
     const user = userEvent.setup()
     mockRoutes((route) => {
@@ -268,10 +311,11 @@ describe('LocalModelsSection', () => {
     expect(within(embeddingCard()).getByText('common.retry')).toBeInTheDocument()
   })
 
-  it('shows an explicit unsupported state once both cards report unsupported (e.g. Intel Mac)', async () => {
+  it('shows an explicit unsupported state once every card reports unsupported', async () => {
     mockRoutes(() => Promise.resolve())
     publishLocalModelStatus(EMBEDDING, { status: 'unsupported', percent: 0 })
     publishLocalModelStatus(OCR, { status: 'unsupported', percent: 0 })
+    publishLocalModelStatus(ASR, { status: 'unsupported', percent: 0 })
 
     render(<LocalModelsSection />)
 

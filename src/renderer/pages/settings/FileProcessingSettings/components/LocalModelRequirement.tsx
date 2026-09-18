@@ -11,7 +11,8 @@ import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelCapability } from '@sh
 
 const SUBTITLE_KEY = {
   embedding: 'settings.dependencies.localModels.embedding.subtitle',
-  ocr: 'settings.dependencies.localModels.ocr.subtitle'
+  ocr: 'settings.dependencies.localModels.ocr.subtitle',
+  asr: 'settings.dependencies.localModels.asr.subtitle'
 } as const satisfies Record<LocalModelCapability, string>
 
 type LocalModelRequirementProps = {

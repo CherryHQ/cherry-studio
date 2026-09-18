@@ -7,7 +7,7 @@
  * Download-time only. Inference never consults it: models load by absolute path, which is
  * what keeps them off the network entirely.
  */
-export type ModelSourceId = 'huggingface' | 'modelscope'
+export type ModelSourceId = 'huggingface' | 'hf-mirror' | 'modelscope'
 export type DownloadSourcePreference = 'china-first' | 'global-first'
 
 interface ModelSource {
@@ -22,6 +22,11 @@ interface ModelSource {
 const SOURCES: Record<ModelSourceId, ModelSource> = {
   huggingface: {
     remoteHost: 'https://huggingface.co',
+    remotePathTemplate: '{model}/resolve/{revision}',
+    revision: 'main'
+  },
+  'hf-mirror': {
+    remoteHost: 'https://hf-mirror.com',
     remotePathTemplate: '{model}/resolve/{revision}',
     revision: 'main'
   },
@@ -40,11 +45,11 @@ export function defaultModelSourceId(preference: DownloadSourcePreference): Mode
   return preference === 'china-first' ? 'modelscope' : 'huggingface'
 }
 
-/** A permutation of {@link ALL_MODEL_SOURCE_IDS}: the region default first, the other as fallback. */
+/** Every source with the region default first and the byte-identical HF mirror between fallbacks. */
 export function modelSourceOrder(preference: DownloadSourcePreference): [ModelSourceId, ...ModelSourceId[]] {
   return defaultModelSourceId(preference) === 'modelscope'
-    ? ['modelscope', 'huggingface']
-    : ['huggingface', 'modelscope']
+    ? ['modelscope', 'hf-mirror', 'huggingface']
+    : ['huggingface', 'hf-mirror', 'modelscope']
 }
 
 /**

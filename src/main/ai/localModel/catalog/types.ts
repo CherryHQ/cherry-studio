@@ -30,7 +30,7 @@ export interface SharedArtifact {
   platforms: Partial<Record<PlatformKey, ArtifactPlatformFiles>>
 }
 
-export type SharedArtifactId = 'onnxruntime-node'
+export type SharedArtifactId = 'onnxruntime-node' | 'sherpa-onnx'
 
 /** The files one platform needs, and where they sit inside the tarball. */
 export interface ArtifactPlatformFiles {

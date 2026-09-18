@@ -24,6 +24,13 @@ const artifacts = Object.values(SHARED_ARTIFACTS)
  * these entries, so a typo here fails at download time on a user's machine instead.
  */
 describe('local model catalog', () => {
+  it('declares FunASR as the local ASR capability', () => {
+    expect(LOCAL_MODEL_CAPABILITIES).toContain('asr')
+    expect(LOCAL_MODEL_BUNDLE_IDS).toContain('funasr-nano-int8')
+    expect(() => bundleForCapability('asr')).not.toThrow()
+    expect(bundleForCapability('asr').requires).toEqual(['sherpa-onnx'])
+  })
+
   it.each(bundles)('$id declares a verifiable checksum for every file', (bundle) => {
     for (const file of bundle.files) {
       // A file without a real digest would download unverified — the one thing the
