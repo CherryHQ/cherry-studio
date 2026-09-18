@@ -121,7 +121,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     return viewState.mode
   }, [canEdit, hasSpecialView, viewState.mode])
 
+  const editSessionRef = useRef(0)
+
   const setViewMode = useCallback((newMode: ViewMode) => {
+    if (newMode === 'edit') editSessionRef.current += 1
     setViewState((current) => ({
       mode: newMode,
       // 当新模式不是 'split' 时才更新
@@ -131,9 +134,15 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const handleSave = useCallback(
     async (newContent: string) => {
+      const session = editSessionRef.current
       const saved = await onSave?.(newContent)
-      if (saved === false) return
-      setViewState((current) => (current.mode === 'edit' ? { mode: 'special', previousMode: 'special' } : current))
+      // A save that settles after the editor was closed and reopened must not close the new session.
+      if (saved === false || session !== editSessionRef.current) return
+      setViewState((current) =>
+        current.mode === 'edit' || (current.mode === 'split' && current.previousMode === 'edit')
+          ? { mode: 'special', previousMode: 'special' }
+          : current
+      )
     },
     [onSave]
   )
