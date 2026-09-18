@@ -104,6 +104,17 @@ export type ClearPartData = Record<string, never>
 /** The runtime could not resume the prior CLI conversation and continued on a fresh one. */
 export type ConversationResetPartData = Record<string, never>
 
+/**
+ * A turn failed over to a fallback model before producing content. Persisted with the turn so
+ * history shows the swap; ids are UniqueModelId strings (`providerId::modelId`).
+ */
+export interface ModelFallbackPartData {
+  from: string
+  to: string
+  /** Short technical cause, e.g. "http 429". */
+  reason: string
+}
+
 /** Code data — replaces CodeBlock */
 export interface CodePartData {
   content: string
@@ -144,6 +155,7 @@ export type CherryDataPartTypes = {
   compact: CompactPartData
   'compaction-anchor': CompactionAnchorPartData
   'conversation-reset': ConversationResetPartData
+  'model-fallback': ModelFallbackPartData
   'agent-task-event': AgentTaskEventPartData
   'agent-session-fork': { sourceSessionId: string }
   'knowledge-scope': KnowledgeScopePartData

@@ -252,6 +252,8 @@ export function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
       return part.data.phase !== 'in-loop'
     case 'data-conversation-reset':
       return true
+    case 'data-model-fallback':
+      return true
     case 'text':
       return !!part.text?.trim() || hasVisibleComposerToken(part)
     case 'data-code':
