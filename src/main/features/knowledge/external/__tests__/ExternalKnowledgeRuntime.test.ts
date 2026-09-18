@@ -10,7 +10,12 @@ import type {
   TokenRotationResult
 } from '../ExternalKnowledgeCredentialStore'
 import { ExternalKnowledgeRuntime } from '../ExternalKnowledgeRuntime'
-import { FEISHU_REQUIRED_USER_SCOPES, FeishuProviderError, type FeishuUserTokenSet } from '../feishuKnowledgeProvider'
+import {
+  FEISHU_REQUIRED_USER_SCOPES,
+  FeishuProviderError,
+  type FeishuUserIdentity,
+  type FeishuUserTokenSet
+} from '../feishuKnowledgeProvider'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -377,6 +382,83 @@ describe('ExternalKnowledgeRuntime', () => {
     expect(connections.markValidated).toHaveBeenCalledOnce()
   })
 
+  it('performs a fresh identity request for explicit validation after cached admission', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const provider = createProvider()
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+
+    await runtime.runAuthorizedRequest(value.id, async () => 'admitted')
+    await runtime.validateConnection(value.id)
+
+    expect(provider.getUserIdentity).toHaveBeenCalledTimes(2)
+    expect(connections.markValidated).toHaveBeenCalledTimes(2)
+  })
+
+  it('coalesces concurrent explicit validations after invalidating the cache', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const freshIdentity = deferred<FeishuUserIdentity>()
+    const identity = {
+      accountUserId: value.accountUserId!,
+      accountOpenId: value.accountOpenId!,
+      accountUnionId: null,
+      tenantKey: value.tenantKey!,
+      displayName: 'Validated user',
+      avatarUrl: null
+    }
+    const provider = createProvider({
+      getUserIdentity: vi
+        .fn()
+        .mockResolvedValueOnce(identity)
+        .mockImplementationOnce(() => freshIdentity.promise)
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+    await runtime.runAuthorizedRequest(value.id, async () => 'admitted')
+
+    const first = runtime.validateConnection(value.id)
+    const second = runtime.validateConnection(value.id)
+    await vi.waitFor(() => expect(provider.getUserIdentity).toHaveBeenCalledTimes(2))
+    freshIdentity.resolve(identity)
+
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2)
+    expect(provider.getUserIdentity).toHaveBeenCalledTimes(2)
+  })
+
+  it('marks terminal identity validation failures as requiring reauthorization before provider admission', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const operation = vi.fn(async () => 'should-not-run')
+    const runtime = new ExternalKnowledgeRuntime({
+      connections,
+      credentials,
+      provider: createProvider({
+        getUserIdentity: vi.fn(async () => {
+          throw new FeishuProviderError('identity-unverifiable', true)
+        })
+      }),
+      now: () => 1_000
+    })
+    await runtime.start()
+
+    await expect(runtime.runAuthorizedRequest(value.id, operation)).rejects.toMatchObject({
+      code: 'identity-unverifiable'
+    })
+    expect(connections.values.get(value.id)?.authorizationStatus).toBe('reauthorization-required')
+    expect(operation).not.toHaveBeenCalled()
+  })
+
   it('stops admission and aborts an in-flight provider request', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
@@ -511,6 +593,73 @@ describe('ExternalKnowledgeRuntime', () => {
     expect(provider.refreshUserToken).not.toHaveBeenCalled()
     expect(provider.getUserIdentity).not.toHaveBeenCalled()
     expect(connections.values.get(value.id)?.authorizationStatus).toBe('connected')
+  })
+
+  it('keeps admission closed and shares startup reconciliation until it finishes', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    connections.startupList = [value]
+    const credentialRead = deferred<ExternalKnowledgeCredentialReadResult>()
+    credentials.read.mockImplementationOnce(() => credentialRead.promise)
+    const provider = createProvider({
+      beginDeviceAuthorization: vi.fn(async () => ({
+        deviceCode: 'device-code',
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify?user_code=ABCD-EFGH',
+        expiresIn: 600,
+        interval: 5
+      }))
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    let firstSettled = false
+    let secondSettled = false
+
+    const first = runtime.start().then(() => {
+      firstSettled = true
+    })
+    const second = runtime.start().then(() => {
+      secondSettled = true
+    })
+    await vi.waitFor(() => expect(credentials.read).toHaveBeenCalledOnce())
+    const admission = runtime
+      .beginUserAuthorization({ kind: 'custom-app', appId: 'cli_manual', appSecret: 'app-secret' })
+      .catch((error) => error)
+    await Promise.resolve()
+
+    expect(firstSettled).toBe(false)
+    expect(secondSettled).toBe(false)
+    expect(provider.beginDeviceAuthorization).not.toHaveBeenCalled()
+    credentialRead.resolve({ status: 'ok', credential: validCredential('one') })
+
+    await expect(admission).resolves.toMatchObject({ code: 'stopped' })
+    await Promise.all([first, second])
+    expect(credentials.read).toHaveBeenCalledOnce()
+  })
+
+  it('waits for startup reconciliation to settle while stopping', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    connections.startupList = [value]
+    const credentialRead = deferred<ExternalKnowledgeCredentialReadResult>()
+    credentials.read.mockImplementationOnce(() => credentialRead.promise)
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider: createProvider() })
+    const starting = runtime.start()
+    await vi.waitFor(() => expect(credentials.read).toHaveBeenCalledOnce())
+    let stopSettled = false
+
+    const stopping = runtime.stop().then(() => {
+      stopSettled = true
+    })
+    for (let index = 0; index < 5; index++) await Promise.resolve()
+
+    expect(stopSettled).toBe(false)
+    credentialRead.resolve({ status: 'ok', credential: validCredential('one') })
+    await Promise.all([starting, stopping])
+    await expect(runtime.acquireAccessToken(value.id)).rejects.toMatchObject({ code: 'stopped' })
   })
 
   it('removes an orphaned candidate credential during startup reconciliation', async () => {

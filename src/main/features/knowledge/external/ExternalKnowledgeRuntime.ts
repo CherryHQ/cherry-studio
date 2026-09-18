@@ -193,6 +193,7 @@ export class ExternalKnowledgeRuntime {
   private readonly authorizationSessions = new Map<string, AuthorizationSession>()
   private readonly credentialStates = new Map<string, CredentialRuntimeState>()
   private readonly inFlight = new Set<Promise<unknown>>()
+  private startFlight?: Promise<void>
 
   constructor(options: RuntimeOptions = {}) {
     this.connections = options.connections ?? externalKnowledgeConnectionService
@@ -205,20 +206,28 @@ export class ExternalKnowledgeRuntime {
 
   async start(): Promise<void> {
     if (this.accepting) return
+    if (this.startFlight) return await this.startFlight
     this.lifetime = new AbortController()
-    this.accepting = true
+    const lifetime = this.lifetime
+    const flight = this.reconcileConnections().then(() => {
+      if (!lifetime.signal.aborted) this.accepting = true
+    })
+    this.startFlight = flight
     try {
-      await this.reconcileConnections()
+      await flight
     } catch (error) {
       this.accepting = false
-      this.lifetime.abort()
+      lifetime.abort()
       this.credentialStates.clear()
       throw error
+    } finally {
+      if (this.startFlight === flight) this.startFlight = undefined
     }
   }
 
   async stop(): Promise<void> {
     if (!this.accepting && this.lifetime.signal.aborted) return
+    const startFlight = this.startFlight
     this.accepting = false
     this.lifetime.abort()
     for (const state of this.credentialStates.values()) state.controller.abort()
@@ -226,7 +235,7 @@ export class ExternalKnowledgeRuntime {
     for (const session of this.authorizationSessions.values()) session.controller.abort()
     this.registrationSessions.clear()
     this.authorizationSessions.clear()
-    await Promise.allSettled([...this.inFlight])
+    await Promise.allSettled([...(startFlight ? [startFlight] : []), ...this.inFlight])
     this.credentialStates.clear()
   }
 
@@ -405,11 +414,11 @@ export class ExternalKnowledgeRuntime {
         assertCurrent()
         await this.waitForCredentialBackoff(state, signal)
         assertCurrent()
-        const accessToken = await this.acquireAccessToken(connectionId, signal)
-        assertCurrent()
-        await this.ensureConnectionValidated(connection, accessToken, state, generation, signal)
-        assertCurrent()
         try {
+          const accessToken = await this.acquireAccessToken(connectionId, signal)
+          assertCurrent()
+          await this.ensureConnectionValidated(connection, accessToken, state, generation, signal)
+          assertCurrent()
           return await this.runCredentialRequest(state, generation, signal, () =>
             operation(accessToken, signal, assertCurrent)
           )
@@ -418,7 +427,11 @@ export class ExternalKnowledgeRuntime {
           if (!(error instanceof FeishuProviderError) || !error.terminal) throw error
           this.markReauthorizationRequiredIfCurrent(connectionId, state, generation)
           throw new ExternalKnowledgeRuntimeError(
-            error.code === 'app-scope-missing' ? 'scope-missing' : 'reauthorization-required'
+            error.code === 'app-scope-missing'
+              ? 'scope-missing'
+              : error.code === 'identity-unverifiable'
+                ? 'identity-unverifiable'
+                : 'reauthorization-required'
           )
         }
       })
@@ -436,6 +449,10 @@ export class ExternalKnowledgeRuntime {
   }
 
   async validateConnection(connectionId: string): Promise<ExternalKnowledgeConnection> {
+    this.assertAccepting()
+    const connection = this.requireConnection(connectionId)
+    const state = this.getCredentialState(connection.credentialReference)
+    state.validatedGeneration = undefined
     return await this.runAuthorizedRequest(connectionId, async () => this.requireConnection(connectionId))
   }
 
