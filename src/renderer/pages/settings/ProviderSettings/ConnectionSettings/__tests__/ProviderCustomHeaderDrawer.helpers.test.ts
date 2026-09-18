@@ -76,6 +76,47 @@ describe('mergeEndpointConfigs', () => {
     const out = mergeEndpointConfigs(snapshot, { [PRIMARY]: { baseUrl: 'https://old' } }, snapshot)
     expect(out[PRIMARY]).toEqual({ baseUrl: 'https://old' })
   })
+
+  it('keeps a changed reasoning format committed after the snapshot when the draft still shows the snapshot option', () => {
+    const snapshot = {
+      [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } }
+    } as any
+    const live = {
+      [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'openai-chat' } }
+    } as any
+    const out = mergeEndpointConfigs(
+      live,
+      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } } },
+      snapshot
+    )
+    expect(out[PRIMARY]).toEqual({ baseUrl: 'https://old', reasoningFormat: { type: 'openai-chat' } })
+  })
+
+  it('keeps a reasoning format clear committed after the snapshot when the draft still shows the snapshot option', () => {
+    const snapshot = {
+      [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } }
+    } as any
+    const live = { [PRIMARY]: { baseUrl: 'https://old' } } as any
+    const out = mergeEndpointConfigs(
+      live,
+      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } } },
+      snapshot
+    )
+    expect(out[PRIMARY]).toEqual({ baseUrl: 'https://old' })
+  })
+
+  it('honors a drawer-side reasoning format set over a format committed after the snapshot', () => {
+    const snapshot = { [PRIMARY]: { baseUrl: 'https://old' } } as any
+    const live = {
+      [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'openai-chat' } }
+    } as any
+    const out = mergeEndpointConfigs(
+      live,
+      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } } },
+      snapshot
+    )
+    expect(out[PRIMARY]).toEqual({ baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } })
+  })
 })
 
 describe('resolveEndpointTypes', () => {
