@@ -145,6 +145,8 @@ function isTrustedClaudeEndpoint(
  * The context window the Claude Code runtime budgets against: the declared
  * window for trusted channels, the conservative 0.6-margined window for
  * untrusted relays that may overstate it (#18894).
+ * Covers overstatement while the margined room fits the real limit (256K/128K in
+ * #18894 budgets to 119K); wider gaps are configuration errors no fixed margin can cover.
  */
 function resolveEffectiveClaudeContextWindow(
   contextWindow: number,
