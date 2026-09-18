@@ -78,6 +78,16 @@ describe('DoctorContext.share', () => {
 })
 
 describe('DoctorService.run', () => {
+  it('rejects an explicit check outside the tier without replacing the last report', async () => {
+    const service = new DoctorService()
+    const previous = await service.run({ tier: 'quick', checkIds: MOCKED })
+    if (previous.status !== 'completed') throw new Error('expected report')
+    await expect(service.run({ tier: 'quick', checkIds: ['network-dns-resolution'] })).rejects.toThrow(
+      'unavailable in tier quick'
+    )
+    expect(state()).toEqual({ status: 'completed', report: previous.report })
+  })
+
   it('publishes running progress and then the completed report on the shared cache', async () => {
     const service = new DoctorService()
     const outcome = await service.run({ tier: 'quick', checkIds: MOCKED })
@@ -161,6 +171,25 @@ describe('DoctorService.run', () => {
 })
 
 describe('DoctorService.fix', () => {
+  it.each(['absent', 'passed', 'not offered'] as const)(
+    'refuses a repair whose original finding was %s',
+    async (finding) => {
+      const service = new DoctorService()
+      if (finding === 'not offered') registryMocks.bootConfigRun.mockResolvedValue({ ...warnWithRepair, actions: [] })
+      const run = await service.run({
+        tier: 'quick',
+        checkIds: finding === 'absent' ? ['storage-userdata-location'] : MOCKED
+      })
+      if (run.status !== 'completed') throw new Error('expected report')
+      registryMocks.bootConfigRun.mockResolvedValue(warnWithRepair)
+      await expect(
+        service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
+      ).resolves.toMatchObject({ status: 'stale', reason: 'finding_changed' })
+      expect(registryMocks.bootConfigRepair).not.toHaveBeenCalled()
+      expect(state()).toEqual({ status: 'completed', report: run.report })
+    }
+  )
+
   it('re-validates the finding, runs the fix, re-probes and patches the report', async () => {
     registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair).mockResolvedValueOnce(warnWithRepair)
     registryMocks.bootConfigRepair.mockResolvedValue({ status: 'requires_relaunch' })

@@ -37,8 +37,8 @@ export const REGISTRY_URL_GITCODE = `https://raw.gitcode.com/CherryHQ/cherry-stu
  * The mirror an update cycle fetches from; the network doctor probes the same one.
  * Unknown egress keeps the updater's historical GitCode fallback.
  */
-export const resolveRegistryBaseUrl = (country: string | null): string =>
-  country === null || country.toLowerCase() === 'cn' ? REGISTRY_URL_GITCODE : REGISTRY_URL_GITHUB
+export const resolveRegistryBaseUrl = async (): Promise<string> =>
+  (await regionService.getCountry()).toLowerCase() === 'cn' ? REGISTRY_URL_GITCODE : REGISTRY_URL_GITHUB
 
 const MANIFEST_FILE = 'manifest.json'
 
@@ -122,7 +122,7 @@ export class ProviderRegistryUpdaterService extends BaseService {
     manifest: CatalogManifest
     manifestBody: string
   } | null> {
-    const baseUrl = resolveRegistryBaseUrl(await regionService.getCountry())
+    const baseUrl = await resolveRegistryBaseUrl()
     const headers = {
       'User-Agent': generateUserAgent(),
       'Cache-Control': 'no-cache',

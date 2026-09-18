@@ -108,18 +108,30 @@ function offersFix(result: DoctorCheckResult, fixId: string): boolean {
 export class DoctorService extends BaseService {
   private activeRun: { readonly runId: string; readonly controller: AbortController } | null = null
 
+  private selectChecks(ids: readonly DoctorCheckId[], tier: DoctorRunTier): DoctorCheckId[] {
+    const selected = withPrerequisites(ids)
+    for (const id of selected) {
+      if (!TIERS_FOR_RUN[tier].includes(DOCTOR_CHECK_CATALOG[id].tier))
+        throw new Error(`Check ${id} is unavailable in tier ${tier}`)
+    }
+    return selected
+  }
+
   /** Runs never coexist: a second call while one is in flight gets `busy` with the id it may cancel. */
   async run(input: { tier: DoctorRunTier; checkIds?: readonly DoctorCheckId[] }): Promise<DoctorRunResult> {
     if (this.activeRun) return { status: 'busy', runId: this.activeRun.runId }
+    const ids = this.selectChecks(
+      input.checkIds ??
+        (Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]).filter((id) =>
+          TIERS_FOR_RUN[input.tier].includes(DOCTOR_CHECK_CATALOG[id].tier)
+        ),
+      input.tier
+    )
     const runId = randomUUID()
     const controller = new AbortController()
     this.activeRun = { runId, controller }
     const startedAt = new Date()
     try {
-      const tiers = TIERS_FOR_RUN[input.tier]
-      const ids = (input.checkIds ?? Object.keys(DOCTOR_CHECK_CATALOG)).filter((id): id is DoctorCheckId =>
-        tiers.includes(DOCTOR_CHECK_CATALOG[id as DoctorCheckId].tier)
-      )
       const running: DoctorState = {
         status: 'running',
         runId,
@@ -180,6 +192,8 @@ export class DoctorService extends BaseService {
       return { status: 'stale', reason: 'run_superseded' }
     }
     if (Date.parse(state.report.expiresAt) <= Date.now()) return { status: 'stale', reason: 'run_superseded' }
+    const finding = state.report.results.find((result) => result.id === request.checkId)
+    if (!finding || !offersFix(finding, request.fixId)) return { status: 'stale', reason: 'finding_changed' }
     const controller = new AbortController()
     this.activeRun = { runId: request.runId, controller }
     try {

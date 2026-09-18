@@ -70,12 +70,15 @@ async function probe<Outcome>(
   const started = now()
   const timeout = AbortSignal.timeout(check.timeoutMs)
   const signal = runSignal ? AbortSignal.any([runSignal, timeout]) : timeout
+  const deadlineController = new AbortController()
   // The sleep rejects on cancel and resolves on timeout, so a probe that ignores its signal still settles.
-  const deadline = sleep(check.timeoutMs, undefined, { signal: runSignal }).then(() => {
+  const deadline = sleep(check.timeoutMs, undefined, {
+    signal: runSignal ? AbortSignal.any([runSignal, deadlineController.signal]) : deadlineController.signal
+  }).then(() => {
     throw new Error(`Timed out after ${check.timeoutMs}ms`)
   })
   try {
-    const outcome = await Promise.race([check.run(signal), deadline])
+    const outcome = await Promise.race([new Promise<Outcome>((resolve) => resolve(check.run(signal))), deadline])
     return { ...outcome, durationMs: now() - started }
   } catch (error) {
     // Whatever the probe threw while aborted, the cause the caller needs is the abort reason.
@@ -87,6 +90,8 @@ async function probe<Outcome>(
           ? error.message
           : String(error)
     return { status: 'error', message, durationMs: now() - started }
+  } finally {
+    deadlineController.abort()
   }
 }
 

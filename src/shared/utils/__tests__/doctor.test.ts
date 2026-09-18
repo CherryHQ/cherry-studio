@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DOCTOR_CHECK_CATALOG, type DoctorCheckId, type DoctorReport } from '../../types/doctor'
-import { DOCTOR_REDACTED, doctorFixMeta, isDoctorFixRequest, projectDoctorReport } from '../doctor'
+import { doctorFixMeta, isDoctorFixRequest, projectDoctorReport } from '../doctor'
 
 describe('DOCTOR_CHECK_CATALOG', () => {
   it('has no prerequisite cycles', () => {
@@ -74,7 +74,7 @@ describe('projectDoctorReport', () => {
         status: 'warn',
         attribution: 'user-fixable',
         detail: { variant: 'fallback_to_default' },
-        actions: [],
+        actions: [{ kind: 'open_path', path: '/Users/alice/private-action' }],
         durationMs: 1,
         evidence: [
           { key: 'errno', value: 'EACCES', dataClass: 'public' },
@@ -132,7 +132,9 @@ describe('projectDoctorReport', () => {
     const [warned, errored] = project(view)
     expect(warned).not.toHaveProperty('devMessage')
     expect(errored).not.toHaveProperty('devMessage')
-    expect(errored).toMatchObject({ status: 'error', message: DOCTOR_REDACTED })
+    expect(errored).not.toHaveProperty('message')
+    expect(warned).not.toHaveProperty('actions')
+    expect(JSON.stringify(project(view))).not.toContain('private-action')
   })
 
   it.each(['display', 'export'] as const)('keeps developer text in the %s view', (view) => {

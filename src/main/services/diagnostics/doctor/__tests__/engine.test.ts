@@ -1,3 +1,5 @@
+import { getActiveResourcesInfo } from 'node:process'
+
 import { describe, expect, it } from 'vitest'
 
 import { CANCELED_MESSAGE, DoctorEngineError, type EngineCheck, runDoctorChecks } from '../engine'
@@ -18,6 +20,13 @@ const hang = (signal: AbortSignal) =>
   new Promise<Outcome>((_, reject) => signal.addEventListener('abort', () => reject(new Error('probe noise'))))
 
 describe('runDoctorChecks', () => {
+  it('releases the deadline timer when a probe completes early', async () => {
+    const pendingTimers = () => getActiveResourcesInfo().filter((resource) => resource === 'Timeout').length
+    const before = pendingTimers()
+    await runDoctorChecks({ checks: [check('quick', pass, { timeoutMs: 10000 })] })
+    expect(pendingTimers()).toBeLessThanOrEqual(before)
+  })
+
   it('records a timed-out check as error (not the probe noise) without blocking the others', async () => {
     const results = await runDoctorChecks({ checks: [check('a', hang, { timeoutMs: 20 }), check('b', pass)] })
     expect(results).toMatchObject([
@@ -81,7 +90,7 @@ describe('runDoctorChecks', () => {
   it('turns a thrown probe into an error result carrying the message', async () => {
     const results = await runDoctorChecks({
       checks: [
-        check('boom', async () => {
+        check('boom', () => {
           throw new Error('probe exploded')
         })
       ]

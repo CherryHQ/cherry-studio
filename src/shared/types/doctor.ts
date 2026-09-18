@@ -121,28 +121,28 @@ export const DOCTOR_CHECK_CATALOG = {
     tier: 'live',
     fixes: [],
     details: ENDPOINT_DETAILS,
-    requires: ['network-dns-resolution']
+    requires: ['network-online']
   },
   'network-endpoint-registry': {
     domain: 'network',
     tier: 'live',
     fixes: [],
     details: ENDPOINT_DETAILS,
-    requires: ['network-dns-resolution']
+    requires: ['network-online']
   },
   'network-endpoint-cloud': {
     domain: 'network',
     tier: 'live',
     fixes: [],
     details: ENDPOINT_DETAILS,
-    requires: ['network-dns-resolution']
+    requires: ['network-online']
   },
   'network-endpoint-diagnostics': {
     domain: 'network',
     tier: 'live',
     fixes: [],
     details: ENDPOINT_DETAILS,
-    requires: ['network-dns-resolution']
+    requires: ['network-online']
   }
 } as const satisfies { readonly [Id in DoctorCheckId]: DoctorCheckMeta<Id> }
 
