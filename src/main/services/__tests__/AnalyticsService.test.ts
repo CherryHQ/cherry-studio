@@ -211,6 +211,24 @@ describe('AnalyticsService consent revocation', () => {
     await expect(injectedFetch!('https://analytics.cherry-ai.com/api/events')).rejects.toSatisfy(isNonRetriable)
   })
 
+  it('still aborts and deactivates when reading the queue size throws', async () => {
+    mockGetQueueSize.mockImplementation(() => {
+      throw new Error('queue unavailable')
+    })
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    const injectedFetch = captured.clientOptions.fetch
+    expect(injectedFetch).toBeDefined()
+
+    changePreference('app.privacy.data_collection.enabled', false)
+    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    destroyResolvers[0]()
+    await vi.waitFor(() => expect(service.isActivated).toBe(false))
+
+    await expect(injectedFetch!('https://analytics.cherry-ai.com/api/events')).rejects.toSatisfy(isNonRetriable)
+  })
+
   it('aborts in-flight requests on revoke with a non-retriable error', async () => {
     const service = new AnalyticsService()
     await service._doInit()

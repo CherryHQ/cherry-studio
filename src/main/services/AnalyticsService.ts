@@ -136,10 +136,14 @@ export class AnalyticsService extends BaseService implements Activatable {
   async onDeactivate(): Promise<void> {
     if (this.client) {
       if (!this.desiredEnabled) {
-        const pending = this.client.getQueueSize()
         this.revokeController?.abort()
+        try {
+          const pending = this.client.getQueueSize()
+          logger.info('Analytics queue discarded after consent revocation', { pending })
+        } catch {
+          logger.info('Analytics queue discarded after consent revocation')
+        }
         await this.client.destroy()
-        logger.info('Analytics queue discarded after consent revocation', { pending })
       } else {
         await this.client.destroy()
       }
