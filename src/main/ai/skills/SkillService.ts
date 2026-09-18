@@ -229,7 +229,7 @@ export class SkillService {
 
     try {
       const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl, {
-        githubRoot: fetched.isGithubRoot ?? false
+        allowFolderMigration: fetched.isGithubRoot ?? false
       })
       fetched.onInstalled?.()
       return installed
@@ -495,7 +495,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null; githubRoot?: boolean } = {}
+    provenance: { namespace?: string | null; allowFolderMigration?: boolean } = {}
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
@@ -506,7 +506,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null; githubRoot?: boolean } = {}
+    provenance: { namespace?: string | null; allowFolderMigration?: boolean } = {}
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
@@ -535,7 +535,7 @@ export class SkillService {
     // A repository-root GitHub reinstall whose derived folder changed migrates the existing row.
     // Only a root install of the same repo+ref shares the identical source URL, so the match is exact.
     const renamed =
-      !existing && sourceUrl && provenance.githubRoot
+      !existing && sourceUrl && provenance.allowFolderMigration
         ? (agentGlobalSkillService
             .listAll()
             .find((skill) => skill.source === source && (skill.sourceUrl ?? null) === sourceUrl) ?? null)
@@ -1470,8 +1470,8 @@ export class SkillService {
     return matches[0] ?? null
   }
 
-  // A pre-suffix install stored a reserved name bare (`CON`); resolve the stem row for a
-  // same-origin, same-name reinstall instead of duplicating it — other siblings are unrelated.
+  // A pre-suffix install stored a reserved name bare (`CON`); the stem row is the same skill
+  // when origin matches — local/ZIP URLs pin one directory, marketplace URLs need the same name.
   private findReservedAlias(
     folderName: string,
     source: string,
@@ -1481,10 +1481,11 @@ export class SkillService {
     const stem = reservedFolderNameStem(folderName)
     if (!stem) return null
     const candidate = this.findCatalogSkillCaseInsensitive(stem)
-    if (!candidate || candidate.folderName !== stem || candidate.name !== skillName) return null
+    if (!candidate || candidate.folderName !== stem) return null
     if (candidate.source !== source || (candidate.sourceUrl ?? null) !== (sourceUrl ?? null)) {
       return null
     }
+    if (candidate.name !== skillName && source !== 'local' && source !== 'zip') return null
     return candidate
   }
 
