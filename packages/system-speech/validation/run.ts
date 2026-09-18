@@ -135,6 +135,7 @@ async function convertWithElectron(
   const electronPath = require('electron') as string
   const mainPath = join(packageRoot, 'validation', 'electron', 'main.cjs')
   const electronArguments = [
+    ...(input.offline ? ['--no-sandbox', '--disable-gpu'] : []),
     mainPath,
     '--source-wav',
     input.sourceWavPath,

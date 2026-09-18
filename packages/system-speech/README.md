@@ -59,10 +59,11 @@ pnpm --filter @cherrystudio/system-speech validate:packaged -- '.validation-pack
 | Runtime toolchain | Electron 44.2.0; Apple Swift 6.3.3 |
 | End-user toolchains | `rustc` and `ffmpeg` absent |
 | Locale | Requested `zh-CN`; Apple resolved `zh_CN` |
-| Apple ASR asset | Initial `supported`; final `supported`; no install command run |
+| Apple ASR asset | Initial `supported`; explicit install completed with `zh_CN / installed` |
 | Apple TTS | Exact compact `zh-CN` voice produced mono 22.05 kHz WAV |
 | Shared recording | `audio/webm;codecs=opus`; system identified the output as WebM |
 | Apple adapter output | PCM16 WAV, mono, 16 kHz |
 | Conversion duration | Source 1.311875 s; derived 1.26 s; difference 0.051875 s |
-| ASR and offline runs | Stopped with `asset_required` before recognition; no network-enabled fallback |
+| ASR round trip | TTS → WebM/Opus → mono 16 kHz WAV → Apple ASR returned non-empty text |
+| Network-denied round trip | Same pipeline returned non-empty text under `sandbox-exec` with outbound networking denied |
 | Packaged helper | Owner-executable, Developer ID signed, nested strict verification passed, capabilities response passed |
