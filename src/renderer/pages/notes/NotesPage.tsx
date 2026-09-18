@@ -19,6 +19,7 @@ import {
   addDir,
   addNote,
   delNode,
+  normalizePath,
   projectNotesTree,
   renameNode as renameEntry,
   resolveNotesPath,
@@ -310,6 +311,11 @@ const NotesPage: FC = () => {
       try {
         const resolved = await resolveNotesPath(notesPath)
         if (!resolved.isFallback) {
+          // Device path won over a foreign synced pref: converge the pref so
+          // future backups stop propagating the other machine's path.
+          if (normalizePath(notesPath) !== resolved.path) {
+            updateNotesPath(resolved.path)
+          }
           return
         }
         const defaultPath = resolved.path

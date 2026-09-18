@@ -74,6 +74,8 @@ export enum IpcChannel {
   File_EnsureExternalEntry = 'file:ensureExternalEntry',
   File_GetPhysicalPath = 'file:getPhysicalPath',
   File_RunSweep = 'file:runSweep',
+  File_GetDeviceNotesPath = 'file:getDeviceNotesPath',
+  File_SetDeviceNotesPath = 'file:setDeviceNotesPath',
 
   // backup
   Backup_Backup = 'backup:backup',

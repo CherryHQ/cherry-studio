@@ -131,12 +131,32 @@ async function getDefaultNotesPath(): Promise<string> {
 /**
  * Validate and resolve a notes path, including cross-platform restore scenarios.
  * This extracts NotesPage initialize logic to avoid duplicated path resolution code.
+ *
+ * Resolution order: this PC's stamped device path first (a synced pref may hold
+ * another machine's absolute path), then the pref, then the local default.
  * @param parentPath
  * @returns {ResolvedNotesPath} Resolved path and whether fallback to the default path occurred.
  */
 export async function resolveNotesPath(parentPath: string): Promise<ResolvedNotesPath> {
   const basePath = normalizePath(parentPath || '')
   const defaultNotesPath = await getDefaultNotesPath()
+  const devicePath = await getDeviceNotesPath()
+
+  if (devicePath && devicePath !== basePath) {
+    try {
+      if (await window.api.file.validateNotesDirectory(devicePath)) {
+        return {
+          path: devicePath,
+          isFallback: false
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to validate device notes directory, trying preference path', {
+        devicePath,
+        error: (error as Error).message
+      })
+    }
+  }
 
   if (!basePath) {
     return {
@@ -155,6 +175,11 @@ export async function resolveNotesPath(parentPath: string): Promise<ResolvedNote
   try {
     const isValid = await window.api.file.validateNotesDirectory(basePath)
     if (isValid) {
+      // No live device choice: adopt the valid pref (single-machine upgrade).
+      // Never stamps the default, so a foreign-planted default cannot erase it.
+      if (devicePath !== basePath) {
+        stampDeviceNotesPath(basePath)
+      }
       return {
         path: basePath,
         isFallback: false
@@ -181,6 +206,29 @@ export async function resolveNotesPath(parentPath: string): Promise<ResolvedNote
     path: defaultNotesPath,
     isFallback: true
   }
+}
+
+/** This PC's stamped Notes path, or null when never chosen here. Never throws. */
+async function getDeviceNotesPath(): Promise<string | null> {
+  try {
+    const devicePath = await window.api.file.getDeviceNotesPath()
+    return devicePath ? normalizePath(devicePath) : null
+  } catch (error) {
+    logger.warn('Failed to read device notes path, falling back to preference', {
+      error: (error as Error).message
+    })
+    return null
+  }
+}
+
+/** Remember a resolved path as this PC's choice. Fire-and-forget; adoption retries. */
+function stampDeviceNotesPath(resolvedPath: string): void {
+  window.api.file.setDeviceNotesPath(resolvedPath).catch((error: unknown) => {
+    logger.warn('Failed to stamp device notes path', {
+      resolvedPath,
+      error: (error as Error).message
+    })
+  })
 }
 
 export async function delNode(node: NotesTreeNode): Promise<void> {
@@ -357,7 +405,7 @@ function getTime(value?: string): number {
   return value ? new Date(value).getTime() : 0
 }
 
-function normalizePath(value: string): string {
+export function normalizePath(value: string): string {
   return value.replace(/\\/g, '/')
 }
 

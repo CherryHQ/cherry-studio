@@ -117,6 +117,12 @@ export const createInternalEntryInputSchema = z.discriminatedUnion('source', [
 
 export type CreateInternalEntryInput = z.infer<typeof createInternalEntryInputSchema>
 
+// This PC's Notes folder choice (per-device sidecar — never synced). Parsed by
+// the legacy `File_SetDeviceNotesPath` channel registered in FileManager.
+export const setDeviceNotesPathInputSchema = z.strictObject({ path: AbsoluteFilePathSchema })
+
+export type SetDeviceNotesPathInput = z.infer<typeof setDeviceNotesPathInputSchema>
+
 const batchCreateInternalEntriesInputSchema = z.strictObject({
   items: z.array(createInternalEntryInputSchema).min(1).max(FILE_IPC_MAX_BATCH_CREATE_ITEMS)
 })

@@ -70,6 +70,9 @@ const NotesSettings: FC = () => {
         return
       }
 
+      // An explicit pick is this PC's choice: stamp it so synced prefs from
+      // other machines can never redirect this PC's Notes tree (#20546).
+      await window.api.file.setDeviceNotesPath(tempPath)
       updateNotesPath(tempPath)
       toast.success(t('notes.settings.data.path_updated'))
     } catch (error) {
@@ -82,6 +85,7 @@ const NotesSettings: FC = () => {
     try {
       const info = await ipcApi.request('app.get_info')
       setTempPath(info.notesPath)
+      await window.api.file.setDeviceNotesPath(info.notesPath)
       updateNotesPath(info.notesPath)
       toast.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {

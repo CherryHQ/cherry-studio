@@ -140,6 +140,9 @@ const api = {
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_CheckFileName, dirPath, fileName, isFile),
     validateNotesDirectory: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ValidateNotesDirectory, dirPath),
+    getDeviceNotesPath: (): Promise<string | null> => ipcRenderer.invoke(IpcChannel.File_GetDeviceNotesPath),
+    setDeviceNotesPath: (dirPath: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.File_SetDeviceNotesPath, { path: dirPath }),
     // Legacy file-watcher bindings (`startFileWatcher` / `stopFileWatcher`
     // / `pauseFileWatcher` / `resumeFileWatcher` / `onFileChange`) and
     // `getDirectoryStructure` were removed alongside the Notes migration
