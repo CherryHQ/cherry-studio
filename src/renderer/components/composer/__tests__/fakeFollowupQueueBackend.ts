@@ -20,7 +20,10 @@ import { STALE_SENDING_CLAIM_MS, type FollowupQueueItem as FollowupQueueRow } fr
  * Install in `beforeEach` — state is fresh per test.
  */
 export function installFakeFollowupQueueBackend() {
-  const state: { rows: FollowupQueueRow[]; paused: boolean } = { rows: [], paused: false }
+  const state: { rows: FollowupQueueRow[]; pausedByScope: Map<string, boolean> } = {
+    rows: [],
+    pausedByScope: new Map()
+  }
   let counter = 0
 
   // Production treats a `sending` row as live (owned) until the reclaim
@@ -49,7 +52,7 @@ export function installFakeFollowupQueueBackend() {
       // resolves state for the queried scope (defaulting to unpaused).
       const scopeKey = (options as { query?: { scopeKey?: string } } | undefined)?.query?.scopeKey ?? ''
       return {
-        data: { scopeKey, paused: state.paused, createdAt: '', updatedAt: '' },
+        data: { scopeKey, paused: state.pausedByScope.get(scopeKey) ?? false, createdAt: '', updatedAt: '' },
         isLoading: false,
         isRefreshing: false,
         error: undefined,
@@ -174,8 +177,8 @@ export function installFakeFollowupQueueBackend() {
       return {
         ...shell,
         trigger: vi.fn(async ({ body }: { body: { scopeKey: string; paused: boolean } }) => {
-          state.paused = body.paused
-          return { scopeKey: body.scopeKey, paused: state.paused, createdAt: '', updatedAt: '' }
+          state.pausedByScope.set(body.scopeKey, body.paused)
+          return { scopeKey: body.scopeKey, paused: body.paused, createdAt: '', updatedAt: '' }
         })
       }
     }

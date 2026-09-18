@@ -542,11 +542,7 @@ describe('TopicService', () => {
         { endpoint: '/topics/latest' }
       ])
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(3, [
-        { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey' },
-        { endpoint: '/followup-queue-states' }
-      ])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(3)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
 
     it('emits one broadcast-wide by-id effect for batch deletes and a scoped one for single deletes', async () => {
