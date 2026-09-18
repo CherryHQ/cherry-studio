@@ -7,9 +7,10 @@ Kişisel fork. Yukarı akışa PR açılmıyor. Amaç: elde birden çok ücretsi
 
 | Dosya | İçerik |
 |---|---|
-| `GOREVLER.md` | İlerleme listesi. **İşaretlenmemiş ilk maddeden devam et.** |
+| `GOREVLER-2.md` | **Güncel iş listesi.** Faz B–Z. Durum tablosu en üstte |
+| `GOREVLER.md` | Eski liste (Faz 0–7), tamamlandı |
 | `SISTEM-MIMARISI.md` | Eklenen yönlendirme/sağlık/kota katmanının teknik anlatımı |
-| `C:\Users\ag\.claude\plans\keen-hugging-glacier.md` | Tam plan: fazlar, mimari kararlar, doğrulama |
+| `C:\Users\ag\.claude\plans\keen-hugging-glacier.md` | Eski plan, tarihsel |
 
 Cherry Studio'nun kendi yetenekleri geniş: MCP dosya araçları, görsel üretimi, bilgi bankası + RAG,
 web arama, ajan sistemi, token muhasebesi (`AiUsageRecordService`) **zaten var**. Bir özellik
@@ -50,11 +51,53 @@ Kullanıcı Türkçe yazıyor, cevaplar Türkçe. **Kod, yorum ve commit mesajla
 ## Çalışma kuralları
 
 - **Her görev tek modüle dokunur.** Mevcut kodu toptan okuma.
-- **Görev bitince** `GOREVLER.md`'de `[ ]` → `[x]` ve **tek satır** not. Fazlar arası rapor üretme.
-- **Doğrulama dar tut:** değişen alanın testi (`./node_modules/.bin/vitest run <yol>`) + gerekiyorsa
-  `pnpm run typecheck:node` / `typecheck:web`. Tüm paneli gezme, `pnpm test`'i tek dosya için çalıştırma.
+- **Görev bitince** `GOREVLER-2.md`'deki durum tablosuna tek satır not. Fazlar arası rapor üretme.
 - **Sorma, yap.** Kullanıcı hızlı sonuç istiyor. Sadece geri alınamaz veya gerçekten onun kararı
   olan şeylerde dur.
+
+### "Eksik görevleri yap" denince ne yapılacak
+
+Kullanıcı geniş bir cümle kurabilir: *"eksik görevleri yerine getir"*, *"devam et"*, *"kalanları bitir"*.
+Bu **"hepsini birden yap"** demek değildir — `GOREVLER-2.md`'de 150'den fazla alt madde var ve
+hepsine birden girişmek tam olarak bu projeyi bozan şeydir.
+
+Böyle bir cümle şu anlama gelir:
+
+1. `GOREVLER-2.md`'nin en üstündeki **durum tablosunu** oku, neyin bittiğini gör.
+2. **Sıra ve bağımlılıklar** bölümündeki dizilimden **sıradaki tek maddeyi** al.
+3. Onu bitir, doğrula (aşağıdaki "bitti" ölçütü), commit'le, tabloya tek satır yaz.
+4. **Sonra dur ve ne yaptığını söyle.** Kullanıcı devam derse bir sonrakine geç.
+
+Madde "güçlü model gerekir" kutusundaysa ve sen Haiku'ysan: başlama, söyle ve dur.
+
+### Bir görev ne zaman "bitti" sayılır
+
+Tip kontrolünün ve kendi yazdığın testin geçmesi **yetmez**. Bir oturumda öyle sayıldı ve beş kusur
+geçti: her model seçicisini düşüren bir çökme, hiç çalışmayan yedekleme, yazıcısı olmayan bir
+özellik, aynı veriye iki farklı kural uygulayan iki kod yolu, ve üretimde imkânsız bir veri
+biçimini sınayan yeşil test.
+
+Bitti demeden önce dördünü de yap:
+
+1. **Yazıcı + okuyucu + ekran.** Özelliği *yazan* kod, *okuyan* kod ve kullanıcının onu yaptığı
+   *ekran* — üçü de var mı? Biri eksikse özellik bitmemiştir, cephedir. Yeni bir alan eklediysen:
+   onu API şeması kabul ediyor mu, servis yazıyor mu, arayüzde girilebiliyor mu?
+2. **Değiştirdiğin dosyanın testini çalıştır**, sadece yeni yazdığını değil. `X.ts`'i
+   değiştirdiysen `__tests__/X.test.ts` kırmızıysa görev bitmemiştir.
+3. **Paket testini çalıştır:** `pnpm run test:renderer` ve `pnpm run test:shared`. Dar doğrulama
+   19 kırmızı testin fark edilmemesine yol açtı.
+4. **Neyi doğrulamadığını söyle.** Uygulamayı açıp denemediysen "çalışıyor" deme —
+   "derleniyor ve testleri geçiyor" de. Arayüz işlerinde `cherry-electron-dev` becerisini kullan.
+
+### Bilinen kırmızılar — bunlar senin değil, düzeltmeye çalışma
+
+Üçü de `2ad61dc` commit'inde, tertemiz çalışma ağacında da kırmızı (denendi, doğrulandı):
+
+- `pnpm i18n:check` → 35 hata, `el-gr` ve `ru-ru`'da "şüpheli uzunlukta" uyarısı.
+- `TopicNamingService.test.ts` → 7 hata, Latin olmayan dillerde oturum adı tanınmıyor.
+- `AgentContextUsageSummary.test.tsx` → 3 hata.
+
+Ayrıca gerçek veritabanı açan testler bu makinede `NODE_MODULE_VERSION` ile düşer — beklenen.
 
 ### Çıktı kısa olacak
 
@@ -68,12 +111,18 @@ Kullanıcının açık isteği: *"çıktılar da az olsun, bana yapıldıktan so
 
 ### İş hangi modele gider
 
-- **Haiku alt ajanı** — yargı gerektirmeyen, hacimli iş. Kurulu: `i18n-translator`.
-  Çağırma: `Agent(subagent_type: "i18n-translator", ...)`.
-- **Ana oturum (Sonnet)** — tasarım kararı, mimari, hata ayıklama, yeni özellik.
-- **`Explore` alt ajanı** — "bu nerede tanımlı" tipi aramalar; ana bağlamı kirletmez.
+Kurulu Haiku alt ajanları — mekanik iş bunlara gider, ana bağlamı kirletmez:
 
-Mekanik bir iş 3+ dosyaya yayılıyorsa ve karar gerektirmiyorsa alt ajana ver.
+| Ajan | Ne zaman |
+|---|---|
+| `i18n-translator` | `pnpm i18n:sync` `[to be translated]:` bıraktığında |
+| `preference-key-adder` | Yeni `usePreference` anahtarı gerektiğinde (üretilen dosya tuzağını bilir) |
+| `catalog-data-writer` | Sağlayıcı ön ayarı, model denklik haritası, site adaptörü gibi toplu veri |
+| `Explore` (yerleşik) | "Bu nerede tanımlı" aramaları |
+
+Ana oturum: tasarım kararı, mimari, hata ayıklama, yeni özellik.
+**Mekanik bir iş 3+ dosyaya yayılıyorsa ve karar gerektirmiyorsa alt ajana ver.**
+Yeni ajan gerekirse `.claude/agents/<isim>.md` aç, `model: haiku` yaz; `i18n-translator.md` örnek.
 
 ## Bozulmaması gereken tasarım kuralları
 
