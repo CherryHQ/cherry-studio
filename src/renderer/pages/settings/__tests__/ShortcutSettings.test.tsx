@@ -14,7 +14,8 @@ import ShortcutSettings from '../ShortcutSettings'
 
 const shortcutsMock = vi.hoisted(() => ({
   shortcuts: [] as ShortcutListItem[],
-  updatePreference: vi.fn()
+  updatePreference: vi.fn(),
+  defaultPreferences: {} as Record<string, PreferenceShortcutType>
 }))
 
 const setTimeoutTimerMock = vi.hoisted(() => vi.fn((_key: string, callback: () => void) => callback()))
@@ -69,7 +70,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 }))
 
 vi.mock('@renderer/hooks/command/useCommandShortcuts', () => ({
-  getAllShortcutDefaultPreferences: () => ({}),
+  getAllShortcutDefaultPreferences: () => shortcutsMock.defaultPreferences,
   useCommandShortcuts: () => ({
     shortcuts: shortcutsMock.shortcuts,
     updatePreference: shortcutsMock.updatePreference
@@ -188,6 +189,7 @@ describe('ShortcutSettings shortcut recorder', () => {
   beforeEach(() => {
     routerSearch.current = {}
     shortcutsMock.shortcuts = [makeShortcut()]
+    shortcutsMock.defaultPreferences = {}
     shortcutsMock.updatePreference.mockReset()
     shortcutsMock.updatePreference.mockResolvedValue(undefined)
     preferenceServiceSetMultipleMock.mockReset()
@@ -285,6 +287,120 @@ describe('ShortcutSettings shortcut recorder', () => {
 
     await waitFor(() => {
       expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', { enabled: false })
+    })
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+  })
+
+  it('keeps system conflict warnings after a failed bulk reset', async () => {
+    const user = userEvent.setup()
+    const defaultPreference: PreferenceShortcutType = { binding: ['CommandOrControl', 'F'], enabled: true }
+    shortcutsMock.shortcuts = [makeShortcut({ binding: ['CommandOrControl', '0'], enabled: true, defaultPreference })]
+    shortcutsMock.defaultPreferences = { 'shortcut.app.search': defaultPreference }
+    preferenceServiceSetMultipleMock.mockRejectedValue(new Error('bulk reset failed'))
+    renderShortcutSettings()
+    const notify = registrationConflictMock.mock.calls[0]?.[0]
+
+    act(() =>
+      notify({
+        key: 'shortcut.app.search',
+        accelerator: 'CommandOrControl+0',
+        hasConflict: true,
+        reason: 'occupied'
+      })
+    )
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'settings.shortcuts.reset' }))
+
+    await waitFor(() => {
+      expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
+        'shortcut.app.search': defaultPreference
+      })
+    })
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+  })
+
+  it('keeps system conflict warnings after a failed filtered bulk toggle', async () => {
+    const user = userEvent.setup()
+    shortcutsMock.shortcuts = [makeShortcut({ binding: ['CommandOrControl', '0'], enabled: true })]
+    preferenceServiceSetMultipleMock.mockRejectedValue(new Error('bulk toggle failed'))
+    renderShortcutSettings()
+    const notify = registrationConflictMock.mock.calls[0]?.[0]
+
+    act(() =>
+      notify({
+        key: 'shortcut.app.search',
+        accelerator: 'CommandOrControl+0',
+        hasConflict: true,
+        reason: 'occupied'
+      })
+    )
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'settings.shortcuts.all_disable' }))
+
+    await waitFor(() => {
+      expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
+        'shortcut.app.search': { binding: ['CommandOrControl', '0'], enabled: false }
+      })
+    })
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+  })
+
+  it('keeps system conflict warnings when bulk reset succeeds but registration stays failed without a new event', async () => {
+    const user = userEvent.setup()
+    const defaultPreference: PreferenceShortcutType = { binding: ['CommandOrControl', 'F'], enabled: true }
+    shortcutsMock.shortcuts = [makeShortcut({ binding: ['CommandOrControl', '0'], enabled: true, defaultPreference })]
+    shortcutsMock.defaultPreferences = { 'shortcut.app.search': defaultPreference }
+    renderShortcutSettings()
+    const notify = registrationConflictMock.mock.calls[0]?.[0]
+
+    act(() =>
+      notify({
+        key: 'shortcut.app.search',
+        accelerator: 'CommandOrControl+0',
+        hasConflict: true,
+        reason: 'occupied'
+      })
+    )
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'settings.shortcuts.reset' }))
+
+    await waitFor(() => {
+      expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
+        'shortcut.app.search': defaultPreference
+      })
+    })
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+  })
+
+  it('keeps system conflict warnings when filtered bulk toggle succeeds but registration stays failed without a new event', async () => {
+    const user = userEvent.setup()
+    shortcutsMock.shortcuts = [makeShortcut({ binding: ['CommandOrControl', '0'], enabled: true })]
+    renderShortcutSettings()
+    const notify = registrationConflictMock.mock.calls[0]?.[0]
+
+    act(() =>
+      notify({
+        key: 'shortcut.app.search',
+        accelerator: 'CommandOrControl+0',
+        hasConflict: true,
+        reason: 'occupied'
+      })
+    )
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'settings.shortcuts.all_disable' }))
+
+    await waitFor(() => {
+      expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
+        'shortcut.app.search': { binding: ['CommandOrControl', '0'], enabled: false }
+      })
     })
     expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
   })

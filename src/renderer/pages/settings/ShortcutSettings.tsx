@@ -195,20 +195,6 @@ const ShortcutSettings: FC = () => {
     setConflictLabel(null)
   }
 
-  const clearSystemConflict = (key?: ShortcutPreferenceKey) => {
-    setSystemConflicts((current) => {
-      if (!key) {
-        return {}
-      }
-      if (!(key in current)) {
-        return current
-      }
-      const rest = { ...current }
-      delete rest[key]
-      return rest
-    })
-  }
-
   useEffect(() => {
     return window.api.shortcut.onRegistrationConflict(({ key, hasConflict, reason }) => {
       setSystemConflicts((current) => {
@@ -377,7 +363,6 @@ const ShortcutSettings: FC = () => {
     const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
 
     try {
-      clearSystemConflict()
       await preferenceService.setMultiple(updates)
     } catch (error) {
       logger.error('Failed to reset all shortcuts to defaults', error as Error)
@@ -419,7 +404,6 @@ const ShortcutSettings: FC = () => {
     }
 
     try {
-      clearSystemConflict()
       await preferenceService.setMultiple(updates)
     } catch (error) {
       logger.error(`Failed to toggle shortcuts for group ${activeGroup}`, error as Error)
