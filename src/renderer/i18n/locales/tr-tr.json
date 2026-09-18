@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "Hızlı Model",
   "settings.models.quick_model.setting_title": "Hızlı model kurulumu",
   "settings.models.quick_model.tooltip": "Hafif bir model seçin ve akıl yürütme modellerinden kaçının.",
+  "settings.models.retry.auto_continue": "Sağlayıcının yarıda kestiği cevabı tamamla",
+  "settings.models.retry.auto_continue_description": "Ücretsiz planlar bir modelin tek seferde ne kadar yazabileceğini sınırlar, bu yüzden uzun bir cevap cümlenin ortasında kesilebilir. Böyle olduğunda modelden aynı mesajın içinden devam etmesi istenir, cevap başına en fazla üç kez. Kapatırsan kesilen cevaba dokunulmaz, devamını sen istersin",
   "settings.models.retry.background_scan": "Ölü anahtarı ihtiyacın olmadan önce fark et",
   "settings.models.retry.background_scan_description": "Boştayken, yarım gündür sessiz kalan bir sağlayıcıya tek küçük istek gönderilir; böylece iptal edilmiş veya bakiyesi bitmiş bir anahtar sohbetin ortasında değil burada ortaya çıkar. Sağlayıcı başına günde en fazla birkaç istek; kotası zaten dolmuş sağlayıcılar atlanır",
   "settings.models.retry.backoff": "Üstel geri çekilme",

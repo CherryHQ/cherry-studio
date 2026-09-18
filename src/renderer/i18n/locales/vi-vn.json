@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "MÃ´ hÃ¬nh Nhanh",
   "settings.models.quick_model.setting_title": "Thiáº¿t láº­p mÃ´ hÃ¬nh nhanh",
   "settings.models.quick_model.tooltip": "Chá»n mÃ´ hÃ¬nh nháº¹ vÃ  trÃ¡nh cÃ¡c mÃ´ hÃ¬nh suy luáº­n.",
+  "settings.models.retry.auto_continue": "Hoàn thành câu trả lời mà nhà cung cấp cắt",
+  "settings.models.retry.auto_continue_description": "Các gói miễn phí giới hạn bao nhiêu một mô hình có thể viết cùng một lúc, vì vậy một câu trả lời dài có thể dừng lại giữa câu. Khi điều đó xảy ra, yêu cầu mô hình tiếp tục trong cùng một tin nhắn, tối đa ba lần mỗi câu trả lời. Tắt điều này để để lại câu trả lời bị cắt như là và tiếp tục nó",
   "settings.models.retry.background_scan": "Chú ý đến khóa chết trước khi cần",
   "settings.models.retry.background_scan_description": "Khi rảnh rỗi, gửi một yêu cầu nhỏ đến nhà cung cấp im lặng trong nửa ngày, để khóa bị thu hồi hoặc hết tín dụng xuất hiện ở đây thay vì giữa cuộc trò chuyện. Tối đa một vài yêu cầu trên mỗi nhà cung cấp mỗi ngày; những nhà cung cấp đã hết hạn ngạch sẽ bị bỏ qua",
   "settings.models.retry.backoff": "TÄƒng thá»i gian chá» theo cáº¥p sá»‘ nhÃ¢n",

@@ -264,6 +264,13 @@
       "description": "When idle, occasionally probe a provider API key to detect revocation or credit depletion before a user interacts with it"
     },
     {
+      "targetKey": "chat.retry.auto_continue_truncated",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "When a reply stops due to the provider's output token cap, automatically ask the model to carry on in the same message, up to 3 times per reply"
+    },
+    {
       "targetKey": "chat.routing.auto_enabled",
       "type": "boolean",
       "defaultValue": true,

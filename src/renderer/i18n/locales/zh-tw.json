@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "å¿«é€Ÿæ¨¡å‹",
   "settings.models.quick_model.setting_title": "å¿«é€Ÿæ¨¡å‹è¨­å®š",
   "settings.models.quick_model.tooltip": "è«‹é¸æ“‡è¼•é‡æ¨¡å‹ï¼Œä¸¦é¿å…ä½¿ç”¨æ¨ç†æ¨¡å‹ã€‚",
+  "settings.models.retry.auto_continue": "完成供應商截斷的回覆",
+  "settings.models.retry.auto_continue_description": "免費計畫限制了模型一次能寫多少，所以長答案可能會在句子中途停止。發生這種情況時，要求模型在同一條訊息中繼續，每個回覆最多三次。關閉此項可保持截斷的回覆不變，由您自己繼續",
   "settings.models.retry.background_scan": "在需要前發現失效的金鑰",
   "settings.models.retry.background_scan_description": "閒置時向已半天未活動的提供商發送一個小請求，這樣被撤銷或餘額用盡的金鑰會在這裡顯示，而不是在對話中途。每個提供商每天最多發送幾個請求；已經超出配額的提供商會被跳過",
   "settings.models.retry.backoff": "æŒ‡æ•¸é€€é¿",

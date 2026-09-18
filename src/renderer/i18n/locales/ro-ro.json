@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "Model rapid",
   "settings.models.quick_model.setting_title": "Configurare model rapid",
   "settings.models.quick_model.tooltip": "Alege un model uÈ™or È™i evitÄƒ modelele de raÈ›ionament.",
+  "settings.models.retry.auto_continue": "Finalizează un răspuns pe care furnizorul l-a tăiat",
+  "settings.models.retry.auto_continue_description": "Planurile gratuite limitează cât poate scrie un model o dată, deci un răspuns lung se poate opri în mijlocul unei propoziții. Când se întâmplă, cere modelului să continue în același mesaj, de până la trei ori pe răspuns. Dezactivează aceasta pentru a lăsa răspunsul tăiat singur și a-l continua singur",
   "settings.models.retry.background_scan": "Observă o cheie moartă înainte să-ți trebuie",
   "settings.models.retry.background_scan_description": "Inactiv, trimite o mică cerere la un furnizor tăcut de o jumătate de zi, pentru ca o cheie revocată sau epuizată să apară aici în loc de în mijlocul unei conversații. Cel mult câteva cereri per furnizor pe zi; furnizorii deja fără cotiță sunt ignorați",
   "settings.models.retry.backoff": "AÈ™teptare exponenÈ›ialÄƒ",

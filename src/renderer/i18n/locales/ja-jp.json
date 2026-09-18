@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "é«˜é€Ÿãƒ¢ãƒ‡ãƒ«",
   "settings.models.quick_model.setting_title": "é«˜é€Ÿãƒ¢ãƒ‡ãƒ«è¨­å®š",
   "settings.models.quick_model.tooltip": "è»½é‡ãƒ¢ãƒ‡ãƒ«ã‚’é¸æŠã—ã€æ¨è«–ãƒ¢ãƒ‡ãƒ«ã¯é¿ã‘ã¦ãã ã•ã„ã€‚",
+  "settings.models.retry.auto_continue": "プロバイダーがカットした返信を完成させる",
+  "settings.models.retry.auto_continue_description": "無料プランはモデルが一度に書ける量を制限するため、長い答えは文の途中で止まる可能性があります。その場合、同じメッセージ内で続けるようモデルに要求します。最大で返信ごとに3回まで。これをオフにすると、カットされた返信はそのままで、自分で続けることができます",
   "settings.models.retry.background_scan": "使う前に動かないキーに気づく",
   "settings.models.retry.background_scan_description": "アイドル時に半日静かなプロバイダに小さなリクエストを送信するため、取り消されたまたはクレジットが切れたキーが会話の途中ではなくここに表示されます。プロバイダあたり1日あたり最大数個のリクエスト。既にクォータが満杯のプロバイダはスキップされます",
   "settings.models.retry.backoff": "æŒ‡æ•°é–¢æ•°çš„ãƒãƒƒã‚¯ã‚ªãƒ•",

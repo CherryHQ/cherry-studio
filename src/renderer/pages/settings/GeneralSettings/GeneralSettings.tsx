@@ -62,6 +62,7 @@ const GeneralSettings: FC = () => {
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
   const [healthPriorityEnabled, setHealthPriorityEnabled] = usePreference('chat.retry.health_priority_enabled')
   const [backgroundScanEnabled, setBackgroundScanEnabled] = usePreference('chat.retry.background_scan_enabled')
+  const [autoContinueTruncated, setAutoContinueTruncated] = usePreference('chat.retry.auto_continue_truncated')
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
@@ -363,6 +364,20 @@ const GeneralSettings: FC = () => {
                 checked={backgroundScanEnabled}
                 onCheckedChange={(checked) => void setBackgroundScanEnabled(checked)}
                 aria-label={t('settings.models.retry.background_scan')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow className="items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.models.retry.auto_continue')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.models.retry.auto_continue_description')}
+                </SettingDescription>
+              </div>
+              <Switch
+                checked={autoContinueTruncated}
+                onCheckedChange={(checked) => void setAutoContinueTruncated(checked)}
+                aria-label={t('settings.models.retry.auto_continue')}
               />
             </SettingRow>
           </>

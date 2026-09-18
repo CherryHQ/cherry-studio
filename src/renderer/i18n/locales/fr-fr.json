@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "ModÃ¨le rapide",
   "settings.models.quick_model.setting_title": "Configuration rapide du modÃ¨le",
   "settings.models.quick_model.tooltip": "Il est recommandÃ© de choisir un modÃ¨le lÃ©ger et dÃ©conseillÃ© de choisir un modÃ¨le de rÃ©flexion.",
+  "settings.models.retry.auto_continue": "Terminer une réponse coupée par le fournisseur",
+  "settings.models.retry.auto_continue_description": "Les forfaits gratuits limitent la quantité de texte qu'un modèle peut écrire à la fois, donc une réponse longue peut s'arrêter en plein milieu. Quand cela se produit, demander au modèle de continuer dans le même message, jusqu'à trois fois par réponse. Désactiver ceci pour laisser la réponse coupée seule et la continuer vous-même",
   "settings.models.retry.background_scan": "Détecter une clé morte avant d'en avoir besoin",
   "settings.models.retry.background_scan_description": "Au repos, envoyer une petite requête à un fournisseur silencieux depuis un demi-jour, de sorte qu'une clé révoquée ou épuisée apparaisse ici plutôt qu'au milieu d'une conversation. Au maximum quelques requêtes par fournisseur par jour; les fournisseurs déjà à quota sont ignorés",
   "settings.models.retry.backoff": "Temporisation exponentielle",

@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "Modelo rÃ¡pido",
   "settings.models.quick_model.setting_title": "ConfiguraÃ§Ã£o rÃ¡pida do modelo",
   "settings.models.quick_model.tooltip": "Sugere-se escolher um modelo leve e nÃ£o se recomenda escolher um modelo de raciocÃ­nio",
+  "settings.models.retry.auto_continue": "Completar uma resposta que o fornecedor cortou",
+  "settings.models.retry.auto_continue_description": "Os planos gratuitos limitam quanto um modelo pode escrever de uma vez, então uma resposta longa pode parar no meio da frase. Quando isso acontece, pedir ao modelo que continue na mesma mensagem, até três vezes por resposta. Desative isto para deixar a resposta cortada sozinha e continuar você mesmo",
   "settings.models.retry.background_scan": "Notar uma chave morta antes de precisar",
   "settings.models.retry.background_scan_description": "Quando inativo, enviar uma pequena solicitação a um fornecedor silencioso por meia dia, para que uma chave revogada ou sem crédito apareça aqui em vez de no meio de uma conversa. No máximo alguns pedidos por fornecedor por dia; fornecedores já sem cota são ignorados",
   "settings.models.retry.backoff": "Recuo exponencial",

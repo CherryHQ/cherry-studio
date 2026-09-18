@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "Quick Model",
   "settings.models.quick_model.setting_title": "Quick model setup",
   "settings.models.quick_model.tooltip": "Choose a lightweight model and avoid reasoning models.",
+  "settings.models.retry.auto_continue": "Finish a reply the provider cut off",
+  "settings.models.retry.auto_continue_description": "Free plans cap how much a model may write at once, so a long answer can stop mid-sentence. When that happens, ask the model to carry on in the same message, up to three times per reply. Turn this off to leave the cut-off reply alone and continue it yourself",
   "settings.models.retry.background_scan": "Notice a dead key before you need it",
   "settings.models.retry.background_scan_description": "While idle, send one small request to a provider that has been quiet for half a day, so a key that was revoked or ran out of credit shows up here instead of in the middle of a conversation. At most a couple of requests per provider per day; providers already out of quota are skipped",
   "settings.models.retry.backoff": "Exponential backoff",
