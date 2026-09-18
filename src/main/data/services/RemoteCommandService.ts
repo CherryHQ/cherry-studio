@@ -34,11 +34,6 @@ class RemoteCommandService {
     tx.insert(remoteCommandTable).values(input).run()
   }
 
-  /** A deleted device's ID never authenticates again, so its receipts can no longer be read or replayed. */
-  deleteByDeviceTx(tx: DbOrTx, deviceId: string): void {
-    tx.delete(remoteCommandTable).where(eq(remoteCommandTable.deviceId, deviceId)).run()
-  }
-
   complete(deviceId: string, commandId: string, result: Record<string, unknown>): void {
     application
       .get('DbService')
