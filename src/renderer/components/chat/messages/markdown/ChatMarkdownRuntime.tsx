@@ -10,40 +10,40 @@ import {
   useMessageRenderConfig,
   useOptionalMessageListActions
 } from '@renderer/components/chat/messages/MessageListProvider'
-import { createLatexMarkdownBlockParser, remarkLatexMath } from '@renderer/components/markdown'
+import { createLatexMarkdownBlockParser } from '@renderer/components/markdown'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
+import { isWin } from '@renderer/utils/platform'
+import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
 import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS, CHAT_MARKDOWN_COMPONENTS_WITH_STYLE } from './ChatMarkdownRenderers'
+import { rehypeBareFilePaths } from './plugins/rehypeBareFilePaths'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
 import { remarkLiteralAutolinkFix } from './plugins/remarkLiteralAutolinkFix'
 
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
 const REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix, remarkLatexMath]
 const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix, remarkLatexMath, remarkHtmlArtifact]
+const FILE_PATH_REHYPE_PLUGINS: Pluggable[] = [[rehypeBareFilePaths, { platform: isWin ? 'windows' : 'posix' }]]
 const EMPTY_CITATION_REGISTRY = new Map()
 const MAX_ANIMATED_CONTENT_LENGTH = 64 * 1024
 const MAX_STREAMING_TRANSFORM_LENGTH = 256 * 1024
-
-export interface ChatMarkdownRuntimeProps extends ChatMarkdownProps {
-  createPlugins?: (singleDollarMath: boolean) => PluginConfig
-}
 
 const createDefaultPlugins = (singleDollarMath: boolean): PluginConfig => ({
   ...defaultMarkdownPlugins,
   math: withMath({ singleDollar: singleDollarMath })
 })
 
-const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
+const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
   block,
   inlineHtmlPreviewMode,
   postProcess,
   className,
   components,
   trustedCitations,
-  createPlugins = createDefaultPlugins
+  linkifyFilePaths = false
 }) => {
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
@@ -53,7 +53,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
   if (isStreaming) hasStreamedRef.current = true
 
   const parseMarkdownBlocks = useMemo(createLatexMarkdownBlockParser, [])
-  const plugins = useMemo(() => createPlugins(mathEnableSingleDollar), [createPlugins, mathEnableSingleDollar])
+  const plugins = useMemo(() => createDefaultPlugins(mathEnableSingleDollar), [mathEnableSingleDollar])
 
   const content = useMemo(() => {
     if (block.status === 'paused' && isEmpty(block.content)) return t('message.chat.completion.paused')
@@ -102,6 +102,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
       id={block.id}
       plugins={plugins}
       remarkPlugins={remarkPlugins}
+      rehypePlugins={linkifyFilePaths ? FILE_PATH_REHYPE_PLUGINS : undefined}
       components={mergedComponents}
       footnoteLabel={footnoteLabel}
       animated={isStreaming && content.length <= MAX_ANIMATED_CONTENT_LENGTH ? undefined : false}
@@ -115,6 +116,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
       id={block.id}
       plugins={plugins}
       remarkPlugins={remarkPlugins}
+      rehypePlugins={linkifyFilePaths ? FILE_PATH_REHYPE_PLUGINS : undefined}
       components={mergedComponents}
       className={className}
       footnoteLabel={footnoteLabel}

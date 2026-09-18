@@ -1,7 +1,9 @@
 import type { Protocol } from 'devtools-protocol'
 import * as z from 'zod'
 
-import { browserRefSchema, type CommandOptions } from '../browserUse'
+import type { screenshotOptionsSchema } from '@main/ai/mcp/browserToolDefinitions'
+
+import type { CommandOptions } from '../browserUse'
 import { BrowserSessionError } from '../session/BrowserSessionError'
 import type { GuestSession } from '../session/GuestSession'
 import { withElement } from './resolveTarget'
@@ -11,13 +13,6 @@ const MAX_PIXELS = 1_600_000
 const MAX_IMAGES = 4
 const MAX_BASE64_BYTES = 12 * 1024 * 1024
 
-export const screenshotOptionsSchema = z.object({
-  fullPage: z.boolean().optional().describe('Return full-page tiles without scrolling, up to four images per call'),
-  ref: browserRefSchema.optional().describe('Crop around a current snapshot ref without scrolling'),
-  cursor: z.string().max(2048).optional().describe('Continue fullPage capture using the previous nextCursor'),
-  format: z.enum(['png', 'jpeg']).optional().describe('Image format (default: png)'),
-  quality: z.number().int().min(0).max(100).optional().describe('JPEG quality 0-100 (only for jpeg format)')
-})
 export type ScreenshotOptions = z.infer<typeof screenshotOptionsSchema>
 type Rect = Pick<Protocol.Page.Viewport, 'x' | 'y' | 'width' | 'height'>
 export interface BrowserScreenshot {

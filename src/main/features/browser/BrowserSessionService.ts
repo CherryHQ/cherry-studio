@@ -1,20 +1,26 @@
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { app, type BrowserWindow, dialog, session, webContents } from 'electron'
 
 import { application } from '@application'
+import { assistantDataService } from '@data/services/AssistantService'
 import { browserHistoryService } from '@data/services/BrowserHistoryService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { type AgentBrowserContext, AgentBrowserRegistry } from './AgentBrowserRegistry'
 import { captureBrowserFavicon, clearBrowserFavicons } from './browserFavicons'
+import { BrowserGuestRegistry, type BrowserGuestTarget } from './BrowserGuestRegistry'
 import type { SessionOwnership } from './browserUse'
 import { listBrowserProfiles } from './import/browserProfiles'
 import { emptyImportResult, importBrowserData } from './import/importBrowserData'
 import { AgentBrowserController } from './mcp/AgentBrowserController'
 import { BrowserServer } from './mcp/server'
+import { SessionBrowserController } from './mcp/SessionBrowserController'
 import { BrowserSessionError } from './session/BrowserSessionError'
 import { GuestSession } from './session/GuestSession'
 import { trackBrowserHistory } from './trackBrowserHistory'
@@ -41,7 +47,17 @@ export class BrowserSessionService extends BaseService {
   private dataOperation?: Promise<unknown>
   private readonly faviconTasks = new Set<Promise<void>>()
   private faviconCapture = new AbortController()
-  readonly agentBrowser = new AgentBrowserRegistry()
+  private readonly guestClaims = new Map<Electron.WebContents, BrowserGuestTarget>()
+  readonly agentBrowser = new AgentBrowserRegistry(this.guestClaims)
+  readonly topicBrowser = new BrowserGuestRegistry(
+    (id) => topicService.getById(id).assistantId ?? '',
+    'topic',
+    this.guestClaims
+  )
+  private readonly topicServers = new Map<
+    string,
+    { ownerId: string; server: BrowserServer; active: number; lastUsed: number }
+  >()
   private readonly agentServers = new Set<BrowserServer>()
   private readonly servers = new Set<BrowserServer>()
   private readonly sessions = new Map<number, SessionEntry>()
@@ -63,7 +79,12 @@ export class BrowserSessionService extends BaseService {
       )
         return
       guest.setWindowOpenHandler((details) => {
-        if (!this.agentBrowser.handlePopup(guest, details) && guest.session === ordinary && !details.postBody) {
+        if (
+          !this.agentBrowser.handlePopup(guest, details) &&
+          !this.topicBrowser.handlePopup(guest, details) &&
+          guest.session === ordinary &&
+          !details.postBody
+        ) {
           try {
             application.get('MainWindowService').openBrowserTab(sanitizeRemoteUrl(details.url, undefined, true))
           } catch (error) {
@@ -133,6 +154,88 @@ export class BrowserSessionService extends BaseService {
     this.servers.add(server)
     this.agentServers.add(server)
     return server.server
+  }
+
+  async callTopicTool(
+    topicId: string,
+    assistantId: string,
+    name: string,
+    args: unknown,
+    signal: AbortSignal
+  ): Promise<CallToolResult> {
+    const context = { sessionId: topicId, ownerId: assistantId }
+    const assertAvailable = () => {
+      signal.throwIfAborted()
+      this.assertTopicAvailable(topicId, assistantId)
+    }
+    assertAvailable()
+    let entry = this.topicServers.get(topicId)
+    while (entry && (entry.ownerId !== assistantId || entry.server.isClosing)) {
+      await entry.server.close()
+      assertAvailable()
+      entry = this.topicServers.get(topicId)
+    }
+    if (!entry) {
+      const controller = new SessionBrowserController(this, {
+        assertAvailable: () => this.assertTopicAvailable(topicId, assistantId),
+        get: () => this.topicBrowser.get(context),
+        ensureGuest: async (abort, url) => {
+          const target = await this.topicBrowser.ensureGuest(context, abort, url)
+          return target
+        },
+        reveal: (target) =>
+          application.get('IpcApiService').send(target.windowId, 'browser.pane.open_requested', {
+            scope: 'topic',
+            sessionId: topicId
+          })
+      })
+      const server = new BrowserServer(
+        this,
+        () => {
+          this.servers.delete(server)
+          this.agentServers.delete(server)
+          if (this.topicServers.get(topicId)?.server === server) this.topicServers.delete(topicId)
+        },
+        controller
+      )
+      entry = { ownerId: assistantId, server, active: 0, lastUsed: Date.now() }
+      this.topicServers.set(topicId, entry)
+      this.servers.add(server)
+      this.agentServers.add(server)
+    }
+    const server = entry.server
+    entry.active++
+    try {
+      return await server.callTool(name, args, AbortSignal.any([signal, this.shutdown.signal]))
+    } finally {
+      entry.active--
+      entry.lastUsed = Date.now()
+      if (!entry.active) {
+        let target
+        try {
+          target = this.topicBrowser.get(context)
+        } catch {
+          /* The owner may have been deleted during execution. */
+        }
+        target?.cursor.hide()
+        if (!target) await server.close()
+      }
+    }
+  }
+
+  private assertTopicAvailable(topicId: string, assistantId: string): void {
+    if (this.shutdown.signal.aborted || !application.get('PreferenceService').get('app.browser.agent_control.enabled'))
+      throw new BrowserSessionError('not_allowed')
+    try {
+      if (
+        topicService.getById(topicId).assistantId !== assistantId ||
+        assistantDataService.getById(assistantId).settings.enableBrowser === false
+      )
+        throw new BrowserSessionError('not_allowed')
+    } catch (error) {
+      if (isDataApiNotFoundError(error)) throw new BrowserSessionError('not_allowed')
+      throw error
+    }
   }
 
   async listImportSources() {
@@ -271,6 +374,10 @@ export class BrowserSessionService extends BaseService {
   }
 
   private sweep(): void {
+    for (const entry of this.topicServers.values()) {
+      if (!entry.active && Date.now() - entry.lastUsed >= TEMPORARY_IDLE_MS)
+        void entry.server.close().catch((error) => logger.warn('Failed to release idle topic browser', { error }))
+    }
     for (const [id, entry] of this.sessions) {
       if (
         entry.ownership.ownership === 'managed' &&
@@ -306,6 +413,8 @@ export class BrowserSessionService extends BaseService {
     this.servers.clear()
     this.agentServers.clear()
     this.agentBrowser.dispose()
+    this.topicBrowser.dispose()
+    this.topicServers.clear()
     for (const id of this.sessions.keys()) this.remove(id, true)
     await Promise.all(this.guestCleanup.values())
     const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))

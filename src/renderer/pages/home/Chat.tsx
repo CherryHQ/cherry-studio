@@ -298,7 +298,11 @@ const Chat: FC<Props> = (props) => {
         showConversation ? (
           <>
             {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
-            <TopicRightPane.Shortcuts />
+            <TopicRightPane.Shortcuts
+              browserEnabled={
+                !!assistantContext.assistant && assistantContext.assistant.settings.enableBrowser !== false
+              }
+            />
           </>
         ) : undefined
       }
