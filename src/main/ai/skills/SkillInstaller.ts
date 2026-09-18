@@ -191,11 +191,9 @@ export class SkillInstaller {
     if (await pathExists(newPath)) {
       await this.safeRemoveDirectory(newPath, 'uncommitted skill replacement')
       if (await pathExists(newPath)) {
-        logger.warn('Uncommitted skill replacement survived cleanup; keeping migration marker', {
-          marker,
-          newPath
-        })
-        return
+        // Fail loud: letting reconcile run would adopt the survivor and prune the original row.
+        // The marker is intact, so the next boot retries this recovery.
+        throw new Error(`Uncommitted skill replacement survived cleanup: ${newPath}`)
       }
     }
 

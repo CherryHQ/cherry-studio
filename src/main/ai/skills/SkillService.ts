@@ -35,7 +35,14 @@ import {
 
 import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
-import { buildFileTree, createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
+import {
+  buildFileTree,
+  createTempDir,
+  normalizeFolderKey,
+  reservedFolderNameStem,
+  safeRemoveDirectory,
+  sanitizeFolderName
+} from './skillPaths'
 import { fetchRemoteSkill } from './skillRemoteSource'
 import { buildSystemSkillSources } from './systemSkillSources'
 
@@ -507,7 +514,8 @@ export class SkillService {
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
     const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(metadata.filename)
 
-    const existing = this.findCatalogSkillCaseInsensitive(folderName)
+    const existing =
+      this.findCatalogSkillCaseInsensitive(folderName) ?? this.findReservedAlias(folderName, source, sourceUrl)
     if (existing) {
       // Only the same source + exact origin may replace a folder. The narrow legacy skills.sh path
       // upgrades a prior repo-root URL after an explicit reinstall resolves the same folder.
@@ -1449,6 +1457,18 @@ export class SkillService {
       )
     }
     return matches[0] ?? null
+  }
+
+  // A pre-suffix install stored a reserved device name bare (`CON`); a reinstall derives the
+  // suffixed form, so resolve the stem row for a same-origin install instead of duplicating it.
+  private findReservedAlias(folderName: string, source: string, sourceUrl: string | null): InstalledSkill | null {
+    const stem = reservedFolderNameStem(folderName)
+    if (!stem) return null
+    const candidate = this.findCatalogSkillCaseInsensitive(stem)
+    if (!candidate || candidate.source !== source || (candidate.sourceUrl ?? null) !== (sourceUrl ?? null)) {
+      return null
+    }
+    return candidate
   }
 
   private async findStorageFolderCaseInsensitive(folderName: string): Promise<string | null> {
