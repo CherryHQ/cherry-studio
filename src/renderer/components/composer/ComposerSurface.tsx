@@ -276,7 +276,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             style={{
               height: editorMinHeight,
               minHeight: editorMinHeight,
-              padding: '6px 44px 0 15px',
+              padding: '6px 15px 0',
               fontSize: props.fontSize,
               lineHeight: 1.4
             }}

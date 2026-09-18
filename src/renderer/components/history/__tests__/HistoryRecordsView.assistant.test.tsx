@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import { dataApiService } from '@renderer/data/DataApiService'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import type * as PlatformModule from '@renderer/utils/platform'
@@ -71,10 +72,13 @@ vi.mock('@renderer/utils/platform', async (importOriginal) => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
-  const { Checkbox } = await import('../../../../../packages/ui/src/components/primitives/checkbox')
-  return { ...MockCherrystudioUI, Checkbox }
+  return {
+    ...(await importOriginal<typeof CherryStudioUI>()),
+    ...MockCherrystudioUI,
+    Checkbox: (await importOriginal<typeof CherryStudioUI>()).Checkbox
+  }
 })
 
 vi.mock('@renderer/components/VirtualList', () => ({

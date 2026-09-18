@@ -111,6 +111,7 @@ export const ASSISTANTS_MAX_LIMIT = 500
  * - `search` and `groupId` compose with AND (group-scoped keyword search).
  */
 export const ListAssistantsQuerySchema = z.strictObject({
+  ids: z.array(z.string().min(1)).min(1).max(ASSISTANTS_MAX_LIMIT).optional(),
   /** Filter by assistant ID */
   id: z.string().optional(),
   /**

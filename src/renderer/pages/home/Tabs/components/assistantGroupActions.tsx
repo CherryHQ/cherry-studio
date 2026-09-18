@@ -9,6 +9,7 @@ import {
   buildResourceEntityMenuActionDescriptor,
   RESOURCE_ICON_TYPE_OPTIONS
 } from '@renderer/components/chat/resourceList/base'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 
 export interface AssistantGroupActionContext {
@@ -108,7 +109,7 @@ assistantGroupActionRegistry.registerAction(
     commandId: 'assistant-group.toggle-sidebar',
     label: ({ sidebarPinned, t }) =>
       sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
-    icon: ({ sidebarPinned }) => (sidebarPinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
+    icon: ({ sidebarPinned }) => <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
     order: 22
   })
 )

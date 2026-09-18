@@ -74,6 +74,21 @@ vi.mock('@main/apiServer/services/models', () => ({
 describe('AgentService', () => {
   const dbh = setupTestDatabase()
 
+  it('filters requested IDs before pagination and excludes deleted agents', async () => {
+    const rows = generateOrderKeySequence(502).map((orderKey, index) => ({
+      id: `agent-${index}`,
+      name: `Agent ${index}`,
+      type: 'claude-code',
+      instructions: '',
+      orderKey,
+      deletedAt: index === 501 ? Date.now() : null
+    }))
+    dbh.db.insert(agentTable).values(rows).run()
+    const result = agentService.listAgents({ ids: ['agent-500', 'agent-501', 'missing'], limit: 1 })
+    expect(result.agents.map((agent) => agent.id)).toEqual(['agent-500'])
+    expect(result.total).toBe(1)
+  })
+
   // Seed a user_model row whose id is the canonical FK form, so createAgent
   // calls with `model: <canonical id>` satisfy the FK.
   const TEST_MODEL_ID = 'anthropic::claude-3-5-sonnet'
