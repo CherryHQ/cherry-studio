@@ -45,6 +45,33 @@ describe('FileStorage', () => {
   })
 
   describe('selectFile', () => {
+    it.each(['stat', 'classification'])('keeps valid selections in order when one file fails %s', async (failure) => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-select-failure-'))
+      const filePaths = Array.from({ length: 6 }, (_, index) => path.join(tmpDir, `unknown-${index}`))
+      filePaths.forEach((filePath) => fs.writeFileSync(filePath, 'content'))
+      vi.mocked(dialog.showOpenDialog).mockResolvedValue({ canceled: false, filePaths })
+      const unavailablePath = filePaths[1]
+
+      if (failure === 'stat') {
+        fs.rmSync(unavailablePath)
+      } else {
+        getFileTypeMock.mockImplementation(async (filePath) => {
+          if (filePath === unavailablePath) throw new Error('File is no longer readable')
+          return 'text'
+        })
+      }
+
+      try {
+        await expect(fileStorage.selectFile(event, { properties: ['openFile', 'multiSelections'] })).resolves.toEqual(
+          filePaths
+            .filter((filePath) => filePath !== unavailablePath)
+            .map((filePath) => expect.objectContaining({ path: filePath }))
+        )
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('bounds concurrent metadata classification and preserves selection order', async () => {
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-select-test-'))
       const filePaths = Array.from({ length: 12 }, (_, index) => path.join(tmpDir, `unknown-${index}`))

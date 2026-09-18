@@ -155,26 +155,30 @@ class FileStorage {
       return null
     }
 
-    const metadata = new Array<FileMetadata>(result.filePaths.length)
+    const metadata = new Array<FileMetadata | undefined>(result.filePaths.length)
     let nextIndex = 0
     const worker = async () => {
       while (nextIndex < result.filePaths.length) {
         const index = nextIndex++
         const filePath = result.filePaths[index]
-        const stats = fs.statSync(filePath)
-        const ext = path.extname(filePath)
-        const fileType = await getFileType(filePath as AbsoluteFilePath)
+        try {
+          const stats = fs.statSync(filePath)
+          const ext = path.extname(filePath)
+          const fileType = await getFileType(filePath as AbsoluteFilePath)
 
-        metadata[index] = {
-          id: uuidv4(),
-          origin_name: path.basename(filePath),
-          name: path.basename(filePath),
-          path: filePath,
-          created_at: stats.birthtime.toISOString(),
-          size: stats.size,
-          ext,
-          type: fileType,
-          count: 1
+          metadata[index] = {
+            id: uuidv4(),
+            origin_name: path.basename(filePath),
+            name: path.basename(filePath),
+            path: filePath,
+            created_at: stats.birthtime.toISOString(),
+            size: stats.size,
+            ext,
+            type: fileType,
+            count: 1
+          }
+        } catch (error) {
+          logger.warn('Skipping selected file with unavailable metadata', { filePath, error })
         }
       }
     }
@@ -182,7 +186,7 @@ class FileStorage {
     await Promise.all(
       Array.from({ length: Math.min(FILE_METADATA_CONCURRENCY, result.filePaths.length) }, () => worker())
     )
-    return metadata
+    return metadata.filter((file): file is FileMetadata => file !== undefined)
   }
 
   private async compressImage(sourcePath: string, destPath: string): Promise<void> {
