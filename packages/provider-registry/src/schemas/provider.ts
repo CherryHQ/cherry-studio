@@ -239,6 +239,7 @@ export const ProviderConfigSchema = z
     serverTools: z.array(ServerToolConfigSchema).default([]),
     /** Whether usage responses carry the actual billed amount. */
     reportsActualCost: z.boolean().default(false),
+    supportsBalance: z.boolean().default(false),
     /**
      * Registry-owned currency for provider-reported costs whose wire payload
      * carries an amount but no currency. Absent means the amount stays

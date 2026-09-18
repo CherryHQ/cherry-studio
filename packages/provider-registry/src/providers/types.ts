@@ -25,6 +25,7 @@ type ProviderConnection = Omit<
   | 'authOptional'
   | 'serverTools'
   | 'reportsActualCost'
+  | 'supportsBalance'
 > & {
   endpointConfigs: Partial<ProviderConfig['endpointConfigs']>
   defaultChatEndpoint?: ProviderConfig['defaultChatEndpoint']
@@ -36,6 +37,7 @@ type ProviderConnection = Omit<
   serverTools?: ProviderServerToolConfig[]
   /** Defaults false; only providers whose usage carries billed cost declare it. */
   reportsActualCost?: ProviderConfig['reportsActualCost']
+  supportsBalance?: boolean
 }
 
 /**
@@ -97,6 +99,7 @@ export function openaiCompatible(
      */
     reasoningFormat?: ProviderReasoningFormat
     authOptional?: ProviderConfig['authOptional']
+    supportsBalance?: boolean
     serverTools?: ProviderServerToolConfig[]
   } & GenFields
 ): Provider {
@@ -116,6 +119,7 @@ export function openaiCompatible(
     endpointConfigs,
     metadata: { website: p.website },
     ...(p.authOptional ? { authOptional: p.authOptional } : {}),
+    ...(p.supportsBalance ? { supportsBalance: true } : {}),
     ...(p.serverTools ? { serverTools: p.serverTools } : {}),
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),
     ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),

@@ -58,6 +58,7 @@ const v4ResponsesEffortWire = {
 
 export default defineProvider({
   id: 'deepseek',
+  supportsBalance: true,
   name: 'deepseek',
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {

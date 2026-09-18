@@ -51,6 +51,7 @@ const ProviderSettingsCreateSchema = ProviderSettingsSchema.partial()
 
 /** RFC 7396 merge patch accepted while updating an existing provider. */
 const ProviderSettingsMergePatchSchema = z.object({
+  balanceQuery: ProviderSettingsSchema.shape.balanceQuery.nullable().optional(),
   streamOptions: z
     .object({
       includeUsage: ProviderSettingsSchema.shape.streamOptions.unwrap().shape.includeUsage.nullable().optional()

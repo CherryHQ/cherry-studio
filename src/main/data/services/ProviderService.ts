@@ -291,6 +291,8 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     serverTools: presetMetadata.serverTools ?? [],
     ...(presetMetadata.reportedCostCurrency ? { reportedCostCurrency: presetMetadata.reportedCostCurrency } : {}),
     reportsActualCost: presetMetadata.reportsActualCost ?? false,
+    supportsBalance: presetMetadata.supportsBalance ?? false,
+    updatedAt: row.updatedAt,
     fastMode: presetMetadata.fastMode,
     apiKeys,
     authType,

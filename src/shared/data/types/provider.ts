@@ -21,6 +21,8 @@ import {
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
+import { ProviderBalanceConfigSchema } from './providerBalance'
+
 export type { ServerTool, ServerToolConfig }
 
 // ─── Schemas formerly from provider-registry/schemas ─────────────────────────
@@ -149,6 +151,7 @@ export const ProviderWebsitesSchema = z.object({
 export type ProviderWebsites = z.infer<typeof ProviderWebsitesSchema>
 
 export const ProviderSettingsSchema = z.object({
+  balanceQuery: ProviderBalanceConfigSchema.optional(),
   streamOptions: z
     .object({
       includeUsage: z.boolean().optional()
@@ -228,6 +231,9 @@ export const EndpointConfigOverrideSchema = z.object({
 export type EndpointConfigOverride = z.infer<typeof EndpointConfigOverrideSchema>
 
 export const ProviderSchema = z.object({
+  supportsBalance: z.boolean().optional(),
+  /** Persisted revision invalidates balance results after credentials or settings change. */
+  updatedAt: z.number().optional(),
   /** Provider ID */
   id: z.string(),
   /** Associated preset provider ID (if any) */

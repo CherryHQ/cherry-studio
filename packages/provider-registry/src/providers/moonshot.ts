@@ -10,6 +10,7 @@ const fixedSamplingParameterSupport = {
 
 export default openaiCompatible({
   id: 'moonshot',
+  supportsBalance: true,
   name: 'Moonshot AI',
   baseUrl: 'https://api.moonshot.cn',
   reasoningFormat: {

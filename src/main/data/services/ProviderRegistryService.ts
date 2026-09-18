@@ -87,6 +87,7 @@ export interface ProviderDisplayMetadata {
   fastMode?: ProtoProviderConfig['fastMode']
   /** Whether usage responses carry the actual billed amount. */
   reportsActualCost?: boolean
+  supportsBalance?: boolean
   /** Registry default chat endpoint, used when the row stores no override. */
   defaultChatEndpoint?: EndpointType
 }
@@ -788,6 +789,7 @@ class ProviderRegistryService {
         reportedCostCurrency: provider?.reportedCostCurrency,
         fastMode: provider?.fastMode,
         reportsActualCost: provider?.reportsActualCost,
+        supportsBalance: provider?.supportsBalance,
         defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }
     } catch (error) {

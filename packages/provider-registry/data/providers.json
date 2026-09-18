@@ -92,7 +92,8 @@
           "official": "https://www.siliconflow.cn"
         }
       },
-      "name": "Silicon"
+      "name": "Silicon",
+      "supportsBalance": true
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -320,7 +321,8 @@
           "id": "web-search",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportsBalance": true
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1423,7 +1425,8 @@
           "modelScope": "model-dependent",
           "vendors": ["kimi"]
         }
-      ]
+      ],
+      "supportsBalance": true
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2415,5 +2418,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "4a6f7225220e7a46"
+  "version": "3639e214dd13325b"
 }
