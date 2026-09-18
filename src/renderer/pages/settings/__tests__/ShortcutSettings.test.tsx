@@ -252,7 +252,7 @@ describe('ShortcutSettings shortcut recorder', () => {
         key: 'shortcut.app.settings.open',
         accelerator: 'CommandOrControl+1',
         hasConflict: true,
-        reason: 'occupied_by_other_application'
+        reason: 'occupied'
       })
     })
 
