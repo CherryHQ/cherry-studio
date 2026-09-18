@@ -36,7 +36,7 @@ import {
 import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
 import { buildFileTree, createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
-import { fetchRemoteSkill, GITHUB_ROOT_STAGING_DIRNAME } from './skillRemoteSource'
+import { fetchRemoteSkill } from './skillRemoteSource'
 import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
@@ -221,7 +221,9 @@ export class SkillService {
     const fetched = await fetchRemoteSkill(source, rest.join(':'))
 
     try {
-      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
+      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl, {
+        githubRoot: fetched.isGithubRoot ?? false
+      })
       fetched.onInstalled?.()
       return installed
     } finally {
@@ -486,7 +488,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; githubRoot?: boolean } = {}
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
@@ -497,7 +499,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; githubRoot?: boolean } = {}
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
@@ -521,19 +523,13 @@ export class SkillService {
       }
     }
 
-    // A same-origin reinstall whose derived folder name changed migrates the existing row instead
-    // of inserting a duplicate. Only rows still filed under the legacy staging dirname qualify —
-    // no current install path can produce it, so an unrelated skill sharing the URL can never match.
+    // A repository-root GitHub reinstall whose derived folder changed migrates the existing row.
+    // Only a root install of the same repo+ref shares the identical source URL, so the match is exact.
     const renamed =
-      !existing && sourceUrl
+      !existing && sourceUrl && provenance.githubRoot
         ? (agentGlobalSkillService
             .listAll()
-            .find(
-              (skill) =>
-                skill.source === source &&
-                (skill.sourceUrl ?? null) === sourceUrl &&
-                skill.folderName === GITHUB_ROOT_STAGING_DIRNAME
-            ) ?? null)
+            .find((skill) => skill.source === source && (skill.sourceUrl ?? null) === sourceUrl) ?? null)
         : null
 
     const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
@@ -575,7 +571,7 @@ export class SkillService {
     } catch (error) {
       if (migrationBackup && prevFolderName) {
         try {
-          await fs.promises.rename(migrationBackup, this.getSkillStoragePath(prevFolderName))
+          await this.installer.restoreMigrationBackup(migrationBackup, this.getSkillStoragePath(prevFolderName))
         } catch (restoreError) {
           logger.error('Failed to restore previous skill folder after install failure', {
             prevFolderName,
@@ -587,10 +583,20 @@ export class SkillService {
     }
 
     const tags = metadata.tags ?? []
+    const metadataUpdate = {
+      name: metadata.name,
+      description: metadata.description ?? null,
+      author: metadata.author ?? null,
+      version: metadata.version ?? null,
+      tags,
+      contentHash,
+      ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
+    }
 
     if (existing) {
       // Update metadata in-place to preserve the skill ID and its agent_skills rows.
       application.get('DbService').withWriteTx((tx) => {
+<<<<<<< HEAD
         agentGlobalSkillService.updateTx(tx, existing.id, {
           name: metadata.name,
           description: metadata.description ?? null,
@@ -601,6 +607,9 @@ export class SkillService {
           ...(source === 'marketplace' ? { sourceUrl } : {}),
           ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
         })
+=======
+        agentGlobalSkillService.updateTx(tx, existing.id, metadataUpdate)
+>>>>>>> 9823c891a4 (fix(skill-install): gate folder migration on GitHub-root origin)
       })
       const updated = agentGlobalSkillService.getById(existing.id)!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName: destFolderName, source })
@@ -613,29 +622,19 @@ export class SkillService {
       // the replacement was published, so startup recovery can tell a pre-commit crash (restore the
       // old folder, drop the replacement) from a post-commit one (drop the marker, keep the
       // replacement). Recursive deletion is not atomic, so deleting the old folder first could
-      // strand a half-removed old state.
-      // `migrationBackup` was taken from `renamed.folderName` before publishing above; when the old
-      // folder was already missing from disk it is null and there is nothing to restore or commit.
+      // strand a half-removed old state. An empty marker means the old folder was already gone;
+      // rollback and recovery then drop the marker instead of resurrecting an empty folder.
       const backupPath = migrationBackup
       try {
         application.get('DbService').withWriteTx((tx) => {
-          agentGlobalSkillService.updateTx(tx, renamed.id, {
-            folderName,
-            name: metadata.name,
-            description: metadata.description ?? null,
-            author: metadata.author ?? null,
-            version: metadata.version ?? null,
-            tags,
-            contentHash,
-            ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
-          })
+          agentGlobalSkillService.updateTx(tx, renamed.id, { folderName, ...metadataUpdate })
         })
       } catch (error) {
         // Best-effort rollback to the complete old state; a leftover `.bak` marker is restored
         // by startup recovery, so even a double fault loses nothing.
         if (backupPath) {
           try {
-            await fs.promises.rename(backupPath, this.getSkillStoragePath(renamed.folderName))
+            await this.installer.restoreMigrationBackup(backupPath, this.getSkillStoragePath(renamed.folderName))
           } catch (restoreError) {
             logger.error('Failed to restore previous skill folder after migration failure', {
               prevFolderName: renamed.folderName,
