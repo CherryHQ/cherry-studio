@@ -25,14 +25,16 @@ describe('isLoopbackAddress', () => {
 })
 
 describe('isLanAllowedRoute', () => {
-  it('permits only the pairing bootstrap and the provider export', () => {
+  it('permits pairing, provider export, and Agent connection discovery', () => {
     expect(isLanAllowedRoute('POST', '/pair')).toBe(true)
     expect(isLanAllowedRoute('GET', '/v1/export/providers')).toBe(true)
+    expect(isLanAllowedRoute('GET', '/v1/remote-agent')).toBe(true)
   })
 
   it('rejects the export under the wrong method and the pairing under the wrong method', () => {
     expect(isLanAllowedRoute('GET', '/pair')).toBe(false)
     expect(isLanAllowedRoute('POST', '/v1/export/providers')).toBe(false)
+    expect(isLanAllowedRoute('POST', '/v1/remote-agent')).toBe(false)
   })
 
   it('rejects the generation, MCP, and knowledge routes', () => {
@@ -61,5 +63,13 @@ describe('screenLanRequest', () => {
   it('lets a LAN caller reach the pairing bootstrap and provider export', () => {
     expect(screenLanRequest(requestFrom('POST', '192.168.1.8'), '/pair')).toBeUndefined()
     expect(screenLanRequest(requestFrom('GET', '192.168.1.8'), '/v1/export/providers')).toBeUndefined()
+    expect(screenLanRequest(requestFrom('GET', '192.168.1.8'), '/v1/remote-agent')).toBeUndefined()
+  })
+
+  it('blocks Agent discovery after device connections are disabled', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.host', '127.0.0.1')
+    expect(screenLanRequest(requestFrom('GET', '192.168.1.8'), '/v1/remote-agent')).toEqual({
+      error: expect.stringContaining('LAN access is disabled')
+    })
   })
 })

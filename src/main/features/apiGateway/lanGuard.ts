@@ -3,7 +3,7 @@ import { application } from '@application'
 /**
  * When the gateway binds the LAN (`0.0.0.0`) the same listener serves both the
  * desktop's own loopback consumers and remote mobile clients. Only the pairing
- * bootstrap and the paired-device provider export are meant to cross the LAN;
+ * bootstrap, paired-device provider export, and Agent connection discovery cross the LAN;
  * the generation, MCP, and knowledge routes must stay loopback-only (an exposed
  * MCP proxy is remote tool execution, and the chat routes leak the desktop API
  * key over the wire). This screens every request by its socket peer: loopback
@@ -14,7 +14,8 @@ import { application } from '@application'
 /** Routes a non-loopback (LAN) client is permitted to reach. */
 const LAN_ALLOWED_ROUTES: ReadonlyArray<readonly [method: string, path: string]> = [
   ['POST', '/pair'],
-  ['GET', '/v1/export/providers']
+  ['GET', '/v1/export/providers'],
+  ['GET', '/v1/remote-agent']
 ]
 
 /**
