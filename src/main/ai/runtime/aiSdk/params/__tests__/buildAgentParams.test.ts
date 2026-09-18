@@ -2151,7 +2151,7 @@ describe('call override request-body routing', () => {
             chat_template_kwargs: { foo: 'bar' }
           }
         }
-      } as CallOverrides,
+      },
       'openai-compatible',
       SELF_HOSTED_KEYS
     )
@@ -2168,7 +2168,7 @@ describe('call override request-body routing', () => {
 
   it('extracts catalog-declared body targets beyond the template prefixes', () => {
     const body = extractCallOverridesBodyParams(
-      { providerOptions: { poe: { 'extra_body.thinking_budget': 4096 } } } as CallOverrides,
+      { providerOptions: { poe: { 'extra_body.thinking_budget': 4096 } } },
       'poe',
       new Set(['extra_body'])
     )
