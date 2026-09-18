@@ -61,6 +61,36 @@ export function periodRenewsAt(period: ApiKeyLimitPeriod, anchor?: string, tz: s
   return zonedToUtcMs(d, tz)
 }
 
+/** What the current burn rate implies for a quota window. */
+export type QuotaForecast =
+  | { kind: 'unknown' }
+  | { kind: 'within-period' }
+  | { kind: 'exhausted' }
+  | { kind: 'runs-out'; atMs: number }
+
+/**
+ * Projects when a key runs out, assuming it keeps being used at the rate observed so far this
+ * period. `'within-period'` means the quota outlasts the period and renews before it runs dry.
+ */
+export function forecastQuotaExhaustion(input: {
+  used: number
+  limit: number
+  periodStartMs: number
+  renewsAtMs: number | null
+  nowMs: number
+}): QuotaForecast {
+  const { used, limit, periodStartMs, renewsAtMs, nowMs } = input
+  if (used >= limit) return { kind: 'exhausted' }
+
+  const elapsedMs = nowMs - periodStartMs
+  if (used <= 0 || elapsedMs <= 0) return { kind: 'unknown' }
+
+  const msPerRequest = elapsedMs / used
+  const atMs = nowMs + (limit - used) * msPerRequest
+  if (renewsAtMs !== null && atMs >= renewsAtMs) return { kind: 'within-period' }
+  return { kind: 'runs-out', atMs }
+}
+
 function zonedDate(utcMs: number, tz: string): Date {
   const utc = new Date(utcMs)
   const parts = new Intl.DateTimeFormat('en-US', {

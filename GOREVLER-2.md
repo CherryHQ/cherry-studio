@@ -114,6 +114,22 @@ Bir özellik eksik görünüyorsa önce "kapalı mı?" diye bak; çoğu kez yaz�
 
 ---
 
+## Yapılanlar — güncel durum
+
+| Faz | Durum | Commit / not |
+|---|---|---|
+| **A1–A3** | ✅ | Aşağıdaki tabloda |
+| **B1–B7** | ✅ | `1f56fd0` — anahtar+model bazlı limit, takvim/yıldönümü yenilemesi, web sayacı, kota tablosu, seçicide `quota_exhausted` pasifliği |
+| **U1** | ✅ | `2793c98` — yerel yedek varsayılan açık (günlük, 7 kopya), klasör seçilmemişse uygulamanın kendi `Backups` dizini, mevcut kurulumlar için yükseltme seed'i |
+| **V1** | ✅ kısmi | `6049749` — `app.lite_mode` BootConfig anahtarı + Ayarlar→Genel düğmesi; `AnalyticsService` ve `CherryCloudService` hariç tutuluyor (~2 sn). **Yapılmadı:** `MainNetworkDevtoolsService` zaten yalnızca dev modda açık; `subWindow` warmup'ı `windowRegistry.ts:187`'deki açık değişmez uyarısı yüzünden elle bırakıldı |
+| **J1** | ✅ | `6049749` — `createRetryableWrap`'e `onModelOutcome`; iptal, ağ hatası ve 401/429 hariç tutuluyor, yedek model devraldıysa yazılmıyor |
+| **P4** | ✅ | `forecastQuotaExhaustion` + kota tablosunda "tükenir" sütunu; tablodaki i18n hataları da düzeltildi (iki sütun aynı anahtarı kullanıyordu, bazı başlıklar İngilizce sabitti, ikisi çeviriyi `.replace()` ile kesiyordu) |
+| **J3** | ⛔ gereksiz | `ProviderService.resolveApiKey` **zaten senkron round-robin** yapıyor, JS tek iş parçacıklı olduğu için anahtar seçiminde yarış durumu yok. Geriye kalan gerçek ihtiyaç — aynı anahtara paralel istekleri oran sınırına göre sıraya almak — **H1**'in işi, ayrı bir madde değil |
+
+**Sonraki sırada:** R1 (kesilen cevabı sürdürme), L1–L3 (LM Studio), C (oto geçiş), P1 (anahtar kendini kursun).
+
+---
+
 ## Faz A — BİTTİ ✅
 
 | # | İş | Durum |
@@ -851,11 +867,14 @@ H2'deki "Hatırlat" düğmesi bu katmanı elle tetikler.
 
 > *"LM Studio da kurulu zaten, sistemim düşük, lokal bir modelle bağlantı kurduralım"*
 
-### L1 — Bağlantı
+### L1 — Bağlantı ✅ ZATEN VAR, KOD YAZMA
 
-LM Studio OpenAI uyumlu sunucu açıyor (`http://localhost:1234/v1`). Uygulamada karşılığı
-**zaten var**: `LocalModelService`, `OvmsManager`, `ollamaProvider`. Yapılacak: LM Studio için
-hazır sağlayıcı kaydı (`authOptional: true`, baseURL yerel) — kullanıcı anahtar girmesin.
+`node_modules/@cherrystudio/provider-registry/src/providers/lmstudio.ts` — LM Studio hazır
+sağlayıcı olarak pakette geliyor: `id: 'lmstudio'`, `authOptional: true` (anahtar sormaz),
+`http://localhost:1234`, hem `openai-chat-completions` hem `anthropic-messages` uç noktası.
+
+**Yapılacak tek şey:** kullanıcı Ayarlar → Model Sağlayıcıları'ndan LM Studio'yu açsın ve
+LM Studio'da "Local Server" sekmesinden sunucuyu başlatsın. Kod değişikliği yok.
 
 ### L2 — Düşük sistemde doğru iş bölümü ⭐
 
@@ -864,13 +883,15 @@ Bunlar yüksek hacimli işler ve şu an ücretsiz API kotası yiyorlar:
 
 | İş | Bugün | Olması gereken |
 |---|---|---|
-| Görev sınıflandırma (`taskCategory`) | Uzak model | **Yerel** |
-| Bağlam özetleme (`resolveCompactedHistory`) | Uzak model | **Yerel** |
-| Olgu çıkarma (K3) | — | **Yerel** |
-| Konu başlığı üretme (`TopicNamingService`) | Uzak model | **Yerel** |
+| Görev sınıflandırma (`taskCategory`) | ✅ **Zaten LLM çağırmıyor** — `src/shared/utils/taskCategory.ts` saf sezgisel (TR+EN anahtar kelime). Kazanılacak bir şey yok | — |
+| Bağlam özetleme | Ayar **zaten var**: `chat.context_settings.compress.model_id` (boşsa istek modeli) | Yerel modeli göster/öner |
+| Konu başlığı üretme (`TopicNamingService`) | Ayar **zaten var**: `topicNamingModel` | Yerel modeli göster/öner |
+| Olgu çıkarma (K3) | — | **Yerel** (yeni iş) |
 | Baş kontrolcü görev bölme (D2) | Uzak model | Uzak kalsın (yargı ister) |
 
-Tercih: `chat.routing.local_worker_model` — boşsa bugünkü davranış sürer.
+**Gerçek iş küçüldü:** iki ayar zaten var ama kullanıcı ikisini ayrı ayrı bulup yerel modele
+çevirmek zorunda. Yapılacak: tek bir `chat.routing.local_worker_model` tercihi; boş değilse
+sıkıştırma ve konu başlığı için **varsayılan** o olsun (kullanıcı tek tek ezebilsin).
 **Kazanç:** ücretsiz API hakkı yalnızca gerçek düşünme işine harcanır.
 
 ### L3 — Son çare

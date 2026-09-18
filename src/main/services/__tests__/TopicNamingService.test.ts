@@ -190,6 +190,36 @@ describe('TopicNamingService', () => {
     })
   })
 
+  it('prefers a configured local worker over the remote models', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.routing.local_worker_model', 'lmstudio::qwen-3b')
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'anthropic::claude-3-haiku')
+
+    await createService().maybeRenameFromConversationSummary('topic-1', undefined, 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.generateText).toHaveBeenCalledWith(expect.objectContaining({ uniqueModelId: 'lmstudio::qwen-3b' }))
+  })
+
+  it('keeps using the remote model when the local worker no longer exists', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.routing.local_worker_model', 'lmstudio::removed')
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'anthropic::claude-3-haiku')
+    mocks.getModelByKey.mockImplementation((providerId: string) => {
+      if (providerId === 'lmstudio') throw new Error('missing model')
+      return {}
+    })
+
+    await createService().maybeRenameFromConversationSummary('topic-1', undefined, 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({ uniqueModelId: 'anthropic::claude-3-haiku' })
+    )
+  })
+
   it('uses the chat default model when the quick model preference is empty', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', null)
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'anthropic::claude-3-haiku')

@@ -8,7 +8,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { ApiKeyLimitPeriod, ServiceUsageMap } from '@shared/data/preference/preferenceTypes'
 import type { RuntimeApiKey } from '@shared/data/types/provider'
-import { periodRenewsAt, periodStartOf } from '@shared/utils/apiKeyLimit'
+import { forecastQuotaExhaustion, periodRenewsAt, periodStartOf, type QuotaForecast } from '@shared/utils/apiKeyLimit'
 
 import {
   UsagePanel,
@@ -28,6 +28,7 @@ interface QuotaRow {
   used: number
   remaining: number
   renewsAt: Date | null
+  forecast: QuotaForecast
 }
 
 interface WebServiceRow {
@@ -45,10 +46,12 @@ const PERIOD_LABELS: Record<ApiKeyLimitPeriod, string> = {
 }
 
 const TIER_LABELS: Record<string, string> = {
-  free: 'Free',
-  paid: 'Paid',
-  trial: 'Trial'
+  free: 'settings.usage.quota.tier.free',
+  paid: 'settings.usage.quota.tier.paid',
+  trial: 'settings.usage.quota.tier.trial'
 }
+
+const HOUR_MS = 3_600_000
 
 export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
   const { t } = useTranslation()
@@ -154,10 +157,17 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
           limit: entry.limit,
           used,
           remaining: Math.max(0, entry.limit - used),
-          renewsAt: renewMs !== null ? new Date(renewMs) : null
+          renewsAt: renewMs !== null ? new Date(renewMs) : null,
+          forecast: forecastQuotaExhaustion({
+            used,
+            limit: entry.limit,
+            periodStartMs: periodStarts.get(entry.period) ?? 0,
+            renewsAtMs: renewMs,
+            nowMs: Date.now()
+          })
         }
       }),
-    [allKeyEntries, usageCounts]
+    [allKeyEntries, usageCounts, periodStarts]
   )
 
   const webServiceRows: WebServiceRow[] = useMemo(
@@ -172,6 +182,17 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
         })),
     [safeServiceUsage]
   )
+
+  const describeForecast = (forecast: QuotaForecast) => {
+    if (forecast.kind === 'exhausted') return t('settings.usage.quota.forecast.exhausted')
+    if (forecast.kind === 'within-period') return t('settings.usage.quota.forecast.within_period')
+    if (forecast.kind === 'unknown') return '—'
+
+    const hours = Math.max(1, Math.round((forecast.atMs - Date.now()) / HOUR_MS))
+    return hours < 48
+      ? t('settings.usage.quota.forecast.in_hours', { count: hours })
+      : t('settings.usage.quota.forecast.in_days', { count: Math.round(hours / 24) })
+  }
 
   const adjustLimit = (limitKey: string, delta: number) => {
     const current = safeLimits[limitKey]
@@ -208,27 +229,25 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
           <div className="min-w-0 overflow-x-auto p-3">
             <Table className="min-w-[700px] table-fixed">
               <colgroup>
-                <col className="w-[28%]" />
+                <col className="w-[24%]" />
+                <col className="w-[9%]" />
                 <col className="w-[10%]" />
-                <col className="w-[12%]" />
-                <col className="w-[18%]" />
-                <col className="w-[10%]" />
-                <col className="w-[10%]" />
+                <col className="w-[16%]" />
+                <col className="w-[9%]" />
+                <col className="w-[9%]" />
+                <col className="w-[11%]" />
                 <col className="w-[12%]" />
               </colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('settings.usage.groupBy.apiKey')}</TableHead>
-                  <TableHead>{t('settings.provider.api_key.tier_label') || 'Tier'}</TableHead>
-                  <TableHead>{t('settings.provider.api_key.quota_limit')}</TableHead>
-                  <TableHead className="text-center">{t('settings.provider.api_key.quota_limit')}</TableHead>
-                  <TableHead className="text-right">{t('settings.usage.cards.totalRequests')}</TableHead>
-                  <TableHead className="text-right">
-                    {t('settings.usage.quota.remaining')?.replace('{{count}} ', '') || 'Left'}
-                  </TableHead>
-                  <TableHead>
-                    {t('settings.provider.api_key.quota_renews_at')?.replace(' {{date}}', '') || 'Renews'}
-                  </TableHead>
+                  <TableHead>{t('settings.usage.quota.column.source')}</TableHead>
+                  <TableHead>{t('settings.usage.quota.column.tier')}</TableHead>
+                  <TableHead>{t('settings.usage.quota.column.period')}</TableHead>
+                  <TableHead className="text-center">{t('settings.usage.quota.column.limit')}</TableHead>
+                  <TableHead className="text-right">{t('settings.usage.quota.column.used')}</TableHead>
+                  <TableHead className="text-right">{t('settings.usage.quota.column.remaining')}</TableHead>
+                  <TableHead>{t('settings.usage.quota.column.renews')}</TableHead>
+                  <TableHead className="text-right">{t('settings.usage.quota.column.forecast')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -241,7 +260,9 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs text-muted-foreground">{TIER_LABELS[row.tier] ?? row.tier}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {TIER_LABELS[row.tier] ? t(TIER_LABELS[row.tier]) : row.tier}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <span className="text-xs text-muted-foreground">{t(PERIOD_LABELS[row.period])}</span>
@@ -274,6 +295,16 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
                         ? row.renewsAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                         : '—'}
                     </TableCell>
+                    <TableCell className="text-right text-xs">
+                      <span
+                        className={
+                          row.forecast.kind === 'runs-out' || row.forecast.kind === 'exhausted'
+                            ? 'font-medium text-error'
+                            : 'text-muted-foreground'
+                        }>
+                        {describeForecast(row.forecast)}
+                      </span>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -296,9 +327,9 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
               </colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Service</TableHead>
-                  <TableHead className="text-right">{t('settings.usage.cards.totalRequests')}</TableHead>
-                  <TableHead>Since</TableHead>
+                  <TableHead>{t('settings.usage.quota.column.service')}</TableHead>
+                  <TableHead className="text-right">{t('settings.usage.quota.column.used')}</TableHead>
+                  <TableHead>{t('settings.usage.quota.column.since')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
