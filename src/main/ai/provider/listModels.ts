@@ -815,6 +815,36 @@ const openAICompatibleFetcher: ModelFetcher = {
   fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
 }
 
+/** One record of oMLX `/v1/models/status`. */
+const OmlxModelStatusSchema = z.object({
+  id: z.string(),
+  model_type: z.string().optional(),
+  config_model_type: z.string().optional()
+})
+
+const omlxFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.omlx),
+  fetch: async (provider, signal) => {
+    // `/v1/models` carries no type information, so every entry would present
+    // as a chat model — including block-diffusion canvas models, which the
+    // server only serves through its diffusion lane. `/v1/models/status`
+    // reports the model type: keep the models that chat ('llm'/'vlm') and
+    // drop the diffusion families.
+    const response = await getFromApi({
+      url: `${withoutTrailingSlash(getBaseUrl(provider))}/v1/models/status`,
+      headers: { ...getProviderAppHeaders(provider), ...getExtraHeaders(provider) },
+      responseSchema: z.object({ models: z.array(OmlxModelStatusSchema) }),
+      abortSignal: signal
+    })
+    return dedup(
+      response.models.filter((m) => m.model_type === 'llm' || m.model_type === 'vlm'),
+      (m) => m.id
+    )
+      .filter((m) => !(m.config_model_type ?? '').startsWith('diffusion'))
+      .map((m) => toModel(m.id, provider, { ownedBy: 'omlx' }))
+  }
+}
+
 // Native v1 lists downloaded models even when JIT loading is disabled.
 const lmStudioFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
@@ -896,6 +926,7 @@ const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
   lmStudioFetcher,
+  omlxFetcher,
   geminiFetcher,
   vertexFetcher,
   copilotFetcher,

@@ -1358,3 +1358,28 @@ describe('listModels — openAICompatibleFetcher display names', () => {
     expect(headers.has('x-title')).toBe(false)
   })
 })
+
+describe('listModels — oMLX', () => {
+  it('lists only chat models, dropping the diffusion and non-chat families', async () => {
+    const provider = makeProvider({
+      id: 'omlx',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8000' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: {
+        models: [
+          { id: 'qwen3-coder', model_type: 'llm', config_model_type: 'qwen3_5' },
+          { id: 'vlm-vision', model_type: 'vlm', config_model_type: 'qwen3_5' },
+          { id: 'diffusiongemma-26B', model_type: 'vlm', config_model_type: 'diffusion_gemma' },
+          { id: 'markitdown', model_type: 'markitdown', config_model_type: 'markitdown' }
+        ]
+      }
+    })
+
+    const models = await listModels(provider, undefined, { throwOnError: true })
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-coder', 'vlm-vision'])
+  })
+})
