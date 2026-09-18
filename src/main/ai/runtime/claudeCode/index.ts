@@ -1,5 +1,6 @@
 export { ClaudeCodeProcessManager } from './ClaudeCodeProcessManager'
 export { ClaudeCodeSessionStateService } from './ClaudeCodeSessionStateService'
 export { ClaudeCodeWarmQueryManager } from './ClaudeCodeWarmQueryManager'
+export { selectFallbackModelId } from './modelFallback'
 export { createClaudeCodeRuntimeDriver, loadClaudeCodeSettingsBuilder } from './loaders'
 export type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'

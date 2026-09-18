@@ -902,6 +902,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         to: decision.fallbackModelId,
         reason: decision.reason
       })
+      // Rebind before the host can observe the fallback chunk: it re-reads `usageCapture` on it,
+      // and the capture must already describe the fallback model (installQuery may still refine
+      // it with a consumed warm query's receipt — same fallback model either way).
+      this._usageCapture = request.usageCapture
       // Tell the user in the transcript itself — persisted with the turn like any other data part.
       this.eventQueue.push({
         type: 'chunk',
