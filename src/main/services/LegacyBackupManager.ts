@@ -337,7 +337,9 @@ class BackupManager {
       const quiesceReason = 'backup: capture consistent snapshot'
       const agentLifecycle = application.get('AgentLifecycleService')
       const ingressHold = agentLifecycle.pauseIngress(quiesceReason)
+      let remoteHold: { dispose(): void } | undefined
       try {
+        remoteHold = await application.get('RemoteAccessService').suspendForBackup()
         const ingressVerdict = await agentLifecycle.drainIngress({ timeoutMs: QUIESCE_TIMEOUT_MS })
         signal?.throwIfAborted()
         this.assertWritersDrained([ingressVerdict])
@@ -447,6 +449,7 @@ class BackupManager {
           }
         }
       } finally {
+        remoteHold?.dispose()
         ingressHold.dispose()
       }
 
@@ -935,6 +938,7 @@ class BackupManager {
     const restoreId = randomUUID()
     const restoreDir = path.join(stagingRoot, restoreId)
     let journalCommitted = false
+    let remoteHold: { dispose(): void } | undefined
 
     const existingJournal = readRestoreJournal()
     if (existingJournal.kind === 'corrupt') {
@@ -957,6 +961,7 @@ class BackupManager {
     await this.ensurePrivateDir(restoreDir)
 
     try {
+      remoteHold = await application.get('RemoteAccessService').suspendForBackup()
       const metadata = await this.readDirectBackupMetadata(extractionDir)
       const isSlimBackup = !metadata.resources.indexedDB && !metadata.resources.localStorage
 
@@ -1031,7 +1036,7 @@ class BackupManager {
         await this.copyClaudeState(path.join(extractionDir, '.claude'), stagedClaude)
       }
 
-      const chain = this.validateStagedDatabase(workDatabase)
+      const chain = this.prepareStagedDatabase(workDatabase)
       if (!this.isChainBundledPrefix(chain)) {
         throw new Error(
           `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (database is ahead of this version) and cannot be restored here. Please update Cherry Studio and try again. Backup appVersion: ${metadata.appVersion ?? 'unknown'}, current: ${app.getVersion()}.`
@@ -1145,6 +1150,7 @@ class BackupManager {
       throw error
     } finally {
       if (!journalCommitted) {
+        remoteHold?.dispose()
         await fs.remove(restoreDir).catch(() => {})
       }
     }
@@ -1221,7 +1227,7 @@ class BackupManager {
     await this.copyDirWithProgress(source, destination, onProgress, options)
   }
 
-  private validateStagedDatabase(databasePath: string): RestoreJournal['db']['chain'] {
+  private prepareStagedDatabase(databasePath: string): RestoreJournal['db']['chain'] {
     const sqlite = new Database(databasePath, { fileMustExist: true })
     let chain: RestoreJournal['db']['chain']
     try {
@@ -1234,6 +1240,16 @@ class BackupManager {
       if (chain.length === 0) {
         throw new Error('Backup SQLite migration chain is empty')
       }
+      // A restore must not revive revoked devices or let old commands bypass rolled-back receipts.
+      // Receipts go with them: a cleared device ID never authenticates again, so they are unreachable.
+      const hasTable = sqlite.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?")
+      let cleared = false
+      for (const table of ['api_gateway_paired_device', 'remote_command']) {
+        if (!hasTable.get(table)) continue
+        sqlite.prepare(`DELETE FROM ${table}`).run()
+        cleared = true
+      }
+      if (cleared) checkpointTruncateAssert(sqlite)
     } finally {
       sqlite.close()
     }
