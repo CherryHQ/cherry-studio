@@ -135,7 +135,7 @@ export const entries: SettingsSearchEntry[] = [
     anchorId: 'message-style',
     titleKey: 'message.message.style.label',
     groupKey: messagesGroup,
-    aliases: ['气泡', '气泡样式', '对话样式']
+    aliases: ['bubble', 'bubble mode', 'message style', 'conversation bubbles', '气泡', '气泡样式', '对话样式']
   },
   {
     anchorId: 'multi-model-style',
