@@ -4123,8 +4123,6 @@
   "settings.display.font.title": "Configuração de fonte",
   "settings.display.list_position.chat": "Posição da lista de conversas",
   "settings.display.list_position.work": "Posição da lista de tarefas",
-  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
-  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.doctor.actions.back_to_checks": "Voltar ao diagnóstico do sistema",
   "settings.doctor.actions.cancel_run": "Cancelar verificações",
   "settings.doctor.actions.confirm_check": "Send test message",

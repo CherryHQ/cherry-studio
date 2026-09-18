@@ -4123,8 +4123,6 @@
   "settings.display.font.title": "Yazı Tipi Ayarları",
   "settings.display.list_position.chat": "Konuşma listesi konumu",
   "settings.display.list_position.work": "Görev listesi konumu",
-  "settings.display.sidebar.chat.visible": "Sohbet Asistanını Kenar Çubuğunda Göster",
-  "settings.display.sidebar.title": "Kenar Çubuğu Ayarları",
   "settings.doctor.actions.back_to_checks": "Sistem tanılamasına dön",
   "settings.doctor.actions.cancel_run": "Denetimleri iptal et",
   "settings.doctor.actions.confirm_check": "Send test message",

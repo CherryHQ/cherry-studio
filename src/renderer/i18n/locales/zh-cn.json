@@ -4123,8 +4123,6 @@
   "settings.display.font.title": "字体设置",
   "settings.display.list_position.chat": "对话列表位置",
   "settings.display.list_position.work": "任务列表位置",
-  "settings.display.sidebar.chat.visible": "在侧边栏显示对话助手",
-  "settings.display.sidebar.title": "侧边栏设置",
   "settings.doctor.actions.back_to_checks": "返回检查结果",
   "settings.doctor.actions.cancel_run": "取消检查",
   "settings.doctor.actions.confirm_check": "发送测试消息",

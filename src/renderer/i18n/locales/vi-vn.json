@@ -4123,8 +4123,6 @@
   "settings.display.font.title": "Cài đặt phông chữ",
   "settings.display.list_position.chat": "Vị trí danh sách hội thoại",
   "settings.display.list_position.work": "Vị trí danh sách tác vụ",
-  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
-  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.doctor.actions.back_to_checks": "Quay lại chẩn đoán hệ thống",
   "settings.doctor.actions.cancel_run": "Hủy kiểm tra",
   "settings.doctor.actions.confirm_check": "Send test message",

@@ -4123,8 +4123,6 @@
   "settings.display.font.title": "Setări font",
   "settings.display.list_position.chat": "Poziția listei de conversații",
   "settings.display.list_position.work": "Poziția listei de sarcini",
-  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
-  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.doctor.actions.back_to_checks": "Înapoi la diagnosticarea sistemului",
   "settings.doctor.actions.cancel_run": "Anulează verificările",
   "settings.doctor.actions.confirm_check": "Send test message",
