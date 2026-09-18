@@ -10,11 +10,10 @@ import { buildHostEndpointPreviews } from './buildHostEndpointPreviews'
 export function useProviderHostPreview(params: {
   provider: Provider | undefined
   apiHost: string
-  anthropicApiHost: string
   /** Registry factory-default host for the primary endpoint; '' when none. */
   defaultApiHost: string
 }) {
-  const { provider, apiHost, anthropicApiHost, defaultApiHost } = params
+  const { provider, apiHost, defaultApiHost } = params
   // Vertex preview reads project/location from authConfig; safe to fetch
   // unconditionally — SWR dedupes and other providers ignore the result.
   const { data: authConfig } = useProviderAuthConfig(provider?.id ?? '')
@@ -23,7 +22,6 @@ export function useProviderHostPreview(params: {
     if (!provider) {
       return {
         hostPreview: '',
-        anthropicHostPreview: '',
         isApiHostResettable: false
       }
     }
@@ -33,13 +31,11 @@ export function useProviderHostPreview(params: {
       provider,
       authConfig,
       primaryEndpoint: topology.primaryEndpoint,
-      apiHost,
-      anthropicApiHost,
-      providerAnthropicHost: topology.anthropicBaseUrl
+      apiHost
     })
     return {
       ...previews,
       isApiHostResettable: Boolean(defaultApiHost && apiHost !== defaultApiHost)
     }
-  }, [anthropicApiHost, apiHost, authConfig, defaultApiHost, provider])
+  }, [apiHost, authConfig, defaultApiHost, provider])
 }
