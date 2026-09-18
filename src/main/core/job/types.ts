@@ -90,6 +90,12 @@ export interface JobHandler<TPayload = unknown> {
   cancelTimeoutMs?: number
   /** Execute one job attempt. Throw to fail; reject with AbortError to cancel. */
   execute(ctx: JobContext<TPayload>): Promise<unknown>
+  /**
+   * Optional synchronous observer of a newly committed row, before dispatch.
+   * enqueueTx defers this until after commit; rollback and idempotency hits skip it.
+   * Errors are caught and logged without preventing dispatch.
+   */
+  onEnqueued?(snapshot: Readonly<JobSnapshot>): void
   /** Optional. Called when a schedule fire was missed. */
   onMissed?(event: JobMissEvent): void | Promise<void>
   /**

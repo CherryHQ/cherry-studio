@@ -440,15 +440,20 @@ export function useHomeMessageListProviderValue({
   }, [canStartNewContext, requireChatWrite, t, topic.id])
 
   const saveCodeBlock = useCallback(
-    async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
-      const { msgBlockId, codeBlockId, newContent } = data
+    async (data: { msgBlockId: string; originalContent: string; newContent: string }) => {
+      const { msgBlockId, originalContent, newContent } = data
 
       try {
         const resolved = resolvePartFromParts(partsByMessageIdRef.current, msgBlockId)
         if (resolved && resolved.part.type === 'text') {
           const textPart = resolved.part as { text?: string }
           const { updateCodeBlock } = await import('@renderer/utils/markdown')
-          const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
+          const updatedText = updateCodeBlock(textPart.text || '', originalContent, newContent)
+          if (updatedText === null) {
+            logger.warn(`Failed to save code block to message block ${msgBlockId}: no unique matching code block`)
+            toast.error(t('code_block.edit.save.failed.label'))
+            return
+          }
           const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
           allParts[resolved.index] = {
             ...resolved.part,
@@ -459,12 +464,10 @@ export function useHomeMessageListProviderValue({
           return
         }
 
-        logger.error(
-          `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: unable to resolve part`
-        )
+        logger.error(`Failed to save code block content to message block ${msgBlockId}: unable to resolve part`)
         toast.error(t('code_block.edit.save.failed.label'))
       } catch (error) {
-        logger.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error as Error)
+        logger.error(`Failed to save code block content to message block ${msgBlockId}:`, error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },

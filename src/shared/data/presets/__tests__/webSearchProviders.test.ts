@@ -75,6 +75,20 @@ describe('web search provider schemas', () => {
     ])
   })
 
+  it('models Serply as an API-key-authenticated keyword search provider', () => {
+    const serply = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'serply')
+
+    expect(serply).toBeDefined()
+    expect(serply!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.serply.io'
+      }
+    ])
+  })
+
   it('models Fetch as a hostless built-in URL fetch provider', () => {
     const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
 
