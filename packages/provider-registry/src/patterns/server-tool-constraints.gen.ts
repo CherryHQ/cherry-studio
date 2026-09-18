@@ -24,6 +24,8 @@ export const SERVER_TOOL_FUNCTION_MIXING_MODEL_IDS: readonly string[] = [
   'gemini-3-6-flash',
   'gemini-3-7-flash',
   'gemini-3-8-flash',
+  'gemini-3-8-live',
+  'gemini-3-8-live-extended',
   'gemini-3-flash',
   'gemini-3-flash-preview',
   'gemini-3-pro-image',

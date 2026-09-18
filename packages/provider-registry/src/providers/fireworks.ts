@@ -11,19 +11,21 @@ const FIREWORKS_ENDPOINTS = ['openai-responses', 'anthropic-messages', 'openai-c
 // actual effort tier, with max normalized to high by Fireworks.
 const anthropicWire: ReasoningWireProfile = {
   off: {
-    operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }]
+    operations: [
+      { target: 'thinking.type', value: { source: 'literal', value: 'disabled' }, delivery: 'provider-option' }
+    ]
   },
   auto: {
     operations: [
-      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-      { target: 'thinking.budgetTokens', value: { source: 'literal', value: 1024 } }
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' },
+      { target: 'thinking.budgetTokens', value: { source: 'literal', value: 1024 }, delivery: 'provider-option' }
     ]
   },
   effort: {
     operations: [
-      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-      { target: 'thinking.budgetTokens', value: { source: 'literal', value: 1024 } },
-      { target: 'effort', value: { source: 'effort' } }
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' },
+      { target: 'thinking.budgetTokens', value: { source: 'literal', value: 1024 }, delivery: 'provider-option' },
+      { target: 'effort', value: { source: 'effort' }, delivery: 'provider-option' }
     ],
     effortMap: { max: 'high' }
   }

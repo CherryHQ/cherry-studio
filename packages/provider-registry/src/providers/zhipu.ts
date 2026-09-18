@@ -16,11 +16,15 @@ const glm52Support: ReasoningSupport = {
 }
 
 const glm52Wire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
+  off: {
+    operations: [
+      { target: 'thinking.type', value: { source: 'literal', value: 'disabled' }, delivery: 'provider-option' as const }
+    ]
+  },
   effort: {
     operations: [
-      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-      { target: 'reasoningEffort', value: { source: 'effort' } }
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' },
+      { target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' }
     ]
   }
 }
@@ -28,8 +32,8 @@ const glm52Wire: ReasoningWireProfile = {
 const glm53Wire: ReasoningWireProfile = {
   effort: {
     operations: [
-      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-      { target: 'reasoningEffort', value: { source: 'effort' } }
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' },
+      { target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' }
     ]
   }
 }

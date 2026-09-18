@@ -459,9 +459,23 @@ describe('mergePresetModel — reasoning', () => {
     } as any
     const wire = {
       off: {
-        operations: [{ target: 'reasoning.enabled' as const, value: { source: 'literal' as const, value: false } }]
+        operations: [
+          {
+            target: 'reasoning.enabled' as const,
+            value: { source: 'literal' as const, value: false },
+            delivery: 'provider-option' as const
+          }
+        ]
       },
-      effort: { operations: [{ target: 'reasoning.effort' as const, value: { source: 'effort' as const } }] }
+      effort: {
+        operations: [
+          {
+            target: 'reasoning.effort' as const,
+            value: { source: 'effort' as const },
+            delivery: 'provider-option' as const
+          }
+        ]
+      }
     }
 
     const model = mergePresetModel(preset, null, 'provider', wire)
@@ -471,10 +485,26 @@ describe('mergePresetModel — reasoning', () => {
 
   it('prefers an endpoint-keyed model contract over the endpoint wire', () => {
     const endpointWire = {
-      effort: { operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }] }
+      effort: {
+        operations: [
+          {
+            target: 'reasoningEffort' as const,
+            value: { source: 'effort' as const },
+            delivery: 'provider-option' as const
+          }
+        ]
+      }
     }
     const contractWire = {
-      effort: { operations: [{ target: 'reasoning_effort' as const, value: { source: 'effort' as const } }] }
+      effort: {
+        operations: [
+          {
+            target: 'reasoning_effort' as const,
+            value: { source: 'effort' as const },
+            delivery: 'provider-option' as const
+          }
+        ]
+      }
     }
 
     const resolved = resolveReasoningProfileFromRegistry({
