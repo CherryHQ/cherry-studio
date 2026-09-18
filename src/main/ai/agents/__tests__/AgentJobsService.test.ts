@@ -133,6 +133,7 @@ describe('AgentJobsService', () => {
           return service
         case 'AiStreamManager':
           return {
+            clearConversationTaskStatuses: () => {},
             isWriteQuiesced: false,
             withDispatchLock: (_id: string, fn: () => unknown) => fn(),
             hasUnsettledTopicWork: () => false,
