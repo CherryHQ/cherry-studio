@@ -490,6 +490,18 @@ describe('convertUiWorkflowToPrompt', () => {
     expect(prompt['1'].inputs).toMatchObject({ mode: 'Option 2', steps: 3 })
   })
 
+  it('keys object-form widget values by name', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [{ id: 1, type: 'NamedWidgets', widgets_values: { steps: 4, label: 'kept' } }],
+        links: []
+      },
+      { NamedWidgets: { input: { required: { label: ['STRING', {}], steps: ['INT', {}] } } } }
+    )
+
+    expect(prompt['1'].inputs).toMatchObject({ label: 'kept', steps: 4 })
+  })
+
   it('expands a DynamicCombo value with its selected option children', () => {
     const { prompt } = convertUiWorkflowToPrompt(
       {
@@ -587,6 +599,26 @@ describe('findPromptTarget', () => {
     })
 
     expect(target).toEqual({ nodeId: '3', input: 'text', samplerId: '2' })
+  })
+
+  it('does not cross into the negative branch while following the positive chain', () => {
+    const target = findPromptTarget({
+      '1': { class_type: 'CLIPTextEncode', inputs: { text: '' }, _meta: { title: 'pos' } },
+      '2': { class_type: 'CLIPTextEncode', inputs: { text: '' }, _meta: { title: 'neg' } },
+      '3': { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['2', 0] }, _meta: { title: 'zero' } },
+      '4': {
+        class_type: 'ConditioningCombine',
+        inputs: { conditioning_1: ['1', 0], conditioning_2: ['3', 0] },
+        _meta: { title: 'combine' }
+      },
+      '5': {
+        class_type: 'KSampler',
+        inputs: { seed: 7, positive: ['4', 0], negative: ['3', 0] },
+        _meta: { title: 'KSampler' }
+      }
+    })
+
+    expect(target).toEqual({ nodeId: '1', input: 'text', samplerId: '5' })
   })
 
   it('recognizes the SDXL text encodes as prompt targets', () => {

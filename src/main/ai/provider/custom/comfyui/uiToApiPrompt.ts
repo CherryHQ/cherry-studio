@@ -236,7 +236,17 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
   function widgetValues(node: UiNode, linked: Set<string>): Record<string, unknown> {
     const raw = node.widgets_values
     const info = objectInfo[node.type]
-    if (!info || !Array.isArray(raw)) return {}
+    if (!info) return {}
+    // Named values (object form) key straight to the inputs — a schema change
+    // cannot silently remap them to a different position.
+    if (raw !== undefined && !Array.isArray(raw)) {
+      const out: Record<string, unknown> = {}
+      for (const [name, value] of Object.entries(raw)) {
+        if (!linked.has(name)) out[name] = wrapWidgetValue(value)
+      }
+      return out
+    }
+    if (!Array.isArray(raw)) return {}
     let names = widgetInputNames(info, false, undefined, undefined, raw)
     const values = raw
     if (values.length !== names.length) {
@@ -499,11 +509,35 @@ export function findPromptTarget(
   for (const [samplerId, node] of ordered) {
     const positive = node.inputs.positive
     if (!isReference(positive)) continue
+    /** All nodes reachable through reference inputs from a starting id. */
+    const reachableFrom = (start: Reference): Set<string> => {
+      const reached = new Set<string>()
+      const queue = [start[0]]
+      while (queue.length > 0) {
+        const nodeId = queue.shift()!
+        if (reached.has(nodeId)) continue
+        reached.add(nodeId)
+        const node = prompt[nodeId]
+        if (!node) continue
+        for (const value of Object.values(node.inputs)) {
+          if (isReference(value)) queue.push(value[0])
+        }
+      }
+      return reached
+    }
+    // Only the negative-exclusive part of the graph is out of bounds: the
+    // classic zero-out chain hangs a ConditioningZeroOut off the negative
+    // encode, and crossing into it would replace the negative prompt. Nodes
+    // shared with the positive branch stay reachable.
+    const negative = node.inputs.negative
+    const negativeOnly = isReference(negative)
+      ? new Set([...reachableFrom(negative)].filter((id) => !reachableFrom(positive).has(id)))
+      : new Set<string>()
     const queue = [positive[0]]
     const seen = new Set<string>()
     while (queue.length > 0) {
       const nodeId = queue.shift()!
-      if (seen.has(nodeId)) continue
+      if (seen.has(nodeId) || negativeOnly.has(nodeId)) continue
       seen.add(nodeId)
       const target = prompt[nodeId]
       if (!target) continue
