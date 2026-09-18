@@ -4229,6 +4229,7 @@
   "settings.doctor.checks.provider-default-model.detail.provider_unavailable": "Ο πάροχος του προεπιλεγμένου μοντέλου δεν είναι διαθέσιμος.",
   "settings.doctor.checks.provider-default-model.title": "Προεπιλεγμένο μοντέλο",
   "settings.doctor.checks.provider-model-conversation.confirmation": "Να σταλεί ένα σύντομο δοκιμαστικό μήνυμα στο {{model}} ({{modelId}}) μέσω του {{endpoint}}; Ενδέχεται να υπάρξουν χρεώσεις χρήσης από τον πάροχο.",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "Αυτός ο πάροχος χρησιμοποιεί εξωτερικό CLI· οι έλεγχοι συνομιλίας μέσω API δεν υποστηρίζονται.",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "Το μοντέλο δεν υποστηρίζει συνομιλίες· ο έλεγχος παραλείφθηκε.",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "Το αίτημα προς το μοντέλο απέτυχε ({{category}}).",
   "settings.doctor.checks.provider-model-conversation.title": "Δοκιμή συνομιλίας μοντέλου",

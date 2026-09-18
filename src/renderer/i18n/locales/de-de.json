@@ -4229,6 +4229,7 @@
   "settings.doctor.checks.provider-default-model.detail.provider_unavailable": "Der Anbieter des Standardmodells ist nicht verfügbar.",
   "settings.doctor.checks.provider-default-model.title": "Standardmodell",
   "settings.doctor.checks.provider-model-conversation.confirmation": "Eine kurze Testnachricht an {{model}} ({{modelId}}) unter {{endpoint}} senden? Dabei können Nutzungsgebühren des Anbieters entstehen.",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "Dieser Anbieter verwendet eine externe CLI; API-Konversationsprüfungen werden nicht unterstützt.",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "Dieses Modell unterstützt keine Gespräche; diese Prüfung wurde übersprungen.",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "Die Modellanfrage ist fehlgeschlagen ({{category}}).",
   "settings.doctor.checks.provider-model-conversation.title": "Modell-Gesprächstest",

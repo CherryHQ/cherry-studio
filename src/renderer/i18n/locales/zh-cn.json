@@ -4229,6 +4229,7 @@
   "settings.doctor.checks.provider-default-model.detail.provider_unavailable": "默认模型服务不可用。",
   "settings.doctor.checks.provider-default-model.title": "默认模型",
   "settings.doctor.checks.provider-model-conversation.confirmation": "向 {{endpoint}} 的 {{model}}（{{modelId}}）发送一条简短测试消息？这可能产生服务商调用费用。",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "此服务商使用外部 CLI，不支持通过 API 检查对话。",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "此模型不支持对话，已跳过此项检查。",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "模型请求失败（{{category}}）。",
   "settings.doctor.checks.provider-model-conversation.title": "模型对话检测",

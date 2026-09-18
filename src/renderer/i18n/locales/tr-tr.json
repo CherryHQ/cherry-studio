@@ -4229,6 +4229,7 @@
   "settings.doctor.checks.provider-default-model.detail.provider_unavailable": "Varsayılan model sağlayıcısı kullanılamıyor.",
   "settings.doctor.checks.provider-default-model.title": "Varsayılan model",
   "settings.doctor.checks.provider-model-conversation.confirmation": "{{endpoint}} adresindeki {{model}} ({{modelId}}) modeline kısa bir test mesajı gönderilsin mi? Sağlayıcı kullanım ücreti alabilir.",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "Bu sağlayıcı harici bir CLI kullanıyor; API üzerinden konuşma kontrolleri desteklenmiyor.",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "Bu model konuşmaları desteklemediği için bu kontrol atlandı.",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "Model isteği başarısız oldu ({{category}}).",
   "settings.doctor.checks.provider-model-conversation.title": "Model konuşma testi",

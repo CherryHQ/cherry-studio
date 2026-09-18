@@ -4229,6 +4229,7 @@
   "settings.doctor.checks.provider-default-model.detail.provider_unavailable": "The default model provider is unavailable.",
   "settings.doctor.checks.provider-default-model.title": "Default model",
   "settings.doctor.checks.provider-model-conversation.confirmation": "Send one short test message to {{model}} ({{modelId}}) at {{endpoint}}? This may incur provider usage charges.",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "This provider uses an external CLI; API conversation checks are not supported.",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "This model does not support conversations; this check was skipped.",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "The model request failed ({{category}}).",
   "settings.doctor.checks.provider-model-conversation.title": "Model conversation",

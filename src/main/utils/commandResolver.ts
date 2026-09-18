@@ -418,9 +418,12 @@ export async function findExecutableInEnv(
     }
 
     // Ask mise for the real binary path
-    const viaMise = await findViaMise(name, env, signal)
-    if (viaMise) {
-      return viaMise
+    try {
+      const viaMise = await findViaMise(name, env, signal)
+      if (viaMise) return viaMise
+    } catch (error) {
+      signal?.throwIfAborted()
+      logger.warn('mise lookup failed, continuing with fallback', { name, error })
     }
 
     // Last resort: the bundled MinGit shipped with the app, so git works even

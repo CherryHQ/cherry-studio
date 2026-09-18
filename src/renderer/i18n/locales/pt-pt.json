@@ -4229,6 +4229,7 @@
   "settings.doctor.checks.provider-default-model.detail.provider_unavailable": "O fornecedor do modelo predefinido está indisponível.",
   "settings.doctor.checks.provider-default-model.title": "Modelo predefinido",
   "settings.doctor.checks.provider-model-conversation.confirmation": "Enviar uma mensagem de teste curta para {{model}} ({{modelId}}) em {{endpoint}}? Isto poderá gerar custos de utilização do fornecedor.",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "Este fornecedor utiliza uma CLI externa; as verificações de conversação através da API não são suportadas.",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "Este modelo não suporta conversações; esta verificação foi ignorada.",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "O pedido ao modelo falhou ({{category}}).",
   "settings.doctor.checks.provider-model-conversation.title": "Teste de conversação do modelo",

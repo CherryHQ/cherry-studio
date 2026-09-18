@@ -4229,6 +4229,7 @@
   "settings.doctor.checks.provider-default-model.detail.provider_unavailable": "デフォルトモデルのプロバイダーを利用できません。",
   "settings.doctor.checks.provider-default-model.title": "デフォルトモデル",
   "settings.doctor.checks.provider-model-conversation.confirmation": "{{endpoint}} の {{model}}（{{modelId}}）に短いテストメッセージを1件送信しますか？プロバイダーの利用料金が発生する場合があります。",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "このプロバイダーは外部 CLI を使用するため、API による会話チェックには対応していません。",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "このモデルは会話に対応していないため、スキップしました。",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "モデルへのリクエストに失敗しました（{{category}}）。",
   "settings.doctor.checks.provider-model-conversation.title": "モデルの会話テスト",
