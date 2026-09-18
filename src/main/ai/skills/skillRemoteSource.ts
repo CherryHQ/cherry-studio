@@ -181,15 +181,17 @@ async function fetchFromGithub(
   const { ref, namespace, oid, target } = await resolveGithubCommit(repoUrl, refAndPath, refNamespace)
   logger.info('Installing from GitHub', { owner, repo, ref, namespace, oid, target })
 
-  // A slash-bearing ref has no delimiter from the selected path in a raw URL. Store the observed
-  // commit permalink in that case so later catalog matching cannot reinterpret the ref boundary.
+  // A raw URL has no delimiter between ref and path. Slash-bearing refs and short refs with a
+  // multi-segment path can both be reinterpreted at a different boundary during catalog matching,
+  // so store the observed commit permalink (with an explicit ?ref=) in those cases.
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
-  const sourceUrl =
-    namespace && !ref.includes('/')
-      ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
-      : `${repoUrl}/tree/${encodeGithubPath(target.kind === 'root' ? oid : `${oid}/${target.path}`)}${
-          namespace && ref.includes('/') ? `?ref=${encodeURIComponent(`refs/${namespace}/${ref}`)}` : ''
-        }`
+  const canUseRawRefUrl =
+    Boolean(namespace) && !ref.includes('/') && !(target.kind === 'directory' && target.path.includes('/'))
+  const sourceUrl = canUseRawRefUrl
+    ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
+    : `${repoUrl}/tree/${encodeGithubPath(target.kind === 'root' ? oid : `${oid}/${target.path}`)}${
+        namespace ? `?ref=${encodeURIComponent(`refs/${namespace}/${ref}`)}` : ''
+      }`
 
   const tempDir = await openTempDir()
   const { contentDir, skillDir } = await materializeGithubTarget(repoUrl, oid, target, descriptorFileName, tempDir)

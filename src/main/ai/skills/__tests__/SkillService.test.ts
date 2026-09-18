@@ -938,7 +938,7 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(path.join('skills', 'recruit-init')),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/heads/dev/skills/recruit-init/SKILL.md'
+        `https://github.com/owner/repo/tree/${oid}/skills/recruit-init?ref=refs%2Fheads%2Fdev`
       )
     })
 
@@ -1312,6 +1312,43 @@ describe('SkillService', () => {
         expect(second.id).toBe(first.id)
         expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
         await expect(fs.promises.access(path.join(dataSkillsRoot, 'Demo', 'SKILL.md'))).resolves.toBeUndefined()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('does not alias a short-ref multi-segment path with a slash-bearing ref', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const firstDir = path.join(workDir, 'first')
+      const secondDir = path.join(workDir, 'second')
+      // Short ref "feature" + path "foo/skills/demo" must not share an origin with ref "feature/foo".
+      const shortRefUrl = `https://github.com/owner/repo/tree/${'a'.repeat(40)}/foo/skills/demo?ref=refs%2Fheads%2Ffeature`
+      const slashBearingUrl = `https://github.com/owner/repo/tree/${'b'.repeat(40)}/skills/demo?ref=refs%2Fheads%2Ffeature%2Ffoo`
+
+      try {
+        await Promise.all(
+          [firstDir, secondDir].map(async (directory) => {
+            await fs.promises.mkdir(directory, { recursive: true })
+            await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# skill')
+          })
+        )
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Demo', declaredName: 'Demo' }) as never
+        )
+
+        const first = await skillService['installSkillDir'](firstDir, 'marketplace', shortRefUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        await expect(
+          skillService['installSkillDir'](secondDir, 'marketplace', slashBearingUrl, { folderNameFallback: 'repo' })
+        ).rejects.toThrow('refusing to overwrite')
+
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        await expect(
+          fs.promises.access(path.join(dataSkillsRoot, first.folderName, 'SKILL.md'))
+        ).resolves.toBeUndefined()
       } finally {
         restoreGetPath()
         vi.mocked(parseSkillMetadata).mockReset()
@@ -1920,7 +1957,7 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.any(String),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md'
+        `https://github.com/owner/repo/tree/${tagOid}/skills/demo?ref=refs%2Ftags%2Fv1`
       )
     })
 
