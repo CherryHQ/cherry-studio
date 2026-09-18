@@ -54,7 +54,7 @@ describe('useViewSourceTool', () => {
     expect(onViewModeChange).toHaveBeenLastCalledWith('edit')
   })
 
-  it('offers edit only when a settled source can enter edit mode', () => {
+  it('lets a settled source enter edit mode and leave it again', () => {
     const onViewModeChange = vi.fn()
     const { result, rerender } = renderHook(
       ({ canEdit, hasSpecialView, isStreaming, viewMode }: HookProps) => {
@@ -75,7 +75,9 @@ describe('useViewSourceTool', () => {
     expect(result.current[0]).toMatchObject({ id: 'edit', tooltip: 'code_block.edit.label' })
 
     rerender({ canEdit: true, hasSpecialView: false, isStreaming: false, viewMode: 'edit' })
-    expect(result.current).toEqual([])
+    expect(result.current[0]).toMatchObject({ id: 'edit', tooltip: 'common.cancel' })
+    act(() => result.current[0].onClick?.())
+    expect(onViewModeChange).toHaveBeenLastCalledWith('source')
 
     rerender({ canEdit: true, hasSpecialView: true, isStreaming: false, viewMode: 'edit' })
     expect(result.current[0]).toMatchObject({ id: 'edit', tooltip: 'preview.label' })

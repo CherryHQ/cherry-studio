@@ -50,7 +50,8 @@ const STREAMING_CODE_VIEWER_OPTIONS = { highlight: false } as const
 interface Props {
   children: string
   language: string
-  onSave?: (newContent: string) => void
+  /** Resolving to `false` reports a failed save and keeps the editor open. */
+  onSave?: (newContent: string) => void | boolean | Promise<void | boolean>
   editable?: boolean
   allowExecution?: boolean
   isStreaming?: boolean
@@ -110,17 +111,13 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const specialViewDefinition = hasSpecialView
     ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
     : undefined
-  const startedStreamingRef = useRef(isStreaming)
-
   const [viewState, setViewState] = useState({
     mode: 'special' as ViewMode,
     previousMode: 'special' as ViewMode
   })
   const viewMode = useMemo<ViewMode>(() => {
     if (viewState.mode === 'edit' && !canEdit) return 'source'
-    if (!hasSpecialView && viewState.mode !== 'edit') {
-      return canEdit && !startedStreamingRef.current && viewState.mode === 'special' ? 'edit' : 'source'
-    }
+    if (!hasSpecialView && viewState.mode !== 'edit') return 'source'
     return viewState.mode
   }, [canEdit, hasSpecialView, viewState.mode])
 
@@ -131,6 +128,15 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       previousMode: newMode !== 'split' ? newMode : current.previousMode
     }))
   }, [])
+
+  const handleSave = useCallback(
+    async (newContent: string) => {
+      const saved = await onSave?.(newContent)
+      if (saved === false) return
+      setViewState((current) => (current.mode === 'edit' ? { mode: 'special', previousMode: 'special' } : current))
+    },
+    [onSave]
+  )
 
   const toggleSplitView = useCallback(() => {
     setViewState((current) => {
@@ -327,7 +333,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           fontSize={fontSize - 1}
           value={children}
           language={language}
-          onSave={onSave}
+          onSave={handleSave}
           onHeightChange={handleHeightChange}
           maxHeight={sourceMaxHeight}
           options={{ stream: true, lineNumbers: codeShowLineNumbers, ...codeEditor }}
@@ -362,7 +368,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       isStreaming,
       language,
       maxHeight,
-      onSave,
+      handleSave,
       shouldExpand,
       shouldWrap,
       sourceMaxHeight

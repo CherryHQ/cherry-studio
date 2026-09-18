@@ -1,4 +1,4 @@
-import { CodeXml, Eye, SquarePen } from 'lucide-react'
+import { CodeXml, Eye, SquarePen, X } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,13 +29,16 @@ export const useViewSourceTool = ({
   useEffect(() => {
     if (viewMode === 'split') return
 
-    const canEnterEdit = canEdit && !isStreaming
-    if (canEnterEdit && (hasSpecialView || viewMode === 'source')) {
+    if (canEdit && !isStreaming) {
+      const leaveEdit = hasSpecialView
+        ? { mode: 'special' as const, icon: <Eye className="tool-icon" />, tooltip: t('preview.label') }
+        : { mode: 'source' as const, icon: <X className="tool-icon" />, tooltip: t('common.cancel') }
+      const isEditing = viewMode === 'edit'
       registerTool({
         ...TOOL_SPECS.edit,
-        icon: viewMode === 'edit' ? <Eye className="tool-icon" /> : <SquarePen className="tool-icon" />,
-        tooltip: viewMode === 'edit' ? t('preview.label') : t('code_block.edit.label'),
-        onClick: () => onViewModeChange(viewMode === 'edit' ? 'special' : 'edit')
+        icon: isEditing ? leaveEdit.icon : <SquarePen className="tool-icon" />,
+        tooltip: isEditing ? leaveEdit.tooltip : t('code_block.edit.label'),
+        onClick: () => onViewModeChange(isEditing ? leaveEdit.mode : 'edit')
       })
       return () => removeTool(TOOL_SPECS.edit.id)
     }

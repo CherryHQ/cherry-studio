@@ -444,6 +444,15 @@ describe('CodeBlock', () => {
       })
     })
 
+    it('reports a failed save to the view so it can keep the editor open', async () => {
+      mocks.saveCodeBlock.mockResolvedValue(false)
+      render(<CodeBlock {...defaultProps} />)
+
+      const { onSave } = mocks.CodeBlockView.mock.lastCall?.[0] ?? {}
+
+      await expect(onSave('new code content')).resolves.toBe(false)
+    })
+
     it('should call saveCodeBlock with correct payload when saving an HTML block', () => {
       const htmlProps = {
         ...defaultProps,
