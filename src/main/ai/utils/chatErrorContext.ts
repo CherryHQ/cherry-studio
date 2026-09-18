@@ -1,8 +1,10 @@
-import { redactSecretText, redactToShape, redactUrlParams } from '@shared/utils/redaction'
+import { getSafeAiSdkErrorDiscriminants, getSafeProviderErrorMessage } from '@shared/ai/providerError'
+import { redactUrlParams } from '@shared/utils/redaction'
+
+import { redactToShape } from './redactToShape'
 
 const MAX_MESSAGE_CHARS = 500
-const MAX_STACK_CHARS = 600
-const MAX_RESPONSE_BODY_CHARS = 1000
+const MAX_RESPONSE_INPUT_CHARS = 16_384
 /** RetryError → APICallError is the common chain; anything deeper is noise. */
 const MAX_NESTED_DEPTH = 2
 
@@ -11,56 +13,73 @@ function truncate(text: string, max: number): string {
 }
 
 function safeText(value: unknown, max: number): string {
-  return truncate(redactSecretText(String(value)), max)
+  const text = typeof value === 'string' ? value : String(value)
+  return truncate(getSafeProviderErrorMessage({ message: text }) || `<string:${text.length}>`, max)
 }
 
-/**
- * Redacted, size-bounded view of a failed provider exchange for the error log —
- * the diagnostic bundle's only carrier of the request/response that failed
- * (the persisted message error drops both payloads before it reaches storage).
- *
- * The request body is reduced to its shape: keys, scalars and tool names stay,
- * conversation text does not.
- */
-export function chatErrorContext(error: unknown, depth = 0): Record<string, unknown> {
+function responseShape(value: unknown): unknown {
+  if (typeof value === 'string' && value.length <= MAX_RESPONSE_INPUT_CHARS) {
+    try {
+      return redactToShape(JSON.parse(value), 'response')
+    } catch {
+      return redactToShape(value)
+    }
+  }
+  return redactToShape(value, 'response')
+}
+
+function containsPayload(error: unknown, depth = 0): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const source = error as Record<string, unknown>
+  if (['requestBodyValues', 'responseBody', 'data', 'text', 'value', 'issues'].some((key) => source[key] != null))
+    return true
+  return (
+    depth < MAX_NESTED_DEPTH &&
+    (containsPayload(source.cause, depth + 1) || containsPayload(source.lastError, depth + 1))
+  )
+}
+
+function collectErrorContext(error: unknown, depth: number, hideMessage: boolean): Record<string, unknown> {
   if (!(typeof error === 'object' && error !== null)) {
-    return { errorMessage: safeText(error, MAX_MESSAGE_CHARS) }
+    return { errorMessage: hideMessage ? redactToShape(error) : safeText(error, MAX_MESSAGE_CHARS) }
   }
 
   const source = error as Record<string, unknown>
-  const context: Record<string, unknown> = {}
+  const context: Record<string, unknown> = getSafeAiSdkErrorDiscriminants({
+    statusCode: source.statusCode,
+    statusText: source.statusText,
+    isRetryable: source.isRetryable,
+    reason: source.reason,
+    toolName: source.toolName
+  })
 
-  if (error instanceof Error) {
-    context.errorName = error.name
-    context.errorMessage = safeText(error.message, MAX_MESSAGE_CHARS)
-    if (error.stack) context.stack = safeText(error.stack, MAX_STACK_CHARS)
+  if (typeof source.name === 'string') context.errorName = safeText(source.name, MAX_MESSAGE_CHARS)
+  if (typeof source.message === 'string') {
+    context.errorMessage = hideMessage ? redactToShape(source.message) : safeText(source.message, MAX_MESSAGE_CHARS)
   }
-  if (typeof source.url === 'string') context.url = redactUrlParams(source.url)
-  if (typeof source.statusCode === 'number') context.statusCode = source.statusCode
+  if (typeof source.url === 'string') context.url = truncate(redactUrlParams(source.url), MAX_MESSAGE_CHARS)
   // Node errno (`ECONNREFUSED`) and JSON-RPC codes — the most stable anchors the log scan has.
-  if (typeof source.code === 'string' || typeof source.code === 'number') context.code = source.code
-  if (typeof source.statusText === 'string') context.statusText = safeText(source.statusText, MAX_MESSAGE_CHARS)
-  if (typeof source.isRetryable === 'boolean') context.isRetryable = source.isRetryable
-  if (typeof source.reason === 'string') context.reason = safeText(source.reason, MAX_MESSAGE_CHARS)
-  if (source.requestBodyValues != null) context.requestShape = redactToShape(source.requestBodyValues)
-  if (source.responseBody != null) context.responseBody = safeText(source.responseBody, MAX_RESPONSE_BODY_CHARS)
-  if (source.responseHeaders != null) context.responseHeaders = redactToShape(source.responseHeaders)
-  if (source.data != null) context.data = redactToShape(source.data)
-  if (typeof source.toolName === 'string') context.toolName = source.toolName
-  // The "we parsed it wrong" side: JSONParseError.text, TypeValidationError.value,
-  // and the zod issues its cause carries — all name the field that failed.
-  if (typeof source.text === 'string') context.text = safeText(source.text, MAX_RESPONSE_BODY_CHARS)
-  if (source.value !== undefined) context.value = redactToShape(source.value)
+  if (typeof source.code === 'number') context.code = source.code
+  if (typeof source.code === 'string') context.code = safeText(source.code, MAX_MESSAGE_CHARS)
+  if (source.requestBodyValues != null) context.requestShape = redactToShape(source.requestBodyValues, 'request')
+  if (source.responseBody != null) context.responseBody = responseShape(source.responseBody)
+  if (source.responseHeaders != null) context.responseHeaders = redactToShape(source.responseHeaders, 'headers')
+  if (source.data != null) context.data = redactToShape(source.data, 'response')
+  if (typeof source.text === 'string') context.text = responseShape(source.text)
+  if (source.value !== undefined) context.value = redactToShape(source.value, 'response')
   if (Array.isArray(source.issues)) context.issues = redactToShape(source.issues)
   if (source.cause != null) {
-    context.cause =
-      source.cause instanceof Error && depth < MAX_NESTED_DEPTH
-        ? chatErrorContext(source.cause, depth + 1)
-        : safeText(source.cause, MAX_MESSAGE_CHARS)
+    context.cause = depth < MAX_NESTED_DEPTH ? collectErrorContext(source.cause, depth + 1, hideMessage) : '<max-depth>'
   }
   if (source.lastError != null && depth < MAX_NESTED_DEPTH) {
-    context.lastError = chatErrorContext(source.lastError, depth + 1)
+    context.lastError = collectErrorContext(source.lastError, depth + 1, hideMessage)
   }
 
   return context
+}
+
+/** Diagnostic-only payload shapes augment the shared error normalization without entering persisted errors. */
+export function chatErrorContext(error: unknown): Record<string, unknown> {
+  // Retry wrappers and parser causes can echo payloads from another level of the error chain.
+  return collectErrorContext(error, 0, containsPayload(error))
 }

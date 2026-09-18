@@ -20,9 +20,9 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
+import { redactToShape } from '@main/ai/utils/redactToShape'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
-import { redactToShape } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('McpBridge')
 
