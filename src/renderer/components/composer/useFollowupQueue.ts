@@ -244,6 +244,10 @@ export function useFollowupQueue({
   // Background claim retries, unlike resolve retries, belong to the live edge:
   // they stop when the hook unmounts.
   const pendingClaimRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  // Single-flight pause writes: rapid Pause/Resume coalesces to the latest
+  // request instead of letting concurrent PUTs resolve out of order.
+  const pausedInflightRef = useRef<{ scopeKey: string; paused: boolean } | null>(null)
+  const pausedQueuedRef = useRef<{ scopeKey: string; paused: boolean } | null>(null)
 
   // Track mount state for background timers. Resolve retries intentionally
   // survive unmount (a sent row must still be dequeued); claim retries stop.
@@ -381,11 +385,38 @@ export function useFollowupQueue({
     (nextPaused: boolean) => {
       const scope = scopeKeyRef.current
       setPausedOverride({ scopeKey: scope, paused: nextPaused })
-      void setPausedTrigger({ body: { scopeKey: scope, paused: nextPaused } }).catch(() => {
-        toast.error(t('message.error.operation_unavailable'))
-        // Release the optimistic hold so a failed Pause cannot park the drain.
-        setPausedOverride((prev) => (prev?.scopeKey === scope ? null : prev))
-      })
+      const request = { scopeKey: scope, paused: nextPaused }
+      // Coalesce rapid toggles: only the latest queued request is sent after
+      // the in-flight PUT settles, so the server ends with the user's choice.
+      if (pausedInflightRef.current) {
+        pausedQueuedRef.current = request
+        return
+      }
+      pausedInflightRef.current = request
+      const send = async (current: { scopeKey: string; paused: boolean }) => {
+        try {
+          await setPausedTrigger({ body: { scopeKey: current.scopeKey, paused: current.paused } })
+        } catch {
+          toast.error(t('message.error.operation_unavailable'))
+          // Release the optimistic hold so a failed Pause cannot park the
+          // drain. Only clear when the hold still matches this request: a
+          // newer toggle issued mid-flight owns the hold now.
+          setPausedOverride((prev) =>
+            prev?.scopeKey === current.scopeKey && prev.paused === current.paused ? null : prev
+          )
+        }
+      }
+      void (async () => {
+        await send(request)
+        let queued = pausedQueuedRef.current
+        while (queued) {
+          pausedQueuedRef.current = null
+          pausedInflightRef.current = queued
+          await send(queued)
+          queued = pausedQueuedRef.current
+        }
+        pausedInflightRef.current = null
+      })()
     },
     [setPausedTrigger, t]
   )

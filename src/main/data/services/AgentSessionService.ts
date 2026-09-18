@@ -1031,7 +1031,7 @@ export class AgentSessionService {
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
     if (result.deletedIds.length > 0) pinService.notifyPurged()
-    if (result.deletedIds.length > 0) followupQueueService.notifyPurged()
+    if (options.permanent === true && result.deletedIds.length > 0) followupQueueService.notifyPurged()
     logger.info(options.permanent === true ? 'Permanently deleted sessions' : 'Moved sessions to Recycle Bin', {
       count: result.deletedIds.length
     })
@@ -1239,7 +1239,7 @@ export class AgentSessionService {
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
     if (result.deletedIds.length > 0) pinService.notifyPurged()
-    if (result.deletedIds.length > 0) followupQueueService.notifyPurged()
+    if (options.permanent === true && result.deletedIds.length > 0) followupQueueService.notifyPurged()
     logger.info(
       options.permanent === true ? 'Permanently deleted agent sessions' : 'Moved agent sessions to Recycle Bin',
       {
