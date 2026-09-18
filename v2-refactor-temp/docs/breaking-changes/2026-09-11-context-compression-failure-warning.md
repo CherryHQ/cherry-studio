@@ -2,7 +2,7 @@
 title: Context compression failures now show a warning
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#20398'
 date: 2026-09-11
 ---
 
@@ -16,8 +16,8 @@ Compression can no longer silently stop because of an unsupported model or a pro
 
 ## What the user should do
 
-If a warning appears, check the compression model and its provider configuration in context management settings and select a chat model.
+If a warning appears, check the compression model and its provider configuration in context management settings.
 
 ## Notes for release manager
 
-Fixes #20249. Fill in the PR number when the change is submitted.
+Fixes #20249.

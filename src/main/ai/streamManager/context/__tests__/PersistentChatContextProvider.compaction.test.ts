@@ -15,7 +15,7 @@ import { MockLanguageModelV3 } from 'ai/test'
 import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { makeProvider } from '../../../__tests__/fixtures'
+import { makeAssistant, makeProvider } from '../../../__tests__/fixtures'
 import type * as RequestContextSettingsModule from '../../../contextBuild/resolveRequestContextSettings'
 import type { RequestScope } from '../../../runtime/aiSdk/params/scope'
 import { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
@@ -1126,6 +1126,7 @@ const estimateModelMessages = (messages: Array<{ content: unknown }>) =>
 function inLoopScope(contextWindow: number): RequestScope {
   return {
     request: { conversation: { id: 'topic-1', topicId: 'topic-1' } },
+    assistant: makeAssistant(),
     model: makeModel(DEFAULT_MODEL_ID, contextWindow),
     provider: makeProvider({ id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} }),
     contextSettings: DEFAULT_CONTEXT_SETTINGS,

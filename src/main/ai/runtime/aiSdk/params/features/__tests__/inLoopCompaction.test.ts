@@ -32,6 +32,7 @@ const provider = (adapterFamily = 'anthropic') =>
 
 const scope = (overrides: {
   chatId?: string
+  assistant?: boolean
   contextOwner?: 'cherry' | 'caller'
   contextWindow?: number
   enabled?: boolean
@@ -45,6 +46,7 @@ const scope = (overrides: {
       conversation: { id: overrides.chatId ?? 'no-topic', topicId: overrides.chatId },
       contextOwner: overrides.contextOwner
     },
+    assistant: overrides.assistant === false ? undefined : { id: 'assistant-1', settings: {} },
     model: { id: 'prov::model', contextWindow: overrides.contextWindow },
     provider: provider(overrides.adapterFamily),
     contextSettings: {
@@ -142,6 +144,8 @@ describe('inLoopCompactionFeature', () => {
 
   it.each([
     { chatId: 'topic-1', expectedWarnings: 1 },
+    { chatId: 'translation-stream', assistant: false, expectedWarnings: 0 },
+    { chatId: 'prompt-stream', assistant: false, expectedWarnings: 0 },
     { chatId: 'temp:t1', expectedWarnings: 0 },
     { chatId: 'agent-session:s1', expectedWarnings: 0 },
     { chatId: undefined, expectedWarnings: 0 },
@@ -167,6 +171,15 @@ describe('inLoopCompactionFeature', () => {
           ]
         : []
     )
+  })
+
+  it('does not compact assistant-less prompt streams even with a valid compressor', () => {
+    const requestScope = scope({ chatId: 'translation-stream', assistant: false, contextWindow: CONTEXT_WINDOW })
+    const hooks = inLoopCompactionFeature.applies!(requestScope)
+      ? inLoopCompactionFeature.contributeHooks!(requestScope)
+      : {}
+
+    expect(hooks).toEqual({})
   })
 
   // --- contributeHooks: prepareStep ---

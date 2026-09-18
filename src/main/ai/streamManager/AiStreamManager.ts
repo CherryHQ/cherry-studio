@@ -287,8 +287,8 @@ function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
     role: 'assistant',
     parts: []
   } as CherryUIMessage
-  exec.finalMessage = finalMessage
-  return finalMessage
+  exec.finalMessage = withCompactionAnchors(finalMessage, exec)
+  return exec.finalMessage
 }
 
 function toolNameFromApprovalChunk(chunk: UIMessageChunk): string | undefined {

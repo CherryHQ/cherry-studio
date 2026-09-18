@@ -1552,6 +1552,32 @@ describe('AiStreamManager', () => {
       expect(l.errorResults[0]).toMatchObject({ status: 'error', error: error('fail') })
     })
 
+    it('retains turn-start compression failures when the provider rejects before the first snapshot', async () => {
+      vi.useRealTimers()
+      mockStreamText.mockRejectedValueOnce(new Error('Provider unavailable'))
+      const persistence = new FakeListener('persistence:a', 'persistence')
+      const anchor = { id: 'fold-1', data: { status: 'failed' as const, phase: 'turn-start' as const } }
+      mgr.send({
+        topicId: 'a',
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req('a'), messageId: 'assistant-1', turnStartCompactionAnchors: [anchor] }
+          }
+        ],
+        listeners: [persistence]
+      })
+
+      await vi.waitFor(() => expect(persistence.errorResults).toHaveLength(1))
+      const expectedMessage = {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [{ type: 'data-compaction-anchor', ...anchor }]
+      }
+      expect(persistence.errorResults[0].finalMessage).toEqual(expectedMessage)
+      expect(mgr.inspect('a')!.executions[0].finalMessage).toEqual(expectedMessage)
+    })
+
     it('uses the anchor message id when execution errors before receiving chunks', async () => {
       const l = new FakeListener('l:a')
       startSingle(mgr, {

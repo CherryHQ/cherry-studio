@@ -34,7 +34,9 @@ describe('CompactionAnchorBlock', () => {
   it('shows an actionable warning when compression fails', () => {
     render(<CompactionAnchorBlock data={anchor({ status: 'failed', phase: 'turn-start' })} />)
     expect(screen.getByRole('alert')).toHaveTextContent(/Context compression failed/)
-    expect(screen.getByRole('alert')).toHaveTextContent(/chat model/)
+    expect(screen.getByRole('alert')).toHaveTextContent(/Check the compression model and its provider configuration/)
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/select a chat model/)
+    expect(screen.getByRole('alert')).toHaveTextContent(/continue without compression/)
     expect(screen.queryByText('Context compacted')).not.toBeInTheDocument()
   })
 

@@ -22,6 +22,7 @@
 
 | Date | Change | Document |
 | --- | --- | --- |
+| 2026-09-11 | Context compression failures now show a warning | [2026-09-11-context-compression-failure-warning.md](./breaking-changes/2026-09-11-context-compression-failure-warning.md) |
 | 2026-08-24 | Legacy referenced files adopt automatic cleanup policy | [2026-08-24-legacy-file-cleanup-policy.md](./breaking-changes/2026-08-24-legacy-file-cleanup-policy.md) |
 | 2026-09-08 | Cherry Cloud login requires a configured client build | [2026-09-08-cloud-login-signature.md](./breaking-changes/2026-09-08-cloud-login-signature.md) |
 | 2026-09-05 | Yi provider retired | [2026-09-05-retire-yi-provider.md](./breaking-changes/2026-09-05-retire-yi-provider.md) |
