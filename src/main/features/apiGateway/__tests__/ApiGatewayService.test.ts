@@ -62,8 +62,8 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     PreferenceService: {
-      subscribeChange: vi.fn((_key: string, cb: (enabled: boolean) => void) => {
-        captured.prefHandler = cb
+      subscribeChange: vi.fn((key: string, cb: (enabled: boolean) => void) => {
+        if (key === 'feature.api_gateway.enabled') captured.prefHandler = cb
         return () => {}
       }),
       get: vi.fn((key: string) => (key.endsWith('api_key') ? 'existing-key' : false)),
