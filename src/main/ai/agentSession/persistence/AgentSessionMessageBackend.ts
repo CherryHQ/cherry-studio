@@ -61,6 +61,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     // A `success` terminal without any renderer-visible part would render as a misleading empty
     // bubble on an OK turn; persist it as an error so the UI and delivery outcome reflect reality.
     const isEmptySuccessTerminal = status === 'success' && !hasVisibleAgentSessionPart(parts)
+    const isEmptyPausedTerminal = status === 'paused' && !hasVisibleAgentSessionPart(parts)
     if (isEmptySuccessTerminal) {
       logger.warn('Downgrading empty successful agent turn to terminal error', {
         sessionId: this.opts.sessionId,
@@ -71,7 +72,9 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     const persistedStatus = isEmptySuccessTerminal ? 'error' : status
     const persistedParts = isEmptySuccessTerminal
       ? appendNoResponseErrorPart({ parts }, EMPTY_SUCCESS_NO_RESPONSE_ERROR)
-      : { parts }
+      : isEmptyPausedTerminal
+        ? { parts: [...parts, { type: 'data-agent-paused', data: {} }] }
+        : { parts }
     let forkAnchor: RuntimeForkAnchor | undefined
     if (status === 'success') {
       try {
