@@ -22,6 +22,7 @@ renderer-side transport that connects to them.
 | [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, follow-up admission, resume persistence, and the registered Claude Code, Pi, and DSH drivers |
 | [Agent Session Fork](./agent-session-fork.md) | Native fork behavior, service ownership, opaque checkpoints, workspace handling, publication, and recovery |
 | [Agent Lifecycle](./agent-lifecycle.md) | Archive, restore, purge, schedule recovery, ownership boundaries, and Agent-side backup quiescing |
+| [LAN Agent Remote Access](./remote-agent-access.md) | Existing device-pairing reuse, encrypted Agent access, receipts, and mobile reconnect |
 | [Adding an Agent Runtime](./adding-a-runtime.md) | Operational checklist for a new runtime: capability descriptor, driver package, registration points, design rules |
 | [Adapter Family](./adapter-family.md) | How `provider.endpointConfigs[ep].adapterFamily` picks the right `@ai-sdk/*` package per request |
 | [Provider State Ownership](./provider-state-ownership.md) | Where provider facts, endpoint dialects, connection overrides, and per-request controls belong |
