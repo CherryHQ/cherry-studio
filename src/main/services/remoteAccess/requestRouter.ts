@@ -156,6 +156,10 @@ export class RequestRouter {
     }
   }
 
+  get isBusy(): boolean {
+    return this.inFlight.size > 0
+  }
+
   async drain(): Promise<void> {
     await Promise.allSettled([...this.inFlight])
   }

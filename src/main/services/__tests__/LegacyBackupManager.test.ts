@@ -267,10 +267,6 @@ vi.mock('fs-extra', () => ({
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
-      if (name === 'RemoteAccessService')
-        return {
-          suspendForBackup: vi.fn(async () => ({ dispose: vi.fn() }))
-        }
       if (name === 'MainWindowService') {
         return { getMainWindow: vi.fn() }
       }

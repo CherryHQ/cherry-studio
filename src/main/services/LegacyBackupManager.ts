@@ -337,9 +337,7 @@ class BackupManager {
       const quiesceReason = 'backup: capture consistent snapshot'
       const agentLifecycle = application.get('AgentLifecycleService')
       const ingressHold = agentLifecycle.pauseIngress(quiesceReason)
-      let remoteHold: { dispose(): void } | undefined
       try {
-        remoteHold = await application.get('RemoteAccessService').suspendForBackup()
         const ingressVerdict = await agentLifecycle.drainIngress({ timeoutMs: QUIESCE_TIMEOUT_MS })
         signal?.throwIfAborted()
         this.assertWritersDrained([ingressVerdict])
@@ -449,7 +447,6 @@ class BackupManager {
           }
         }
       } finally {
-        remoteHold?.dispose()
         ingressHold.dispose()
       }
 
@@ -938,7 +935,6 @@ class BackupManager {
     const restoreId = randomUUID()
     const restoreDir = path.join(stagingRoot, restoreId)
     let journalCommitted = false
-    let remoteHold: { dispose(): void } | undefined
 
     const existingJournal = readRestoreJournal()
     if (existingJournal.kind === 'corrupt') {
@@ -961,7 +957,6 @@ class BackupManager {
     await this.ensurePrivateDir(restoreDir)
 
     try {
-      remoteHold = await application.get('RemoteAccessService').suspendForBackup()
       const metadata = await this.readDirectBackupMetadata(extractionDir)
       const isSlimBackup = !metadata.resources.indexedDB && !metadata.resources.localStorage
 
@@ -1150,7 +1145,6 @@ class BackupManager {
       throw error
     } finally {
       if (!journalCommitted) {
-        remoteHold?.dispose()
         await fs.remove(restoreDir).catch(() => {})
       }
     }

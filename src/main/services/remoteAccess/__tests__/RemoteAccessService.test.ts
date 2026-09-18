@@ -18,6 +18,7 @@ const { loadIdentity, gateway } = vi.hoisted(() => ({
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
+    AgentLifecycleService: { registerIngress: () => ({ dispose: () => {} }) },
     ApiGatewayService: {
       isLanServing: () => gateway.serving,
       onLanServingChanged: (listener: () => void) => {
@@ -89,7 +90,8 @@ describe('remote Agent listener follows Device Connections', () => {
 
   it('closes for a backup and reopens under the same identity once the backup releases it', async () => {
     await boot()
-    const hold = await service.suspendForBackup()
+    const hold = service.pause()
+    expect(await service.drainInFlight({ timeoutMs: 1000 })).toEqual({ stragglerIds: [] })
     expect(service.peekConnectionInfo()).toBeUndefined()
     expect(await service.getConnectionInfo()).toBeUndefined()
 
