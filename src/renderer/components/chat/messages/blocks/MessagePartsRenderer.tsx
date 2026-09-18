@@ -274,7 +274,6 @@ interface RenderGroupedEntryOptions {
   settleActiveTools?: boolean
   settleStreamingReasoning?: boolean
   toolDisplay?: 'content' | 'disclosure'
-  onRemoveTranslation?: () => void
 }
 
 const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers> = new Map()
@@ -575,6 +574,34 @@ const ErrorPartView = React.memo(function ErrorPartView({
   return <ErrorBlock partId={partId} error={error} message={message} />
 })
 
+const TranslationPartView = React.memo(function TranslationPartView({
+  content,
+  id,
+  isStreaming,
+  messageId
+}: {
+  content: string
+  id: string
+  isStreaming: boolean
+  messageId: string
+}) {
+  const { removeMessageTranslation, notifySuccess } = useMessageListActions()
+  const { t } = useTranslation()
+  const handleRemoveTranslation = React.useCallback(async () => {
+    await removeMessageTranslation?.(messageId)
+    notifySuccess?.(t('translate.closed'))
+  }, [messageId, notifySuccess, removeMessageTranslation, t])
+
+  return (
+    <TranslationBlock
+      id={id}
+      content={content}
+      isStreaming={isStreaming}
+      onDelete={removeMessageTranslation ? handleRemoveTranslation : undefined}
+    />
+  )
+})
+
 /**
  * Render a single part directly from CherryMessagePart — no MessageBlock conversion.
  *
@@ -633,12 +660,12 @@ function renderPart(
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data
       return (
-        <TranslationBlock
+        <TranslationPartView
           key={partId}
           id={partId}
           content={translationData.content}
           isStreaming={isStreaming}
-          onDelete={options?.onRemoveTranslation}
+          messageId={message.id}
         />
       )
     }
@@ -1420,6 +1447,11 @@ interface MessagePartsRendererContentProps extends Props {
   priorCitationParts: readonly CherryMessagePart[]
 }
 
+const ActiveTurnStatusView = ({ fallback }: { fallback: React.ReactNode }) => {
+  const activeTurnStatus = useMessageListActiveTurnStatus()
+  return activeTurnStatus ? activeTurnStatus(fallback) : fallback
+}
+
 const MessagePartsRendererContent = React.memo(function MessagePartsRendererContent({
   collapseCompletedToolHistory,
   hoistAttachments,
@@ -1429,19 +1461,6 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   messageParts,
   priorCitationParts
 }: MessagePartsRendererContentProps) {
-  // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
-  // renders it; the node itself renders nothing when there is no such state.
-  const activeTurnStatus = useMessageListActiveTurnStatus()
-  const { removeMessageTranslation, notifySuccess } = useMessageListActions()
-  const { t } = useTranslation()
-  const canRemoveTranslation = !!removeMessageTranslation
-  const removeTranslationRef = React.useRef({ removeMessageTranslation, notifySuccess, t })
-  removeTranslationRef.current = { removeMessageTranslation, notifySuccess, t }
-  const handleRemoveTranslation = React.useCallback(async () => {
-    const { removeMessageTranslation, notifySuccess, t } = removeTranslationRef.current
-    await removeMessageTranslation?.(message.id)
-    notifySuccess?.(t('translate.closed'))
-  }, [message.id])
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
@@ -1542,16 +1561,13 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       readOnlyFilePreviews,
       hiddenComposerTokens: displayProjection.hiddenImageTokens,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
-      onTextPartExpandedChange: handleTextPartExpandedChange,
-      onRemoveTranslation: canRemoveTranslation ? handleRemoveTranslation : undefined
+      onTextPartExpandedChange: handleTextPartExpandedChange
     }),
     [
-      canRemoveTranslation,
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,
       handleTextPlayoutSettledChange,
-      handleRemoveTranslation,
       messageCitations,
       readOnlyFilePreviews,
       displayProjection.hiddenImageTokens
@@ -1575,7 +1591,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       // The status renderer replaces the placeholder while active (e.g. an api-retry line) and falls
       // back to it otherwise.
       return (
-        <AnimatePresence mode="sync">{activeTurnStatus ? activeTurnStatus(placeholder) : placeholder}</AnimatePresence>
+        <AnimatePresence mode="sync">
+          <ActiveTurnStatusView fallback={placeholder} />
+        </AnimatePresence>
       )
     }
     if (message.role === 'assistant' && message.status === 'paused') {
@@ -1595,7 +1613,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         message={message}
         renderOptions={renderOptions}
       />
-      {isActiveTurnProcessing && activeTurnStatus?.(null)}
+      {isActiveTurnProcessing && <ActiveTurnStatusView fallback={null} />}
       {unsettledTextPlayoutPartIds.size === 0 && sessionTargets.length > 0 && (
         <AnimatedBlockWrapper key={`session-results-${message.id}`} enableAnimation={false} animation="fade">
           <SessionResultCards targets={sessionTargets} />
