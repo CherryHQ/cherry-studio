@@ -3,10 +3,10 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { settingsMenu } from '@renderer/components/settingsMenu'
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
-import { settingsMenu } from '../../settingsMenu'
 import { settingsSearchSections } from '../aggregate'
 import { rankEntries } from '../searchEngine'
 import { getSettingDomId } from '../types'
