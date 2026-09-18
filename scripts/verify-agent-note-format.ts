@@ -4,9 +4,6 @@ import * as path from 'path'
 
 const ROOT = path.resolve(__dirname, '..')
 
-/** The closed set of note lifecycles. A note changes lifecycle by moving its file, never by editing its `Status:` line alone. */
-export const NOTE_LIFECYCLES: readonly string[] = ['proposed', 'implemented', 'rejected']
-
 /** The closed set of note classes. Adding one is deliberate: extend this list in the same PR that creates the directory. */
 export const NOTE_CLASSES: readonly string[] = [
   'architecture',
@@ -26,16 +23,53 @@ interface LifecycleSections {
   readonly closing: string | null
 }
 
+/**
+ * The closed set of note lifecycles, each with the sections it owes. This table is the single source of truth for
+ * which lifecycles exist: a note changes lifecycle by moving its file, never by editing its `Status:` line alone.
+ */
 export const LIFECYCLE_SECTIONS: Record<string, LifecycleSections> = {
   proposed: { required: ['Proposal', 'Acceptance criteria', 'Risks'], closing: 'Risks' },
   implemented: { required: ['Decision', 'Consequences'], closing: 'Consequences' },
   rejected: { required: [], closing: null }
 }
 
+/** Derived from LIFECYCLE_SECTIONS so a lifecycle can never be known to the placement check and unknown to the section check. */
+export const NOTE_LIFECYCLES: readonly string[] = Object.keys(LIFECYCLE_SECTIONS)
+
 /** `<yyyy-mm-dd>-<topic>.md`, with an optional language suffix such as `.zh`. */
 const NOTE_FILENAME_RE = /^\d{4}-\d{2}-\d{2}-[\w-]+(?:\.[a-z0-9-]+)?\.md$/
 
 const isReadme = (filename: string): boolean => /^README(?:\.[a-z0-9-]+)?\.md$/i.test(filename)
+
+/** A code fence: up to three leading spaces, then a run of at least three backticks or tildes, then the info string. */
+const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/
+
+/**
+ * Blanks out fenced code blocks, keeping one entry per input line so line numbers stay meaningful.
+ * A note quotes Markdown constantly — the template, an example, another gate's output — and none of that is note structure.
+ */
+export const stripFencedCode = (lines: readonly string[]): string[] => {
+  const stripped: string[] = []
+  let fence: string | null = null
+  for (const line of lines) {
+    const match = FENCE_RE.exec(line)
+    if (fence === null) {
+      // A backtick fence closes at the end of its line; only a tilde fence may carry a tilde in its info string.
+      if (match !== null && (match[1][0] === '~' || !match[2].includes('`'))) {
+        fence = match[1]
+        stripped.push('')
+        continue
+      }
+      stripped.push(line)
+      continue
+    }
+    if (match !== null && match[1][0] === fence[0] && match[1].length >= fence.length && match[2].trim() === '') {
+      fence = null
+    }
+    stripped.push('')
+  }
+  return stripped
+}
 
 /** Every note under a notes directory, as slash-separated paths relative to it, sorted so the gate reports a stable order. */
 export const listNoteFiles = (notesDir: string): string[] => {
@@ -60,7 +94,7 @@ export const checkNoteFormat = (notesDir: string): string[] => {
   for (const relative of listNoteFiles(notesDir)) {
     const segments = relative.split('/')
     const basename = segments[segments.length - 1]
-    const lines = fs.readFileSync(path.join(notesDir, relative), 'utf-8').split('\n')
+    const lines = stripFencedCode(fs.readFileSync(path.join(notesDir, relative), 'utf-8').split('\n'))
 
     // Placement: a note lives at {lifecycle}/{class}/yyyy-mm-dd-topic.md.
     if (segments.length !== 3) {

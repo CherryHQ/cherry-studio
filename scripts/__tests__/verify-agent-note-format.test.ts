@@ -55,6 +55,13 @@ describe('checkNoteFormat', () => {
     expect(checkNoteFormat(dir)).toEqual([])
   })
 
+  it('accepts a well-formed rejected note, which owes no lifecycle sections beyond the common ones', () => {
+    const dir = makeNotes({
+      'rejected/process/2026-01-31-a-topic.md': noteOf(['Problem', 'Alternatives considered'], 'rejected')
+    })
+    expect(checkNoteFormat(dir)).toEqual([])
+  })
+
   it('rejects a note that drops the mandatory Alternatives considered section', () => {
     const failures = failuresFor({
       'implemented/process/2026-01-31-a-topic.md': noteOf(['Problem', 'Decision', 'Consequences'], 'implemented')
@@ -102,6 +109,54 @@ describe('checkNoteFormat', () => {
   it('rejects a filename without a leading date', () => {
     const failures = failuresFor({ 'proposed/process/a-topic.md': noteOf(PROPOSED_SECTIONS) })
     expect(failures).toEqual([expect.stringContaining('the filename does not start with a yyyy-mm-dd date')])
+  })
+
+  it('rejects a note whose Status line is quoted inside a fenced code block', () => {
+    const failures = failuresFor({
+      'proposed/process/2026-01-31-a-topic.md': [
+        '# Agent Note: A topic',
+        '',
+        '~~~md',
+        'Status: proposed',
+        '~~~',
+        '',
+        ...PROPOSED_SECTIONS.flatMap((section) => [`## ${section}`, '', 'Body.', '']),
+        ''
+      ].join('\n')
+    })
+    expect(failures).toEqual([expect.stringContaining("missing the 'Status: <lifecycle>' line")])
+  })
+
+  it('rejects a note that only shows Alternatives considered inside a fenced code block', () => {
+    const failures = failuresFor({
+      'proposed/process/2026-01-31-a-topic.md': [
+        '# Agent Note: A topic',
+        '',
+        'Status: proposed',
+        '',
+        '## Problem',
+        '',
+        'Body.',
+        '',
+        '## Proposal',
+        '',
+        'The template, quoted for reference:',
+        '',
+        '```md',
+        '## Alternatives considered',
+        '```',
+        '',
+        '## Acceptance criteria',
+        '',
+        'Body.',
+        '',
+        '## Risks',
+        '',
+        'Body.',
+        ''
+      ].join('\n')
+    })
+    expect(failures).toEqual([expect.stringContaining("missing the mandatory '## Alternatives considered' section")])
   })
 
   it('rejects frontmatter and a missing Agent Note title', () => {
