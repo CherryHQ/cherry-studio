@@ -47,7 +47,7 @@ interface UiSubgraph extends UiGraph {
   id: string
   name?: string
   inputs?: Array<{ name: string; linkIds?: number[] }>
-  outputs?: Array<{ name: string; linkIds?: number[] }>
+  outputs?: Array<{ name: string; type?: string; linkIds?: number[] }>
   inputNode?: { id: number }
   outputNode?: { id: number }
 }
@@ -86,19 +86,37 @@ interface AliasStep {
   type?: string
 }
 
-/** Backend widget inputs for a node class, in declaration order. */
-function widgetInputNames(info: ObjectInfo[string], includeAdvanced = false): string[] {
-  const names: string[] = []
+/** Backend widget inputs for a node class, in declaration order. DynamicCombo
+ * (v3) inputs expand into the combo value plus the selected option's child
+ * inputs, dot-prefixed the way the frontend names them (`format.bit_depth`). */
+function widgetInputNames(
+  info: ObjectInfo[string],
+  includeAdvanced = false,
+  spec: JsonObject = info.input ?? {},
+  prefix?: string,
+  values?: unknown[],
+  names: string[] = []
+): string[] {
   for (const section of ['required', 'optional'] as const) {
-    const spec = info.input?.[section]
-    if (!spec) continue
-    for (const [name, raw] of Object.entries(spec)) {
+    const sectionSpec = spec[section] as JsonObject | undefined
+    if (!sectionSpec) continue
+    for (const [name, raw] of Object.entries(sectionSpec)) {
+      const fullName = prefix ? `${prefix}.${name}` : name
       const entry = raw as unknown[]
       if (!Array.isArray(entry) || entry.length === 0) continue
       const type = entry[0]
       const config = (entry.length > 1 && typeof entry[1] === 'object' ? entry[1] : {}) as JsonObject
       if (config.advanced && !includeAdvanced) continue
-      if (Array.isArray(type) || WIDGET_TYPES.has(type as string)) names.push(name)
+      if (Array.isArray(type) || WIDGET_TYPES.has(type as string)) {
+        names.push(fullName)
+        continue
+      }
+      if (type === 'COMFY_DYNAMICCOMBO_V3' && values) {
+        names.push(fullName)
+        const selected = values[names.length - 1]
+        const option = (config.options as JsonObject[] | undefined)?.find((candidate) => candidate.key === selected)
+        widgetInputNames(info, includeAdvanced, (option?.inputs ?? {}) as JsonObject, fullName, values, names)
+      }
     }
   }
   return names
@@ -216,17 +234,19 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     const info = objectInfo[node.type]
     if (!info || !Array.isArray(raw)) return {}
     let values = raw
-    const baseNames = widgetInputNames(info)
-    const widerNames = widgetInputNames(info, true)
     // A trailing control_after_generate pseudo-widget pads the saved values.
     // Drop it only when the remainder lines up with a widget count — a
     // legitimate widget value that happens to read 'fixed' must not be
     // removed, which would shift every later value.
-    if (values.length !== baseNames.length && values.length !== widerNames.length) {
+    if (values.length !== widgetInputNames(info, false, undefined, undefined, values).length) {
       const filtered = values.filter((v) => !(typeof v === 'string' && CONTROL_VALUES.has(v)))
-      if (filtered.length === baseNames.length || filtered.length === widerNames.length) values = filtered
+      if (filtered.length === widgetInputNames(info, false, undefined, undefined, filtered).length) values = filtered
     }
-    const names = values.length === widerNames.length ? widerNames : baseNames
+    let names = widgetInputNames(info, false, undefined, undefined, values)
+    if (values.length !== names.length) {
+      const widerNames = widgetInputNames(info, true, undefined, undefined, values)
+      if (values.length === widerNames.length) names = widerNames
+    }
     const out: Record<string, unknown> = {}
     names.forEach((name, index) => {
       if (index < values.length && !linked.has(name)) out[name] = wrapWidgetValue(values[index])
@@ -346,7 +366,9 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     }
 
     // Publish the definition's outputs under the instance id so outer nodes can
-    // be rewritten to the inner producer.
+    // be rewritten to the inner producer. The output's declared type rides
+    // along, so a bypass nested inside the subgraph still selects by the type
+    // the eventual consumer asks for.
     const outputNodeId = definition.outputNode?.id
     const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
     ;(definition.outputs ?? []).forEach((def, slot) => {
@@ -358,7 +380,7 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
           continue
         }
         const origin = innerRemap.get(link.origin_id)
-        if (origin !== undefined) alias[slot] = () => ({ ref: [String(origin), link.origin_slot] })
+        if (origin !== undefined) alias[slot] = () => ({ ref: [String(origin), link.origin_slot], type: def.type })
         break
       }
     })

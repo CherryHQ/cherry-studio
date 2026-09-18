@@ -489,6 +489,59 @@ describe('convertUiWorkflowToPrompt', () => {
 
     expect(prompt['1'].inputs).toMatchObject({ mode: 'Option 2', steps: 3 })
   })
+
+  it('expands a DynamicCombo value with its selected option children', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [{ id: 1, type: 'SaveImageAdvanced', widgets_values: ['ComfyUI', 'png', '16-bit', 'sRGB'] }],
+        links: []
+      },
+      {
+        SaveImageAdvanced: {
+          input: {
+            required: {
+              images: ['IMAGE'],
+              filename_prefix: ['STRING', {}],
+              format: [
+                'COMFY_DYNAMICCOMBO_V3',
+                {
+                  options: [
+                    {
+                      key: 'png',
+                      inputs: {
+                        required: {
+                          bit_depth: [['8-bit', '16-bit'], { advanced: true }],
+                          input_color_space: [['sRGB'], { advanced: true }]
+                        }
+                      }
+                    },
+                    {
+                      key: 'avif',
+                      inputs: {
+                        required: {
+                          bit_depth: [['auto'], { advanced: true }],
+                          input_color_space: [['sRGB'], { advanced: true }],
+                          crf: ['INT', { advanced: true }]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    )
+
+    expect(prompt['1'].inputs).toMatchObject({
+      filename_prefix: 'ComfyUI',
+      format: 'png',
+      'format.bit_depth': '16-bit',
+      'format.input_color_space': 'sRGB'
+    })
+    expect(prompt['1'].inputs).not.toHaveProperty('format.crf')
+  })
 })
 
 describe('findPromptTarget', () => {
