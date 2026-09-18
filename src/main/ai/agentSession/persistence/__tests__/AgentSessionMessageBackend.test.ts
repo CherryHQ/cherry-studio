@@ -71,6 +71,20 @@ describe('AgentSessionMessageBackend', () => {
     })
   })
 
+  it('keeps an empty paused turn paused and persists a visible resume hint', async () => {
+    const backend = new AgentSessionMessageBackend({ sessionId: 'session-1', assistantMessageId: 'assistant-1' })
+    backend.persistAssistant({ status: 'paused', finalMessage: undefined } as never)
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.objectContaining({
+          status: 'paused',
+          data: { parts: [{ type: 'data-agent-paused', data: {} }] }
+        })
+      }),
+      { publishDataChange: true }
+    )
+  })
+
   it('downgrades a successful turn whose only parts are hidden or empty to a terminal error', async () => {
     const backend = new AgentSessionMessageBackend({
       sessionId: 'session-1',

@@ -19,6 +19,8 @@ export const AGENT_SESSION_HIDDEN_PART_TYPES: ReadonlySet<string> = new Set([
 /** True when a part can render as visible turn content. */
 export function isVisibleAgentSessionPart(part: CherryMessagePart): boolean {
   if (AGENT_SESSION_HIDDEN_PART_TYPES.has(part.type)) return false
+  // Retry history is visible process context, not an assistant answer.
+  if (part.type === 'data-agent-api-retry') return false
   if (part.type === 'text') return !!part.text?.trim()
   // A reasoning part still streaming holds no text yet but is not terminal-empty.
   if (part.type === 'reasoning') return part.state === 'streaming' || !!part.text?.trim()

@@ -277,8 +277,8 @@ describe('ClaudeCodeStreamAdapter', () => {
     )
   })
 
-  it('drops api_retry silently — the driver intercepts it as an ephemeral runtime event', () => {
-    const { adapter, parts } = createAdapter()
+  it('reports api_retry before the stream adapter marks the turn active', () => {
+    const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
 
     const result = adapter.handleMessage({
       type: 'system',
@@ -294,6 +294,10 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     expect(result).toEqual({ type: 'continue' })
     expect(parts).toEqual([])
+    expect(statusEvents).toContainEqual({
+      type: 'api-retry',
+      retry: { attempt: 3, maxRetries: 10, retryDelayMs: 1234, errorStatus: 500, errorCategory: 'server_error' }
+    })
     expect(loggerMocks.debug).not.toHaveBeenCalledWith(expect.stringContaining('Received system message subtype:'))
   })
 
