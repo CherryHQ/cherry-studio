@@ -558,6 +558,47 @@ describe('convertUiWorkflowToPrompt', () => {
     })
   })
 
+  it('aligns widget values across COLOR, COLORS, and RANGE widgets', () => {
+    const { prompt, warnings } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          {
+            id: 1,
+            type: 'StyledImage',
+            // Legacy positional-only values: the color widgets sit between the
+            // string and the int, each spending exactly one slot.
+            widgets_values: ['out', '#ff8800', ['#ff0000', '#00ff00'], { min: 0.25, max: 0.75 }, 7]
+          }
+        ],
+        links: []
+      },
+      {
+        StyledImage: {
+          input: {
+            required: {
+              filename_prefix: ['STRING', {}],
+              color: ['COLOR', {}],
+              palette: ['COLORS', {}],
+              span: ['RANGE', {}],
+              steps: ['INT', {}]
+            }
+          }
+        }
+      }
+    )
+
+    // The colors serialize plainly and the colors array rides the generic
+    // array envelope, matching the frontend's graphToPrompt.
+    expect(prompt['1'].inputs).toEqual({
+      filename_prefix: 'out',
+      color: '#ff8800',
+      palette: { __value__: ['#ff0000', '#00ff00'] },
+      span: { min: 0.25, max: 0.75 },
+      steps: 7
+    })
+    expect(warnings).toEqual([])
+  })
+
   it('expands a DynamicCombo value with its selected option children', () => {
     const { prompt } = convertUiWorkflowToPrompt(
       {

@@ -76,6 +76,12 @@ const WIDGET_TYPES = new Set(['INT', 'FLOAT', 'STRING', 'BOOLEAN', 'COMBO'])
  * for the control_after_generate pseudo-widget, which never reaches the prompt. */
 const CONTROL_AFTER_GENERATE = 'control_after_generate'
 
+/** Further frontend widget input types that spend a positional value: COLOR
+ * holds a color string (or int), COLORS a list of color strings, RANGE a
+ * `{min, max, midpoint?}` object. The frontend serializes them plainly in
+ * graphToPrompt (arrays alone are wrapped), which wrapWidgetValue already does. */
+const NON_SCALAR_WIDGET_TYPES = new Set(['COLOR', 'COLORS', 'RANGE'])
+
 /** Frontend classes with no backend node: the prompt cannot contain them, so
  * their outputs pass through to their input like the frontend's graphToPrompt. */
 const FRONTEND_ONLY_CLASSES = new Set(['Reroute', 'Note', 'MarkdownNote'])
@@ -116,7 +122,7 @@ function widgetInputNames(
       const type = entry[0]
       const config = (entry.length > 1 && typeof entry[1] === 'object' ? entry[1] : {}) as JsonObject
       if (config.advanced && !includeAdvanced) continue
-      if (Array.isArray(type) || WIDGET_TYPES.has(type as string)) {
+      if (Array.isArray(type) || WIDGET_TYPES.has(type as string) || NON_SCALAR_WIDGET_TYPES.has(type as string)) {
         acc.names.push(fullName)
         if (config[CONTROL_AFTER_GENERATE]) acc.names.push(CONTROL_AFTER_GENERATE)
         continue
