@@ -422,8 +422,18 @@ describe('mcpStatusTool', () => {
   // Catches #20198: toolbar consumers need a pure activation contract so the MCP shortcut
   // can highlight when tools are enabled without opening the status panel.
   it('reports MCP toolbar activation from assistant mode or agent bindings', () => {
-    expect(isMcpToolbarActive({ scope: TopicType.Chat, assistant: { settings: { mcpMode: 'disabled' } } })).toBe(false)
-    expect(isMcpToolbarActive({ scope: TopicType.Chat, assistant: { settings: { mcpMode: 'auto' } } })).toBe(true)
+    expect(
+      isMcpToolbarActive({
+        scope: TopicType.Chat,
+        assistant: { settings: { mcpMode: 'disabled' }, mcpServerIds: [] }
+      })
+    ).toBe(false)
+    expect(
+      isMcpToolbarActive({
+        scope: TopicType.Chat,
+        assistant: { settings: { mcpMode: 'auto' }, mcpServerIds: [] }
+      })
+    ).toBe(true)
     expect(
       isMcpToolbarActive({
         scope: TopicType.Chat,
