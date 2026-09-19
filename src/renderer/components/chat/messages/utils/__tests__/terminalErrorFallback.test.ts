@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
 
 import { withEmptySuccessFallback, withNoResponseFallback, withTerminalErrorFallback } from '../terminalErrorFallback'
 
@@ -80,7 +81,7 @@ describe('withTerminalErrorFallback', () => {
   })
 
   it('does not add fallback when dismissed marker is present', () => {
-    const dismissed = { type: 'data-clear', data: { dismissedNoResponse: true } } as unknown as CherryMessagePart
+    const dismissed = createDismissedNoResponsePart() as unknown as CherryMessagePart
     const messages = [makeMessage('m1', 'error', [dismissed])]
     const partsByMessageId = { m1: [dismissed] }
 

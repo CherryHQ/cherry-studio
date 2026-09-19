@@ -527,7 +527,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(window.api.file.openPath).not.toHaveBeenCalled()
   })
 
-  it('injects Agent-session diagnosis persistence into the shared error UI', async () => {
+  it('exposes the agent doctor subject to the shared error UI', async () => {
     const topic = {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
