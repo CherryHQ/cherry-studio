@@ -1836,6 +1836,9 @@ const TopicRow = memo(function TopicRow({
   const showLeadingSlot = displayMode !== 'time'
   const isConfirmingDeletion = deletingTopicId === topic.id
   const canDeleteTopic = !topic.pinned
+  const deleteActionLabel = isConfirmingDeletion
+    ? t('chat.topics.delete.confirm_tip', { name: topicName })
+    : t('common.delete')
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
@@ -1923,9 +1926,9 @@ const TopicRow = memo(function TopicRow({
           </Tooltip>
         )}
         {canDeleteTopic && (
-          <Tooltip title={t('common.delete')} delay={500}>
+          <Tooltip title={deleteActionLabel} delay={500}>
             <ResourceList.ItemAction
-              aria-label={t('common.delete')}
+              aria-label={deleteActionLabel}
               data-deleting={isConfirmingDeletion}
               onClick={(event) => {
                 if (event.ctrlKey || event.metaKey || isConfirmingDeletion) {

@@ -441,6 +441,8 @@ vi.mock('react-i18next', () => ({
         if (key === 'common.prompt') return 'Prompt'
         if (key === 'assistants.reorder.error.failed') return 'Failed to reorder assistants'
         if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
+        if (key === 'chat.topics.delete.confirm_tip')
+          return `Click again to permanently delete "${options?.name}" — this cannot be undone`
         return key
       }
     }
@@ -1920,6 +1922,11 @@ describe('Topics', () => {
 
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     expect(deleteButton).toHaveAttribute('data-deleting', 'true')
+    // Arming the delete action must plainly warn it is permanent, not just change the icon.
+    expect(deleteButton).toHaveAttribute(
+      'aria-label',
+      'Click again to permanently delete "Gamma topic" — this cannot be undone'
+    )
 
     act(() => {
       fireEvent.click(deleteButton)
