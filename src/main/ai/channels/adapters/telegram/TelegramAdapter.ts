@@ -74,10 +74,8 @@ function isTransientNetworkError(error: unknown): boolean {
     if (typeof record.code === 'string' && TRANSIENT_NETWORK_MARKERS.some((marker) => marker === record.code)) {
       return true
     }
-    if (
-      typeof record.message === 'string' &&
-      TRANSIENT_NETWORK_MARKERS.some((marker) => record.message.includes(marker))
-    ) {
+    const message = record.message
+    if (typeof message === 'string' && TRANSIENT_NETWORK_MARKERS.some((marker) => message.includes(marker))) {
       return true
     }
     if (record.error !== undefined && visit(record.error, depth + 1)) return true

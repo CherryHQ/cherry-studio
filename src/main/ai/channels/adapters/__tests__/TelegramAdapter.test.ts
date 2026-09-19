@@ -44,15 +44,18 @@ vi.mock('grammy', () => {
   class MockGrammyError extends Error {
     readonly ok = false as const
     readonly parameters = {}
+    readonly error_code: number
+    readonly description: string
     constructor(
       message: string,
-      readonly error_code: number,
-      readonly description: string,
-      readonly method = 'sendMessage',
-      readonly payload: Record<string, unknown> = {}
+      err: { ok: false; error_code: number; description: string },
+      readonly method: string,
+      readonly payload: Record<string, unknown>
     ) {
-      super(`${message} (${error_code}: ${description})`)
+      super(`${message} (${err.error_code}: ${err.description})`)
       this.name = 'GrammyError'
+      this.error_code = err.error_code
+      this.description = err.description
     }
   }
   return {
@@ -211,7 +214,12 @@ describe('TelegramAdapter', () => {
     await adapter.connect()
 
     mockBot.api.sendMessage.mockRejectedValueOnce(
-      new GrammyError("Call to 'sendMessage' failed!", 400, "Bad Request: can't parse entities")
+      new GrammyError(
+        "Call to 'sendMessage' failed!",
+        { ok: false, error_code: 400, description: "Bad Request: can't parse entities" },
+        'sendMessage',
+        {}
+      )
     )
 
     await adapter.sendMessage('123', 'Hello')
