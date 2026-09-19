@@ -110,7 +110,11 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     logger.info('Reconnected to stream', { topicId, bufferedChunks: result.bufferedChunks.length })
     let replayChunks = result.bufferedChunks
     if (result.bufferedChunks.length > MAX_ATTACH_REPLAY_CHUNKS) {
-      logger.warn('transport replay capped', { total: result.bufferedChunks.length, topicId })
+      logger.warn('transport replay capped', {
+        total: result.bufferedChunks.length,
+        topicId,
+        overflowChunks: overflowChunks.length
+      })
       replayChunks = capAttachReplayChunks(result.bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS)
     }
     // Main also sent pre-attach live chunks to a stale/parallel listener for
