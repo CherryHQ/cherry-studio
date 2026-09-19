@@ -658,7 +658,7 @@ describe('agent right pane projections', () => {
 
   // The adapter-stamped launch root resolves even when the launch row itself is paged out of the
   // loaded window and the map scan cannot find it.
-  it('resolves a stamped receipt without its launch row in the window', () => {
+  it('does not resolve a stamped receipt whose launch row is outside the window', () => {
     const partsByMessageId = {
       m2: [
         {
@@ -678,7 +678,8 @@ describe('agent right pane projections', () => {
     }
     stamped.callProviderMetadata.cherry = { launchToolCallId: 'call_launch' }
 
-    expect(resolveFlowToolCallId('call_send', partsByMessageId)).toEqual({ toolCallId: 'call_launch' })
+    // The stamped root is absent from the window, so opening it would render an empty pane.
+    expect(resolveFlowToolCallId('call_send', partsByMessageId)).toBeUndefined()
   })
 
   it('does not duplicate the resume prompt when the receipt precedes its tagged content', () => {

@@ -10,10 +10,11 @@ import {
 import {
   type AgentToolOutput,
   AgentToolsType,
+  buildAgentLaunchIndex,
   extractLaunchReceiptId,
   getResumedAgentId,
   isBackgroundAgentOutput,
-  resolveResumedAgent
+  resolveResumeReceiptState
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartLaunchToolCallId,
@@ -414,6 +415,25 @@ function isTerminalToolState(state: string | undefined): boolean {
 }
 
 /**
+ * Whether the call at `toolCallId` is a SendMessage receipt — whose own id is not a flow root, so
+ * opening it would render an empty or unrelated pane.
+ */
+export function isResumeReceiptCall(
+  toolCallId: string,
+  partsByMessageId: Record<string, CherryMessagePart[]> | null
+): boolean {
+  if (!partsByMessageId) return false
+  for (const parts of Object.values(partsByMessageId)) {
+    for (const part of parts) {
+      const record = part as { toolCallId?: unknown; output?: unknown }
+      if (record.toolCallId !== toolCallId) continue
+      return getResumedAgentId(record.output) !== undefined
+    }
+  }
+  return false
+}
+
+/**
  * Follow a tool-call entry to the flow it represents. A surface that binds a resumed task to the
  * SendMessage call id (e.g. a cold reconnect replaying resume edges) would otherwise open an empty
  * flow — everything streaming under the launch root instead.
@@ -423,20 +443,16 @@ export function resolveFlowToolCallId(
   partsByMessageId: Record<string, CherryMessagePart[]> | null
 ): { toolCallId: string; description?: string } | undefined {
   if (!partsByMessageId) return undefined
+  // One index for the whole walk: it gates a stamped root to the loaded window — an absent root
+  // would open an empty flow pane — and resolves the unstamped fallback the same way.
+  const launchIndex = buildAgentLaunchIndex(partsByMessageId)
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
       const record = part as { toolCallId?: unknown; output?: unknown }
       if (typeof record.toolCallId !== 'string' || record.toolCallId !== toolCallId) continue
-      // The adapter-stamped launch root resolves even when the launch row itself has been paged
-      // out; the scan below stays as the fallback for unstamped history.
-      const stamped = getPartLaunchToolCallId(part)
-      if (stamped) {
-        const description = resolveResumedAgent(record.output, partsByMessageId)?.description
-        return description ? { toolCallId: stamped, description } : { toolCallId: stamped }
-      }
-      // Receipt outputs are small inline JSON, so no deferred-envelope resolution is needed here
-      // (unlike launch receipts, whose resolved output the flow view prefers).
-      return resolveResumedAgent(record.output, partsByMessageId)
+      // Opening a flow means this caller can navigate, so an unresolvable receipt must not resolve.
+      const state = resolveResumeReceiptState(record.output, getPartLaunchToolCallId(part), launchIndex, true)
+      return state.kind === 'navigable' ? { toolCallId: state.toolCallId, description: state.description } : undefined
     }
   }
   return undefined

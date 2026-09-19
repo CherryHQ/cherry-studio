@@ -125,6 +125,7 @@ import {
   findAgentPreviewUrlCandidates,
   getAgentPreviewUrlFrontier,
   isAgentPreviewUrlSourceAfterFrontier,
+  isResumeReceiptCall,
   resolveFlowToolCallId
 } from './agentRightPaneProjection'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
@@ -405,7 +406,11 @@ function AgentRightPaneActionsProvider({
       if (!canOpenAgentToolFlow) return
       // A task bound to its send-message receipt (cold reconnect replay) must still open the flow
       // its agent actually streams under — the launch root.
-      const resolved = resolveFlowToolCallId(input.toolCallId, runtimeRef.current?.partsByMessageId ?? null)
+      const partsByMessageId = runtimeRef.current?.partsByMessageId ?? null
+      const resolved = resolveFlowToolCallId(input.toolCallId, partsByMessageId)
+      // A receipt that does not resolve to a loaded launch root opens nothing: falling back to the
+      // receipt's own id would render an empty pane rooted at the continuation itself.
+      if (!resolved && isResumeReceiptCall(input.toolCallId, partsByMessageId)) return
       const flowInput = resolved
         ? { ...input, toolCallId: resolved.toolCallId, title: resolved.description ?? input.title }
         : input
