@@ -40,7 +40,7 @@ describe('backgroundTasks', () => {
       expect(options.windowsHide).toBe(true)
       expect(options.cwd).toBe('/workspace')
       // stdin closed, stdout and stderr both point at the task log fd.
-      expect(options.stdio).toEqual(['ignore', 7, 7])
+      expect(options.stdio).toEqual(process.platform === 'win32' ? ['ignore', 'ignore', 'ignore'] : ['ignore', 7, 7])
     })
   })
 

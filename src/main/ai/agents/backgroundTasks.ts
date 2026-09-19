@@ -86,9 +86,9 @@ export function buildDetachedBackgroundTaskSpawnOptions(cwd: string, stdoutFd: n
     detached: true,
     shell: true,
     windowsHide: true,
-    // stdin closed; stdout and stderr share the task log fd. Writing straight
-    // to the file (no pipes) means no drain race on exit.
-    stdio: ['ignore', stdoutFd, stderrFd]
+    // Windows cmd owns its file redirection (see startDetachedBackgroundTask); inherited numeric
+    // file descriptors can silently lose detached child output there. POSIX shares the log fd.
+    stdio: process.platform === 'win32' ? ['ignore', 'ignore', 'ignore'] : ['ignore', stdoutFd, stderrFd]
   }
 }
 
@@ -117,8 +117,12 @@ export async function startDetachedBackgroundTask(
   const startedAt = new Date().toISOString()
 
   const logHandle = await open(logFile, 'a', 0o600)
+  if (process.platform === 'win32') await logHandle.close()
   try {
-    const child = spawn(command, buildDetachedBackgroundTaskSpawnOptions(input.cwd, logHandle.fd, logHandle.fd))
+    // cmd.exe reopens the log itself, so the detached process keeps a valid output handle even
+    // after Cherry Studio exits. Windows paths cannot contain a double quote.
+    const spawnCommand = process.platform === 'win32' ? `${command} 1>>"${logFile}" 2>>&1` : command
+    const child = spawn(spawnCommand, buildDetachedBackgroundTaskSpawnOptions(input.cwd, logHandle.fd, logHandle.fd))
     child.unref()
 
     const record: BackgroundTaskRecord = {
@@ -178,8 +182,8 @@ export async function startDetachedBackgroundTask(
     logger.info('Detached background task started', { taskId: id, pid: record.pid })
     return record
   } finally {
-    // The child holds its own dup of this fd; closing ours does not cut its log.
-    await logHandle.close()
+    // POSIX child holds its own dup of this fd; Windows closed it before cmd reopened the log.
+    if (process.platform !== 'win32') await logHandle.close()
   }
 }
 
