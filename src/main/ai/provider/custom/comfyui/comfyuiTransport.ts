@@ -90,6 +90,9 @@ interface HistoryEntry {
   status?: { status_str?: string; messages?: unknown[] }
 }
 
+/** Per-transport short-lived timeouts to prevent forever-pending HTTP calls. */
+const CANCEL_QUEUE_TIMEOUT_MS = 5000
+
 interface UserDataEntry {
   name: string
   type: string
@@ -303,6 +306,10 @@ class ComfyuiTransport implements ImageGenerationTransport {
    *
    * A short timeout protects against an unresponsive server permanently
    * pinning capability detection and silently disabling all future cancels.
+   *
+   * Caching is strict: only a fully successful probe (HTTP 200 + parse +
+   * version read) is cached.  Timeouts, network errors, and JSON parse
+   * failures **clear** the cached promise so the next `cancel()` retries.
    */
   private async getCancelCapabilities(): Promise<ComfyuiCancelCapabilities> {
     if (this.capabilitiesPromise) return this.capabilitiesPromise
@@ -323,7 +330,9 @@ class ComfyuiTransport implements ImageGenerationTransport {
         const ver = parseVersion(verStr)
         return { targetedInterrupt: ver ? isAtLeastVersion(ver, MIN_TARGETED_INTERRUPT_VERSION) : false }
       } catch {
-        // Timeout, network error, or parse failure — all result in fail-closed.
+        // Any failure — timeout, network error, JSON parse — is NOT cached.
+        // Clear so the next cancel() retries instead of reusing a stale false.
+        this.capabilitiesPromise = undefined
         return { targetedInterrupt: false }
       } finally {
         clearTimeout(timer)
@@ -381,16 +390,30 @@ class ComfyuiTransport implements ImageGenerationTransport {
    * the prompt id at index 1 (`[number, prompt_id, prompt, extra_data,
    * outputs]`). An unreadable queue reports `'none'` — without proof the
    * prompt is ours, neither request is safe to send.
+   *
+   * Both the GET request and the JSON parse are bounded by `CANCEL_QUEUE_TIMEOUT_MS`
+   * so a hung server cannot make `cancel()` wait forever.  On timeout or error
+   * we return `'none'`, which leaves the task untouched.
    */
   private async cancelAction(taskId: string): Promise<'running' | 'pending' | 'none'> {
     try {
-      const response = await this.doFetch(`${this.baseURL}/queue`, { headers: this.headers })
-      if (!response.ok) return 'none'
-      const queue = (await response.json()) as { queue_running?: unknown[][]; queue_pending?: unknown[][] }
-      if (queue.queue_running?.some((item) => item[1] === taskId)) return 'running'
-      if (queue.queue_pending?.some((item) => item[1] === taskId)) return 'pending'
-      return 'none'
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), CANCEL_QUEUE_TIMEOUT_MS)
+      try {
+        const response = await this.doFetch(`${this.baseURL}/queue`, {
+          headers: this.headers,
+          signal: controller.signal
+        })
+        if (!response.ok) return 'none'
+        const queue = (await response.json()) as { queue_running?: unknown[][]; queue_pending?: unknown[][] }
+        if (queue.queue_running?.some((item) => item[1] === taskId)) return 'running'
+        if (queue.queue_pending?.some((item) => item[1] === taskId)) return 'pending'
+        return 'none'
+      } finally {
+        clearTimeout(timer)
+      }
     } catch {
+      // Timeout or network error → queue unreadable → no write is safe.
       return 'none'
     }
   }
