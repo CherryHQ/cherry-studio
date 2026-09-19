@@ -2,6 +2,7 @@ import '@cherrystudio/ui/components/composites/markdown/styles'
 import { type FC, useId, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
+import type { Pluggable } from 'unified'
 
 import { Markdown, withFullMarkdown } from '@cherrystudio/ui'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
@@ -17,6 +18,8 @@ interface Props {
   className?: string
   components?: Partial<Components>
 }
+
+const STATIC_REMARK_PLUGINS: Pluggable[] = [remarkLatexMath]
 
 /**
  * Non-streaming markdown for off-chat surfaces — release notes, the update dialog,
@@ -43,7 +46,7 @@ export const StaticMarkdown: FC<Props> = ({ children, id, className, components 
     <Markdown
       id={blockId}
       plugins={plugins}
-      remarkPlugins={[remarkLatexMath]}
+      remarkPlugins={STATIC_REMARK_PLUGINS}
       components={markdownComponents}
       className={['static-markdown', className].filter(Boolean).join(' ')}
       footnoteLabel={t('common.footnotes')}
