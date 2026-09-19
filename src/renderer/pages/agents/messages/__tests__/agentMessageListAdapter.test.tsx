@@ -527,7 +527,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(window.api.file.openPath).not.toHaveBeenCalled()
   })
 
-  it('injects Agent-session diagnosis persistence into the shared error UI', async () => {
+  it('exposes the agent doctor subject to the shared error UI', async () => {
     const topic = {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
@@ -637,7 +637,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(captureValue?.actions.openDiagnosticReport).toBeUndefined()
   })
 
-  it('renders terminal fallbacks in both current and sealed history layers', () => {
+  it('renders error fallbacks but keeps legitimate empty agent successes as-is', () => {
     const topic = {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
@@ -694,20 +694,16 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
-    expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
-    ])
+    expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([])
     expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
     expect(value?.state.partsByMessageId?.['assistant-hidden-success']).toEqual([
-      expect.objectContaining({ type: 'data-agent-task-event' }),
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({ type: 'data-agent-task-event' })
     ])
     expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-error']).toEqual([
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
     expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-hidden-success']).toEqual([
-      expect.objectContaining({ type: 'data-agent-task-event' }),
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({ type: 'data-agent-task-event' })
     ])
     expect(value?.state.streamingLayers?.liveMessageIds).toEqual([])
   })

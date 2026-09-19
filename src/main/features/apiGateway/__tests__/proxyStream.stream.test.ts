@@ -700,6 +700,14 @@ describe('processMessage (streaming)', () => {
     expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ contextOwner: 'caller' }))
   })
 
+  it('opts streaming gateway turns out of the empty-success error', async () => {
+    const { response, listener } = await startStreaming()
+    commit(listener)
+    await response
+
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ allowEmptySuccess: true }))
+  })
+
   it('returns JSON (not a stream) for non-streaming requests', async () => {
     const resPromise = processMessage({
       params: { model: 'openai:gpt-4', messages: [] },
@@ -713,6 +721,20 @@ describe('processMessage (streaming)', () => {
     const res = await resPromise
     expect(res.headers.get('Content-Type')).toBe('application/json')
     await expect(res.json()).resolves.toEqual({ done: true })
+  })
+
+  it('opts non-streaming gateway turns out of the empty-success error', async () => {
+    const resPromise = processMessage({
+      params: { model: 'openai:gpt-4', messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'openai'
+    })
+
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ allowEmptySuccess: true }))
+    await captured.listener!.onDone({} as any)
+
+    await resPromise
   })
 
   it('marks non-streaming internal Agent usage as agent usage', async () => {
