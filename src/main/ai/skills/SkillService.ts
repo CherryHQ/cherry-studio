@@ -605,13 +605,28 @@ export class SkillService {
       await this.linkMirror(destFolderName)
     } catch (error) {
       if (migrationBackup && prevFolderName) {
+        // Drop the partial replacement before consuming the marker: a failed cleanup keeps
+        // the marker for startup recovery instead of orphaning a duplicate for reconcile.
+        let replacementRemoved = false
         try {
-          await this.installer.restoreMigrationBackup(migrationBackup, this.getSkillStoragePath(prevFolderName))
-        } catch (restoreError) {
-          logger.error('Failed to restore previous skill folder after install failure', {
-            prevFolderName,
-            error: restoreError instanceof Error ? restoreError.message : String(restoreError)
+          await this.installer.uninstall(destPath)
+          replacementRemoved = true
+        } catch (cleanupError) {
+          logger.error('Failed to clean up skill files after install failure', {
+            folderName,
+            destPath,
+            error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
           })
+        }
+        if (replacementRemoved) {
+          try {
+            await this.installer.restoreMigrationBackup(migrationBackup, this.getSkillStoragePath(prevFolderName))
+          } catch (restoreError) {
+            logger.error('Failed to restore previous skill folder after install failure', {
+              prevFolderName,
+              error: restoreError instanceof Error ? restoreError.message : String(restoreError)
+            })
+          }
         }
       }
       throw error
