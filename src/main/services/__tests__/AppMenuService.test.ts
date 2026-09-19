@@ -22,6 +22,7 @@ const {
   }
   const windowManagerMock = {
     getWindowsByType: vi.fn(() => []),
+    getWindowId: vi.fn(),
     getWindowType: vi.fn()
   }
 
@@ -189,9 +190,15 @@ describe('AppMenuService', () => {
   it('restores Command+W to close a focused light window, then reserves it for tabs in the main window', async () => {
     await (service as any).onInit()
     const focus = appMock.on.mock.calls.find(([event]) => event === 'browser-window-focus')?.[1]
-    windowManagerMock.getWindowType.mockReturnValueOnce(WindowType.QuickAssistant).mockReturnValueOnce(WindowType.Main)
+    // WindowManager keys its registry by managed UUID: focus must be resolved
+    // through the BrowserWindow instance, never Electron's numeric window ID.
+    windowManagerMock.getWindowId.mockImplementation((window: { id: number }) => `managed-${window.id}`)
+    windowManagerMock.getWindowType.mockImplementation((id: string) =>
+      id === 'managed-2' ? WindowType.QuickAssistant : id === 'managed-1' ? WindowType.Main : undefined
+    )
 
     focus({}, { id: 2 })
+    expect(windowManagerMock.getWindowId).toHaveBeenCalledWith(expect.objectContaining({ id: 2 }))
     expect((latestTemplate()[1].submenu as MenuItemConstructorOptions[])[0]).toMatchObject({
       role: 'close',
       accelerator: 'CommandOrControl+W'

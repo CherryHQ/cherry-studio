@@ -75,9 +75,13 @@ export class AppMenuService extends BaseService {
   }
 
   private setupApplicationMenu(focusedWindow = BrowserWindow.getFocusedWindow() ?? undefined): void {
-    const type = focusedWindow && application.get('WindowManager').getWindowType(String(focusedWindow.id))
+    // WindowManager keys its registry by managed UUID, not Electron's numeric window ID.
+    const windowManager = application.get('WindowManager')
+    const focusedType = focusedWindow
+      ? windowManager.getWindowType(windowManager.getWindowId(focusedWindow) ?? '')
+      : undefined
     const closeAccelerator =
-      focusedWindow && type !== WindowType.Main && type !== WindowType.SubWindow
+      focusedWindow && focusedType !== WindowType.Main && focusedType !== WindowType.SubWindow
         ? 'CommandOrControl+W'
         : getShortcutAccelerator('app.window.close')
     const commandItems = this.resolveAppMenuCommandItems({
