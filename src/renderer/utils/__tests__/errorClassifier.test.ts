@@ -393,6 +393,11 @@ describe('classifyError', () => {
     expect(result.category).toBe('server')
   })
 
+  it('classifies temporarily unavailable as server', () => {
+    const result = classifyError(makeError({ message: 'temporarily unavailable' }))
+    expect(result.category).toBe('server')
+  })
+
   // Knowledge
   it('classifies embedding error as knowledge', () => {
     const result = classifyError(makeError({ message: 'embedding model failed' }))

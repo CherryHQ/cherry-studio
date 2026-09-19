@@ -50,6 +50,7 @@ import {
 } from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
 import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
+import { isDiagnosticReportEligible } from './isDiagnosticReportEligible'
 
 interface ErrorDetailContentProps {
   error?: SerializedError
@@ -561,6 +562,9 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     )
   }, [diagnosticReport, diagnosisContext, doctorCloseBlocked, error, localizedErrorMessage, onOpenDiagnosticReport, t])
 
+  const showDiagnosticReportAction =
+    Boolean(diagnosticReport && onOpenDiagnosticReport) && isDiagnosticReportEligible(error)
+
   const showDetails = () => {
     setDetailsOpen(true)
   }
@@ -611,7 +615,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         </div>
       </ErrorDetailContainer>
 
-      {diagnosticReport && onOpenDiagnosticReport ? (
+      {showDiagnosticReportAction ? (
         <div className="flex justify-end">
           <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
             <FileUp size={14} />

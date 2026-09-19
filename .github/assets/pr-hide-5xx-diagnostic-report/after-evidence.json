@@ -1,0 +1,87 @@
+[
+  {
+    "label": "after-5xx",
+    "shot": "/Users/siin/orca/workspaces/cherry-studio/hide-5xx-diagnostic-report/.context/cherry-electron-dev/after-5xx.png",
+    "reviewShot": null,
+    "names": ["", "", "关闭"],
+    "a11y": [
+      {
+        "name": "复制",
+        "role": "button",
+        "disabled": false
+      },
+      {
+        "name": "查看详情",
+        "role": "button",
+        "disabled": false
+      },
+      {
+        "name": "关闭",
+        "role": "button",
+        "disabled": false
+      }
+    ],
+    "reviewOpened": false,
+    "url": "http://localhost:5173/windows/main/index.html"
+  },
+  {
+    "label": "after-quota",
+    "shot": "/Users/siin/orca/workspaces/cherry-studio/hide-5xx-diagnostic-report/.context/cherry-electron-dev/after-quota.png",
+    "reviewShot": "/Users/siin/orca/workspaces/cherry-studio/hide-5xx-diagnostic-report/.context/cherry-electron-dev/after-quota-review.png",
+    "names": ["", "", "报告问题", "关闭"],
+    "a11y": [
+      {
+        "name": "复制",
+        "role": "button",
+        "disabled": false
+      },
+      {
+        "name": "查看详情",
+        "role": "button",
+        "disabled": false
+      },
+      {
+        "name": "报告问题",
+        "role": "button",
+        "disabled": false
+      },
+      {
+        "name": "关闭",
+        "role": "button",
+        "disabled": false
+      }
+    ],
+    "reviewOpened": true,
+    "url": "http://localhost:5173/windows/main/index.html"
+  },
+  {
+    "label": "after-unknown",
+    "shot": "/Users/siin/orca/workspaces/cherry-studio/hide-5xx-diagnostic-report/.context/cherry-electron-dev/after-unknown.png",
+    "reviewShot": "/Users/siin/orca/workspaces/cherry-studio/hide-5xx-diagnostic-report/.context/cherry-electron-dev/after-unknown-review.png",
+    "names": ["", "", "报告问题", "关闭"],
+    "a11y": [
+      {
+        "name": "复制",
+        "role": "button",
+        "disabled": false
+      },
+      {
+        "name": "查看详情",
+        "role": "button",
+        "disabled": false
+      },
+      {
+        "name": "报告问题",
+        "role": "button",
+        "disabled": false
+      },
+      {
+        "name": "关闭",
+        "role": "button",
+        "disabled": false
+      }
+    ],
+    "reviewOpened": true,
+    "url": "http://localhost:5173/windows/main/index.html"
+  }
+]
