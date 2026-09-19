@@ -366,6 +366,32 @@ describe('filesystem MCP security', () => {
       await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('c')
     })
 
+    it('preserves call order for concurrent creates via aliased directory', async () => {
+      const workspaceRoot = await createTempDir('write-alias-ordering-root-')
+      const realDir = path.join(workspaceRoot, 'real')
+      await fs.mkdir(realDir, { recursive: true })
+      await fs.symlink(realDir, path.join(workspaceRoot, 'link'), 'junction')
+
+      const originalRealpath = fs.realpath.bind(fs)
+      let delayedFirstValidation = false
+      vi.spyOn(fs, 'realpath').mockImplementation(async (...args: Parameters<typeof fs.realpath>) => {
+        if (!delayedFirstValidation) {
+          delayedFirstValidation = true
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        }
+        return (
+          originalRealpath as (...realpathArgs: Parameters<typeof fs.realpath>) => ReturnType<typeof fs.realpath>
+        )(...args)
+      })
+
+      await Promise.all([
+        handleWriteTool({ file_path: 'link/created.txt', content: 'first' }, workspaceRoot),
+        handleWriteTool({ file_path: 'real/created.txt', content: 'second' }, workspaceRoot)
+      ])
+
+      await expect(fs.readFile(path.join(realDir, 'created.txt'), 'utf-8')).resolves.toBe('second')
+    })
+
     it('serializes delete with an in-flight edit on the same path', async () => {
       const workspaceRoot = await createTempDir('delete-serialization-root-')
       const filePath = path.join(workspaceRoot, 'target.txt')

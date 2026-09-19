@@ -12,7 +12,8 @@ function toLockKey(filePath: string): string {
   return isMac || isWin ? normalizedPath.toLowerCase() : normalizedPath
 }
 
-// Locks by canonical path when the target exists so alias spellings share one queue; falls back otherwise.
+// Locks by canonical path so alias spellings share one queue. Resolves through the
+// nearest existing ancestor so aliases agree even when the target is yet to be created.
 export function resolveMutationLockKey(requestedPath: string, baseDir?: string): string {
   const expandedPath = expandHome(requestedPath)
   const root = expandHome(baseDir ?? process.cwd())
@@ -20,7 +21,16 @@ export function resolveMutationLockKey(requestedPath: string, baseDir?: string):
   try {
     return toLockKey(realpathSync(absolute))
   } catch {
-    return toLockKey(absolute)
+    let parent = path.dirname(absolute)
+    while (true) {
+      try {
+        return toLockKey(path.resolve(realpathSync(parent), path.relative(parent, absolute)))
+      } catch {
+        const nextParent = path.dirname(parent)
+        if (nextParent === parent) return toLockKey(absolute)
+        parent = nextParent
+      }
+    }
   }
 }
 
