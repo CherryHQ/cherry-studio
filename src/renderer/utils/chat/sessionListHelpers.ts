@@ -275,13 +275,15 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   workdirDisplay
 }: SessionDisplayGroupOptions): ResourceListGroupResolver<T> {
   const pinnedGroupLabel = mode === 'time' || !pinnedAsSection ? labels.pinned : ''
+  const pinnedResolver = createPinnedGroupResolver<T>({
+    isPinned: (session) => session.pinned === true,
+    group: {
+      id: mode === 'workdir' ? SESSION_PINNED_GROUP_ID : 'pinned',
+      label: pinnedGroupLabel
+    } satisfies ResourceListGroup
+  })
 
   if (mode === 'time') {
-    const pinnedResolver = createPinnedGroupResolver<T>({
-      isPinned: (session) => session.pinned === true,
-      group: { id: 'pinned', label: pinnedGroupLabel } satisfies ResourceListGroup
-    })
-
     return withSessionGroupIdPrefix(
       composeResourceListGroupResolvers(
         pinnedResolver,
@@ -295,23 +297,20 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   }
 
   if (mode === 'agent') {
-    return (session) => {
-      const agentId = session.agentId
-      if (!agentId) {
-        return { id: SESSION_UNKNOWN_AGENT_GROUP_ID, label: labels.agent.unknown }
-      }
+    return withSessionGroupIdPrefix(
+      composeResourceListGroupResolvers(pinnedResolver, (session) => {
+        const agentId = session.agentId
+        if (!agentId) {
+          return { id: 'agent:unknown', label: labels.agent.unknown }
+        }
 
-      const agent = agentById?.get(agentId)
-      return agent
-        ? { id: getSessionAgentGroupId(agent.id), label: agent.name }
-        : { id: SESSION_UNKNOWN_AGENT_GROUP_ID, label: labels.agent.unknown }
-    }
+        const agent = agentById?.get(agentId)
+        return agent
+          ? { id: `agent:${agent.id}`, label: agent.name }
+          : { id: 'agent:unknown', label: labels.agent.unknown }
+      })
+    )
   }
-
-  const pinnedResolver = createPinnedGroupResolver<T>({
-    isPinned: (session) => session.pinned === true,
-    group: { id: SESSION_PINNED_GROUP_ID, label: pinnedGroupLabel } satisfies ResourceListGroup
-  })
 
   return composeResourceListGroupResolvers(pinnedResolver, (session) => {
     if (isSystemWorkspaceSession(session)) {
@@ -366,7 +365,11 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
 
   if (options.mode === 'agent') {
     return sessions
-      .map((session, index) => ({ session, index, rank: getAgentGroupRank(session, options.agentRankById) }))
+      .map((session, index) => ({
+        session,
+        index,
+        rank: isPinned(session) ? -1 : getAgentGroupRank(session, options.agentRankById)
+      }))
       .sort((a, b) => {
         if (a.rank !== b.rank) return a.rank - b.rank
         const aPinned = isPinned(a.session)
