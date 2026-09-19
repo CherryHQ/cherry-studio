@@ -158,6 +158,7 @@ export type CherryDataPartTypes = {
   'agent-task-event': AgentTaskEventPartData
   'agent-api-retry': AgentApiRetryPartData
   'agent-paused': Record<string, never>
+  'agent-session-fork': { sourceSessionId: string }
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
   code: CodePartData

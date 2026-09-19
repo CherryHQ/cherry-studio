@@ -14,6 +14,7 @@ import {
   hasVisibleAgentSessionPart,
   type NoResponseErrorPartOptions
 } from '@shared/ai/agentSessionNoResponse'
+import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -38,6 +39,7 @@ export interface AgentSessionMessageBackendOptions {
   modelId?: UniqueModelId
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
   runtimeResumeToken?: string | (() => string | undefined)
+  forkAnchor?: () => RuntimeForkAnchor | undefined
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -71,25 +73,43 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       })
     }
     const runtimeResumeToken = this.getRuntimeResumeToken()
-    agentSessionMessageService.saveMessage(
-      {
-        sessionId: this.opts.sessionId,
-        ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
-        ...(runtimeStats ? { runtimeStats } : {}),
-        message: {
-          id: finalMessage?.id ?? this.opts.assistantMessageId,
-          role: 'assistant',
-          status: isEmptySuccessTerminal ? 'error' : status,
-          data: isEmptySuccessTerminal
-            ? appendNoResponseErrorPart({ parts }, EMPTY_SUCCESS_NO_RESPONSE_ERROR)
-            : isEmptyPausedTerminal
-              ? { parts: [...parts, { type: 'data-agent-paused', data: {} }] }
-              : { parts },
-          modelId: this.opts.modelId
-        }
-      },
-      { publishDataChange: true }
-    )
+    let forkAnchor: RuntimeForkAnchor | undefined
+    if (status === 'success' && !isEmptySuccessTerminal) {
+      try {
+        const candidate = this.opts.forkAnchor?.()
+        forkAnchor = candidate === undefined ? undefined : RuntimeForkAnchorSchema.parse(candidate)
+      } catch (error) {
+        logger.warn('Fork checkpoint capture failed; preserving completed answer', { error })
+      }
+    }
+    const save = (runtimeAnchor?: RuntimeForkAnchor) =>
+      agentSessionMessageService.saveMessage(
+        {
+          sessionId: this.opts.sessionId,
+          runtimeAnchor,
+          ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
+          ...(runtimeStats ? { runtimeStats } : {}),
+          message: {
+            id: finalMessage?.id ?? this.opts.assistantMessageId,
+            role: 'assistant',
+            status: isEmptySuccessTerminal ? 'error' : status,
+            data: isEmptySuccessTerminal
+              ? appendNoResponseErrorPart({ parts }, EMPTY_SUCCESS_NO_RESPONSE_ERROR)
+              : isEmptyPausedTerminal
+                ? { parts: [...parts, { type: 'data-agent-paused', data: {} }] }
+                : { parts },
+            modelId: this.opts.modelId
+          }
+        },
+        { publishDataChange: true }
+      )
+    try {
+      save(forkAnchor)
+    } catch (error) {
+      if (!forkAnchor) throw error
+      logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
+      save()
+    }
     this.persistedSuccess = status === 'success' && !isEmptySuccessTerminal
   }
 
