@@ -198,6 +198,43 @@ describe('translateService.open', () => {
     expect(listeners[0].id).toBe(`wc:test:${streamId}`)
   })
 
+  it('sends a multimodal user message when imagePath is provided instead of a bare prompt string', () => {
+    const streamId = 'translate:with-image'
+    translateService.open(fakeSender, {
+      streamId,
+      text: 'translate this screenshot',
+      targetLangCode: 'en-us',
+      imagePath: '/tmp/screenshot.png' as any
+    })
+
+    expect(streamPromptMock).toHaveBeenCalledTimes(1)
+    const arg = (
+      streamPromptMock.mock.calls as unknown as Array<
+        [
+          {
+            prompt?: string
+            messages?: Array<{
+              role: string
+              parts: Array<{ type: string; text?: string; url?: string; filename?: string }>
+            }>
+          }
+        ]
+      >
+    )[0][0]
+    expect(arg.prompt).toBeUndefined()
+    expect(arg.messages).toHaveLength(1)
+    expect(arg.messages?.[0].role).toBe('user')
+    expect(arg.messages?.[0].parts).toEqual([
+      { type: 'text', text: 'Translate to English: translate this screenshot' },
+      {
+        type: 'file',
+        mediaType: 'image/png',
+        url: 'file:///tmp/screenshot.png',
+        filename: 'screenshot.png'
+      }
+    ])
+  })
+
   it('rejects a streamId that does not carry the translate prefix', async () => {
     expect(() =>
       translateService.open(fakeSender, {
