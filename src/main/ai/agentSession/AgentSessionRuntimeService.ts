@@ -118,8 +118,6 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
-/** A host-row miss is re-queried after this long — the row can be committed mid-connection. */
-const FLOW_HOST_MISS_RECHECK_MS = 5_000
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -296,10 +294,8 @@ type AgentSessionRuntimeEntry = {
   pendingBackgroundFlowChunks?: Map<string, UIMessageChunk[]>
   /** One continuation accumulator per persisted assistant row receiving detached flow chunks. */
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
-  /** Flow roots whose host row lookup came back empty, with the time it was cached. */
-  checkedFlowHostMisses?: Map<string, number>
-  /** Detached chunks buffered while their host-row recovery is retried (root tool-call id keyed). */
-  pendingRecoveryFlowChunks?: Map<string, UIMessageChunk[]>
+  /** Flow roots retired for this entry: their host row is absent, so their chunks stay dropped. */
+  deadFlowRoots?: Set<string>
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
 }
@@ -2121,26 +2117,15 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
 
     let messageId = entry.flowMessageIdsByToolCallId?.get(rootToolCallId)
-    // A fresh entry (restart or session reopen) has no in-memory anchor. Recover it from the
-    // persisted host row so resumed chunks land on the launch message. A miss is cached only
-    // briefly — the row can be committed by a flush at any time, so re-query it periodically.
-    if (
-      !messageId &&
-      (entry.checkedFlowHostMisses?.get(rootToolCallId) ?? Number.NEGATIVE_INFINITY) <
-        Date.now() - FLOW_HOST_MISS_RECHECK_MS
-    ) {
+    // A fresh entry (restart or session reopen) has no in-memory anchor: look the host row up once.
+    if (!messageId) {
+      if (entry.deadFlowRoots?.has(rootToolCallId)) return
       try {
         messageId = this.recoverDetachedFlowHost(entry, rootToolCallId)
-        if (!messageId) {
-          // Only a successful miss is cached with a timestamp — a transient query error must
-          // stay retryable. Buffered recovery chunks survive the miss: within the re-check
-          // window the row can still be committed, and at teardown they get a final lookup.
-          ;(entry.checkedFlowHostMisses ??= new Map()).set(rootToolCallId, Date.now())
-        }
       } catch (error) {
-        // Keep the chunk that triggered the failed lookup: dropping a text-start would abort the
-        // whole ai stream pipe for this message.
-        this.bufferRecoveryChunk(entry, rootToolCallId, chunk)
+        // Retire the root instead of retrying: delivering the rest of its stream after a dropped
+        // chunk would hand the accumulator a delta whose start never arrived, which aborts it.
+        ;(entry.deadFlowRoots ??= new Set()).add(rootToolCallId)
         logger.warn('Failed to recover flow host row for detached subagent chunk', {
           sessionId: entry.sessionId,
           rootToolCallId,
@@ -2149,13 +2134,17 @@ export class AgentSessionRuntimeService extends BaseService {
         })
         return
       }
-    }
-    if (!messageId) {
-      // The miss is cached, so the lookup is not re-run for the whole re-check window — chunks
-      // arriving in that window are real output, so buffer them until a re-query can resolve or
-      // reject the root for good (neither lookup failure nor teardown is a reason to drop them).
-      this.bufferRecoveryChunk(entry, rootToolCallId, chunk)
-      return
+      if (!messageId) {
+        // The anchor is registered when the spawning tool call is streamed, so a miss means the
+        // row is absent for good — retiring the root keeps every one of its drops consistent.
+        ;(entry.deadFlowRoots ??= new Set()).add(rootToolCallId)
+        logger.debug('Ignoring detached subagent flow chunk without a persisted message anchor', {
+          sessionId: entry.sessionId,
+          rootToolCallId,
+          chunkType: chunk.type
+        })
+        return
+      }
     }
 
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
@@ -2183,34 +2172,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!hostMessageId) return undefined
     ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(rootToolCallId, hostMessageId)
     ;(entry.persistedFlowMessageIds ??= new Set()).add(hostMessageId)
-    const replay = (chunks: UIMessageChunk[]) => {
-      for (const replayedChunk of chunks) {
-        if (
-          (replayedChunk.type === 'tool-input-start' || replayedChunk.type === 'tool-input-available') &&
-          replayedChunk.toolCallId
-        ) {
-          ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(replayedChunk.toolCallId, hostMessageId)
-        }
-        this.enqueueBackgroundFlowChunk(entry, hostMessageId, replayedChunk)
-      }
-    }
-    // Chunks buffered across transient recovery errors flow into the anchor; nested tool calls
-    // inside them register anchors exactly like the normal chunk path below.
-    const buffered = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
-    if (buffered?.length) {
-      entry.pendingRecoveryFlowChunks?.delete(rootToolCallId)
-      replay(buffered)
-    }
     return hostMessageId
-  }
-
-  /** Buffer an unrecoverable-root chunk so a later successful re-query can deliver it. */
-  private bufferRecoveryChunk(entry: AgentSessionRuntimeEntry, rootToolCallId: string, chunk: UIMessageChunk): void {
-    const buffered = entry.pendingRecoveryFlowChunks ?? new Map<string, UIMessageChunk[]>()
-    entry.pendingRecoveryFlowChunks = buffered
-    const chunks = buffered.get(rootToolCallId) ?? []
-    chunks.push(chunk)
-    buffered.set(rootToolCallId, chunks)
   }
 
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
@@ -2633,9 +2595,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
     void this.finishBackgroundFlows(entry)
-    // Anchors and chunk buffers survive the reset: anchors are session facts, buffered chunks are
-    // output the DB never received, and a host-row miss is a snapshot a later flush invalidates.
-    entry.checkedFlowHostMisses?.clear()
+    // Anchors and chunk buffers survive the reset: anchors are session facts and buffered chunks
+    // are output the DB never received. A retired root stays retired — see `deadFlowRoots`.
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
@@ -2697,6 +2658,11 @@ export class AgentSessionRuntimeService extends BaseService {
       (execution.kind === 'autonomous-turn' && !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn)) ||
       (execution.kind === 'turn' && execution.stream === 'unopened' && execution.admission === 'admitted')
     ) {
+      // Register the anchor before buffering: a detached flow chunk for this call can arrive
+      // while the chunk that introduces it is still waiting here, and the anchor is what routes it.
+      if (turn && (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, turn.assistantMessageId)
+      }
       this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk })
       return true
     }
@@ -3446,19 +3412,6 @@ export class AgentSessionRuntimeService extends BaseService {
     if (connectionAttempt) closings.push(connectionAttempt)
     return Promise.allSettled(closings).then(async () => {
       const cacheService = application.get('CacheService')
-      // Recovery-buffered chunks get their last host-row lookup; any that land now replay into
-      // an accumulator (or the pending buffer) and will be drained by the cascade below.
-      for (const rootToolCallId of [...(entry.pendingRecoveryFlowChunks?.keys() ?? [])]) {
-        try {
-          this.recoverDetachedFlowHost(entry, rootToolCallId)
-        } catch (error) {
-          logger.warn('Detached flow recovery lookup failed at teardown', {
-            sessionId: entry.sessionId,
-            rootToolCallId,
-            error
-          })
-        }
-      }
       // Seed-failed chunks never reached an accumulator: retry once so the cascade persists
       // them; the fold below covers a retry that still fails.
       for (const messageId of [...(entry.pendingBackgroundFlowChunks?.keys() ?? [])]) {
