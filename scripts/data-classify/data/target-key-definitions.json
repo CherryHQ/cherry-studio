@@ -744,6 +744,32 @@
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.tab.history.back",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "Left"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.history.back (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.tab.history.forward",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "Right"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.history.forward (unified command system)"
+    },
+    {
       "targetKey": "shortcut.tab.next",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -770,6 +796,7 @@
       "status": "classified",
       "description": "Command shortcut: tab.prev (unified command system)"
     },
+
     {
       "targetKey": "menu.presentation_mode",
       "type": "PreferenceTypes.MenuPresentationMode",

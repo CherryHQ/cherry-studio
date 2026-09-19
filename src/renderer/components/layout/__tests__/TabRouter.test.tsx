@@ -51,6 +51,13 @@ vi.mock('@tanstack/react-router', async () => {
     createRouter: vi.fn(({ history }: { history: { initialEntries: string[] } }) => ({
       navigate: routerMocks.navigate,
       subscribe: routerMocks.subscribe,
+      history: {
+        back: vi.fn(),
+        forward: vi.fn(),
+        canGoBack: () => false,
+        length: 1,
+        location: { href: history.initialEntries[0], state: { __TSR_index: 0 } }
+      },
       routesByPath: {
         '/app/agents': { options: { pendingComponent: DestinationPending } }
       },

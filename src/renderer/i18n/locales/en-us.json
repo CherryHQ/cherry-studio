@@ -5272,6 +5272,8 @@
   "settings.shortcuts.empty": "No shortcuts are available in this group",
   "settings.shortcuts.exit_fullscreen": "Exit Fullscreen",
   "settings.shortcuts.focus_input": "Focus Input",
+  "settings.shortcuts.history_back": "Go Back",
+  "settings.shortcuts.history_forward": "Go Forward",
   "settings.shortcuts.new_topic": "New Conversation",
   "settings.shortcuts.next_tab": "Next Tab",
   "settings.shortcuts.occupied_by_other_application": "This shortcut is already used by the system or another application",
