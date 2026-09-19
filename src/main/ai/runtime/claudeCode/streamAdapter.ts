@@ -35,7 +35,6 @@ import type {
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -189,6 +188,8 @@ export type ClaudeCodeStreamAdapterOptions = {
   statusSink: StatusSink
   onSessionId?: (sessionId: string) => void
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
+  /** Host-supplied launch-root lookup; see `AgentRuntimeConnectInput.resolveLaunchToolCallId`. */
+  resolveLaunchToolCallId?: (taskId: string) => string | undefined
 }
 
 export type ClaudeCodeStreamAdapterResult =
@@ -494,6 +495,7 @@ export class ClaudeCodeStreamAdapter {
   private readonly streamOptions: ClaudeCodeStreamAdapterOptions['streamOptions']
   private readonly onSessionId?: (sessionId: string) => void
   private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
+  private readonly resolveLaunchToolCallId?: (taskId: string) => string | undefined
   /** Content belongs to a turn's message stream; outside one there is nowhere for it to land. */
   private turnActive = false
   /** The current turn was started by parentless SDK content rather than a host `send()`. */
@@ -522,6 +524,7 @@ export class ClaudeCodeStreamAdapter {
     this.streamOptions = options.streamOptions
     this.onSessionId = options.onSessionId
     this.mcpToolMetadata = options.mcpToolMetadata ?? {}
+    this.resolveLaunchToolCallId = options.resolveLaunchToolCallId
     this.ctx = this.createTurnContext()
   }
 
@@ -1235,20 +1238,10 @@ export class ClaudeCodeStreamAdapter {
         // when the registration-time recovery failed or never ran, recover the launch root here
         // rather than leaving the task permanently unmapped.
         if (!launchToolCallId) {
-          try {
-            launchToolCallId =
-              agentSessionMessageService.findLaunchToolCallId(this.sessionId, resumedAgentId) ?? undefined
-            if (launchToolCallId) {
-              this.backgroundTaskToolCallIds.set(resumedAgentId, launchToolCallId)
-              if (this.backgroundTasks.some((task) => task.id === resumedAgentId)) this.publishBackgroundTasks()
-            }
-          } catch (error) {
-            // Silent: the renderer's scanning fallback covers the unresolved entry.
-            logger.warn('Failed to recover launch tool call id from resume receipt', {
-              sessionId: this.sessionId,
-              resumedAgentId,
-              error
-            })
+          launchToolCallId = this.resolveLaunchToolCallId?.(resumedAgentId)
+          if (launchToolCallId) {
+            this.backgroundTaskToolCallIds.set(resumedAgentId, launchToolCallId)
+            if (this.backgroundTasks.some((task) => task.id === resumedAgentId)) this.publishBackgroundTasks()
           }
         }
         if (launchToolCallId) {
@@ -1458,20 +1451,7 @@ export class ClaudeCodeStreamAdapter {
     if (this.backgroundTaskToolCallIds.has(taskId)) return
     // A fresh adapter (app restart) has no in-memory mapping: the persisted launch task event is
     // authoritative and must win over a resume edge that arrives before the launch receipt context.
-    let launchToolCallId: string | null = null
-    try {
-      launchToolCallId = agentSessionMessageService.findLaunchToolCallId(this.sessionId, taskId)
-    } catch (error) {
-      // A transient database error must not kill the connection — and must not pin the resume
-      // edge id either (first-wins would then block the launch root forever). Skip registration;
-      // the next task event or receipt re-runs this lookup and self-heals.
-      logger.warn('Failed to recover launch tool call id for background task', {
-        sessionId: this.sessionId,
-        taskId,
-        error
-      })
-      return
-    }
+    const launchToolCallId = this.resolveLaunchToolCallId?.(taskId)
     if (launchToolCallId) {
       this.backgroundTaskToolCallIds.set(taskId, launchToolCallId)
     } else if (allowToolCallIdFallback) {

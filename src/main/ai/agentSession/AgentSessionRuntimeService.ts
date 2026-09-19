@@ -1662,6 +1662,16 @@ export class AgentSessionRuntimeService extends BaseService {
     return false
   }
 
+  /** Host-side launch-root lookup for the runtime adapter — a database error must not end a connection. */
+  private lookupLaunchToolCallId(sessionId: string, taskId: string): string | undefined {
+    try {
+      return agentSessionMessageService.findLaunchToolCallId(sessionId, taskId) ?? undefined
+    } catch (error) {
+      logger.warn('Failed to look up launch tool call id for background task', { sessionId, taskId, error })
+      return undefined
+    }
+  }
+
   private async connect(
     entry: AgentSessionRuntimeEntry,
     target: AgentSessionConnectionTarget,
@@ -1683,7 +1693,8 @@ export class AgentSessionRuntimeService extends BaseService {
       fastMode: target.fastMode,
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
-      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
+      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs),
+      resolveLaunchToolCallId: (taskId) => this.lookupLaunchToolCallId(entry.sessionId, taskId)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       await this.closeRuntimeConnection(connection, entry.sessionId)

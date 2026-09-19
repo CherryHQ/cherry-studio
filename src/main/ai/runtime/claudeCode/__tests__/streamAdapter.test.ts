@@ -21,12 +21,6 @@ const messageServiceMocks = vi.hoisted(() => ({
   findLaunchToolCallId: vi.fn()
 }))
 
-vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: {
-    findLaunchToolCallId: messageServiceMocks.findLaunchToolCallId
-  }
-}))
-
 const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
 
@@ -54,6 +48,7 @@ function createAdapter(
     sink: { enqueue: (part) => parts.push(part) },
     statusSink: { emit: (event) => statusEvents.push(event) },
     onSessionId: (sessionId) => sessionIds.push(sessionId),
+    resolveLaunchToolCallId: (taskId) => messageServiceMocks.findLaunchToolCallId('session-1', taskId) ?? undefined,
     ...overrides
   })
   if (openTurn) adapter.beginTurn()
@@ -1828,11 +1823,11 @@ describe('ClaudeCodeStreamAdapter', () => {
       })
     })
 
-    it('skips registration on a launch-root recovery error and self-heals on the next event', () => {
+    it('skips registration on a launch-root lookup miss and self-heals on the next event', () => {
       let lookupCalls = 0
       messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
         lookupCalls += 1
-        if (lookupCalls === 1) throw new Error('db locked')
+        if (lookupCalls === 1) return null
         return 'call_launch'
       })
       const { adapter, statusEvents } = createAdapter()
@@ -1933,11 +1928,11 @@ describe('ClaudeCodeStreamAdapter', () => {
       })
     })
 
-    it('recovers the launch root from the resume receipt when registration recovery failed', () => {
+    it("stamps a launch receipt's own call id when the host lookup misses", () => {
       let lookupCalls = 0
       messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
         lookupCalls += 1
-        if (lookupCalls === 1) throw new Error('db locked')
+        if (lookupCalls === 1) return null
         return 'call_launch'
       })
       const { adapter, parts } = createAdapter()
@@ -1997,7 +1992,8 @@ describe('ClaudeCodeStreamAdapter', () => {
         }
       } as any)
 
-      // The registration-time recovery failed; the receipt itself recovers and stamps the root.
+      // The host lookup missed at launch time, so the launch receipt's own call id — which IS the
+      // launch root — establishes the binding; the resume receipt then stamps it.
       const receiptChunk = parts.find(
         (part) => part.type === 'tool-output-available' && (part as { toolCallId?: string }).toolCallId === 'send-use'
       ) as {
@@ -2007,10 +2003,10 @@ describe('ClaudeCodeStreamAdapter', () => {
       const stamped =
         receiptChunk?.resultProviderMetadata?.cherry?.launchToolCallId ??
         receiptChunk?.providerMetadata?.cherry?.launchToolCallId
-      expect(stamped).toBe('call_launch')
+      expect(stamped).toBe('launch-use')
     })
 
-    it('recovers the launch root from the database when the adapter starts fresh', () => {
+    it('reuses the host-supplied launch root when the adapter starts fresh', () => {
       // A restarted app builds a new adapter with no in-memory mapping; the first resume edge
       // must land on the persisted launch tool-use id, not the resuming call.
       messageServiceMocks.findLaunchToolCallId.mockReturnValue('call_launch')

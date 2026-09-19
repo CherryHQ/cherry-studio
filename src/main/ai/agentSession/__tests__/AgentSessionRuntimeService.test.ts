@@ -5377,6 +5377,7 @@ describe('AgentSessionRuntimeService', () => {
         fastMode: false,
         resumeToken: undefined,
         onSteerInjected: expect.any(Function),
+        resolveLaunchToolCallId: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
@@ -5494,6 +5495,7 @@ describe('AgentSessionRuntimeService', () => {
         fastMode: false,
         resumeToken: 'resume-db',
         onSteerInjected: expect.any(Function),
+        resolveLaunchToolCallId: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
