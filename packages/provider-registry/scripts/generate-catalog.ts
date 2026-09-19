@@ -447,7 +447,14 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
     }
     if (!controls.some((c: { kind: string }) => c.kind === 'budget')) {
       const limits = matchTokenLimits(m.id, familyRules)
-      if (limits) controls.push({ kind: 'budget', min: limits.min, max: limits.max })
+      if (limits) {
+        // Canonical kind order is effort, budget, toggle — insert the family
+        // budget knob ahead of an upstream-declared toggle instead of pushing.
+        const budget = { kind: 'budget', min: limits.min, max: limits.max }
+        const toggleIndex = controls.findIndex((c: { kind: string }) => c.kind === 'toggle')
+        if (toggleIndex === -1) controls.push(budget)
+        else controls.splice(toggleIndex, 0, budget)
+      }
     }
     if (!controls.some((c: { kind: string }) => c.kind === 'effort')) {
       const inferred = matchReasoningControls(m.id, familyRules)?.find((c) => c.kind === 'effort')
