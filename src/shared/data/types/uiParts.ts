@@ -157,6 +157,7 @@ export type CherryDataPartTypes = {
   'conversation-reset': ConversationResetPartData
   'model-fallback': ModelFallbackPartData
   'agent-task-event': AgentTaskEventPartData
+  'agent-session-fork': { sourceSessionId: string }
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
   code: CodePartData

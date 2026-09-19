@@ -363,6 +363,27 @@ describe('findOpenTextTailIndex', () => {
 })
 
 describe('projectCompletedMessageParts', () => {
+  it.each([
+    [
+      [
+        { type: 'text', text: 'Answer' },
+        { type: 'reasoning', text: 'Trailing thought' }
+      ]
+    ],
+    [[{ type: 'file', url: 'https://example.com/result.png', mediaType: 'image/png' }]]
+  ])('keeps a fork link direct without changing the original result grouping: %j', (parts) => {
+    const original = entries(parts)
+    const marker = {
+      part: { type: 'data-agent-session-fork', data: { sourceSessionId: 'parent' } },
+      index: parts.length
+    } as PartEntry
+    const before = projectCompletedMessageParts(original)
+    expect(projectCompletedMessageParts([...original, marker])).toEqual({
+      ...before,
+      resultEntries: [...before.resultEntries, marker]
+    })
+  })
+
   it('keeps the last substantive answer and associated values outside history despite trailing tools', () => {
     const layout = projectCompletedMessageParts(
       entries([

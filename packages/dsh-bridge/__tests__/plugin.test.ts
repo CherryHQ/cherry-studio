@@ -1,18 +1,26 @@
 import { randomUUID } from 'node:crypto'
-import { rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+import { interruptedTurnClosers, Session, SessionId, SessionLogOffset, SessionStore } from '@deepseek-ai/dsh-session'
+import { JsonlSessionPersistence } from '@deepseek-ai/dsh-session-persistence-jsonl'
+import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
+import * as fileTools from '@deepseek-ai/dsh-tool-fs'
+import { ToolRuntime } from '@deepseek-ai/dsh-tools'
 import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import type { AskUserQuestionAnswer, AskUserQuestionRequest } from '@deepseek-ai/dsh-user-questions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { createForkCheckpoint, forkSession } from '../src/fork'
 import { apply } from '../src/plugin'
-import { BRIDGE_SOCKET_ENV, BRIDGE_TOKEN_ENV } from '../src/protocol'
+import { BRIDGE_SOCKET_ENV, BRIDGE_TOKEN_ENV, type BridgePermissionMode } from '../src/protocol'
 
 type PreExecuteHandler = (
   exec: { agent?: Agent; name: string; arguments: unknown; signal?: AbortSignal },
@@ -137,6 +145,343 @@ describe('cherry bridge plugin', () => {
       preExecute({ agent: rootAgent, name: 'mcp__browser__click', arguments: {} }, () => undefined)
     ).resolves.toMatchObject({ kind: 'deny' })
   })
+
+  it('snapshots only the completed prefix while the source has an interrupted later turn', async () => {
+    const context = new Context()
+    await context.plugin(SessionStore)
+    cleanup.push(() => context.fiber.dispose())
+    const session = context.sessions.create(SessionId('session-1'))
+    session.append('turn/start', { turn: 0 })
+    const end = session.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
+    const later = session.append('turn/start', { turn: 1 })
+    const sourceEvents = session.snapshotEvents()
+    expect(interruptedTurnClosers(sourceEvents).length).toBeGreaterThan(0)
+    const host = await startHost()
+    const ctx = makeContext({ agents: { get: () => ({ session }) } })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    const expected = sourceEvents.slice(0, end.seq + 1)
+    const checkpoint = createForkCheckpoint(expected, end.seq)
+    const reordered = expected.map(({ data, ...event }) => ({ data, ...event }))
+    expect(createForkCheckpoint(reordered, end.seq)).toEqual(checkpoint)
+    expect(interruptedTurnClosers(expected)).toEqual([])
+    await expect(host.request('session/fork-snapshot', { sessionId: 'session-1', boundary: end.seq })).resolves.toEqual(
+      {
+        events: expected
+      }
+    )
+    await expect(
+      host.request('session/fork-snapshot', { sessionId: 'session-1', boundary: later.seq })
+    ).rejects.toThrow('history_changed')
+    expect(session.snapshotEvents()).toEqual(sourceEvents)
+  })
+
+  it('surfaces native resume failure without creating an empty conversation', async () => {
+    const host = await startHost()
+    const create = vi.fn()
+    const ctx = makeContext({
+      agents: { resume: vi.fn().mockRejectedValue(new Error('session "session-1" not found')), create, get: vi.fn() }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    await expect(host.request('session/open', { ...openParams, resume: true })).rejects.toThrow(
+      'session "session-1" not found'
+    )
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])(
+    'forks the verified prefix through a child and grandchild without an Agent loop (live=%s)',
+    async (live) => {
+      const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-cold-fork-'))
+      cleanup.push(() => rm(directory, { recursive: true, force: true }))
+      const source = new Context()
+      const root = path.join(directory, 'source')
+      await source.plugin(SessionStore)
+      await source.plugin(JsonlSessionPersistence, { root })
+      const session = source.sessions.create(SessionId('source'), { meta: { cwd: directory } })
+      session.append('turn/start', { turn: 0 })
+      const end = session.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
+      const checkpoint = createForkCheckpoint(session.snapshotEvents(), end.seq)
+      session.append('turn/start', { turn: 1 })
+      await source.sessionPersistence.ensureMaterialized(session)
+      await source.sessions.flush(session)
+      await source.fiber.dispose()
+      let sourceRoot = root
+      let sourceId = 'source'
+      let sourceEvents = session.snapshotEvents()
+      for (const targetSessionId of ['child', 'grandchild']) {
+        const targetRoot = path.join(directory, targetSessionId)
+        const targetCwd = path.join(directory, targetSessionId + '-cwd')
+        await expect(
+          forkSession({
+            sourceRoot,
+            targetRoot,
+            sourceSessionId: sourceId,
+            targetSessionId: 'bad',
+            targetCwd,
+            ...checkpoint,
+            checkpoints: [checkpoint],
+            events: live ? sourceEvents : undefined,
+            boundary: end.seq - 1
+          })
+        ).rejects.toThrow('history_changed')
+        await forkSession({
+          sourceRoot,
+          targetRoot,
+          sourceSessionId: sourceId,
+          targetSessionId,
+          targetCwd,
+          ...checkpoint,
+          checkpoints: [checkpoint],
+          events: live ? sourceEvents : undefined
+        })
+        await rm(sourceRoot, { recursive: true, force: true })
+        const reader = new Context()
+        try {
+          await reader.plugin(SessionStore)
+          await reader.plugin(JsonlSessionPersistence, { root: targetRoot })
+          const stored = await (reader.sessionPersistence as JsonlSessionPersistence).loadStored(
+            SessionId(targetSessionId)
+          )
+          expect(stored?.events).toHaveLength(end.seq + 2)
+          expect(stored?.events[end.seq]).toMatchObject({ type: 'turn/end', seq: end.seq })
+          expect(stored?.events.at(-1)).toMatchObject({ type: 'session/end-seed' })
+          expect(stored?.meta).toMatchObject({ id: targetSessionId, cwd: targetCwd })
+          expect(stored?.meta?.parentSession).toBeUndefined()
+          expect(stored?.inheritedEventCount).toBe(end.seq + 1)
+          expect(createForkCheckpoint(stored!.events, end.seq)).toEqual(checkpoint)
+          sourceEvents = stored!.events
+        } finally {
+          await reader.fiber.dispose()
+        }
+        sourceRoot = targetRoot
+        sourceId = targetSessionId
+      }
+    }
+  )
+
+  it('executes fork I/O while the source writes', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-fork-io-'))
+    cleanup.push(() => rm(directory, { recursive: true, force: true }))
+    const sourceCwd = path.join(directory, 'source')
+    const childCwd = path.join(directory, 'child')
+    await Promise.all([mkdir(sourceCwd), mkdir(childCwd)])
+    await writeFile(path.join(childCwd, 'test.txt'), 'copied before parent write')
+    const sourceContext = new Context()
+    const childContext = new Context()
+    let releaseWrite!: () => void
+    let enteredWrite!: () => void
+    const writeEntered = new Promise<void>((resolve) => {
+      enteredWrite = resolve
+    })
+    const writeReleased = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    let pendingWrite: Promise<unknown> | undefined
+    let writeFinished = false
+    try {
+      await sourceContext.plugin(LocalFileSystem, { cwd: sourceCwd })
+      await childContext.plugin(SystemPrompt)
+      await childContext.plugin(ToolRuntime)
+      await childContext.plugin(LocalFileSystem, { cwd: childCwd })
+      await childContext.plugin(fileTools)
+      const child = {
+        id: SessionId('child'),
+        session: Session.create(
+          SessionId('child'),
+          [],
+          {
+            id: SessionId('child'),
+            version: 0,
+            createdAt: Date.now(),
+            cwd: childCwd,
+            parentSession: SessionId('source'),
+            isSeeded: true
+          },
+          SessionLogOffset(0)
+        )
+      } as Agent
+      const host = await startHost((method, params) => {
+        if (method === 'ready') return {}
+        if (params.sessionId !== child.id) throw new Error('wrong session')
+        if (method === 'guard/check') return { kind: 'allow' }
+        throw new Error(`unexpected request ${method}`)
+      })
+      process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+      process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+      apply(
+        makeContext({
+          agents: {
+            resume: async () => ({ agent: child }),
+            get: (id: string) => (id === child.id ? child : undefined)
+          },
+          tools: childContext.tools,
+          on: childContext.on.bind(childContext),
+          effect: childContext.effect.bind(childContext),
+          get: childContext.get.bind(childContext)
+        })
+      )
+      await expect.poll(() => host.requests[0]?.method).toBe('ready')
+      await host.request('session/open', {
+        ...openParams,
+        sessionId: child.id,
+        cwd: childCwd,
+        policy: {
+          ...openParams.policy,
+          permissionMode: 'acceptEdits',
+          allowedRoots: [childCwd],
+          readTools: ['read'],
+          editTools: ['write']
+        }
+      })
+      ;(sourceContext.fs as LocalFileSystem).internals.inspectTemp = async () => {
+        enteredWrite()
+        await writeReleased
+      }
+      const target = await sourceContext.fs.resolve('parent-writing.txt')
+      pendingWrite = sourceContext.fs.writeText(target, 'parent completed').then(() => {
+        writeFinished = true
+      })
+      await Promise.race([writeEntered, pendingWrite])
+      const signal = AbortSignal.timeout(3000)
+      const read = await childContext.tools.execute({
+        callId: ToolCallId('read-child'),
+        name: 'read',
+        arguments: { file_path: 'test.txt' },
+        agent: child,
+        signal
+      })
+      expect(read.isError).toBe(false)
+      expect(JSON.stringify(read.content)).toContain('copied before parent write')
+      const write = await childContext.tools.execute({
+        callId: ToolCallId('write-child'),
+        name: 'write',
+        arguments: { file_path: 'test2.txt', content: 'child created' },
+        agent: child,
+        signal
+      })
+      expect(write.isError, JSON.stringify(write.content)).toBe(false)
+      expect(await readFile(path.join(childCwd, 'test2.txt'), 'utf8')).toBe('child created')
+      expect(writeFinished).toBe(false)
+      releaseWrite()
+      await pendingWrite
+      expect(await readFile(path.join(sourceCwd, 'parent-writing.txt'), 'utf8')).toBe('parent completed')
+      expect(await readFile(path.join(childCwd, 'test.txt'), 'utf8')).toBe('copied before parent write')
+    } finally {
+      releaseWrite()
+      try {
+        await pendingWrite
+      } finally {
+        await Promise.all([sourceContext.fiber.dispose(), childContext.fiber.dispose()])
+      }
+    }
+  })
+
+  it.each([true, false])('keeps fork tools and approvals local when the source is live: %s', async (sourceIsLive) => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-fork-policy-'))
+    cleanup.push(() => rm(cwd, { recursive: true, force: true }))
+    await writeFile(path.join(cwd, 'test.txt'), 'child copy')
+    let expectedSessionId = 'session-1'
+    const host = await startHost((method, params) => {
+      if (method === 'ready') return {}
+      if (params.sessionId !== expectedSessionId) throw new Error('wrong session')
+      if (method === 'guard/check') return { kind: 'allow' }
+      if (method === 'tool/call') return { text: 'child tool result' }
+      if (method === 'approval/ask') return { outcome: 'allowed-once' }
+      throw new Error(`unexpected request ${method}`)
+    })
+    const source = { id: 'source', session: { header: { cwd: '/source' } } } as Agent
+    const fork = {
+      id: 'session-1',
+      session: { header: { cwd, parentSession: 'source', isSeeded: true }, snapshotEvents: () => [{ seq: 10 }] }
+    } as unknown as Agent
+    const grandchild = {
+      id: 'grandchild',
+      session: { header: { cwd, parentSession: 'session-1', isSeeded: true } }
+    } as Agent
+    const delegated = {
+      id: 'delegated',
+      session: { header: { cwd, parentSession: 'session-1', origin: 'subagent' } }
+    } as Agent
+    const agents = new Map([
+      ['session-1', fork],
+      ['grandchild', grandchild],
+      ['delegated', delegated]
+    ])
+    if (sourceIsLive) agents.set('source', source)
+    let preExecute: PreExecuteHandler | undefined
+    let approve: ((request: ApprovalRequest) => Promise<ApprovalOutcome>) | undefined
+    const register = vi.fn().mockReturnValue(() => {})
+    const ctx = makeContext({
+      agents: {
+        resume: async ({ resumeSessionId }: { resumeSessionId: string }) => ({ agent: agents.get(resumeSessionId) }),
+        get: (id: string) => agents.get(id)
+      },
+      tools: { register, guard: vi.fn() },
+      on: (event: string, handler: unknown) => {
+        if (event === 'tools/pre-execute') preExecute = handler as PreExecuteHandler
+        if (event === 'approval/request') approve = handler as typeof approve
+      }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    const policy = {
+      ...openParams.policy,
+      allowedRoots: [cwd],
+      readTools: ['read'],
+      editTools: ['write'],
+      planSafeTools: ['list_agents'],
+      autoApprovedTools: ['list_agents', 'echo']
+    }
+    await host.request('session/open', {
+      ...openParams,
+      cwd,
+      policy,
+      tools: [{ name: 'echo', description: 'echo', inputSchema: { type: 'object' } }]
+    })
+    if (!preExecute || !approve) throw new Error('missing bridge handlers')
+    for (const mode of ['default', 'acceptEdits', 'bypassPermissions', 'plan'] satisfies BridgePermissionMode[]) {
+      await host.request('policy/update', { sessionId: fork.id, policy: { ...policy, permissionMode: mode } })
+      for (const name of ['read', 'list_agents']) {
+        await expect(preExecute({ agent: fork, name, arguments: { file_path: 'test.txt' } }, vi.fn())).resolves.toEqual(
+          { kind: 'allow' }
+        )
+      }
+      await expect(
+        preExecute({ agent: fork, name: 'write', arguments: { file_path: 'test2.txt' } }, vi.fn())
+      ).resolves.toMatchObject({ kind: mode === 'default' ? 'ask' : mode === 'plan' ? 'deny' : 'allow' })
+    }
+    await host.request('policy/update', { sessionId: fork.id, policy })
+    await expect(
+      preExecute({ agent: delegated, name: 'write', arguments: { file_path: 'test2.txt' } }, vi.fn())
+    ).resolves.toMatchObject({ kind: 'deny', reason: expect.stringContaining('delegated subagent') })
+    await expect(approve({ agent: fork, toolName: 'write', reason: 'needs approval' })).resolves.toBe('allowed-once')
+    const definition = register.mock.calls[0][0]
+    for (const agent of [fork, delegated]) {
+      await expect(definition.execute({}, { agent })).resolves.toEqual({ text: 'child tool result' })
+    }
+    expect(
+      host.requests.filter(({ method }) => method === 'guard/check').every(({ params }) => params.sessionId === fork.id)
+    ).toBe(true)
+
+    // A second-generation fork is another execution root, not a delegated child.
+    await host.request('session/open', { ...openParams, sessionId: grandchild.id, cwd, policy })
+    expectedSessionId = grandchild.id
+    agents.delete('source')
+    agents.delete(fork.id)
+    await expect(
+      preExecute({ agent: grandchild, name: 'read', arguments: { file_path: 'test.txt' } }, vi.fn())
+    ).resolves.toEqual({ kind: 'allow' })
+    expect(host.requests.at(-1)).toMatchObject({ method: 'guard/check', params: { sessionId: grandchild.id } })
+  })
+
   it('checks root and delegated native tool calls with Main before local permission policy', async () => {
     const host = await startHost((method) =>
       method === 'guard/check' ? { kind: 'deny', ruleId: 'user-data-sqlite-write', reason: 'protected SQLite' } : {}
