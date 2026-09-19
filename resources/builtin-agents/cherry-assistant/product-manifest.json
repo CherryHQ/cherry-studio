@@ -426,6 +426,32 @@
       }
     },
     {
+      "id": "tab.history.back",
+      "titleKey": "settings.shortcuts.history_back",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "Alt",
+          "Left"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "tab.history.forward",
+      "titleKey": "settings.shortcuts.history_forward",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "Alt",
+          "Right"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
       "id": "tab.next",
       "titleKey": "settings.shortcuts.next_tab",
       "categoryKey": "settings.shortcuts.general",
