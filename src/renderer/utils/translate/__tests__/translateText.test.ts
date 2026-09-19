@@ -199,6 +199,24 @@ describe('translateText (main-driven streaming)', () => {
       expect(mockListeners).toEqual({ chunk: [], done: [], error: [] })
     })
 
+    it('forwards imagePath on translate.open when provided', async () => {
+      // Catches dropping the vision attachment before the IPC boundary (#20024).
+      const promise = translateText('notes', TARGET, undefined, undefined, '/tmp/shot.png' as any)
+      await waitForOpen(mockRequest)
+
+      expect(mockRequest).toHaveBeenCalledWith('translate.open', {
+        streamId: expect.stringMatching(/^translate:/),
+        text: 'notes',
+        targetLangCode: 'en-us',
+        imagePath: '/tmp/shot.png'
+      })
+
+      const streamId = lastStreamId(mockRequest)
+      emitChunk(mockListeners, 'ok', streamId)
+      emitDone(mockListeners, streamId)
+      await expect(promise).resolves.toBe('ok')
+    })
+
     it('trims trailing whitespace from the final accumulated text', async () => {
       const promise = translateText('source', TARGET)
       await waitForOpen(mockRequest)

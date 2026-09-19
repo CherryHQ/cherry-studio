@@ -11,8 +11,15 @@ import uploadPptIcon from '@renderer/assets/images/translate/upload-ppt.svg'
 import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
 import { useDrag } from '@renderer/hooks/useDrag'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { toFileUrl } from '@shared/utils/file'
 
 import IconButton from './IconButton'
+
+export type TranslateClipboardImage = {
+  path: AbsoluteFilePath
+  name: string
+}
 
 type Props = {
   ref?: Ref<HTMLDivElement>
@@ -23,6 +30,9 @@ type Props = {
   onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void
   onSelectFile: () => void
+  clipboardImage: TranslateClipboardImage | null
+  onRemoveClipboardImage: () => void
+  onReplaceClipboardImage: () => void
   copied: boolean
   onCopy: () => void
   onCancelOcr: () => void
@@ -40,6 +50,9 @@ const TranslateInputPane = ({
   onPaste,
   onDrop,
   onSelectFile,
+  clipboardImage,
+  onRemoveClipboardImage,
+  onReplaceClipboardImage,
   copied,
   onCopy,
   onCancelOcr,
@@ -70,6 +83,8 @@ const TranslateInputPane = ({
   }, [text])
 
   const uploadIcons = [uploadImageIcon, uploadPdfIcon, uploadWordIcon, uploadPptIcon, uploadTextIcon, uploadExcelIcon]
+  const showUploadArea = !text && !clipboardImage
+  const previewUrl = clipboardImage ? toFileUrl(clipboardImage.path) : null
 
   return (
     <div
@@ -81,6 +96,42 @@ const TranslateInputPane = ({
       onDrop={handleDropEvent}>
       <div className="relative min-h-0 flex-1">
         <Scrollbar ref={ref} onScroll={onScroll} className="h-full overflow-x-hidden">
+          {clipboardImage && previewUrl && (
+            <div
+              data-testid="translate-clipboard-image-preview"
+              className="flex items-start gap-3 border-border-subtle border-b px-4 pt-4 pb-3">
+              <img
+                src={previewUrl}
+                alt={clipboardImage.name}
+                className="size-16 shrink-0 rounded-md border border-border-subtle object-cover"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-foreground text-sm" title={clipboardImage.name}>
+                  {clipboardImage.name}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={disabled || selecting}
+                    onClick={onReplaceClipboardImage}
+                    aria-label={t('translate.image.replace')}>
+                    {t('translate.image.replace')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={onRemoveClipboardImage}
+                    aria-label={t('translate.image.remove')}>
+                    {t('translate.image.remove')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             value={text}
@@ -102,7 +153,7 @@ const TranslateInputPane = ({
           {copied ? <Check size={14} className="text-foreground" /> : <Copy size={14} />}
         </IconButton>
       </div>
-      {!text && (
+      {showUploadArea && (
         <button
           type="button"
           onClick={onSelectFile}

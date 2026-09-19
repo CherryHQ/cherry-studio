@@ -30,6 +30,7 @@ import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/erro
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const TRANSLATE_ERROR_KEY_PATTERN = /\btranslate\.error\.[a-zA-Z0-9_.-]+\b/
 
@@ -62,13 +63,22 @@ export interface UseTranslateOptions {
   loggerContext?: string
 }
 
+export type TranslateCallOptions = {
+  /** Optional clipboard/screenshot image path sent with the translate prompt. */
+  imagePath?: AbsoluteFilePath
+}
+
 export interface UseTranslateResult {
   /**
    * Run a translation. Resolves with the trimmed text on success and
    * `undefined` on user-initiated abort or on a swallowed error
    * (when `rethrowError` is false).
    */
-  translate: (text: string, targetLanguage: TranslateLangCode | TranslateLanguage) => Promise<string | undefined>
+  translate: (
+    text: string,
+    targetLanguage: TranslateLangCode | TranslateLanguage,
+    options?: TranslateCallOptions
+  ) => Promise<string | undefined>
   isTranslating: boolean
   /** Abort the in-flight translation. No-op when nothing is running. */
   cancel: () => void
@@ -104,7 +114,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
   }, [])
 
   const translate = useCallback<UseTranslateResult['translate']>(
-    async (text, targetLanguage) => {
+    async (text, targetLanguage, callOptions) => {
       // A new call supersedes any in-flight one — keeps semantics simple
       // (one translation per hook instance) and matches the existing stop-button
       // behaviour in TranslatePage.
@@ -136,7 +146,9 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
       }
 
       try {
-        const result = await translateText(text, targetLanguage, guardedOnResponse, controller.signal)
+        const result = callOptions?.imagePath
+          ? await translateText(text, targetLanguage, guardedOnResponse, controller.signal, callOptions.imagePath)
+          : await translateText(text, targetLanguage, guardedOnResponse, controller.signal)
         if (wasSuperseded()) {
           // Cancelled or superseded mid-flight — discard the result so the
           // caller's `if (result)` success branch stays gated.

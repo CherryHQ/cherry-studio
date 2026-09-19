@@ -16,6 +16,10 @@
  * `src/main/ipc/handlers/translate.ts`.
  */
 
+import { basename } from 'node:path'
+
+import mime from 'mime'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CallOverrides } from '@main/ai/types'
@@ -29,10 +33,13 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { toFileUrl } from '@shared/utils/file'
 import { isQwenMTModel } from '@shared/utils/model'
 
 import { WebContentsListener } from '../../ai/streamManager'
@@ -75,6 +82,8 @@ export interface TranslateOpenRequest {
    * never have to pre-fetch the DTO just to call translate.
    */
   targetLangCode: TranslateLangCode
+  /** Optional image path attached as a vision `file` part alongside the prompt text. */
+  imagePath?: AbsoluteFilePath
 }
 
 export interface TranslateOpenResult {
@@ -112,14 +121,42 @@ export class TranslateService {
     const wcListener = new WebContentsListener(sender, req.streamId)
 
     const streamManager = application.get('AiStreamManager')
-    streamManager.streamPrompt({
-      streamId: req.streamId,
-      uniqueModelId,
-      prompt: content,
-      listener: wcListener,
-      reasoningEffort,
-      callOverrides
-    })
+    const imagePath = req.imagePath
+    if (imagePath) {
+      const mediaType = mime.getType(imagePath) ?? 'application/octet-stream'
+      const messages: CherryUIMessage[] = [
+        {
+          id: 'translate-user',
+          role: 'user',
+          parts: [
+            { type: 'text', text: content },
+            {
+              type: 'file',
+              mediaType,
+              url: toFileUrl(imagePath),
+              filename: basename(imagePath)
+            }
+          ]
+        }
+      ]
+      streamManager.streamPrompt({
+        streamId: req.streamId,
+        uniqueModelId,
+        messages,
+        listener: wcListener,
+        reasoningEffort,
+        callOverrides
+      })
+    } else {
+      streamManager.streamPrompt({
+        streamId: req.streamId,
+        uniqueModelId,
+        prompt: content,
+        listener: wcListener,
+        reasoningEffort,
+        callOverrides
+      })
+    }
 
     // `info`, and with the overrides: this is the only record of what translate
     // actually put on the request, and `resolveReasoningInvocation` logs the
@@ -128,7 +165,8 @@ export class TranslateService {
       streamId: req.streamId,
       uniqueModelId,
       reasoningEffort,
-      callOverrides
+      callOverrides,
+      hasImage: Boolean(imagePath)
     })
     return { streamId: req.streamId }
   }

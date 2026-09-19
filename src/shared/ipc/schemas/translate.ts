@@ -20,7 +20,9 @@ export const translateRequestSchemas = {
     input: z.object({
       streamId: z.string(),
       text: z.string(),
-      targetLangCode: z.custom<TranslateLangCode>()
+      targetLangCode: z.custom<TranslateLangCode>(),
+      /** Optional clipboard/screenshot image sent as a vision file part alongside `text`. */
+      imagePath: AbsoluteFilePathSchema.optional()
     }),
     output: z.object({ streamId: z.string() })
   }),
