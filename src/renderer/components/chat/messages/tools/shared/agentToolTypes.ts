@@ -363,10 +363,14 @@ export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMes
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
       const record = part as { toolName?: unknown; toolCallId?: unknown; input?: unknown; output?: unknown }
+      // DSH launches under its own tool names, so the wire name is matched alongside the shared
+      // ones rather than through a canonicalising import, which would cycle back into this module.
       if (
         record.toolName !== AgentToolsType.Agent &&
         record.toolName !== AgentToolsType.Task &&
-        record.toolName !== AgentToolsType.Workflow
+        record.toolName !== AgentToolsType.Workflow &&
+        record.toolName !== 'subagent' &&
+        record.toolName !== 'subagent_fork'
       )
         continue
       if (typeof record.toolCallId !== 'string') continue
