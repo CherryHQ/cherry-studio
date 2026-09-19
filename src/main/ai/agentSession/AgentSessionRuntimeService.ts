@@ -1965,7 +1965,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (turn) {
       // A stable id updates one durable history row instead of creating dozens of rows in a
       // provider outage. It remains in the assistant message after the ephemeral cache clears.
-      this.enqueueTurnChunk(entry, turn, {
+      this.deliverRuntimeChunk(entry, {
         type: 'data-agent-api-retry',
         id: `agent-api-retry-${turn.assistantMessageId}`,
         data: { ...retry, startedAt }

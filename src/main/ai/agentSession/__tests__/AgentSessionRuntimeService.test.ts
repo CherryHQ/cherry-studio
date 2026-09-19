@@ -988,6 +988,26 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    it('buffers a retry on an admitted turn until its stream controller opens', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const turn = (service as any).currentTurn(entry)
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+
+      ;(service as any).handleRuntimeEvent(entry, retryEvent)
+
+      const enqueue = vi.fn()
+      turn.controller = { enqueue }
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'flush-transition' })
+      expect(enqueue).toHaveBeenCalledWith({
+        type: 'data-agent-api-retry',
+        id: 'agent-api-retry-assistant-1',
+        data: { ...retryEvent.retry, startedAt: expect.any(String) }
+      })
+    })
+
     it('clears the status once a content chunk resumes the stream', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
