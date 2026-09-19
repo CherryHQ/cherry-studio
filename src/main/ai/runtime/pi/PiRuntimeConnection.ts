@@ -166,6 +166,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private _usageCapture?: AgentSessionUsageCapture
   private apiProviderSourceId?: string
   private promptRunActive = false
+  private stopRequested = false
   /** Manual compact is a Cherry user turn, but pi only emits compaction events for `compact()` —
    *  no `agent_end`. This flag lets that path close exactly one host turn without making auto-compacts terminal. */
   private manualCompactInFlight = false
@@ -566,6 +567,41 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return usage && usage.tokens != null ? this.projectContextUsage(usage) : null
   }
 
+  /** Stop the active Pi prompt while retaining the session and its conversation state. */
+  async abortTurn(): Promise<boolean> {
+    const session = this.session
+    if (this.closed || !session || !this.promptRunActive) return false
+    this.stopRequested = true
+    try {
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      await Promise.race([
+        session.abort(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Pi turn abort timed out')), 5_000)
+        })
+      ]).finally(() => clearTimeout(timeout))
+      if (!this.promptRunActive) return true
+      const settled = await new Promise<boolean>((resolve) => {
+        const poll = setInterval(() => {
+          if (this.promptRunActive && !this.closed) return
+          clearInterval(poll)
+          clearTimeout(settleTimeout)
+          resolve(!this.closed)
+        }, 25)
+        const settleTimeout = setTimeout(() => {
+          clearInterval(poll)
+          resolve(false)
+        }, 5_000)
+      })
+      if (!settled) this.stopRequested = false
+      return settled
+    } catch (error) {
+      this.stopRequested = false
+      logger.warn('pi turn abort failed', { sessionId: this.input.sessionId, error })
+      return false
+    }
+  }
+
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
@@ -647,7 +683,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.session?.clearQueue()
       this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
     }
-    if (error || this.lastStopReason === 'error' || this.lastStopReason === 'length') {
+    if (this.stopRequested) {
+      this.stopRequested = false
+      this.eventQueue.push({ type: 'turn-complete' })
+    } else if (error || this.lastStopReason === 'error' || this.lastStopReason === 'length') {
       let failure: Error
       if (error instanceof Error) {
         failure = error

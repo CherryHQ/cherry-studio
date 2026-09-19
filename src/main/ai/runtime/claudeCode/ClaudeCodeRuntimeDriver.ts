@@ -85,6 +85,12 @@ import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } f
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
+/** How long to wait for the CLI to answer the interrupt control request. Interactive interrupts
+ *  are acknowledged in milliseconds; a CLI still booting cannot answer at all. */
+const GRACEFUL_INTERRUPT_TIMEOUT_MS = 5_000
+/** How long to wait for the interrupted turn to settle after the interrupt was acknowledged. */
+const GRACEFUL_TURN_SETTLE_TIMEOUT_MS = 5_000
+const GRACEFUL_TURN_SETTLE_POLL_MS = 50
 
 function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
   return HOST_MANAGED_SLASH_COMMANDS.has(command.name)
@@ -648,6 +654,34 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       logger.warn('stopTask failed', { sessionId: this.input.sessionId, taskId, error })
       return false
     }
+  }
+
+  async abortTurn(): Promise<boolean> {
+    const query = this.query
+    if (!query || this.adapter?.isTurnActive !== true) return false
+    logger.info('Gracefully interrupting Claude Code turn', { sessionId: this.input.sessionId })
+    let ackTimer: NodeJS.Timeout | undefined
+    const acknowledged = await Promise.race([
+      query.interrupt().then(
+        () => true,
+        (error) => {
+          logger.warn('Claude Code interrupt request failed', { sessionId: this.input.sessionId, error })
+          return false
+        }
+      ),
+      new Promise<boolean>((resolve) => {
+        ackTimer = setTimeout(() => resolve(false), GRACEFUL_INTERRUPT_TIMEOUT_MS)
+      })
+    ])
+    clearTimeout(ackTimer)
+    if (!acknowledged) return false
+    // The interrupt control response only says the CLI took the request; wait (bounded) for the
+    // SDK's interrupt-truncated result so the host only trusts a turn that actually settled.
+    const deadline = Date.now() + GRACEFUL_TURN_SETTLE_TIMEOUT_MS
+    while (this.adapter?.isTurnActive === true && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, GRACEFUL_TURN_SETTLE_POLL_MS))
+    }
+    return this.adapter?.isTurnActive !== true
   }
 
   close(): Promise<void> {

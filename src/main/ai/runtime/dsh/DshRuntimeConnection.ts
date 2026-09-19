@@ -651,6 +651,30 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /** Cancel only the main session's current turn; child sessions and the bridge remain live. */
+  async abortTurn(): Promise<boolean> {
+    if (this.closed || !this.turnActive || !this.bridge) return false
+    try {
+      await this.bridge.request('session/cancel', { sessionId: this.input.sessionId }, { timeoutMs: 5_000 })
+      if (!this.turnActive) return true
+      return await new Promise<boolean>((resolve) => {
+        const poll = setInterval(() => {
+          if (this.turnActive && !this.closed) return
+          clearInterval(poll)
+          clearTimeout(timeout)
+          resolve(!this.closed)
+        }, 25)
+        const timeout = setTimeout(() => {
+          clearInterval(poll)
+          resolve(false)
+        }, 5_000)
+      })
+    } catch (error) {
+      logger.warn('dsh turn cancel failed', { sessionId: this.input.sessionId, error })
+      return false
+    }
+  }
+
   async snapshotForFork(boundary: number, signal?: AbortSignal): Promise<unknown[] | undefined> {
     if (this.startPromise) await this.waitForForkTransition(this.startPromise, signal)
     signal?.throwIfAborted()

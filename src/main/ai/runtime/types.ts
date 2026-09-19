@@ -233,6 +233,15 @@ export interface AgentRuntimeConnection {
    */
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   stopTask?(taskId: string): Promise<boolean>
+  /**
+   * Gracefully stop the current turn without tearing the connection down. Resolves true when the
+   * turn was interrupted and the connection stays alive — the turn then settles through its normal
+   * stream, and the session's runtime (background tasks, subagents) survives. Resolves false when
+   * the driver cannot gracefully stop (unsupported, nothing to stop, or the runtime did not answer
+   * in time) — the host must then tear the session down via `close()`. Omitted ⇒ the host always
+   * tears the session down.
+   */
+  abortTurn?(): Promise<boolean>
   close(): void | Promise<void>
 }
 
