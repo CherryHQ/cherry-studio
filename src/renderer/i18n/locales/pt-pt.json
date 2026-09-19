@@ -2935,6 +2935,8 @@
   "paintings.person_generation_options.allow_none": "Não permitir",
   "paintings.person_generation_tip": "Permita que o modelo gere imagens de pessoas",
   "paintings.ppio.output_format": "Formato de saída",
+  "paintings.prompt_dock.expand": "Expandir prompt",
+  "paintings.prompt_dock.minimize": "Minimizar prompt",
   "paintings.prompt_enhancement": "Aumento do Prompt",
   "paintings.prompt_enhancement_tip": "Ao ativar, o prompt será reescrito para uma versão detalhada e adequada ao modelo",
   "paintings.prompt_placeholder": "Descreva a imagem que deseja criar, por exemplo: um lago tranquilo, com o pôr do sol, montanhas distantes",

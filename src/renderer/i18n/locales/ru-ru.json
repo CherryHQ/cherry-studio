@@ -2935,6 +2935,8 @@
   "paintings.person_generation_options.allow_none": "Не разрешено",
   "paintings.person_generation_tip": "Разрешить модели создавать изображения людей",
   "paintings.ppio.output_format": "Формат вывода",
+  "paintings.prompt_dock.expand": "Развернуть промпт",
+  "paintings.prompt_dock.minimize": "Свернуть промпт",
   "paintings.prompt_enhancement": "Улучшение промпта",
   "paintings.prompt_enhancement_tip": "При включении переписывает промпт в более детальную, модель-ориентированную версию",
   "paintings.prompt_placeholder": "Опишите изображение, которое вы хотите создать, например, Спокойное озеро на закате с горами на заднем плане",
