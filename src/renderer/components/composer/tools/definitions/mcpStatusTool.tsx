@@ -216,6 +216,26 @@ export function resolveMcpConfigTarget(options: {
   return options.assistantId ? { kind: 'assistant', id: options.assistantId, initialTab: 'tools.mcp' } : null
 }
 
+/**
+ * Whether the composer MCP toolbar shortcut should show activation feedback.
+ * Chat: auto mode is always active; manual requires at least one bound server; disabled is idle.
+ * Session: active when the agent has at least one MCP binding.
+ */
+export function isMcpToolbarActive(options: {
+  scope: TopicType.Chat | TopicType.Session
+  assistant?: (Pick<Assistant, 'mcpServerIds'> & { settings?: Pick<Assistant['settings'], 'mcpMode'> }) | null
+  agent?: McpStatusAgent | null
+}): boolean {
+  if (options.scope === TopicType.Session) {
+    return (options.agent?.mcps?.length ?? 0) > 0
+  }
+
+  const mode = options.assistant?.settings?.mcpMode ?? DEFAULT_MCP_MODE
+  if (mode === 'disabled') return false
+  if (mode === 'auto') return true
+  return (options.assistant?.mcpServerIds?.length ?? 0) > 0
+}
+
 export function buildMcpConfigFooterItem(
   target: ResourceEditDialogTarget | null,
   t: TFunction
@@ -274,7 +294,8 @@ export function createMcpStatusLauncher(
   t: TFunction,
   mode?: McpMode,
   editable = false,
-  onOpen?: () => void
+  onOpen?: () => void,
+  active = false
 ): ComposerToolLauncher {
   const modeLabel = mode ? getMcpModeLabel(t, mode) : undefined
   const isDisabled = mode === 'disabled'
@@ -285,6 +306,7 @@ export function createMcpStatusLauncher(
     sources: ['root-panel'],
     order: 50,
     label: 'MCP',
+    active,
     // The panel stays reachable even when MCP is disabled — it surfaces the disabled state alongside
     // the "Configure MCP servers" footer, which is exactly the moment the user needs to open config.
     description:
@@ -407,9 +429,19 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
     return currentAction ? [currentAction, buildMcpGlobalConfigFooterItem(t)] : [buildMcpGlobalConfigFooterItem(t)]
   }, [configTarget, t])
 
+  const toolbarActive = useMemo(
+    () =>
+      isMcpToolbarActive({
+        scope: scope === TopicType.Session ? TopicType.Session : TopicType.Chat,
+        assistant,
+        agent
+      }),
+    [agent, assistant, scope]
+  )
+
   const mcpStatusLauncher = useMemo(
-    () => createMcpStatusLauncher(items, t, mode, bindingPanelEditable, () => setDataRequested(true)),
-    [bindingPanelEditable, items, mode, t]
+    () => createMcpStatusLauncher(items, t, mode, bindingPanelEditable, () => setDataRequested(true), toolbarActive),
+    [bindingPanelEditable, items, mode, t, toolbarActive]
   )
 
   useEffect(

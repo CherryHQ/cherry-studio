@@ -23,6 +23,8 @@ export interface ComposerToolbarCustomTool {
   label: string
   icon: ReactNode
   disabled?: boolean
+  /** When true, the pinned shortcut uses the same accent activation treatment as launcher tools. */
+  active?: boolean
   /** Places the tool first in the default customize-menu order while keeping it reorderable. */
   customizePlacement?: 'leading'
   /** Defaults to true for category shortcuts that need the unified panel. */
@@ -206,7 +208,7 @@ export const ComposerToolbarShortcuts = ({
         label: tool.label,
         icon: tool.icon,
         customizePlacement: tool.customizePlacement,
-        active: false,
+        active: Boolean(tool.active),
         disabled: Boolean(tool.disabled) || (requiresPanel && panelUnavailable),
         haspopup: requiresPanel ? 'menu' : undefined,
         toggle: false,

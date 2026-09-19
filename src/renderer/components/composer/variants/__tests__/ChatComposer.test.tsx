@@ -1110,12 +1110,25 @@ describe('ChatComposer', () => {
   it('exposes MCP as a customizable chat toolbar shortcut', () => {
     mocks.pinnedToolIds = ['mcp-status']
 
-    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     const mcpButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })
+    // Default assistant uses manual MCP mode with no bindings, so the shortcut stays idle.
+    expect(mcpButton).not.toHaveAttribute('data-active')
 
     fireEvent.click(mcpButton)
     expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
+
+    mocks.assistant = {
+      ...mocks.assistant,
+      settings: { ...mocks.assistant.settings, mcpMode: 'auto' }
+    }
+    rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })).toHaveAttribute(
+      'data-active',
+      'true'
+    )
   })
 
   it('keeps clear context hidden by default but available in the QuickPanel and toolbar customization', () => {

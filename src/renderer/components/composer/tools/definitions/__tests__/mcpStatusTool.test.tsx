@@ -79,6 +79,7 @@ import {
   buildMcpGlobalConfigFooterItem,
   buildMcpStatusItems,
   createMcpStatusLauncher,
+  isMcpToolbarActive,
   McpStatusComposerRuntime,
   resolveMcpConfigTarget,
   updateMcpBinding
@@ -408,7 +409,7 @@ describe('mcpStatusTool', () => {
   it('keeps the MCP launcher openable when disabled so the config entry stays reachable', () => {
     const launcher = createMcpStatusLauncher([], t, 'disabled', false)
 
-    expect(launcher).toMatchObject({ id: 'mcp-status', description: 'Disabled' })
+    expect(launcher).toMatchObject({ id: 'mcp-status', description: 'Disabled', active: false })
     expect(launcher.disabled).toBeFalsy()
     expect(launcher.action).toEqual(expect.any(Function))
 
@@ -416,6 +417,42 @@ describe('mcpStatusTool', () => {
     launcher.action?.({ quickPanel } as any)
     expect(quickPanel.open).toHaveBeenCalledWith(expect.objectContaining({ readOnly: true, list: [] }))
     expect(quickPanel.open.mock.calls[0][0]).not.toHaveProperty('footerActions')
+  })
+
+  // Catches #20198: toolbar consumers need a pure activation contract so the MCP shortcut
+  // can highlight when tools are enabled without opening the status panel.
+  it('reports MCP toolbar activation from assistant mode or agent bindings', () => {
+    expect(
+      isMcpToolbarActive({
+        scope: TopicType.Chat,
+        assistant: { settings: { mcpMode: 'disabled' }, mcpServerIds: [] }
+      })
+    ).toBe(false)
+    expect(
+      isMcpToolbarActive({
+        scope: TopicType.Chat,
+        assistant: { settings: { mcpMode: 'auto' }, mcpServerIds: [] }
+      })
+    ).toBe(true)
+    expect(
+      isMcpToolbarActive({
+        scope: TopicType.Chat,
+        assistant: { settings: { mcpMode: 'manual' }, mcpServerIds: [] }
+      })
+    ).toBe(false)
+    expect(
+      isMcpToolbarActive({
+        scope: TopicType.Chat,
+        assistant: { settings: { mcpMode: 'manual' }, mcpServerIds: ['server-1'] }
+      })
+    ).toBe(true)
+    expect(isMcpToolbarActive({ scope: TopicType.Session, agent: { mcps: [] } })).toBe(false)
+    expect(isMcpToolbarActive({ scope: TopicType.Session, agent: { mcps: ['server-1'] } })).toBe(true)
+  })
+
+  it('marks the MCP launcher active when the conversation has enabled MCP tools', () => {
+    expect(createMcpStatusLauncher([], t, 'auto', false, undefined, true)).toMatchObject({ active: true })
+    expect(createMcpStatusLauncher([], t, 'disabled', false, undefined, false)).toMatchObject({ active: false })
   })
 
   it('registers scoped MCP management actions alongside its launcher', async () => {
