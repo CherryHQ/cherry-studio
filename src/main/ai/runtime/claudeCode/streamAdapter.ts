@@ -36,6 +36,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
 import { loggerService } from '@logger'
+import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
@@ -70,6 +71,13 @@ export class ClaudeCodeResultError extends Error {
   }
 }
 
+// Same vocabulary as the shared `network` classifier (`timeout`, `timed out`, `etimedout`):
+// a timeout flag must never disagree with downstream error categorization.
+function isTimeoutErrorText(text: string): boolean {
+  const normalized = text.toLowerCase()
+  return normalized.includes('timeout') || normalized.includes('timed out') || normalized.includes('etimedout')
+}
+
 function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResultError | undefined {
   const apiErrorStatus = message.subtype === 'success' ? message.api_error_status : undefined
   const isErrorResult =
@@ -80,8 +88,18 @@ function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResul
   if (!isErrorResult) return undefined
 
   const errors = message.subtype === 'success' ? (message.result ? [message.result] : []) : message.errors
-  const errorMessage = errors.join('; ') || `Claude Code error: ${message.terminal_reason ?? message.subtype}`
-  return new ClaudeCodeResultError(errorMessage, message.subtype, errors, message.terminal_reason, apiErrorStatus)
+  const rawMessage = errors.join('; ') || `Claude Code error: ${message.terminal_reason ?? message.subtype}`
+  if (!errors.some(isTimeoutErrorText)) {
+    return new ClaudeCodeResultError(rawMessage, message.subtype, errors, message.terminal_reason, apiErrorStatus)
+  }
+  const defaultLimitMin = Math.round(DEFAULT_TIMEOUT / 60000)
+  return new ClaudeCodeResultError(
+    `Claude Code query timed out (phase: agent query; default limit ${defaultLimitMin} min via API_TIMEOUT_MS / CLAUDE_STREAM_IDLE_TIMEOUT_MS). Session preserved - retry the turn to continue. Original error: ${rawMessage}`,
+    message.subtype,
+    errors,
+    message.terminal_reason,
+    apiErrorStatus
+  )
 }
 
 const MIN_TRUNCATION_LENGTH = 512
