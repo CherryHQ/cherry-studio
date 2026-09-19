@@ -1370,6 +1370,78 @@ describe('SkillService', () => {
       }
     })
 
+    it('keeps the migration marker when replacement cleanup fails during install rollback', async () => {
+      const root = await createTempDir('github-migrate-install-rollback-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Repo',
+        folderName: 'content',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'content'), { recursive: true })
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), '# old')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'my-skill',
+        name: 'my-skill',
+        description: 'Migrated skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['SKILL.md'],
+        realInstall: true
+      })
+      const installSpy = vi
+        .spyOn(skillService['installer'], 'install')
+        .mockImplementationOnce(async (_sourceDir: string, dest: string) => {
+          await fs.promises.mkdir(dest, { recursive: true })
+          await fs.promises.writeFile(path.join(dest, 'SKILL.md'), '# partial')
+          throw new Error('copy down')
+        })
+      const uninstallSpy = vi
+        .spyOn(skillService['installer'], 'uninstall')
+        .mockRejectedValueOnce(new Error('disk down'))
+      const restoreSpy = vi.spyOn(skillService['installer'], 'restoreMigrationBackup')
+
+      try {
+        await expect(
+          skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md' })
+        ).rejects.toThrow('copy down')
+
+        // The partial replacement is dropped before the marker is consumed, so a failed
+        // cleanup leaves the marker for startup recovery instead of orphaning a duplicate.
+        expect(installSpy).toHaveBeenCalledTimes(1)
+        expect(uninstallSpy).toHaveBeenCalledTimes(1)
+        expect(restoreSpy).not.toHaveBeenCalled()
+        await expect(
+          fs.promises.access(path.join(dataSkillsRoot, '.content.migrating-to.my-skill.bak'))
+        ).resolves.toBeUndefined()
+      } finally {
+        installSpy.mockRestore()
+        uninstallSpy.mockRestore()
+        restoreSpy.mockRestore()
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('reports success when retiring the migration marker fails after commit', async () => {
       const root = await createTempDir('github-migrate-commit-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')
