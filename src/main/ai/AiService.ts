@@ -1316,7 +1316,11 @@ export class AiService extends BaseService {
     const timeout = request.timeout ?? 15000
 
     const primaryEndpoint = model.endpointTypes?.[0]
-    const hasChatPrimaryEndpoint = primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
+    const resolvedEndpointType = resolveEffectiveEndpoint(provider, model).endpointType
+    const hasChatPrimaryEndpoint =
+      resolvedEndpointType !== undefined
+        ? endpointImpliedCapability(resolvedEndpointType) === undefined
+        : primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
 
     // AbortController on timeout so the HTTP work cancels too (otherwise tokens keep burning).
     const controller = new AbortController()
