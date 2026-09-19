@@ -276,9 +276,9 @@ describe('filesystem MCP security', () => {
           delayedFirstWrite = true
           await new Promise((resolve) => setTimeout(resolve, 30))
         }
-        return (originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>)(
-          ...args
-        )
+        return (
+          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
+        )(...args)
       })
 
       await Promise.all([
@@ -302,15 +302,89 @@ describe('filesystem MCP security', () => {
         if (typeof targetPath === 'string' && targetPath === filePath && content === 'after') {
           return
         }
-        return (originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>)(
-          ...args
-        )
+        return (
+          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
+        )(...args)
       })
 
       await expect(handleWriteTool({ file_path: 'verify.txt', content: 'after' }, workspaceRoot)).rejects.toThrow(
         'Post-write verification failed'
       )
       await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('before')
+    })
+
+    it('preserves call order for dependent edits when the first validation is slower', async () => {
+      const workspaceRoot = await createTempDir('edit-ordering-root-')
+      const filePath = path.join(workspaceRoot, 'chain.txt')
+      await fs.writeFile(filePath, 'a')
+
+      const originalRealpath = fs.realpath.bind(fs)
+      let delayedFirstValidation = false
+      vi.spyOn(fs, 'realpath').mockImplementation(async (...args: Parameters<typeof fs.realpath>) => {
+        if (!delayedFirstValidation) {
+          delayedFirstValidation = true
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        }
+        return (
+          originalRealpath as (...realpathArgs: Parameters<typeof fs.realpath>) => ReturnType<typeof fs.realpath>
+        )(...args)
+      })
+
+      await Promise.all([
+        handleEditTool({ file_path: 'chain.txt', old_string: 'a', new_string: 'b' }, workspaceRoot),
+        handleEditTool({ file_path: 'chain.txt', old_string: 'b', new_string: 'c' }, workspaceRoot)
+      ])
+
+      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('c')
+    })
+
+    it('serializes delete with an in-flight edit on the same path', async () => {
+      const workspaceRoot = await createTempDir('delete-serialization-root-')
+      const filePath = path.join(workspaceRoot, 'target.txt')
+      await fs.writeFile(filePath, 'original')
+
+      let releaseEditWrite!: () => void
+      const editWriteGate = new Promise<void>((resolve) => {
+        releaseEditWrite = resolve
+      })
+      let editWriteStarted!: () => void
+      const editWriteStartedGate = new Promise<void>((resolve) => {
+        editWriteStarted = resolve
+      })
+      const originalWriteFile = fs.writeFile.bind(fs)
+      let editWritesSeen = 0
+      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+        const [targetPath] = args
+        if (typeof targetPath === 'string' && targetPath === filePath) {
+          editWritesSeen += 1
+          if (editWritesSeen === 1) {
+            editWriteStarted()
+            await editWriteGate
+          }
+        }
+        return (
+          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
+        )(...args)
+      })
+
+      const editPromise = handleEditTool(
+        { file_path: 'target.txt', old_string: 'original', new_string: 'edited' },
+        workspaceRoot
+      )
+      await editWriteStartedGate
+
+      let deleteFinished = false
+      const deletePromise = handleDeleteTool({ path: 'target.txt' }, workspaceRoot).then((result) => {
+        deleteFinished = true
+        return result
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      expect(deleteFinished).toBe(false)
+
+      releaseEditWrite()
+      await Promise.all([editPromise, deletePromise])
+      await expect(fs.stat(filePath)).rejects.toMatchObject({ code: 'ENOENT' })
     })
   })
 })
