@@ -2261,7 +2261,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // here would drop everything the predecessor drained.
     if (existing && !existing.closed) return existing
     if (existing && !existing.settled) return 'hold'
-    const inheritedParts = existing?.latest?.parts as CherryMessagePart[] | undefined
+    const inheritedParts = existing?.latest?.parts
 
     let persistedParts: CherryMessagePart[] | undefined
     if (!inheritedParts) {
@@ -2464,7 +2464,7 @@ export class AgentSessionRuntimeService extends BaseService {
           if (!failedMessageIds.has(accumulator.messageId)) continue
           const successor = entry.backgroundFlowAccumulators?.get(accumulator.messageId)
           if (successor && successor.latest) continue
-          const failedParts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+          const failedParts = accumulator.latest?.parts
           if (failedParts) {
             application
               .get('CacheService')
@@ -3475,7 +3475,7 @@ export class AgentSessionRuntimeService extends BaseService {
         await this.finishBackgroundFlows(entry)
       }
       for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
-        const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+        const parts = accumulator.latest?.parts
         if (!parts) continue
         cacheService.setShared(
           AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, accumulator.messageId),
@@ -3516,7 +3516,7 @@ export class AgentSessionRuntimeService extends BaseService {
             })) {
               snapshot = next
             }
-            fallbackParts = snapshot.parts as CherryMessagePart[]
+            fallbackParts = snapshot.parts
           } catch {
             // Best effort — the seed snapshot still preserves the row's prior content.
           }
