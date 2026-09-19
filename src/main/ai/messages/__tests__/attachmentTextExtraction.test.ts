@@ -68,8 +68,13 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
 
   it('extracts .doc via word-extractor (buffer)', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'doc' })
-    wordExtractMock.mockResolvedValueOnce({ getBody: () => ' word body ' })
-    expect(await extractDocumentText('e1')).toBe('word body')
+    wordExtractMock.mockResolvedValueOnce({
+      getBody: () => ' word body ',
+      getTextboxes: () => ' a callout ',
+      getFootnotes: () => ' a footnote ',
+      getEndnotes: () => ''
+    })
+    expect(await extractDocumentText('e1')).toBe('word body\n\na callout\n\na footnote')
     expect(wordExtractMock).toHaveBeenCalledWith(expect.any(Buffer))
   })
 
