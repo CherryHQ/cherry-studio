@@ -5,6 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
 import { Dmxapi } from '@cherrystudio/ui/icons/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
+import {
+  getLastWrittenEndpointConfigs,
+  serializeEndpointConfigsWrite,
+  setLastWrittenEndpointConfigs
+} from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/endpointConfigsWriteCoordinator'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
@@ -33,7 +38,7 @@ function resolveDmxPlatformFromProvider(provider: Provider | undefined): Platfor
 }
 
 const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, updateProvider, refetch } = useProvider(providerId)
   const { t } = useTranslation()
 
   const PlatformOptions = [
@@ -70,15 +75,35 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
         return
       }
       setSelectedPlatform(next)
-      const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, next)
+      const staleConfigs = provider?.endpointConfigs
       try {
-        await updateProvider({ endpointConfigs: newEndpointConfigs })
+        // Serialize with the request-configuration drawer: endpointConfigs
+        // PATCHes replace the object wholesale, so an overlapping drawer save
+        // would otherwise lose either the new domain or the drawer's
+        // reasoningFormat. Refetch inside the section so the domain swap builds
+        // on the latest committed snapshot.
+        await serializeEndpointConfigsWrite(providerId, async () => {
+          let baseConfigs = staleConfigs
+          try {
+            const fresh = (await refetch()) as { endpointConfigs?: typeof baseConfigs } | undefined
+            if (fresh?.endpointConfigs) {
+              baseConfigs = fresh.endpointConfigs
+            } else {
+              baseConfigs = getLastWrittenEndpointConfigs(providerId) ?? staleConfigs
+            }
+          } catch {
+            baseConfigs = getLastWrittenEndpointConfigs(providerId) ?? staleConfigs
+          }
+          const newEndpointConfigs = replaceEndpointConfigDomain(baseConfigs, next)
+          await updateProvider({ endpointConfigs: newEndpointConfigs })
+          setLastWrittenEndpointConfigs(providerId, newEndpointConfigs)
+        })
       } catch {
         setSelectedPlatform(previous)
         toast.error(t('settings.provider.save_failed'))
       }
     },
-    [provider, t, updateProvider]
+    [provider, providerId, refetch, t, updateProvider]
   )
 
   return (
