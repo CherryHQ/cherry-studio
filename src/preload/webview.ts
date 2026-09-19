@@ -9,6 +9,7 @@ import {
   isForwardableGuestKey,
   isHostOwnedGuestKey,
   toWebviewKeyPayload,
+  WEBVIEW_COMPOSITION_CHANNEL,
   WEBVIEW_KEYDOWN_CHANNEL
 } from '@shared/utils/webviewKey'
 
@@ -27,5 +28,11 @@ ipcRenderer.on(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, (_event, value: unknown) => {
   const command = WebviewAnnotationHostCommandSchema.safeParse(value)
   if (command.success) controller.handleCommand(command.data)
 })
+
+const reportComposition = (composing: boolean) => {
+  ipcRenderer.sendToHost(WEBVIEW_COMPOSITION_CHANNEL, { composing })
+}
+window.addEventListener('compositionstart', () => reportComposition(true), true)
+window.addEventListener('compositionend', () => reportComposition(false), true)
 
 window.addEventListener('unload', () => controller.dispose(), { once: true })

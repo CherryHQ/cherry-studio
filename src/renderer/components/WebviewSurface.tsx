@@ -47,7 +47,19 @@ export function WebviewSurface({ anchor, guest, overlay }: Props) {
         width: `${rect.width}px`,
         height: `${rect.height}px`
       }
-      for (const plane of planes) Object.assign(plane.style, geometry)
+      // Skip identical writes — restating bounds thrashing during cold-start layout
+      // dismisses the macOS IME candidate window even when the caret has not moved.
+      for (const plane of planes) {
+        if (
+          plane.style.left === geometry.left &&
+          plane.style.top === geometry.top &&
+          plane.style.width === geometry.width &&
+          plane.style.height === geometry.height
+        ) {
+          continue
+        }
+        Object.assign(plane.style, geometry)
+      }
     }
     const schedule = () => {
       frame ??= requestAnimationFrame(update)
