@@ -5,7 +5,7 @@ import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import type { BridgeNotificationMap, BridgePluginRequestMap, BridgeToolCallResult } from './protocol'
 
 export interface BridgeLink {
-  /** False after 'error'/'close'; there is no reconnect — the host owns this process. */
+  /** False after 'end'/'error'/'close'; there is no reconnect — the host owns this process. */
   readonly connected: boolean
   request<M extends keyof BridgePluginRequestMap>(
     method: M,
@@ -36,6 +36,8 @@ export function connectBridgeLink(options: {
     transport.close()
   }
   socket.on('error', markDisconnected)
+  // The SDK rejects pending requests on input EOF, before the socket's close event.
+  socket.on('end', markDisconnected)
   socket.on('close', markDisconnected)
   transport.onRequest(options.onRequest)
   transport.start()
@@ -45,6 +47,7 @@ export function connectBridgeLink(options: {
     params: BridgePluginRequestMap[M]['params'],
     signal?: AbortSignal
   ): Promise<BridgePluginRequestMap[M]['result']> {
+    if (!connected) return Promise.reject(new Error('dsh bridge host is not connected'))
     return transport.request(method, params, signal) as Promise<BridgePluginRequestMap[M]['result']>
   }
 

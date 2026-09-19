@@ -118,7 +118,7 @@ export const entries: SettingsSearchEntry[] = [
     anchorId: 'use-serif-font',
     titleKey: 'settings.messages.use_serif_font',
     groupKey: messagesGroup,
-    aliases: ['serif', '字体', '衬线']
+    aliases: ['serif', 'serif font', 'message font', '字体', '衬线']
   },
   {
     anchorId: 'thought-auto-collapse',

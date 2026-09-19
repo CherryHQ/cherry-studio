@@ -135,6 +135,8 @@ describe('settings search index aliases', () => {
     ['字体', 'use-serif-font'],
     ['衬线', 'use-serif-font'],
     ['serif', 'use-serif-font'],
+    ['serif font', 'use-serif-font'],
+    ['message font', 'use-serif-font'],
     ['气泡', 'message-style'],
     ['气泡样式', 'message-style'],
     ['对话样式', 'message-style'],

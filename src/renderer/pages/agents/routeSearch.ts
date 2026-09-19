@@ -2,6 +2,7 @@ export type AgentRouteSearch = {
   agentId?: string
   intent?: 'feedback'
   sessionId?: string
+  forkReturnSessionId?: string
 }
 
 export function parseAgentRouteSearch(search: Record<string, unknown>): AgentRouteSearch {
@@ -9,5 +10,7 @@ export function parseAgentRouteSearch(search: Record<string, unknown>): AgentRou
   const intent = search.intent === 'feedback' ? 'feedback' : undefined
   const sessionId = typeof search.sessionId === 'string' ? search.sessionId : undefined
 
-  return { agentId, intent, sessionId }
+  const forkReturnSessionId = typeof search.forkReturnSessionId === 'string' ? search.forkReturnSessionId : undefined
+
+  return { agentId, intent, sessionId, ...(forkReturnSessionId ? { forkReturnSessionId } : {}) }
 }
