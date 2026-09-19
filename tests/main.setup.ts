@@ -113,6 +113,7 @@ vi.mock('electron', () => {
       defaultSession: {
         clearCache: vi.fn(),
         clearStorageData: vi.fn(),
+        setCertificateVerifyProc: vi.fn(),
         webRequest: {
           onBeforeSendHeaders: vi.fn()
         }

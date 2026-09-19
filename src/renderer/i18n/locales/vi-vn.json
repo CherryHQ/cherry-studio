@@ -4875,6 +4875,8 @@
   "settings.provider.add.name.required": "Vui lòng nhập tên nhà cung cấp",
   "settings.provider.add.title": "Thêm Nhà cung cấp",
   "settings.provider.add.type": "Loại nhà cung cấp",
+  "settings.provider.allow_self_signed_tls.help": "Mặc định tắt: chứng chỉ TLS của nhà cung cấp này được xác minh. Khi bật, việc xác minh chứng chỉ bị bỏ qua cho các máy chủ API HTTPS của nhà cung cấp này — mọi chứng chỉ tự ký, từ CA riêng, hết hạn hoặc sai tên máy chủ đều được chấp nhận — kẻ tấn công trung gian (man-in-the-middle) có thể chặn lưu lượng API tới các máy chủ đó.",
+  "settings.provider.allow_self_signed_tls.title": "Cho phép chứng chỉ tự ký",
   "settings.provider.anthropic_api_host": "Máy chủ API của Anthropic",
   "settings.provider.anthropic_api_host_preview": "Xem trước Anthropic: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Chỉ sử dụng khi nhà cung cấp cung cấp URL cơ sở tương thích với Claude.",

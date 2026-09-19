@@ -98,6 +98,7 @@ import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
 import { routeToEndpoint } from './utils/provider'
+import { installProviderCertificateVerifyProc } from './utils/providerTlsExceptions'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 
 const logger = loggerService.withContext('AiService')
@@ -398,6 +399,8 @@ export class AiService extends BaseService {
     // Restore provider custom `User-Agent` headers that Chromium's net.fetch stack
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
+    // Accept TLS errors only for provider hosts with allowSelfSignedTls (#20500).
+    this.registerDisposable(installProviderCertificateVerifyProc())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
     // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at
     // startup — chained (not two independent fire-and-forgets) so the mirror reconcile

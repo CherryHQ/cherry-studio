@@ -1,6 +1,10 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { Switch } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { useProvider, useProviderMutations, useProviderPreset } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 
@@ -8,8 +12,11 @@ import { useProviderEndpointActions } from '../hooks/providerSetting/useProvider
 import { useProviderEndpoints } from '../hooks/providerSetting/useProviderEndpoints'
 import { useProviderHostPreview } from '../hooks/providerSetting/useProviderHostPreview'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
+import ProviderField from '../primitives/ProviderField'
 import { AnthropicApiHostField, ApiHostField, ApiHostSection, AzureApiVersionField } from './ApiHostFields'
 import ProviderCustomHeaderDrawer from './ProviderCustomHeaderDrawer'
+
+const logger = loggerService.withContext('ApiHost')
 
 const ENDPOINT_CONFIG_PRESET_FIELDS = ['endpointConfigs'] as const
 
@@ -19,6 +26,7 @@ interface ApiHostProps {
 }
 
 export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHostProps) {
+  const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const { updateProvider } = useProviderMutations(providerId)
   const [customHeaderOpen, setCustomHeaderOpen] = useState(false)
@@ -72,6 +80,21 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
       onRequestModelPullGuide?.()
     }
   }
+  const allowSelfSignedTls = provider?.settings?.allowSelfSignedTls === true
+  const handleAllowSelfSignedTlsChange = async (value: boolean) => {
+    if (!provider || value === allowSelfSignedTls) return
+    try {
+      await updateProvider({
+        providerSettings: {
+          ...provider.settings,
+          allowSelfSignedTls: value ? true : null
+        }
+      })
+    } catch (error) {
+      logger.error('Failed to save allowSelfSignedTls', { providerId, error })
+      toast.error(t('settings.provider.save_failed'))
+    }
+  }
 
   if (!provider) {
     return null
@@ -122,6 +145,24 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
             onApiVersionCommit={endpointActions.commitApiVersion}
           />
         )}
+        <ProviderField
+          className="mt-4"
+          title={t('settings.provider.allow_self_signed_tls.title')}
+          titleClassName="text-foreground"
+          action={
+            <Switch
+              aria-label={t('settings.provider.allow_self_signed_tls.title')}
+              checked={allowSelfSignedTls}
+              onCheckedChange={(value) => void handleAllowSelfSignedTlsChange(value)}
+            />
+          }
+          help={
+            <div className="pt-1 text-[12px] leading-[1.35] text-muted-foreground">
+              {t('settings.provider.allow_self_signed_tls.help')}
+            </div>
+          }>
+          {null}
+        </ProviderField>
       </ApiHostSection>
       <ProviderCustomHeaderDrawer
         providerId={providerId}

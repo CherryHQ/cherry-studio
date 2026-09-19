@@ -4875,6 +4875,8 @@
   "settings.provider.add.name.required": "Bitte geben Sie den Namen des Anbieters ein",
   "settings.provider.add.title": "Anbieter hinzufügen",
   "settings.provider.add.type": "Anbietertyp",
+  "settings.provider.allow_self_signed_tls.help": "Standardmäßig aus: Das TLS-Zertifikat dieses Anbieters wird überprüft. Wenn aktiviert, wird die Zertifikatsprüfung für die HTTPS-API-Hosts dieses Anbieters übersprungen — selbstsignierte, private-CA-, abgelaufene oder falsch benannte Zertifikate werden alle akzeptiert — ein Angreifer (Man-in-the-Middle) könnte den API-Verkehr dieser Hosts abfangen.",
+  "settings.provider.allow_self_signed_tls.title": "Selbstsignierte Zertifikate erlauben",
   "settings.provider.anthropic_api_host": "Anthropic API-Adresse",
   "settings.provider.anthropic_api_host_preview": "Anthropic-Vorschau: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Nur bei Anbietern, die ein Claude-kompatibles Basis-Endpunkt anbieten.",
