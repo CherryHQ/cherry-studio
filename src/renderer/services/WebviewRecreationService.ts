@@ -15,7 +15,7 @@ class WebviewRecreationService {
       try {
         listener(appId)
       } catch (e) {
-        logger.debug(`Recreate listener error for ${appId}: ${(e as Error).message}`)
+        logger.debug('Recreate listener error', { appId, error: e })
       }
     })
   }

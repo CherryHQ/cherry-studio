@@ -44,11 +44,17 @@ describe('WebviewRecreationService', () => {
     expect(requests).toEqual(['comfyui'])
   })
 
-  it('delivers the request to the pool even when another subscriber throws', () => {
+  it.each([
+    new Error('Detached subscriber'),
+    null,
+    undefined,
+    'Detached subscriber',
+    { message: 'Detached subscriber' }
+  ])('delivers the request to the pool even when another subscriber throws %j', (error: unknown) => {
     const requests: string[] = []
     subscriptions.push(
       webviewRecreationService.subscribe(() => {
-        throw new Error('Detached subscriber')
+        throw error
       }),
       webviewRecreationService.subscribe((appId) => requests.push(appId))
     )
