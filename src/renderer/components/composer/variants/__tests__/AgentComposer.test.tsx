@@ -1863,7 +1863,7 @@ describe('AgentComposer', () => {
   it('exposes slash commands and MCP as skill-style toolbar shortcuts', () => {
     mocks.pinnedToolIds = ['slash-commands', 'mcp-status']
 
-    render(
+    const { rerender } = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -1878,6 +1878,7 @@ describe('AgentComposer', () => {
       name: 'chat.input.slash_commands.title'
     })
     const mcpButton = within(leftControls).getByRole('button', { name: 'MCP' })
+    expect(mcpButton).not.toHaveAttribute('data-active')
 
     expect(within(leftControls).queryByRole('button', { name: '/clear' })).not.toBeInTheDocument()
 
@@ -1886,6 +1887,22 @@ describe('AgentComposer', () => {
 
     fireEvent.click(mcpButton)
     expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
+
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ['server-1'] }}
+      />
+    )
+
+    expect(within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })).toHaveAttribute(
+      'data-active',
+      'true'
+    )
   })
 
   it('hides the empty session action without a handler', () => {

@@ -395,6 +395,60 @@ describe('ComposerToolbarShortcuts', () => {
     })
   })
 
+  // Catches the #20198 regression where MCP (and other customTools) stayed visually idle
+  // even when the session had tools enabled — active was hard-coded false for custom shortcuts.
+  it('marks custom toolbar tools active when their activation flag is set', () => {
+    renderShortcuts({
+      pinnedIds: ['mcp-status'],
+      customTools: [
+        {
+          id: 'mcp-status',
+          label: 'MCP',
+          icon: <span />,
+          active: true,
+          onSelect: vi.fn()
+        }
+      ]
+    })
+
+    const mcpButton = screen.getByRole('button', { name: 'MCP' })
+    expect(mcpButton).toHaveAttribute('data-active', 'true')
+    expect(mcpButton.className).toContain('bg-accent')
+  })
+
+  it('keeps custom toolbar tools inactive when activation is unset or false', () => {
+    const { rerender, props } = renderShortcuts({
+      pinnedIds: ['mcp-status'],
+      customTools: [
+        {
+          id: 'mcp-status',
+          label: 'MCP',
+          icon: <span />,
+          onSelect: vi.fn()
+        }
+      ]
+    })
+
+    expect(screen.getByRole('button', { name: 'MCP' })).not.toHaveAttribute('data-active')
+
+    rerender(
+      <ComposerToolbarShortcuts
+        {...props}
+        customTools={[
+          {
+            id: 'mcp-status',
+            label: 'MCP',
+            icon: <span />,
+            active: false,
+            onSelect: vi.fn()
+          }
+        ]}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'MCP' })).not.toHaveAttribute('data-active')
+  })
+
   it('lists pinned rows (switch on) then unpinned candidates (switch off) in the customize popover', () => {
     const { props } = renderShortcuts({ customizeOpen: true })
 
