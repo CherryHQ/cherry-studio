@@ -42,9 +42,11 @@ describe('AgentSessionMessageBackend', () => {
   })
 
   it('downgrades an empty successful Agent reply to a terminal error on its reserved placeholder', async () => {
+    const afterPersist = vi.fn().mockResolvedValue(undefined)
     const backend = new AgentSessionMessageBackend({
       sessionId: 'session-1',
-      assistantMessageId: 'assistant-1'
+      assistantMessageId: 'assistant-1',
+      afterPersist
     })
     const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
 
@@ -69,6 +71,7 @@ describe('AgentSessionMessageBackend', () => {
       i18nKey: 'agent_turn_no_output',
       reason: 'empty-success-terminal'
     })
+    expect(afterPersist).not.toHaveBeenCalled()
   })
 
   it('keeps an empty paused turn paused and persists a visible resume hint', async () => {

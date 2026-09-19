@@ -50,44 +50,11 @@ import type {
 import * as z from 'zod'
 
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
+import { RENDERED_AGENT_TOOL_NAMES } from '@shared/ai/renderedAgentToolNames'
 
 import type { ToolDisclosureItem } from './ToolDisclosure'
 
-export const AgentToolsType = {
-  Skill: 'Skill',
-  Agent: 'Agent',
-  Read: 'Read',
-  Task: 'Task',
-  TaskOutput: 'TaskOutput',
-  TaskStop: 'TaskStop',
-  Bash: 'Bash',
-  Search: 'Search',
-  Glob: 'Glob',
-  TodoWrite: 'TodoWrite',
-  WebSearch: 'WebSearch',
-  Grep: 'Grep',
-  Write: 'Write',
-  WebFetch: 'WebFetch',
-  Edit: 'Edit',
-  MultiEdit: 'MultiEdit',
-  BashOutput: 'BashOutput',
-  NotebookEdit: 'NotebookEdit',
-  ExitPlanMode: 'ExitPlanMode',
-  AskUserQuestion: 'AskUserQuestion',
-  ToolSearch: 'ToolSearch',
-  ListMcpResources: 'ListMcpResources',
-  ReadMcpResource: 'ReadMcpResource',
-  TaskCreate: 'TaskCreate',
-  TaskGet: 'TaskGet',
-  TaskUpdate: 'TaskUpdate',
-  TaskList: 'TaskList',
-  SendMessage: 'SendMessage',
-  TeamCreate: 'TeamCreate',
-  TeamDelete: 'TeamDelete',
-  EnterWorktree: 'EnterWorktree',
-  ExitWorktree: 'ExitWorktree',
-  Workflow: 'Workflow'
-} as const
+export const AgentToolsType = RENDERED_AGENT_TOOL_NAMES
 
 export type AgentToolsType = (typeof AgentToolsType)[keyof typeof AgentToolsType]
 

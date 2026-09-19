@@ -47,9 +47,14 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
   readonly canPersistEmptyTerminal = true
   readonly canPersistEmptySuccessTerminal = true
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
+  private persistedSuccess = false
 
   constructor(private readonly opts: AgentSessionMessageBackendOptions) {
     this.afterPersist = opts.afterPersist
+      ? async (message) => {
+          if (this.persistedSuccess) await opts.afterPersist?.(message)
+        }
+      : undefined
   }
 
   persistAssistant(input: PersistAssistantInput): void {
@@ -85,6 +90,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       },
       { publishDataChange: true }
     )
+    this.persistedSuccess = status === 'success' && !isEmptySuccessTerminal
   }
 
   markTerminalError(): void {
