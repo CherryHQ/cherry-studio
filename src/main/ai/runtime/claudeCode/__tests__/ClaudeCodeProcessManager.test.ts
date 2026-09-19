@@ -155,6 +155,83 @@ describe('ClaudeCodeProcessManager', () => {
     expect(child.kill).not.toHaveBeenCalled()
   })
 
+  it('recovers repeated startup and cleanup after macOS rejects high pipe descriptors', () => {
+    const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
+    const getuidDescriptor = Object.getOwnPropertyDescriptor(process, 'getuid')
+    const recovered = createFakeChild()
+    const next = createFakeChild()
+    const spawnError = Object.assign(new Error('spawn EBADF'), { code: 'EBADF' })
+    const spawnProcess = vi
+      .fn<SpawnProcess>()
+      .mockImplementationOnce(() => {
+        throw spawnError
+      })
+      .mockReturnValueOnce(recovered.process)
+      .mockReturnValueOnce(next.process)
+    const manager = new TestProcessManager(spawnProcess)
+
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+    Object.defineProperty(process, 'getuid', { value: () => 501, configurable: true })
+
+    try {
+      manager.spawn(spawnOptions)
+      expect(spawnProcess).toHaveBeenNthCalledWith(2, spawnOptions.command, spawnOptions.args, {
+        env: spawnOptions.env,
+        signal: spawnOptions.signal,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        uid: 501,
+        windowsHide: true
+      })
+      recovered.emitExit()
+
+      manager.spawn(spawnOptions)
+      next.emitExit()
+      manager.killAll('SIGTERM')
+
+      expect(recovered.kill).not.toHaveBeenCalled()
+      expect(next.kill).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', platformDescriptor)
+      if (getuidDescriptor) Object.defineProperty(process, 'getuid', getuidDescriptor)
+      else Reflect.deleteProperty(process, 'getuid')
+    }
+  })
+
+  it('records a failed macOS fallback without logging the private executable path', () => {
+    const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
+    const getuidDescriptor = Object.getOwnPropertyDescriptor(process, 'getuid')
+    const initialError = Object.assign(new Error('spawn EBADF'), { code: 'EBADF' })
+    const retryError = Object.assign(new Error('spawn /Users/alice/private/claude EBADF'), { code: 'EBADF' })
+    const spawnProcess = vi
+      .fn<SpawnProcess>()
+      .mockImplementationOnce(() => {
+        throw initialError
+      })
+      .mockImplementationOnce(() => {
+        throw retryError
+      })
+    const manager = new TestProcessManager(spawnProcess)
+    const diagnostics = createClaudeCodeProcessDiagnostics('diagnostic-ref')
+
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+    Object.defineProperty(process, 'getuid', { value: () => 501, configurable: true })
+
+    try {
+      expect(() => manager.spawn(spawnOptions, diagnostics)).toThrow(retryError)
+
+      expect(diagnostics).toMatchObject({ category: 'unknown', spawnFailed: true })
+      const logged = mockMainLoggerService.warn.mock.calls.findLast(
+        ([message]) => message === 'Claude Code process failed'
+      )?.[1]
+      expect(logged).toMatchObject({ reference: 'diagnostic-ref', category: 'unknown', spawnFailed: true })
+      expect(JSON.stringify(logged)).not.toContain('/Users/alice/private')
+    } finally {
+      Object.defineProperty(process, 'platform', platformDescriptor)
+      if (getuidDescriptor) Object.defineProperty(process, 'getuid', getuidDescriptor)
+      else Reflect.deleteProperty(process, 'getuid')
+    }
+  })
+
   it('drains a bounded stderr tail before delivering exit diagnostics', async () => {
     const child = createFakeChild()
     const manager = new TestProcessManager(vi.fn(() => child.process))
