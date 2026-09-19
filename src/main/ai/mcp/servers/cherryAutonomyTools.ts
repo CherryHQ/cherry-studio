@@ -22,15 +22,19 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import { startAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
 import {
   type CompletedBackgroundTask,
   getDetachedBackgroundTask,
   listDetachedBackgroundTasks,
-  startDetachedBackgroundTask,
   stopDetachedBackgroundTask
 } from '@main/ai/agents/backgroundTasks'
 import { saveBackgroundTaskRecord } from '@main/ai/agents/backgroundTaskStore'
-import { detectDestructiveAssistantCommand } from '@main/ai/agents/builtin/assistantCommandSafety'
+import {
+  detectDestructiveAssistantCommand,
+  isGitHubIssueCreationCommand,
+  isLarkFormSubmissionCommand
+} from '@main/ai/agents/builtin/assistantCommandSafety'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -59,13 +63,17 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
-import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { BUILTIN_AGENT_ROLE, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { BACKGROUND_TASK_TOOL_NAME, CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
+
+/** Mirrors the guard table's assistant-feedback row: feedback submits externally under the user's identity. */
+const isExternalSubmission = (command: string): boolean =>
+  isLarkFormSubmissionCommand(command) || isGitHubIssueCreationCommand(command)
 
 const AGENT_LIST_TOOL_NAME = 'agent_list'
 
@@ -966,11 +974,25 @@ export class CherryAutonomyTools {
     const command = typeof args.command === 'string' ? args.command : ''
     if (!command.trim()) throw new McpError(ErrorCode.InvalidParams, "'command' is required for start")
     const agent = agentService.getAgent(this.agentId)
-    if (isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)) {
+    const builtinRole = agent?.configuration?.builtin_role
+    if (isProtectedBuiltinAgentRole(builtinRole)) {
       const reason = detectDestructiveAssistantCommand(command)
       if (reason) throw new McpError(ErrorCode.InvalidRequest, `This built-in Agent blocked ${reason}`)
+      // A detached command is a shell command: mirror the guard table's headless Bash denials so
+      // they hold on every runtime, not just Claude Code's PreToolUse plane (#18898 gap).
+      const interaction = application.get('AgentSessionRuntimeService').getInteractionState(this.sessionId)
+      const headless = interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable'
+      if (headless && (builtinRole === BUILTIN_AGENT_ROLE.SUPPORT || isExternalSubmission(command))) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
+            ? 'Headless channel or scheduled turns cannot run shell commands for Cherry Support.'
+            : 'Headless channel or scheduled turns cannot submit Cherry Studio feedback.'
+        )
+      }
     }
-    const record = await startDetachedBackgroundTask({
+    const record = await startAgentBackgroundTask({
+      agentId: this.agentId,
       storageDir: this.backgroundTaskStorageDir,
       command,
       cwd: this.workspacePath,

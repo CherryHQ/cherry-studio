@@ -1964,6 +1964,30 @@ describe('CherryAutonomyTools', () => {
       expect(result.content[0].text).toContain('permanent file deletion')
     })
 
+    it('denies every detached shell command for Cherry Support in headless turns', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: { builtin_role: 'support' } })
+      mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'stream' })
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: `${nodeBin} -e "process.exit(0)"` },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('cannot run shell commands for Cherry Support')
+    })
+
+    it('denies detached feedback submissions for the Assistant without a live responder', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: { builtin_role: 'assistant' } })
+      mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'unavailable' })
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: 'gh issue create --title "bug"' },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('cannot submit Cherry Studio feedback')
+    })
+
     it('starts a detached task stored under the agent data dir and rejects missing commands', async () => {
       const server = createServer('agent_test', workspaceDir)
       const result = await callTool(

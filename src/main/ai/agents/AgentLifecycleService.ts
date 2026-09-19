@@ -14,7 +14,7 @@ import type {
 import { buildAgentSessionTopicId } from '../agentSession/topic'
 import { removeAgentStorageSubdirectory } from './agentDataDirectory'
 import { sweepAgentOrphans } from './agentOrphanSweep'
-import { stopAllAgentBackgroundTasks } from './backgroundTaskActions'
+import { purgeAgentBackgroundTasks } from './backgroundTaskActions'
 
 const logger = loggerService.withContext('AgentLifecycleService')
 const RETRY_AGENT_SESSION_ARCHIVE = Symbol('retry-agent-session-archive')
@@ -354,9 +354,6 @@ export class AgentLifecycleService extends BaseService {
     targetState: 'active' | 'trashed' = 'trashed'
   ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
     if (permanent && agentService.getLifecycleState(agentId) !== targetState) return { deleted: false }
-    // A purged agent's records are swept with its data dir; any detached task left
-    // running would lose its only Cherry control path. Archival keeps them running.
-    if (permanent) await stopAllAgentBackgroundTasks(agentId)
     const deleteAgent = async () => {
       const { result, scheduleIds } = application.get('DbService').withWriteTx((tx) => {
         const result = agentService.deleteAgentStateTx(tx, agentId, { deleteSessions, permanent, targetState })
@@ -386,9 +383,12 @@ export class AgentLifecycleService extends BaseService {
       }
     }
 
+    // A purged agent's records are swept with its data dir; any detached task left running
+    // would lose its only Cherry control path. The purge mutex also blocks new starts for
+    // this agent until the stop sweep and the deletion are done. Archival keeps them running.
     return this.withStableSessions(
       () => agentSessionService.listIdsByAgent(agentId),
-      deleteAgent,
+      () => (permanent ? purgeAgentBackgroundTasks(agentId, deleteAgent) : deleteAgent()),
       permanent && targetState === 'trashed'
     )
   }
