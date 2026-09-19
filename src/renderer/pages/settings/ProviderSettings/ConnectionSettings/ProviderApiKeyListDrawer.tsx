@@ -14,6 +14,7 @@ import type { ApiKeyEntry } from '@shared/data/types/provider'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { apiKeyListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { ApiKeyQuotaLimit } from './ApiKeyQuotaLimit'
+import { ApiKeyRotationPolicy } from './ApiKeyRotationPolicy'
 import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 import { type ApiKeyProbeState, useApiKeyProbe } from './useApiKeyProbe'
 
@@ -229,6 +230,8 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
           <Plus size={14} />
           {t('settings.provider.api_setup.add_key')}
         </Button>
+
+        {apiKeys.length > 1 ? <ApiKeyRotationPolicy providerId={providerId} /> : null}
       </div>
     </ProviderSettingsDrawer>
   )

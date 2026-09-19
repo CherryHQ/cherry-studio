@@ -707,6 +707,13 @@ class ProviderService {
       return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
     }
 
+    // Sequential: keep spending the first key that still has room. `filterKeysWithinQuota` has
+    // already dropped the spent ones, so "the first" is the first with anything left — the later
+    // keys stay whole instead of all of them ending the day half-used.
+    if (application.get('PreferenceService').get('chat.routing.key_rotation')[providerId] === 'sequential') {
+      return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
+    }
+
     // Round-robin using CacheService
     const cache = application.get('CacheService')
     const cacheKey = rotationCacheKey(providerId)

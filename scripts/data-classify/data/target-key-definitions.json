@@ -299,6 +299,13 @@
       "description": "User-declared request ceiling per credential, for free tiers the provider never reports"
     },
     {
+      "targetKey": "chat.routing.key_rotation",
+      "type": "PreferenceTypes.ApiKeyRotationMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Per-provider policy for choosing among several API keys — round-robin spreads requests across keys, sequential drains one before touching the next; keyed by providerId, absent means round-robin"
+    },
+    {
       "targetKey": "chat.routing.service_usage",
       "type": "PreferenceTypes.ServiceUsageMap",
       "defaultValue": {},

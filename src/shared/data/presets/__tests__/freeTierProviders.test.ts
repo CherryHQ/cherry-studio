@@ -6,7 +6,7 @@ describe('freeTierProviders', () => {
   it('names providers that exist in the registry', async () => {
     // The catalog is keyed by provider id. A typo would silently mark nothing, and the filter
     // would quietly return a shorter list than it should.
-    const { PROVIDERS } = await import('@cherrystudio/provider-registry/providers')
+    const { PROVIDERS } = await import('@cherrystudio/provider-registry')
     const registered = new Set(PROVIDERS.map((preset) => preset.id))
 
     const unknown = Object.keys(FREE_ACCESS_PROVIDERS).filter((id) => !registered.has(id))

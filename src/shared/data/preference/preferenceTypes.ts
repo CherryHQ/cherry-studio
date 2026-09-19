@@ -48,6 +48,18 @@ export type ModelHealthMemory = Record<string, { ok: boolean; checkedAt: number;
 export type ApiKeyLimitPeriod = 'daily' | 'weekly' | 'monthly' | 'total'
 export type ApiKeyLimitMap = Record<string, { limit: number; period: ApiKeyLimitPeriod }>
 
+/**
+ * How a provider with several keys picks the next one.
+ *
+ * - `round-robin` spreads requests across keys, which suits per-minute rate limits.
+ * - `sequential` drains one key before touching the next, which suits allowances that reset on a
+ *   schedule: it leaves the later keys untouched and ready instead of half-spending all of them.
+ *
+ * Keyed by `providerId`; absent means `round-robin`.
+ */
+export type ApiKeyRotationPolicy = 'round-robin' | 'sequential'
+export type ApiKeyRotationMap = Record<string, ApiKeyRotationPolicy>
+
 /** Usage counter per web/URL service, keyed by `web::${providerId}`. */
 export type ServiceUsageMap = Record<string, { count: number; periodStart: number }>
 

@@ -48,6 +48,11 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models: mockModels })
 }))
 
+// The rotation policy row appears once a provider has more than one key.
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: () => [{}, vi.fn()]
+}))
+
 vi.mock('../../utils/healthCheck', () => ({
   checkApi: (...args: unknown[]) => checkApiMock(...args),
   // Every model in these tests is chat-capable; the real rule skips image/audio models.
