@@ -545,9 +545,8 @@ export class SkillService {
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
     const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(metadata.filename)
 
-    const existing =
-      this.findCatalogSkillCaseInsensitive(folderName) ??
-      this.findReservedAlias(folderName, source, sourceUrl, metadata.name)
+    const folderMatch = this.findCatalogSkillCaseInsensitive(folderName)
+    const existing = folderMatch ?? this.findReservedAlias(folderName, source, sourceUrl, metadata.name)
     if (existing) {
       // Only a re-install of the exact same skill (same source + origin URL) may overwrite the
       // existing folder in place. Anything else — a marketplace install colliding with a builtin,
@@ -557,6 +556,14 @@ export class SkillService {
       // enabled-for-all-agents), or irrecoverably destroy the user's own local skill.
       const sameOrigin = existing.source === source && (existing.sourceUrl ?? null) === (sourceUrl ?? null)
       if (!sameOrigin) {
+        throw new Error(
+          `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
+            `refusing to overwrite it with a ${source} install.`
+        )
+      }
+      // A bare repo URL names the repo, not the skill: a reserved derivation (`CON` → `CON-skill`)
+      // can collide with an unrelated sibling stored under the suffixed folder, so refuse it too.
+      if (folderMatch && reservedFolderNameStem(folderName) && isBareGithubRepoUrl(sourceUrl)) {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
             `refusing to overwrite it with a ${source} install.`

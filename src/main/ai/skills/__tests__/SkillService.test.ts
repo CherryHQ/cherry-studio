@@ -1836,6 +1836,61 @@ describe('SkillService', () => {
       }
     })
 
+    it('refuses to overwrite a bare-URL sibling sharing the derived reserved folder', async () => {
+      const root = await createTempDir('github-reserved-direct-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      // A bare repo URL is shared across skills.sh siblings, so a `CON` install deriving
+      // `CON-skill` cannot prove the stored `CON-skill` row is the same skill: refuse it.
+      const sourceUrl = 'https://github.com/owner/repo'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'CON-skill',
+        folderName: 'CON-skill',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      const sourceDir = await createTempDir('reserved-direct-source-')
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# new')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'CON',
+        name: 'CON',
+        description: 'Reserved-name skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory: string) => path.join(directory, 'SKILL.md'))
+      const skillService = new SkillService()
+
+      try {
+        await expect(skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)).rejects.toThrow(
+          /already used/
+        )
+        const rows = await dbh.db.select().from(agentGlobalSkillTable)
+        expect(rows).toHaveLength(1)
+        expect(rows.find((row) => row.id === SKILL_ID_1)).toMatchObject({
+          folderName: 'CON-skill',
+          contentHash: 'old-hash'
+        })
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+        vi.mocked(findSkillMdPath).mockReset()
+      }
+    })
+
     it('uses an explicit tag namespace when a branch has the same name', async () => {
       const tagOid = 'b'.repeat(40)
       const { skillService, installSpy, gitCalls } = await setupGithubInstall({
