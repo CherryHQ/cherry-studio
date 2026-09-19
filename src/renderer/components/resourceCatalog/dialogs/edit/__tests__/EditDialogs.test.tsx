@@ -120,6 +120,18 @@ const MODEL = vi.hoisted(
     }) as const
 )
 
+const DEFAULT_PROMPT_MODEL = vi.hoisted(
+  () =>
+    ({
+      id: 'openai::gpt-4o',
+      name: 'GPT-4o',
+      providerId: 'openai'
+    }) as const
+)
+
+const POLISH_PROMPT_BUTTON = 'Polish prompt · GPT-4o'
+const GENERATE_PROMPT_BUTTON = 'Generate prompt · GPT-4o'
+
 vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     trigger,
@@ -311,6 +323,14 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: fetchGenerateMock
 }))
 
+vi.mock('@renderer/hooks/useModel', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@renderer/hooks/useModel')>()
+  return {
+    ...actual,
+    useDefaultModel: () => ({ defaultModel: DEFAULT_PROMPT_MODEL })
+  }
+})
+
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: openSettingsTabMock
 }))
@@ -447,14 +467,31 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.label': 'System Prompt',
           'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'library.config.prompt.dblclick_hint': 'Double-click to edit',
+          'library.config.prompt.cancel_with_model': `Cancel · ${
+            typeof fallbackOrOptions === 'object' && fallbackOrOptions?.model != null
+              ? String(fallbackOrOptions.model)
+              : ''
+          }`,
           'library.config.prompt.generate': 'Generate prompt',
           'library.config.prompt.generate_failed_description': 'Check or change the default model, then try again.',
           'library.config.prompt.generate_failed_title': 'Failed to generate prompt',
+          'library.config.prompt.generate_with_model': `Generate prompt · ${
+            typeof fallbackOrOptions === 'object' && fallbackOrOptions?.model != null
+              ? String(fallbackOrOptions.model)
+              : ''
+          }`,
+          'library.config.prompt.no_default_model': 'No default model',
+          'library.config.prompt.open_default_model_settings': 'Open default model settings',
           'library.config.prompt.polish': 'Polish prompt',
           'library.config.prompt.polish_failed_description': 'Check or change the default model, then try again.',
           'library.config.prompt.polish_failed_title': 'Failed to polish prompt',
           'library.config.prompt.polish_variables_changed_description': 'Prompt variables changed.',
           'library.config.prompt.polish_variables_changed_title': 'Could not apply polished prompt',
+          'library.config.prompt.polish_with_model': `Polish prompt · ${
+            typeof fallbackOrOptions === 'object' && fallbackOrOptions?.model != null
+              ? String(fallbackOrOptions.model)
+              : ''
+          }`,
           'library.config.prompt.tokens_label': 'Tokens: ',
           'library.config.prompt.variables_description':
             'Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.',
@@ -1658,12 +1695,13 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('System Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished agent instructions'))
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original instructions',
+      model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
@@ -1681,7 +1719,7 @@ describe('edit dialogs', () => {
 
     selectTab('System Prompt')
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
-    const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
+    const generateButton = screen.getByRole('button', { name: GENERATE_PROMPT_BUTTON })
     expect(generateButton).toBeEnabled()
     fireEvent.click(generateButton)
 
@@ -1690,6 +1728,7 @@ describe('edit dialogs', () => {
         expect.objectContaining({
           prompt: expect.stringContaining('You are a Prompt Generator.'),
           content: 'Alpha Agent',
+          model: DEFAULT_PROMPT_MODEL,
           throwOnError: true
         })
       )
@@ -1704,7 +1743,7 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
     selectTab('System Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     selectTab('Basic')
 
@@ -2024,7 +2063,7 @@ describe('edit dialogs', () => {
 
     selectTab('System Prompt')
     await expectVariablesHelpOnOpen()
-    const polishButton = screen.getByRole('button', { name: 'Polish prompt' })
+    const polishButton = screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
     fireEvent.click(polishButton)
 
@@ -2032,6 +2071,7 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original prompt',
+      model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
@@ -2048,20 +2088,21 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} />)
 
     selectTab('System Prompt')
-    const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
+    const generateButton = screen.getByRole('button', { name: GENERATE_PROMPT_BUTTON })
     fireEvent.click(generateButton)
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated prompt'))
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('You are a Prompt Generator.'),
       content: 'Alpha Assistant',
+      model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
     expect(fetchGenerateMock.mock.calls[0][0].prompt).not.toContain(
       'Create a useful system prompt from the supplied name or title.'
     )
-    expect(screen.getByRole('button', { name: 'Polish prompt' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })).toBeInTheDocument()
   })
 
   it('allows closing and tab navigation while an assistant prompt action is in flight', async () => {
@@ -2070,7 +2111,7 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     selectTab('System Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     selectTab('Basic')
 
