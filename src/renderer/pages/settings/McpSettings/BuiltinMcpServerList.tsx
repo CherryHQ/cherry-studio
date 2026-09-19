@@ -1,4 +1,4 @@
-import { Check, ExternalLink, Plus } from 'lucide-react'
+import { ExternalLink, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,6 +13,7 @@ import { cn } from '@renderer/utils/style'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
+import { BuiltinMcpServerActiveToggle } from './BuiltinMcpServerActiveToggle'
 import { QVERIS_API_KEY_REGISTRATION_URL } from './QVerisApiKeyGuide'
 import { toCreateMcpServerDto } from './utils'
 
@@ -65,7 +66,8 @@ const BuiltinMcpServerList: FC = () => {
 
       <div className="flex flex-col gap-2">
         {filteredServers.map((server) => {
-          const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
+          const installed = mcpServers.find((existingServer) => existingServer.name === server.name)
+          const isInstalled = installed !== undefined
 
           return (
             <div
@@ -122,11 +124,8 @@ const BuiltinMcpServerList: FC = () => {
                 </Popover>
               </div>
               <div className="ml-3 flex min-w-21.5 shrink-0 items-center justify-end self-center">
-                {isInstalled ? (
-                  <div className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-muted-foreground text-xs">
-                    <Check size={13} className="text-success" />
-                    {t('settings.skills.installed')}
-                  </div>
+                {installed ? (
+                  <BuiltinMcpServerActiveToggle serverId={installed.id} isActive={installed.isActive === true} />
                 ) : (
                   <Button
                     variant="ghost"
