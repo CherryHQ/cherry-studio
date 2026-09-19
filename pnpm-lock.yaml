@@ -203,6 +203,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.220
         version: 0.3.220(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(zod@4.3.4)
+      '@cherrystudio/computer-use':
+        specifier: link:./.context/computer-use-sdk
+        version: link:.context/computer-use-sdk
       '@cherrystudio/dsh-bridge':
         specifier: workspace:*
         version: link:packages/dsh-bridge

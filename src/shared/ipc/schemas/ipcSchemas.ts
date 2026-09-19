@@ -10,6 +10,7 @@ import { type CherryCloudEventSchemas, cherryCloudRequestSchemas } from './cherr
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
+import { computerUseRequestSchemas } from './computerUse'
 import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
 import { diagnosticsRequestSchemas } from './diagnostics'
 import { doctorRequestSchemas } from './doctor'
@@ -61,6 +62,7 @@ export const ipcRequestSchemas = {
   ...cherryCloudRequestSchemas,
   ...citationRequestSchemas,
   ...codeCliRequestSchemas,
+  ...computerUseRequestSchemas,
   ...deepSeekHarnessRequestSchemas,
   ...diagnosticsRequestSchemas,
   ...doctorRequestSchemas,
