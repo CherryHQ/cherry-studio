@@ -291,12 +291,20 @@ export class PrintService {
     }
   }
 
-  async exportToPdf(payload: PrintableDocumentPayload): Promise<boolean> {
-    const { canceled, filePath } = await dialog.showSaveDialog({
+  async exportToPdf(payload: PrintableDocumentPayload, senderId?: string | null): Promise<boolean> {
+    const dialogOptions = {
       title: t('dialog.save_as_pdf'),
       defaultPath: getDefaultPdfPath(payload.title),
       filters: [{ name: t('dialog.pdf_files'), extensions: ['pdf'] }]
-    })
+    }
+    // Parent the native dialog to the caller window (see ExportService for why);
+    // fall back to unparented when the caller window is gone.
+    const parent: BrowserWindow | undefined = senderId
+      ? application.get('WindowManager').getWindow(senderId)
+      : undefined
+    const { canceled, filePath } = parent
+      ? await dialog.showSaveDialog(parent, dialogOptions)
+      : await dialog.showSaveDialog(dialogOptions)
 
     if (canceled || !filePath) {
       return false

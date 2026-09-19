@@ -60,6 +60,23 @@ describe('FileStorage', () => {
 
       expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '测试-笔记-note.md' }))
     })
+
+    // The native dialog itself is mocked, but the confirmed path runs the real
+    // Win32 filesystem write — on a Windows host this round-trips a CJK file
+    // name end to end through the save branch.
+    it('writes content to a CJK file path on the confirm path', async () => {
+      const tmpFile = path.join(os.tmpdir(), `测试-笔记-${uniqueId()}.md`)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
+
+      try {
+        await expect(
+          fileStorage.save(mockSenderWindow({} as Electron.BrowserWindow), '测试-笔记.md', '你好世界')
+        ).resolves.toBe(tmpFile)
+        expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('你好世界')
+      } finally {
+        fs.rmSync(tmpFile, { force: true })
+      }
+    })
   })
 
   // resolveHomeRelativeFilePath is module-private; exercise it through showInFolder,
@@ -203,7 +220,7 @@ describe('FileStorage', () => {
     })
 
     it('decodes the base64 payload to disk and returns true on confirm', async () => {
-      const tmpFile = path.join(os.tmpdir(), `filestorage-image-test-${uniqueId()}.png`)
+      const tmpFile = path.join(os.tmpdir(), `测试-图片-${uniqueId()}.png`)
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
       const payload = Buffer.from('fake-png-bytes').toString('base64')
 
