@@ -328,18 +328,19 @@ export class VoiceSessionService extends BaseService {
       cleanupPolicy: 'delete_when_unreferenced'
     })
     if (entry.origin !== 'internal') throw new VoiceRuntimeError('operation_failed')
+    const reference = files.retainTemporaryEntry(entry.id)
+    session.files.set(entry.id, { entry, reference })
     if (session.closed || !this.accepting || session.owner.webContents.isDestroyed()) {
-      await files.permanentDelete(entry.id)
+      await this.deleteFile(session, entry.id)
       throw new VoiceRuntimeError('aborted')
     }
-    session.files.set(entry.id, { entry, reference: files.retainTemporaryEntry(entry.id) })
     return entry
   }
 
   private async deleteFile(session: Session, id: FileEntryId): Promise<void> {
     const file = session.files.get(id)
     if (!file) return
-    await application.get('FileManager').permanentDelete(id)
+    await application.get('FileManager').deleteRetainedTemporaryEntry(id)
     file.reference.dispose()
     session.files.delete(id)
   }

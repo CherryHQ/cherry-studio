@@ -238,6 +238,9 @@ not retry blindly.
 - `trash` and `restore` only update internal entries' `deletedAt` state.
 - `permanentDelete` deletes the row first. It then best-effort unlinks an internal blob; an external
   path is never removed by this entry operation.
+- `deleteRetainedTemporaryEntry` is the stricter path for live automatic internal entries. It
+  requires runtime retention, removes the physical blob first, and deletes the row only after the
+  blob is gone. An unlink failure therefore leaves the entry tracked and retryable.
 - Batch delete/trash operations return per-ID successes and failures.
 - Internal rename changes display metadata; its UUID-based physical path is unchanged.
 - External rename moves the file inside its current parent and updates path/name in the DB. On a

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, rmdir, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -225,16 +225,18 @@ describe('VoiceSessionService file and admission contract', () => {
     expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
   })
 
-  it('allows session cleanup to retry after temporary file deletion fails', async () => {
+  it('keeps failed temporary deletion tracked so session cleanup can retry', async () => {
     const input = await recording()
-    const permanentDelete = files.permanentDelete.bind(files)
-    vi.spyOn(files, 'permanentDelete')
-      .mockRejectedValueOnce(new Error('temporary deletion failure'))
-      .mockImplementation(permanentDelete)
+    const physicalPath = files.getPhysicalPath(input.fileEntryId)
+    await unlink(physicalPath)
+    await mkdir(physicalPath)
 
-    await expect(service.discard(a, input.sessionId)).rejects.toThrow('temporary deletion failure')
+    await expect(service.discard(a, input.sessionId)).rejects.toMatchObject({
+      code: expect.stringMatching(/^(EPERM|EISDIR)$/)
+    })
     expect(fileEntryService.findById(input.fileEntryId)).not.toBeNull()
 
+    await rmdir(physicalPath)
     await expect(service.discard(a, input.sessionId)).resolves.toBeUndefined()
     expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
   })

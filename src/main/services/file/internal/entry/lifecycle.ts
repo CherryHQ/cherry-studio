@@ -85,6 +85,19 @@ export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): P
   await cleanupDeletedEntry(deps, entry)
 }
 
+export async function deleteInternalTemporaryEntry(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
+  const entry = deps.fileEntryService.getById(id)
+  if (entry.origin !== 'internal' || entry.cleanupPolicy !== 'delete_when_unreferenced') {
+    throw DataApiErrorFactory.invalidOperation(
+      'delete retained temporary file',
+      `File entry ${id} must be an automatic internal entry`
+    )
+  }
+  await fsRemove(resolvePhysicalPath(entry))
+  deps.versionCache.invalidate(entry.id)
+  deps.fileEntryService.withWriteTx((tx) => permanentDeleteTx(deps, tx, id))
+}
+
 function assertUnreferenced(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId, operation: string): void {
   if (deps.fileRefService.countPersistentRefsByEntryIdTx(tx, id) > 0) {
     throw DataApiErrorFactory.invalidOperation(operation, `File entry ${id} is still referenced`)

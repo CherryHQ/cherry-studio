@@ -168,6 +168,7 @@ import {
   batchRemoveFromLibrary as internalBatchRemoveFromLibrary,
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
+  deleteInternalTemporaryEntry as internalDeleteInternalTemporaryEntry,
   permanentDelete as internalPermanentDelete,
   restore as internalRestore,
   trash as internalTrash
@@ -428,6 +429,9 @@ export interface IFileManager {
    * References are independent, idempotent to dispose, and cleared on stop; explicit deletion still applies.
    */
   retainTemporaryEntry(id: FileEntryId): Disposable
+
+  /** Delete a retained automatic internal entry only after its physical content is gone. */
+  deleteRetainedTemporaryEntry(id: FileEntryId): Promise<void>
 
   /** Return active internal entries matching a content hash; consumers choose whether to reuse one. */
   findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]>
@@ -781,6 +785,21 @@ export class FileManager extends BaseService implements IFileManager {
         }
       }
     }
+  }
+
+  async deleteRetainedTemporaryEntry(id: FileEntryId): Promise<void> {
+    if (!this.temporaryReferences.has(id)) throw new Error('Temporary entry must be retained before verified deletion')
+    try {
+      await internalDeleteInternalTemporaryEntry(this.deps, id)
+    } catch (error) {
+      fileManagerLogger.warn('Verified temporary entry deletion failed', {
+        id,
+        operation: 'delete-retained-temporary-entry',
+        code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+      })
+      throw error
+    }
+    this.notifyReadModelChange([id])
   }
 
   /** Run one cleanup pass now. Never throws — failures land in the report. */

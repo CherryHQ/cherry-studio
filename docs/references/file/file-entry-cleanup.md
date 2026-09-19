@@ -75,6 +75,12 @@ automatic internal entry. Background cleanup preserves the entry until every ref
 disposing twice is harmless. Service stop clears all references, and a later disposal of an old
 reference cannot release a new consumer's reference. Explicit deletion still removes the entry.
 
+Consumers that require confirmed removal of sensitive temporary content use
+`FileManager.deleteRetainedTemporaryEntry(id)`. The operation accepts only a currently retained
+automatic internal entry, removes its physical blob before deleting the row, and leaves both the
+row and runtime reference available for retry when unlink fails. The general `permanentDelete`
+contract remains DB-first and best-effort for existing callers.
+
 This capability protects temporary inputs and outputs while Main-process consumers are using them,
 including retry and playback sessions that outlast the grace window. It changes neither the row's
 policy nor its timestamps and creates no persistent reference. A crash therefore leaves an ordinary

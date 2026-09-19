@@ -1,9 +1,10 @@
-import { access, mkdtemp, rm } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, rm, rmdir, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -156,6 +157,54 @@ describe('FileManager temporary retention', () => {
     expect(fileEntryService.findById(entry.id)).toBeNull()
     await expect(access(physicalPath)).rejects.toMatchObject({ code: 'ENOENT' })
     reference.dispose()
+  })
+
+  it('keeps a retained temporary entry tracked when verified physical deletion fails', async () => {
+    const entry = await files.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([3]),
+      name: 'private-audio',
+      ext: 'wav',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    const reference = files.retainTemporaryEntry(entry.id)
+    const physicalPath = files.getPhysicalPath(entry.id)
+    await unlink(physicalPath)
+    await mkdir(physicalPath)
+    mockMainLoggerService.warn.mockClear()
+
+    await expect(files.deleteRetainedTemporaryEntry(entry.id)).rejects.toMatchObject({
+      code: expect.stringMatching(/^(EPERM|EISDIR)$/)
+    })
+    expect(fileEntryService.findById(entry.id)).not.toBeNull()
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Verified temporary entry deletion failed', {
+      id: entry.id,
+      operation: 'delete-retained-temporary-entry',
+      code: expect.stringMatching(/^(EPERM|EISDIR)$/)
+    })
+    expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(physicalPath)
+
+    await rmdir(physicalPath)
+    await expect(files.deleteRetainedTemporaryEntry(entry.id)).resolves.toBeUndefined()
+    expect(fileEntryService.findById(entry.id)).toBeNull()
+    await expect(access(physicalPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    reference.dispose()
+  })
+
+  it('refuses verified deletion without a live temporary retention', async () => {
+    const entry = await files.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([3]),
+      name: 'unretained',
+      ext: 'wav',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+
+    await expect(files.deleteRetainedTemporaryEntry(entry.id)).rejects.toThrow(
+      'Temporary entry must be retained before verified deletion'
+    )
+    expect(fileEntryService.findById(entry.id)).not.toBeNull()
+    expect((await files.read(entry.id, { encoding: 'binary' })).content).toEqual(new Uint8Array([3]))
   })
 
   it('preserves live temporary content beyond grace and reclaims it after every retain is released', async () => {
