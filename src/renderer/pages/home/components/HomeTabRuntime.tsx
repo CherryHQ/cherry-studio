@@ -1,7 +1,8 @@
+import { useEffect } from 'react'
+
 import { cacheService } from '@data/CacheService'
 import { useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
 import type { ActiveTopicSource } from '@renderer/hooks/useTopic'
-import { useEffect } from 'react'
 
 type Props = {
   title: string
@@ -17,7 +18,7 @@ export function HomeTabRuntime({ title, emoji, preserveVisuals, activeTopicId, a
   useTabSelfVisuals({
     title,
     emoji,
-    appId: 'assistants',
+    routePrefix: '/app/chat',
     preserveVisuals
   })
 

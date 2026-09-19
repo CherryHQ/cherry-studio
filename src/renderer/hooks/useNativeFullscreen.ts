@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react'
+
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
-import { useEffect, useState } from 'react'
 
 /**
  * Native fullscreen state for the full-chrome windows (main + detached sub-window).

@@ -1,6 +1,8 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import { net } from 'electron'
+
 import { loggerService } from '@logger'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
@@ -9,7 +11,6 @@ import { executeCommand } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
 import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
-import { net } from 'electron'
 
 import {
   assertSkillDirectoryWithinLimits,

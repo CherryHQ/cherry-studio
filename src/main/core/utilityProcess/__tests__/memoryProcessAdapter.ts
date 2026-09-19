@@ -30,7 +30,7 @@ class FakePort implements PortLike {
   on(event: 'message', listener: (event: { data: unknown }) => void): void
   on(event: 'close', listener: () => void): void
   on(event: 'message' | 'close', listener: ((event: { data: unknown }) => void) | (() => void)): void {
-    if (event === 'message') this.messageListeners.push(listener as (event: { data: unknown }) => void)
+    if (event === 'message') this.messageListeners.push(listener)
     else this.closeListeners.push(listener as () => void)
   }
 

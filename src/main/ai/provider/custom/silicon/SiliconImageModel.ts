@@ -1,5 +1,6 @@
 import { APICallError, type ImageModelV3, type ImageModelV3CallOptions, type SharedV3Warning } from '@ai-sdk/provider'
 import { type FetchFunction } from '@ai-sdk/provider-utils'
+
 import { mergeHeaders } from '@main/utils/http'
 
 import { fileToDataUrl } from '../transportUtils'

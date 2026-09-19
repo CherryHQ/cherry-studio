@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  convertMathFormula,
+  convertLatexMathToDollars,
   findCitationInChildren,
   isHtmlCode,
   markdownToPlainText,
@@ -57,26 +57,73 @@ describe('markdown', () => {
     })
   })
 
-  describe('convertMathFormula', () => {
-    it('should handle multiple delimiters in input', () => {
-      // 验证处理输入中的多个分隔符
-      const input = 'Text \\[block1\\] and \\(inline\\) and \\[block2\\]'
-      const result = convertMathFormula(input)
-      expect(result).toBe('Text $$block1$$ and $inline$ and $$block2$$')
+  describe('convertLatexMathToDollars', () => {
+    it('converts formulas and preserves inline and fenced code', () => {
+      const input = 'Euler \\(e\\) and `r"\\(\\d+\\)"`\n\n```bash\nif \\[ -f x \\]; then :; fi\n```\n\n\\[ a^2 \\]'
+
+      expect(convertLatexMathToDollars(input)).toBe(
+        'Euler $e$ and `r"\\(\\d+\\)"`\n\n```bash\nif \\[ -f x \\]; then :; fi\n```\n\n$$ a^2 $$'
+      )
     })
 
-    it('should return input unchanged if no delimiters', () => {
-      // 验证没有分隔符时返回原始输入
-      const input = 'Some text without math'
-      const result = convertMathFormula(input)
-      expect(result).toBe('Some text without math')
+    it('converts prose between code blocks when the first block contains a literal fence', () => {
+      const input = '```python\nprint("```")\n```\n\nFormula: \\(x\\)\n\n```python\nre.match(r"\\(\\d+\\)", s)\n```'
+
+      expect(convertLatexMathToDollars(input)).toBe(
+        '```python\nprint("```")\n```\n\nFormula: $x$\n\n```python\nre.match(r"\\(\\d+\\)", s)\n```'
+      )
     })
 
-    it('should return input if null or empty', () => {
-      // 验证空输入或 null 输入时返回原值
-      expect(convertMathFormula('')).toBe('')
-      // @ts-expect-error purposely pass wrong type to test error branch
-      expect(convertMathFormula(null)).toBe(null)
+    it('preserves a fence that starts on the list marker line', () => {
+      const input = '- ```js\n  test(/\\(a\\)/)\n  ```\n\nFormula: \\(x\\)'
+
+      expect(convertLatexMathToDollars(input)).toBe('- ```js\n  test(/\\(a\\)/)\n  ```\n\nFormula: $x$')
+    })
+
+    it('preserves tilde fences, longer fences wrapping shorter ones, and indented code', () => {
+      expect(convertLatexMathToDollars('~~~js\n\\(a\\)\n~~~\n\n\\(x\\)')).toBe('~~~js\n\\(a\\)\n~~~\n\n$x$')
+      expect(convertLatexMathToDollars('````md\n```js\n\\(a\\)\n```\n````\n\n\\(x\\)')).toBe(
+        '````md\n```js\n\\(a\\)\n```\n````\n\n$x$'
+      )
+      expect(convertLatexMathToDollars('Text\n\n    \\(a\\)\n\n\\(x\\)')).toBe('Text\n\n    \\(a\\)\n\n$x$')
+    })
+
+    it('preserves inline code delimited by more than one backtick', () => {
+      expect(convertLatexMathToDollars('``a ` \\(b\\)`` and \\(x\\)')).toBe('``a ` \\(b\\)`` and $x$')
+    })
+
+    it('converts a display formula whose delimiters own their lines, keeping its indentation', () => {
+      expect(convertLatexMathToDollars('Sum:\n\n  \\[\n  a + b\n  \\]\n\nDone')).toBe(
+        'Sum:\n\n  $$\n  a + b\n  $$\n\nDone'
+      )
+    })
+
+    it('converts several formulas on one line', () => {
+      expect(convertLatexMathToDollars('Text \\[block1\\] and \\(inline\\) and \\[block2\\]')).toBe(
+        'Text $$block1$$ and $inline$ and $$block2$$'
+      )
+    })
+
+    it('keeps LaTeX line-break spacing and escaped backslashes that only look like delimiters', () => {
+      expect(convertLatexMathToDollars('\\[\na \\\\[2pt]\nb\n\\]')).toBe('$$\na \\\\[2pt]\nb\n$$')
+      expect(convertLatexMathToDollars('path C:\\\\(x) and \\(y\\)')).toBe('path C:\\\\(x) and $y$')
+    })
+
+    it('leaves an unclosed delimiter alone instead of emitting an unbalanced dollar fence', () => {
+      expect(convertLatexMathToDollars('an escaped \\[ bracket, then \\(x\\) math')).toBe(
+        'an escaped \\[ bracket, then $x$ math'
+      )
+    })
+
+    it('leaves link text alone, where the chat renders the formula as plain text', () => {
+      expect(convertLatexMathToDollars('[\\(x\\)](https://example.com) and \\(y\\)')).toBe(
+        '[\\(x\\)](https://example.com) and $y$'
+      )
+    })
+
+    it('returns content without delimiters unchanged', () => {
+      expect(convertLatexMathToDollars('')).toBe('')
+      expect(convertLatexMathToDollars('plain `code` and $x$')).toBe('plain `code` and $x$')
     })
   })
 
@@ -97,85 +144,84 @@ describe('markdown', () => {
   })
 
   describe('updateCodeBlock', () => {
-    /**
-     * 辅助函数：用户获取代码块的实际 ID
-     *
-     * 使用方法：
-     * 1. 修改测试用例，调用该函数
-     * 2. 运行测试并查看控制台输出中的代码块 ID
-     * 3. 用输出的 ID 替换测试中的硬编码 ID
-     * 4. 再次注释掉对此函数的调用
-     */
-    // function getAllCodeBlockIds(markdown: string): { [content: string]: string } {
-    //   const result: { [content: string]: string } = {}
-    //   const tree = unified().use(remarkParse).parse(markdown)
-    //
-    //   visit(tree, 'code', (node) => {
-    //     const id = getCodeBlockId(node.position?.start)
-    //     if (id) {
-    //       result[node.value] = id
-    //       console.log(`Code Block ID: "${id}" for content: "${node.value}" lang: "${node.lang}"`)
-    //     }
-    //   })
-    //
-    //   return result
-    // }
-
-    it('should not modify content when code block ID does not match', () => {
-      const markdown = '# Test\n```js\nvar x = 1;\n```\nOther content'
-      const wrongId = 'non-existent-id'
-      const newContent = 'const x = 2;'
-
-      const result = updateCodeBlock(markdown, wrongId, newContent)
-
-      expect(result).toContain('var x = 1;')
-      expect(result).not.toContain(newContent)
-    })
-
-    it('should only update the second of two identical code blocks', () => {
-      // 创建包含两个相同内容代码块的Markdown，文本和代码块交替出现
+    it('updates the edited block and leaves every other byte untouched', () => {
       const markdown =
-        '# Heading\n\nFirst paragraph.\n\n```js\nconst value = 100;\n```\n\nMiddle paragraph with some text.\n\n```js\nconst value = 100;\n```\n\nFinal text paragraph.'
+        'Intro $a_b$ and [cite:abc_1].\n\n```js\nconst a = 1\n```\n\n- [ ] todo\n\n```js\nconst b = 2\n```\n\nOutro __bold__.'
 
-      const expectedResult =
-        '# Heading\n\nFirst paragraph.\n\n```js\nconst value = 100;\n```\n\nMiddle paragraph with some text.\n\n```js\nconst updatedValue = 200;\n```\n\nFinal text paragraph.\n'
+      const result = updateCodeBlock(markdown, 'const b = 2', 'const b = 3')
 
-      const secondBlockId = '11:1:93'
-      const newContent = 'const updatedValue = 200;'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, secondBlockId, newContent)
-
-      expect(result).toBe(expectedResult)
+      expect(result).toBe(
+        'Intro $a_b$ and [cite:abc_1].\n\n```js\nconst a = 1\n```\n\n- [ ] todo\n\n```js\nconst b = 3\n```\n\nOutro __bold__.'
+      )
     })
 
-    it('should handle empty code blocks', () => {
-      const markdown = '```js\n\n```'
-      const expectedResult = '```js\nconsole.log("no longer empty");\n```\n'
+    it('matches the rendered code text, which carries one trailing newline', () => {
+      const result = updateCodeBlock('```js\nconst a = 1\n```', 'const a = 1\n', 'const a = 2')
 
-      const blockId = '1:1:0'
-      const newContent = 'console.log("no longer empty");'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, blockId, newContent)
-
-      expect(result).toBe(expectedResult)
+      expect(result).toBe('```js\nconst a = 2\n```')
     })
 
-    it('should handle code blocks with indentation', () => {
-      const markdown = '  ```js\n  const indented = true;\n  ```'
-      const expectedResult = '```js\nconst noLongerIndented = true;\n```\n'
+    it('matches an SVG block whose blank lines were removed for rendering', () => {
+      const markdown = '```svg\n<svg>\n\n<rect />\n\n</svg>\n```'
 
-      const blockId = '1:3:2'
-      const newContent = 'const noLongerIndented = true;'
+      const result = updateCodeBlock(markdown, '<svg>\n<rect />\n</svg>', '<svg></svg>')
 
-      // getAllCodeBlockIds(markdown)
+      expect(result).toBe('```svg\n<svg></svg>\n```')
+    })
 
-      const result = updateCodeBlock(markdown, blockId, newContent)
+    it('returns null when the original content matches no code block', () => {
+      expect(updateCodeBlock('# Test\n\n```js\nvar x = 1;\n```', 'var y = 1;', 'const y = 2;')).toBeNull()
+    })
 
-      expect(result).toBe(expectedResult)
+    it('returns null when identical code blocks make the target ambiguous', () => {
+      const markdown = '```js\nconst value = 100;\n```\n\nMiddle.\n\n```js\nconst value = 100;\n```'
+
+      expect(updateCodeBlock(markdown, 'const value = 100;', 'const value = 200;')).toBeNull()
+    })
+
+    it('fills an empty code block', () => {
+      expect(updateCodeBlock('```js\n\n```', '', 'console.log("no longer empty");')).toBe(
+        '```js\nconsole.log("no longer empty");\n```'
+      )
+    })
+
+    it('keeps the indentation of a block nested in a list', () => {
+      const markdown = '1. Install:\n\n   ```bash\n   npm i\n   ```\n\n2. Done'
+
+      const result = updateCodeBlock(markdown, 'npm i', 'pnpm i\n\npnpm dev')
+
+      expect(result).toBe('1. Install:\n\n   ```bash\n   pnpm i\n\n   pnpm dev\n   ```\n\n2. Done')
+    })
+
+    it('lengthens the fence when the new content contains a fence', () => {
+      const result = updateCodeBlock('```md\nold\n```', 'old', '```js\nnested\n```')
+
+      expect(result).toBe('````md\n```js\nnested\n```\n````')
+    })
+
+    it('writes replacement patterns in the new content literally', () => {
+      const result = updateCodeBlock('```sh\necho hi\n```', 'echo hi', "echo $$ '$&' $1")
+
+      expect(result).toBe("```sh\necho $$ '$&' $1\n```")
+    })
+
+    it('updates an unfenced HTML document that is rendered as a code block', () => {
+      const html = '<!DOCTYPE html>\n<html>\n<body>\n\n<h1>Hi</h1>\n\n</body>\n</html>'
+      const updated = html.replace('Hi', 'Hello')
+
+      const result = updateCodeBlock(`Here is the page:\n\n${html}\n\nDone $a_b$.`, `${html}\n`, updated)
+
+      expect(result).toBe(`Here is the page:\n\n${updated}\n\nDone $a_b$.`)
+    })
+
+    it('returns null when the original content only appears in prose', () => {
+      expect(updateCodeBlock('Run npm i once.\n\n```sh\nnpm  i\n```', 'npm i', 'pnpm i')).toBeNull()
+    })
+
+    it('still updates a block nested in a blockquote', () => {
+      const result = updateCodeBlock('> ```js\n> const a = 1\n> ```', 'const a = 1', 'const a = 2')
+
+      expect(result).toBe('> ```js\n> const a = 2\n> ```\n')
     })
   })
 

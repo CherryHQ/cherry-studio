@@ -1,5 +1,4 @@
 import '../types.js'
-
 import { mergeAttributes, Node } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { Selection } from '@tiptap/pm/state'

@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateAgentSessionSchema, SetAgentSessionWorkspaceSchema, UpdateAgentSessionSchema } from '../agentSessions'
+import {
+  CreateAgentSessionSchema,
+  ListAgentSessionsQuerySchema,
+  SetAgentSessionWorkspaceSchema,
+  UpdateAgentSessionSchema
+} from '../agentSessions'
 
 describe('AgentSession schemas', () => {
+  it('accepts non-empty exact ids and enforces the list limit', () => {
+    const ids = Array.from({ length: 200 }, (_, index) => `session-${index}`)
+
+    expect(ListAgentSessionsQuerySchema.parse({ ids }).ids).toEqual(ids)
+    expect(ListAgentSessionsQuerySchema.safeParse({ ids: [] }).success).toBe(false)
+    expect(ListAgentSessionsQuerySchema.safeParse({ ids: [...ids, 'overflow'] }).success).toBe(false)
+  })
+
   it('accepts workspace changes through the dedicated workspace source body', () => {
     expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'user', workspaceId: 'workspace-1' }).success).toBe(true)
     expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'system' }).success).toBe(true)

@@ -10,6 +10,8 @@
  * 3. models.json (catalog base definition)
  */
 
+import * as z from 'zod'
+
 import type {
   CanonicalParamKey,
   Currency,
@@ -37,7 +39,6 @@ import {
   ReasoningControlSchema,
   SERVER_TOOL
 } from '@cherrystudio/provider-registry'
-import * as z from 'zod'
 
 // Re-export const objects for consumers
 export {

@@ -1,6 +1,7 @@
-import { loggerService } from '@logger'
 import pako from 'pako'
 import React, { memo, useCallback, useEffect } from 'react'
+
+import { loggerService } from '@logger'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'

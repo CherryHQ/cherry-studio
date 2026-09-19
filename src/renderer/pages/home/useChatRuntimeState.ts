@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 // eslint-disable-next-line barrel/closed -- Bypass the flow barrel so chat startup does not touch TopicMessageFlowCanvas.
@@ -35,7 +37,6 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
@@ -457,13 +458,15 @@ export function useChatRuntimeState({
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        return await send({ text, options })
+        const sent = await send({ text, options })
+        if (sent) scrollToBottom()
+        return sent
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [send]
+    [scrollToBottom, send]
   )
 
   return {

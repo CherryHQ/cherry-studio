@@ -1,5 +1,6 @@
-import { BaseService } from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
 
 const emitToGuest = vi.fn()
 vi.mock('../events', () => ({ emitToApp: vi.fn(), emitToGuest }))

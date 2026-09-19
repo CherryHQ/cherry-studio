@@ -1,4 +1,10 @@
+import type { ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { v4 as uuid } from 'uuid'
+
 import { loggerService } from '@logger'
+import { AgentBrowserRuntimeHost } from '@renderer/components/AgentBrowserRuntimeHost'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import {
   type CloseConversationTabs,
@@ -13,10 +19,6 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
-import type { ReactNode } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('TabsProvider')
 
@@ -682,7 +684,10 @@ export function TabsProvider({
 
   return (
     <CloseConversationTabsContext value={closeConversationTabs}>
-      <TabsContext value={value}>{children}</TabsContext>
+      <TabsContext value={value}>
+        {children}
+        <AgentBrowserRuntimeHost />
+      </TabsContext>
     </CloseConversationTabsContext>
   )
 }

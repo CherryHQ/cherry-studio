@@ -11,6 +11,7 @@
 import { createHash } from 'node:crypto'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+
 import { resolveEffectiveEndpoint, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'

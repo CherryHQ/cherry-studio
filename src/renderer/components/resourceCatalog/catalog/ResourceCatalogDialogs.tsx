@@ -32,7 +32,9 @@ export function ResourceCatalogDialogs({
         skill={dialogs.selectedSkill}
         open={Boolean(dialogs.selectedSkill)}
         onOpenChange={(open) => {
-          if (!open) dialogs.setSelectedSkill(null)
+          if (!open) {
+            dialogs.setSelectedSkill(null)
+          }
         }}
       />
       <ImportAssistantDialog

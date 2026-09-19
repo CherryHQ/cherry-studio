@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode } from 'react'
 import { createContext, use } from 'react'

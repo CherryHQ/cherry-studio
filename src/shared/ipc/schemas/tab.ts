@@ -1,5 +1,6 @@
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import * as z from 'zod'
+
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { defineRoute } from '../define'
 

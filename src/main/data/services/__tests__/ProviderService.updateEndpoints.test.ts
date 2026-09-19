@@ -1,12 +1,12 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/ProviderRegistryService'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
 
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
 
 // Stub the registry loader so the preset lookup returns a minimal CherryIN row
 // (its anthropic / gemini / OpenAI endpoints tagged `cherryin`) without

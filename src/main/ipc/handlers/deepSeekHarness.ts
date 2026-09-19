@@ -17,6 +17,5 @@ export const deepSeekHarnessHandlers: IpcHandlersFor<typeof deepSeekHarnessReque
     } catch (error) {
       return { success: false, message: error instanceof Error ? error.message : 'Unknown error' }
     }
-  },
-  'deepseek_harness.get_status': async () => application.get('DeepSeekHarnessService').getStatus()
+  }
 }

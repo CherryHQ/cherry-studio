@@ -147,6 +147,34 @@
       "when": 1788247231321,
       "tag": "0020_wooden_fat_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1788332276777,
+      "tag": "0021_majestic_molly_hayes",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1789544579690,
+      "tag": "0022_little_gamma_corps",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1789565251208,
+      "tag": "0023_warm_slayback",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1789636472109,
+      "tag": "0024_lying_shatterstar",
+      "breakpoints": true
     }
   ],
   "version": "7"

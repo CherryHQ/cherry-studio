@@ -1,9 +1,10 @@
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { HealthStatus, type ModelCheckCredential } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type * as HealthCheckUtils from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { toast } from '@renderer/services/toast'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ModelCheckCredentialsSaveError, type ModelCheckCredentialsState } from '../useModelCheckCredentials'
 import { useProviderConnectionCheck } from '../useProviderConnectionCheck'

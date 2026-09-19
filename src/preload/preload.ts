@@ -1,4 +1,8 @@
 import { electronAPI } from '@electron-toolkit/preload'
+import type { OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import type { CreateDirectoryOptions } from 'webdav'
+
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
@@ -6,7 +10,7 @@ import type {
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
-import type { FileEntry, FileHandle } from '@shared/data/types/file'
+import type { FileEntry } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -29,11 +33,7 @@ import type {
 } from '@shared/types/lanTransfer'
 import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import type { SkillFileNode, SkillResult } from '@shared/types/skill'
-import type { StorageHealth } from '@shared/types/storageMonitor'
 import type { CommandId } from '@shared/utils/command'
-import type { OpenDialogOptions } from 'electron'
-import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
-import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
 
@@ -110,7 +110,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
     getPhysicalPath: (params: GetPhysicalPathIpcParams): Promise<AbsoluteFilePath> =>
       ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
-    permanentDelete: (handle: FileHandle): Promise<void> => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
     runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep),
     deleteExternalFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalFile, filePath),
     deleteExternalDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalDir, dirPath),
@@ -232,19 +231,6 @@ const api = {
 
     // Get all shared cache entries from Main for initialization sync
     getAllShared: (): Promise<Record<string, CacheEntry>> => ipcRenderer.invoke(IpcChannel.Cache_GetAllShared)
-  },
-
-  // StorageMonitorService related APIs (main-process disk-space watcher)
-  storageMonitor: {
-    // Pull the current disk-space health to seed initial state on mount
-    getHealth: (): Promise<StorageHealth> => ipcRenderer.invoke(IpcChannel.StorageMonitor_GetHealth),
-
-    // Subscribe to health transitions (ok <-> low) pushed from Main
-    onHealthChange: (callback: (health: StorageHealth) => void) => {
-      const listener = (_: any, health: StorageHealth) => callback(health)
-      ipcRenderer.on(IpcChannel.StorageMonitor_HealthChanged, listener)
-      return () => ipcRenderer.off(IpcChannel.StorageMonitor_HealthChanged, listener)
-    }
   },
 
   // PreferenceService related APIs
