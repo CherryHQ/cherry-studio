@@ -136,8 +136,8 @@ export async function startDetachedBackgroundTask(
     }
     if (record.pid > 0) activeTaskPids.set(id, record.pid)
 
-    // 'error' (e.g. ENOENT) and 'exit' are mutually exclusive for spawn
-    // failures; finalize guards so at most one completion lands. Handlers go
+    // A spawn failure can emit both 'error' and 'close'; finalize guards so
+    // at most one completion lands. Handlers go
     // on before any await — both events can fire on the first ticks.
     let settled = false
     const finalize = (status: BackgroundTaskCompletion['status'], exitCode: number | null, signal: string | null) => {
@@ -150,7 +150,9 @@ export async function startDetachedBackgroundTask(
       logger.warn('Detached background task failed to spawn', { taskId: id, error })
       finalize('failed', null, null)
     })
-    child.on('exit', (code, signal) => finalize(code === 0 ? 'completed' : 'failed', code, signal))
+    // Wait for stdio to close before publishing completion: on Windows, `exit` can fire
+    // before the detached process's final log bytes become readable.
+    child.on('close', (code, signal) => finalize(code === 0 ? 'completed' : 'failed', code, signal))
 
     // Synchronously, so an immediately-exiting task cannot finalize before the
     // running record exists on disk.
