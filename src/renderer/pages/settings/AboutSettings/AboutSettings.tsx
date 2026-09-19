@@ -49,6 +49,7 @@ import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 
 import DiagnosticBundleDialog from './DiagnosticBundleDialog'
+import { HealthOverview } from './HealthOverview'
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
@@ -324,6 +325,8 @@ const AboutSettings: FC = () => {
           </Scrollbar>
         </SettingGroup>
       )}
+
+      <HealthOverview />
 
       <SettingGroup theme={theme}>
         <AboutActionRow
