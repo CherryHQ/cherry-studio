@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { TreeDirRoot, TreeNode } from '@shared/utils/file'
 
 const logger = loggerService.withContext('NotesService')
@@ -89,7 +90,7 @@ export function sortTree(nodes: NotesTreeNode[], sortType: NotesSortType): Notes
 }
 
 export async function addDir(name: string, parentPath: string): Promise<{ path: string; name: string }> {
-  const resolved = await resolveNotesPath(parentPath)
+  const resolved = await resolveNotesPath(parentPath, { adoptDevicePath: false })
   const basePath = resolved.path
   const { safeName } = await window.api.file.checkFileName(basePath, name, false)
   const fullPath = `${basePath}/${safeName}`
@@ -102,7 +103,7 @@ export async function addNote(
   content: string = '',
   parentPath: string
 ): Promise<{ path: string; name: string }> {
-  const resolved = await resolveNotesPath(parentPath)
+  const resolved = await resolveNotesPath(parentPath, { adoptDevicePath: false })
   const basePath = resolved.path
   const { safeName } = await window.api.file.checkFileName(basePath, name, true)
   const notePath = `${basePath}/${safeName}${MARKDOWN_EXT}`
@@ -134,15 +135,24 @@ async function getDefaultNotesPath(): Promise<string> {
  *
  * Resolution order: this PC's stamped device path first (a synced pref may hold
  * another machine's absolute path), then the pref, then the local default.
- * @param parentPath
+ * @param parentPath workspace root candidate, or a nested folder for creation calls
+ * @param options.adoptDevicePath stamp a valid root as this PC's choice (default
+ * true; creation calls pass false — they resolve nested folders, never roots)
  * @returns {ResolvedNotesPath} Resolved path and whether fallback to the default path occurred.
  */
-export async function resolveNotesPath(parentPath: string): Promise<ResolvedNotesPath> {
+export async function resolveNotesPath(
+  parentPath: string,
+  options?: { adoptDevicePath?: boolean }
+): Promise<ResolvedNotesPath> {
   const basePath = normalizePath(parentPath || '')
   const defaultNotesPath = await getDefaultNotesPath()
   const devicePath = await getDeviceNotesPath()
 
-  if (devicePath && devicePath !== basePath) {
+  // The stamped path only competes for the workspace root itself. A nested
+  // folder already under it resolves to itself, so creating or exporting a
+  // note inside a subfolder never lands at the workspace root.
+  let deviceInvalid = false
+  if (devicePath && !isSameOrSubPath(basePath, devicePath)) {
     try {
       if (await window.api.file.validateNotesDirectory(devicePath)) {
         return {
@@ -150,6 +160,7 @@ export async function resolveNotesPath(parentPath: string): Promise<ResolvedNote
           isFallback: false
         }
       }
+      deviceInvalid = true
     } catch (error) {
       logger.warn('Failed to validate device notes directory, trying preference path', {
         devicePath,
@@ -175,9 +186,14 @@ export async function resolveNotesPath(parentPath: string): Promise<ResolvedNote
   try {
     const isValid = await window.api.file.validateNotesDirectory(basePath)
     if (isValid) {
-      // No live device choice: adopt the valid pref (single-machine upgrade).
-      // Never stamps the default, so a foreign-planted default cannot erase it.
-      if (devicePath !== basePath) {
+      // Adopt the valid root as this PC's choice (single-machine upgrade,
+      // stale-choice healing). Never the default tree or a nested folder,
+      // and never over a choice that still validates.
+      if (
+        options?.adoptDevicePath !== false &&
+        !isSameOrSubPath(basePath, defaultNotesPath) &&
+        (devicePath == null || (!isSameOrSubPath(basePath, devicePath) && deviceInvalid))
+      ) {
         stampDeviceNotesPath(basePath)
       }
       return {
@@ -211,7 +227,7 @@ export async function resolveNotesPath(parentPath: string): Promise<ResolvedNote
 /** This PC's stamped Notes path, or null when never chosen here. Never throws. */
 async function getDeviceNotesPath(): Promise<string | null> {
   try {
-    const devicePath = await window.api.file.getDeviceNotesPath()
+    const devicePath = await ipcApi.request('file.notes.get_device_path')
     return devicePath ? normalizePath(devicePath) : null
   } catch (error) {
     logger.warn('Failed to read device notes path, falling back to preference', {
@@ -223,12 +239,18 @@ async function getDeviceNotesPath(): Promise<string | null> {
 
 /** Remember a resolved path as this PC's choice. Fire-and-forget; adoption retries. */
 function stampDeviceNotesPath(resolvedPath: string): void {
-  window.api.file.setDeviceNotesPath(resolvedPath).catch((error: unknown) => {
-    logger.warn('Failed to stamp device notes path', {
-      resolvedPath,
-      error: (error as Error).message
+  ipcApi
+    .request('file.notes.set_device_path', { path: AbsoluteFilePathSchema.parse(resolvedPath) })
+    .catch((error: unknown) => {
+      logger.warn('Failed to stamp device notes path', {
+        resolvedPath,
+        error: (error as Error).message
+      })
     })
-  })
+}
+
+function isSameOrSubPath(candidate: string, root: string): boolean {
+  return candidate === root || candidate.startsWith(`${root}/`)
 }
 
 export async function delNode(node: NotesTreeNode): Promise<void> {

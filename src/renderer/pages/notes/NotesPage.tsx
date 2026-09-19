@@ -300,10 +300,10 @@ const NotesPage: FC = () => {
   useEffect(() => {
     async function initialize() {
       if (!notesPath) {
-        // 首次启动，获取默认路径
-        const info = await ipcApi.request('app.get_info')
-        const defaultPath = info.notesPath
-        updateNotesPath(defaultPath)
+        // An empty synced pref must not bypass this PC's stamped choice:
+        // resolve through the device sidecar first (falls back to default).
+        const resolved = await resolveNotesPath('')
+        updateNotesPath(resolved.path)
         return
       }
 

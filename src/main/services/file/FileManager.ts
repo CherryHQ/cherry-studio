@@ -136,12 +136,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
-import {
-  type CreateInternalEntryInput,
-  createInternalEntryInputSchema,
-  type SetDeviceNotesPathInput,
-  setDeviceNotesPathInputSchema
-} from '@shared/ipc/schemas/file'
+import { type CreateInternalEntryInput, createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   AbsoluteFilePath,
@@ -155,7 +150,6 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
 
 import { danglingCache } from './danglingCache'
-import { readDeviceNotesPath, writeDeviceNotesPath } from './deviceNotesPath'
 import { hash as internalHash } from './internal/content/hash'
 import { read as internalRead, readChunk as internalReadChunk } from './internal/content/read'
 import {
@@ -885,24 +879,6 @@ export class FileManager extends BaseService implements IFileManager {
       this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
     )
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
-    this.ipcHandle(IpcChannel.File_GetDeviceNotesPath, async () => this.getDeviceNotesPath())
-    this.ipcHandle(IpcChannel.File_SetDeviceNotesPath, async (_e, params: unknown) =>
-      this.setDeviceNotesPath(setDeviceNotesPathInputSchema.parse(params))
-    )
-  }
-
-  /**
-   * This PC's Notes folder choice, or null when never chosen here. Backed by a
-   * sidecar under CHERRY_HOME (never backed up or synced), so a synced
-   * `feature.notes.path` pref from another machine can never redirect it.
-   */
-  async getDeviceNotesPath(): Promise<string | null> {
-    return readDeviceNotesPath(application.getPath('feature.notes.device_file'))
-  }
-
-  /** Persist this PC's Notes folder choice. Overwrites any previous choice. */
-  async setDeviceNotesPath(input: SetDeviceNotesPathInput): Promise<void> {
-    await writeDeviceNotesPath(application.getPath('feature.notes.device_file'), input.path)
   }
 
   inspectOrphanFiles(): Promise<FileSweepReport> {
