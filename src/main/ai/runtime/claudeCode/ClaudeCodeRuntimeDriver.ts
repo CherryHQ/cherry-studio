@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url'
 import type {
   Options,
   Query,
-  query,
   SDKAssistantMessage,
   SDKPartialAssistantMessage,
   SDKResultMessage,
@@ -31,6 +30,7 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -65,19 +65,22 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
+import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
   isClaudeCodeProcessFailure
 } from './processExitDiagnostics'
+import { resolveClaudeConfigDirectory } from './queryOptions'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
 } from './settingsBuilder'
-import { ClaudeCodeResultError, ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
+import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
@@ -101,20 +104,6 @@ function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
     .trimStart()
 
   return /^\/fast(?:\s|$)/i.test(text)
-}
-
-type ResumeRecoveryReason = 'conversation-not-found' | 'duplicate-tool-use-id'
-
-/** The SDK has no typed execution-failure reason, so classify only its raw result error entries. */
-function getResumeRecoveryReason(error: unknown): ResumeRecoveryReason | undefined {
-  if (!(error instanceof ClaudeCodeResultError) || error.subtype !== 'error_during_execution') return undefined
-  if (error.errors.some((entry) => /no conversation found with session id/i.test(entry))) {
-    return 'conversation-not-found'
-  }
-  if (error.errors.some((entry) => /tool_use[`'"]?\s+ids?\s+must\s+be\s+unique/i.test(entry))) {
-    return 'duplicate-tool-use-id'
-  }
-  return undefined
 }
 
 function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
@@ -340,20 +329,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sdkInputQueue = new SdkInputQueue()
   private readonly abortController = new AbortController()
   private query?: Query
-  /** SDK `query` factory captured at connect — the sync stale-resume retry cannot await the import. */
-  private createQuery?: typeof query
   private closePromise?: Promise<void>
-  /** The exact spawn options of the live query — resume recovery re-spawns from these. */
+  /** Keep the effective child environment for native checkpoint capture. */
   private spawnOptions?: Options
   private processDiagnostics?: ClaudeCodeProcessDiagnostics
-  private lastSdkUserMessage?: SDKUserMessage
-  private resumeRecoveryRetried = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
+  private lastMainAssistantUuid?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false
@@ -442,7 +428,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       : options
     // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
     const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
-    this.createQuery = createClaudeQuery
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
@@ -489,6 +474,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
+    this.lastMainAssistantUuid = undefined
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
@@ -499,7 +485,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
-    this.lastSdkUserMessage = sdkMessage
     this.sdkInputQueue.push(sdkMessage)
   }
 
@@ -675,6 +660,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const query = this.query
     if (!query || this.adapter?.isTurnActive !== true) return false
     logger.info('Gracefully interrupting Claude Code turn', { sessionId: this.input.sessionId })
+    let ackTimer: NodeJS.Timeout | undefined
     const acknowledged = await Promise.race([
       query.interrupt().then(
         () => true,
@@ -683,8 +669,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           return false
         }
       ),
-      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), GRACEFUL_INTERRUPT_TIMEOUT_MS))
+      new Promise<boolean>((resolve) => {
+        ackTimer = setTimeout(() => resolve(false), GRACEFUL_INTERRUPT_TIMEOUT_MS)
+      })
     ])
+    clearTimeout(ackTimer)
     if (!acknowledged) return false
     // The interrupt control response only says the CLI took the request; wait (bounded) for the
     // SDK's interrupt-truncated result so the host only trusts a turn that actually settled.
@@ -751,7 +740,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
-        if (message.type === 'assistant') this.captureAssistantInvocation(message, messageAssociation)
+        if (message.type === 'assistant') {
+          this.captureAssistantInvocation(message, messageAssociation)
+          if (message.parent_tool_use_id == null) this.lastMainAssistantUuid = message.uuid
+        }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
         try {
@@ -779,16 +771,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           this.emitPendingSteersAsUndelivered()
-          this.eventQueue.push({ type: 'turn-complete' })
+          const checkpoint = ClaudeForkCheckpointSchema.safeParse({
+            runtime: 'claude-code',
+            runtimeSessionId: result.sessionId,
+            messageUuid: this.lastMainAssistantUuid,
+            configDir: resolveClaudeConfigDirectory(this.spawnOptions?.env)
+          })
+          const forkAnchor = checkpoint.success ? { checkpoint: checkpoint.data } : undefined
+          this.lastMainAssistantUuid = undefined
+          this.eventQueue.push({ type: 'turn-complete', forkAnchor })
         }
       }
     } catch (error) {
       this.settlePendingInvocations()
-      if (this.tryRecoverWithoutResume(error)) {
-        // `await` is load-bearing: without it the finally below closes the event queue while the
-        // recovered loop is still streaming.
-        return await this.runQueryLoop()
-      }
       // The Claude Code SDK sometimes ends the stream abruptly mid-output. When
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
@@ -804,7 +799,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         logger.error('Claude Code query loop failed', {
           sessionId: this.input.sessionId,
           modelId: this.adapterModelId ?? this.input.modelId,
-          error: surfacedError,
+          err: chatErrorContext(surfacedError),
           ...(isProcessFailure && this.processDiagnostics
             ? { diagnosticReference: this.processDiagnostics.reference }
             : {})
@@ -820,55 +815,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.query = undefined
       this.eventQueue.close()
     }
-  }
-
-  /** Rebuilds one failed resumed query without its corrupt or missing conversation history. */
-  private tryRecoverWithoutResume(error: unknown): boolean {
-    const createClaudeQuery = this.createQuery
-    if (
-      this.resumeRecoveryRetried ||
-      !this.resumeToken ||
-      !this.spawnOptions ||
-      !createClaudeQuery ||
-      this.abortController.signal.aborted
-    ) {
-      return false
-    }
-    const reason = getResumeRecoveryReason(error)
-    if (!reason) return false
-    // Error results advance `resumeToken` before throwing. The pending input's session id proves the
-    // failed request actually resumed prior history rather than merely reporting a new session id.
-    if (reason === 'duplicate-tool-use-id' && !this.lastSdkUserMessage?.session_id) return false
-    if (reason === 'duplicate-tool-use-id' && this.adapter?.hasTurnActivity === true) {
-      logger.warn('Refusing resume recovery after the turn produced non-metadata activity', {
-        sessionId: this.input.sessionId,
-        reason
-      })
-      return false
-    }
-    this.resumeRecoveryRetried = true
-
-    logger.warn('Recovering Claude Code conversation without its resume history', {
-      sessionId: this.input.sessionId,
-      reason
-    })
-    this.resumeToken = undefined
-    // Tell the user, in the transcript itself, that the reply below starts fresh. Persisted with the
-    // recovered turn like any other data part.
-    this.eventQueue.push({
-      type: 'chunk',
-      chunk: { type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} }
-    })
-    this.sdkInputQueue.close()
-    this.sdkInputQueue = new SdkInputQueue()
-    if (this.lastSdkUserMessage) {
-      this.sdkInputQueue.push({ ...this.lastSdkUserMessage, session_id: '' })
-    }
-    this.query = createClaudeQuery({
-      prompt: this.sdkInputQueue,
-      options: { ...this.spawnOptions, resume: undefined }
-    })
-    return true
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {
@@ -1427,6 +1373,7 @@ function toClaudeImageMediaType(value: string | undefined) {
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly fork = forkClaudeSession
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 

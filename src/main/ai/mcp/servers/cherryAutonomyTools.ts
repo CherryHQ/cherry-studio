@@ -38,6 +38,7 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
   AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
@@ -1027,7 +1028,7 @@ export class CherryAutonomyTools {
         optional_fields: schema.optional
       })),
       channels: channelSummary,
-      heartbeat_enabled: config?.heartbeat_enabled ?? false
+      heartbeat_enabled: isHeartbeatEnabled(config ?? {})
     }
 
     logger.info('Config status queried', { agentId: this.agentId })

@@ -1,5 +1,5 @@
 ---
-description: Home for testing references covering frontend policy and the SQLite harness
+description: Frontend and SQLite testing references
 sources:
   - tests
   - src/renderer

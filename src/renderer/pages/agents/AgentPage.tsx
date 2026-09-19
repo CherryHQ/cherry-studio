@@ -39,7 +39,7 @@ import type { ResourceListRevealPayload } from '@renderer/services/resourceListR
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -100,6 +100,7 @@ const AgentPage = () => {
   const isFeedbackIntent = routeSearch.intent === 'feedback'
   const currentTabId = useCurrentTabId()
   const routeSessionId = routeSearch.sessionId
+  const forkReturnSessionId = routeSearch.forkReturnSessionId
   const routeAgentId = routeSearch.agentId
   const routeActiveSessionId = routeSessionId ?? null
   // Shared full-list source for session UI plus exact latest/reusable lookups.
@@ -217,12 +218,35 @@ const AgentPage = () => {
     sessionSource: activeSessionSource,
     setActiveSession,
     selectSession,
-    clearActiveSession
+    clearActiveSession,
+    mutate: refreshActiveSession
   } = useActiveSession({
     activeSessionId,
     setActiveSessionId,
     initialSession: initialActiveSession
   })
+  useEffect(() => {
+    if (!forkReturnSessionId || !routeSessionId || activeSessionId !== routeSessionId) return
+    let cancelled = false
+    // Await the destination query: the pre-navigation check cannot cover concurrent deletion.
+    void refreshActiveSession(() => dataApiService.get(`/agent-sessions/${routeSessionId}`), {
+      revalidate: false
+    }).then(
+      () => {
+        if (!cancelled) void navigate({ to: '/app/agents', search: { sessionId: routeSessionId }, replace: true })
+      },
+      (error) => {
+        if (cancelled) return
+        toast.error(
+          isDataApiNotFoundError(error) ? t('agent_session_fork.source_not_found') : formatErrorMessage(error)
+        )
+        void navigate({ to: '/app/agents', search: { sessionId: forkReturnSessionId }, replace: true })
+      }
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [activeSessionId, forkReturnSessionId, navigate, refreshActiveSession, routeSessionId, t])
   const reenterAgentRoute = useCallback(() => {
     // The bound session is gone. Drop the remembered id too: `ui.agent.last_used_session_id`
     // is never cleared on delete, so without this the bare re-entry re-reads the stale id in
@@ -236,7 +260,7 @@ const AgentPage = () => {
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
   useEffect(() => {
-    if (isFeedbackIntent) return
+    if (isFeedbackIntent || forkReturnSessionId) return
     if (!routeSessionId || activeSessionId !== routeSessionId) return
     if (activeSession || isActiveSessionLoading) return
     if (!isDataApiNotFoundError(activeSessionError)) return
@@ -245,6 +269,7 @@ const AgentPage = () => {
     activeSession,
     activeSessionError,
     activeSessionId,
+    forkReturnSessionId,
     isActiveSessionLoading,
     isFeedbackIntent,
     reenterAgentRoute,
