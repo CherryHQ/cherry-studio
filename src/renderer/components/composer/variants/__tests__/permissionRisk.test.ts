@@ -181,4 +181,23 @@ describe('getPermissionRiskEffects', () => {
     expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'ssh-keygen -t ed25519' })).toEqual([])
     expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'ssh-add -l' })).toEqual([])
   })
+
+  it('leaves git push dry runs without the irreversible warning', () => {
+    for (const command of ['git push --dry-run', 'git push -n origin main']) {
+      expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).not.toContain('irreversible')
+    }
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'git push origin main' })).toContain('irreversible')
+  })
+
+  it('flags PowerShell destructive and network verbs', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'Remove-Item -Recurse -Force ./dist' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'Clear-Content data.db' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'Invoke-WebRequest -Method Get' })).toContain(
+      'network'
+    )
+  })
 })

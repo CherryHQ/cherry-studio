@@ -59,6 +59,14 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   if (/\bmv\s+\S+\s+\S+/.test(text)) {
     effects.add('destructive')
   }
+  // `pwsh` normalizes to Bash before this runs, so cover PowerShell verbs here too.
+  if (/\b(Remove-Item|Clear-Content|Clear-Item)\b/i.test(text)) {
+    effects.add('destructive')
+    effects.add('irreversible')
+  }
+  if (/\bMove-Item\b/i.test(text)) {
+    effects.add('destructive')
+  }
   // Git work-discarders, scoped to one simple command so flags past `&&`/`;`/`|`
   // can't leak. `-f` skips `-n`/`--dry-run` previews; `-D` skips safe `-d`.
   if (
@@ -74,12 +82,15 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   }
   if (
     /https?:\/\//i.test(text) ||
-    /\b(?:curl|wget|scp|rsync|sftp|ssh(?!-)|nc|ncat|socat|aria2c|telnet)\b/i.test(text) ||
+    /\b(?:curl|wget|scp|rsync|sftp|ssh(?!-)|nc|ncat|socat|aria2c|telnet|Invoke-WebRequest|Invoke-RestMethod)\b/i.test(
+      text
+    ) ||
     /\bgit\s+(?:push|fetch|pull|clone)\b/i.test(text)
   ) {
     effects.add('network')
   }
-  if (/\bgit\s+push\b/i.test(text)) {
+  // Dry runs contact the remote but change nothing, so they keep `network` above.
+  if (/\bgit\s+push\b(?![^;&|]*--dry-run)(?![^;&|]*\s-[a-zA-Z]*n)/i.test(text)) {
     effects.add('irreversible')
   }
 
