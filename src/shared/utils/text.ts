@@ -20,3 +20,13 @@ export function clampSurrogateBoundary(text: string, index: number): number {
   }
   return index
 }
+
+/**
+ * Replace lone surrogates with U+FFFD. A split pair (or pasted ill-formed
+ * text) serializes as a `\ud800`-style escape that strict JSON parsers
+ * (serde_json) reject, failing the whole provider request — see #20476.
+ * Well-formed pairs pass through untouched.
+ */
+export function replaceLoneSurrogates(text: string): string {
+  return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD')
+}
