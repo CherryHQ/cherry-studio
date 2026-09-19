@@ -71,7 +71,7 @@ describe('server-tool model eligibility', () => {
       }
     })
 
-    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] } as unknown as Provider)).toBe(false)
+    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
   })
 
   it('lets an explicit disable override suppress registry-provided web search', () => {
