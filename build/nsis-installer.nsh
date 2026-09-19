@@ -170,3 +170,14 @@
     Pop $1
     Pop $0
 !macroend
+
+; Keep port/name in sync with API_GATEWAY_LAN_PORT / API_GATEWAY_LAN_FIREWALL_RULE_NAME
+; in src/shared/utils/apiGateway.ts (stable LAN pairing listener — not OS-assigned).
+!macro customInstall
+  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Cherry Studio LAN Pairing"'
+  nsExec::ExecToLog 'netsh advfirewall firewall add rule name="Cherry Studio LAN Pairing" dir=in action=allow protocol=TCP localport=23334 profile=any'
+!macroend
+
+!macro customUnInstall
+  nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="Cherry Studio LAN Pairing"'
+!macroend

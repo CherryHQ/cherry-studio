@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ANTIGRAVITY_MODEL_PATH_SEPARATOR, formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import {
+  ANTIGRAVITY_MODEL_PATH_SEPARATOR,
+  API_GATEWAY_LAN_PORT,
+  formatGatewayModelId,
+  gatewayClientOrigin
+} from '@shared/utils/apiGateway'
 
 /** The gateway proxy's parse side (proxyStream.ts): split on the FIRST ':'. */
 function parseByFirstColon(gatewayModelId: string): { providerId: string; modelId: string } {
@@ -50,6 +55,13 @@ describe('formatGatewayModelId', () => {
   it('round-trips an apiModelId that itself contains the Antigravity separator', () => {
     const id = formatGatewayModelId('provider-a', 'models/gemini-flash')
     expect(parseAntigravityPath(id)).toEqual({ providerId: 'provider-a', modelId: 'models/gemini-flash' })
+  })
+})
+
+describe('API_GATEWAY_LAN_PORT', () => {
+  it('is a fixed non-zero port so a durable firewall rule can cover LAN pairing', () => {
+    // Catches regressing LAN listen back to OS-assigned port 0 (#20736).
+    expect(API_GATEWAY_LAN_PORT).toBe(23334)
   })
 })
 

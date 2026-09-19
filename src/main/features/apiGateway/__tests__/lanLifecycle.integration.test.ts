@@ -26,6 +26,10 @@ vi.mock('node:os', async (importOriginal) => ({
   networkInterfaces: () => ({ en0: [{ address: '192.168.1.8', family: 'IPv4', internal: false }] })
 }))
 
+vi.mock('../windowsLanFirewall', () => ({
+  ensureWindowsLanFirewallRule: vi.fn(async () => 'skipped' as const)
+}))
+
 // Keep real listening sockets and a live response; AI generation is irrelevant to listener isolation.
 vi.mock('../app', async () => {
   const { Elysia } = await import('elysia')

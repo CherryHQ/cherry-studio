@@ -144,10 +144,13 @@ session.
 ### LAN exposure is confined to pairing + export
 
 The local gateway keeps its configured port (default `23333`) on loopback.
-Enabling LAN access starts a separate `ApiGateway` listener on `0.0.0.0` with an
-OS-assigned port; the pairing offer reports that actual port. Disabling LAN
-closes only that listener and invalidates its pairing code. Existing local
-streams and new local requests continue on the original listener.
+Enabling LAN access starts a separate `ApiGateway` listener on `0.0.0.0` at the
+stable port `API_GATEWAY_LAN_PORT` (`23334`); the pairing offer reports that
+port. On Windows the NSIS installer and LAN enable path ensure an inbound
+Firewall allow rule for that port so Public/Block profiles do not silently drop
+pairing. Disabling LAN closes only that listener and invalidates its pairing
+code. Existing local streams and new local requests continue on the original
+listener.
 
 Both listeners reuse `buildApp()`. A root `onRequest` guard (`lanGuard.ts`)
 screens each request by its socket peer: loopback and in-process callers are
@@ -345,7 +348,7 @@ already-consumed QR code in every settings window.
 |---|---|---|---|
 | `feature.api_gateway.enabled` | `boolean` | `false` | Auto-start on launch / toggled from settings |
 | `feature.api_gateway.host` | `string` | `'127.0.0.1'` | `0.0.0.0` requests the separate LAN listener; the local listener stays on loopback |
-| `feature.api_gateway.port` | `number` | `23333` | Local TCP port (UI clamps 1000–65535); LAN uses an OS-assigned port |
+| `feature.api_gateway.port` | `number` | `23333` | Local TCP port (UI clamps 1000–65535); LAN uses fixed `API_GATEWAY_LAN_PORT` (`23334`), which must differ from this value |
 | `feature.api_gateway.api_key` | `string \| null` | `null` | Auto-generated `cs-sk-<uuid>` on first activate |
 
 Migrated from v1 `redux/settings/apiServer.{enabled,host,port,apiKey}` via the
