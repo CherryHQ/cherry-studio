@@ -70,15 +70,9 @@ export async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntr
     try {
       await fsRemove(physical)
     } catch (err) {
-      // Include `physical` so operators can grep / `ls` the leak directly.
-      // The DB row is already gone by this point, so without the path here
-      // the only way to locate the orphan blob is to reconstruct it from
-      // `id` + the (since-removed) DB row's `ext` — exactly the dance the
-      // operator would otherwise have to do at incident time.
       logger.warn('permanentDelete: failed to unlink internal physical file (DB row already removed)', {
         id: entry.id,
-        physical,
-        err
+        code: (err as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
       })
       return { unlinkFailed: true }
     }
