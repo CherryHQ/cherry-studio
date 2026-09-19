@@ -55,6 +55,8 @@ function useTooltipUnmountDelay(open: boolean): boolean {
 const TOOLTIP_SWEEP_DELAY_MS = TOOLTIP_EXIT_ANIMATION_MS + 50
 /** open 态重检周期：打开的内容无法仅凭 data-state 区分活实例与残骸，需周期性核对 trigger 引用。 */
 export const STALE_OPEN_SWEEP_MS = 3000
+/** 清扫目标：本组件门控渲染且带清扫标记的内容（原生属性查询，避免逐元素 JS 判定）。 */
+const SWEEPABLE_CONTENT_SELECTOR = '[data-slot="tooltip-content"][data-tooltip-sweepable]'
 
 /**
  * 受控 + 挂载生命周期：受控（controlledOpen 非空）时外部权威、内部状态不参与；
@@ -67,6 +69,12 @@ function useTooltipController(
   disabled = false
 ) {
   const [innerOpen, setInnerOpen] = React.useState(controlledOpen ?? defaultOpen)
+  const [wasControlled, setWasControlled] = React.useState(controlledOpen != null)
+  if (wasControlled !== (controlledOpen != null)) {
+    setWasControlled(controlledOpen != null)
+    // 受控期间内部态不更新，切回非受控时必须复位，否则会复活切换前的陈旧 open
+    if (controlledOpen == null) setInnerOpen(false)
+  }
   const effectiveOpen = controlledOpen != null ? controlledOpen : disabled ? false : innerOpen
   const contentVisible = useTooltipUnmountDelay(effectiveOpen)
   // disabled 早退后组件仍挂载，内部打开态必须复位，否则重新启用时会不经 hover 直接打开
@@ -86,9 +94,9 @@ function useTooltipController(
 /**
  * 孤儿清扫器（模块级，单例）：Radix portal content 在重挂风暴中可能失去 React owner 而
  * 永久残留。closed 连续存活超过清扫延迟即移除；open 态（instant-open/delayed-open）无法
- * 仅凭 data-state 区分活实例与残骸，周期性核对 trigger 引用（Radix 打开时 trigger 的
- * aria-describedby 指向 content 内 role=tooltip span 的 id；残骸无任何引用）：超过一个
- * 重检周期仍无引用即移除，仍被引用则续期。不依赖任何实例生命周期（实例卸载会取消其
+ * 仅凭 data-state 区分活实例与残骸，周期性核对「仍被 floating-ui 定位」且「trigger 仍通过
+ * aria-describedby 引用 content 内 role=tooltip span 的 id」两个存活特征：超过一个重检
+ * 周期两者皆无才移除，任一存在则续期。不依赖任何实例生命周期（实例卸载会取消其
  * timer，故清扫必须与实例生命周期解耦）。只清扫渲染时带 data-tooltip-sweepable 的内容
  * （即本组件非显式 forceMount 的门控渲染内容）；显式 forceMount 内容由用户持有，不受影响。
  */
@@ -102,11 +110,22 @@ function setupTooltipOrphanSweeper(): void {
   const hasActiveAriaReference = (tooltipId: string): boolean => {
     const selector = `[aria-describedby~="${CSS.escape(tooltipId)}"]`
     if (document.querySelector(selector)) return true
-    for (const ref of shadowRoots) {
-      const root = ref.deref()
-      if (root?.isConnected && root.querySelector(selector)) return true
+    for (let i = shadowRoots.length - 1; i >= 0; i--) {
+      const root = shadowRoots[i].deref()
+      // 顺带压缩死引用：WeakRef 清理不会缩短数组，索引必须自己收缩
+      if (!root) {
+        shadowRoots.splice(i, 1)
+        continue
+      }
+      if (root.isConnected && root.querySelector(selector)) return true
     }
     return false
+  }
+  /** 内容是否脱离 popper 定位：活实例恒被 floating-ui 定位（wrapper 保有 transform），
+   * popper 失去 floating 元素时该 transform 会被移除；删除中断（React 抛错）的残骸不在覆盖内。 */
+  const isUnpositioned = (node: Element): boolean => {
+    const wrapper = node.parentElement
+    return !wrapper?.hasAttribute('data-radix-popper-content-wrapper') || !wrapper.style.transform
   }
   const cancelPending = (node: Element) => {
     const previous = pending.get(node)
@@ -152,7 +171,8 @@ function setupTooltipOrphanSweeper(): void {
           const tooltipIds = Array.from(node.querySelectorAll<HTMLElement>('[role="tooltip"][id]'))
             .map((el) => el.id)
             .filter(Boolean)
-          if (tooltipIds.length > 0 && tooltipIds.every((id) => !hasActiveAriaReference(id))) {
+          // 仍被定位即活实例；不能只看 aria 引用——trigger 自带 aria-describedby 会覆盖 Radix 的引用
+          if (tooltipIds.length > 0 && isUnpositioned(node) && tooltipIds.every((id) => !hasActiveAriaReference(id))) {
             pending.delete(node)
             node.remove()
             return
@@ -182,43 +202,27 @@ function setupTooltipOrphanSweeper(): void {
         if (!isElement && element.nodeType !== 11) continue // 元素或 DocumentFragment（其子树整体追加）
         // content 内部元素（arrow/svg/文本）的 churn 与关闭判定无关
         if (isElement && element.parentElement?.getAttribute('data-slot') === 'tooltip-content') continue
-        if (isElement) {
-          if (
-            element.getAttribute('data-slot') === 'tooltip-content' &&
-            element.hasAttribute('data-tooltip-sweepable')
-          ) {
-            maybeSweep(element)
-            continue
-          }
-          // body 观察无法穿透 shadow boundary：宿主若已挂 shadow root，连其内容一并纳入清扫
-          if (element.shadowRoot) {
-            scanShadowTree(element.shadowRoot)
-          }
+        // 一条原生属性查询取代逐元素 JS 遍历：大子树挂载时不再做 O(子树) 的 JS 工作
+        if (isElement && element.matches(SWEEPABLE_CONTENT_SELECTOR)) maybeSweep(element)
+        for (const target of element.querySelectorAll(SWEEPABLE_CONTENT_SELECTOR)) {
+          maybeSweep(target)
         }
-        // 后代中的 content 与已挂 shadow root 的嵌套宿主（wrapper 一次性插入时宿主不是 added node）
-        for (const descendant of element.querySelectorAll('*')) {
-          if (
-            descendant.getAttribute('data-slot') === 'tooltip-content' &&
-            descendant.hasAttribute('data-tooltip-sweepable')
-          ) {
-            maybeSweep(descendant)
-          } else if (descendant.shadowRoot) {
-            scanShadowTree(descendant.shadowRoot)
-          }
+        // shadow 宿主没有对应选择器，只查节点自身与直接子级（宿主随深层子树一并插入不在支持范围）
+        if (isElement && element.shadowRoot) scanShadowTree(element.shadowRoot)
+        for (const child of element.children) {
+          if (child.shadowRoot) scanShadowTree(child.shadowRoot)
         }
       }
     }
   })
-  // 递归下钻 shadow 树：shadowA 内再嵌宿主 hostB(shadowB) 时，观察与 querySelectorAll 都不穿透
-  // 边界，需逐层扫描并观察。DOM 树无环，递归深度 = shadow 嵌套深度，实际极浅。
+  // shadow 边界不穿透：已挂 root 的宿主连同其内容一并纳入观察，嵌套宿主逐层递归
   function scanShadowTree(root: ShadowRoot): void {
     ensureObserved(root)
-    for (const el of root.querySelectorAll('*')) {
-      if (el.getAttribute('data-slot') === 'tooltip-content' && el.hasAttribute('data-tooltip-sweepable')) {
-        maybeSweep(el)
-      } else if (el.shadowRoot) {
-        scanShadowTree(el.shadowRoot)
-      }
+    for (const el of root.querySelectorAll(SWEEPABLE_CONTENT_SELECTOR)) {
+      maybeSweep(el)
+    }
+    for (const child of root.children) {
+      if (child.shadowRoot) scanShadowTree(child.shadowRoot)
     }
   }
   function ensureObserved(root: Document | ShadowRoot): void {

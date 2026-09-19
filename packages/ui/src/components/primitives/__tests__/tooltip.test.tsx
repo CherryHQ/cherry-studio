@@ -5,16 +5,12 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import {
-  NormalTooltip,
-  STALE_OPEN_SWEEP_MS,
-  Tooltip,
-  TOOLTIP_EXIT_ANIMATION_MS,
-  TooltipContent,
-  TooltipProvider,
-  TooltipRoot,
-  TooltipTrigger
-} from '../tooltip'
+import { NormalTooltip, Tooltip, TooltipContent, TooltipProvider, TooltipRoot, TooltipTrigger } from '../tooltip'
+
+// 时序契约（独立字面量，刻意不复用生产常量）：缩短契约必须改这里并让测试显式失败
+const EXIT_WINDOW_MS = 150
+const SWEEP_DELAY_MS = 200
+const OPEN_RECHECK_MS = 3000
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -327,7 +323,7 @@ describe('Tooltip', () => {
         expect(screen.getByRole('tooltip')).toBeInTheDocument()
 
         act(() => {
-          vi.advanceTimersByTime(TOOLTIP_EXIT_ANIMATION_MS + 10)
+          vi.advanceTimersByTime(EXIT_WINDOW_MS + 10)
         })
         expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
       } finally {
@@ -358,7 +354,7 @@ describe('Tooltip', () => {
           </Tooltip>
         )
         act(() => {
-          vi.advanceTimersByTime(TOOLTIP_EXIT_ANIMATION_MS + 10)
+          vi.advanceTimersByTime(EXIT_WINDOW_MS + 10)
         })
         expect(screen.getByRole('tooltip')).toBeInTheDocument()
       } finally {
@@ -402,7 +398,7 @@ describe('Tooltip', () => {
         expect(screen.getByRole('tooltip')).toBeInTheDocument()
         fireEvent.pointerDown(screen.getByText('Trigger'))
         act(() => {
-          vi.advanceTimersByTime(TOOLTIP_EXIT_ANIMATION_MS + TOOLTIP_EXIT_ANIMATION_MS + 100)
+          vi.advanceTimersByTime(EXIT_WINDOW_MS + EXIT_WINDOW_MS + 100)
         })
         expect(handleOpenChange).toHaveBeenCalledWith(false)
         expect(screen.getByRole('tooltip')).toBeInTheDocument()
@@ -447,12 +443,12 @@ describe('Tooltip', () => {
 
         // 退出窗口内（<清扫延迟）不删
         act(() => {
-          vi.advanceTimersByTime(160)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS - 40)
         })
         expect(document.body.contains(ghost)).toBe(true)
         // 超过清扫延迟后移除
         act(() => {
-          vi.advanceTimersByTime(100)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS / 2)
         })
         expect(document.body.contains(ghost)).toBe(false)
       } finally {
@@ -481,7 +477,7 @@ describe('Tooltip', () => {
         expect(elsewhere.contains(content)).toBe(true)
 
         act(() => {
-          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS + 100)
+          vi.advanceTimersByTime(OPEN_RECHECK_MS + 100)
         })
         // open 态残骸无 trigger 引用 → 清扫
         expect(elsewhere.contains(content)).toBe(false)
@@ -506,7 +502,7 @@ describe('Tooltip', () => {
 
         // 重检周期内不清扫
         act(() => {
-          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS - 100)
+          vi.advanceTimersByTime(OPEN_RECHECK_MS - 100)
         })
         expect(document.body.contains(ghost)).toBe(true)
         // 周期到仍无任何 trigger 引用 → 移除
@@ -519,7 +515,7 @@ describe('Tooltip', () => {
       }
     })
 
-    it('does not sweep open content still referenced by its trigger', () => {
+    it('does not sweep open content still referenced by its trigger', async () => {
       vi.useFakeTimers()
       try {
         render(
@@ -529,14 +525,45 @@ describe('Tooltip', () => {
         )
         // Radix open 契约：trigger 的 aria-describedby 指向 content 内 role=tooltip span 的 id
         const trigger = document.querySelector('[data-slot="tooltip-trigger"]')
+        const content = document.querySelector('[data-slot="tooltip-content"]') as HTMLElement
         expect(trigger?.getAttribute('aria-describedby')).toBeTruthy()
+        // 不排空 MutationObserver 微任务则清扫 timer 未登记，断言恒真
+        await act(async () => {})
 
         act(() => {
-          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS * 2 + 100)
+          vi.advanceTimersByTime(OPEN_RECHECK_MS * 2 + 100)
         })
         // 引用仍在 → 续期重检而非清扫
+        expect(content.isConnected).toBe(true)
         expect(screen.getByRole('tooltip')).toBeInTheDocument()
         expect(trigger?.getAttribute('aria-describedby')).toBeTruthy()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not sweep live open content whose trigger carries its own aria-describedby', async () => {
+      vi.useFakeTimers()
+      try {
+        render(
+          <Tooltip content="own-desc-tip" isOpen={true} asChild>
+            <button type="button" aria-describedby="own-hint">
+              Trigger
+            </button>
+          </Tooltip>
+        )
+        // Slot 以 child props 优先：trigger 自带的 aria-describedby 会覆盖 Radix 的 contentId 引用，
+        // 因此判活不能只看该引用（否则活实例会被误判为残骸）
+        expect(document.querySelector('[data-slot="tooltip-trigger"]')?.getAttribute('aria-describedby')).toBe(
+          'own-hint'
+        )
+        const content = document.querySelector('[data-slot="tooltip-content"]') as HTMLElement
+        await act(async () => {})
+
+        act(() => {
+          vi.advanceTimersByTime(OPEN_RECHECK_MS * 2 + 100)
+        })
+        expect(content.isConnected).toBe(true)
       } finally {
         vi.useRealTimers()
       }
@@ -563,7 +590,7 @@ describe('Tooltip', () => {
         await act(async () => {})
 
         act(() => {
-          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS * 2 + 100)
+          vi.advanceTimersByTime(OPEN_RECHECK_MS * 2 + 100)
         })
         expect(shadow.contains(content)).toBe(true)
       } finally {
@@ -597,7 +624,7 @@ describe('Tooltip', () => {
         await act(async () => {})
 
         act(() => {
-          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS * 2 + 100)
+          vi.advanceTimersByTime(OPEN_RECHECK_MS * 2 + 100)
         })
         expect(shadowB.contains(content)).toBe(true)
       } finally {
@@ -640,7 +667,7 @@ describe('Tooltip', () => {
         ghost.removeAttribute('data-tooltip-sweepable')
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS + 200)
+          vi.advanceTimersByTime(OPEN_RECHECK_MS + 200)
         })
         expect(document.body.contains(ghost)).toBe(true)
         ghost.remove()
@@ -709,7 +736,7 @@ describe('Tooltip', () => {
         await act(async () => {}) // 排空 mutation 微任务，确保 stale-open 重检已登记
         // 活内容的 Radix span 仍被 trigger 引用；无关的 role=tooltip 不得触发清扫
         act(() => {
-          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS * 2 + 100)
+          vi.advanceTimersByTime(OPEN_RECHECK_MS * 2 + 100)
         })
         expect(document.querySelector('[data-slot="tooltip-content"]')).toBeInTheDocument()
       } finally {
@@ -769,7 +796,7 @@ describe('Tooltip', () => {
         }
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS * 2 + 100)
+          vi.advanceTimersByTime(OPEN_RECHECK_MS * 2 + 100)
         })
         for (const shadow of roots) {
           expect(shadow.querySelector('[data-slot="tooltip-content"]')).toBeInTheDocument()
@@ -798,7 +825,7 @@ describe('Tooltip', () => {
         document.body.appendChild(ghost)
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS + 200)
+          vi.advanceTimersByTime(OPEN_RECHECK_MS + 200)
         })
         expect(document.body.contains(ghost)).toBe(false)
       } finally {
@@ -841,13 +868,13 @@ describe('Tooltip', () => {
         await act(async () => {})
 
         act(() => {
-          vi.advanceTimersByTime(100)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS / 2)
         })
         // 退出窗口内重新打开 → 取消清扫
         ghost.setAttribute('data-state', 'open')
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(300)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS + 100)
         })
         expect(document.body.contains(ghost)).toBe(true)
         ghost.remove()
@@ -866,22 +893,22 @@ describe('Tooltip', () => {
         document.body.appendChild(ghost)
         await act(async () => {}) // close @t=0，sweep timer 排期 @t=200
         act(() => {
-          vi.advanceTimersByTime(50)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS / 4)
         })
         ghost.setAttribute('data-state', 'open') // reopen @t=50，旧 timer 应被取消
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(100)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS / 2)
         })
         ghost.setAttribute('data-state', 'closed') // 再 close @t=150，sweep 重新排期 @t=350
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(150)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS - 50)
         })
         // 第二轮退出窗口（150..300）内不得被旧 timer 提前删除
         expect(document.body.contains(ghost)).toBe(true)
         act(() => {
-          vi.advanceTimersByTime(100)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS)
         })
         expect(document.body.contains(ghost)).toBe(false)
       } finally {
@@ -904,7 +931,7 @@ describe('Tooltip', () => {
         shadow.appendChild(ghost)
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(300)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS + 100)
         })
         expect(shadow.contains(ghost)).toBe(false)
       } finally {
@@ -925,7 +952,7 @@ describe('Tooltip', () => {
         document.body.appendChild(host) // 插入时扫描 shadow 内既有 content
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(300)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS + 100)
         })
         expect(shadow.contains(ghost)).toBe(false)
       } finally {
@@ -948,7 +975,7 @@ describe('Tooltip', () => {
         document.body.appendChild(wrapper) // host 不是 added node，作为嵌套宿主必须被找到
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(300)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS + 100)
         })
         expect(shadow.contains(ghost)).toBe(false)
       } finally {
@@ -974,7 +1001,7 @@ describe('Tooltip', () => {
         document.body.appendChild(wrapper) // 插入时 hostB(shadowB) 已随 shadowA 预填 closed ghost
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(300)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS + 100)
         })
         expect(shadowB.contains(ghostB)).toBe(false)
         // shadowA 也被观察：插入后追加的 ghost 走同一 observer 的 childList 扫描
@@ -985,7 +1012,7 @@ describe('Tooltip', () => {
         shadowA.appendChild(ghostA)
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(300)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS + 100)
         })
         expect(shadowA.contains(ghostA)).toBe(false)
       } finally {
@@ -1005,7 +1032,7 @@ describe('Tooltip', () => {
         document.body.appendChild(fragment)
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(300)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS + 100)
         })
         expect(document.body.contains(ghost)).toBe(false)
       } finally {
@@ -1060,7 +1087,7 @@ describe('Tooltip', () => {
           </Tooltip>
         )
         act(() => {
-          vi.advanceTimersByTime(300)
+          vi.advanceTimersByTime(SWEEP_DELAY_MS + 100)
         })
         expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
 
@@ -1075,21 +1102,61 @@ describe('Tooltip', () => {
       }
     })
 
-    it('sweeps ghosts rendered into a custom portal container', async () => {
+    it('keeps a live tooltip in a custom portal container and sweeps its remnant', async () => {
       vi.useFakeTimers()
       try {
         const elsewhere = document.createElement('div')
+        const nested = document.createElement('div')
+        elsewhere.appendChild(nested)
         document.body.appendChild(elsewhere)
-        const ghost = document.createElement('div')
-        ghost.setAttribute('data-slot', 'tooltip-content')
-        ghost.setAttribute('data-tooltip-sweepable', '')
-        ghost.setAttribute('data-state', 'closed')
-        elsewhere.appendChild(ghost)
+        const view = render(
+          <Tooltip content="portal-tip" isOpen={true} portalContainer={elsewhere}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        // 公共 portalContainer 路径：内容确实渲染到自定义容器，且跨重检周期不被误扫
+        const content = elsewhere.querySelector('[data-slot="tooltip-content"]') as HTMLElement
+        expect(content).toBeInTheDocument()
+        expect(content.closest('[data-radix-popper-content-wrapper]')).toBeInTheDocument()
         await act(async () => {})
         act(() => {
-          vi.advanceTimersByTime(300)
+          vi.advanceTimersByTime(OPEN_RECHECK_MS + 100)
         })
-        expect(elsewhere.contains(ghost)).toBe(false)
+        expect(content.isConnected).toBe(true)
+
+        // 内容移出 React 管理的 portal 父级后再卸载 → React 静默跳过移除，留下真实残骸
+        nested.appendChild(content)
+        view.unmount()
+        expect(nested.contains(content)).toBe(true)
+        act(() => {
+          vi.advanceTimersByTime(OPEN_RECHECK_MS + 100)
+        })
+        expect(nested.contains(content)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not resurrect open state when switching from controlled back to uncontrolled', () => {
+      vi.useFakeTimers()
+      try {
+        const view = render(
+          <Tooltip content="ctrl-tip" isOpen={true}>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        expect(screen.getByRole('tooltip')).toBeInTheDocument()
+
+        view.rerender(
+          <Tooltip content="ctrl-tip">
+            <button type="button">Trigger</button>
+          </Tooltip>
+        )
+        act(() => {
+          vi.advanceTimersByTime(EXIT_WINDOW_MS + 10)
+        })
+        // 交接后不得复用受控期间未更新的内部 open（需要新的 hover 交互才可再次打开）
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
       } finally {
         vi.useRealTimers()
       }
