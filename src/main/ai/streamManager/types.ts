@@ -86,7 +86,13 @@ export interface StreamListener {
   /** Orders terminal persistence before notifications and cleanup work after them. */
   readonly terminalPhase?: 'persistence' | 'cleanup'
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void
+  onChunk(
+    chunk: UIMessageChunk,
+    sourceModelId?: UniqueModelId,
+    anchorMessageId?: string,
+    attemptId?: number,
+    seq?: number
+  ): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>
@@ -133,6 +139,8 @@ export interface StreamExecution {
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
    *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
   pendingApprovalToolCallIds?: Set<string>
+  /** `tool-input-start` toolCallIds with no terminal output yet. Their openers skip ring eviction so attach replay keeps the live handoff parseable. */
+  openToolInputIds?: Set<string>
   /** Approval ids already published during this execution. */
   publishedApprovalIds?: Set<string>
   error?: SerializedError
@@ -164,6 +172,12 @@ export interface ActiveStream {
   topicId: string
   /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
   turnId: string
+  /**
+   * Next per-topic chunk index. Assigned at ingest so buffer entries, the
+   * attach snapshot, and live broadcasts share one ordering a re-attaching
+   * renderer can de-duplicate against.
+   */
+  nextChunkSeq: number
   /** Key = `UniqueModelId`. */
   executions: Map<UniqueModelId, StreamExecution>
   /** Shared across all executions. Key = `listener.id`. */
