@@ -180,6 +180,15 @@ export default defineConfig({
             'packages/ui/src/**/__tests__/**/*.{test,spec}.{ts,tsx}'
           ]
         }
+      },
+      // system-speech 包单元测试配置
+      {
+        extends: true,
+        test: {
+          name: 'system-speech',
+          environment: 'node',
+          include: ['packages/system-speech/tests/**/*.test.ts', 'packages/system-speech/validation/**/*.test.ts']
+        }
       }
     ],
     // 全局共享配置
