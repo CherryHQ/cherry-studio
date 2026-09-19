@@ -14,7 +14,7 @@ import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
-import { autoDiscoverGitBash } from '@main/utils/commandResolver'
+import { resolveWindowsAgentShell } from '@main/utils/commandResolver'
 import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -148,7 +148,10 @@ export async function buildEnvironment(
 ): Promise<Record<string, string | undefined>> {
   const proxyEnvironment = getProxyEnvironment(process.env)
   const loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
-  const customGitBashPath = isWin ? autoDiscoverGitBash() : null
+  const windowsShell = isWin ? resolveWindowsAgentShell(loginShellEnv) : null
+  if (windowsShell?.kind === 'unavailable') {
+    throw new Error(windowsShell.reason)
+  }
   const bunPath = await getBinaryPath('bun')
 
   // API key and base URL are injected by the agent-session runtime query builder.
@@ -177,6 +180,13 @@ export async function buildEnvironment(
   const sonnetApiModelId = resolveApiModelId(sonnetProviderId, sonnetModelId)
   const haikuApiModelId = resolveApiModelId(haikuProviderId, haikuModelId)
 
+  const windowsShellEnv: Record<string, string> =
+    windowsShell?.kind === 'git-bash'
+      ? { CLAUDE_CODE_GIT_BASH_PATH: windowsShell.path }
+      : windowsShell?.kind === 'powershell'
+        ? { CLAUDE_CODE_USE_POWERSHELL_TOOL: '1', POWERSHELL_TELEMETRY_OPTOUT: '1' }
+        : {}
+
   const env: Record<string, string | undefined> = {
     ...loginShellEnv,
     ...proxyEnvironment,
@@ -202,7 +212,7 @@ export async function buildEnvironment(
     CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
     CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
-    ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
+    ...windowsShellEnv
   }
 
   // Merge user-defined env vars with blocked list
@@ -222,6 +232,8 @@ export async function buildEnvironment(
       'CLAUDE_CODE_USE_BEDROCK',
       'CLAUDE_CODE_USE_VERTEX',
       'CLAUDE_CODE_GIT_BASH_PATH',
+      'CLAUDE_CODE_USE_POWERSHELL_TOOL',
+      'POWERSHELL_TELEMETRY_OPTOUT',
       'ENABLE_TOOL_SEARCH',
       'CHERRY_STUDIO_NODE_PROXY_RULES',
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',

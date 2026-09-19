@@ -223,7 +223,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     agentsMdLoader,
     await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? []),
-    options?.supportsImages !== false
+    options?.supportsImages !== false,
+    env
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -445,7 +446,8 @@ async function buildToolPermissions(
   agentDataPath: string,
   agentsMdLoader: AgentsMdLoader,
   pluginDirectories: ReadonlyMap<string, string>,
-  supportsImages: boolean
+  supportsImages: boolean,
+  env: Record<string, string | undefined>
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -592,10 +594,19 @@ async function buildToolPermissions(
     agentsMdLoader
   })
 
+  const disallowedTools = resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext)
+  // PowerShell mode replaces Bash — keep the SDK Bash tool out of the model context so it cannot
+  // emit Bash calls that would fail with "Git Bash not found" after we enabled PowerShell.
+  if (env.CLAUDE_CODE_USE_POWERSHELL_TOOL === '1') {
+    for (const name of ['Bash', 'builtin_Bash'] as const) {
+      if (!disallowedTools.includes(name)) disallowedTools.push(name)
+    }
+  }
+
   return {
     canUseTool,
     hooks,
-    disallowedTools: resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
+    disallowedTools,
     toolPolicySnapshot
   }
 }

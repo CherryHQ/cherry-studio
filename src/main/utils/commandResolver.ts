@@ -287,7 +287,7 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
   // Uses getCommonGitRoots() which includes ProgramFiles, ProgramFiles(x86), and LOCALAPPDATA
   if (name === 'git') {
     for (const root of getCommonGitRoots()) {
-      const gitPath = path.join(root, 'cmd', 'git.exe')
+      const gitPath = path.win32.join(root, 'cmd', 'git.exe')
       if (fs.existsSync(gitPath)) {
         logger.debug(`Found ${name} at common path`, { path: gitPath })
         return gitPath
@@ -440,18 +440,22 @@ export async function findExecutableInEnv(
  */
 function getCommonGitRoots(): string[] {
   return [
-    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git'),
-    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
-    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
+    path.win32.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git'),
+    path.win32.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
+    ...(process.env.LOCALAPPDATA ? [path.win32.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
   ]
 }
 
 /**
  * Find Git Bash (bash.exe) on Windows
  * @param customPath - Optional custom path from config
+ * @param env - PATH source for discovery; defaults to process.env (stale for packaged GUI apps)
  * @returns Full path to bash.exe or null if not found
  */
-export function findGitBash(customPath?: string | null): string | null {
+export function findGitBash(
+  customPath?: string | null,
+  env: Record<string, string | undefined> = process.env
+): string | null {
   // Git Bash is Windows-only
   if (!isWin) {
     return null
@@ -468,7 +472,7 @@ export function findGitBash(customPath?: string | null): string | null {
   }
 
   // 2. Check environment variable override
-  const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+  const envOverride = env.CLAUDE_CODE_GIT_BASH_PATH ?? process.env.CLAUDE_CODE_GIT_BASH_PATH
   if (envOverride) {
     const validated = validateGitBashPath(envOverride)
     if (validated) {
@@ -478,19 +482,19 @@ export function findGitBash(customPath?: string | null): string | null {
     logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
-  // 3. Find git.exe via findExecutable (checks PATH + common Git install paths)
-  const gitPath = findExecutable('git')
+  // 3. Find git.exe via findExecutable (login/registry PATH + common Git install paths)
+  const gitPath = findExecutable('git', { env: env as Record<string, string> })
   if (gitPath) {
     // Derive bash.exe from git.exe location
     // Different Git installations have different directory structures
     const possibleBashPaths = [
-      path.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard Git: git.exe at Git/cmd/ -> navigate up 2 levels -> then bin/bash.exe
-      path.join(gitPath, '..', 'bash.exe'), // Portable Git: git.exe at Git/bin/ -> bash.exe in same directory
-      path.join(gitPath, '..', '..', 'usr', 'bin', 'bash.exe') // MSYS2 Git: git.exe at msys64/usr/bin/ -> navigate up 2 levels -> then usr/bin/bash.exe
+      path.win32.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard Git: git.exe at Git/cmd/ -> navigate up 2 levels -> then bin/bash.exe
+      path.win32.join(gitPath, '..', 'bash.exe'), // Portable Git: git.exe at Git/bin/ -> bash.exe in same directory
+      path.win32.join(gitPath, '..', '..', 'usr', 'bin', 'bash.exe') // MSYS2 Git: git.exe at msys64/usr/bin/ -> navigate up 2 levels -> then usr/bin/bash.exe
     ]
 
     for (const bashPath of possibleBashPaths) {
-      const resolvedBashPath = path.resolve(bashPath)
+      const resolvedBashPath = path.win32.resolve(bashPath)
       if (fs.existsSync(resolvedBashPath)) {
         logger.debug('Found bash.exe via git.exe path derivation', { path: resolvedBashPath })
         return resolvedBashPath
@@ -499,13 +503,13 @@ export function findGitBash(customPath?: string | null): string | null {
 
     logger.debug('bash.exe not found at expected locations relative to git.exe', {
       gitPath,
-      checkedPaths: possibleBashPaths.map((p) => path.resolve(p))
+      checkedPaths: possibleBashPaths.map((p) => path.win32.resolve(p))
     })
   }
 
   // 4. Fallback: check common Git installation paths directly
   for (const root of getCommonGitRoots()) {
-    const fullPath = path.join(root, 'bin', 'bash.exe')
+    const fullPath = path.win32.join(root, 'bin', 'bash.exe')
     if (fs.existsSync(fullPath)) {
       logger.debug('Found bash.exe at common path', { path: fullPath })
       return fullPath
@@ -545,15 +549,18 @@ export function validateGitBashPath(customPath?: string | null): string | null {
  *
  * Precedence order:
  * 1. CLAUDE_CODE_GIT_BASH_PATH environment variable (runtime override)
- * 2. Auto-discovery via findGitBash
+ * 2. Auto-discovery via findGitBash (using `env` PATH when provided)
+ *
+ * Pass the login/registry env from `getShellEnv()` — packaged Electron's
+ * `process.env.Path` is often stale and misses Scoop/user installs.
  */
-export function autoDiscoverGitBash(): string | null {
+export function autoDiscoverGitBash(env: Record<string, string | undefined> = process.env): string | null {
   if (!isWin) {
     return null
   }
 
   // 1. Check environment variable override first (highest priority)
-  const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+  const envOverride = env.CLAUDE_CODE_GIT_BASH_PATH ?? process.env.CLAUDE_CODE_GIT_BASH_PATH
   if (envOverride) {
     const validated = validateGitBashPath(envOverride)
     if (validated) {
@@ -563,10 +570,73 @@ export function autoDiscoverGitBash(): string | null {
     logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
-  // 2. Auto-discovery
-  const discoveredPath = findGitBash()
+  // 2. Auto-discovery against the provided PATH (login/registry when callers supply it)
+  const discoveredPath = findGitBash(null, env)
   if (discoveredPath) {
     logger.debug('Auto-discovered Git Bash path', { path: discoveredPath })
   }
   return discoveredPath
+}
+
+/**
+ * Locate Windows PowerShell (powershell.exe) for Claude Code's PowerShell tool mode.
+ * Prefers PATH hits from `env`, then the system Windows PowerShell install under SystemRoot.
+ */
+export function findPowerShell(env: Record<string, string | undefined> = process.env): string | null {
+  if (!isWin) {
+    return null
+  }
+
+  const fromPath = findExecutable('powershell', { env: env as Record<string, string>, extensions: ['.exe'] })
+  if (fromPath) {
+    logger.debug('Found powershell.exe on PATH', { path: fromPath })
+    return fromPath
+  }
+
+  const systemRoot = env.SystemRoot || env.SYSTEMROOT || process.env.SystemRoot || 'C:\\Windows'
+  const candidates = [
+    path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    path.win32.join(systemRoot, 'SysWOW64', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+  ]
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      logger.debug('Found system powershell.exe', { path: candidate })
+      return candidate
+    }
+  }
+
+  return null
+}
+
+export type WindowsAgentShell =
+  | { kind: 'git-bash'; path: string }
+  | { kind: 'powershell'; path: string }
+  | { kind: 'unavailable'; reason: string }
+
+/**
+ * Resolve the Windows shell Claude Code should use for agent sessions.
+ * Git Bash is preferred; system PowerShell is the supported alternate when Git
+ * Bash is absent. When neither resolves, returns an actionable reason — callers
+ * must not start a session that silently has no shell tool.
+ */
+export function resolveWindowsAgentShell(env: Record<string, string | undefined> = process.env): WindowsAgentShell {
+  if (!isWin) {
+    return { kind: 'unavailable', reason: 'Windows agent shell resolution is only valid on Windows' }
+  }
+
+  const gitBashPath = autoDiscoverGitBash(env)
+  if (gitBashPath) {
+    return { kind: 'git-bash', path: gitBashPath }
+  }
+
+  const powershellPath = findPowerShell(env)
+  if (powershellPath) {
+    return { kind: 'powershell', path: powershellPath }
+  }
+
+  return {
+    kind: 'unavailable',
+    reason:
+      'No Windows shell is available for Agent tools. Install Git for Windows (or set CLAUDE_CODE_GIT_BASH_PATH to bash.exe), or ensure Windows PowerShell is installed at %SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe. Without a shell, Bash/PowerShell tools and shell-dependent skills cannot run.'
+  }
 }
