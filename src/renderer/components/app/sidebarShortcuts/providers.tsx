@@ -140,7 +140,9 @@ const appProvider: SidebarShortcutProvider = {
     gateway.openWorkspace({
       url,
       title: i18n.t(getSidebarIconLabelKey(id)),
-      matchesCurrent: (currentUrl) => this.isActive!(target, { url: currentUrl })
+      matchesCurrent: (currentUrl) => this.isActive!(target, { url: currentUrl }),
+      // App entries have no resource identity: always replace the active tab, never focus a sibling.
+      matchesTab: () => false
     })
   },
   subscribe: (_targets, invalidate) => languageSubscription(invalidate),

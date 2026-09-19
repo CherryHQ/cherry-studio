@@ -178,6 +178,92 @@ describe('sidebar conversation navigation', () => {
     expect(tabs.openTab).not.toHaveBeenCalled()
   })
 
+  it.each(['translate', 'notes'])(
+    'repurposes the active tab for the %s app shortcut even when a sibling tab has its exact URL',
+    async (appId) => {
+      const tabs = tabContext([
+        { id: 'current', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat' },
+        { id: 'sibling', type: 'route', url: `/app/${appId}`, title: appId }
+      ])
+      const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+      const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+      const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.app')!
+
+      await act(async () => provider.activate(createSidebarShortcutTarget('core.app', appId), result.current))
+
+      expect(tabs.updateTab).toHaveBeenCalledWith('current', expect.objectContaining({ url: `/app/${appId}` }))
+      expect(tabs.setActiveTab).not.toHaveBeenCalled()
+    }
+  )
+
+  it('opens a new tab for an app shortcut instead of focusing a sibling when the active tab is pinned', async () => {
+    const tabs = tabContext([
+      { id: 'current', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat', isPinned: true },
+      { id: 'sibling', type: 'route', url: '/app/translate', title: 'Translate' }
+    ])
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+    const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.app')!
+
+    await act(async () => provider.activate(createSidebarShortcutTarget('core.app', 'translate'), result.current))
+
+    expect(tabs.openTab).toHaveBeenCalledWith('/app/translate', expect.objectContaining({ forceNew: true }))
+    expect(tabs.setActiveTab).not.toHaveBeenCalled()
+    expect(tabs.updateTab).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['core.mini-app', 'one', '/app/mini-app/one'],
+    ['core.knowledge-base', 'one', '/app/knowledge?baseId=one'],
+    [
+      'core.file-entry',
+      '11111111-1111-4111-8111-111111111111',
+      '/app/files?entryId=11111111-1111-4111-8111-111111111111'
+    ]
+  ] as const)('focuses the open tab for %s', async (providerId, resourceId, url) => {
+    const tabs = tabContext([
+      { id: 'current', type: 'route', url: '/app/code', title: 'Code' },
+      { id: 'open', type: 'route', url, title: 'Open' }
+    ])
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+    const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === providerId)!
+
+    await act(async () => provider.activate(createSidebarShortcutTarget(providerId, resourceId), result.current))
+
+    expect(tabs.setActiveTab).toHaveBeenCalledWith('open')
+    expect(tabs.updateTab).not.toHaveBeenCalled()
+    expect(tabs.openTab).not.toHaveBeenCalled()
+  })
+
+  it('does not rewrite the active tab when it already shows the shortcut resource', async () => {
+    const tabs = tabContext([{ id: 'current', type: 'route', url: '/app/knowledge?baseId=one', title: 'KB' }])
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+    const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.knowledge-base')!
+
+    await act(async () => provider.activate(createSidebarShortcutTarget('core.knowledge-base', 'one'), result.current))
+
+    expect(tabs.updateTab).not.toHaveBeenCalled()
+    expect(tabs.openTab).not.toHaveBeenCalled()
+  })
+
+  it('does not duplicate a pinned agent tab that already shows the agent entry', async () => {
+    MockDataApiUtils.setCustomResponse('/agent-sessions/latest', 'GET', { session: null })
+    const tabs = tabContext([
+      { id: 'current', type: 'route', url: '/app/agents?agentId=owner-1', title: 'Agent', isPinned: true }
+    ])
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+    const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.agent')!
+
+    await act(async () => provider.activate(createSidebarShortcutTarget('core.agent', 'owner-1'), result.current))
+
+    expect(tabs.openTab).not.toHaveBeenCalled()
+    expect(tabs.updateTab).not.toHaveBeenCalled()
+    MockDataApiUtils.resetMocks()
+  })
+
   it('focuses an open code tool tab matched by param rather than by string equality', async () => {
     const tabs = tabContext([
       { id: 'current', type: 'route', url: '/app/files', title: 'Files' },

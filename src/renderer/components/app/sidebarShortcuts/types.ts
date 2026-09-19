@@ -22,7 +22,7 @@ export interface SidebarActivationGateway {
       matchesCurrent?: (url: string) => boolean
       /**
        * Whether a tab IS this destination, used to focus it instead of repurposing the active tab.
-       * Defaults to exact URL equality; app destinations must not pass their view predicate here.
+       * Defaults to exact URL equality; view-only destinations (apps) opt out with `() => false`.
        */
       matchesTab?: (url: string) => boolean
     },
