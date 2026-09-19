@@ -219,6 +219,9 @@ vi.mock('../settingsBuilder', async (importActual) => ({
 
 vi.mock('../streamAdapter', async (importActual) => {
   const actualStreamAdapter = await importActual<typeof StreamAdapterModule>()
+  // Mirror the real factory (same pure classifiers, no duplicated rules): the stub adapter cannot
+  // import the real `createClaudeCodeResultError` (module-private), so it replays its derivation.
+  const { classifyErrorCategory, extractHttpStatus } = await import('@shared/utils/errorCategory')
   const createResultError = (message: any) => {
     const apiErrorStatus = message.subtype === 'success' ? message.api_error_status : undefined
     const isErrorResult =
@@ -229,12 +232,18 @@ vi.mock('../streamAdapter', async (importActual) => {
     if (!isErrorResult) return undefined
 
     const errors = message.subtype === 'success' ? (message.result ? [message.result] : []) : (message.errors ?? [])
-    return new actualStreamAdapter.ClaudeCodeResultError(
-      errors.join('; ') || 'runtime failed',
-      message.subtype,
-      errors,
-      message.terminal_reason,
-      apiErrorStatus
+    const status = apiErrorStatus ?? extractHttpStatus(errors.join('\n'))
+    const category = classifyErrorCategory({ text: errors.join('\n'), status })
+    return Object.assign(
+      new actualStreamAdapter.ClaudeCodeResultError(
+        errors.join('; ') || 'runtime failed',
+        message.subtype,
+        errors,
+        message.terminal_reason,
+        apiErrorStatus
+      ),
+      status != null ? { statusCode: status } : {},
+      category === 'unknown' ? {} : { claudeCodeExitCategory: category }
     )
   }
   // Keep the real `v3UsageToStats` projection (and error class); only stub the SDK-dependent bits.
@@ -3276,6 +3285,58 @@ describe('ClaudeCodeRuntimeDriver', () => {
       })
     )
     expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('surfaces an opaque provider 400 as a classified error with the resume checkpoint intact', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-400',
+      usage: {},
+      is_error: true,
+      terminal_reason: 'api_error',
+      api_error_status: 400,
+      result: 'API Error: 400 Internal server error'
+    })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      if (next.done) break
+      seen.push(next.value)
+    }
+
+    const tokenIndex = seen.findIndex((event) => event?.type === 'resume-token')
+    const errorIndex = seen.findIndex((event) => event?.type === 'error')
+    // The checkpoint is banked before the failure surfaces, so the user's next turn resumes the
+    // conversation instead of discarding completed work; the driver never retries on its own.
+    expect(tokenIndex).toBeGreaterThanOrEqual(0)
+    expect(errorIndex).toBeGreaterThan(tokenIndex)
+    expect(seen[tokenIndex]).toEqual({ type: 'resume-token', token: 'resume-400' })
+    expect(seen[errorIndex]).toEqual(
+      expect.objectContaining({
+        type: 'error',
+        error: expect.objectContaining({
+          message: 'API Error: 400 Internal server error',
+          claudeCodeExitCategory: 'server',
+          statusCode: 400
+        })
+      })
+    )
+    expect(seen).not.toContainEqual({ type: 'turn-complete' })
     expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
     void connection.close()
   })
