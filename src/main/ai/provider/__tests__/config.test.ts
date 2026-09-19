@@ -1,3 +1,7 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { net } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -14,9 +18,6 @@ import {
 } from '@shared/data/presets/localEmbedding'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { AuthConfig } from '@shared/data/types/provider'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { net } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -226,7 +227,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       },
       settings: {
         extraHeaders: { 'User-Agent': 'CustomAgent/1.0', 'X-Custom': 'on' }
-      } as never
+      }
     })
     const model = makeModel({
       id: 'copilot::gpt-4o',
@@ -1318,6 +1319,33 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       expect(config.providerId).toBe('openai-compatible')
     })
+
+    it.each([
+      ['moonshot', undefined, 'https://api.moonshot.cn', 'https://api.moonshot.cn/v1'],
+      ['moonshot-global', 'moonshot', 'https://api.moonshot.ai', 'https://api.moonshot.ai/v1']
+    ])(
+      'routes %s chat models through the Moonshot extension config',
+      async (id, presetProviderId, baseUrl, expectedBaseUrl) => {
+        const provider = makeProvider({
+          id,
+          presetProviderId,
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              baseUrl,
+              adapterFamily: 'openai-compatible'
+            }
+          }
+        })
+        const model = makeModel({ providerId: id, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+
+        expect(config.providerId).toBe('moonshot')
+        expect(settings.baseURL).toBe(expectedBaseUrl)
+      }
+    )
 
     it('routes Doubao IMAGE models through Doubao config (Ark protocol + the providerOptions key)', async () => {
       // Two things ride on this id. The generic OpenAICompatibleImageModel would POST

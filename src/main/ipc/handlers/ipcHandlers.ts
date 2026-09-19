@@ -6,6 +6,7 @@ import { apiGatewayHandlers } from './apiGateway'
 import { appHandlers } from './app'
 import { backupHandlers } from './backup'
 import { binaryHandlers } from './binary'
+import { browserHandlers } from './browser'
 import { channelHandlers } from './channel'
 import { cherryCloudHandlers } from './cherryCloud'
 import { cherryinHandlers } from './cherryin'
@@ -13,6 +14,7 @@ import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
 import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
+import { doctorHandlers } from './doctor'
 import { exportHandlers } from './export'
 import { externalAppHandlers } from './externalApp'
 import { fileHandlers } from './file'
@@ -37,6 +39,7 @@ import { skillHandlers } from './skill'
 import { systemHandlers } from './system'
 import { tabHandlers } from './tab'
 import { translateHandlers } from './translate'
+import { trashHandlers } from './trash'
 import { webSearchHandlers } from './webSearch'
 import { webviewHandlers } from './webview'
 import { windowHandlers } from './window'
@@ -56,6 +59,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...appHandlers,
   ...backupHandlers,
   ...binaryHandlers,
+  ...browserHandlers,
   ...channelHandlers,
   ...cherryinHandlers,
   ...cherryCloudHandlers,
@@ -63,6 +67,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...codeCliHandlers,
   ...deepSeekHarnessHandlers,
   ...diagnosticsHandlers,
+  ...doctorHandlers,
   ...exportHandlers,
   ...externalAppHandlers,
   ...fileHandlers,
@@ -87,6 +92,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...systemHandlers,
   ...tabHandlers,
   ...translateHandlers,
+  ...trashHandlers,
   ...webSearchHandlers,
   ...webviewHandlers,
   ...windowHandlers

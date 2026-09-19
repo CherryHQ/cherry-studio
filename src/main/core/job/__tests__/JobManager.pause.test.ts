@@ -16,6 +16,12 @@
  * onSettled): see the "onStop drain regression" block.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
@@ -26,11 +32,6 @@ import type { JobHandle, JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SERVICE_STOP_TIMEOUT_MS } from '@main/core/lifecycle/constants'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { drainTrailingDispatch } from './_helpers'
 
@@ -162,7 +163,7 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
 
   const dbSvc = MockMainDbServiceExport.dbService
   const cacheSvc = MockMainCacheServiceExport.cacheService
-  ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+  ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
     switch (name) {
       case 'DbService':
         return dbSvc
@@ -420,11 +421,9 @@ describe('JobManager pause / drainInFlight', () => {
       const promoteSpy = vi.spyOn(jobService, 'promoteDelayedDue')
 
       const hold = jobManager.pause('test: promoteDueAtFire gate')
-      const handle = jobManager.enqueue(
-        'pause.delayed' as never,
-        { message: 'later' } as never,
-        { scheduledAt: Date.now() + 50 } as never
-      )
+      const handle = jobManager.enqueue('pause.delayed' as never, { message: 'later' } as never, {
+        scheduledAt: Date.now() + 50
+      })
       expect(handle.snapshot.status).toBe('delayed')
 
       // The once promotion timer fires inside the pause window → gated before
@@ -1302,11 +1301,9 @@ describe('JobManager pause / drainInFlight', () => {
       })
 
       const hold = jobManager.pause('test: suppressed promotion re-arm')
-      const handle = jobManager.enqueue(
-        'pause.skew' as never,
-        { message: 'not-yet-due' } as never,
-        { scheduledAt: Date.now() + 600 } as never
-      )
+      const handle = jobManager.enqueue('pause.skew' as never, { message: 'not-yet-due' } as never, {
+        scheduledAt: Date.now() + 600
+      })
       expect(handle.snapshot.status).toBe('delayed')
 
       // The promotion once-timer elapses on the FAKE clock while the wall

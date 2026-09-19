@@ -1,3 +1,6 @@
+import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { useIpcOn } from '@renderer/ipc'
@@ -5,8 +8,6 @@ import { notificationService } from '@renderer/services/notification'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { uuid } from '@renderer/utils/uuid'
-import { useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useAppUpdateHandler')
 

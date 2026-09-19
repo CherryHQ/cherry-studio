@@ -1,8 +1,9 @@
-import { TopicType } from '@renderer/types/topic'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { TopicType } from '@renderer/types/topic'
 
 const mocks = vi.hoisted(() => ({
   launchers: [] as any[],
@@ -178,6 +179,28 @@ describe('ComposerToolbarShortcuts', () => {
     expect(webSearchButton).not.toHaveAttribute('aria-haspopup')
     // Unpinned and unknown ids stay off the bar.
     expect(screen.queryByRole('button', { name: 'kb-label' })).not.toBeInTheDocument()
+  })
+
+  it('keeps nested brand artwork under its own sizing contract', () => {
+    mocks.launchers = [
+      {
+        ...webSearchLauncher,
+        icon: (
+          <span data-slot="nested-brand-icon">
+            <svg aria-hidden />
+          </span>
+        )
+      }
+    ]
+
+    renderShortcuts({ pinnedIds: ['web-search'] })
+
+    const button = screen.getByRole('button', { name: 'web-search-label' })
+    // data-slot is the maintained layout boundary: only direct glyphs are normalized by the toolbar.
+    const iconSlot = button.querySelector('[data-slot="composer-toolbar-icon"]')
+    expect(iconSlot).toBeInTheDocument()
+    expect(iconSlot).toHaveClass('[&>svg]:!size-[18px]')
+    expect(button).not.toHaveClass('[&_svg]:!size-[18px]')
   })
 
   it('renders a known pinned manifest immediately while runtime state is unresolved', () => {

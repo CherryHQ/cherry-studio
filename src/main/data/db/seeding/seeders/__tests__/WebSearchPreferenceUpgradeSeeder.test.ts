@@ -1,9 +1,10 @@
-import { preferenceTable } from '@data/db/schemas/preference'
-import { seeders } from '@data/db/seeding/seederRegistry'
-import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { preferenceTable } from '@data/db/schemas/preference'
+import { seeders } from '@data/db/seeding/seederRegistry'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
 
 const LEGACY_PREFERENCE_KEY = 'chat.web_search.client_tools_preferred'
 const MODEL_TOOLS_PREFERRED_KEY = 'chat.web_search.model_tools_preferred'
@@ -44,6 +45,19 @@ describe('WebSearchPreferenceUpgradeSeeder', () => {
     { legacyValue: true, expectedValue: false }
   ])('inverts a legacy $legacyValue preference during a direct upgrade', ({ legacyValue, expectedValue }) => {
     writePreference(LEGACY_PREFERENCE_KEY, legacyValue)
+
+    new SeedRunner(dbh.db).runAll(WEB_SEARCH_PREFERENCE_SEEDERS)
+
+    expect(readPreference(MODEL_TOOLS_PREFERRED_KEY)).toBe(expectedValue)
+    expect(readPreference(LEGACY_PREFERENCE_KEY)).toBeUndefined()
+  })
+
+  it.each([
+    { existingValue: true, expectedValue: true },
+    { existingValue: false, expectedValue: false }
+  ])('keeps the model-tools value $existingValue a returning user already has', ({ existingValue, expectedValue }) => {
+    writePreference(LEGACY_PREFERENCE_KEY, true)
+    writePreference(MODEL_TOOLS_PREFERRED_KEY, existingValue)
 
     new SeedRunner(dbh.db).runAll(WEB_SEARCH_PREFERENCE_SEEDERS)
 

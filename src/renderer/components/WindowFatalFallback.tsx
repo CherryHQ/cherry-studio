@@ -1,9 +1,10 @@
+import { useEffect } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
+
 import { Alert, Button } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
-import { useEffect } from 'react'
-import type { FallbackProps } from 'react-error-boundary'
 
 /**
  * Fallback for the top-level ErrorBoundary that wraps each window's provider stack.

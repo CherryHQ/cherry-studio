@@ -2,6 +2,8 @@ import { type ModelMessage, tool, type UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { createToolSearchTool } from '../../tools/adapters/aiSdk/meta/toolSearch'
+import { ToolRegistry } from '../../tools/adapters/aiSdk/registry'
 import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, toModelMessages } from '../messageRules'
 
 const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMessage => ({ id, role, parts })
@@ -171,6 +173,39 @@ describe('toModelMessages', () => {
     expect(messages).toEqual(originalMessages)
   })
 
+  it('replays a malformed stored tool_search result without making the topic unsendable', async () => {
+    const toolSearch = createToolSearchTool(new ToolRegistry(), new Set(), new Set())
+    const model = await toModelMessages(
+      [
+        ui('assistant', [
+          {
+            type: 'tool-tool_search',
+            toolCallId: 'search-1',
+            state: 'output-available',
+            input: {},
+            output: { content: [{ type: 'text', text: 'Process started' }], metadata: {} }
+          }
+        ]),
+        ui('user', [{ type: 'text', text: 'continue' }], 'u1')
+      ],
+      undefined,
+      { tool_search: toolSearch }
+    )
+
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [
+        expect.objectContaining({
+          toolName: 'tool_search',
+          output: {
+            type: 'text',
+            value: 'The stored tool search result could not be read. Ignore it and run `tool_search` again.'
+          }
+        })
+      ]
+    })
+  })
+
   it('replays a completed legacy MCP tool name unchanged', async () => {
     const legacyToolName = 'mcp__mysql__executeSql'
     const model = await toModelMessages([
@@ -193,6 +228,47 @@ describe('toModelMessages', () => {
     expect(model[1]).toMatchObject({
       role: 'tool',
       content: [expect.objectContaining({ type: 'tool-result', toolName: legacyToolName })]
+    })
+  })
+
+  // #15712: a follow-up turn must still carry the previous turn's MCP tool
+  // call, tool result and closing text — not just the assistant's summary.
+  it('preserves a completed MCP tool turn across a follow-up turn', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'List all projects.' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'dynamic-tool',
+            toolName: 'mcp__mysql__executeSql',
+            toolCallId: 'call_mcp_1',
+            state: 'output-available',
+            input: { sql: 'SELECT id, name FROM projects' },
+            output: {
+              content: [{ type: 'text', text: '[{"id":1,"name":"Project A"},{"id":2,"name":"Project B"}]' }]
+            }
+          },
+          { type: 'text', text: 'Projects are Project A and Project B.' }
+        ],
+        'a1'
+      ),
+      ui('user', [{ type: 'text', text: 'What is the ID of Project A?' }], 'u2')
+    ])
+
+    expect(model.map((message) => message.role)).toEqual(['user', 'assistant', 'tool', 'assistant', 'user'])
+    expect(model[1]).toMatchObject({
+      role: 'assistant',
+      content: [expect.objectContaining({ type: 'tool-call', toolCallId: 'call_mcp_1' })]
+    })
+    expect(model[2]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ type: 'tool-result', toolCallId: 'call_mcp_1' })]
+    })
+    expect(JSON.stringify(model[2])).toContain('Project A')
+    expect(model[3]).toMatchObject({
+      role: 'assistant',
+      content: [expect.objectContaining({ type: 'text', text: 'Projects are Project A and Project B.' })]
     })
   })
 

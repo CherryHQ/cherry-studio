@@ -1,3 +1,8 @@
+import { ChevronDown } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import CopyButton from '@renderer/components/CopyButton'
@@ -19,10 +24,6 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
 import { isNonChatModel } from '@shared/utils/model'
-import { ChevronDown } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
 
@@ -48,6 +49,7 @@ const GeneralSettings: FC = () => {
   const { enabled: tray, onClose: trayOnClose, onLaunch: launchToTray } = trayPreferences
   const [preventSleepWhenBusy, setPreventSleepWhenBusy] = usePreference('app.power.prevent_sleep_when_busy')
   const [allowPrivateNetworkFetch, setAllowPrivateNetworkFetch] = usePreference('app.fetch.allow_private_network')
+  const [commitAttribution, setCommitAttribution] = usePreference('agent.commit_attribution.enabled')
   const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
@@ -218,6 +220,22 @@ const GeneralSettings: FC = () => {
         <SettingRow id="setting-general-hardware-acceleration" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
           <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
+        </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingRow id="setting-general-commit-attribution" className="scroll-mt-6 flex-nowrap">
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle id="commit-attribution-title">
+              {t('settings.general.commit_attribution.title')}
+            </SettingRowTitle>
+            <SettingDescription>{t('settings.general.commit_attribution.description')}</SettingDescription>
+          </div>
+          <Switch
+            checked={commitAttribution}
+            onCheckedChange={(checked) => void setCommitAttribution(checked)}
+            aria-labelledby="commit-attribution-title"
+          />
         </SettingRow>
       </SettingGroup>
 

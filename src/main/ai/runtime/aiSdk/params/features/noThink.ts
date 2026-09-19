@@ -1,6 +1,7 @@
+import type { LanguageModelMiddleware } from 'ai'
+
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import type { LanguageModelMiddleware } from 'ai'
 
 const logger = loggerService.withContext('noThinkPlugin')
 

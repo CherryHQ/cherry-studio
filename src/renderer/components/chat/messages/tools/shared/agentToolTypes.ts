@@ -47,9 +47,10 @@ import type {
   WorkflowInput,
   WorkflowOutput
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
+import * as z from 'zod'
+
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import * as z from 'zod'
 
 import type { ToolDisclosureItem } from './ToolDisclosure'
 
@@ -242,7 +243,7 @@ export function isBackgroundAgentOutput(output: AgentToolOutput | undefined): bo
  */
 export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
   const result = AskUserQuestionToolInputSchema.safeParse(value)
-  return result.success ? (result.data as AskUserQuestionToolInput) : undefined
+  return result.success ? result.data : undefined
 }
 
 export type ListMcpResourcesToolInput = ListMcpResourcesInput

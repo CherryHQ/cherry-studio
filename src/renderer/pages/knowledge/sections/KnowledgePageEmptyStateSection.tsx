@@ -1,5 +1,6 @@
-import { EmptyState } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState } from '@cherrystudio/ui'
 
 import { useKnowledgePage } from '../KnowledgePageProvider'
 

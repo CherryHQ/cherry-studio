@@ -7,13 +7,14 @@
  *   4. multiple markers on path → deepest wins
  */
 
-import type * as AiCore from '@cherrystudio/ai-core'
-import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
-import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { MockLanguageModelV3 } from 'ai/test'
 import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as AiCore from '@cherrystudio/ai-core'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { makeProvider } from '../../../__tests__/fixtures'
 import type * as RequestContextSettingsModule from '../../../contextBuild/resolveRequestContextSettings'
@@ -864,7 +865,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     // factory default so later tests are unaffected.
     vi.mocked(resolveAssistantModelId).mockReturnValueOnce({
       assistantId: 'asst-1',
-      defaultModelId: 'openai::gpt-4o' as UniqueModelId
+      defaultModelId: 'openai::gpt-4o'
     })
     mockGetAssistantById.mockReturnValue({
       id: 'asst-1',

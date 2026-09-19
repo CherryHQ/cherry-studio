@@ -5,10 +5,11 @@
  * Components read parts directly via useMessageParts / usePartsMap.
  */
 
-import type { AgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
 import { createContext, use, useMemo } from 'react'
+
+import type { AgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 // ============================================================================
 // Refresh Context — allows deep components to trigger data refresh

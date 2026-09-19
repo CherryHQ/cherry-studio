@@ -56,8 +56,16 @@ vi.mock('@main/core/lifecycle', () => ({
 }))
 vi.mock('electron', () => ({ shell: { openExternal: vi.fn() }, net: { fetch: vi.fn() } }))
 vi.mock('@application', () => ({ application: { get: vi.fn() } }))
-vi.mock('../LoopbackCallbackTransport', () => ({ LoopbackCallbackTransport: vi.fn(() => h.transportMock) }))
-vi.mock('../DeepLinkCallbackTransport', () => ({ DeepLinkCallbackTransport: vi.fn(() => h.deepLinkTransportMock) }))
+vi.mock('../LoopbackCallbackTransport', () => ({
+  LoopbackCallbackTransport: vi.fn(function LoopbackCallbackTransportMock() {
+    return h.transportMock
+  })
+}))
+vi.mock('../DeepLinkCallbackTransport', () => ({
+  DeepLinkCallbackTransport: vi.fn(function DeepLinkCallbackTransportMock() {
+    return h.deepLinkTransportMock
+  })
+}))
 
 // codex = OAuth-only loopback (clear disables); cherryin = deep-link with a
 // manual API-key fallback (clear must NOT disable). Both share the fake client.
@@ -269,8 +277,8 @@ describe('OAuthRuntimeService', () => {
 
     const doFetch = vi
       .fn()
-      .mockResolvedValueOnce({ status: 401, body: { cancel: vi.fn() } } as unknown as Response)
-      .mockResolvedValueOnce({ status: 200 } as Response)
+      .mockResolvedValueOnce({ status: 401, body: { cancel: vi.fn() } })
+      .mockResolvedValueOnce({ status: 200 })
     const tokensSeen: string[] = []
     const buildRequest = (creds: { accessToken: string }) => {
       tokensSeen.push(creds.accessToken)
@@ -314,7 +322,7 @@ describe('OAuthRuntimeService', () => {
     seedOAuth('codex', { accessToken: 'tok', refreshToken: 'r', expiresAt: FUTURE(), accountId: null })
     h.refreshMock.mockRejectedValue(new Error('network down'))
     const cancel = vi.fn()
-    const doFetch = vi.fn().mockResolvedValue({ status: 401, body: { cancel } } as unknown as Response)
+    const doFetch = vi.fn().mockResolvedValue({ status: 401, body: { cancel } })
 
     await expect(service.authenticatedFetch('codex', () => ({ input: 'x', init: {} }), doFetch)).rejects.toThrow(
       OAuthTransientError
@@ -332,8 +340,8 @@ describe('OAuthRuntimeService', () => {
 
     const doFetch = vi
       .fn()
-      .mockResolvedValueOnce({ status: 401, body: { cancel: vi.fn() } } as unknown as Response)
-      .mockResolvedValueOnce({ status: 401 } as Response)
+      .mockResolvedValueOnce({ status: 401, body: { cancel: vi.fn() } })
+      .mockResolvedValueOnce({ status: 401 })
     const onUnauthorized = vi.fn()
 
     const res = await service.authenticatedFetch(

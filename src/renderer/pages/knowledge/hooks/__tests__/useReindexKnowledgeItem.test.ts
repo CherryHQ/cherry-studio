@@ -1,8 +1,9 @@
-import { useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
-import { createNoteItem } from '@renderer/pages/knowledge/panels/dataSource/__tests__/testUtils'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
+import { createNoteItem } from '@renderer/pages/knowledge/panels/dataSource/__tests__/testUtils'
 
 const mockUseInvalidateCache = vi.fn()
 const mockInvalidateCache = vi.fn()

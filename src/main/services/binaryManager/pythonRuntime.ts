@@ -1,15 +1,16 @@
+import fs from 'fs'
 import { execFile } from 'node:child_process'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
+
+import { valid as semverValid } from 'semver'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { regionService } from '@main/services/RegionService'
 import { isPathWithin } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
-import fs from 'fs'
-import { valid as semverValid } from 'semver'
 
 import { sanitizedCommandError } from './commandError'
 
