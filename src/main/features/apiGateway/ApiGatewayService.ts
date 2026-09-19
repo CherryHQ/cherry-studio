@@ -318,13 +318,33 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private async startLanGateway(): Promise<void> {
     if (this.lanGateway?.isRunning()) return
     const { ApiGateway } = await import('./server')
-    this.lanGateway = new ApiGateway({ host: '0.0.0.0', port: 0 })
-    try {
-      await this.lanGateway.start()
-    } catch (error) {
-      await this.stopLanGateway()
-      throw error
+    const preferenceService = application.get('PreferenceService')
+    // The mobile client keeps the paired URL, so re-claim the previously assigned port across
+    // restarts; if something else took it, fall back to a fresh ephemeral port and re-persist.
+    const persistedPort = preferenceService.get('feature.api_gateway.lan_port')
+    let lastError: unknown
+    for (const port of persistedPort > 0 ? [persistedPort, 0] : [0]) {
+      const gateway = new ApiGateway({ host: '0.0.0.0', port })
+      try {
+        await gateway.start()
+        this.lanGateway = gateway
+        try {
+          await preferenceService.set('feature.api_gateway.lan_port', gateway.getPort())
+        } catch (error) {
+          logger.warn('Failed to persist the LAN gateway port; a restart may reassign it', error as Error)
+        }
+        return
+      } catch (error) {
+        lastError = error
+        if (port !== 0) {
+          logger.warn('Persisted LAN gateway port is unavailable; falling back to an ephemeral port', {
+            port,
+            error: error as Error
+          })
+        }
+      }
     }
+    throw lastError
   }
 
   private async stopLanGateway(): Promise<void> {

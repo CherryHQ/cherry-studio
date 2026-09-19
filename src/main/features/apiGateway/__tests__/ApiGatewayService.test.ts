@@ -34,7 +34,8 @@ const {
     prefHandler: undefined as ((enabled: boolean) => void) | undefined,
     enabledPreference: false,
     hostPreference: '127.0.0.1',
-    portPreference: 23333
+    portPreference: 23333,
+    lanPortPreference: 0
   }
 }))
 
@@ -66,7 +67,13 @@ vi.mock('@application', async () => {
         captured.prefHandler = cb
         return () => {}
       }),
-      get: vi.fn((key: string) => (key.endsWith('api_key') ? 'existing-key' : false)),
+      get: vi.fn((key: string) =>
+        key.endsWith('api_key')
+          ? 'existing-key'
+          : key === 'feature.api_gateway.lan_port'
+            ? captured.lanPortPreference
+            : false
+      ),
       getMultiple: vi.fn(() => ({
         enabled: captured.enabledPreference,
         host: captured.hostPreference,
@@ -93,6 +100,7 @@ beforeEach(() => {
   captured.enabledPreference = false
   captured.hostPreference = '127.0.0.1'
   captured.portPreference = 23333
+  captured.lanPortPreference = 0
   mockPreferenceSet.mockReset()
   mockPreferenceSet.mockImplementation(async (key, value) => {
     if (key === 'feature.api_gateway.enabled') captured.enabledPreference = value as boolean
@@ -435,7 +443,11 @@ describe('ApiGatewayService independent LAN access', () => {
     const service = new ApiGatewayService()
     await service._doInit()
     if (failure === 'listen') mockLanStart.mockRejectedValueOnce(new Error('bind failed'))
-    else mockPreferenceSet.mockRejectedValueOnce(new Error('disk full'))
+    // The port persistence write is best-effort; only the host write failing must keep LAN off.
+    else
+      mockPreferenceSet.mockImplementation(async (key: string) => {
+        if (key === 'feature.api_gateway.host') throw new Error('disk full')
+      })
 
     await expect(service.setLanEnabled(true)).rejects.toThrow()
 
@@ -443,6 +455,34 @@ describe('ApiGatewayService independent LAN access', () => {
     expect(service.isActivated).toBe(true)
     expect(() => service.createPairingOffer()).toThrow('LAN access is disabled')
     expect(mockStop).not.toHaveBeenCalled()
+  })
+
+  it('reuses the persisted LAN port instead of an ephemeral one', async () => {
+    captured.hostPreference = '0.0.0.0'
+    captured.lanPortPreference = 34443
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    await service.setLanEnabled(true)
+
+    expect(ApiGateway).toHaveBeenLastCalledWith({ host: '0.0.0.0', port: 34443 })
+    expect(mockLanStart).toHaveBeenCalledTimes(1)
+    expect(mockPreferenceSet).toHaveBeenCalledWith('feature.api_gateway.lan_port', 34444)
+  })
+
+  it('falls back to an ephemeral LAN port when the persisted one is taken', async () => {
+    captured.hostPreference = '0.0.0.0'
+    captured.lanPortPreference = 34443
+    mockLanStart.mockRejectedValueOnce(new Error('EADDRINUSE'))
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    await service.setLanEnabled(true)
+
+    expect(ApiGateway).toHaveBeenLastCalledWith({ host: '0.0.0.0', port: 0 })
+    expect(mockLanStart).toHaveBeenCalledTimes(2)
+    expect(service.createPairingOffer().port).toBe(34444)
+    expect(mockPreferenceSet).toHaveBeenCalledWith('feature.api_gateway.lan_port', 34444)
   })
 
   it('requires the user to enable the gateway instead of starting it from LAN settings', async () => {
