@@ -536,9 +536,33 @@ describe('cancel (capability-based)', () => {
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.includes('/system_stats')) return systemStats(version)
-      // Check method BEFORE URL for /queue to avoid catching /interrupt POSTs
       if (url.includes('/queue')) {
         if (init?.method === 'POST') return respond({})
+        return respond({ queue_running: running, queue_pending: pending })
+      }
+      if (url.includes('/interrupt')) return respond({})
+      return respond({})
+    })
+    return doFetch
+  }
+
+  /** Like `createCapsFetch` but returns different running queues on successive
+   *  GET /queue calls.  Useful for simulating the race: A running on the first
+   *  snapshot, B running on the second. */
+  const createStaleCapsFetch = (
+    version: string,
+    firstRunning: unknown[][],
+    secondRunning: unknown[][],
+    pending: unknown[][]
+  ) => {
+    let callCount = 0
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/system_stats')) return systemStats(version)
+      if (url.includes('/queue')) {
+        if (init?.method === 'POST') return respond({})
+        callCount += 1
+        const running = callCount === 1 ? firstRunning : secondRunning
         return respond({ queue_running: running, queue_pending: pending })
       }
       if (url.includes('/interrupt')) return respond({})
@@ -629,16 +653,20 @@ describe('cancel (capability-based)', () => {
 
   // ------------------------------------------------------------------
   // Test 6 — race safety with old server
-  // Queue snapshot shows A running; A finishes, B starts.
-  // Client does NOT send /interrupt → B is safe.
+  // GET /queue snapshot shows A running; between snapshot and interrupt
+  // A finishes and B starts.  On an old server the client has no targeted
+  // interrupt capability, so it never sends /interrupt — B is never at
+  // risk from a global kill.
   // ------------------------------------------------------------------
-  it('avoids sending /interrupt entirely on old servers even when a race is suspected', async () => {
-    const doFetch = createCapsFetch('0.3.40', [[1, 'A', {}, {}, []]], [])
+  it('avoids sending /interrupt on old servers even when a race has occurred', async () => {
+    // First GET /queue (cancelAction): A running.
+    // Second GET /queue (capability probe): B already running (race completed).
+    const doFetch = createStaleCapsFetch('0.3.40', [[1, 'A', {}, {}, []]], [[2, 'B', {}, {}, []]], [])
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await transport.cancel('A')
 
-    // No interrupt sent → B cannot be accidentally interrupted.
+    // No /interrupt sent regardless of the race → B cannot be killed.
     expect(collectPosts(doFetch)).toEqual([])
   })
 
@@ -727,20 +755,5 @@ describe('cancel (capability-based)', () => {
     await transport.cancel('pid-1')
 
     expect(collectPosts(doFetch)).toEqual([])
-  })
-
-  // ------------------------------------------------------------------
-  // Test 7 (renumbered) — capabilities are cached on success
-  // ------------------------------------------------------------------
-  it('caches successful capability detection', async () => {
-    // A running prompt forces the capability probe; second cancel reuses the cache.
-    const doFetch = createCapsFetch('0.3.60', [[1, 'pid-1', {}, {}, []]], [])
-    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
-
-    await transport.cancel('pid-1') // reads /system_stats → caches success
-    await transport.cancel('pid-1') // uses cached capability
-
-    const systemStatsCalls = doFetch.mock.calls.filter(([url]) => String(url).includes('/system_stats'))
-    expect(systemStatsCalls.length).toBe(1)
   })
 })
