@@ -546,29 +546,29 @@ describe('cancel (capability-based)', () => {
     return doFetch
   }
 
-  /** Like `createCapsFetch` but returns different running queues on successive
-   *  GET /queue calls.  Useful for simulating the race: A running on the first
-   *  snapshot, B running on the second. */
-  const createStaleCapsFetch = (
-    version: string,
-    firstRunning: unknown[][],
-    secondRunning: unknown[][],
-    pending: unknown[][]
-  ) => {
-    let callCount = 0
+  /** Simulates the race between `GET /queue` (cancelAction) and `GET
+   *  /system_stats` (capability probe): the first queue snapshot shows A
+   *  running, then /system_stats triggers the state change (A finishes, B
+   *  starts).  The mock exposes the final state via the captured closure
+   *  so the test can assert the race actually occurred. */
+  const createStaleQueueFetch = (initialRunning: unknown[][], staleRunning: unknown[][]) => {
+    let currentState = initialRunning
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (url.includes('/system_stats')) return systemStats(version)
       if (url.includes('/queue')) {
         if (init?.method === 'POST') return respond({})
-        callCount += 1
-        const running = callCount === 1 ? firstRunning : secondRunning
-        return respond({ queue_running: running, queue_pending: pending })
+        return respond({ queue_running: currentState, queue_pending: [] })
+      }
+      if (url.includes('/system_stats')) {
+        // /system_stats fires during capability probe — at this point
+        // the server-side race has completed: A finished, B started.
+        currentState = staleRunning
+        return systemStats('0.3.40') // old version
       }
       if (url.includes('/interrupt')) return respond({})
       return respond({})
     })
-    return doFetch
+    return { doFetch, getCurrentState: () => currentState }
   }
 
   /** Collect all POST calls (url + body). */
@@ -653,21 +653,29 @@ describe('cancel (capability-based)', () => {
 
   // ------------------------------------------------------------------
   // Test 6 — race safety with old server
-  // GET /queue snapshot shows A running; between snapshot and interrupt
-  // A finishes and B starts.  On an old server the client has no targeted
-  // interrupt capability, so it never sends /interrupt — B is never at
-  // risk from a global kill.
+  // Real request sequence in `cancel()`:
+  //   1. GET /queue → A running  (cancelAction)
+  //   2. GET /system_stats → old version (capability probe)
+  //   3. targetedInterrupt is false → no /interrupt
+  // The race "completes" when /system_stats is called (A has finished,
+  // B has started).  The mock state changes at that point, proving the
+  // race occurred; the transport still sends zero /interrupt requests.
   // ------------------------------------------------------------------
-  it('avoids sending /interrupt on old servers even when a race has occurred', async () => {
-    // First GET /queue (cancelAction): A running.
-    // Second GET /queue (capability probe): B already running (race completed).
-    const doFetch = createStaleCapsFetch('0.3.40', [[1, 'A', {}, {}, []]], [[2, 'B', {}, {}, []]], [])
+  it('avoids sending /interrupt on old servers even when a queue-to-capability race completes', async () => {
+    const { doFetch, getCurrentState } = createStaleQueueFetch(
+      // Initial queue snapshot: A running.
+      [[1, 'A', {}, {}, []]],
+      // After /system_stats fires: A finished, B running.
+      [[2, 'B', {}, {}, []]]
+    )
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await transport.cancel('A')
 
-    // No /interrupt sent regardless of the race → B cannot be killed.
+    // Zero /interrupt POSTs → B cannot be killed by a global interrupt.
     expect(collectPosts(doFetch)).toEqual([])
+    // Verify the race actually occurred: state changed from A to B.
+    expect(getCurrentState()).toEqual([[2, 'B', {}, {}, []]])
   })
 
   // ------------------------------------------------------------------
