@@ -5,7 +5,7 @@ import { readFile } from 'fs/promises'
 import * as path from 'path'
 
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
-import { dialog, net, shell } from 'electron'
+import { BrowserWindow, dialog, net, shell } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 /**
@@ -51,6 +51,13 @@ function resolveHomeRelativeFilePath(filePath: string): string {
 
 function normalizeTrashPath(filePath: string): string {
   return process.platform === 'win32' ? path.win32.normalize(filePath) : path.posix.normalize(filePath)
+}
+
+// Parent window for a caller-triggered save dialog, resolved through the
+// documented Electron API. Null when the sender is gone — callers fall back
+// to the unparented overload instead of throwing.
+function resolveSaveDialogParent(event: Electron.IpcMainInvokeEvent): Electron.BrowserWindow | undefined {
+  return BrowserWindow.fromWebContents(event.sender) ?? undefined
 }
 
 class FileStorage {
@@ -773,7 +780,7 @@ class FileStorage {
   }
 
   public save = async (
-    _: Electron.IpcMainInvokeEvent,
+    event: Electron.IpcMainInvokeEvent,
     fileName: string,
     content: string,
     options?: SaveDialogOptions
@@ -784,9 +791,9 @@ class FileStorage {
         defaultPath: fileName,
         ...options
       }
-      const ownerWindow = _.sender?.getOwnerBrowserWindow?.()
-      const result: SaveDialogReturnValue = ownerWindow
-        ? await dialog.showSaveDialog(ownerWindow, dialogOptions)
+      const parent = resolveSaveDialogParent(event)
+      const result: SaveDialogReturnValue = parent
+        ? await dialog.showSaveDialog(parent, dialogOptions)
         : await dialog.showSaveDialog(dialogOptions)
 
       if (result.canceled || !result.filePath) {
@@ -803,15 +810,15 @@ class FileStorage {
     }
   }
 
-  public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
+  public saveImage = async (event: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
     try {
       const dialogOptions: SaveDialogOptions = {
         defaultPath: `${name}.png`,
         filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
       }
-      const ownerWindow = _.sender?.getOwnerBrowserWindow?.()
-      const result: SaveDialogReturnValue = ownerWindow
-        ? await dialog.showSaveDialog(ownerWindow, dialogOptions)
+      const parent = resolveSaveDialogParent(event)
+      const result: SaveDialogReturnValue = parent
+        ? await dialog.showSaveDialog(parent, dialogOptions)
         : await dialog.showSaveDialog(dialogOptions)
 
       if (!result.canceled && result.filePath) {
