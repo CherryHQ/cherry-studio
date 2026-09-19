@@ -533,7 +533,7 @@ export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'browser.favicons': {},
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
-  'window.bounds': {},
+  'window.bounds': {}
 }
 
 // ============================================================================
