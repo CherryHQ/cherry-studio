@@ -189,4 +189,20 @@ describe('SkillInstaller', () => {
     expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith('/global-skills/.first.cleanup')
     expect(mockFsRename).not.toHaveBeenCalled()
   })
+
+  it('aborts recovery when an uncommitted migration replacement survives cleanup', async () => {
+    mockFsReaddir.mockResolvedValue([
+      { name: '.old.migrating-to.new.bak', isDirectory: () => true },
+      { name: 'new', isDirectory: () => true }
+    ])
+    mockPathExists.mockResolvedValue(true)
+    mockDeleteDirectoryRecursive.mockResolvedValue(undefined)
+
+    // Failing loud keeps reconcile from adopting the survivor and pruning the original row; the
+    // intact marker lets the next boot retry this recovery.
+    await expect(installer.recoverInterruptedInstalls('/global-skills', () => false)).rejects.toThrow(
+      'survived cleanup'
+    )
+    expect(mockFsRename).not.toHaveBeenCalled()
+  })
 })

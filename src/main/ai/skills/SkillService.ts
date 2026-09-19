@@ -29,7 +29,14 @@ import type {
 
 import { extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
-import { buildFileTree, createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
+import {
+  buildFileTree,
+  createTempDir,
+  normalizeFolderKey,
+  reservedFolderNameStem,
+  safeRemoveDirectory,
+  sanitizeFolderName
+} from './skillPaths'
 import { fetchRemoteSkill } from './skillRemoteSource'
 import { buildSystemSkillSources } from './systemSkillSources'
 
@@ -38,6 +45,18 @@ const logger = loggerService.withContext('SkillService')
 const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
+
+// A bare repo URL names a repository, not a skill: skills.sh stores one per repo across siblings.
+function isBareGithubRepoUrl(sourceUrl: string | null): boolean {
+  if (!sourceUrl) return false
+  try {
+    const url = new URL(sourceUrl)
+    if (url.hostname.toLowerCase() !== 'github.com') return false
+    return url.pathname.split('/').filter(Boolean).length === 2
+  } catch {
+    return false
+  }
+}
 
 /**
  * Skill management service.
@@ -160,7 +179,10 @@ export class SkillService {
    * the global Skills storage root.
    */
   getSkillDirectory(name: string): string {
-    return this.getSkillStoragePath(sanitizeFolderName(name))
+    // Callers pass the stored folderName, which is already final. Do not re-sanitize: the
+    // reserved-name suffix in sanitizeFolderName would remap a pre-existing POSIX folder such
+    // as `CON` to a path that was never created.
+    return this.getSkillStoragePath(name)
   }
 
   /** Resolve the app-owned directory for an installed skill. */
@@ -238,7 +260,9 @@ export class SkillService {
     const fetched = await fetchRemoteSkill(source, rest.join(':'))
 
     try {
-      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
+      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl, {
+        allowFolderMigration: fetched.isGithubRoot ?? false
+      })
       fetched.onInstalled?.()
       return installed
     } finally {
@@ -502,7 +526,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; allowFolderMigration?: boolean } = {}
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
@@ -513,7 +537,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; allowFolderMigration?: boolean } = {}
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
@@ -521,7 +545,8 @@ export class SkillService {
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
     const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(metadata.filename)
 
-    const existing = this.findCatalogSkillCaseInsensitive(folderName)
+    const folderMatch = this.findCatalogSkillCaseInsensitive(folderName)
+    const existing = folderMatch ?? this.findReservedAlias(folderName, source, sourceUrl, metadata.name)
     if (existing) {
       // Only a re-install of the exact same skill (same source + origin URL) may overwrite the
       // existing folder in place. Anything else — a marketplace install colliding with a builtin,
@@ -536,7 +561,30 @@ export class SkillService {
             `refusing to overwrite it with a ${source} install.`
         )
       }
+      // A bare repo URL names the repo, not the skill: a reserved derivation (`CON` → `CON-skill`)
+      // can collide with an unrelated sibling stored under the suffixed folder. Same skill name
+      // reinstalls still update in place; a different stored name means a sibling, so refuse it.
+      if (
+        folderMatch &&
+        reservedFolderNameStem(folderName) &&
+        isBareGithubRepoUrl(sourceUrl) &&
+        folderMatch.name !== metadata.name
+      ) {
+        throw new Error(
+          `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
+            `refusing to overwrite it with a ${source} install.`
+        )
+      }
     }
+
+    // A repository-root GitHub reinstall whose derived folder changed migrates the existing row.
+    // Only a root install of the same repo+ref shares the identical source URL, so the match is exact.
+    const renamed =
+      !existing && sourceUrl && provenance.allowFolderMigration
+        ? (agentGlobalSkillService
+            .listAll()
+            .find((skill) => skill.source === source && (skill.sourceUrl ?? null) === sourceUrl) ?? null)
+        : null
 
     const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
     if (!existing && storageEntry) {
@@ -556,27 +604,112 @@ export class SkillService {
     const destFolderName = existing?.folderName ?? folderName
     const destPath = this.getSkillStoragePath(destFolderName)
 
-    await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
-    await this.installer.install(skillDir, destPath)
-    await this.linkMirror(destFolderName)
+    // A folder migration retires the old folder to a rollback marker BEFORE the replacement is
+    // published, so no crash window leaves both folders on disk with no marker for startup
+    // recovery to settle. An install failure below restores the marker; a commit failure in the
+    // migration branch does the same.
+    let migrationBackup: string | null = null
+    let prevFolderName: string | null = null
+    if (renamed) {
+      prevFolderName = renamed.folderName
+      migrationBackup = await this.installer.backupReplacedFolderForMigration(
+        this.getSkillStoragePath(prevFolderName),
+        folderName
+      )
+    }
+
+    try {
+      await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
+      await this.installer.install(skillDir, destPath)
+      await this.linkMirror(destFolderName)
+    } catch (error) {
+      if (migrationBackup && prevFolderName) {
+        try {
+          await this.installer.restoreMigrationBackup(migrationBackup, this.getSkillStoragePath(prevFolderName))
+        } catch (restoreError) {
+          logger.error('Failed to restore previous skill folder after install failure', {
+            prevFolderName,
+            error: restoreError instanceof Error ? restoreError.message : String(restoreError)
+          })
+        }
+      }
+      throw error
+    }
 
     const tags = metadata.tags ?? []
+    const metadataUpdate = {
+      name: metadata.name,
+      description: metadata.description ?? null,
+      author: metadata.author ?? null,
+      version: metadata.version ?? null,
+      tags,
+      contentHash,
+      ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
+    }
 
     if (existing) {
       // Update metadata in-place to preserve the skill ID and its agent_skills rows.
       application.get('DbService').withWriteTx((tx) => {
-        agentGlobalSkillService.updateTx(tx, existing.id, {
-          name: metadata.name,
-          description: metadata.description ?? null,
-          author: metadata.author ?? null,
-          version: metadata.version ?? null,
-          tags,
-          contentHash,
-          ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
-        })
+        agentGlobalSkillService.updateTx(tx, existing.id, metadataUpdate)
       })
       const updated = agentGlobalSkillService.getById(existing.id)!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName: destFolderName, source })
+      return updated
+    }
+
+    if (renamed) {
+      // Move the catalog entry to the new folder, preserving the skill ID and its agent_skills rows.
+      // The previous folder was already retired to a rollback marker naming the replacement before
+      // the replacement was published, so startup recovery can tell a pre-commit crash (restore the
+      // old folder, drop the replacement) from a post-commit one (drop the marker, keep the
+      // replacement). Recursive deletion is not atomic, so deleting the old folder first could
+      // strand a half-removed old state. An empty marker means the old folder was already gone;
+      // rollback and recovery then drop the marker instead of resurrecting an empty folder.
+      const backupPath = migrationBackup
+      try {
+        application.get('DbService').withWriteTx((tx) => {
+          agentGlobalSkillService.updateTx(tx, renamed.id, { folderName, ...metadataUpdate })
+        })
+      } catch (error) {
+        // Drop the replacement before consuming the marker: a failed cleanup keeps
+        // the marker for startup recovery instead of orphaning a duplicate.
+        let replacementRemoved = false
+        try {
+          await this.installer.uninstall(destPath)
+          replacementRemoved = true
+        } catch (cleanupError) {
+          logger.error('Failed to clean up skill files after migration failure', {
+            folderName,
+            destPath,
+            error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+          })
+        }
+        if (replacementRemoved && backupPath) {
+          try {
+            await this.installer.restoreMigrationBackup(backupPath, this.getSkillStoragePath(renamed.folderName))
+          } catch (restoreError) {
+            logger.error('Failed to restore previous skill folder after migration failure', {
+              prevFolderName: renamed.folderName,
+              error: restoreError instanceof Error ? restoreError.message : String(restoreError)
+            })
+          }
+        }
+        throw error
+      }
+      try {
+        await this.installer.commitReplacedFolder(backupPath)
+      } catch (commitError) {
+        // The row and files already committed and recovery settles leftover markers, so a
+        // retire failure warns instead of reporting a false install failure.
+        logger.warn('Failed to retire skill migration marker after commit', {
+          prevFolderName: renamed.folderName,
+          backupPath,
+          error: commitError instanceof Error ? commitError.message : String(commitError)
+        })
+      }
+      await this.unlinkMirror(renamed.folderName)
+      const updated = agentGlobalSkillService.getById(renamed.id)!
+      logger.info('Skill folder migrated', { id: renamed.id, prevFolderName: renamed.folderName, folderName, source })
       return updated
     }
 
@@ -778,7 +911,10 @@ export class SkillService {
     this.reconcileInFlight = this.mutationLock
       .runExclusive(async () => {
         const storageRoot = application.getPath('feature.agents.skills')
-        await this.installer.recoverInterruptedInstalls(storageRoot)
+        await this.installer.recoverInterruptedInstalls(
+          storageRoot,
+          (folderName) => this.findCatalogSkillCaseInsensitive(folderName) !== null
+        )
         try {
           await this.ensureSkillPluginManifest()
         } catch (error) {
@@ -1082,6 +1218,26 @@ export class SkillService {
       )
     }
     return matches[0] ?? null
+  }
+
+  // A pre-suffix install stored a reserved name bare (`CON`); the stem row is the same skill
+  // when origin matches — local/ZIP URLs pin one directory, marketplace URLs need the same name.
+  private findReservedAlias(
+    folderName: string,
+    source: string,
+    sourceUrl: string | null,
+    skillName: string
+  ): InstalledSkill | null {
+    const stem = reservedFolderNameStem(folderName)
+    if (!stem) return null
+    const candidate = this.findCatalogSkillCaseInsensitive(stem)
+    if (!candidate || candidate.folderName !== stem) return null
+    if (candidate.source !== source || (candidate.sourceUrl ?? null) !== (sourceUrl ?? null)) {
+      return null
+    }
+    if (isBareGithubRepoUrl(sourceUrl)) return null
+    if (candidate.name !== skillName && source !== 'local' && source !== 'zip') return null
+    return candidate
   }
 
   private async findStorageFolderCaseInsensitive(folderName: string): Promise<string | null> {
