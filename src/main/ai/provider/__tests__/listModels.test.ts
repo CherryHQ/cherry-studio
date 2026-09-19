@@ -2,7 +2,7 @@ import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -1399,6 +1399,9 @@ describe('listModels — oMLX', () => {
 
     expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-coder', 'vlm-vision', 'markitdown'])
     expect(models[1].capabilities).toEqual([MODEL_CAPABILITY.IMAGE_RECOGNITION])
+    // A VLM must also state its input modalities: exported configurations read
+    // the capability, but the runtime model-compatibility checks read these.
+    expect(models[1].inputModalities).toEqual([MODALITY.TEXT, MODALITY.IMAGE])
     // Discovered models must declare both registry endpoints so Claude Code resolves the
     // provider's anthropic-messages endpoint instead of routing through the local gateway.
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])

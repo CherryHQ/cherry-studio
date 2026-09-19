@@ -23,6 +23,7 @@ import {
   createUniqueModelId,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
+  MODALITY,
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -862,7 +863,15 @@ const omlxFetcher: ModelFetcher = {
             // discovered model would otherwise carry no limits at all.
             ...(m.max_context_window ? { contextWindow: m.max_context_window } : {}),
             ...(m.max_tokens ? { maxOutputTokens: m.max_tokens } : {}),
-            ...(m.model_type === 'vlm' ? { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] } : {})
+            // A VLM takes text and images; the image modality has to be stated
+            // explicitly, or exported configurations read it as text-only even
+            // though the capability says otherwise.
+            ...(m.model_type === 'vlm'
+              ? {
+                  capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+                  inputModalities: [MODALITY.TEXT, MODALITY.IMAGE]
+                }
+              : {})
           })
         )
     )
