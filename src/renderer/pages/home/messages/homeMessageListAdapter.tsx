@@ -50,7 +50,7 @@ import { createComposerRichClipboardContentFromParts } from '@renderer/utils/mes
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
-import { hasRenderableContent } from '@shared/data/messageRenderability'
+import { hasRenderableContent } from '@shared/ai/messageRenderability'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
@@ -82,6 +82,29 @@ function canPersistSyntheticFallbackEdit(persistedParts: CherryMessagePart[]): b
     !hasRenderableContent(persistedParts) &&
     !persistedParts.some((part) => part.type === 'data-error')
   )
+}
+
+/**
+ * Final gate before an error-dismissal write. An in-place retry reuses the
+ * message id, so a retry that landed after the edit was computed must win:
+ * the write goes ahead only when the persisted parts still equal the snapshot
+ * and the message is not live right now.
+ */
+async function isDismissalWriteStillSafe(
+  messageId: string,
+  baseParts: CherryMessagePart[],
+  liveMessageIds: readonly string[] | undefined
+): Promise<boolean> {
+  if (liveMessageIds?.includes(messageId)) {
+    logger.warn('Skipping error dismissal for a live message', { messageId })
+    return false
+  }
+  const currentParts = (await dataApiService.get(`/messages/${messageId}`)).data.parts ?? []
+  if (JSON.stringify(currentParts) !== JSON.stringify(baseParts)) {
+    logger.warn('Skipping error dismissal for superseded parts', { messageId })
+    return false
+  }
+  return true
 }
 
 interface HomeMessageListParams {
@@ -255,6 +278,13 @@ export function useHomeMessageListProviderValue({
   useEffect(() => {
     displayPartsByMessageIdRef.current = displayPartsByMessageId
   }, [displayPartsByMessageId])
+
+  // Live-message ids go stale in async callbacks; dismissal re-checks them
+  // right before writing so a retry that started mid-dismissal still wins.
+  const liveMessageIdsRef = useRef(streamingLayers?.liveMessageIds)
+  useEffect(() => {
+    liveMessageIdsRef.current = streamingLayers?.liveMessageIds
+  }, [streamingLayers?.liveMessageIds])
 
   const getDoctorSubject = useCallback((message: MessageListItem): DoctorSubjectRef | undefined => {
     const model = getMessageListItemModel(message)
@@ -536,7 +566,7 @@ export function useHomeMessageListProviderValue({
       try {
         // A retry owns this message right now and its terminal persist is the
         // writer; any parts-derived edit would race it.
-        if (streamingLayers?.liveMessageIds.includes(messageId)) {
+        if (liveMessageIdsRef.current?.includes(messageId)) {
           logger.warn('Skipping error dismissal for a live message', { messageId })
           return
         }
@@ -544,12 +574,21 @@ export function useHomeMessageListProviderValue({
         const persistedParts = persistedMessage.data.parts ?? []
         const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
         if (resolved && resolved.messageId === messageId && resolved.part.type === 'data-error') {
+          // Part ids encode the index, so a same-index error from a retry that
+          // replaced the parts would pass a type-only check. Dismiss only the
+          // exact part that was clicked.
+          const clickedPartSnapshot = JSON.stringify(resolved.part)
           // Re-read before writing: an in-place retry reuses the message id and
           // may have replaced the parts after the first read.
           const freshMessage = await dataApiService.get(`/messages/${messageId}`)
           const freshParts = freshMessage.data.parts ?? []
           const freshResolved = resolvePartFromParts({ [messageId]: freshParts }, partId)
-          if (!freshResolved || freshResolved.messageId !== messageId || freshResolved.part.type !== 'data-error') {
+          if (
+            !freshResolved ||
+            freshResolved.messageId !== messageId ||
+            freshResolved.part.type !== 'data-error' ||
+            JSON.stringify(freshResolved.part) !== clickedPartSnapshot
+          ) {
             logger.warn('Skipping error dismissal for superseded parts', { messageId })
             return
           }
@@ -560,6 +599,7 @@ export function useHomeMessageListProviderValue({
           const durableParts =
             removedData?.name === 'NoResponseError' ? [...filtered, createDismissedNoResponsePart()] : filtered
 
+          if (!(await isDismissalWriteStillSafe(messageId, freshParts, liveMessageIdsRef.current))) return
           await requireChatWrite('removeMessageErrorPart').editMessage(messageId, durableParts)
           return
         }
@@ -580,6 +620,7 @@ export function useHomeMessageListProviderValue({
           return
         }
 
+        if (!(await isDismissalWriteStillSafe(messageId, freshParts, liveMessageIdsRef.current))) return
         await requireChatWrite('removeMessageErrorPart').editMessage(messageId, [
           ...freshParts,
           createDismissedNoResponsePart()
@@ -589,7 +630,7 @@ export function useHomeMessageListProviderValue({
         throw error
       }
     },
-    [requireChatWrite, streamingLayers]
+    [requireChatWrite]
   )
 
   const createTranslationUpdater = useCallback(
