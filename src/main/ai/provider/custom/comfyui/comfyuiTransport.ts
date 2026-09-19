@@ -43,10 +43,13 @@ const IMAGE_TIMEOUT_MS = 60 * 1000
  *  and can unintentionally stop an unrelated generation. */
 const MIN_TARGETED_INTERRUPT_VERSION = [0, 3, 57] as const
 
-/** Parse `major.minor.patch` from a version string like `"0.3.57"`.
- *  Returns `null` when the format is unrecognisable. */
+/** Parse a strict `major.minor.patch` version string (e.g. `"0.3.57"`, `"0.36.0"`).
+ *  Returns `null` for anything else: pre-release suffixes (`-rc1`), build
+ *  metadata (`+build`), `v` prefixes, missing components, or extra dots.
+ *  We intentionally never treat non-formal versions as comparable — the
+ *  safety gate must fail-closed, not guess. */
 export function parseVersion(v: string): [number, number, number] | null {
-  const m = v.match(/^(\d+)\.(\d+)\.(\d+)/)
+  const m = v.match(/^(\d+)\.(\d+)\.(\d+)$/)
   if (!m) return null
   return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)]
 }
@@ -181,8 +184,9 @@ class ComfyuiTransport implements ImageGenerationTransport {
   private readonly baseURL: string
   private readonly headers: Record<string, string>
   private readonly doFetch: FetchFunction
-  /** Cached target-specific interrupt capability. `undefined` means: not yet
-   *  detected; a failed detection is cleared so the next call retries. */
+  /** Cached target-specific interrupt capability promise. Resolved once on
+   *  first `cancel()` call and cached for the transport's lifetime; failures
+   *  are also cached (fail-closed: persistent false result, never retry). */
   private capabilitiesPromise?: Promise<ComfyuiCancelCapabilities>
 
   constructor(settings: ComfyuiTransportSettings) {
@@ -323,7 +327,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
    * Cancel one generation. The two requests are not interchangeable: `POST
    * /queue {"delete": [id]}` drops a *pending* prompt and is id-scoped, while
    * `POST /interrupt {"prompt_id": id}` stops the one *executing* — and on a
-   * server that predates the `prompt_id` filter (ComfyUI ≥ v0.3.57) it is a
+   * server that predates the `prompt_id` filter (ComfyUI < v0.3.57) it is a
    * global kill.
    *
    * Capability-based design: detect once whether the server honours `prompt_id`

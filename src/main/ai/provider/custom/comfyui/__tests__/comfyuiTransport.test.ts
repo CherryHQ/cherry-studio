@@ -501,14 +501,20 @@ describe('parseVersion', () => {
   })
 
   it('extracts the leading components from a pre-release string', () => {
-    expect(parseVersion('0.3.57-rc1')).toEqual([0, 3, 57])
-    expect(parseVersion('0.3.57+build123')).toEqual([0, 3, 57])
+    expect(parseVersion('0.3.57-rc1')).toBeNull() // pre-release suffix → strict fail-closed
+    expect(parseVersion('0.3.58-dev')).toBeNull()
+    expect(parseVersion('0.3.57+build123')).toBeNull() // build metadata → strict fail-closed
   })
 
   it('returns null for unrecognisable strings', () => {
     expect(parseVersion('')).toBeNull()
     expect(parseVersion('abc')).toBeNull()
-    expect(parseVersion('v0.3.57')).toBeNull() // no v prefix
+    expect(parseVersion('v0.3.57')).toBeNull() // v prefix
+    expect(parseVersion('0.3')).toBeNull() // missing patch component
+    expect(parseVersion('0.3.')).toBeNull() // trailing dot
+    expect(parseVersion('.0.3.57')).toBeNull() // leading dot
+    expect(parseVersion('0..3.57')).toBeNull() // empty component
+    expect(parseVersion('0.3.57-extra')).toBeNull() // extra segment
   })
 })
 
@@ -666,5 +672,75 @@ describe('cancel (capability-based)', () => {
 
     // The server is unknown → fail closed (no interrupt sent).
     expect(collectPosts(doFetch)).toEqual([])
+  })
+
+  // ------------------------------------------------------------------
+  // Pre-release / dev / build versions → strict fail-closed
+  // ------------------------------------------------------------------
+  it('fails closed for a pre-release version (0.3.57-rc1)', async () => {
+    const doFetch = createCapsFetch('0.3.57-rc1', [[1, 'pid-1', {}, {}, []]], [])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    expect(collectPosts(doFetch)).toEqual([])
+  })
+
+  it('fails closed for a dev version (0.3.58-dev)', async () => {
+    const doFetch = createCapsFetch('0.3.58-dev', [[1, 'pid-1', {}, {}, []]], [])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    expect(collectPosts(doFetch)).toEqual([])
+  })
+
+  it('fails closed for a version with build metadata (0.3.57+build)', async () => {
+    const doFetch = createCapsFetch('0.3.57+build', [[1, 'pid-1', {}, {}, []]], [])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    expect(collectPosts(doFetch)).toEqual([])
+  })
+
+  it('fails closed when /system_stats returns valid JSON but missing the version field', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/system_stats')) return new Response(JSON.stringify({ devices: [] }), { status: 200 })
+      return respond({ queue_running: [[1, 'pid-1', {}, {}, []]], queue_pending: [] })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    expect(collectPosts(doFetch)).toEqual([])
+  })
+
+  it('fails closed when /system_stats returns invalid JSON', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/system_stats'))
+        return new Response('not json at all', { status: 200, headers: { 'Content-Type': 'text/plain' } })
+      return respond({ queue_running: [[1, 'pid-1', {}, {}, []]], queue_pending: [] })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    expect(collectPosts(doFetch)).toEqual([])
+  })
+
+  // ------------------------------------------------------------------
+  // Test 7 (renumbered) — capabilities are cached on success
+  // ------------------------------------------------------------------
+  it('caches successful capability detection', async () => {
+    // A running prompt forces the capability probe; second cancel reuses the cache.
+    const doFetch = createCapsFetch('0.3.60', [[1, 'pid-1', {}, {}, []]], [])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1') // reads /system_stats → caches success
+    await transport.cancel('pid-1') // uses cached capability
+
+    const systemStatsCalls = doFetch.mock.calls.filter(([url]) => String(url).includes('/system_stats'))
+    expect(systemStatsCalls.length).toBe(1)
   })
 })
