@@ -242,6 +242,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^muse-spark' },
   { pattern: '^interfaze' },
   { pattern: '^laguna-s' },
+  { pattern: '^fugu' },
   // xai
   { pattern: '^grok-4\\.3(?!.*non-reasoning)', effort: ['none', 'low', 'medium', 'high'] },
   { pattern: '^grok-3-mini', effort: ['low', 'high'] },

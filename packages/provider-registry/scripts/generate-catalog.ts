@@ -537,9 +537,12 @@ function buildProviderModels(
     rows.push(o)
   }
   // md-derived rows key on `modelId`; templates expand into matching rows without replacing upstream identity.
+  // A models.dev listing whose apiModelId exactly matches an already-emitted source override is skipped:
+  // the curated row carries endpointTypes/reasoningContracts/pricing the pricing-only upstream row lacks.
   const addModel = (o: any): void => {
     const k = `${o.providerId} ${o.modelId} ${variantsKey(o)}`
-    if (seen.has(k)) return
+    const overrideKey = `${o.providerId} ${o.modelId} ${o.apiModelId ?? ''} ${variantsKey(o)}`
+    if (seen.has(k) || seen.has(overrideKey)) return
     seen.add(k)
     rows.push(o)
   }
