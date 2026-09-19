@@ -145,28 +145,25 @@ and per-attempt diagnostics. All logging goes through
 
 ## Agent sessions — turn-level fallback
 
-The wrapper above never reaches agent-session turns: the Claude Code / Pi / DSH
-runtimes do not consume `wrapModel` (they own their provider transport), so
-agent turns had no retry and no fallback at all. The Claude Code runtime driver
-therefore implements its own turn-level fallback
-(`src/main/ai/runtime/claudeCode/modelFallback.ts`):
+The wrapper above never reaches agent-session turns: Claude Code / Pi / DSH
+own their provider transport. Claude Code implements turn-level fallback in
+`src/main/ai/runtime/claudeCode/modelFallback.ts`; Pi and DSH use
+`src/main/ai/runtime/AgentSessionFallbackConnection.ts`.
 
 - When a turn terminally fails on a **retryable provider error** — a result
-  error carrying `api_error_status` 429/5xx, or an `api_error` terminal reason
+  error carrying `api_error_status` 429/500/502/503/529, or an `api_error` terminal reason
   whose diagnostics name a rate limit / quota / overload — **and the turn has
-  produced no content yet**, the driver rebuilds the CLI query from a request
-  materialized for the first configured fallback model and replays the same
-  user message. The host turn stays live; the host learns nothing except the
-  eventual outcome.
+  produced no content yet**, the runtime reconnects using the first configured
+  fallback model and replays the same user message in the host turn.
 - The fallback is **visible**: a persisted `data-model-fallback` part rides the
   assistant row and renders as a transcript divider (`ModelFallbackBlock`), so
   history shows that the reply came from a different model.
-- Configuration is the **same global preference** as chat
-  (`chat.retry.enabled` + `chat.retry.fallback_model_ids`); the fallback is
-  turn-scoped — the next fresh turn reconciles against the agent's model and
-  rebuilds the connection back to it.
+- An agent's `configuration.fallback_model_ids` takes precedence when set;
+  otherwise the global `chat.retry.enabled` and `chat.retry.fallback_model_ids`
+  preference applies. The fallback is turn-scoped; a fresh turn reconciles
+  against the agent's primary model.
 
-Limitations: one fallback attempt per turn; Claude Code runtime only; no
+Limitations: one fallback attempt per turn; no
 capability gating (a fallback is picked purely by id, so a non-vision fallback
 can receive image parts); the assistant row keeps the primary model's `modelId`
 stamp — the transcript notice carries the model that actually answered.
