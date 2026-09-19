@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   applicationMock,
   menuMock,
+  browserWindowMock,
   shellMock,
   appMock,
+  windowManagerMock,
   preferenceServiceMock,
   openSettingsInMainWindowMock,
   commandServiceMock
@@ -18,17 +20,22 @@ const {
   const commandServiceMock = {
     execute: vi.fn()
   }
+  const windowManagerMock = {
+    getWindowsByType: vi.fn(() => []),
+    getWindowType: vi.fn()
+  }
 
   return {
     preferenceServiceMock,
     openSettingsInMainWindowMock,
     commandServiceMock,
+    windowManagerMock,
     applicationMock: {
       get: vi.fn((name: string) => {
         if (name === 'PreferenceService') return preferenceServiceMock
         if (name === 'CommandService') return commandServiceMock
         if (name === 'WindowManager') {
-          return { getWindowsByType: vi.fn(() => []) }
+          return windowManagerMock
         }
         return undefined
       })
@@ -37,12 +44,15 @@ const {
       buildFromTemplate: vi.fn((template: MenuItemConstructorOptions[]) => ({ template })),
       setApplicationMenu: vi.fn()
     },
+    browserWindowMock: { getFocusedWindow: vi.fn(() => null) },
     shellMock: {
       openExternal: vi.fn()
     },
     appMock: {
       name: 'Cherry Studio',
-      getLocale: vi.fn(() => 'en-US')
+      getLocale: vi.fn(() => 'en-US'),
+      on: vi.fn(),
+      off: vi.fn()
     }
   }
 })
@@ -73,6 +83,7 @@ vi.mock('@main/core/lifecycle', () => {
 
 vi.mock('electron', () => ({
   app: appMock,
+  BrowserWindow: browserWindowMock,
   Menu: menuMock,
   shell: shellMock
 }))
@@ -80,6 +91,8 @@ vi.mock('electron', () => ({
 vi.mock('@main/services/mainWindowNavigation', () => ({
   openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
+
+import { WindowType } from '@main/core/window/types'
 
 import { AppMenuService } from '../AppMenuService'
 
@@ -171,5 +184,22 @@ describe('AppMenuService', () => {
     // A native accelerator outranks the renderer keydown, so leaving the default
     // here would keep Cmd+W closing the window instead of running tab.close.
     expect(closeItem).toMatchObject({ role: 'close', accelerator: 'CommandOrControl+Shift+W' })
+  })
+
+  it('restores Command+W to close a focused light window, then reserves it for tabs in the main window', async () => {
+    await (service as any).onInit()
+    const focus = appMock.on.mock.calls.find(([event]) => event === 'browser-window-focus')?.[1]
+    windowManagerMock.getWindowType.mockReturnValueOnce(WindowType.QuickAssistant).mockReturnValueOnce(WindowType.Main)
+
+    focus({}, { id: 2 })
+    expect((latestTemplate()[1].submenu as MenuItemConstructorOptions[])[0]).toMatchObject({
+      role: 'close',
+      accelerator: 'CommandOrControl+W'
+    })
+    focus({}, { id: 1 })
+    expect((latestTemplate()[1].submenu as MenuItemConstructorOptions[])[0]).toMatchObject({
+      role: 'close',
+      accelerator: 'CommandOrControl+Shift+W'
+    })
   })
 })

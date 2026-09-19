@@ -1,9 +1,9 @@
-import type { BrowserWindow } from 'electron'
-import { app, Menu } from 'electron'
+import { app, BrowserWindow, Menu } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import type { NativeCommandMenuItem, NativeMenuItem } from '@main/services/menu/adapters/nativeMenuAdapter'
@@ -61,10 +61,25 @@ export class AppMenuService extends BaseService {
       }
     }
 
+    const closeRule = findKeybindingRule('app.window.close')
+    if (closeRule) {
+      this.registerDisposable(
+        preferenceService.subscribeChange(closeRule.preferenceKey, () => this.setupApplicationMenu())
+      )
+    }
+    const onWindowFocus = (_event: Electron.Event, window: BrowserWindow) => this.setupApplicationMenu(window)
+    app.on('browser-window-focus', onWindowFocus)
+    this.registerDisposable(() => app.off('browser-window-focus', onWindowFocus))
+
     this.setupApplicationMenu()
   }
 
-  private setupApplicationMenu(): void {
+  private setupApplicationMenu(focusedWindow = BrowserWindow.getFocusedWindow() ?? undefined): void {
+    const type = focusedWindow && application.get('WindowManager').getWindowType(String(focusedWindow.id))
+    const closeAccelerator =
+      focusedWindow && type !== WindowType.Main && type !== WindowType.SubWindow
+        ? 'CommandOrControl+W'
+        : getShortcutAccelerator('app.window.close')
     const commandItems = this.resolveAppMenuCommandItems({
       'app.settings.open': t('settings.title'),
       'app.zoom.reset': t('appMenu.resetZoom'),
@@ -112,7 +127,7 @@ export class AppMenuService extends BaseService {
             type: 'role',
             role: 'close',
             label: t('appMenu.close'),
-            accelerator: getShortcutAccelerator('app.window.close')
+            accelerator: closeAccelerator
           }
         ]
       },
