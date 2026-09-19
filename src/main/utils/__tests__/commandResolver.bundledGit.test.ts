@@ -45,6 +45,9 @@ describe('findExecutableInEnv – bundled MinGit resolver ordering', () => {
     vi.mocked(path.dirname).mockImplementation((p) => p.split('\\').slice(0, -1).join('\\'))
     vi.mocked(path.isAbsolute).mockImplementation((p) => /^[A-Z]:/i.test(p))
     Object.defineProperty(path, 'sep', { value: '\\', writable: true })
+    // Production getCommonGitRoots()/findExecutable use path.win32.join; on
+    // non-Windows hosts path.win32 is a separate object from the path mock.
+    vi.mocked(path.win32.join).mockImplementation((...args) => args.join('\\'))
     vi.mocked(path.win32.resolve).mockImplementation((...args) => args[args.length - 1])
     vi.mocked(path.win32.extname).mockImplementation((p) => p.match(/\.[^\\/.]+$/)?.[0] ?? '')
     vi.mocked(path.win32.relative).mockImplementation((from, to) => {
