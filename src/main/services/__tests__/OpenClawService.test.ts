@@ -1605,6 +1605,81 @@ describe('OpenClawService gateway status state machine', () => {
       )
     })
 
+    it('syncs a keyless provider with no dedicated placeholder by authOptional', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          id: 'ovms',
+          name: 'OVMS',
+          presetProviderId: 'ovms',
+          authOptional: true,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8000/v3' }
+          }
+        })
+      )
+      const model = createModel({
+        id: 'ovms::qwen3',
+        providerId: 'ovms',
+        apiModelId: 'qwen3',
+        name: 'Qwen3'
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('ovms::qwen3')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'ovms',
+          apiKey: 'no-key-required'
+        }),
+        expect.objectContaining({ id: 'qwen3' })
+      )
+    })
+
+    it('allows keyless oMLX providers during sync', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          id: 'omlx',
+          name: 'oMLX',
+          presetProviderId: 'omlx',
+          authOptional: true,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8000' }
+          }
+        })
+      )
+      const model = createModel({
+        id: 'omlx::qwen3-coder-30b',
+        providerId: 'omlx',
+        apiModelId: 'qwen3-coder-30b',
+        name: 'Qwen3 Coder 30B'
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('omlx::qwen3-coder-30b')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'omlx',
+          apiKey: 'no-key-required',
+          apiHost: 'http://127.0.0.1:8000'
+        }),
+        expect.objectContaining({ id: 'qwen3-coder-30b' })
+      )
+    })
+
     it('maps Anthropic endpoint models to Anthropic OpenClaw provider config', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')
