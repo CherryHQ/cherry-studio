@@ -36,6 +36,7 @@ const WORKFLOW_DIR = 'workflows'
 const POLL_INTERVAL_MS = 1500
 const POLL_TIMEOUT_MS = 10 * 60 * 1000
 const IMAGE_TIMEOUT_MS = 60 * 1000
+const CAPABILITY_TIMEOUT_MS = 5000
 
 /** Minimum ComfyUI version where `/interrupt` honours `prompt_id`.
  *  Upstream: commit 464ba1d6 (#9607), first shipped in v0.3.57.
@@ -299,14 +300,20 @@ class ComfyuiTransport implements ImageGenerationTransport {
    * missing, unparseable, or unreachable we return `{ targetedInterrupt:
    * false }` (the interrupt is never sent, but pending prompts can still be
    * dequeued).
+   *
+   * A short timeout protects against an unresponsive server permanently
+   * pinning capability detection and silently disabling all future cancels.
    */
   private async getCancelCapabilities(): Promise<ComfyuiCancelCapabilities> {
     if (this.capabilitiesPromise) return this.capabilitiesPromise
 
     this.capabilitiesPromise = (async () => {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), CAPABILITY_TIMEOUT_MS)
       try {
         const response = await this.doFetch(`${this.baseURL}/system_stats`, {
-          headers: this.headers
+          headers: this.headers,
+          signal: controller.signal
         })
         if (!response.ok) return { targetedInterrupt: false }
         const stats = (await response.json()) as Record<string, unknown>
@@ -316,7 +323,10 @@ class ComfyuiTransport implements ImageGenerationTransport {
         const ver = parseVersion(verStr)
         return { targetedInterrupt: ver ? isAtLeastVersion(ver, MIN_TARGETED_INTERRUPT_VERSION) : false }
       } catch {
+        // Timeout, network error, or parse failure — all result in fail-closed.
         return { targetedInterrupt: false }
+      } finally {
+        clearTimeout(timer)
       }
     })()
 
@@ -418,6 +428,32 @@ class ComfyuiTransport implements ImageGenerationTransport {
   }
 
   /**
+   * Wrap a read operation (e.g. `response.arrayBuffer()`) with a timeout.
+   * If the timeout fires the failure is a structured `REMOTE_ERROR`; an
+   * `AbortError` that comes from the caller's own signal is rethrown
+   * untouched so user cancellation is never confused with a timeout.
+   */
+  private async readWithTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+    return new Promise<T>((_resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })),
+        timeoutMs
+      )
+      promise.then(
+        (value) => {
+          clearTimeout(timer)
+          _resolve(value)
+        },
+        (error) => {
+          clearTimeout(timer)
+          if (error instanceof Error && error.name === 'AbortError') throw error
+          throw error
+        }
+      )
+    })
+  }
+
+  /**
    * Read one history entry. Unlike `requestJson`, a non-OK response is not
    * automatically fatal: a 4xx (bar 429) can never succeed on retry, so it
    * surfaces as a structured failure, while a 5xx / 429 is left as a plain
@@ -478,7 +514,13 @@ class ComfyuiTransport implements ImageGenerationTransport {
         message: await readErrorMessage(response, t('paintings.comfyui.image_fetch_failed'))
       })
     }
-    const buffer = Buffer.from(await response.arrayBuffer())
+    const buffer = Buffer.from(
+      await this.readWithTimeout(
+        response.arrayBuffer(),
+        IMAGE_TIMEOUT_MS,
+        t('paintings.comfyui.image_fetch_timeout', { seconds: IMAGE_TIMEOUT_MS / 1000 })
+      )
+    )
     const contentType = response.headers.get('content-type') || 'image/png'
     return `data:${contentType};base64,${buffer.toString('base64')}`
   }
