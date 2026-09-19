@@ -24,6 +24,13 @@ const artifacts = Object.values(SHARED_ARTIFACTS)
  * these entries, so a typo here fails at download time on a user's machine instead.
  */
 describe('local model catalog', () => {
+  it('declares FunASR as the local ASR capability', () => {
+    expect(LOCAL_MODEL_CAPABILITIES).toContain('asr')
+    expect(LOCAL_MODEL_BUNDLE_IDS).toContain('funasr-nano-int8')
+    expect(() => bundleForCapability('asr')).not.toThrow()
+    expect(bundleForCapability('asr').requires).toEqual(['sherpa-onnx'])
+  })
+
   it.each(bundles)('$id declares a verifiable checksum for every file', (bundle) => {
     for (const file of bundle.files) {
       // A file without a real digest would download unverified — the one thing the
@@ -72,6 +79,8 @@ describe('local model catalog', () => {
 
   it.each(artifacts)('$id ships a complete file set for each platform it supports', (artifact) => {
     for (const [platform, files] of Object.entries(artifact.platforms)) {
+      expect(files.packageName, `${artifact.id}/${platform} has no npm package`).toBeTruthy()
+      expect(files.tarballSha256, `${artifact.id}/${platform} has no tarball checksum`).toMatch(/^[0-9a-f]{64}$/)
       expect(files.entryFile, `${artifact.id}/${platform} has no entry file`).toBeTruthy()
       expect(files.installSubdir, `${artifact.id}/${platform} has no install subdir`).toBeTruthy()
       // The entry file is installed separately from the support files; listing it twice
@@ -80,7 +89,6 @@ describe('local model catalog', () => {
       // Flattening relies on the prefix ending at a directory boundary.
       expect(files.tarballPrefix.endsWith('/')).toBe(true)
     }
-    expect(artifact.tarballSha256).toMatch(/^[0-9a-f]{64}$/)
   })
 
   it('throws on an unknown file key rather than yielding an undefined path', () => {

@@ -70,9 +70,14 @@ export function isArtifactInstalled(artifact: SharedArtifact): boolean {
   return [platform.entryFile, ...platform.supportFiles].every((file) => fs.existsSync(path.join(dir, file)))
 }
 
-function tarballUrls(artifact: SharedArtifact, registryOrder: readonly ArtifactRegistryId[]): string[] {
-  const { packageName, version } = artifact
-  return registryOrder.map((id) => `${NPM_REGISTRIES[id]}/${packageName}/-/${packageName}-${version}.tgz`)
+function tarballUrls(
+  artifact: SharedArtifact,
+  platform: ArtifactPlatformFiles,
+  registryOrder: readonly ArtifactRegistryId[]
+): string[] {
+  return registryOrder.map(
+    (id) => `${NPM_REGISTRIES[id]}/${platform.packageName}/-/${platform.packageName}-${artifact.version}.tgz`
+  )
 }
 
 /**
@@ -91,12 +96,12 @@ export async function installArtifact(
 
   const tmpDir = artifactStagingDir(artifact)
   await fs.promises.mkdir(tmpDir, { recursive: true })
-  const tarballPath = path.join(tmpDir, `${artifact.packageName}-${artifact.version}.tgz`)
+  const tarballPath = path.join(tmpDir, `${platform.packageName}-${artifact.version}.tgz`)
   const extractDir = path.join(tmpDir, `extract-${currentPlatformKey()}`)
 
   try {
-    await withMirrorFallback(tarballUrls(artifact, registryOrder), signal, artifact.id, (url) =>
-      streamToFileVerified(url, tarballPath, { sha256: artifact.tarballSha256, signal, onProgress })
+    await withMirrorFallback(tarballUrls(artifact, platform, registryOrder), signal, artifact.id, (url) =>
+      streamToFileVerified(url, tarballPath, { sha256: platform.tarballSha256, signal, onProgress })
     )
     signal.throwIfAborted()
     await extractPlatformFiles(tarballPath, extractDir, platform)

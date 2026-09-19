@@ -1,0 +1,12 @@
+diff --git a/addon.js b/addon.js
+--- a/addon.js
++++ b/addon.js
+@@ -5 +4,0 @@
+-const addonStaticImport = require('./addon-static-import');
+@@ -19 +18,5 @@
+-let addon = addonStaticImport;
++// Load the explicit download before any bundled binding to keep native versions isolated.
++// The inference utility process supplies this path after the user downloads the runtime.
++let addon = process.env.CHERRY_SHERPA_ONNX_BINDING_PATH
++    ? require(process.env.CHERRY_SHERPA_ONNX_BINDING_PATH)
++    : require('./addon-static-import');
