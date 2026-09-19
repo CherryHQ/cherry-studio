@@ -82,7 +82,7 @@ const wikiNodePageResponseSchema = z
   .object({
     code: z.literal(0),
     data: z.object({
-      items: z.array(wikiNodeSchema),
+      items: z.array(wikiNodeSchema).max(50),
       has_more: z.boolean(),
       page_token: z.string().trim().min(1).optional()
     })
@@ -224,13 +224,19 @@ async function request(
   const text = await response.text()
   if (text === '' && options.allowEmpty && response.ok) return null
 
-  let body: Record<string, unknown>
+  let parsedBody: unknown
   try {
-    body = JSON.parse(text) as Record<string, unknown>
+    parsedBody = JSON.parse(text)
   } catch {
     if (!response.ok) throw classifyError(response, {})
     throw new FeishuProviderError('invalid-response', false)
   }
+
+  if (parsedBody === null || typeof parsedBody !== 'object' || Array.isArray(parsedBody)) {
+    if (!response.ok) throw classifyError(response, {})
+    throw new FeishuProviderError('invalid-response', false)
+  }
+  const body = parsedBody as Record<string, unknown>
 
   if (!response.ok || (typeof body.code === 'number' && body.code !== 0)) {
     throw classifyError(response, body)

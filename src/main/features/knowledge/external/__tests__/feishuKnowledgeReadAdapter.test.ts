@@ -269,6 +269,22 @@ describe('previewFeishuKnowledgeScope', () => {
       )
     ).rejects.toMatchObject({ code: 'invalid-provider-response' })
   })
+
+  it('rejects a repeated pagination token instead of continuing an unbounded traversal', async () => {
+    const root = node({ nodeToken: 'root', objToken: 'doc-root', parentNodeToken: null, hasChild: true })
+    const listChildNodes = vi
+      .fn()
+      .mockResolvedValueOnce({ nodes: [], nextPageToken: 'same-page' })
+      .mockResolvedValueOnce({ nodes: [], nextPageToken: 'same-page' })
+      .mockRejectedValueOnce(new Error('pagination continued after the repeated token'))
+
+    await expect(
+      previewFeishuKnowledgeScope(
+        { connection: connection(), url: 'https://acme.feishu.cn/wiki/root' },
+        { ...operations(root), listChildNodes }
+      )
+    ).rejects.toMatchObject({ code: 'invalid-provider-response' })
+  })
 })
 
 describe('readFeishuDocx', () => {

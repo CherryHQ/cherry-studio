@@ -198,6 +198,14 @@ describe('feishuKnowledgeProvider', () => {
     })
   })
 
+  it('classifies a null JSON provider response as invalid instead of throwing a decoder TypeError', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response(null))
+
+    await expect(getWikiNode('access-token', { token: 'wikcnNode', objType: 'wiki' })).rejects.toMatchObject({
+      code: 'invalid-response'
+    })
+  })
+
   it('lists one Wiki child page from the fixed space endpoint', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(
       response({

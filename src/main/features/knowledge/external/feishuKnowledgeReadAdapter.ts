@@ -206,6 +206,7 @@ export async function previewFeishuKnowledgeScope(
   for (let index = 0; index < pending.length; index++) {
     const parent = pending[index]
     let pageToken: string | undefined
+    const pageTokens = new Set<string>()
     do {
       const page = await operations.listChildNodes(
         resolved.resolution.spaceId,
@@ -227,6 +228,10 @@ export async function previewFeishuKnowledgeScope(
         if (child.nodeType === 'origin' && child.hasChild) pending.push({ node: child, breadcrumb })
       }
       pageToken = page.nextPageToken
+      if (pageToken && pageTokens.has(pageToken)) {
+        throw new FeishuKnowledgeReadError('invalid-provider-response')
+      }
+      if (pageToken) pageTokens.add(pageToken)
     } while (pageToken)
   }
 
