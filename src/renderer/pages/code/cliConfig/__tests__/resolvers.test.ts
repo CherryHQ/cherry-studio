@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 
-import { resolveGeminiBaseUrl, resolveHermesProviderInfo, resolvePiProviderInfo } from '../resolvers'
+import {
+  resolveCodexBaseUrl,
+  resolveGeminiBaseUrl,
+  resolveHermesProviderInfo,
+  resolvePiProviderInfo
+} from '../resolvers'
 
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
 
@@ -96,6 +101,37 @@ describe('resolveGeminiBaseUrl', () => {
         })
       )
     ).toBe('http://127.0.0.1:23333')
+  })
+})
+
+describe('resolveCodexBaseUrl', () => {
+  // Codex CLI / connection drafts read openai-responses only. After a primary-host
+  // sync (#20159), that endpoint must carry the configured host — not a leftover MiMo URL.
+  it('uses the configured openai-responses baseUrl for Codex', () => {
+    expect(
+      resolveCodexBaseUrl(
+        provider({
+          id: 'custom-codex',
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://token-plan-cn.xiaomimimo.com' },
+            'openai-responses': { baseUrl: 'https://token-plan-cn.xiaomimimo.com' }
+          }
+        })
+      )
+    ).toBe('https://token-plan-cn.xiaomimimo.com/v1')
+  })
+
+  it('does not fall back to a chat-completions host when responses is unset', () => {
+    expect(
+      resolveCodexBaseUrl(
+        provider({
+          id: 'chat-only',
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://api.xiaomimimo.com' }
+          }
+        })
+      )
+    ).toBe('')
   })
 })
 

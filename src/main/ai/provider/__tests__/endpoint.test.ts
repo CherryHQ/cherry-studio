@@ -357,6 +357,26 @@ describe('resolveEffectiveEndpoint', () => {
     expect(baseUrl).toBe('https://api.minimax.io/anthropic')
   })
 
+  // Health/connection checks for Codex-capable models prefer openai-responses.
+  // After the primary-host sync (#20159), that endpoint must resolve to the configured
+  // host — never a leftover Xiaomi MiMo URL on a sibling that was not edited.
+  it('uses the configured openai-responses host for a Codex-preferring model', () => {
+    const provider = makeProvider({
+      id: 'mimo-instance',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://token-plan-cn.xiaomimimo.com' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://token-plan-cn.xiaomimimo.com' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.xiaomimimo.com/anthropic' }
+      }
+    })
+    const model = { id: 'codex-model', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] } as never
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      baseUrl: 'https://token-plan-cn.xiaomimimo.com'
+    })
+  })
+
   it('falls back to provider.defaultChatEndpoint when model has no endpointTypes hint', () => {
     const provider = makeProvider({
       id: 'minimax',
