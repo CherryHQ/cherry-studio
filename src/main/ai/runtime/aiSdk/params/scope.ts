@@ -38,6 +38,8 @@ export interface RequestScope extends ToolApplyScope {
   readonly aiSdkProviderId: AppProviderId
   readonly reasoningProfile: ResolvedReasoningProfile
   readonly reasoning: ResolvedReasoningInvocation
+  /** Total output-token budget after precedence resolution and model-limit clamping. */
+  readonly requestedMaxOutputTokens?: number
   readonly serviceTierControl?: ResolvedServiceTierControl
   readonly requestContext: RequestContext
   /** Resolved context-build settings (global prefs; assistant/topic
