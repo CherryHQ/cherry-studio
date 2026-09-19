@@ -28,7 +28,7 @@ const fileMock = vi.hoisted(() => ({
   readExternal: vi.fn(),
   startTask: vi.fn(),
   getTask: vi.fn(),
-  getFileExtension: vi.fn((_name?: string) => 'txt'),
+  getFileExtension: vi.fn(() => 'txt'),
   isTextFile: vi.fn(),
   getPathForFile: vi.fn(),
   createTempFile: vi.fn(),
