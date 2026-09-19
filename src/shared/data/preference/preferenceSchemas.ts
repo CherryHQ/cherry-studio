@@ -378,6 +378,8 @@ export interface PreferenceSchemas {
     'feature.api_gateway.enabled': boolean
     // redux/settings/apiServer.host
     'feature.api_gateway.host': string
+    // Last assigned port of the LAN (0.0.0.0) gateway; 0 = assign an ephemeral one on next start
+    'feature.api_gateway.lan_port': number
     // redux/settings/apiServer.port
     'feature.api_gateway.port': number
     // target-key-definitions/complex/complex
@@ -763,6 +765,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.api_gateway.api_key': null,
     'feature.api_gateway.enabled': false,
     'feature.api_gateway.host': '127.0.0.1',
+    'feature.api_gateway.lan_port': 0,
     'feature.api_gateway.port': 23333,
     'feature.binary.install_settings': { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true },
     'feature.binary.tools': [],

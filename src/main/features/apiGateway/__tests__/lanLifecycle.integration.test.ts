@@ -95,4 +95,28 @@ describe('independent LAN listener lifecycle', () => {
       await service._doDestroy()
     }
   }, 15_000)
+
+  it('reuses the persisted LAN gateway port across service restarts', async () => {
+    const first = new ApiGatewayService()
+    await first._doInit()
+    let firstPort = 0
+    try {
+      await first.setLanEnabled(true)
+      firstPort = first.createPairingOffer().port
+      expect(firstPort).toBeGreaterThan(0)
+    } finally {
+      await first._doDestroy()
+      // `_doDestroy` stops the service but keeps the singleton registered.
+      BaseService.resetInstances()
+    }
+
+    // A fresh service simulates an app restart; the paired mobile client's stored URL stays valid.
+    const second = new ApiGatewayService()
+    try {
+      await second._doInit()
+      expect(second.createPairingOffer().port).toBe(firstPort)
+    } finally {
+      await second._doDestroy()
+    }
+  }, 15_000)
 })
