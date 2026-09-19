@@ -355,12 +355,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 81920,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -800,12 +800,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 81920,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -883,12 +883,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 38912,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -1248,12 +1248,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 38912,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -1408,12 +1408,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 38912,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -1456,12 +1456,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 81920,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -1504,12 +1504,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 81920,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -1552,12 +1552,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 81920,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -1600,12 +1600,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 81920,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -1943,12 +1943,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 81920,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -1993,12 +1993,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 81920,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -2040,12 +2040,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 81920,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -2148,12 +2148,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 81920,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -2402,12 +2402,12 @@
             "values": ["low", "medium", "xhigh"]
           },
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 262144,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["low", "medium", "xhigh", "none"],
@@ -2551,12 +2551,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 38912,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -2996,12 +2996,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 38912,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -3220,11 +3220,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.19999999999999998
+          "perMillionTokens": 0.13
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.7
+          "perMillionTokens": 0.52
         }
       }
     },
@@ -3352,12 +3352,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 38912,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -4083,12 +4083,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 64000,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -4212,12 +4212,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 32000,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -4264,12 +4264,12 @@
             "values": ["low", "medium", "high"]
           },
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 64000,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["low", "medium", "high", "none"],
@@ -4316,12 +4316,12 @@
             "values": ["low", "medium", "high", "max"]
           },
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 128000,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["low", "medium", "high", "max", "none"],
@@ -4368,12 +4368,12 @@
             "values": ["low", "medium", "high", "max"]
           },
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 128000,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["low", "medium", "high", "max", "none"],
@@ -4420,12 +4420,12 @@
             "values": ["low", "medium", "high", "xhigh", "max"]
           },
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 128000,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"],
@@ -4670,12 +4670,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 64000,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -4718,12 +4718,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 64000,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -4770,12 +4770,12 @@
             "values": ["low", "medium", "high", "max"]
           },
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 64000,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["low", "medium", "high", "max", "none"],
@@ -14260,12 +14260,12 @@
       "reasoning": {
         "controls": [
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 30720,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "auto"],
@@ -14315,12 +14315,12 @@
             "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           {
-            "kind": "toggle"
-          },
-          {
             "kind": "budget",
             "max": 30720,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
         "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
@@ -14568,11 +14568,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.0999999999999996
+          "perMillionTokens": 2.0694999999999997
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 10.950000000000001
+          "perMillionTokens": 11.5892
         }
       }
     },
@@ -22600,5 +22600,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "4fe5e4168a58fffe"
+  "version": "0c9d05aa99a2e93a"
 }

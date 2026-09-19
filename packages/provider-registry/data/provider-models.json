@@ -24649,15 +24649,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.01
+          "perMillionTokens": 0.016
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.065
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.18
         }
       },
       "providerId": "openrouter",
@@ -26879,6 +26879,20 @@
     {
       "apiModelId": "z-ai/glm-5.3-flashx",
       "modelId": "glm-5-3-flashx",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.37
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        }
+      },
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -29999,15 +30013,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.23
+          "perMillionTokens": 0.240062
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.1
+          "perMillionTokens": 2.0695
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 10.95
+          "perMillionTokens": 11.5892
         }
       },
       "providerId": "openrouter",
@@ -30037,15 +30051,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.23
+          "perMillionTokens": 0.240062
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.1
+          "perMillionTokens": 2.0695
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 10.95
+          "perMillionTokens": 11.5892
         }
       },
       "providerId": "openrouter",
@@ -33622,11 +33636,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.13
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.7
+          "perMillionTokens": 0.52
         }
       },
       "providerId": "openrouter"
@@ -41757,5 +41771,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "357ea42bf081d2c1"
+  "version": "e75c553bb13f305e"
 }
