@@ -1,7 +1,7 @@
 import { Clock, LoaderCircle, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { EmptyState } from '@cherrystudio/ui'
+import { Alert, EmptyState } from '@cherrystudio/ui'
 
 import RecallResultCard from './RecallResultCard'
 import { useRecallResult } from './RecallTestProvider'
@@ -10,11 +10,14 @@ import { formatRecallPercent, formatRecallScore } from './utils'
 const RecallResultSummary = () => {
   const { t } = useTranslation()
   const {
-    state: { results, duration, topScore, scoreKind }
+    state: { results, duration, topScore, scoreKind, hasRerankFailed }
   } = useRecallResult()
 
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-border-subtle px-4 py-3 text-xs leading-4 text-foreground-tertiary">
+    <div className="border-b border-border-subtle px-4 py-3 text-xs leading-4 text-foreground-tertiary">
+      {hasRerankFailed ? (
+        <Alert type="warning" showIcon className="mb-2" message={t('knowledge.recall.rerank_failed')} />
+      ) : null}
       <div className="flex items-center gap-2.5">
         <span className="flex items-center gap-0.5">
           <Sparkles className="size-3" />
