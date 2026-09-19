@@ -4,7 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { withPathMutationLock } from '../mutationLock'
+import { resolveMutationLockKey, withPathMutationLock } from '../mutationLock'
 import { logger, validatePath } from '../types'
 
 // Schema definition
@@ -29,7 +29,11 @@ export const writeToolDefinition = {
 // Handler implementation
 export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, baseDir: string): Promise<CallToolResult> {
   const filePath = args.file_path
-  const validPath = await validatePath(filePath, baseDir)
+  // Register in the lock chain before validating so concurrent calls queue in call order.
+  // The canonical lock below additionally serializes alias spellings of the same file.
+  const validPath = await withPathMutationLock(resolveMutationLockKey(filePath, baseDir), () =>
+    validatePath(filePath, baseDir)
+  )
   return withPathMutationLock(validPath, async () => {
     // Create parent directory if it doesn't exist
     const parentDir = path.dirname(validPath)
