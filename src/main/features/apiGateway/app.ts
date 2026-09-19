@@ -182,6 +182,13 @@ export function buildApp({
           messages: 'POST /v1/messages',
           generate_content: 'POST /v1beta/models/{model}:generateContent',
           knowledge_bases: 'GET /v1/knowledge-bases',
+          knowledge_base: 'GET /v1/knowledge-bases/{id}',
+          knowledge_base_create: 'POST /v1/knowledge-bases',
+          knowledge_base_delete: 'DELETE /v1/knowledge-bases/{id}',
+          knowledge_documents: 'GET /v1/knowledge-bases/{id}/documents',
+          knowledge_documents_add: 'POST /v1/knowledge-bases/{id}/documents',
+          knowledge_document_delete: 'DELETE /v1/knowledge-bases/{id}/documents/{documentId}',
+          knowledge_document_reindex: 'POST /v1/knowledge-bases/{id}/documents/{documentId}/reindex',
           knowledge_search: 'POST /v1/knowledge-bases/search',
           mcp_servers: 'GET /v1/mcps',
           mcp_proxy: 'POST /v1/mcps/{server_id}/mcp'

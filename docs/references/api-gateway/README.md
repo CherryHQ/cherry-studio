@@ -118,8 +118,14 @@ guard, described below.
 | `POST /v1beta/models/{provider:model}:countTokens` | Gemini | local converted-request estimate |
 | `GET /v1/models` | OpenAI list | `{ object:'list', data:[…] }`, ids are `providerId:modelId` (offset/limit) |
 | `GET /v1/knowledge-bases` | Cherry REST | list (offset/limit) |
+| `POST /v1/knowledge-bases` | Cherry REST | create a vector or BM25-only base |
 | `POST /v1/knowledge-bases/search` | Cherry REST | semantic search across bases |
 | `GET /v1/knowledge-bases/:id` | Cherry REST | single base |
+| `DELETE /v1/knowledge-bases/:id` | Cherry REST | delete a base and its owned artifacts |
+| `GET /v1/knowledge-bases/:id/documents` | Cherry REST | list document and directory records |
+| `POST /v1/knowledge-bases/:id/documents` | Cherry REST | add raw-text documents, optionally under an existing directory |
+| `DELETE /v1/knowledge-bases/:id/documents/:documentId` | Cherry REST | enqueue document subtree deletion |
+| `POST /v1/knowledge-bases/:id/documents/:documentId/reindex` | Cherry REST | enqueue document subtree reindexing |
 | `GET /v1/mcps` | Cherry REST | active MCP server catalog with gateway URLs |
 | `GET /v1/mcps/:id` | Cherry REST | one active server plus its warmed tool catalog |
 | `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | initialize/session request or sessionless one-shot JSON-RPC |

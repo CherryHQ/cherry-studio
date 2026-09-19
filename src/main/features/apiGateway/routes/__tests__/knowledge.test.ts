@@ -10,17 +10,47 @@ import { DataApiError, DataApiErrorFactory } from '@shared/data/api/errors'
  * shaping (DataApiError → `{ error: { code, message } }` with its HTTP status).
  */
 
-const { mockList, mockGetById, mockSearch } = vi.hoisted(() => ({
+const {
+  mockList,
+  mockGetById,
+  mockListItems,
+  mockGetItemById,
+  mockSearch,
+  mockCreateBase,
+  mockDeleteBase,
+  mockAddItems,
+  mockDeleteItems,
+  mockReindexItems
+} = vi.hoisted(() => ({
   mockList: vi.fn<(query: unknown) => unknown>(),
   mockGetById: vi.fn<(id: string) => unknown>(),
-  mockSearch: vi.fn<(baseId: string, query: string) => Promise<unknown[]>>()
+  mockListItems: vi.fn<(baseId: string, query: unknown) => unknown>(),
+  mockGetItemById: vi.fn<(id: string) => unknown>(),
+  mockSearch: vi.fn<(baseId: string, query: string) => Promise<unknown[]>>(),
+  mockCreateBase: vi.fn<(input: unknown) => Promise<unknown>>(),
+  mockDeleteBase: vi.fn<(baseId: string) => Promise<void>>(),
+  mockAddItems: vi.fn<(baseId: string, items: unknown[]) => Promise<unknown>>(),
+  mockDeleteItems: vi.fn<(baseId: string, itemIds: string[]) => Promise<void>>(),
+  mockReindexItems: vi.fn<(baseId: string, itemIds: string[]) => Promise<void>>()
 }))
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: { list: mockList, getById: mockGetById }
 }))
+vi.mock('@data/services/KnowledgeItemService', () => ({
+  knowledgeItemService: { list: mockListItems, getById: mockGetItemById }
+}))
 vi.mock('@application', () => ({
-  application: { get: vi.fn(() => ({ search: mockSearch })) }
+  application: {
+    get: vi.fn(() => ({
+      search: mockSearch,
+      createBase: mockCreateBase,
+      deleteBase: mockDeleteBase,
+      addItems: mockAddItems,
+      deleteItems: mockDeleteItems,
+      reindexItems: mockReindexItems
+    }))
+  }
 }))
 vi.mock('@logger', () => ({
   loggerService: { withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() })) }
@@ -60,6 +90,7 @@ async function call(method: string, path: string, body?: unknown): Promise<{ sta
 describe('knowledge routes (v2)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetItemById.mockReturnValue({ id: 'note-1', baseId: 'kb-1' })
   })
 
   it('GET /knowledge-bases applies a true offset/limit window', async () => {
@@ -94,6 +125,131 @@ describe('knowledge routes (v2)', () => {
     const { status, body } = await call('GET', '/knowledge-bases/kb-1')
     expect(status).toBe(200)
     expect(body.id).toBe('kb-1')
+  })
+
+  it('POST /knowledge-bases creates a BM25-only base through KnowledgeService', async () => {
+    mockCreateBase.mockResolvedValue(kb('kb-new', 'Imported notes'))
+
+    const { status, body } = await call('POST', '/knowledge-bases', { name: 'Imported notes' })
+
+    expect(status).toBe(201)
+    expect(mockCreateBase).toHaveBeenCalledWith({
+      name: 'Imported notes',
+      embeddingModelId: undefined,
+      dimensions: undefined
+    })
+    expect(body.id).toBe('kb-new')
+  })
+
+  it('POST /knowledge-bases rejects a half-configured embedding model pair', async () => {
+    const { status } = await call('POST', '/knowledge-bases', {
+      name: 'Invalid',
+      embedding_model_id: 'provider::embed'
+    })
+
+    expect(status).toBe(422)
+    expect(mockCreateBase).not.toHaveBeenCalled()
+  })
+
+  it('GET /knowledge-bases/:id/documents returns bounded metadata without document content', async () => {
+    mockListItems.mockReturnValue({
+      items: [
+        {
+          id: 'note-1',
+          baseId: 'kb-1',
+          type: 'note',
+          status: 'completed',
+          groupId: null,
+          data: { source: 'joplin:42', content: 'private document body' },
+          error: null
+        }
+      ],
+      total: 101,
+      nextCursor: 'cursor-2'
+    })
+
+    const { status, body } = await call('GET', '/knowledge-bases/kb-1/documents?limit=1&cursor=cursor-1')
+
+    expect(status).toBe(200)
+    expect(mockListItems).toHaveBeenCalledWith('kb-1', { limit: 1, cursor: 'cursor-1' })
+    expect(body).toEqual({
+      documents: [
+        {
+          id: 'note-1',
+          type: 'note',
+          status: 'completed',
+          group_id: null,
+          source: 'joplin:42',
+          error: null
+        }
+      ],
+      total: 101,
+      next_cursor: 'cursor-2'
+    })
+  })
+
+  it('POST /knowledge-bases/:id/documents adds raw text through the durable workflow', async () => {
+    mockAddItems.mockResolvedValue({ status: 'added' })
+
+    const { status, body } = await call('POST', '/knowledge-bases/kb-1/documents', {
+      documents: [{ title: 'joplin:42', content: '# Updated', group_id: 'folder-1' }]
+    })
+
+    expect(status).toBe(200)
+    expect(mockAddItems).toHaveBeenCalledWith(
+      'kb-1',
+      [{ type: 'note', groupId: 'folder-1', data: { source: 'joplin:42', content: '# Updated' } }],
+      'rename'
+    )
+    expect(body).toEqual({ status: 'added' })
+  })
+
+  it('POST /knowledge-bases/:id/documents rejects an oversized UTF-8 aggregate', async () => {
+    const { status } = await call('POST', '/knowledge-bases/kb-1/documents', {
+      documents: Array.from({ length: 11 }, (_, index) => ({
+        title: `note-${index}`,
+        content: '中'.repeat(333_334)
+      }))
+    })
+
+    expect(status).toBe(422)
+    expect(mockAddItems).not.toHaveBeenCalled()
+  })
+
+  it('DELETE /knowledge-bases/:id/documents/:documentId delegates subtree deletion', async () => {
+    const { status, body } = await call('DELETE', '/knowledge-bases/kb-1/documents/note-1')
+
+    expect(status).toBe(202)
+    expect(mockDeleteItems).toHaveBeenCalledWith('kb-1', ['note-1'])
+    expect(body).toEqual({ status: 'queued' })
+  })
+
+  it('POST /knowledge-bases/:id/documents/:documentId/reindex delegates durable reindexing', async () => {
+    const { status, body } = await call('POST', '/knowledge-bases/kb-1/documents/note-1/reindex')
+
+    expect(status).toBe(202)
+    expect(mockReindexItems).toHaveBeenCalledWith('kb-1', ['note-1'])
+    expect(body).toEqual({ status: 'queued' })
+  })
+
+  it('rejects document operations when the document belongs to another knowledge base', async () => {
+    mockGetItemById.mockReturnValue({ id: 'note-1', baseId: 'kb-2' })
+
+    const deletion = await call('DELETE', '/knowledge-bases/kb-1/documents/note-1')
+    const reindex = await call('POST', '/knowledge-bases/kb-1/documents/note-1/reindex')
+
+    expect(deletion.status).toBe(404)
+    expect(reindex.status).toBe(404)
+    expect(mockDeleteItems).not.toHaveBeenCalled()
+    expect(mockReindexItems).not.toHaveBeenCalled()
+  })
+
+  it('DELETE /knowledge-bases/:id delegates base and artifact cleanup', async () => {
+    const { status, body } = await call('DELETE', '/knowledge-bases/kb-1')
+
+    expect(status).toBe(200)
+    expect(mockDeleteBase).toHaveBeenCalledWith('kb-1')
+    expect(body).toEqual({ deleted: true })
   })
 
   it('GET /knowledge-bases/:id maps a DataApiError NOT_FOUND → 404 REST envelope', async () => {

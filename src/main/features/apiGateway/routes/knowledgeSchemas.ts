@@ -1,5 +1,7 @@
 import * as z from 'zod'
 
+import { KNOWLEDGE_NOTE_CONTENT_MAX, KNOWLEDGE_RUNTIME_ITEMS_MAX } from '@shared/data/types/knowledge'
+
 /**
  * Request and response schemas for the knowledge routes. Request schemas validate
  * `query`/`body`/`params`; response schemas are passed to Elysia's `response` option
@@ -12,6 +14,50 @@ import * as z from 'zod'
 
 /** Knowledge base ID — non-empty string. */
 const KnowledgeBaseIdSchema = z.string().min(1, 'Knowledge base ID is required')
+const KnowledgeDocumentIdSchema = z.string().min(1, 'Knowledge document ID is required')
+export const KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES = 10_000_000
+
+/** `POST /` body. A missing model pair creates a BM25-only base. */
+export const CreateKnowledgeBaseRequestSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required'),
+    embedding_model_id: z.string().trim().min(1).nullable().optional(),
+    dimensions: z.number().int().positive().nullable().optional()
+  })
+  .superRefine((value, ctx) => {
+    if ((value.embedding_model_id == null) !== (value.dimensions == null)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dimensions'],
+        message: 'Embedding model and dimensions must be provided together'
+      })
+    }
+  })
+
+const RawTextDocumentSchema = z.object({
+  title: z.string().trim().min(1, 'Document title is required'),
+  content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX),
+  group_id: z.string().trim().min(1).nullable().optional()
+})
+
+/** `POST /:id/documents` body. The existing workflow preserves name collisions by renaming. */
+export const AddKnowledgeDocumentsRequestSchema = z
+  .object({
+    documents: z.array(RawTextDocumentSchema).min(1).max(KNOWLEDGE_RUNTIME_ITEMS_MAX)
+  })
+  .superRefine((value, ctx) => {
+    const byteLength = value.documents.reduce(
+      (total, document) => total + Buffer.byteLength(document.title) + Buffer.byteLength(document.content),
+      0
+    )
+    if (byteLength > KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['documents'],
+        message: `Document batch must be at most ${KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES} UTF-8 bytes`
+      })
+    }
+  })
 
 /** `POST /search` body. */
 export const KnowledgeSearchSchema = z.object({
@@ -26,9 +72,20 @@ export const PaginationQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0).optional()
 })
 
+/** `GET /:id/documents` cursor pagination query. */
+export const KnowledgeDocumentsQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20)
+})
+
 /** `GET /:id` route params. */
 export const KnowledgeBaseIdParamSchema = z.object({
   id: KnowledgeBaseIdSchema
+})
+
+export const KnowledgeDocumentIdParamSchema = z.object({
+  id: KnowledgeBaseIdSchema,
+  documentId: KnowledgeDocumentIdSchema
 })
 
 // ── Response schemas ────────────────────────────────────────────────
@@ -44,6 +101,28 @@ export const ListKnowledgeBasesResponseSchema = z.object({
 })
 
 export const KnowledgeBaseResponseSchema = KnowledgeBaseEntry
+
+export const DeleteKnowledgeBaseResponseSchema = z.object({ deleted: z.literal(true) })
+
+const KnowledgeDocumentEntry = z.object({
+  id: z.string(),
+  type: z.enum(['file', 'url', 'note', 'directory']),
+  status: z.string(),
+  group_id: z.string().nullable(),
+  source: z.string(),
+  error: z.string().nullable()
+})
+
+export const ListKnowledgeDocumentsResponseSchema = z.object({
+  documents: z.array(KnowledgeDocumentEntry),
+  total: z.number().int().nonnegative(),
+  next_cursor: z.string().optional()
+})
+
+export const AddKnowledgeDocumentsResponseSchema = z.object({ status: z.literal('added') })
+
+export const DeleteKnowledgeDocumentResponseSchema = z.object({ status: z.literal('queued') })
+export const ReindexKnowledgeDocumentResponseSchema = z.object({ status: z.literal('queued') })
 
 export const SearchKnowledgeResponseSchema = z.object({
   query: z.string(),

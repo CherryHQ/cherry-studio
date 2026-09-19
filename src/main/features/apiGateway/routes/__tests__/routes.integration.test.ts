@@ -191,7 +191,17 @@ describe('API gateway routes (integration)', () => {
       const { status, body } = await read(await get(app, '/', {}))
       expect(status).toBe(200)
       expect(body.name).toBe('Cherry Studio API')
-      expect(body.endpoints).toBeDefined()
+      expect(body.endpoints).toMatchObject({
+        knowledge_bases: 'GET /v1/knowledge-bases',
+        knowledge_base: 'GET /v1/knowledge-bases/{id}',
+        knowledge_base_create: 'POST /v1/knowledge-bases',
+        knowledge_base_delete: 'DELETE /v1/knowledge-bases/{id}',
+        knowledge_documents: 'GET /v1/knowledge-bases/{id}/documents',
+        knowledge_documents_add: 'POST /v1/knowledge-bases/{id}/documents',
+        knowledge_document_delete: 'DELETE /v1/knowledge-bases/{id}/documents/{documentId}',
+        knowledge_document_reindex: 'POST /v1/knowledge-bases/{id}/documents/{documentId}/reindex',
+        knowledge_search: 'POST /v1/knowledge-bases/search'
+      })
     })
 
     it('OpenAPI spec advertises an absolute server URL from host/port', async () => {
