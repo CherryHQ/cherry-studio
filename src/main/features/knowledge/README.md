@@ -86,6 +86,8 @@ gate (`classifyKnowledgeItemReacquireSource`) rejects a reindex when the corresp
 instead of wiping vectors with nothing to rebuild from. Restore asks a *different* question and keeps
 its own probe (`classifyKnowledgeItemRestoreSource`): it copies out of this base, so a file whose
 original vanished still restores fine, and a restored external item becomes ownerless static content.
+A directly selected active-owned external leaf may therefore be reindexed without severing ownership;
+ownership admission applies to descendants that a selected container rebuild would delete.
 
 ## Concurrency
 

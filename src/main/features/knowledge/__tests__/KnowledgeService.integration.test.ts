@@ -417,17 +417,19 @@ describe('KnowledgeService integration', () => {
       })
     }
 
-    it('rejects an active-owned selected subtree before source probing or enqueue', async () => {
+    it('allows reindexing an active-owned external leaf from its pinned snapshot', async () => {
       await seedReindexBase()
       await seedExternalItem({ owned: true, baseId: REINDEX_BASE_ID })
       const service = new KnowledgeService()
 
-      await expect(service.reindexItems(REINDEX_BASE_ID, [EXTERNAL_ITEM_ID])).rejects.toMatchObject({
-        code: 'INVALID_OPERATION'
-      })
+      await expect(service.reindexItems(REINDEX_BASE_ID, [EXTERNAL_ITEM_ID])).resolves.toBeUndefined()
 
-      expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
-      expect(enqueueMock).not.toHaveBeenCalled()
+      expect(probeKnowledgeFileMock).toHaveBeenCalled()
+      expect(enqueueMock).toHaveBeenCalledWith(
+        'knowledge.reindex-subtree',
+        { baseId: REINDEX_BASE_ID, rootItemIds: [EXTERNAL_ITEM_ID] },
+        expect.objectContaining({ queue: `base.${REINDEX_BASE_ID}` })
+      )
     })
 
     it('allows reindexing an ownerless static external item', async () => {

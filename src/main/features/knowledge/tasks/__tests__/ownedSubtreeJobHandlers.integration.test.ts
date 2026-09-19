@@ -271,35 +271,52 @@ describe('owned subtree job handler admission', () => {
     })
   })
 
-  it('reindex ownership wins over a sibling producer failure without mutating either root', async () => {
-    await dbh.db.insert(knowledgeItemTable).values([
-      {
-        id: EXTERNAL_ITEM_ID,
-        baseId: BASE_ID,
-        groupId: null,
-        type: 'external',
-        data: {
-          source: 'feishu://document/doc-1',
-          title: 'External doc',
-          relativePath: KnowledgeRelativePathSchema.parse('external/doc-1.md')
-        },
-        status: 'completed',
-        error: null
+  it('reindex allows an active-owned external leaf to rebuild from its pinned snapshot', async () => {
+    await dbh.db.insert(knowledgeItemTable).values({
+      id: EXTERNAL_ITEM_ID,
+      baseId: BASE_ID,
+      groupId: null,
+      type: 'external',
+      data: {
+        source: 'feishu://document/doc-1',
+        title: 'External doc',
+        relativePath: KnowledgeRelativePathSchema.parse('external/doc-1.md')
       },
-      {
-        id: URL_ITEM_ID,
-        baseId: BASE_ID,
-        groupId: null,
-        type: 'url',
-        data: {
-          source: 'https://example.com',
-          url: 'https://example.com',
-          relativePath: KnowledgeRelativePathSchema.parse('example.md')
-        },
-        status: 'completed',
-        error: null
-      }
-    ])
+      status: 'completed',
+      error: null
+    })
+    await seedActiveOwner()
+    deleteMaterialsMock.mockResolvedValue(undefined)
+    const handler = createReindexSubtreeJobHandler(new KeyedMutex(), scheduler)
+
+    await expect(
+      handler.execute(createCtx({ baseId: BASE_ID, rootItemIds: [EXTERNAL_ITEM_ID] }))
+    ).resolves.toBeUndefined()
+
+    const statuses = await loadStatuses()
+    expect(statuses.get(EXTERNAL_ITEM_ID)).toBe('processing')
+    expect(deleteMaterialsMock).toHaveBeenCalledWith([EXTERNAL_ITEM_ID])
+    expect(deleteKnowledgeItemFilesBestEffortMock).not.toHaveBeenCalled()
+    expect(scheduler.scheduleItem).toHaveBeenCalledWith(BASE_ID, EXTERNAL_ITEM_ID, 'job-1', {
+      forceFileReprocess: true
+    })
+  })
+
+  it('reindex ownership wins over a sibling producer failure without mutating either root', async () => {
+    await seedSubtree('completed', false)
+    await dbh.db.insert(knowledgeItemTable).values({
+      id: URL_ITEM_ID,
+      baseId: BASE_ID,
+      groupId: null,
+      type: 'url',
+      data: {
+        source: 'https://example.com',
+        url: 'https://example.com',
+        relativePath: KnowledgeRelativePathSchema.parse('example.md')
+      },
+      status: 'completed',
+      error: null
+    })
     fetchKnowledgeWebPageMock.mockImplementationOnce(async () => {
       await seedActiveOwner()
       throw new Error('404 Not Found')
@@ -307,10 +324,11 @@ describe('owned subtree job handler admission', () => {
     const handler = createReindexSubtreeJobHandler(new KeyedMutex(), scheduler)
 
     await expect(
-      handler.execute(createCtx({ baseId: BASE_ID, rootItemIds: [EXTERNAL_ITEM_ID, URL_ITEM_ID] }))
+      handler.execute(createCtx({ baseId: BASE_ID, rootItemIds: [DIRECTORY_ID, URL_ITEM_ID] }))
     ).rejects.toMatchObject({ code: 'INVALID_OPERATION' })
 
     const statuses = await loadStatuses()
+    expect(statuses.get(DIRECTORY_ID)).toBe('completed')
     expect(statuses.get(EXTERNAL_ITEM_ID)).toBe('completed')
     expect(statuses.get(URL_ITEM_ID)).toBe('completed')
     expect(deleteMaterialsMock).not.toHaveBeenCalled()

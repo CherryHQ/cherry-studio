@@ -338,7 +338,10 @@ The same check covers a selected directory's descendants and a mixed batch;
 because status writes, enforcement, and enqueueing share one synchronous
 transaction, a rejection restores every selected item's prior state. Ownerless
 completed external items are static external content and use the normal delete
-and reindex paths.
+path. Reindex may also target a directly selected active-owned external leaf:
+the item and pinned snapshot remain in place while only its derived index is
+rebuilt. Ownership blocks reindex when selected container cleanup would delete
+an active-owned descendant.
 
 Knowledge files are managed by the Knowledge workflow under the base `raw/` directory. The create/index path does not register FileManager refs, so delete has no separate FileManager ref cleanup step.
 
@@ -347,10 +350,10 @@ If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls bac
 `reindex-items` currently runs:
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
-2. Orchestration rejects active document ownership, then requires every selected subtree item to be terminal (`completed` or `failed`) and every selected root source to be available.
+2. Orchestration rejects active document ownership among descendants that a selected container rebuild would delete, then requires every selected subtree item to be terminal (`completed` or `failed`) and every selected root source to be available. A directly selected active-owned external leaf remains eligible and rebuilds from its pinned snapshot.
 3. Workflow service enqueues `knowledge.reindex-subtree`.
 4. The reindex job skips if delete won the race and any subtree item is now `deleting`.
-5. Under the base mutation lock, the reindex job rechecks abort state, delete state, active ownership, and source availability before resetting statuses or touching artifacts; it then replaces source bytes, deletes old vectors and expanded descendants, and schedules each selected root through the workflow service.
+5. Under the base mutation lock, the reindex job rechecks abort state, delete state, source availability, and active ownership for the container descendants it would delete before resetting statuses or touching artifacts; it then replaces source bytes, deletes old vectors and expanded descendants, and schedules each selected root through the workflow service.
 
 Reindex is not a cancellation primitive. Delete is the operation that can preempt active work.
 

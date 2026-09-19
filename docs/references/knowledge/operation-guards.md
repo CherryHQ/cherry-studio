@@ -58,6 +58,9 @@ Used only by `reindexItems`.
 
 - Runs after selected item ids have been collapsed to top-level roots.
 - Loads each selected root subtree with roots included.
+- Rejects active document ownership only for non-root descendants that a
+  selected container rebuild would delete. A directly selected external leaf
+  remains owned by the same document and may rebuild from its pinned snapshot.
 - Allows reindex only when every item in every selected subtree is terminal: `completed` or `failed`.
 - Rejects active or deleting subtree state: `idle`, `preparing`, `processing`, `reading`, `embedding`, or `deleting`.
 - Probes each selected root before vector deletion. A confirmed missing file or
@@ -198,6 +201,7 @@ reindexItems(baseId, itemIds)
   -> reject items outside baseId
   -> collapse nested selections to top-level roots
   -> no-op if no roots remain
+  -> reject active-owned descendants that container cleanup would delete
   -> reject unless every selected root subtree is completed or failed
   -> enqueue knowledge.reindex-subtree
        idempotency key = knowledge:${baseId}:${sorted root ids}:reindex
@@ -222,7 +226,8 @@ The reindex entrypoint only accepts the durable job. It does not set roots to `p
 
 The reindex job owns the destructive and stateful work:
 
-- recheck active external ownership before mutation;
+- recheck active external ownership for descendants that selected container
+  roots would delete;
 - clear vectors for resolved leaf items;
 - delete previous container descendants when selected roots are containers;
 - keep selected leaf root source-file metadata because those root items still own their source files;
@@ -265,11 +270,15 @@ descendant cleanup during reindex. The already-admitted delete job is distinct:
 its ownership check was part of the transaction that marked the subtree
 `deleting` and enqueued the job.
 
-Reindex checks active ownership before enqueue and repeats the check under the
-base mutation lock before status or artifact mutation. The second check closes
-the race in which a future owner writer binds an item after admission but before
-the job obtains the lock. The future writer must independently reject
-`deleting` items so ownership cannot be introduced after delete admission.
+Reindex checks active ownership only for descendants that selected container
+roots would delete, and repeats that check under the base mutation lock before
+status or artifact mutation. A directly selected active-owned external leaf is
+not deleted: its row and pinned snapshot remain in place while its derived
+index is rebuilt, so ownership does not reject that operation. The locked
+descendant check closes the race in which a future owner writer binds an item
+after admission but before container cleanup. The future writer must
+independently reject `deleting` items so ownership cannot be introduced after
+delete admission.
 
 ## `enableEmbeddingModel`
 
@@ -327,7 +336,7 @@ When changing these operations, check the operation-specific failure behavior be
 | --- | --- | --- | --- | --- | --- |
 | `addItems` | Reject | N/A | Conflict strategy | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
 | `deleteItems` | Allow | Yes | No active document-owned item in any selected subtree | `deleting` (uncommitted; same transaction as ownership check and enqueue) | Roll back every selected subtree to its previous status |
-| `reindexItems` | Reject | Yes | No active document owner; entire subtree terminal; selected root sources available | None | Throw; no active state was written |
+| `reindexItems` | Reject | Yes | No active document owner among descendants that container cleanup would delete; entire subtree terminal; selected root sources available | None | Throw; no active state was written |
 | `enableEmbeddingModel` | Reject | All non-deleting roots | BM25-only base; same reindex admission checks | Model/dimensions committed before reindex enqueue | Propagate the reindex enqueue error; config remains enabled |
 | `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 

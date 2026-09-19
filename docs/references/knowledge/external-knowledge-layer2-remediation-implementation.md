@@ -178,6 +178,8 @@ function assertNoActiveExternalOwner(itemIds: readonly string[], operation: stri
 
 add-replace 与 prepare-root 继续调用普通 purge。reindex 的 inline descendant cleanup
 在 artifact 删除前调用同一 admission helper或改用同一 purge primitive。
+reindex ownership admission 只覆盖 selected container 会删除的 descendants；直接选择的
+active-owned external leaf 保留 owner、row 和 pinned snapshot，只重建 derived index。
 
 已由 `deleteItems` transaction 接纳的 delete job 仍可执行；未来 Document writer 必须禁止把 owner 绑定到 `deleting` item。本 Task 不实现未来 writer。
 
@@ -327,6 +329,19 @@ snapshot/material 在没有主数据库 row 时不可见；一个 `withWriteTx` 
 
 ```text
 docs(knowledge): define external publication boundaries
+```
+
+## Task 6：允许 active-owned external leaf 重建 derived index
+
+- [x] 将直接选择的 active-owned external leaf 契约改为 probe 并 enqueue，先确认旧 guard 使测试失败。
+- [x] 将 reindex ownership admission 收窄到 selected container 会删除的 descendants；entrypoint、producer-failure race 和锁内 reset 使用同一边界。
+- [x] 保留 container descendant race 的拒绝测试，并验证直接 leaf 只重建 vector、保留 row、owner 和 pinned snapshot。
+- [x] 同步本文、`knowledge-service.md`、`operation-guards.md` 与 feature README，并运行定向测试和文档门禁。
+
+提交信息：
+
+```text
+fix(knowledge-indexing): allow managed leaf reindex
 ```
 
 每个 commit 使用 `git commit -S --signoff`，提交后检查 `gpgsig` 与

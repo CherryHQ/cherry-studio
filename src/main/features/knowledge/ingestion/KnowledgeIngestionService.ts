@@ -544,11 +544,12 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     // rootItemIds comes from getOutermostSelectedItemIds, which guarantees the roots are mutually
     // non-descendant (disjoint subtrees), so one batched query's union equals the per-root sum.
     const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
+    const rootIdSet = new Set(rootItemIds)
+    // Selected roots survive reindex; only container descendants are deleted and need ownership admission.
     assertNoActiveExternalOwner(
-      subtreeItems.map((item) => item.id),
+      subtreeItems.filter((item) => !rootIdSet.has(item.id)).map((item) => item.id),
       'reindexItems'
     )
-    const rootIdSet = new Set(rootItemIds)
     const roots = subtreeItems.filter((item) => rootIdSet.has(item.id))
 
     // Reindex re-acquires from the real source and then deletes the subtree's vectors

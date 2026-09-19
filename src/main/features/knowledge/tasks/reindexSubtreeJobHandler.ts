@@ -86,8 +86,10 @@ export function createReindexSubtreeJobHandler(
             const subtreeResult = resolveLiveKnowledgeSubtree(baseId, rootItemIds)
             if ('skip' in subtreeResult) return
 
+            const selectedRootIds = new Set(rootItemIds)
+            // Failure status writes must still yield to ownership acquired by a purgeable descendant.
             assertNoActiveExternalOwner(
-              subtreeResult.items.map((item) => item.id),
+              subtreeResult.items.filter((item) => !selectedRootIds.has(item.id)).map((item) => item.id),
               'reindex knowledge subtree'
             )
             const liveItemIds = new Set(subtreeResult.items.map((item) => item.id))
@@ -118,10 +120,6 @@ export function createReindexSubtreeJobHandler(
           return { roots: [], skippedDeleting: true, skippedMissingSource: 0 }
         }
         const rootItems = subtreeResult.items
-        assertNoActiveExternalOwner(
-          rootItems.map((item) => item.id),
-          'reindex knowledge subtree'
-        )
 
         const selectedRoots = rootItems.filter((item) => rootItemIds.includes(item.id))
         // Admission (assertSubtreesCanReindex) already rejected roots whose source is gone, but the
@@ -148,6 +146,16 @@ export function createReindexSubtreeJobHandler(
           return { roots: [], skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
         }
 
+        const containerRootIds = rebuildableRoots
+          .filter((item) => isContainerKnowledgeItem(item))
+          .map((item) => item.id)
+        const containerDescendantItems = knowledgeItemService.getSubtreeItems(baseId, containerRootIds)
+        // A selected external leaf survives; ownership only blocks rows this container reset would delete.
+        assertNoActiveExternalOwner(
+          containerDescendantItems.map((item) => item.id),
+          'reindex knowledge subtree'
+        )
+
         // Activate every root before anything destructive runs. `completed` is the one status no
         // recovery path revisits — not `onSettled`, not the boot sweep — so a root left there while
         // its bytes are replaced or its vectors deleted would keep claiming an index it no longer has.
@@ -171,17 +179,13 @@ export function createReindexSubtreeJobHandler(
 
         await deleteKnowledgeItemVectors(base, leafItemIds)
 
-        const containerRootIds = rebuildableRoots
-          .filter((item) => isContainerKnowledgeItem(item))
-          .map((item) => item.id)
         if (containerRootIds.length > 0) {
           // Container roots are rescanned from source, so their previous expansion must be removed.
-          const descendantItems = knowledgeItemService.getSubtreeItems(baseId, containerRootIds)
           // Best-effort: a file-removal failure must not abort the row deletion below.
-          await deleteKnowledgeItemFilesBestEffort(baseId, descendantItems, { baseId, jobId: ctx.jobId })
+          await deleteKnowledgeItemFilesBestEffort(baseId, containerDescendantItems, { baseId, jobId: ctx.jobId })
           knowledgeItemService.deleteItemsByIds(
             baseId,
-            descendantItems.map((item) => item.id)
+            containerDescendantItems.map((item) => item.id)
           )
         }
 
