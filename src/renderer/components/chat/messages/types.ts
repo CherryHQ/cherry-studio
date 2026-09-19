@@ -361,7 +361,12 @@ export interface MessageListActions {
   bindMessageGroupRuntime?: (messageIds: string[], runtime: MessageGroupRuntime) => void | (() => void)
   locateMessage?: (messageId: string, highlight?: boolean) => void
   startNewContext?: () => void
-  saveCodeBlock?: (data: { msgBlockId: string; originalContent: string; newContent: string }) => void | Promise<void>
+  /** Resolving to `false` reports a failed save, so the caller can keep the editor open. */
+  saveCodeBlock?: (data: {
+    msgBlockId: string
+    originalContent: string
+    newContent: string
+  }) => void | boolean | Promise<void | boolean>
   saveTextFile?: (fileName: string, content: string) => string | null | void | Promise<string | null | void>
   saveImage?: (fileName: string, dataUrl: string) => boolean | Promise<boolean>
   saveToKnowledge?: (message: MessageExportView) => void | Promise<void>

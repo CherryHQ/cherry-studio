@@ -69,13 +69,12 @@ const CodeBlock: React.FC<Props> = ({
 
   const handleSave = useCallback(
     (newContent: string) => {
-      if (id != null) {
-        void actions?.saveCodeBlock?.({
-          msgBlockId: blockId,
-          originalContent: text,
-          newContent
-        })
-      }
+      if (id == null) return undefined
+      return actions?.saveCodeBlock?.({
+        msgBlockId: blockId,
+        originalContent: text,
+        newContent
+      })
     },
     [actions, blockId, id, text]
   )

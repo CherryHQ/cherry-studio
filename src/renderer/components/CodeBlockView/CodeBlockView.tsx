@@ -50,7 +50,8 @@ const STREAMING_CODE_VIEWER_OPTIONS = { highlight: false } as const
 interface Props {
   children: string
   language: string
-  onSave?: (newContent: string) => void
+  /** Resolving to `false` reports a failed save and keeps the editor open. */
+  onSave?: (newContent: string) => void | boolean | Promise<void | boolean>
   editable?: boolean
   allowExecution?: boolean
   isStreaming?: boolean
@@ -110,21 +111,20 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const specialViewDefinition = hasSpecialView
     ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
     : undefined
-  const startedStreamingRef = useRef(isStreaming)
-
   const [viewState, setViewState] = useState({
     mode: 'special' as ViewMode,
     previousMode: 'special' as ViewMode
   })
   const viewMode = useMemo<ViewMode>(() => {
     if (viewState.mode === 'edit' && !canEdit) return 'source'
-    if (!hasSpecialView && viewState.mode !== 'edit') {
-      return canEdit && !startedStreamingRef.current && viewState.mode === 'special' ? 'edit' : 'source'
-    }
+    if (!hasSpecialView && viewState.mode !== 'edit') return 'source'
     return viewState.mode
   }, [canEdit, hasSpecialView, viewState.mode])
 
+  const editSessionRef = useRef(0)
+
   const setViewMode = useCallback((newMode: ViewMode) => {
+    if (newMode === 'edit') editSessionRef.current += 1
     setViewState((current) => ({
       mode: newMode,
       // 当新模式不是 'split' 时才更新
@@ -132,7 +132,25 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     }))
   }, [])
 
+  const handleSave = useCallback(
+    async (newContent: string) => {
+      const session = editSessionRef.current
+      const saved = await onSave?.(newContent)
+      // A save that settles after the editor was closed and reopened must not close the new session.
+      if (saved === false || session !== editSessionRef.current) return
+      setViewState((current) =>
+        current.mode === 'edit' || (current.mode === 'split' && current.previousMode === 'edit')
+          ? { mode: 'special', previousMode: 'special' }
+          : current
+      )
+    },
+    [onSave]
+  )
+
   const toggleSplitView = useCallback(() => {
+    // Restoring the editor from a split preview starts a new session: a save still in
+    // flight from before the split must not close it and discard what was typed since.
+    if (viewState.mode === 'split' && viewState.previousMode === 'edit') editSessionRef.current += 1
     setViewState((current) => {
       // 如果当前是 split 模式，恢复到上一个模式
       if (current.mode === 'split') {
@@ -140,7 +158,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       }
       return { mode: 'split', previousMode: current.mode }
     })
-  }, [])
+  }, [viewState.mode, viewState.previousMode])
 
   const [isRunning, setIsRunning] = useState(false)
   const [executionResult, setExecutionResult] = useState<{ text: string; image?: string } | null>(null)
@@ -327,7 +345,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           fontSize={fontSize - 1}
           value={children}
           language={language}
-          onSave={onSave}
+          onSave={handleSave}
           onHeightChange={handleHeightChange}
           maxHeight={sourceMaxHeight}
           options={{ stream: true, lineNumbers: codeShowLineNumbers, ...codeEditor }}
@@ -362,7 +380,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       isStreaming,
       language,
       maxHeight,
-      onSave,
+      handleSave,
       shouldExpand,
       shouldWrap,
       sourceMaxHeight
