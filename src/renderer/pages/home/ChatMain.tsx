@@ -2,6 +2,7 @@ import type { FC } from 'react'
 
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
@@ -60,7 +61,7 @@ const ChatMain: FC<ChatMainProps> = ({
     onStartBranchDraft
   })
   return (
-    <MessageListProvider value={value}>
+    <MessageListProvider value={value} buildLaunchIndex={buildAgentLaunchIndex}>
       <MessageList enableSearch />
     </MessageListProvider>
   )
