@@ -17,6 +17,7 @@ import {
   buildModelInputModalities,
   getInitialAddModelFormState,
   getInitialModelClassification,
+  resolveEndpointTypesForClassification,
   splitModelIds
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
@@ -173,17 +174,26 @@ export default function AddModelFormPanel({
         prefill?.model?.inputModalities !== undefined ||
         (submittedInputModalities?.length ?? 0) > 0
 
+      const purposeOrFallbackEndpointTypes =
+        submittedPurposeFields != null
+          ? submittedPurposeFields.endpointTypes
+          : mode === 'endpoint-types' && values.endpointTypes?.length
+            ? values.endpointTypes
+            : undefined
+      // Purpose-mode chat mapping must not stick when primary type is embedding/rerank.
+      const endpointTypes =
+        mode === 'purpose'
+          ? resolveEndpointTypesForClassification(classification.primaryType, purposeOrFallbackEndpointTypes)
+          : purposeOrFallbackEndpointTypes
+            ? [...purposeOrFallbackEndpointTypes]
+            : undefined
+
       await createModel({
         providerId,
         modelId,
         name: values.name ? values.name : modelId.toUpperCase(),
         group: values.group || getDefaultGroupName(modelId),
-        endpointTypes:
-          submittedPurposeFields != null
-            ? [...submittedPurposeFields.endpointTypes]
-            : mode === 'endpoint-types' && values.endpointTypes?.length
-              ? [...values.endpointTypes]
-              : undefined,
+        endpointTypes,
         capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
         ...(shouldSubmitInputModalities ? { inputModalities: submittedInputModalities } : {}),
         outputModalities: submittedPurposeFields?.outputModalities,
