@@ -1,0 +1,22 @@
+{
+  "name": "@cherrystudio/meeting-mini-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build && node scripts/package.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@cherrystudio/ui": "workspace:*",
+    "i18next": "^23.11.5",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-i18next": "^14.1.2",
+    "zod": "^4.1.5",
+    "@xyflow/react": "^12.4.4",
+    "dompurify": "^3.2.6",
+    "lucide-react": "^0.525.0"
+  }
+}
