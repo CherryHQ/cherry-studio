@@ -1,4 +1,4 @@
-import { hasRenderableContent } from '@shared/data/messageRenderability'
+import { hasRenderableContent } from '@shared/ai/messageRenderability'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { hasDismissedNoResponsePart } from '@shared/data/types/uiParts'
 

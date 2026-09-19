@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import type { CherryMessagePart } from '@shared/data/types/message'
+
 import { hasRenderableContent, isHiddenMarkerPart, isRenderablePart } from '../messageRenderability'
-import type { CherryMessagePart } from '../types/message'
 
 function part(value: Record<string, unknown>): CherryMessagePart {
   return value as unknown as CherryMessagePart

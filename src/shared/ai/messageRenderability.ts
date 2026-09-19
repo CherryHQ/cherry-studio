@@ -8,8 +8,8 @@ import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_DESCRIBE_TOOL_NAME } from '@shared/ai/p
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { tryFileUrlToPath } from '@shared/utils/file'
 
-import type { CherryMessagePart } from './types/message'
-import { readCherryMeta } from './types/uiParts'
+import type { CherryMessagePart } from '../data/types/message'
+import { readCherryMeta } from '../data/types/uiParts'
 
 export const HIDDEN_MARKER_PART_TYPES: ReadonlySet<string> = new Set([
   'step-start',
