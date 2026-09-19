@@ -5,9 +5,8 @@ const binaryMock = vi.hoisted(() => ({
   getBinaryPath: vi.fn<(name?: string) => Promise<string>>()
 }))
 const commandMock = vi.hoisted(() => ({
-  findExecutableInEnv: vi.fn<
-    (name: string, options?: { env?: Record<string, string>; signal?: AbortSignal }) => Promise<string | null>
-  >(),
+  findExecutableInEnv:
+    vi.fn<(name: string, options?: { env?: Record<string, string>; signal?: AbortSignal }) => Promise<string | null>>(),
   findCommandInShellEnv: vi.fn<(name: string, env: Record<string, string>) => Promise<string | null>>()
 }))
 
