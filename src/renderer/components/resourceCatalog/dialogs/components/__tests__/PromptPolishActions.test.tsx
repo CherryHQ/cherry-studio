@@ -4,10 +4,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
+const TEST_DEFAULT_MODEL = {
+  id: 'openai::gpt-4o',
+  name: 'GPT-4o',
+  providerId: 'openai'
+} as const
+
 const mocks = vi.hoisted(() => ({
   fetchGenerate: vi.fn(),
   loggerError: vi.fn(),
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  openSettingsTab: vi.fn(),
+  defaultModel: null as null | typeof TEST_DEFAULT_MODEL
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -22,12 +30,34 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { error: mocks.toastError }
 }))
 
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useDefaultModel: () => ({ defaultModel: mocks.defaultModel })
+}))
+
 vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: mocks.fetchGenerate
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => (key === 'common.undo' ? 'Undo' : key) })
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      if (key === 'common.undo') return 'Undo'
+      if (key === 'library.config.prompt.polish_with_model') return `Polish prompt · ${String(options?.model ?? '')}`
+      if (key === 'library.config.prompt.generate_with_model')
+        return `Generate prompt · ${String(options?.model ?? '')}`
+      if (key === 'library.config.prompt.cancel_with_model') return `Cancel · ${String(options?.model ?? '')}`
+      if (key === 'library.config.prompt.open_default_model_settings') return 'Open default model settings'
+      if (key === 'library.config.prompt.no_default_model') return 'No default model'
+      if (key === 'error.model.not_exists') return 'Model does not exist'
+      if (key === 'error.no_response') return 'No response'
+      if (key === 'error.request_timeout') return 'Request timed out'
+      return key
+    }
+  })
 }))
 
 import { PromptPolishActions } from '../PromptPolishActions'
@@ -101,20 +131,59 @@ beforeEach(() => {
   mocks.fetchGenerate.mockReset()
   mocks.loggerError.mockReset()
   mocks.toastError.mockReset()
+  mocks.openSettingsTab.mockReset()
+  mocks.defaultModel = { ...TEST_DEFAULT_MODEL }
 })
 
+const POLISH_BUTTON = 'Polish prompt · GPT-4o'
+const GENERATE_BUTTON = 'Generate prompt · GPT-4o'
+const SETTINGS_BUTTON = 'Open default model settings'
+const SETTINGS_ACTION = {
+  label: SETTINGS_BUTTON,
+  onClick: expect.any(Function)
+}
+
 describe('PromptPolishActions', () => {
+  it('identifies the default model on the polish control and routes to model settings', () => {
+    render(<Harness />)
+
+    expect(screen.getByRole('button', { name: POLISH_BUTTON })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: SETTINGS_BUTTON }))
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/model')
+  })
+
+  it('surfaces a missing-model failure without starting a request and offers settings recovery', async () => {
+    mocks.defaultModel = null
+    render(<Harness initialValue="Original prompt" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt · No default model' }))
+
+    await waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith({
+        title: 'library.config.prompt.polish_failed_title',
+        description: 'Model does not exist',
+        action: SETTINGS_ACTION
+      })
+    )
+    expect(mocks.fetchGenerate).not.toHaveBeenCalled()
+
+    const toast = mocks.toastError.mock.calls[0]?.[0] as { action: { onClick: () => void } }
+    toast.action.onClick()
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/model')
+  })
+
   it('rewrites an existing prompt with the caller-provided strategy and supports one-step undo', async () => {
     mocks.fetchGenerate.mockResolvedValueOnce('Polished {{date}} for ${city}')
     render(<Harness />)
 
-    const polishButton = screen.getByRole('button', { name: 'library.config.prompt.polish' })
+    const polishButton = screen.getByRole('button', { name: POLISH_BUTTON })
     fireEvent.click(polishButton)
 
     await waitFor(() => expect(screen.getByTestId('value')).toHaveTextContent('Polished {{date}} for ${city}'))
     expect(mocks.fetchGenerate).toHaveBeenCalledWith({
       prompt: TEST_EXISTING_SYSTEM_PROMPT,
       content: 'Draft {{date}} for ${city}',
+      model: TEST_DEFAULT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
@@ -127,7 +196,7 @@ describe('PromptPolishActions', () => {
   it('does not start generation without a source', () => {
     render(<Harness initialValue="   " />)
 
-    const generateButton = screen.getByRole('button', { name: 'library.config.prompt.generate' })
+    const generateButton = screen.getByRole('button', { name: GENERATE_BUTTON })
     expect(generateButton).toHaveAttribute('aria-disabled', 'true')
     expect(generateButton).not.toBeDisabled()
     fireEvent.click(generateButton)
@@ -138,16 +207,17 @@ describe('PromptPolishActions', () => {
     mocks.fetchGenerate.mockResolvedValueOnce('Generated agent instructions')
     render(<Harness initialValue="" fallbackSource="Alpha Agent" />)
 
-    const generateButton = screen.getByRole('button', { name: 'library.config.prompt.generate' })
+    const generateButton = screen.getByRole('button', { name: GENERATE_BUTTON })
     expect(generateButton).toBeEnabled()
     fireEvent.click(generateButton)
 
     await waitFor(() => expect(screen.getByTestId('value')).toHaveTextContent('Generated agent instructions'))
-    const polishButton = screen.getByRole('button', { name: 'library.config.prompt.polish' })
+    const polishButton = screen.getByRole('button', { name: POLISH_BUTTON })
     expect(polishButton).toBeInTheDocument()
     expect(mocks.fetchGenerate).toHaveBeenCalledWith({
       prompt: TEST_GENERATE_SYSTEM_PROMPT,
       content: 'Alpha Agent',
+      model: TEST_DEFAULT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
@@ -160,7 +230,7 @@ describe('PromptPolishActions', () => {
     mocks.fetchGenerate.mockResolvedValueOnce('Summarize ${document} for {{audience}}')
     render(<Harness initialValue="" fallbackSource="Summary prompt" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.generate' }))
+    fireEvent.click(screen.getByRole('button', { name: GENERATE_BUTTON }))
 
     await waitFor(() => expect(screen.getByTestId('value')).toHaveTextContent('Summarize ${document} for {{audience}}'))
     expect(mocks.toastError).not.toHaveBeenCalled()
@@ -171,7 +241,7 @@ describe('PromptPolishActions', () => {
     mocks.fetchGenerate.mockReturnValue(request.promise)
     render(<Harness initialValue="Original prompt" />)
 
-    const polishButton = screen.getByRole('button', { name: 'library.config.prompt.polish' })
+    const polishButton = screen.getByRole('button', { name: POLISH_BUTTON })
     fireEvent.click(polishButton)
     fireEvent.click(polishButton)
     await act(async () => request.resolve('Polished prompt'))
@@ -183,7 +253,7 @@ describe('PromptPolishActions', () => {
     mocks.fetchGenerate.mockResolvedValueOnce('Polished {{date}} for ${city}')
     render(<Harness initialValue="Draft {{date}} and {{date}} for ${city}" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
 
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith({
@@ -198,12 +268,13 @@ describe('PromptPolishActions', () => {
     mocks.fetchGenerate.mockResolvedValueOnce('')
     render(<Harness initialValue="Original prompt" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
 
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith({
         title: 'library.config.prompt.polish_failed_title',
-        description: 'library.config.prompt.polish_failed_description'
+        description: 'No response',
+        action: SETTINGS_ACTION
       })
     )
     expect(screen.getByTestId('value')).toHaveTextContent('Original prompt')
@@ -213,12 +284,13 @@ describe('PromptPolishActions', () => {
     mocks.fetchGenerate.mockRejectedValueOnce(new Error('model failed'))
     render(<Harness initialValue="Original prompt" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
 
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith({
         title: 'library.config.prompt.polish_failed_title',
-        description: 'library.config.prompt.polish_failed_description'
+        description: 'model failed',
+        action: SETTINGS_ACTION
       })
     )
     expect(mocks.loggerError).toHaveBeenCalledWith('Failed to polish prompt', expect.any(Error))
@@ -229,12 +301,13 @@ describe('PromptPolishActions', () => {
     mocks.fetchGenerate.mockRejectedValueOnce(new Error('model failed'))
     render(<Harness initialValue="" fallbackSource="Alpha Agent" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.generate' }))
+    fireEvent.click(screen.getByRole('button', { name: GENERATE_BUTTON }))
 
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith({
         title: 'library.config.prompt.generate_failed_title',
-        description: 'library.config.prompt.generate_failed_description'
+        description: 'model failed',
+        action: SETTINGS_ACTION
       })
     )
     expect(screen.getByTestId('value')).toBeEmptyDOMElement()
@@ -245,7 +318,7 @@ describe('PromptPolishActions', () => {
     const onChange = vi.fn()
     render(<Harness initialValue="Original prompt" onChangeSpy={onChange} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
     await waitFor(() => expect(mocks.fetchGenerate).toHaveBeenCalledTimes(1))
 
     expect(onChange).not.toHaveBeenCalled()
@@ -258,7 +331,7 @@ describe('PromptPolishActions', () => {
     const onChange = vi.fn()
     const view = render(<Harness initialValue="Original prompt" onChangeSpy={onChange} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
     view.unmount()
     await act(async () => request.resolve('Late polished prompt'))
 
@@ -271,7 +344,7 @@ describe('PromptPolishActions', () => {
     const onChange = vi.fn()
     render(<Harness initialValue="Original prompt" onChangeSpy={onChange} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'manual edit' }))
     await act(async () => request.resolve('Late polished prompt'))
 
@@ -311,7 +384,7 @@ describe('PromptPolishActions', () => {
     }
 
     render(<ConcurrentHarness />)
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'start interrupted render' }))
     await act(async () => request.resolve('Polished prompt'))
 
@@ -324,7 +397,7 @@ describe('PromptPolishActions', () => {
     const onChange = vi.fn()
     render(<Harness initialValue="" fallbackSource="Alpha Agent" onChangeSpy={onChange} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.generate' }))
+    fireEvent.click(screen.getByRole('button', { name: GENERATE_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'change fallback source' }))
     await act(async () => request.resolve('Generated Alpha instructions'))
 
@@ -337,7 +410,7 @@ describe('PromptPolishActions', () => {
     const onChange = vi.fn()
     render(<Harness initialValue="Original prompt" onChangeSpy={onChange} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'disable action' }))
     await act(async () => request.resolve('Late polished prompt'))
 
@@ -353,7 +426,7 @@ describe('PromptPolishActions', () => {
       </Profiler>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
     await screen.findByRole('button', { name: 'Undo' })
 
     onRender.mockClear()
