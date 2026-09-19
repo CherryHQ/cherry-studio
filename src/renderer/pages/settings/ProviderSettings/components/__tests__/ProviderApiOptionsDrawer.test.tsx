@@ -1,14 +1,19 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ProviderUtils from '@shared/utils/provider'
 
+import {
+  clearLastWrittenEndpointConfigs,
+  setLastWrittenEndpointConfigs
+} from '../../hooks/providerSetting/endpointConfigsWriteCoordinator'
 import ProviderApiOptionsDrawer from '../ProviderApiOptionsDrawer'
 
 const updateProviderMock = vi.fn()
 const useProviderMock = vi.fn()
+const refetchMock = vi.fn()
 const isAnthropicSupportedProviderMock = vi.fn()
 const isAzureOpenAIProviderMock = vi.fn()
 const isOpenAICompatibleProviderMock = vi.fn()
@@ -113,40 +118,46 @@ describe('ProviderApiOptionsDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     updateProviderMock.mockResolvedValue(undefined)
+    refetchMock.mockResolvedValue(undefined)
     useProviderMock.mockReturnValue({
       provider,
-      updateProvider: updateProviderMock
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
     })
+    clearLastWrittenEndpointConfigs(provider.id)
     isOpenAICompatibleProviderMock.mockReturnValue(true)
     isAzureOpenAIProviderMock.mockReturnValue(false)
     isAnthropicSupportedProviderMock.mockReturnValue(true)
     isSystemProviderMock.mockReturnValue(false)
   })
 
-  it('preserves sibling endpoints when changing the selected endpoint dialect', () => {
+  it('preserves sibling endpoints when changing the selected endpoint dialect', async () => {
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByLabelText('settings.provider.api.options.developer_role.label'))
 
-    expect(updateProviderMock).toHaveBeenCalledWith({
-      endpointConfigs: {
-        'openai-chat-completions': {
-          baseUrl: 'https://api.example.com/v1',
-          dialect: { developerRole: true }
-        },
-        'anthropic-messages': { baseUrl: 'https://api.example.com/anthropic' }
-      }
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://api.example.com/v1',
+            dialect: { developerRole: true }
+          },
+          'anthropic-messages': { baseUrl: 'https://api.example.com/anthropic' }
+        }
+      })
     })
   })
 
-  it('offers the summary compatibility switch only on a Responses endpoint and persists it there', () => {
+  it('offers the summary compatibility switch only on a Responses endpoint and persists it there', async () => {
     useProviderMock.mockReturnValue({
       provider: {
         ...provider,
         defaultChatEndpoint: 'openai-responses',
         endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.example.com/v1' } }
       },
-      updateProvider: updateProviderMock
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
     })
 
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
@@ -155,13 +166,42 @@ describe('ProviderApiOptionsDrawer', () => {
     expect(screen.queryByLabelText('settings.provider.api.options.stream_options.label')).not.toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('settings.provider.api.options.reasoning_summary.label'))
 
-    expect(updateProviderMock).toHaveBeenCalledWith({
-      endpointConfigs: {
-        'openai-responses': {
-          baseUrl: 'https://api.example.com/v1',
-          dialect: { reasoningSummary: true }
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: {
+          'openai-responses': {
+            baseUrl: 'https://api.example.com/v1',
+            dialect: { reasoningSummary: true }
+          }
         }
-      }
+      })
+    })
+  })
+
+  it('keeps a reasoning format committed elsewhere when saving a dialect change', async () => {
+    setLastWrittenEndpointConfigs(provider.id, {
+      'openai-chat-completions': {
+        baseUrl: 'https://api.example.com/v1',
+        reasoningFormat: { type: 'self-hosted' }
+      },
+      'anthropic-messages': { baseUrl: 'https://api.example.com/anthropic' }
+    })
+
+    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByLabelText('settings.provider.api.options.developer_role.label'))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://api.example.com/v1',
+            reasoningFormat: { type: 'self-hosted' },
+            dialect: { developerRole: true }
+          },
+          'anthropic-messages': { baseUrl: 'https://api.example.com/anthropic' }
+        }
+      })
     })
   })
 
@@ -215,7 +255,8 @@ describe('ProviderApiOptionsDrawer', () => {
   it('shows default Anthropic cache values when cacheControl is unset', () => {
     useProviderMock.mockReturnValue({
       provider: { ...provider, settings: { ...provider.settings, cacheControl: undefined } },
-      updateProvider: updateProviderMock
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
     })
 
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
