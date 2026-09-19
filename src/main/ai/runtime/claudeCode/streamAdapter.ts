@@ -1317,7 +1317,7 @@ export class ClaudeCodeStreamAdapter {
         this.handleStatusSystemMessage(message, ctx)
         return
       case 'compact_boundary':
-        this.handleCompactBoundarySystemMessage(message)
+        this.handleCompactBoundarySystemMessage(message, ctx)
         return
       case 'thinking_tokens':
         this.handleThinkingTokensSystemMessage(message, ctx)
@@ -1536,8 +1536,13 @@ export class ClaudeCodeStreamAdapter {
     this.statusSink.emit({ type: 'background-work-state', active: false })
   }
 
-  private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage): void {
+  private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage, ctx: StreamContext): void {
     this.runtimeCompactionActive = false
+    // A boundary starts a fresh context window, so the next assistant snapshot is a new response.
+    // Reset the streaming offsets or its prefix would be sliced against pre-compaction lengths.
+    this.closeActiveTextPart(ctx)
+    ctx.accumulatedText = ''
+    ctx.streamedTextLength = 0
     const metadata = message.compact_metadata
     const anchor: AgentSessionCompactionAnchorData = {
       status: 'done',

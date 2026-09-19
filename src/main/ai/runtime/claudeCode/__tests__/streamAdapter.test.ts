@@ -1988,6 +1988,62 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(deltas).not.toContain(leakedSummary)
     })
 
+    it('resumes assistant snapshots after the compaction boundary without dropping their prefix', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'before' } })
+      )
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'compact_boundary',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_metadata: { trigger: 'auto', pre_tokens: 50_000, post_tokens: 12_000 }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        isSynthetic: true,
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'Summary of the compacted session.' }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: 'after' }] }
+      } as any)
+
+      const deltas = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(deltas).toContain('before')
+      expect(deltas).toContain('after')
+      // Two text parts opened: the pre-compaction stream and the resumed snapshot. The resumed
+      // part stays open until turn end, so only the interrupted part has closed so far.
+      const starts = parts.filter((part) => part.type === 'text-start')
+      const ends = parts.filter((part) => part.type === 'text-end')
+      expect(starts).toHaveLength(2)
+      expect(ends).toHaveLength(1)
+    })
+
     it('keeps suppressing compaction prose between success and boundary', () => {
       const { adapter, parts } = createAdapter()
       const leakedBefore = 'summary before success'
