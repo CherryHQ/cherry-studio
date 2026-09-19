@@ -626,6 +626,7 @@
   "chat.input.file_not_supported": "Modelul nu acceptă acest tip de fișier",
   "chat.input.file_not_supported_count": "{{count}} fișiere nu sunt acceptate",
   "chat.input.followup_queue.edit": "Editează",
+  "chat.input.followup_queue.limit_reached": "Coada este plină (maxim {{count}})",
   "chat.input.followup_queue.pause": "Pauză trimitere automată",
   "chat.input.followup_queue.remove": "Elimină",
   "chat.input.followup_queue.resume": "Reluare trimitere automată",

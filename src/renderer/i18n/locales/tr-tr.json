@@ -626,6 +626,7 @@
   "chat.input.file_not_supported": "Model bu dosya türünü desteklemiyor",
   "chat.input.file_not_supported_count": "{{count}} dosya desteklenmiyor",
   "chat.input.followup_queue.edit": "Düzenle",
+  "chat.input.followup_queue.limit_reached": "Kuyruk dolu (en fazla {{count}})",
   "chat.input.followup_queue.pause": "Otomatik göndermeyi duraklat",
   "chat.input.followup_queue.remove": "Kaldır",
   "chat.input.followup_queue.resume": "Otomatik göndermeyi sürdür",

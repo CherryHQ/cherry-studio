@@ -30,9 +30,11 @@ import type {
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import { topicFollowupScopePrefix } from '@shared/data/types/followupQueue'
 import type { Topic } from '@shared/data/types/topic'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
+import { followupQueueService } from './FollowupQueueService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -473,6 +475,7 @@ export class TopicService {
     )
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     pinService.notifyPurged()
+    if (options.permanent === true) followupQueueService.notifyPurged()
 
     logger.info(options.permanent === true ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id })
   }
@@ -489,6 +492,7 @@ export class TopicService {
     )
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     if (deletedIds.length > 0) pinService.notifyPurged()
+    if (options.permanent === true && deletedIds.length > 0) followupQueueService.notifyPurged()
 
     logger.info(options.permanent === true ? 'Permanently deleted topics' : 'Moved topics to Recycle Bin', {
       count: deletedIds.length
@@ -563,6 +567,7 @@ export class TopicService {
     messageService.purgeByTopicIdsTx(tx, deletedIds)
     tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
     pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
+    for (const id of deletedIds) followupQueueService.purgeForScopePrefixTx(tx, topicFollowupScopePrefix(id))
     tx.delete(topicTable).where(inArray(topicTable.id, deletedIds)).run()
 
     return deletedIds
