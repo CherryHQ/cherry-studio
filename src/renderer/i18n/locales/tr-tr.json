@@ -5299,6 +5299,7 @@
   "settings.shortcuts.toggle_left_sidebar": "Sol Kenar Çubuğunu Aç/Kapat",
   "settings.shortcuts.toggle_new_context": "Bağlamı Temizle",
   "settings.shortcuts.toggle_right_sidebar": "Sağ Kenar Çubuğunu Aç/Kapat",
+  "settings.shortcuts.unavailable_on_wayland": "Bu kısayol bu Wayland oturumunda kaydedilemedi. Bir Xorg oturumu deneyin.",
   "settings.shortcuts.zoom_in": "Yakınlaştır",
   "settings.shortcuts.zoom_out": "Uzaklaştır",
   "settings.shortcuts.zoom_reset": "Yakınlaştırmayı Sıfırla",

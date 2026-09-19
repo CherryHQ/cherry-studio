@@ -5299,6 +5299,7 @@
   "settings.shortcuts.toggle_left_sidebar": "Εναλλαγή αριστερής πλευρικής γραμμής",
   "settings.shortcuts.toggle_new_context": "Άδειασμα σενάριων",
   "settings.shortcuts.toggle_right_sidebar": "Εναλλαγή δεξιάς πλευρικής γραμμής",
+  "settings.shortcuts.unavailable_on_wayland": "Δεν ήταν δυνατή η καταχώριση αυτής της συντόμευσης σε αυτή τη συνεδρία Wayland. Δοκιμάστε μια συνεδρία Xorg.",
   "settings.shortcuts.zoom_in": "Μεγέθυνση εμφάνισης",
   "settings.shortcuts.zoom_out": "Σμικρύνση εμφάνισης",
   "settings.shortcuts.zoom_reset": "Επαναφορά εμφάνισης",

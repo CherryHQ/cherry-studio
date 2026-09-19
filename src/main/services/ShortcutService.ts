@@ -4,7 +4,7 @@ import { globalShortcut } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isMac } from '@main/core/platform'
+import { isLinux, isMac } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import type { PreferenceKeyType, PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -14,7 +14,7 @@ import type {
   ContextValue,
   SupportedPlatform
 } from '@shared/types/command'
-import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
+import type { ShortcutRegistrationConflictPayload, ShortcutRegistrationConflictReason } from '@shared/types/shortcut'
 import {
   collectContextKeys,
   type CommandId,
@@ -263,6 +263,8 @@ export class ShortcutService extends BaseService {
     // Register new or changed shortcuts
     for (const [accelerator, { key, handler, window: win }] of desired) {
       if (!this.registeredAccelerators.has(accelerator)) {
+        const reason: ShortcutRegistrationConflictReason =
+          isLinux && process.env.XDG_SESSION_TYPE === 'wayland' ? 'wayland' : 'occupied'
         try {
           const success = globalShortcut.register(accelerator, () => {
             const targetWindow = win?.isDestroyed?.() ? undefined : win
@@ -276,12 +278,14 @@ export class ShortcutService extends BaseService {
             this.registeredAccelerators.set(accelerator, { key, handler, window: win })
             this.clearRegistrationConflict(key)
           } else {
-            logger.warn(`Failed to register shortcut ${accelerator}: accelerator is held by another application`)
-            this.markRegistrationConflict(key, accelerator)
+            logger.warn(
+              `Failed to register shortcut ${accelerator}: ${reason === 'wayland' ? 'global shortcuts may be unavailable in this Wayland session' : 'accelerator is held by another application'}`
+            )
+            this.markRegistrationConflict(key, accelerator, reason)
           }
         } catch (error) {
           logger.error(`Failed to register shortcut ${accelerator}`, error as Error)
-          this.markRegistrationConflict(key, accelerator)
+          this.markRegistrationConflict(key, accelerator, reason)
         }
       }
     }
@@ -309,13 +313,17 @@ export class ShortcutService extends BaseService {
     this.conflictedKeys.clear()
   }
 
-  private markRegistrationConflict(key: CommandShortcutPreferenceKey<CommandId>, accelerator: string): void {
+  private markRegistrationConflict(
+    key: CommandShortcutPreferenceKey<CommandId>,
+    accelerator: string,
+    reason: ShortcutRegistrationConflictReason
+  ): void {
     if (this.conflictedKeys.has(key)) {
       return
     }
 
     this.conflictedKeys.add(key)
-    this.emitRegistrationConflict({ key, accelerator, hasConflict: true })
+    this.emitRegistrationConflict({ key, accelerator, hasConflict: true, reason })
   }
 
   private clearRegistrationConflict(key: CommandShortcutPreferenceKey<CommandId>): void {
@@ -325,11 +333,7 @@ export class ShortcutService extends BaseService {
     this.emitRegistrationConflict({ key, hasConflict: false })
   }
 
-  private emitRegistrationConflict(payload: {
-    key: ShortcutPreferenceKey
-    accelerator?: string
-    hasConflict: boolean
-  }): void {
+  private emitRegistrationConflict(payload: ShortcutRegistrationConflictPayload): void {
     application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Shortcut_RegistrationConflict, payload)
   }
 }

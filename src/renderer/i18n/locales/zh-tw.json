@@ -5299,6 +5299,7 @@
   "settings.shortcuts.toggle_left_sidebar": "切換左側邊欄",
   "settings.shortcuts.toggle_new_context": "清除上下文",
   "settings.shortcuts.toggle_right_sidebar": "切換右側邊欄",
+  "settings.shortcuts.unavailable_on_wayland": "此快捷鍵無法在目前的 Wayland 工作階段中註冊。請嘗試切換至 Xorg 工作階段。",
   "settings.shortcuts.zoom_in": "放大介面",
   "settings.shortcuts.zoom_out": "縮小介面",
   "settings.shortcuts.zoom_reset": "重設縮放",

@@ -5299,6 +5299,7 @@
   "settings.shortcuts.toggle_left_sidebar": "Переключить левую боковую панель",
   "settings.shortcuts.toggle_new_context": "Очистить контекст",
   "settings.shortcuts.toggle_right_sidebar": "Переключить правую боковую панель",
+  "settings.shortcuts.unavailable_on_wayland": "Не удалось зарегистрировать это сочетание клавиш в сеансе Wayland. Попробуйте сеанс Xorg.",
   "settings.shortcuts.zoom_in": "Увеличить",
   "settings.shortcuts.zoom_out": "Уменьшить",
   "settings.shortcuts.zoom_reset": "Сбросить масштаб",

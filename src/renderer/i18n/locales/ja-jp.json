@@ -5299,6 +5299,7 @@
   "settings.shortcuts.toggle_left_sidebar": "左サイドバーを切り替え",
   "settings.shortcuts.toggle_new_context": "コンテキストをクリア",
   "settings.shortcuts.toggle_right_sidebar": "右サイドバーを切り替え",
+  "settings.shortcuts.unavailable_on_wayland": "この Wayland セッションではショートカットを登録できませんでした。Xorg セッションをお試しください。",
   "settings.shortcuts.zoom_in": "ズームイン",
   "settings.shortcuts.zoom_out": "ズームアウト",
   "settings.shortcuts.zoom_reset": "ズームをリセット",

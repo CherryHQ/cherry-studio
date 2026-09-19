@@ -5299,6 +5299,7 @@
   "settings.shortcuts.toggle_left_sidebar": "Comută bara laterală stângă",
   "settings.shortcuts.toggle_new_context": "Șterge contextul",
   "settings.shortcuts.toggle_right_sidebar": "Comută bara laterală dreaptă",
+  "settings.shortcuts.unavailable_on_wayland": "Această comandă rapidă nu a putut fi înregistrată în această sesiune Wayland. Încercați o sesiune Xorg.",
   "settings.shortcuts.zoom_in": "Mărește",
   "settings.shortcuts.zoom_out": "Micșorează",
   "settings.shortcuts.zoom_reset": "Resetează zoom-ul",

@@ -5299,6 +5299,7 @@
   "settings.shortcuts.toggle_left_sidebar": "Basculer la barre latérale gauche",
   "settings.shortcuts.toggle_new_context": "Effacer le contexte",
   "settings.shortcuts.toggle_right_sidebar": "Basculer la barre latérale droite",
+  "settings.shortcuts.unavailable_on_wayland": "Ce raccourci n'a pas pu être enregistré dans cette session Wayland. Essayez une session Xorg.",
   "settings.shortcuts.zoom_in": "Agrandir l'interface",
   "settings.shortcuts.zoom_out": "Réduire l'interface",
   "settings.shortcuts.zoom_reset": "Réinitialiser le zoom",

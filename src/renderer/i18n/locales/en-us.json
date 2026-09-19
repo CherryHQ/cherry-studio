@@ -5299,6 +5299,7 @@
   "settings.shortcuts.toggle_left_sidebar": "Toggle Left Sidebar",
   "settings.shortcuts.toggle_new_context": "Clear Context",
   "settings.shortcuts.toggle_right_sidebar": "Toggle Right Sidebar",
+  "settings.shortcuts.unavailable_on_wayland": "This shortcut could not be registered in this Wayland session. Try an Xorg session.",
   "settings.shortcuts.zoom_in": "Zoom In",
   "settings.shortcuts.zoom_out": "Zoom Out",
   "settings.shortcuts.zoom_reset": "Reset Zoom",
