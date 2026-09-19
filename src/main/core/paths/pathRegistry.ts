@@ -165,8 +165,9 @@ export function buildPathRegistry() {
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
 
-    // Cherry Cloud account credentials (device identity is retained when the session is cleared)
+    // Main-only credentials live outside the backup-managed Data directory.
     'feature.cherry_account.credentials_file': path.join(appUserData, 'Credentials', 'cherry-account.json'),
+    'feature.knowledge.credentials_file': path.join(appUserData, 'Credentials', 'external-knowledge.json'),
 
     // Trace
     'feature.trace': path.join(appUserDataRuntime, 'trace'),

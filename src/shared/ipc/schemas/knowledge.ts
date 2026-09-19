@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { UpdateKnowledgeBaseSchema } from '@shared/data/api/schemas/knowledges'
+import { ExternalKnowledgeConnectionSchema } from '@shared/data/types/externalKnowledgeConnection'
 import {
   CreateKnowledgeBaseSchema,
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
@@ -33,6 +34,24 @@ import { defineRoute } from '../define'
  */
 
 const baseIdSchema = z.string().trim().min(1)
+const sessionIdSchema = z.uuid()
+const connectionIdSchema = z.uuidv7()
+const feishuApplicationCredentialsSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('personal-agent'), registrationSessionId: sessionIdSchema }),
+  z.strictObject({
+    kind: z.literal('custom-app'),
+    appId: z.string().trim().min(1).max(256),
+    appSecret: z.string().min(1).max(1024),
+    applicationName: z.string().trim().min(1).max(256).optional()
+  })
+])
+const beginAuthorizationOutputSchema = z.strictObject({
+  authorizationSessionId: sessionIdSchema,
+  connection: ExternalKnowledgeConnectionSchema,
+  userCode: z.string().trim().min(1).max(256),
+  verificationUri: z.url(),
+  expiresAt: z.iso.datetime()
+})
 // delete_items and reindex_items share the same input shape.
 const itemIdsInputSchema = z.strictObject({
   baseId: baseIdSchema,
@@ -41,6 +60,45 @@ const itemIdsInputSchema = z.strictObject({
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const knowledgeRequestSchemas = {
+  'knowledge.feishu.registration.begin': defineRoute({
+    input: z.void(),
+    output: z.strictObject({
+      registrationSessionId: sessionIdSchema,
+      verificationUri: z.url(),
+      expiresAt: z.iso.datetime()
+    })
+  }),
+  'knowledge.feishu.registration.cancel': defineRoute({
+    input: z.strictObject({ registrationSessionId: sessionIdSchema }),
+    output: z.void()
+  }),
+  'knowledge.feishu.authorization.begin': defineRoute({
+    input: feishuApplicationCredentialsSchema,
+    output: beginAuthorizationOutputSchema
+  }),
+  'knowledge.feishu.authorization.complete': defineRoute({
+    input: z.strictObject({ authorizationSessionId: sessionIdSchema }),
+    output: ExternalKnowledgeConnectionSchema
+  }),
+  'knowledge.feishu.authorization.cancel': defineRoute({
+    input: z.strictObject({ authorizationSessionId: sessionIdSchema }),
+    output: z.void()
+  }),
+  'knowledge.feishu.connection.reconnect': defineRoute({
+    input: z.strictObject({
+      connectionId: connectionIdSchema,
+      credentials: feishuApplicationCredentialsSchema.optional()
+    }),
+    output: beginAuthorizationOutputSchema
+  }),
+  'knowledge.feishu.connection.validate': defineRoute({
+    input: z.strictObject({ connectionId: connectionIdSchema }),
+    output: ExternalKnowledgeConnectionSchema
+  }),
+  'knowledge.feishu.connection.remove': defineRoute({
+    input: z.strictObject({ connectionId: connectionIdSchema }),
+    output: z.void()
+  }),
   'knowledge.create_base': defineRoute({
     input: z.strictObject({ base: CreateKnowledgeBaseSchema }),
     output: KnowledgeBaseSchema
