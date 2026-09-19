@@ -29,7 +29,7 @@ import { ipcApi } from '@renderer/ipc'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
-import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import type { AiStreamAbortOrigin, AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
@@ -114,7 +114,7 @@ export interface AgentChatRuntimeState {
   loadOlder?: () => void
   selectAllPagination?: MessageListSelectAllPagination
   isPending: boolean
-  stop: () => Promise<void>
+  stop: (origin: AiStreamAbortOrigin) => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>

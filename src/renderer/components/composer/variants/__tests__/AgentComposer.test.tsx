@@ -11,6 +11,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type * as LoggerModule from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -4616,6 +4617,54 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('pause'))
 
     expect(mocks.stop).toHaveBeenCalledTimes(1)
+    // `stop()` is generic; only this boundary knows a human pressed the button.
+    expect(mocks.stop).toHaveBeenCalledWith('user-stop')
+  })
+
+  // Main's `Aborting stream` cannot say who asked for it, and the renderer drops `info`
+  // before it reaches main's `app.log`. Asserting the forcing marker would only prove the
+  // call site opted in, so the globally mocked logger is routed into the real
+  // LoggerService — the one production forwards with — and the assertion is on the channel
+  // main actually receives.
+  describe('abort attribution', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it('puts the line naming Pause as the abort caller onto main log channel', async () => {
+      const { LoggerService } = await vi.importActual<typeof LoggerModule>('@renderer/services/LoggerService')
+      const realLogger = new LoggerService()
+      realLogger.initWindowSource('mainWindow')
+      vi.spyOn(mockRendererLoggerService, 'info').mockImplementation(
+        (message: string, payload: object, forceMarker: object) => realLogger.info(message, payload, forceMarker)
+      )
+      vi.spyOn(console, 'info').mockImplementation(() => {})
+      // This suite's own `window.electron` stub exposes only `on`; LoggerService forwards
+      // through `invoke`. The outer beforeEach rebuilds the stub, so this stays scoped here.
+      const invoke = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(window, 'electron', {
+        configurable: true,
+        value: { ipcRenderer: { on: mocks.ipcOn, invoke } }
+      })
+
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming
+        />
+      )
+
+      fireEvent.click(screen.getByText('pause'))
+
+      expect(invoke).toHaveBeenCalledWith(
+        IpcChannel.App_LogToMain,
+        expect.objectContaining({ process: 'renderer', window: 'mainWindow' }),
+        'info',
+        'Aborting agent session',
+        [{ sessionTopicId: 'agent-session:session-1' }]
+      )
+    })
   })
 
   it('handles a failed active stream stop at the composer boundary', async () => {

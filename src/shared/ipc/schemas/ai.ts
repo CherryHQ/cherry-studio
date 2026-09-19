@@ -2,6 +2,7 @@ import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { aiStreamAbortOrigins } from '@shared/ai/transport'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -285,7 +286,10 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.stream.abort': defineRoute({
-    input: z.strictObject({ topicId: z.string().min(1) }),
+    input: z.strictObject({
+      topicId: z.string().min(1),
+      origin: z.enum(aiStreamAbortOrigins).optional()
+    }),
     output: z.void()
   }),
 

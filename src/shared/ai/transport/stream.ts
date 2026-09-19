@@ -255,9 +255,19 @@ export interface AiStreamDetachRequest {
   topicId: string
 }
 
+/**
+ * Who asked Main to abort a topic. Main stamps it into the stream's abort reason,
+ * so `Aborting stream` names the caller instead of always reading `user-requested`.
+ */
+export const aiStreamAbortOrigins = ['user-stop', 'transport-abort-signal', 'translate-cancel'] as const
+
+export type AiStreamAbortOrigin = (typeof aiStreamAbortOrigins)[number]
+
 /** Abort the active generation on a topic. */
 export interface AiStreamAbortRequest {
   topicId: string
+  /** Omitted by a caller that cannot name itself; Main falls back to its own reason. */
+  origin?: AiStreamAbortOrigin
 }
 
 /** Resolve a tool output that was deferred at the boundary. See `transport/deferredToolResult`. */

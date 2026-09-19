@@ -508,11 +508,29 @@ describe('aiHandlers — streaming', () => {
     await Promise.resolve()
 
     expect(settled).toBe(false)
-    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested')
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'origin-unspecified')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
 
     finishDrain()
     await expect(aborting).resolves.toBeUndefined()
+  })
+
+  it.each([
+    ['user-stop', 'user-stop'],
+    ['transport-abort-signal', 'transport-abort-signal'],
+    ['translate-cancel', 'translate-cancel']
+  ] as const)('stream_abort stamps a %s caller as the stream abort reason', async (origin, reason) => {
+    await aiHandlers['ai.stream.abort']({ topicId: 't', origin }, { senderId: null })
+
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', reason)
+  })
+
+  it('stream_abort never labels an origin-less caller as a user stop', async () => {
+    await aiHandlers['ai.stream.abort']({ topicId: 't' }, { senderId: null })
+
+    const [[, reason]] = aiStreamManager.abortAndDrain.mock.calls
+    expect(reason).not.toBe('user-stop')
+    expect(reason).toBe('origin-unspecified')
   })
 
   it('get_tool_result prefers the active stream over the persisted copy', async () => {
