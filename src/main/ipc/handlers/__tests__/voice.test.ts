@@ -55,8 +55,8 @@ describe('Voice handlers through real IpcRouter', () => {
 
     expect(boundary.speech).toHaveBeenCalledWith(owner, input)
     expect(boundary.transcribe).toHaveBeenCalledWith(owner, transcription)
-    expect(boundary.abort).toHaveBeenNthCalledWith(1, owner, abort)
-    expect(boundary.abort).toHaveBeenNthCalledWith(2, owner, abort)
+    expect(boundary.abort).toHaveBeenNthCalledWith(1, owner, abort, 'speech')
+    expect(boundary.abort).toHaveBeenNthCalledWith(2, owner, abort, 'transcription')
   })
   it('refuses unmanaged/destroyed owners before invoking the operation', async () => {
     await expect(router.dispatch('ai.speech.generate', input, { senderId: null })).rejects.toMatchObject({

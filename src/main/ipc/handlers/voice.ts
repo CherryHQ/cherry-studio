@@ -21,11 +21,12 @@ export const voiceHandlers: IpcHandlersFor<typeof voiceRequestSchemas> = {
   'file.voice_recording.create': (input, { senderId }) =>
     callVoice(senderId, (service, owner) => service.createRecording(owner, input)),
   'ai.speech.generate': (input, { senderId }) => callVoice(senderId, (service, owner) => service.speech(owner, input)),
-  'ai.speech.abort': (input, { senderId }) => callVoice(senderId, (service, owner) => service.abort(owner, input)),
+  'ai.speech.abort': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.abort(owner, input, 'speech')),
   'ai.transcription.generate': (input, { senderId }) =>
     callVoice(senderId, (service, owner) => service.transcribe(owner, input)),
   'ai.transcription.abort': (input, { senderId }) =>
-    callVoice(senderId, (service, owner) => service.abort(owner, input)),
+    callVoice(senderId, (service, owner) => service.abort(owner, input, 'transcription')),
   'ai.voice.session.discard': ({ sessionId }, { senderId }) =>
     callVoice(senderId, (service, owner) => service.discard(owner, sessionId)),
   'ai.voice.models.list': (_input, { senderId }) => callVoice(senderId, (service) => service.listModels()),

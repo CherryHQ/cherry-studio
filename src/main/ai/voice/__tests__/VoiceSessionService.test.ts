@@ -169,7 +169,10 @@ describe('VoiceSessionService file and admission contract', () => {
         })
     )
     const work = service.transcribe(a, input)
-    const failure = expect(work).rejects.toMatchObject({ reason: 'aborted' })
+    const outcome = work.then(
+      () => 'success',
+      (error: VoiceRuntimeError) => error.reason
+    )
     await expect(
       service.speech(owner(), {
         sessionId: randomUUID(),
@@ -179,14 +182,38 @@ describe('VoiceSessionService file and admission contract', () => {
         voice: 'exact'
       })
     ).rejects.toMatchObject({ reason: 'busy' })
-    const abort = service.abort(a, input)
+    const abort = service.abort(a, input, 'transcription')
     await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
     await expect(service.transcribe(a, { ...input, requestId: randomUUID() })).rejects.toMatchObject({ reason: 'busy' })
     finish!()
     await abort
-    await failure
-    await service.abort(a, input)
+    expect(await outcome).toBe('aborted')
+    await service.abort(a, input, 'transcription')
     expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+  })
+
+  it('only aborts an active operation through its matching route', async () => {
+    const input = await recording()
+    let signal!: AbortSignal
+    native.transcribe.mockImplementation(
+      (_id, _audio, _options, activeSignal: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          signal = activeSignal
+          activeSignal.addEventListener('abort', () => reject(activeSignal.reason), { once: true })
+        })
+    )
+    const work = service.transcribe(a, input)
+    const outcome = work.then(
+      () => 'success',
+      (error: VoiceRuntimeError) => error.reason
+    )
+    await vi.waitFor(() => expect(signal).toBeDefined())
+
+    await service.abort(a, input, 'speech')
+    expect(signal.aborted).toBe(false)
+
+    await service.abort(a, input, 'transcription')
+    expect(await outcome).toBe('aborted')
   })
 
   it('owner destruction releases a failed recording and removes its listener', async () => {
@@ -227,6 +254,24 @@ describe('VoiceSessionService file and admission contract', () => {
       cleanupPolicy: 'delete_when_unreferenced'
     })
     expect(JSON.stringify(result)).not.toContain(root)
+    expect((await files.read(result.fileEntry.id, { encoding: 'binary' })).content).toEqual(new Uint8Array(wav()))
+    await service.discard(a, input.sessionId)
+    expect(fileEntryService.findById(result.fileEntry.id)).toBeNull()
+  })
+
+  it('treats abort as a no-op after speech completes and leaves cleanup to discard', async () => {
+    const input = {
+      sessionId: randomUUID(),
+      requestId: randomUUID(),
+      modelId: APPLE_TTS_MODEL_ID,
+      text: 'private-text',
+      voice: 'exact'
+    }
+    const result = await service.speech(a, input)
+
+    await service.abort(a, input, 'speech')
+
+    expect(fileEntryService.findById(result.fileEntry.id)).not.toBeNull()
     expect((await files.read(result.fileEntry.id, { encoding: 'binary' })).content).toEqual(new Uint8Array(wav()))
     await service.discard(a, input.sessionId)
     expect(fileEntryService.findById(result.fileEntry.id)).toBeNull()
@@ -286,7 +331,7 @@ describe('VoiceSessionService file and admission contract', () => {
     const work = service.speech(a, input)
     const failure = expect(work).rejects.toMatchObject({ reason: 'aborted' })
     await vi.waitFor(() => expect(started).toBe(true))
-    const abort = service.abort(a, input)
+    const abort = service.abort(a, input, 'speech')
     resume()
     await Promise.all([abort, failure])
     expect(fileEntryService.findMany()).toHaveLength(0)

@@ -25,6 +25,7 @@ export interface VoiceOwner {
 
 type SessionFile = { entry: InternalFileEntry; reference: Disposable }
 type VoiceOperation = 'speech' | 'transcription' | 'install'
+type AbortableVoiceOperation = Exclude<VoiceOperation, 'install'>
 type Session = {
   id: string
   owner: VoiceOwner
@@ -171,13 +172,21 @@ export class VoiceSessionService extends BaseService {
     })
   }
 
-  async abort(owner: VoiceOwner, input: InputFor<'ai.speech.abort'>): Promise<void> {
+  async abort(
+    owner: VoiceOwner,
+    input: InputFor<'ai.speech.abort'>,
+    expectedOperation: AbortableVoiceOperation
+  ): Promise<void> {
     this.requireOwner(owner)
     const session = this.sessions.get(input.sessionId)
     if (!session) return
     this.assertOwner(session, owner)
-    if (this.active?.session === session && this.active.requestId !== input.requestId) return
-    if (session.requestId && session.requestId !== input.requestId) return
+    if (
+      this.active?.session !== session ||
+      this.active.requestId !== input.requestId ||
+      session.operation !== expectedOperation
+    )
+      return
     await this.closeSession(session)
   }
 
