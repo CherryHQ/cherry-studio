@@ -166,7 +166,8 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>,
+  Alert: ({ message }: { message?: string }) => <div>{message}</div>
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
@@ -2080,6 +2081,8 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent(title)
   })
 
+  // The resolved output feeds resume-round splitting (the receipt carries the agent id), even
+  // though its text is no longer rendered in the flow.
   it('resolves a deferred selected flow output by its stored address', async () => {
     const deferredToolResult = { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'flow-1' }
     const flowPart = {
