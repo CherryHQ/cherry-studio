@@ -286,7 +286,10 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
         }
         if (activeTab && !activeTab.isPinned) {
           if (miniAppIdFromTabUrl(activeTab.url)) {
+            // Keep this tab alive for the WebView pool, so the destination gets its own tab. Reuse was
+            // already resolved above for destinations that declare an identity.
             openTab(destination.url, {
+              forceNew: true,
               title: destination.title,
               icon: destination.icon
             })
