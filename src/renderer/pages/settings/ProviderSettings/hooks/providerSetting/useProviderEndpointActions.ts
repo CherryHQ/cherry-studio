@@ -12,6 +12,12 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isVertexProvider } from '@shared/utils/provider'
 
+import {
+  clearLastWrittenEndpointConfigs,
+  getLastWrittenEndpointConfigs,
+  serializeEndpointConfigsWrite,
+  setLastWrittenEndpointConfigs
+} from './endpointConfigsWriteCoordinator'
 import type { PatchProvider } from './types'
 
 const logger = loggerService.withContext('ProviderSettings:EndpointActions')
@@ -97,14 +103,25 @@ export function useProviderEndpointActions({
       !isEqual(provider.endpointConfigs, lastSentEndpointConfigsRef.current)
     ) {
       // Configs changed out from under us (our own echo would equal lastSent) —
-      // adopt them so the next snapshot doesn't resurrect stale keys.
+      // adopt them so the next snapshot doesn't resurrect stale keys. A shared
+      // snapshot from another coordinated writer goes stale the same way.
       lastSentEndpointConfigsRef.current = null
+      if (provider.id) clearLastWrittenEndpointConfigs(provider.id)
     }
   }, [provider])
 
   useEffect(() => {
     apiHostRef.current = apiHost
   }, [apiHost])
+
+  // Freshest endpointConfigs known to any coordinated writer (this hook or the
+  // request-configuration drawer), so overlapping saves build on each other's
+  // result instead of on a stale prop that hasn't re-rendered with the echo.
+  const getBaseEndpointConfigs = useCallback(() => {
+    const currentProvider = providerRef.current ?? provider
+    const shared = currentProvider?.id ? getLastWrittenEndpointConfigs(currentProvider.id) : undefined
+    return shared ?? lastSentEndpointConfigsRef.current ?? currentProvider?.endpointConfigs
+  }, [provider])
 
   const buildNextApiEndpointConfigs = useCallback(
     (baseUrl: string) => {
@@ -113,13 +130,13 @@ export function useProviderEndpointActions({
         return undefined
       }
 
-      const baseConfigs = lastSentEndpointConfigsRef.current ?? currentProvider.endpointConfigs
+      const baseConfigs = getBaseEndpointConfigs()
       return {
         ...baseConfigs,
         [primaryEndpoint]: { ...baseConfigs?.[primaryEndpoint], baseUrl }
       }
     },
-    [primaryEndpoint]
+    [getBaseEndpointConfigs, primaryEndpoint]
   )
 
   const persistApiHostDraft = useCallback(
@@ -138,61 +155,66 @@ export function useProviderEndpointActions({
         return false
       }
 
-      // If a reasoning-format PATCH is in flight, wait so we don't overwrite its
-      // snapshot with a stale whole-config write, then coalesce its pending value.
-      if (reasoningPatchInFlightRef.current) {
-        try {
-          await reasoningPatchInFlightRef.current
-        } catch {
-          // Proceed with host save using last known good reasoning format.
-        }
-      }
-      const liveProvider = providerRef.current ?? currentProvider
-      let nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
-      if (!nextEndpointConfigs) {
-        return false
-      }
-      if (hasPendingReasoningFormatRef.current) {
-        const pending = pendingReasoningFormatRef.current
-        if (pending === undefined) {
-          const nextEndpoint = { ...nextEndpointConfigs[primaryEndpoint] } as Record<string, unknown>
-          delete nextEndpoint.reasoningFormat
-          nextEndpointConfigs = {
-            ...nextEndpointConfigs,
-            [primaryEndpoint]: nextEndpoint
+      // Serialize with the drawer's save (and other hook instances) so this
+      // whole-snapshot write builds on their completed result, not a stale read.
+      return serializeEndpointConfigsWrite(currentProvider.id, async () => {
+        // If a reasoning-format PATCH is in flight, wait so we don't overwrite its
+        // snapshot with a stale whole-config write, then coalesce its pending value.
+        if (reasoningPatchInFlightRef.current) {
+          try {
+            await reasoningPatchInFlightRef.current
+          } catch {
+            // Proceed with host save using last known good reasoning format.
           }
-        } else {
+        }
+        const liveProvider = providerRef.current ?? currentProvider
+        let nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
+        if (!nextEndpointConfigs) {
+          return false
+        }
+        if (hasPendingReasoningFormatRef.current) {
+          const pending = pendingReasoningFormatRef.current
+          if (pending === undefined) {
+            const nextEndpoint = { ...nextEndpointConfigs[primaryEndpoint] } as Record<string, unknown>
+            delete nextEndpoint.reasoningFormat
+            nextEndpointConfigs = {
+              ...nextEndpointConfigs,
+              [primaryEndpoint]: nextEndpoint
+            }
+          } else {
+            nextEndpointConfigs = {
+              ...nextEndpointConfigs,
+              [primaryEndpoint]: {
+                ...nextEndpointConfigs[primaryEndpoint],
+                reasoningFormat: pending
+              }
+            }
+          }
+        } else if (liveProvider.endpointConfigs?.[primaryEndpoint]?.reasoningFormat !== undefined) {
+          // Preserve any reasoningFormat committed while we were awaiting, in case
+          // providerRef hasn't re-rendered yet but liveProvider has it.
           nextEndpointConfigs = {
             ...nextEndpointConfigs,
             [primaryEndpoint]: {
               ...nextEndpointConfigs[primaryEndpoint],
-              reasoningFormat: pending
+              reasoningFormat: liveProvider.endpointConfigs[primaryEndpoint]?.reasoningFormat
             }
           }
         }
-      } else if (liveProvider.endpointConfigs?.[primaryEndpoint]?.reasoningFormat !== undefined) {
-        // Preserve any reasoningFormat committed while we were awaiting, in case
-        // providerRef hasn't re-rendered yet but liveProvider has it.
-        nextEndpointConfigs = {
-          ...nextEndpointConfigs,
-          [primaryEndpoint]: {
-            ...nextEndpointConfigs[primaryEndpoint],
-            reasoningFormat: liveProvider.endpointConfigs[primaryEndpoint]?.reasoningFormat
-          }
-        }
-      }
 
-      const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
-      const trackedHostPatch = patchPromise
-        .catch(() => undefined)
-        .finally(() => {
-          if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
-        }) as Promise<void>
-      hostPatchInFlightRef.current = trackedHostPatch
-      await patchPromise
-      lastSentEndpointConfigsRef.current = nextEndpointConfigs
-      lastPersistedApiHostRef.current = trimmedApiHost
-      return true
+        const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
+        const trackedHostPatch = patchPromise
+          .catch(() => undefined)
+          .finally(() => {
+            if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
+          }) as Promise<void>
+        hostPatchInFlightRef.current = trackedHostPatch
+        await patchPromise
+        lastSentEndpointConfigsRef.current = nextEndpointConfigs
+        setLastWrittenEndpointConfigs(currentProvider.id, nextEndpointConfigs)
+        lastPersistedApiHostRef.current = trimmedApiHost
+        return true
+      })
     },
     [buildNextApiEndpointConfigs, patchProvider, primaryEndpoint]
   )
@@ -252,40 +274,44 @@ export function useProviderEndpointActions({
           return false
         }
 
-        // Serialize with an in-flight reasoning-format save: it holds a snapshot
-        // that predates this host value, so writing first would let it clobber
-        // the host (and vice versa once this save is tracked below).
-        if (reasoningPatchInFlightRef.current) {
-          try {
-            await reasoningPatchInFlightRef.current
-          } catch {
-            // Proceed with host save using last known good reasoning format.
+        // Serialize with the drawer's save as well as an in-flight
+        // reasoning-format save: either holds a snapshot that predates this
+        // host value, so writing first would let it clobber the host (and vice
+        // versa once this save is tracked below).
+        return serializeEndpointConfigsWrite(provider.id, async () => {
+          if (reasoningPatchInFlightRef.current) {
+            try {
+              await reasoningPatchInFlightRef.current
+            } catch {
+              // Proceed with host save using last known good reasoning format.
+            }
           }
-        }
 
-        const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
-        if (!nextEndpointConfigs) {
-          return false
-        }
+          const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
+          if (!nextEndpointConfigs) {
+            return false
+          }
 
-        if (trimmedApiHost !== trim(apiHost)) {
-          setApiHost(trimmedApiHost)
-        }
+          if (trimmedApiHost !== trim(apiHost)) {
+            setApiHost(trimmedApiHost)
+          }
 
-        if (trimmedApiHost !== lastPersistedApiHostRef.current) {
-          const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
-          const trackedHostPatch = patchPromise
-            .catch(() => undefined)
-            .finally(() => {
-              if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
-            }) as Promise<void>
-          hostPatchInFlightRef.current = trackedHostPatch
-          await patchPromise
-          lastSentEndpointConfigsRef.current = nextEndpointConfigs
-          lastPersistedApiHostRef.current = trimmedApiHost
-        }
+          if (trimmedApiHost !== lastPersistedApiHostRef.current) {
+            const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
+            const trackedHostPatch = patchPromise
+              .catch(() => undefined)
+              .finally(() => {
+                if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
+              }) as Promise<void>
+            hostPatchInFlightRef.current = trackedHostPatch
+            await patchPromise
+            lastSentEndpointConfigsRef.current = nextEndpointConfigs
+            setLastWrittenEndpointConfigs(provider.id, nextEndpointConfigs)
+            lastPersistedApiHostRef.current = trimmedApiHost
+          }
 
-        return true
+          return true
+        })
       } catch (error) {
         logger.error('Failed to commit provider API host', { providerId: provider?.id, error })
         toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
@@ -313,26 +339,43 @@ export function useProviderEndpointActions({
       const rawHost = explicitNext !== undefined ? explicitNext : anthropicApiHost
       const trimmedHost = trim(rawHost)
       try {
-        // Serialize with an in-flight reasoning-format save so this
-        // whole-snapshot write doesn't drop its value before re-render.
-        if (reasoningPatchInFlightRef.current) {
-          try {
-            await reasoningPatchInFlightRef.current
-          } catch {
-            // Proceed using last known good endpoint configs.
-          }
-        }
-        const liveProvider = providerRef.current ?? provider
-        const baseConfigs = lastSentEndpointConfigsRef.current ?? liveProvider.endpointConfigs
-        if (trimmedHost) {
-          const nextEndpointConfigs = {
-            ...baseConfigs,
-            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
-              ...baseConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-              baseUrl: trimmedHost
+        // Serialize with the drawer's save as well as an in-flight
+        // reasoning-format save so this whole-snapshot write doesn't drop
+        // their values before re-render.
+        return serializeEndpointConfigsWrite(provider.id, async () => {
+          if (reasoningPatchInFlightRef.current) {
+            try {
+              await reasoningPatchInFlightRef.current
+            } catch {
+              // Proceed using last known good endpoint configs.
             }
           }
-          const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
+          const baseConfigs = getBaseEndpointConfigs()
+          if (trimmedHost) {
+            const nextEndpointConfigs = {
+              ...baseConfigs,
+              [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+                ...baseConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+                baseUrl: trimmedHost
+              }
+            }
+            const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
+            const trackedHostPatch = patchPromise
+              .catch(() => undefined)
+              .finally(() => {
+                if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
+              }) as Promise<void>
+            hostPatchInFlightRef.current = trackedHostPatch
+            await patchPromise
+            lastSentEndpointConfigsRef.current = nextEndpointConfigs
+            setLastWrittenEndpointConfigs(provider.id, nextEndpointConfigs)
+            setAnthropicApiHost(trimmedHost)
+            return true
+          }
+
+          const nextConfigs = { ...baseConfigs }
+          delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+          const patchPromise = patchProvider({ endpointConfigs: nextConfigs })
           const trackedHostPatch = patchPromise
             .catch(() => undefined)
             .finally(() => {
@@ -340,31 +383,18 @@ export function useProviderEndpointActions({
             }) as Promise<void>
           hostPatchInFlightRef.current = trackedHostPatch
           await patchPromise
-          lastSentEndpointConfigsRef.current = nextEndpointConfigs
-          setAnthropicApiHost(trimmedHost)
+          lastSentEndpointConfigsRef.current = nextConfigs
+          setLastWrittenEndpointConfigs(provider.id, nextConfigs)
+          setAnthropicApiHost('')
           return true
-        }
-
-        const nextConfigs = { ...baseConfigs }
-        delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-        const patchPromise = patchProvider({ endpointConfigs: nextConfigs })
-        const trackedHostPatch = patchPromise
-          .catch(() => undefined)
-          .finally(() => {
-            if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
-          }) as Promise<void>
-        hostPatchInFlightRef.current = trackedHostPatch
-        await patchPromise
-        lastSentEndpointConfigsRef.current = nextConfigs
-        setAnthropicApiHost('')
-        return true
+        })
       } catch (error) {
         logger.error('Failed to commit Anthropic API host', { providerId: provider?.id, error })
         toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
         return false
       }
     },
-    [anthropicApiHost, patchProvider, provider, setAnthropicApiHost, t]
+    [anthropicApiHost, getBaseEndpointConfigs, patchProvider, provider, setAnthropicApiHost, t]
   )
 
   const commitApiVersion = useCallback(async (): Promise<boolean> => {
@@ -393,58 +423,61 @@ export function useProviderEndpointActions({
       return false
     }
 
-    // Coordinate with any in-flight reasoning-format patch to avoid overwriting its snapshot.
-    if (reasoningPatchInFlightRef.current) {
+    // Coordinate with the drawer's save as well as any in-flight
+    // reasoning-format patch to avoid overwriting their snapshots.
+    return serializeEndpointConfigsWrite(currentProvider.id, async () => {
+      if (reasoningPatchInFlightRef.current) {
+        try {
+          await reasoningPatchInFlightRef.current
+        } catch {
+          // Proceed with reset using last known good state.
+        }
+      }
+
+      const baseConfigs = getBaseEndpointConfigs()
+      const nextBaseUrl = defaultApiHost
+      const nextEndpoint: Record<string, unknown> = {
+        ...baseConfigs?.[primaryEndpoint],
+        baseUrl: nextBaseUrl
+      }
+      // Preserve or coalesce a pending reasoning-format change (including clear).
+      if (hasPendingReasoningFormatRef.current) {
+        const pending = pendingReasoningFormatRef.current
+        if (pending === undefined) {
+          delete nextEndpoint.reasoningFormat
+        } else {
+          nextEndpoint.reasoningFormat = pending
+        }
+      } else if (baseConfigs?.[primaryEndpoint]?.reasoningFormat !== undefined) {
+        nextEndpoint.reasoningFormat = baseConfigs[primaryEndpoint]?.reasoningFormat
+      }
+
+      const nextEndpointConfigs = {
+        ...baseConfigs,
+        [primaryEndpoint]: nextEndpoint
+      }
+
+      setApiHost(nextBaseUrl)
       try {
-        await reasoningPatchInFlightRef.current
-      } catch {
-        // Proceed with reset using last known good state.
+        const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
+        const trackedHostPatch = patchPromise
+          .catch(() => undefined)
+          .finally(() => {
+            if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
+          }) as Promise<void>
+        hostPatchInFlightRef.current = trackedHostPatch
+        await patchPromise
+        lastSentEndpointConfigsRef.current = nextEndpointConfigs
+        setLastWrittenEndpointConfigs(currentProvider.id, nextEndpointConfigs)
+        lastPersistedApiHostRef.current = nextBaseUrl
+        return true
+      } catch (error) {
+        logger.error('Failed to reset provider API host', { providerId: currentProvider.id, error })
+        toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        return false
       }
-    }
-
-    const liveProvider = providerRef.current ?? currentProvider
-    const nextBaseUrl = defaultApiHost
-    const nextEndpoint: Record<string, unknown> = {
-      ...liveProvider.endpointConfigs?.[primaryEndpoint],
-      baseUrl: nextBaseUrl
-    }
-    // Preserve or coalesce a pending reasoning-format change (including clear).
-    if (hasPendingReasoningFormatRef.current) {
-      const pending = pendingReasoningFormatRef.current
-      if (pending === undefined) {
-        delete nextEndpoint.reasoningFormat
-      } else {
-        nextEndpoint.reasoningFormat = pending
-      }
-    } else if (liveProvider.endpointConfigs?.[primaryEndpoint]?.reasoningFormat !== undefined) {
-      nextEndpoint.reasoningFormat = liveProvider.endpointConfigs[primaryEndpoint]!.reasoningFormat
-    }
-
-    const baseConfigs = lastSentEndpointConfigsRef.current ?? liveProvider.endpointConfigs
-    const nextEndpointConfigs = {
-      ...baseConfigs,
-      [primaryEndpoint]: nextEndpoint
-    }
-
-    setApiHost(nextBaseUrl)
-    try {
-      const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
-      const trackedHostPatch = patchPromise
-        .catch(() => undefined)
-        .finally(() => {
-          if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
-        }) as Promise<void>
-      hostPatchInFlightRef.current = trackedHostPatch
-      await patchPromise
-      lastSentEndpointConfigsRef.current = nextEndpointConfigs
-      lastPersistedApiHostRef.current = nextBaseUrl
-      return true
-    } catch (error) {
-      logger.error('Failed to reset provider API host', { providerId: currentProvider.id, error })
-      toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
-      return false
-    }
-  }, [defaultApiHost, patchProvider, primaryEndpoint, setApiHost, t])
+    })
+  }, [defaultApiHost, getBaseEndpointConfigs, patchProvider, primaryEndpoint, setApiHost, t])
 
   const commitReasoningFormat = useCallback(
     async (reasoningFormat: ProviderReasoningFormatSelector | undefined): Promise<boolean> => {
@@ -456,55 +489,59 @@ export function useProviderEndpointActions({
       pendingReasoningFormatRef.current = reasoningFormat
       hasPendingReasoningFormatRef.current = true
       const doCommit = async (): Promise<boolean> => {
-        // Cancel any pending debounced host save so the two whole-snapshot patches don't race.
-        // If a host PATCH is already in flight, wait for it so we don't overwrite its
-        // snapshot with a stale whole-config write, then coalesce any pending draft.
-        debouncedPersistApiHost.cancel()
-        if (hostPatchInFlightRef.current) {
+        // Serialize with the drawer's save so neither whole-snapshot write
+        // lands on a read that predates the other.
+        return serializeEndpointConfigsWrite(currentProvider.id, async () => {
+          // Cancel any pending debounced host save so the two whole-snapshot patches don't race.
+          // If a host PATCH is already in flight, wait for it so we don't overwrite its
+          // snapshot with a stale whole-config write, then coalesce any pending draft.
+          debouncedPersistApiHost.cancel()
+          if (hostPatchInFlightRef.current) {
+            try {
+              await hostPatchInFlightRef.current
+            } catch {
+              // Host save failed — proceed with reasoning save using the last known good host.
+            }
+          }
+          const trimmedDraft = trim(apiHostRef.current)
+          const hasPendingHost =
+            validateApiHost(trimmedDraft) &&
+            trimmedDraft !== lastPersistedApiHostRef.current &&
+            trimmedDraft !== trim(currentProvider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
+          const effectiveBaseUrl = hasPendingHost ? trimmedDraft : undefined
+
+          const baseConfigs = getBaseEndpointConfigs()
+          const baseEndpoint = baseConfigs?.[primaryEndpoint] as Record<string, unknown> | undefined
+          const nextEndpoint: Record<string, unknown> = { ...baseEndpoint }
+          if (reasoningFormat === undefined) {
+            delete nextEndpoint.reasoningFormat
+          } else {
+            nextEndpoint.reasoningFormat = reasoningFormat
+          }
+          if (effectiveBaseUrl !== undefined) {
+            nextEndpoint.baseUrl = effectiveBaseUrl
+          }
+
+          const nextEndpointConfigs = {
+            ...baseConfigs,
+            [primaryEndpoint]: nextEndpoint
+          }
+
           try {
-            await hostPatchInFlightRef.current
-          } catch {
-            // Host save failed — proceed with reasoning save using the last known good host.
+            await patchProvider({ endpointConfigs: nextEndpointConfigs })
+            lastSentEndpointConfigsRef.current = nextEndpointConfigs
+            setLastWrittenEndpointConfigs(currentProvider.id, nextEndpointConfigs)
+            if (hasPendingHost) {
+              lastPersistedApiHostRef.current = trimmedDraft
+              setApiHost(trimmedDraft)
+            }
+            return true
+          } catch (error) {
+            logger.error('Failed to commit provider reasoning format', { providerId: currentProvider.id, error })
+            toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+            return false
           }
-        }
-        const trimmedDraft = trim(apiHostRef.current)
-        const hasPendingHost =
-          validateApiHost(trimmedDraft) &&
-          trimmedDraft !== lastPersistedApiHostRef.current &&
-          trimmedDraft !== trim(currentProvider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
-        const effectiveBaseUrl = hasPendingHost ? trimmedDraft : undefined
-
-        const baseProvider = providerRef.current ?? currentProvider
-        const baseConfigs = lastSentEndpointConfigsRef.current ?? baseProvider.endpointConfigs
-        const baseEndpoint = baseConfigs?.[primaryEndpoint] as Record<string, unknown> | undefined
-        const nextEndpoint: Record<string, unknown> = { ...baseEndpoint }
-        if (reasoningFormat === undefined) {
-          delete nextEndpoint.reasoningFormat
-        } else {
-          nextEndpoint.reasoningFormat = reasoningFormat
-        }
-        if (effectiveBaseUrl !== undefined) {
-          nextEndpoint.baseUrl = effectiveBaseUrl
-        }
-
-        const nextEndpointConfigs = {
-          ...baseConfigs,
-          [primaryEndpoint]: nextEndpoint
-        }
-
-        try {
-          await patchProvider({ endpointConfigs: nextEndpointConfigs })
-          lastSentEndpointConfigsRef.current = nextEndpointConfigs
-          if (hasPendingHost) {
-            lastPersistedApiHostRef.current = trimmedDraft
-            setApiHost(trimmedDraft)
-          }
-          return true
-        } catch (error) {
-          logger.error('Failed to commit provider reasoning format', { providerId: currentProvider.id, error })
-          toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
-          return false
-        }
+        })
       }
 
       const patchPromise = doCommit()
@@ -518,7 +555,7 @@ export function useProviderEndpointActions({
       reasoningPatchInFlightRef.current = trackedReasoningPatch
       return patchPromise
     },
-    [debouncedPersistApiHost, patchProvider, primaryEndpoint, setApiHost, t]
+    [debouncedPersistApiHost, getBaseEndpointConfigs, patchProvider, primaryEndpoint, setApiHost, t]
   )
 
   return {

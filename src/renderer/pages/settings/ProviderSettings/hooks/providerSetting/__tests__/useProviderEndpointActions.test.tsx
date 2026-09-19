@@ -5,6 +5,7 @@ import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
+import { clearLastWrittenEndpointConfigs, setLastWrittenEndpointConfigs } from '../endpointConfigsWriteCoordinator'
 import { useProviderEndpointActions } from '../useProviderEndpointActions'
 
 const patchProviderMock = vi.fn().mockResolvedValue(undefined)
@@ -42,6 +43,9 @@ describe('useProviderEndpointActions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
+    // The write coordinator is module-global: reset it so overlapping-save
+    // coverage in one test cannot leak a base snapshot into the next.
+    clearLastWrittenEndpointConfigs(provider.id)
   })
 
   afterEach(() => {
@@ -442,5 +446,44 @@ describe('useProviderEndpointActions', () => {
     })
 
     expect(toast.error).toHaveBeenCalledWith('Unsupported API version')
+  })
+
+  it('bases a reasoning commit on a drawer-completed snapshot newer than the prop', async () => {
+    // The drawer saved a new baseUrl but this hook's provider prop has not
+    // re-rendered with the echo yet. Committing a reasoning format must keep
+    // the drawer's baseUrl instead of resurrecting the stale prop value.
+    setLastWrittenEndpointConfigs('drawer-writer-provider', {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://drawer.example.com' }
+    } as any)
+
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider: { ...provider, id: 'drawer-writer-provider' },
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://drawer.example.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://drawer.example.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    await act(async () => {
+      await result.current.commitReasoningFormat({ type: 'self-hosted' })
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://drawer.example.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+    clearLastWrittenEndpointConfigs('drawer-writer-provider')
   })
 })
