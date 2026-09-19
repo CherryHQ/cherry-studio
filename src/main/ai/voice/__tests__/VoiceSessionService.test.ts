@@ -198,6 +198,20 @@ describe('VoiceSessionService file and admission contract', () => {
     expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
   })
 
+  it('allows session cleanup to retry after temporary file deletion fails', async () => {
+    const input = await recording()
+    const permanentDelete = files.permanentDelete.bind(files)
+    vi.spyOn(files, 'permanentDelete')
+      .mockRejectedValueOnce(new Error('temporary deletion failure'))
+      .mockImplementation(permanentDelete)
+
+    await expect(service.discard(a, input.sessionId)).rejects.toThrow('temporary deletion failure')
+    expect(fileEntryService.findById(input.fileEntryId)).not.toBeNull()
+
+    await expect(service.discard(a, input.sessionId)).resolves.toBeUndefined()
+    expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+  })
+
   it('returns a complete temporary WAV without a path, then discards its file', async () => {
     const input = {
       sessionId: randomUUID(),

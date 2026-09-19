@@ -340,12 +340,18 @@ export class VoiceSessionService extends BaseService {
     session.closed = true
     session.detach()
     if (this.active?.session === session) this.active.controller.abort(new VoiceRuntimeError('aborted'))
-    session.cleanup = (async () => {
-      await Promise.allSettled(session.pending)
-      for (const id of session.files.keys()) await this.deleteFile(session, id)
-      this.sessions.delete(session.id)
+    const cleanup = (async () => {
+      try {
+        await Promise.allSettled(session.pending)
+        for (const id of session.files.keys()) await this.deleteFile(session, id)
+        this.sessions.delete(session.id)
+      } catch (error) {
+        if (session.cleanup === cleanup) session.cleanup = undefined
+        throw error
+      }
     })()
-    return session.cleanup
+    session.cleanup = cleanup
+    return cleanup
   }
 
   private async inspect<T>(owner: VoiceOwner, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
