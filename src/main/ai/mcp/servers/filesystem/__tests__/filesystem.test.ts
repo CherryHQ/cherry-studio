@@ -261,4 +261,56 @@ describe('filesystem MCP security', () => {
       await expect(handleReadTool({ file_path: 'escape-link' }, workspaceRoot)).rejects.toThrow(ESCAPE_ERROR)
     })
   })
+
+  describe('same-file mutation safety', () => {
+    it('serializes concurrent edits for the same file so both changes land', async () => {
+      const workspaceRoot = await createTempDir('edit-serialization-root-')
+      const filePath = path.join(workspaceRoot, 'recipe.py')
+      await fs.writeFile(filePath, 'value = 1\ncount = 3\n')
+
+      const originalWriteFile = fs.writeFile.bind(fs)
+      let delayedFirstWrite = false
+      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+        const [targetPath] = args
+        if (!delayedFirstWrite && typeof targetPath === 'string' && targetPath === filePath) {
+          delayedFirstWrite = true
+          await new Promise((resolve) => setTimeout(resolve, 30))
+        }
+        return (originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>)(
+          ...args
+        )
+      })
+
+      await Promise.all([
+        handleEditTool({ file_path: 'recipe.py', old_string: 'value = 1', new_string: 'value = 2' }, workspaceRoot),
+        handleEditTool({ file_path: 'recipe.py', old_string: 'count = 3', new_string: 'count = 4' }, workspaceRoot)
+      ])
+
+      const content = await fs.readFile(filePath, 'utf-8')
+      expect(content).toContain('value = 2')
+      expect(content).toContain('count = 4')
+    })
+
+    it('fails write when post-write verification detects mismatched content', async () => {
+      const workspaceRoot = await createTempDir('write-verify-root-')
+      const filePath = path.join(workspaceRoot, 'verify.txt')
+      await fs.writeFile(filePath, 'before')
+
+      const originalWriteFile = fs.writeFile.bind(fs)
+      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+        const [targetPath, content] = args
+        if (typeof targetPath === 'string' && targetPath === filePath && content === 'after') {
+          return
+        }
+        return (originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>)(
+          ...args
+        )
+      })
+
+      await expect(handleWriteTool({ file_path: 'verify.txt', content: 'after' }, workspaceRoot)).rejects.toThrow(
+        'Post-write verification failed'
+      )
+      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('before')
+    })
+  })
 })
