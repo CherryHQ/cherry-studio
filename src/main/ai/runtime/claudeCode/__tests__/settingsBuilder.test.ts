@@ -908,6 +908,35 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '32' })
   })
 
+  // A 20K declaration cannot fit any SDK-valid trigger-point request (1K
+  // history at the 1% trigger floor plus the 32K default cap = 33K), so the
+  // floor stands as the earliest SDK-valid trigger with the overflow logged.
+  it('holds the SDK floor for a gateway slot that cannot fit even at best effort', async () => {
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      trustedProvider,
+      {
+        contextWindow: 256_000,
+        maxOutputTokens: 32_000,
+        gatewayModelSlots: [{ providerId: 'openrouter', contextWindow: 20_000, maxOutputTokens: 32_000 }]
+      }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
+    expect(settings.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '1' })
+    expect(mocks.loggerWarn).toHaveBeenCalled()
+  })
+
   // A routed sub-model with no declared window cannot be measured, so it also
   // contributes the floor — the most conservative SDK-valid value — rather than
   // riding the primary's budget unseen.
