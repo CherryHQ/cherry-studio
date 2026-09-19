@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { KnowledgeItemStatusSchema } from '@shared/data/types/knowledge'
+import { KnowledgeItemStatusSchema, KnowledgeSearchWarningSchema } from '@shared/data/types/knowledge'
 import { isHttpUrl } from '@shared/utils/url'
 
 /**
@@ -173,7 +173,8 @@ export const kbSearchOutputItemSchema = z.object({
   title: z.string().optional(),
   type: z.string().optional(),
   content: z.string(),
-  score: z.number().min(0).max(1)
+  score: z.number().min(0).max(1),
+  warning: KnowledgeSearchWarningSchema.optional()
 })
 
 export const kbSearchOutputSchema = z.array(kbSearchOutputItemSchema)

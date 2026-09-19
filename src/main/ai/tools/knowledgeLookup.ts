@@ -227,7 +227,8 @@ export async function searchKnowledge(
     content: result.pageContent,
     // Clamp to the schema's [0, 1] range. This is the ONLY enforcement of that contract: ai@6.0.143
     // does not validate a tool's `outputSchema` on the execute path, and the MCP bridge doesn't either.
-    score: Math.max(0, Math.min(1, result.score))
+    score: Math.max(0, Math.min(1, result.score)),
+    ...(result.warning ? { warning: result.warning } : {})
   }))
 }
 
