@@ -454,7 +454,7 @@ describe('useProviderEndpointActions', () => {
     // the drawer's baseUrl instead of resurrecting the stale prop value.
     setLastWrittenEndpointConfigs('drawer-writer-provider', {
       [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://drawer.example.com' }
-    } as any)
+    })
 
     const { result } = renderHook(() =>
       useProviderEndpointActions({
