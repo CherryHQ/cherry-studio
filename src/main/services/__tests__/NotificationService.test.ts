@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   preferenceGet: vi.fn(),
   preferenceValues: {} as Record<string, boolean>,
   send: vi.fn(),
-  setBadgeCount: vi.fn((_count?: number) => true),
+  setBadgeCount: vi.fn(() => true),
   showMainWindow: vi.fn(),
   streamApprovalListener: undefined as ((event: ApprovalRequestedEvent) => void) | undefined,
   subscribeMultipleChanges: vi.fn(),
