@@ -143,8 +143,8 @@ deleteItems(baseId, itemIds)
   -> collapse nested selections to top-level roots
   -> no-op if no roots remain
   -> under same-base mutation lock and one DB transaction:
+       reject if any selected root's recursive subtree has an active document owner
        mark selected root subtrees deleting
-       reject if any resolved item has an active document owner
        enqueue knowledge.delete-subtree
        idempotency key = knowledge:${baseId}:${sorted root ids}:delete
   -> if the transaction or enqueue throws:
@@ -152,10 +152,12 @@ deleteItems(baseId, itemIds)
        rethrow
 ```
 
-The ownership check deliberately runs after the recursive status update but in
-the same synchronous transaction. If an active owner is found anywhere in any
-selected subtree, the exception rolls the entire batch back to its prior
-statuses and no job becomes durable.
+The ownership check projects matches back to the selected roots with one
+recursive query before the status update. It therefore does not materialize an
+unbounded descendant list into a SQLite `IN` clause. The check, status update,
+and enqueue share one synchronous `BEGIN IMMEDIATE` transaction, so ownership
+cannot race the accepted delete intent. If an active owner is found, no item
+status is changed and no job becomes durable.
 
 ### Why Enqueue Failure Rolls Back `deleting`
 

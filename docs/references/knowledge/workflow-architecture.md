@@ -37,7 +37,7 @@ Helpers may own source planning, lifecycle writes, knowledge-owned raw files, an
 `addItems`, `deleteItems`, and `reindexItems` are async workflow entry points. API resolution means the durable workflow has been accepted, not that every physical side effect has finished.
 
 - `addItems` resolves after root rows are created and first Knowledge jobs are queued.
-- `deleteItems` resolves after top-level target subtrees are atomically marked `deleting`, confirmed not to contain active document-owned external items, and queued for `knowledge.delete-subtree`.
+- `deleteItems` resolves after top-level target subtrees are atomically confirmed not to contain active document-owned external items, marked `deleting`, and queued for `knowledge.delete-subtree`.
 - `reindexItems` resolves after each top-level target subtree is confirmed terminal (`completed` or `failed`) and `knowledge.reindex-subtree` is queued.
 
 Default item list, search, and RAG hydration exclude `deleting` items. `deleting` is a durable cleanup marker, not a tombstone or terminal success state.

@@ -247,14 +247,19 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
     await this.knowledgeLockManager.runExclusive(baseId, () =>
       application.get('DbService').withWriteTx((tx) => {
-        const targetItemIds = knowledgeItemService.setSubtreeStatusTx(tx, baseId, rootItemIds, 'deleting')
-        const managedItemIds = externalKnowledgeDocumentService.getActiveOwnedKnowledgeItemIds(targetItemIds, tx)
-        if (managedItemIds.size > 0) {
+        const managedRootItemIds = externalKnowledgeDocumentService.getKnowledgeItemIdsWithActiveOwnedSubtree(
+          baseId,
+          rootItemIds,
+          tx
+        )
+        if (managedRootItemIds.size > 0) {
+          const subtreeLabel = managedRootItemIds.size === 1 ? 'subtree' : 'subtrees'
           throw DataApiErrorFactory.invalidOperation(
             'deleteItems',
-            `Cannot delete ${managedItemIds.size} external knowledge item(s) managed by an active document owner`
+            `Cannot delete ${managedRootItemIds.size} selected knowledge ${subtreeLabel} containing content managed by an active document owner`
           )
         }
+        knowledgeItemService.setSubtreeStatusTx(tx, baseId, rootItemIds, 'deleting')
         application.get('JobManager').enqueueTx(
           tx,
           'knowledge.delete-subtree',

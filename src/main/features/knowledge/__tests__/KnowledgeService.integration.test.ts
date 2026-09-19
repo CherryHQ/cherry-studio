@@ -384,7 +384,9 @@ describe('KnowledgeService integration', () => {
     const service = new KnowledgeService()
 
     await expect(service.deleteItems(SOURCE_BASE_ID, [EXTERNAL_DIRECTORY_ID])).rejects.toMatchObject({
-      code: 'INVALID_OPERATION'
+      code: 'INVALID_OPERATION',
+      message:
+        'Invalid operation: deleteItems - Cannot delete 1 selected knowledge subtree containing content managed by an active document owner'
     })
 
     const rows = await dbh.db

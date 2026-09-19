@@ -16,6 +16,9 @@ import { type ExternalKnowledgeDocument, ExternalKnowledgeDocumentSchema } from 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
 
+// Stay below SQLite host-parameter limits across builds and leave room for other bound values.
+const SQLITE_INARRAY_CHUNK = 500
+
 function rowToEntity(row: ExternalKnowledgeDocumentRow): ExternalKnowledgeDocument {
   return ExternalKnowledgeDocumentSchema.parse({
     ...row,
@@ -78,18 +81,28 @@ export class ExternalKnowledgeDocumentService {
     const uniqueItemIds = [...new Set(itemIds)]
     if (uniqueItemIds.length === 0) return new Set()
 
-    const rows = db
-      .select({ knowledgeItemId: externalKnowledgeDocumentTable.knowledgeItemId })
-      .from(externalKnowledgeDocumentTable)
-      .where(
-        and(
-          eq(externalKnowledgeDocumentTable.availability, 'active'),
-          inArray(externalKnowledgeDocumentTable.knowledgeItemId, uniqueItemIds)
+    const ownedItemIds = new Set<string>()
+    for (let index = 0; index < uniqueItemIds.length; index += SQLITE_INARRAY_CHUNK) {
+      const rows = db
+        .select({ knowledgeItemId: externalKnowledgeDocumentTable.knowledgeItemId })
+        .from(externalKnowledgeDocumentTable)
+        .where(
+          and(
+            eq(externalKnowledgeDocumentTable.availability, 'active'),
+            inArray(
+              externalKnowledgeDocumentTable.knowledgeItemId,
+              uniqueItemIds.slice(index, index + SQLITE_INARRAY_CHUNK)
+            )
+          )
         )
-      )
-      .all()
+        .all()
 
-    return new Set(rows.flatMap((row) => (row.knowledgeItemId === null ? [] : [row.knowledgeItemId])))
+      for (const row of rows) {
+        if (row.knowledgeItemId !== null) ownedItemIds.add(row.knowledgeItemId)
+      }
+    }
+
+    return ownedItemIds
   }
 
   getKnowledgeItemIdsWithActiveOwnedSubtree(

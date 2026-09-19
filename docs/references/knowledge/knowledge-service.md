@@ -328,15 +328,15 @@ existing vector contract must be rebuilt in a new base.
 `delete-items` currently runs:
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
-2. Under the base mutation lock, one DB transaction marks selected root subtrees `deleting`, rejects the whole request if any resolved item has an active `ExternalKnowledgeDocument` owner, and enqueues `knowledge.delete-subtree`.
+2. Under the base mutation lock, one DB transaction rejects the whole request if any selected root's recursive subtree has an active `ExternalKnowledgeDocument` owner, marks the accepted subtrees `deleting`, and enqueues `knowledge.delete-subtree`.
 3. The delete job cancels active jobs touching the subtree.
 4. Under the base mutation lock, the delete job deletes leaf vectors, deletes Knowledge-owned raw files, and hard-deletes item rows.
 
 The ownership check is based on document availability, not source state, so
 pausing a source does not make its active documents independently deletable.
 The same check covers a selected directory's descendants and a mixed batch;
-because status writes, enforcement, and enqueueing share one synchronous
-transaction, a rejection restores every selected item's prior state. Ownerless
+because enforcement, status writes, and enqueueing share one synchronous
+transaction, a rejection changes no selected item state. Ownerless
 completed external items are static external content and use the normal delete
 path. Reindex may also target a directly selected active-owned external leaf:
 the item and pinned snapshot remain in place while only its derived index is

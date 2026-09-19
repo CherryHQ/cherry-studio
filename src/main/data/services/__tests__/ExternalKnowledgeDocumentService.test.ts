@@ -140,6 +140,15 @@ describe('ExternalKnowledgeDocumentService', () => {
     expect(externalKnowledgeDocumentService.getActiveOwnedKnowledgeItemIds([])).toEqual(new Set())
   })
 
+  it('handles ownership admission beyond the SQLite host-parameter limit', () => {
+    seedOwnership()
+    const missingItemIds = Array.from({ length: 32_767 }, (_, index) => `missing-item-${index}`)
+
+    expect(externalKnowledgeDocumentService.getActiveOwnedKnowledgeItemIds([...missingItemIds, FIRST_ITEM_ID])).toEqual(
+      new Set([FIRST_ITEM_ID])
+    )
+  })
+
   it('projects deletion blocking onto every listed subtree root in one query', () => {
     seedOwnership()
     dbh.db
