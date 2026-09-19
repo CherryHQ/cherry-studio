@@ -195,10 +195,16 @@ vi.mock('../list/MessageGroupMenuBar', () => ({
   default: mocks.MessageGroupMenuBar
 }))
 
-vi.mock('../list/ScrollOwnershipContext', () => ({
-  useScrollRuntimeBoundary: () => ({ getScrollContainer: () => null, scrollByWheel: mocks.scrollByWheel }),
-  useScrollRuntimeNavigation: () => () => false
-}))
+vi.mock('../list/ScrollOwnershipContext', async () => {
+  const actual = await vi.importActual<typeof import('../list/ScrollOwnershipContext')>(
+    '../list/ScrollOwnershipContext'
+  )
+  return {
+    ...actual,
+    useScrollRuntimeBoundary: () => ({ getScrollContainer: () => null, scrollByWheel: mocks.scrollByWheel }),
+    useScrollRuntimeNavigation: () => () => false
+  }
+})
 
 vi.mock('../MessageListProvider', () => ({
   useMessageListActions: () => mocks.messageListActions(),
@@ -283,6 +289,7 @@ const setElementSize = (
     clientWidth: number
     scrollHeight: number
     scrollLeft: number
+    scrollTop: number
     scrollWidth: number
   }>
 ) => {
@@ -813,6 +820,82 @@ describe('MessageGroup', () => {
     expect(wheelEvent.defaultPrevented).toBe(true)
     expect(parentWheel).not.toHaveBeenCalled()
     expect(horizontalGroup.scrollLeft).toBe(0)
+  })
+
+  // #20090: nested column top + overflow-y:hidden group must not trap upward wheel.
+  it('forwards upward wheel from a top-boundary message column to the outer scroll runtime', () => {
+    const parentWheel = vi.fn()
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(
+      <div onWheel={parentWheel}>
+        <MessageGroup messages={messages} />
+      </div>
+    )
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    setElementSize(contentContainer, {
+      clientHeight: 300,
+      scrollHeight: 600,
+      scrollTop: 0
+    })
+
+    const wheelEvent = createEvent.wheel(contentContainer, { deltaX: 0, deltaY: -120 })
+    fireEvent(contentContainer, wheelEvent)
+
+    expect(mocks.scrollByWheel).toHaveBeenCalledWith(-120)
+    expect(wheelEvent.defaultPrevented).toBe(true)
+    expect(parentWheel).not.toHaveBeenCalled()
+  })
+
+  it('keeps upward wheel inside a message column while that column can still scroll', () => {
+    const parentWheel = vi.fn()
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(
+      <div onWheel={parentWheel}>
+        <MessageGroup messages={messages} />
+      </div>
+    )
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    setElementSize(contentContainer, {
+      clientHeight: 300,
+      scrollHeight: 600,
+      scrollTop: 140
+    })
+
+    const wheelEvent = createEvent.wheel(contentContainer, { deltaX: 0, deltaY: -120 })
+    fireEvent(contentContainer, wheelEvent)
+
+    expect(mocks.scrollByWheel).not.toHaveBeenCalled()
+    expect(wheelEvent.defaultPrevented).toBe(false)
+  })
+
+  it('normalizes Windows line-mode wheel deltas before forwarding from a column boundary', () => {
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    setElementSize(contentContainer, {
+      clientHeight: 300,
+      scrollHeight: 600,
+      scrollTop: 0
+    })
+
+    const wheelEvent = createEvent.wheel(contentContainer, {
+      deltaMode: WheelEvent.DOM_DELTA_LINE,
+      deltaX: 0,
+      deltaY: -3
+    })
+    fireEvent(contentContainer, wheelEvent)
+
+    expect(mocks.scrollByWheel).toHaveBeenCalledWith(-48)
+    expect(wheelEvent.defaultPrevented).toBe(true)
   })
 
   it('supports horizontal wheel scrolling on non-content areas in horizontal layout', () => {
