@@ -6,10 +6,11 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
 import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isVertexProvider } from '@shared/utils/provider'
 
+import { applyPrimaryBaseUrlToMatchingEndpoints } from '../../utils/providerDisplay'
 import type { PatchProvider } from './types'
 
 const logger = loggerService.withContext('ProviderSettings:EndpointActions')
@@ -40,7 +41,7 @@ function getEndpointActionErrorMessage(error: unknown, fallback: string): string
 
 interface UseProviderEndpointActionsParams {
   provider: Provider | undefined
-  primaryEndpoint: string
+  primaryEndpoint: EndpointType
   apiHost: string
   setApiHost: (value: string) => void
   providerApiHost: string
@@ -78,10 +79,7 @@ export function useProviderEndpointActions({
         return undefined
       }
 
-      return {
-        ...provider.endpointConfigs,
-        [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], baseUrl }
-      }
+      return applyPrimaryBaseUrlToMatchingEndpoints(provider.endpointConfigs, primaryEndpoint, baseUrl)
     },
     [primaryEndpoint, provider]
   )
@@ -263,13 +261,11 @@ export function useProviderEndpointActions({
     }
 
     const nextBaseUrl = defaultApiHost
-    const nextEndpointConfigs = {
-      ...provider.endpointConfigs,
-      [primaryEndpoint]: {
-        ...provider.endpointConfigs?.[primaryEndpoint],
-        baseUrl: nextBaseUrl
-      }
-    }
+    const nextEndpointConfigs = applyPrimaryBaseUrlToMatchingEndpoints(
+      provider.endpointConfigs,
+      primaryEndpoint,
+      nextBaseUrl
+    )
 
     setApiHost(nextBaseUrl)
     try {
