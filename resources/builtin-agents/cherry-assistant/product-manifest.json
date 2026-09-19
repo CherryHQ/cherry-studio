@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.14",
+    "version": "2.1.0",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -49,6 +49,7 @@
       "/app",
       "/settings",
       "/app/agents",
+      "/app/browser",
       "/app/chat",
       "/app/code",
       "/app/file-preview",
@@ -61,10 +62,12 @@
       "/settings/about",
       "/settings/api-gateway",
       "/settings/appearance",
+      "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
       "/settings/data",
       "/settings/dependencies",
+      "/settings/device-connections",
       "/settings/file-processing",
       "/settings/general",
       "/settings/local-models",
@@ -462,8 +465,8 @@
     }
   ],
   "providers": {
-    "version": "e47c80cffa19d83b",
-    "count": 62,
+    "version": "c1e12f94463bc3de",
+    "count": 63,
     "entries": [
       {
         "id": "cherryin",
@@ -600,6 +603,10 @@
       {
         "id": "moonshot",
         "name": "Moonshot AI"
+      },
+      {
+        "id": "moonshot-global",
+        "name": "Moonshot"
       },
       {
         "id": "baichuan",

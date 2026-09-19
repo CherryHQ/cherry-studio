@@ -256,6 +256,7 @@ describe('ErrorBlock', () => {
       removeMessageErrorPart,
       navigateErrorTarget
     }
+    mocks.translations.set('error.diagnosis.auth', 'API Key is invalid, please check and reconfigure')
 
     const { container } = render(
       <ErrorBlock
@@ -270,7 +271,8 @@ describe('ErrorBlock', () => {
       expect.objectContaining({
         message,
         partId: 'message-1-part-0',
-        error: expect.objectContaining({ message: 'Unauthorized' })
+        error: expect.objectContaining({ message: 'Unauthorized' }),
+        localizedErrorMessage: 'API Key is invalid, please check and reconfigure'
       })
     )
 

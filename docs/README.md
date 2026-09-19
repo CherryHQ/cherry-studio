@@ -24,10 +24,14 @@
 | [AI Reference](./references/ai/README.md) | Entry point mapping the AI pipeline docs, src/main/ai code layout, chat-turn flow, runtimes, and key invariants |
 | [Adapter Family](./references/ai/adapter-family.md) | How each endpoint config's adapterFamily field selects the @ai-sdk package, and the two write paths that set it |
 | [Adding an Agent Runtime](./references/ai/adding-a-runtime.md) | Operational checklist for adding an agent runtime via a capability descriptor and a main-process driver package |
+| [Agent Lifecycle](./references/ai/agent-lifecycle.md) | Agent lifecycle command ownership, atomic archive and restore, schedule recovery, purge, and backup quiescing |
 | [Agent Loop](./references/ai/agent-loop.md) | The Agent class wrapping single-pass AI SDK streaming with composeHooks-merged hook contributions and error semantics |
 | [Agent Prompt Layers](./references/ai/agent-prompt-layers.md) | Precedence and lifecycle of agent prompt sources — System Prompt, workspace system.md, SOUL.md persona, and variables |
+| [Agent Session Fork](./references/ai/agent-session-fork.md) | Native Agent session forks — service ownership, opaque checkpoints, workspace handling, publication, and recovery |
 | [Agent Session Runtime](./references/ai/agent-session-runtime.md) | Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer |
 | [AI Usage Records](./references/ai/ai-usage-records.md) | Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection |
+| [Browser Use — Gap Analysis & Design](./references/ai/browser-use-design.md) | Browser automation design, ownership boundaries, capability gaps, and delivery roadmap |
+| [Browser Use — Implementation Plan](./references/ai/browser-use-implementation.md) | Browser session engine implementation, MCP contracts, and stacked delivery plan |
 | [Chat Attachments](./references/ai/chat-attachments.md) | Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow |
 | [Core Architecture](./references/ai/core-architecture.md) | End-to-end chat turn flow from renderer IPC transport through AiStreamManager and Agent loop to persistence |
 | [Execution Overlay](./references/ai/execution-overlay.md) | Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots |
@@ -236,7 +240,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [Testing Reference](./references/testing/README.md) | Home for testing references covering frontend policy and the SQLite harness |
+| [Testing Reference](./references/testing/README.md) | Frontend and SQLite testing references |
 | [Database Testing Guide](./references/testing/database-testing.md) | How to test SQLite-backed main-process code with the setupTestDatabase harness and production migrations |
 | [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Normative test rules for renderer, packages/ui, and E2E code covering layer choice, mocking, and review gates |
 

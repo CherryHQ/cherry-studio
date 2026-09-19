@@ -6,7 +6,11 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import {
+  createSidebarShortcutId,
+  type SidebarShortcutItem,
+  type SidebarShortcutTarget
+} from '@shared/data/preference/preferenceTypes'
 import type { SiteMiniApp } from '@shared/data/types/miniApp'
 
 const mocks = vi.hoisted(() => ({
@@ -14,8 +18,8 @@ const mocks = vi.hoisted(() => ({
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
-  setSidebarFavorites: vi.fn(() => Promise.resolve()),
-  sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
+  setSidebarFavorites: vi.fn<(value: SidebarShortcutItem[]) => Promise<void>>(() => Promise.resolve()),
+  sidebarFavorites: [] as SidebarShortcutItem[],
   setAppOrder: vi.fn(() => Promise.resolve()),
   appOrder: [] as SidebarAppId[],
   sortableCalls: [] as any[],
@@ -101,6 +105,22 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({
+    shortcuts: mocks.sidebarFavorites,
+    isPinned: (target: SidebarShortcutTarget) =>
+      mocks.sidebarFavorites.some((item) => item.id === createSidebarShortcutId(target)),
+    setPinned: (target: SidebarShortcutTarget, pinned: boolean, fallbackLabel?: string) => {
+      const id = createSidebarShortcutId(target)
+      void mocks.setSidebarFavorites(
+        pinned
+          ? [...mocks.sidebarFavorites, { type: 'shortcut', id, target, fallbackLabel }]
+          : mocks.sidebarFavorites.filter((item) => item.id !== id)
+      )
+    }
+  })
+}))
+
 vi.mock('@renderer/services/toast', () => ({
   toast: {
     error: mocks.toastError
@@ -162,8 +182,12 @@ vi.mock('react-i18next', () => ({
 
 import LaunchpadPage from '../LaunchpadPage'
 
-const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
-const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
+const shortcut = (providerId: string, resourceId: string): SidebarShortcutItem => {
+  const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
+  return { type: 'shortcut', id: createSidebarShortcutId(target), target }
+}
+const appFavorite = (id: SidebarAppId) => shortcut('core.app', id)
+const miniAppFavorite = (id: string) => shortcut('core.mini-app', id)
 const createMiniApp = (appId: string, overrides: Partial<SiteMiniApp> = {}): SiteMiniApp => ({
   appId,
   kind: 'site',
@@ -350,7 +374,7 @@ describe('LaunchpadPage', () => {
     })
 
     // The launchpad persists mini app order to the shared order key (independent of
-    // the sidebar favorites), never writing `ui.sidebar.favorites`.
+    // the sidebar favorites), never writing `ui.sidebar_shortcut`.
     expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('pinned', [
       expect.objectContaining({ appId: 'docs' }),
       expect.objectContaining({ appId: 'calculator' })
@@ -504,17 +528,19 @@ describe('LaunchpadPage', () => {
     render(<LaunchpadPage />)
 
     expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toHaveTextContent('Remove from Sidebar')
-    expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toBeDisabled()
     expect(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge')).toHaveTextContent('Add to Sidebar')
 
     await user.click(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge'))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('knowledge')])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
+      appFavorite('assistants'),
+      { ...appFavorite('knowledge'), fallbackLabel: 'Knowledge' }
+    ])
   })
 
-  it('removes an existing sidebar app icon from the context menu', async () => {
+  it('removes the final sidebar app icon from the context menu', async () => {
     const user = userEvent.setup()
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge')]
+    mocks.sidebarFavorites = [appFavorite('knowledge')]
 
     render(<LaunchpadPage />)
 
@@ -522,6 +548,6 @@ describe('LaunchpadPage', () => {
 
     await user.click(screen.getByTestId('menu-launchpad.unpin-from-sidebar.knowledge'))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants')])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([])
   })
 })

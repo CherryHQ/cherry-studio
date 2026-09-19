@@ -9,12 +9,18 @@ import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import {
+  clearWebviewState,
+  getWebviewElement,
+  getWebviewElements,
+  setWebviewElement,
+  setWebviewLoaded
+} from '@renderer/services/MiniAppWebviewService'
+import {
   DEFAULT_MAX_KEEP_ALIVE_MINI_APPS,
   miniAppIdFromTabUrl,
   trimMiniAppKeepAlive
 } from '@renderer/utils/miniAppKeepAlive'
 import { cn } from '@renderer/utils/style'
-import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 
 /**
  * Global mini-app WebView pool — keeps `<webview>` elements alive across
@@ -60,9 +66,6 @@ const MiniAppTabsPool: React.FC = () => {
   // `@tanstack/react-router` `useLocation` here — the Pool sits above the
   // per-tab MemoryRouter, with no Router context.
   const { tabs, activeTabId, closeTab } = useTabs()
-
-  // webview refs (pool-internal, used to control show/hide)
-  const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
 
   const tabMiniAppIds = useMemo(() => {
     const ids = new Set<string>()
@@ -114,15 +117,9 @@ const MiniAppTabsPool: React.FC = () => {
   // Host-initiated eviction: unlike the LRU path there is nothing to negotiate — the
   // host is already waiting on this webview going away.
   useIpcOn('mini_app.runtime.evicted', ({ appId }) => {
-    // Membership and removal must read the SAME snapshot: this fires from IPC, so the
-    // closure is stale. Safe here only because `useCache`'s setter is not React's.
-    let wasMounted = false
-    setOpenedKeepAliveMiniApps((current) => {
-      wasMounted = current.some((a) => a.appId === appId)
-      return current.filter((a) => a.appId !== appId)
-    })
-    // The broadcast reaches every window. Clearing state for an app this pool never
-    // mounted reaches into another window's entry through a shared store.
+    const wasMounted = getWebviewElement(appId) !== null
+    setOpenedKeepAliveMiniApps((current) => current.filter((app) => app.appId !== appId))
+    // The broadcast reaches every window; release only a guest owned by this pool.
     if (wasMounted) clearWebviewState(appId)
     // Reopening is the user's action: nothing re-adds the app while its tab stays
     // active, so close the tab rather than leave a blank pane behind the toolbar.
@@ -218,11 +215,9 @@ const MiniAppTabsPool: React.FC = () => {
   /** 设置 ref 回调 */
   const handleSetRef = useCallback(
     (appid: string, el: WebviewTag | null) => {
+      setWebviewElement(appid, el)
       if (el) {
-        webviewRefs.current.set(appid, el)
         syncVisibility(appid, el)
-      } else {
-        webviewRefs.current.delete(appid)
       }
     },
     [syncVisibility]
@@ -231,7 +226,7 @@ const MiniAppTabsPool: React.FC = () => {
   /** WebView 加载完成回调 */
   const handleLoaded = useCallback((appid: string) => {
     // A load event can land after the pool evicted the app; don't resurrect its cleared state.
-    if (!webviewRefs.current.has(appid)) return
+    if (!getWebviewElement(appid)) return
     setWebviewLoaded(appid, true)
     logger.debug(`TabPool webview loaded: ${appid}`)
   }, [])
@@ -250,27 +245,30 @@ const MiniAppTabsPool: React.FC = () => {
     // holds the key may clear it.
     setFocusedAppId((current) => (focused ? appid : current === appid ? null : current))
   }, [])
+  const focusedAppVisible =
+    focusedAppId !== null &&
+    shouldShow &&
+    (focusedAppId === currentMiniAppId || focusedAppId === paneSplitId) &&
+    apps.some((app) => app.appId === focusedAppId)
+  useEffect(() => {
+    if (!focusedAppVisible) setFocusedAppId((current) => (current === focusedAppId ? null : current))
+  }, [focusedAppId, focusedAppVisible])
   // Lets no-modifier commands opt out of guest keys via `when: '!webview.focused'`.
-  useCommandContextKey('webview.focused', focusedAppId !== null)
+  useCommandContextKey('webview.focused', focusedAppVisible)
 
   /** Toggle display: only the active pane(s) are visible, the rest are hidden */
   useEffect(() => {
-    webviewRefs.current.forEach((ref, id) => {
-      if (ref) syncVisibility(id, ref)
-    })
+    for (const [id, ref] of getWebviewElements()) syncVisibility(id, ref)
   }, [currentMiniAppId, paneSplitId, shouldShow, apps, syncVisibility])
 
   /** When an entry is in the Map but no longer in openedKeepAlive, remove the ref (React unmounts the element itself) */
   useEffect(() => {
     // Build Set for O(1) lookups (js-set-map-lookups)
     const activeIds = new Set<string>(apps.map((a) => a.appId))
-    for (const id of webviewRefs.current.keys()) {
+    for (const [id] of getWebviewElements()) {
       if (!activeIds.has(id)) {
-        webviewRefs.current.delete(id)
         reportedVisibility.current.delete(id)
-        if (getWebviewLoaded(id)) {
-          setWebviewLoaded(id, false)
-        }
+        clearWebviewState(id)
       }
     }
   }, [apps])

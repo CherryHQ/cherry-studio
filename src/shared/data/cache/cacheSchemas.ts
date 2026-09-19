@@ -287,6 +287,8 @@ export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
+  'doctor.state.${scope}': CacheValueTypes.CacheDoctorState
+  'network.online': boolean
   // Runtime-only opt-out shared across windows; resets when the app exits.
   'agent.model_switch_confirmation.skipped': boolean
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
@@ -304,6 +306,7 @@ export type SharedCacheSchema = {
   'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
+  'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
   'feature.binary.latest_versions': Record<string, string>
@@ -348,6 +351,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
+  'doctor.state.${scope}': { status: 'idle' },
+  'network.online': true,
   'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
   'agent.session.api_retry.${sessionId}': null,
@@ -363,6 +368,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.deepseek_harness.status': { status: 'stopped' },
   'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
+  'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
@@ -385,6 +391,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
+  'ui.browser.import_prompt_hidden': boolean
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
   // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
@@ -452,6 +459,7 @@ export type RendererPersistCacheSchema = {
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
+  'ui.browser.import_prompt_hidden': false,
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],
   'ui.tab.active_tab_id': '',
@@ -506,6 +514,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  'browser.favicons': Record<string, string>
   // Last completed automatic-backup attempt (or manual backup) per backend.
   // AutoBackupService owns this restart-safe scheduling baseline.
   'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
@@ -520,6 +529,7 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'browser.favicons': {},
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
   'window.bounds': {}

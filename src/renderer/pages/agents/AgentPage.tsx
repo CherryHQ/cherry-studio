@@ -39,7 +39,7 @@ import type { ResourceListRevealPayload } from '@renderer/services/resourceListR
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -100,6 +100,7 @@ const AgentPage = () => {
   const isFeedbackIntent = routeSearch.intent === 'feedback'
   const currentTabId = useCurrentTabId()
   const routeSessionId = routeSearch.sessionId
+  const forkReturnSessionId = routeSearch.forkReturnSessionId
   const routeAgentId = routeSearch.agentId
   const routeActiveSessionId = routeSessionId ?? null
   // Shared full-list source for session UI plus exact latest/reusable lookups.
@@ -174,7 +175,9 @@ const AgentPage = () => {
       ownerFallbackRequestIdRef.current += 1
     }
   }, [routeActiveSessionId])
-  const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
+  const setLastUsedAgentId = useCallback((agentId: string | null) => {
+    cacheService.setPersist('ui.agent.last_used_agent_id', agentId)
+  }, [])
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
@@ -216,12 +219,34 @@ const AgentPage = () => {
     setActiveSession,
     selectSession,
     clearActiveSession,
-    setPendingSession
+    mutate: refreshActiveSession
   } = useActiveSession({
     activeSessionId,
     setActiveSessionId,
     initialSession: initialActiveSession
   })
+  useEffect(() => {
+    if (!forkReturnSessionId || !routeSessionId || activeSessionId !== routeSessionId) return
+    let cancelled = false
+    // Await the destination query: the pre-navigation check cannot cover concurrent deletion.
+    void refreshActiveSession(() => dataApiService.get(`/agent-sessions/${routeSessionId}`), {
+      revalidate: false
+    }).then(
+      () => {
+        if (!cancelled) void navigate({ to: '/app/agents', search: { sessionId: routeSessionId }, replace: true })
+      },
+      (error) => {
+        if (cancelled) return
+        toast.error(
+          isDataApiNotFoundError(error) ? t('agent_session_fork.source_not_found') : formatErrorMessage(error)
+        )
+        void navigate({ to: '/app/agents', search: { sessionId: forkReturnSessionId }, replace: true })
+      }
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [activeSessionId, forkReturnSessionId, navigate, refreshActiveSession, routeSessionId, t])
   const reenterAgentRoute = useCallback(() => {
     // The bound session is gone. Drop the remembered id too: `ui.agent.last_used_session_id`
     // is never cleared on delete, so without this the bare re-entry re-reads the stale id in
@@ -235,7 +260,7 @@ const AgentPage = () => {
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
   useEffect(() => {
-    if (isFeedbackIntent) return
+    if (isFeedbackIntent || forkReturnSessionId) return
     if (!routeSessionId || activeSessionId !== routeSessionId) return
     if (activeSession || isActiveSessionLoading) return
     if (!isDataApiNotFoundError(activeSessionError)) return
@@ -244,6 +269,7 @@ const AgentPage = () => {
     activeSession,
     activeSessionError,
     activeSessionId,
+    forkReturnSessionId,
     isActiveSessionLoading,
     isFeedbackIntent,
     reenterAgentRoute,
@@ -527,45 +553,6 @@ const AgentPage = () => {
     setMissingAgentSelection(true)
   }, [clearActiveSession, clearLocate, closeSurface])
 
-  const createDefaultEmptySession = useCallback(
-    async ({ excludedAgentIds = [] }: { excludedAgentIds?: Iterable<string> } = {}) => {
-      closeSurface()
-      clearLocate()
-      // Drop any stale optimistic session while we resolve which agent to create for; the create
-      // path below sets the new pending, or we fall through to the missing-agent screen.
-      setPendingSession(null)
-
-      const excluded = new Set(excludedAgentIds)
-      // A sidebar `?agentId=` entry with no sessions yet starts a fresh session for that
-      // exact agent, not whatever was last focused.
-      const routeAgent =
-        routeAgentId && !excluded.has(routeAgentId) ? agents.find((agent) => agent.id === routeAgentId) : undefined
-      const rememberedAgent =
-        lastUsedAgentId && !excluded.has(lastUsedAgentId)
-          ? agents.find((agent) => agent.id === lastUsedAgentId)
-          : undefined
-      const defaultAgent = routeAgent ?? rememberedAgent ?? agents.find((agent) => !excluded.has(agent.id))
-      if (!defaultAgent) {
-        setActiveSessionId(null)
-        setPendingSessionDefaults(null)
-        setMissingAgentSelection(true)
-        return null
-      }
-
-      return createAndActivateEmptySession({ agentId: defaultAgent.id })
-    },
-    [
-      agents,
-      clearLocate,
-      closeSurface,
-      createAndActivateEmptySession,
-      lastUsedAgentId,
-      routeAgentId,
-      setActiveSessionId,
-      setPendingSession
-    ]
-  )
-
   // Stable wrapper for the classic-layout rail's per-agent "new session" action. Adapting the
   // `(agentId) => ...` signature inline at the JSX call site would hand `AgentResourceList` a fresh
   // function every render, defeating its `entities` memo (mirrors the assistant rail's stable ref).
@@ -610,36 +597,8 @@ const AgentPage = () => {
     [activateSession, pendingSessionDefaults, resolveEmptySession, t]
   )
 
-  const handleHistorySessionSelect = useCallback(
-    (sessionId: string | null, messageId?: string) => {
-      const transition = () => {
-        closeSurface()
-        setShellPaneOpen(true)
-        // Locate (history / global search) should reveal the target in the right session pane. In modern layout
-        // this setter is a no-op; classic layout feeds the explicit open intent into the stable AgentChat shell.
-        setSessionPaneOpen(true)
-        setMissingAgentSelection(false)
-        setPendingSessionDefaults(null)
-        if (sessionId && messageId) {
-          requestLocate(sessionId, messageId)
-        } else {
-          clearLocate()
-        }
-
-        if (!sessionId) {
-          void createDefaultEmptySession()
-          return
-        }
-
-        selectSession(sessionId)
-        sessionRevealRequestIdRef.current += 1
-        setSessionRevealRequest({
-          clearFilters: true,
-          clearQuery: true,
-          itemId: sessionId,
-          requestId: sessionRevealRequestIdRef.current
-        })
-      }
+  const requestSessionNavigation = useCallback(
+    (sessionId: string | null, transition: () => void) => {
       const targetSession = sessionId ? agentSessions.find((session) => session.id === sessionId) : undefined
       const preservesFileWorkspace =
         sessionId === visibleSession?.id ||
@@ -655,17 +614,44 @@ const AgentPage = () => {
       }
       requestFileNavigation(transition)
     },
+    [agentSessions, requestFileNavigation, visibleSession]
+  )
+
+  const handleHistorySessionSelect = useCallback(
+    (sessionId: string, messageId?: string) => {
+      const transition = () => {
+        closeSurface()
+        setShellPaneOpen(true)
+        // Locate (history / global search) should reveal the target in the right session pane. In modern layout
+        // this setter is a no-op; classic layout feeds the explicit open intent into the stable AgentChat shell.
+        setSessionPaneOpen(true)
+        setMissingAgentSelection(false)
+        setPendingSessionDefaults(null)
+        if (sessionId && messageId) {
+          requestLocate(sessionId, messageId)
+        } else {
+          clearLocate()
+        }
+
+        selectSession(sessionId)
+        sessionRevealRequestIdRef.current += 1
+        setSessionRevealRequest({
+          clearFilters: true,
+          clearQuery: true,
+          itemId: sessionId,
+          requestId: sessionRevealRequestIdRef.current
+        })
+      }
+      requestSessionNavigation(sessionId, transition)
+    },
     [
-      agentSessions,
       clearLocate,
       closeSurface,
-      createDefaultEmptySession,
-      requestFileNavigation,
+      requestSessionNavigation,
       requestLocate,
       selectSession,
       setShellPaneOpen,
-      setSessionPaneOpen,
-      visibleSession
+      setSessionPaneOpen
     ]
   )
   const closeHistoryRecords = useCallback(() => {
@@ -675,10 +661,22 @@ const AgentPage = () => {
     toggleHistoryRecords()
   }, [toggleHistoryRecords])
   const handleHistoryRecordsSessionSelect = useCallback(
-    (sessionId: string | null) => {
+    (sessionId: string) => {
       handleHistorySessionSelect(sessionId)
     },
     [handleHistorySessionSelect]
+  )
+  const handleHistoryActiveSessionChange = useCallback(
+    (sessionId: string | null) => {
+      requestSessionNavigation(sessionId, () => {
+        clearLocate()
+        setMissingAgentSelection(false)
+        setPendingSessionDefaults(null)
+        if (sessionId) selectSession(sessionId)
+        else reenterAgentRoute()
+      })
+    },
+    [clearLocate, reenterAgentRoute, requestSessionNavigation, selectSession]
   )
   const handleGlobalSearchSessionSelect = useEffectEvent((sessionId: string, messageId?: string) => {
     handleHistorySessionSelect(sessionId, messageId)
@@ -878,6 +876,7 @@ const AgentPage = () => {
     isClassicSessionLayout && sessionListPosition === 'right' ? (
       <AgentResourceList
         activeAgentId={activeResourceAgentId}
+        activeSessionId={visibleSession?.id ?? null}
         dataEnabled={shellPaneOpen}
         agentSessionsSource={agentSessionsSource}
         onAddAgent={() => {
@@ -975,6 +974,7 @@ const AgentPage = () => {
             activeRecordId={activeSessionId}
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsSessionSelect}
+            onActiveRecordChange={handleHistoryActiveSessionChange}
             toolbarLeading={
               !isWindowFrame ? (
                 <ConversationSidebarToggleButton

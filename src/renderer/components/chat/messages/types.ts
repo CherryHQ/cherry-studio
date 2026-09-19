@@ -29,6 +29,8 @@ import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FileUrlString } from '@shared/types/file'
 
+import type { ActionAvailabilityInput } from '../actions/actionTypes'
+
 export type { MessageUiState } from '@renderer/types/message'
 
 export type SelectAllState = boolean | 'indeterminate'
@@ -154,12 +156,6 @@ export interface MessageErrorDiagnosisResult {
   steps: MessageErrorDiagnosisStep[]
 }
 
-export interface MessageErrorDiagnosisContext {
-  errorSource?: string
-  providerName?: string
-  modelId?: string
-}
-
 export interface MessageErrorDiagnosisInput {
   message: MessageListItem
   partId: string
@@ -192,8 +188,7 @@ export interface MessageErrorDetailInput {
   message: MessageListItem
   partId: string
   error?: SerializedError
-  cachedDiagnosis?: MessageErrorDiagnosisResult
-  diagnosisContext?: MessageErrorDiagnosisContext
+  localizedErrorMessage?: string
 }
 
 export interface OpenAgentToolFlowInput {
@@ -359,13 +354,14 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  openForkSourceSession?: (sessionId: string) => Promise<void>
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)
   bindMessageRuntime?: (messageId: string, runtime: MessageRuntime) => void | (() => void)
   bindMessageGroupRuntime?: (messageIds: string[], runtime: MessageGroupRuntime) => void | (() => void)
   locateMessage?: (messageId: string, highlight?: boolean) => void
   startNewContext?: () => void
-  saveCodeBlock?: (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => void | Promise<void>
+  saveCodeBlock?: (data: { msgBlockId: string; originalContent: string; newContent: string }) => void | Promise<void>
   saveTextFile?: (fileName: string, content: string) => string | null | void | Promise<string | null | void>
   saveImage?: (fileName: string, dataUrl: string) => boolean | Promise<boolean>
   saveToKnowledge?: (message: MessageExportView) => void | Promise<void>
@@ -385,6 +381,7 @@ export interface MessageListActions {
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
+  openBrowserUrl?: (url: string) => void
   openExternalUrl?: (url: string) => void | Promise<void>
   navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void | Promise<void>
   openUserProfile?: () => void | Promise<void>
@@ -433,6 +430,11 @@ export interface MessageListActions {
   getMessageDeleteAvailability?: (messageId: string) => MessageDeleteAvailability
   deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
+  forkSession?: {
+    label: string
+    availability: (message: MessageListItem) => ActionAvailabilityInput
+    run: (messageId: string) => void | Promise<void>
+  }
   copyBranchToNewTopic?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>

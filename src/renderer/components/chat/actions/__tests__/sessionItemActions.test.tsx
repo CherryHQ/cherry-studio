@@ -96,6 +96,26 @@ describe('session item actions', () => {
     expect(onTogglePin).toHaveBeenCalled()
   })
 
+  it('keeps ordinary pinning separate from sidebar shortcuts', async () => {
+    const onTogglePin = vi.fn()
+    const onToggleSidebar = vi.fn()
+    const context = createSessionActionFixture({
+      onTogglePin,
+      onToggleSidebar,
+      pinned: true,
+      sidebarPinned: false
+    })
+    const actions = resolveSessionMenuActions(context)
+    const sidebarAction = actions.find((action) => action.id === 'session.toggle-sidebar')
+
+    expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('agent.session.unpin.title')
+    expect(sidebarAction?.label).toBe('launchpad.pin_to_sidebar')
+
+    await executeSessionMenuAction(sidebarAction!, context)
+    expect(onToggleSidebar).toHaveBeenCalledOnce()
+    expect(onTogglePin).not.toHaveBeenCalled()
+  })
+
   it('hides open-in-new-tab when the session is already active in the current tab', () => {
     const actions = resolveSessionMenuActions(
       createSessionActionFixture({
@@ -170,11 +190,38 @@ describe('session item actions', () => {
     expect(onSetPanePosition).toHaveBeenCalledWith('left')
   })
 
-  it('uses localized cancel text for the delete confirmation', () => {
-    const actions = resolveSessionMenuActions(createSessionActionFixture())
+  it('labels the recoverable action as Archive and runs without a confirmation', async () => {
+    const onDelete = vi.fn()
+    const context = createSessionActionFixture({ onDelete })
+    const actions = resolveSessionMenuActions(context)
     const deleteAction = actions.find((action) => action.id === 'session.delete')
 
-    expect(deleteAction?.confirm?.cancelText).toBe('common.cancel')
+    expect(deleteAction?.label).toBe('common.archive')
+    expect(deleteAction?.danger).toBe(false)
+    expect(deleteAction?.confirm).toBeUndefined()
+
+    await executeSessionMenuAction(deleteAction!, context)
+
+    expect(onDelete).toHaveBeenCalledOnce()
+  })
+
+  it('offers irreversible deletion separately with a destructive confirmation', () => {
+    const actions = resolveSessionMenuActions(createSessionActionFixture({ onDeletePermanently: vi.fn() }))
+    expect(actions.find((action) => action.id === 'session.delete-permanently')).toMatchObject({
+      label: 'common.delete_permanently',
+      danger: true,
+      confirm: { destructive: true, confirmText: 'common.delete_permanently' }
+    })
+  })
+
+  it('rejects both removal actions while generation is unsettled', async () => {
+    const context = createSessionActionFixture({ isBusy: true, onDeletePermanently: vi.fn() })
+    for (const action of resolveSessionMenuActions(context).filter((action) => action.group === 'danger')) {
+      expect(action.availability.enabled).toBe(false)
+      expect(await executeSessionMenuAction(action, context)).toBe(false)
+    }
+    expect(context.onDelete).not.toHaveBeenCalled()
+    expect(context.onDeletePermanently).not.toHaveBeenCalled()
   })
 
   it('keeps Save to Notes independent from export and copy preferences', () => {

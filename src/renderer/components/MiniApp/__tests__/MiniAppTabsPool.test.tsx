@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as MiniAppWebviewService from '@renderer/services/MiniAppWebviewService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 // `WebviewContainer` renders an Electron `<webview>` element which JSDOM can't
@@ -65,6 +66,7 @@ const mocks = vi.hoisted(() => ({
   setSplitOpen: vi.fn(),
   setSplitMiniAppId: vi.fn(),
   clearWebviewState: vi.fn(),
+  setWebviewElement: vi.fn(),
   focusHandlers: new Map<string, (appid: string, focused: boolean) => void>(),
   loadHandlers: new Map<string, (appid: string) => void>(),
   contextKeys: [] as Array<{ key: string; value: unknown }>,
@@ -119,13 +121,23 @@ vi.mock('@renderer/hooks/tab', () => ({
   })
 }))
 
-vi.mock('@renderer/utils/webviewStateManager', () => ({
-  clearWebviewState: mocks.clearWebviewState,
-  getWebviewLoaded: () => false,
-  setWebviewLoaded: vi.fn()
-}))
+vi.mock('@renderer/services/MiniAppWebviewService', async (importOriginal) => {
+  const actual = await importOriginal<typeof MiniAppWebviewService>()
+  return {
+    ...actual,
+    clearWebviewState: mocks.clearWebviewState.mockImplementation(actual.clearWebviewState),
+    setWebviewElement: mocks.setWebviewElement.mockImplementation(actual.setWebviewElement),
+    setWebviewLoaded: vi.fn(actual.setWebviewLoaded)
+  }
+})
 
-import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import {
+  clearAllWebviewStates,
+  clearWebviewState,
+  getWebviewElement,
+  getWebviewLoaded,
+  setWebviewLoaded
+} from '@renderer/services/MiniAppWebviewService'
 
 import MiniAppTabsPool from '../MiniAppTabsPool'
 
@@ -171,7 +183,9 @@ describe('MiniAppTabsPool', () => {
     mocks.closeTab.mockReset()
     mocks.setSplitOpen.mockReset()
     mocks.setSplitMiniAppId.mockReset()
-    mocks.clearWebviewState.mockReset()
+    mocks.clearWebviewState.mockClear()
+    clearAllWebviewStates()
+    mocks.setWebviewElement.mockClear()
     mocks.focusHandlers.clear()
     mocks.loadHandlers.clear()
     mocks.contextKeys = []
@@ -179,6 +193,21 @@ describe('MiniAppTabsPool', () => {
 
   /** Latest value the pool published for `webview.focused`. */
   const focusedKey = () => mocks.contextKeys.filter((e) => e.key === 'webview.focused').at(-1)?.value
+
+  it('publishes the concrete WebView while the pool owns it', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    const { unmount } = render(<MiniAppTabsPool />)
+    const webview = screen.getByTestId('webview-alpha')
+
+    expect(getWebviewElement('alpha')).toBe(webview)
+
+    unmount()
+    expect(getWebviewElement('alpha')).toBeNull()
+  })
 
   it('keeps webview.focused set when another pane mounts behind the focused one', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
@@ -209,9 +238,49 @@ describe('MiniAppTabsPool', () => {
     expect(focusedKey()).toBe(false)
   })
 
+  it('releases hidden guest focus and does not restore it when the pane is shown again', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [
+      { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+      { id: 'chat-tab', url: '/app/chat' }
+    ]
+    mocks.activeTabId = 'alpha-tab'
+    const view = render(<MiniAppTabsPool />)
+    act(() => {
+      mocks.focusHandlers.get('alpha')!('alpha', true)
+    })
+    expect(focusedKey()).toBe(true)
+
+    mocks.activeTabId = 'chat-tab'
+    view.rerender(<MiniAppTabsPool />)
+    expect(focusedKey()).toBe(false)
+    mocks.activeTabId = 'alpha-tab'
+    view.rerender(<MiniAppTabsPool />)
+    expect(focusedKey()).toBe(false)
+  })
+
+  it('releases removed guest focus without relying on a native blur event', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 'alpha-tab', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 'alpha-tab'
+    const view = render(<MiniAppTabsPool />)
+    act(() => {
+      mocks.focusHandlers.get('alpha')!('alpha', true)
+    })
+    expect(focusedKey()).toBe(true)
+
+    mocks.openedKeepAliveMiniApps = []
+    view.rerender(<MiniAppTabsPool />)
+    expect(focusedKey()).toBe(false)
+  })
+
   it('ignores a stale blur from a pane that no longer holds focus', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
     mocks.currentMiniAppId = 'alpha'
+    mocks.splitOpen = true
+    mocks.splitMiniAppId = 'bravo'
     mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
     mocks.activeTabId = 't1'
 
@@ -700,6 +769,28 @@ describe('MiniAppTabsPool', () => {
       // The `useMiniApps` stand-in is not reactive: rerender to see the pool react.
       rerender(<MiniAppTabsPool />)
       expect(renderedAppIds(container)).toEqual(['bravo'])
+    })
+
+    it('releases the owned guest without depending on when the cache updater runs', () => {
+      mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+      mocks.tabs = [
+        { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+        { id: 'bravo-tab', url: '/app/mini-app/bravo' }
+      ]
+      render(<MiniAppTabsPool />)
+      setWebviewLoaded('alpha', true)
+      setWebviewLoaded('bravo', true)
+      const bravo = getWebviewElement('bravo')
+      const updates: Array<(current: MiniApp[]) => MiniApp[]> = []
+      mocks.setOpenedKeepAliveMiniApps.mockImplementation((update) => updates.push(update))
+
+      emitIpc('mini_app.runtime.evicted', { appId: 'alpha' })
+
+      expect(getWebviewElement('alpha')).toBeNull()
+      expect(getWebviewLoaded('alpha')).toBe(false)
+      expect(getWebviewElement('bravo')).toBe(bravo)
+      expect(getWebviewLoaded('bravo')).toBe(true)
+      expect(updates[0](mocks.openedKeepAliveMiniApps).map((app) => app.appId)).toEqual(['bravo'])
     })
 
     it('ignores an eviction for an app it is not showing', () => {

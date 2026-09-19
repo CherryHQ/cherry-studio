@@ -72,12 +72,12 @@ const CodeBlock: React.FC<Props> = ({
       if (id != null) {
         void actions?.saveCodeBlock?.({
           msgBlockId: blockId,
-          codeBlockId: id,
+          originalContent: text,
           newContent
         })
       }
     },
-    [actions, blockId, id]
+    [actions, blockId, id, text]
   )
 
   // Widget swaps race the per-tick span rebuild, so they wait for this block
