@@ -108,6 +108,10 @@ import { USER_STOP_ABORT_REASON, buildAgentSessionTopicId, extractAgentSessionId
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+/** Bounds the user-stop wait for the stopped turn to leave the live set — covers a driver's own
+ *  interrupt-request and settle timeouts so the stop never outlives them. */
+const USER_STOP_TURN_LEAVE_TIMEOUT_MS = 11_000
+const USER_STOP_TURN_LEAVE_POLL_MS = 50
 /**
  * Grace period before a session with no remaining warm-lease holders is actually torn down.
  * Absorbs <Activity> tab switches, where the session view releases on hide and re-acquires on
@@ -1002,15 +1006,46 @@ export class AgentSessionRuntimeService extends BaseService {
   private async stopForUser(sessionId: string, expectedTurnId?: string): Promise<void> {
     const entry = this.entries.get(sessionId)
     if (entry && expectedTurnId && this.liveTurn(entry)?.turnId !== expectedTurnId) return
+    // Bind the stop to the turn it targets: the driver's settle wait observes connection-wide
+    // state, so without this binding a turn admitted after the stop extends its wait — and the
+    // stop-and-drain dispatch lock behind it — onto the successor's activity.
+    const stoppingTurnId = expectedTurnId ?? (entry ? this.liveTurn(entry)?.turnId : undefined)
     const connection = entry ? this.currentConnection(entry) : undefined
-    const graceful = await connection?.abortTurn?.().catch((error) => {
+    const graceful = await this.raceAbortTurn(connection, sessionId, stoppingTurnId)
+    if (graceful === true) return
+    // A failed interrupt falls back to the teardown unless the stopped turn already left the live
+    // set (settled or replaced) — the false-result contract outranks the background work the
+    // teardown also stops: an interrupt the subprocess ignored leaves no graceful path.
+    if (entry && stoppingTurnId && this.liveTurn(entry)?.turnId !== stoppingTurnId) return
+    await this.closeSession(sessionId)
+  }
+
+  /**
+   * Awaits the connection's graceful turn interrupt, bounded by the stopped turn's own lifetime:
+   * once that turn is no longer live the stop has landed, and waiting longer would hold the stop
+   * behind whatever runs on the shared connection next.
+   */
+  private async raceAbortTurn(
+    connection: AgentRuntimeConnection | undefined,
+    sessionId: string,
+    stoppingTurnId: string | undefined
+  ): Promise<boolean | undefined> {
+    const aborting = connection?.abortTurn?.().catch((error) => {
       logger.warn('Agent runtime graceful turn interrupt failed', { sessionId, error })
       return false
     })
-    if (graceful === true) return
-    if (entry && expectedTurnId && this.liveTurn(entry)?.turnId !== expectedTurnId) return
-    if (entry && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) return
-    await this.closeSession(sessionId)
+    if (!aborting || !stoppingTurnId) return aborting
+    const turnLeftLive = async (): Promise<boolean> => {
+      const deadline = Date.now() + USER_STOP_TURN_LEAVE_TIMEOUT_MS
+      while (Date.now() < deadline) {
+        const entry = this.entries.get(sessionId)
+        if (!entry || this.liveTurn(entry)?.turnId !== stoppingTurnId) return true
+        await new Promise((resolve) => setTimeout(resolve, USER_STOP_TURN_LEAVE_POLL_MS))
+      }
+      const entry = this.entries.get(sessionId)
+      return !entry || (this.liveTurn(entry)?.turnId ?? stoppingTurnId) !== stoppingTurnId
+    }
+    return Promise.race([aborting, turnLeftLive()])
   }
 
   closeSession(sessionId: string): Promise<void> {

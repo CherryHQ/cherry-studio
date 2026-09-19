@@ -4888,6 +4888,86 @@ describe('AgentSessionRuntimeService', () => {
     await stream.cancel().catch(() => undefined)
   })
 
+  it('tears the session down when the graceful interrupt is declined even with background work attached', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      abortTurn: vi.fn(async () => false)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const controller = new AbortController()
+    const stream = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: controller.signal })
+      .getReader()
+
+    await expect(stream.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+    const entry = (service as any).entries.get('session-1')
+    ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, connection)
+
+    // An interrupt the subprocess ignored leaves no graceful path: the false-result contract
+    // requires the teardown fallback, background work notwithstanding.
+    controller.abort('user-requested')
+
+    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+    expect(service.inspect('session-1')).toBeUndefined()
+    await stream.cancel().catch(() => undefined)
+  })
+
+  it('releases a user stop once its turn leaves the live set instead of waiting on the connection', async () => {
+    const events = createAsyncQueue<any>()
+    const abortTurnSettled = createDeferred<boolean>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      abortTurn: vi.fn(() => abortTurnSettled.promise)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const controller = new AbortController()
+    const stream = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: controller.signal })
+      .getReader()
+
+    await expect(stream.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+    controller.abort('user-requested')
+    await vi.waitFor(() => expect(connection.abortTurn).toHaveBeenCalledOnce())
+
+    // The stopped turn settles while the driver's interrupt is still unanswered: the stop is
+    // effective and must not wait behind whatever the shared connection runs next.
+    ;(service as any).handleRuntimeEvent((service as any).entries.get('session-1'), { type: 'turn-complete' })
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(service.inspect('session-1')).toBeDefined()
+    expect(connection.close).not.toHaveBeenCalled()
+
+    // The late false verdict must not resurrect the teardown for a turn that already left.
+    abortTurnSettled.resolve(false)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(connection.close).not.toHaveBeenCalled()
+    void service.closeSession('session-1')
+    await stream.cancel().catch(() => undefined)
+  })
+
   it('waits for a late aborted connection to close before connecting an immediate retry', async () => {
     const firstConnectionClose = createDeferred<void>()
     const firstConnection = {
