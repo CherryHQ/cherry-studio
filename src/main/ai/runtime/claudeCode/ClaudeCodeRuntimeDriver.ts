@@ -331,7 +331,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private spawnOptions?: Options
   private processDiagnostics?: ClaudeCodeProcessDiagnostics
   private lastSdkUserMessage?: SDKUserMessage
-  private resumeRecoveryRetried = false
   /** One model-fallback restart per turn: reset by every `send()`, consumed by the first attempt. */
   private fallbackAttempted = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
@@ -491,6 +490,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
     this.sdkInputQueue.push(sdkMessage)
+    this.lastSdkUserMessage = sdkMessage
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {

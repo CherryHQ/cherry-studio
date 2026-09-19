@@ -55,7 +55,6 @@ import type {
   ComposerMessageToken,
   ModelFallbackPartData
 } from '@shared/data/types/uiParts'
-import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
 
