@@ -37,6 +37,37 @@ const POLL_INTERVAL_MS = 1500
 const POLL_TIMEOUT_MS = 10 * 60 * 1000
 const IMAGE_TIMEOUT_MS = 60 * 1000
 
+/** Minimum ComfyUI version where `/interrupt` honours `prompt_id`.
+ *  Upstream: commit 464ba1d6 (#9607), first shipped in v0.3.57.
+ *  Older servers execute a global interrupt regardless of `prompt_id`
+ *  and can unintentionally stop an unrelated generation. */
+const MIN_TARGETED_INTERRUPT_VERSION = [0, 3, 57] as const
+
+/** Parse `major.minor.patch` from a version string like `"0.3.57"`.
+ *  Returns `null` when the format is unrecognisable. */
+export function parseVersion(v: string): [number, number, number] | null {
+  const m = v.match(/^(\d+)\.(\d+)\.(\d+)/)
+  if (!m) return null
+  return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)]
+}
+
+/** Returns `true` when `a` is lexicographically >= `b` component-wise. */
+function isAtLeastVersion(a: [number, number, number], b: readonly [number, number, number]): boolean {
+  for (let i = 0; i < 3; i++) {
+    if (a[i] > b[i]) return true
+    if (a[i] < b[i]) return false
+  }
+  return true
+}
+
+/** What this ComfyUI server can prove about cancellation targeting. */
+export interface ComfyuiCancelCapabilities {
+  /** True when POST /interrupt honours prompt_id and the server
+   *  guarantees it is scoped to that prompt (checked server-side
+   *  after this client reads the queue). */
+  targetedInterrupt: boolean
+}
+
 /** Per-request overrides shared by the transport and the standalone helpers. */
 export interface ComfyuiRequestOptions {
   /** Extra headers, e.g. the provider's configured extra headers. */
@@ -150,6 +181,9 @@ class ComfyuiTransport implements ImageGenerationTransport {
   private readonly baseURL: string
   private readonly headers: Record<string, string>
   private readonly doFetch: FetchFunction
+  /** Cached target-specific interrupt capability. `undefined` means: not yet
+   *  detected; a failed detection is cleared so the next call retries. */
+  private capabilitiesPromise?: Promise<ComfyuiCancelCapabilities>
 
   constructor(settings: ComfyuiTransportSettings) {
     this.baseURL = (settings.baseURL || DEFAULT_COMFYUI_BASE_URL).replace(/\/+$/, '')
@@ -252,26 +286,72 @@ class ComfyuiTransport implements ImageGenerationTransport {
   }
 
   /**
+   * Detect whether this ComfyUI server honours `prompt_id` on `/interrupt`.
+   * Reads the server's version from `/system_stats` and compares against the
+   * minimum version known to ship the targeted filter (≥ v0.3.57).
+   *
+   * On first call the capability is probed lazily and the result is cached
+   * for the transport's lifetime.  Fail-closed: if the version endpoint is
+   * missing, unparseable, or unreachable we return `{ targetedInterrupt:
+   * false }` (the interrupt is never sent, but pending prompts can still be
+   * dequeued).
+   */
+  private async getCancelCapabilities(): Promise<ComfyuiCancelCapabilities> {
+    if (this.capabilitiesPromise) return this.capabilitiesPromise
+
+    this.capabilitiesPromise = (async () => {
+      try {
+        const response = await this.doFetch(`${this.baseURL}/system_stats`, {
+          headers: this.headers
+        })
+        if (!response.ok) return { targetedInterrupt: false }
+        const stats = (await response.json()) as Record<string, unknown>
+        const verStr = (stats.system as Record<string, unknown>)?.comfyui_version as string | undefined
+        if (!verStr) return { targetedInterrupt: false }
+
+        const ver = parseVersion(verStr)
+        return { targetedInterrupt: ver ? isAtLeastVersion(ver, MIN_TARGETED_INTERRUPT_VERSION) : false }
+      } catch {
+        return { targetedInterrupt: false }
+      }
+    })()
+
+    return this.capabilitiesPromise
+  }
+
+  /**
    * Cancel one generation. The two requests are not interchangeable: `POST
    * /queue {"delete": [id]}` drops a *pending* prompt and is id-scoped, while
    * `POST /interrupt {"prompt_id": id}` stops the one *executing* — and on a
-   * server that predates the `prompt_id` filter it is a global kill. So ask
-   * the queue which case applies and send exactly that request; a finished id
-   * matches neither and needs none.
+   * server that predates the `prompt_id` filter (ComfyUI ≥ v0.3.57) it is a
+   * global kill.
    *
-   * Splitting them also keeps a stalled queue write from swallowing a cancel:
-   * the interrupt path issues no dequeue, so a server that hangs on `/queue`
-   * can no longer delay the interrupt that stops the running generation.
+   * Capability-based design: detect once whether the server honours `prompt_id`
+   * on `/interrupt` (by reading `/system_stats` and comparing the version).
+   * When the server does not guarantee target-specific semantics we **skip the
+   * interrupt entirely** rather than risk a global kill that can accidentally
+   * stop an unrelated generation (the TOCTOU race between the queue snapshot
+   * and the interrupt request is unavoidable over HTTP; gate on what the
+   * server *proves* rather than the client's luck).
+   *
+   * Pending prompts are still removed by id because `POST /queue {"delete":
+   * [...]}` is inherently id-scoped and unaffected by the race.
    */
   async cancel(taskId: string): Promise<void> {
     const action = await this.cancelAction(taskId)
     const headers = { ...this.headers, 'Content-Type': 'application/json' }
     if (action === 'running') {
-      await this.doFetch(`${this.baseURL}/interrupt`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ prompt_id: taskId })
-      }).catch(() => undefined)
+      const caps = await this.getCancelCapabilities()
+      if (caps.targetedInterrupt) {
+        await this.doFetch(`${this.baseURL}/interrupt`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ prompt_id: taskId })
+        }).catch(() => undefined)
+      }
+      // otherwise: intentionally no-op.  A server that does not guarantee
+      // target-specific semantics must not be interrupted from the client
+      // (the queue → interrupt round-trip cannot prove idempotence over HTTP).
     } else if (action === 'pending') {
       await this.doFetch(`${this.baseURL}/queue`, {
         method: 'POST',

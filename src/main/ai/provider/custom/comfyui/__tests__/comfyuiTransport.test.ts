@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
-import { applySeed, createComfyuiTransport, listWorkflows } from '../comfyuiTransport'
+import { applySeed, createComfyuiTransport, listWorkflows, parseVersion } from '../comfyuiTransport'
 import type { ApiPromptNode, ObjectInfo } from '../uiToApiPrompt'
 
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
@@ -156,11 +156,15 @@ describe('listWorkflows', () => {
 })
 
 describe('cancel', () => {
-  /** The queue read is the only GET; the write's response body is ignored. */
+  /** The queue read is the only GET; the write's response body is ignored.
+   *  Also answers `/system_stats` with v0.3.57 so the capability check passes. */
+  const systemStatsSupporting = () => respond({ system: { comfyui_version: '0.3.57' }, devices: [] })
+
   const queueFetch = (running: unknown[][], pending: unknown[][]) =>
-    vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () =>
-      respond({ queue_running: running, queue_pending: pending })
-    )
+    vi.fn<(input: RequestInfo | URL, _init?: RequestInit) => Promise<Response>>(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/system_stats')) return systemStatsSupporting()
+      return respond({ queue_running: running, queue_pending: pending })
+    })
 
   const postWrites = (doFetch: ReturnType<typeof queueFetch>) =>
     doFetch.mock.calls
@@ -486,5 +490,181 @@ describe('applySeed', () => {
 
     expect(graph['2'].inputs.seed).toEqual(['1', 0])
     expect(graph['1'].inputs.value).toBe(42)
+  })
+})
+
+describe('parseVersion', () => {
+  it('parses a standard three-component version', () => {
+    expect(parseVersion('0.3.57')).toEqual([0, 3, 57])
+    expect(parseVersion('0.26.0')).toEqual([0, 26, 0])
+    expect(parseVersion('0.36.0')).toEqual([0, 36, 0])
+  })
+
+  it('extracts the leading components from a pre-release string', () => {
+    expect(parseVersion('0.3.57-rc1')).toEqual([0, 3, 57])
+    expect(parseVersion('0.3.57+build123')).toEqual([0, 3, 57])
+  })
+
+  it('returns null for unrecognisable strings', () => {
+    expect(parseVersion('')).toBeNull()
+    expect(parseVersion('abc')).toBeNull()
+    expect(parseVersion('v0.3.57')).toBeNull() // no v prefix
+  })
+})
+
+describe('cancel (capability-based)', () => {
+  /** Respond with JSON data. */
+  const respond = (data: unknown) => new Response(JSON.stringify(data), { status: 200 })
+
+  /** /system_stats body for a given version. */
+  const systemStats = (version: string) =>
+    respond({
+      system: { comfyui_version: version },
+      devices: []
+    })
+
+  /** A fetch mock that serves `/system_stats` with `version` and `/queue`
+   *  with the given running / pending queues.  Subsequent POSTs (queue
+   *  delete, interrupt) are also captured. */
+  const createCapsFetch = (version: string, running: unknown[][], pending: unknown[][]) => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/system_stats')) return systemStats(version)
+      // Check method BEFORE URL for /queue to avoid catching /interrupt POSTs
+      if (url.includes('/queue')) {
+        if (init?.method === 'POST') return respond({})
+        return respond({ queue_running: running, queue_pending: pending })
+      }
+      if (url.includes('/interrupt')) return respond({})
+      return respond({})
+    })
+    return doFetch
+  }
+
+  /** Collect all POST calls (url + body). */
+  const collectPosts = (doFetch: ReturnType<typeof vi.fn>) =>
+    doFetch.mock.calls
+      .filter(([, init]) => init?.method === 'POST')
+      .map(([input, init]) => ({
+        url: String(input),
+        body: JSON.parse(init?.body as string)
+      }))
+
+  // ------------------------------------------------------------------
+  // Test 1 — targeted interrupt supported
+  // running → POST /interrupt { prompt_id }
+  // ------------------------------------------------------------------
+  it('sends /interrupt when the server supports targeted interrupt', async () => {
+    const doFetch = createCapsFetch('0.3.57', [[1, 'pid-1', {}, {}, []]], [])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }])
+  })
+
+  // ------------------------------------------------------------------
+  // Test 2 — old / global interrupt unsupported
+  // running → no /interrupt (fails closed)
+  // ------------------------------------------------------------------
+  it('skips /interrupt when the server only supports global interrupt', async () => {
+    const doFetch = createCapsFetch('0.3.40', [[1, 'pid-1', {}, {}, []]], [])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    expect(collectPosts(doFetch)).toEqual([])
+  })
+
+  // ------------------------------------------------------------------
+  // Test 3 — pending prompt (independent of capability)
+  // ------------------------------------------------------------------
+  it('dequeues a pending prompt regardless of targeted interrupt capability', async () => {
+    const doFetch = createCapsFetch('0.3.40', [[1, 'other', {}, {}, []]], [[2, 'pid-1', {}, {}, []]])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+  })
+
+  // ------------------------------------------------------------------
+  // Test 4 — already finished
+  // ------------------------------------------------------------------
+  it('is a no-op when the prompt is not in the queue', async () => {
+    const doFetch = createCapsFetch('0.3.57', [[1, 'other', {}, {}, []]], [])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    expect(collectPosts(doFetch)).toEqual([])
+  })
+
+  // ------------------------------------------------------------------
+  // Test 5 — race safety with targeted interrupt supported
+  // Queue snapshot shows A running; A finishes, B starts.
+  // The server's own re-check at /interrupt refuses (A not running).
+  // Client still sends /interrupt { A } — server handles it safely.
+  // This proves the client delegates the race to the server.
+  // ------------------------------------------------------------------
+  it('delegates the running re-check to the server when targeted interrupt is supported', async () => {
+    // Queue snapshot says A is running; in reality B already started.
+    // On ≥0.3.57 the server re-checks and skips the interrupt.
+    const doFetch = createCapsFetch('0.3.57', [[1, 'A', {}, {}, []]], [])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('A')
+
+    // Client still sends the interrupt request, but the server (v0.3.57)
+    // will re-check the running set and skip it because A is no longer
+    // executing.  The client cannot know this race in advance.
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/interrupt', body: { prompt_id: 'A' } }])
+  })
+
+  // ------------------------------------------------------------------
+  // Test 6 — race safety with old server
+  // Queue snapshot shows A running; A finishes, B starts.
+  // Client does NOT send /interrupt → B is safe.
+  // ------------------------------------------------------------------
+  it('avoids sending /interrupt entirely on old servers even when a race is suspected', async () => {
+    const doFetch = createCapsFetch('0.3.40', [[1, 'A', {}, {}, []]], [])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('A')
+
+    // No interrupt sent → B cannot be accidentally interrupted.
+    expect(collectPosts(doFetch)).toEqual([])
+  })
+
+  // ------------------------------------------------------------------
+  // Test 7 — capabilities are cached on success
+  // Two cancel calls should not re-read /system_stats.
+  // ------------------------------------------------------------------
+  it('caches successful capability detection', async () => {
+    // A running prompt forces the capability probe; second cancel reuses the cache.
+    const doFetch = createCapsFetch('0.3.60', [[1, 'pid-1', {}, {}, []]], [])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1') // reads /system_stats → caches success
+    await transport.cancel('pid-1') // uses cached capability
+
+    const systemStatsCalls = doFetch.mock.calls.filter(([url]) => String(url).includes('/system_stats'))
+    expect(systemStatsCalls.length).toBe(1)
+  })
+
+  // ------------------------------------------------------------------
+  // Test 8 — no /system_stats endpoint → fail closed
+  // ------------------------------------------------------------------
+  it('fails closed when /system_stats is unavailable', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/system_stats')) return new Response('not found', { status: 404 })
+      return respond({ queue_running: [[1, 'pid-1', {}, {}, []]], queue_pending: [] })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    // The server is unknown → fail closed (no interrupt sent).
+    expect(collectPosts(doFetch)).toEqual([])
   })
 })
