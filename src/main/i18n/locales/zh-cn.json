@@ -32,6 +32,7 @@
   "apiGateway.docs.tags.gemini": "兼容 Gemini 的接口，与上游一样挂在 `/v1beta` 下。",
   "apiGateway.docs.tags.openai": "兼容 OpenAI 的接口。把 OpenAI SDK 的 base URL 指向本网关即可使用。",
   "appMenu.about": "关于",
+  "appMenu.center": "居中",
   "appMenu.close": "关闭窗口",
   "appMenu.copy": "复制",
   "appMenu.cut": "剪切",

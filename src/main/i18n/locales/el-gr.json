@@ -32,6 +32,7 @@
   "apiGateway.docs.tags.gemini": "Endpoints συμβατά με Gemini, διαθέσιμα κάτω από το `/v1beta` όπως και στο αρχικό API.",
   "apiGateway.docs.tags.openai": "Endpoints συμβατά με OpenAI. Στρέψτε το base URL ενός OpenAI SDK σε αυτή την πύλη για να τα χρησιμοποιήσετε.",
   "appMenu.about": "Σχετικά",
+  "appMenu.center": "Κεντράρισμα",
   "appMenu.close": "Κλείσιμο Παραθύρου",
   "appMenu.copy": "Αντιγραφή",
   "appMenu.cut": "Αποκοπή",

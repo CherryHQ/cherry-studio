@@ -1494,6 +1494,53 @@ describe('WindowManager', () => {
     it('isFullScreen() returns false for unknown windowId', () => {
       expect(wm.isFullScreen('does-not-exist')).toBe(false)
     })
+
+    // center(): multi-monitor placement on the display matching the window's
+    // current bounds (not primary / cursor). Catches primary-only center,
+    // maximizing-size center, and missing-id throws.
+    it('center() places the window on the display matching its current bounds', async () => {
+      const { screen } = await import('electron')
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      const normal = { x: 2100, y: 100, width: 800, height: 600 }
+      win.getNormalBounds.mockReturnValue(normal)
+      win.getBounds.mockReturnValue(normal)
+      vi.mocked(screen.getDisplayMatching).mockReturnValue({
+        bounds: { x: 1920, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 1920, y: 0, width: 1920, height: 1040 }
+      } as Electron.Display)
+
+      expect(wm.center(id)).toBe(true)
+
+      expect(screen.getDisplayMatching).toHaveBeenCalledWith(normal)
+      // Non-mac test mock → workArea: x=1920+(1920-800)/2=2480, y=(1040-600)/2=220
+      expect(win.setBounds).toHaveBeenCalledWith({ x: 2480, y: 220, width: 800, height: 600 })
+      expect(win.center).not.toHaveBeenCalled()
+    })
+
+    it('center() exits maximized/fullscreen before placing normal-size bounds', async () => {
+      const { screen } = await import('electron')
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      const normal = { x: 100, y: 80, width: 800, height: 600 }
+      win.isMaximized.mockReturnValue(true)
+      win.isFullScreen.mockReturnValue(true)
+      win.getNormalBounds.mockReturnValue(normal)
+      vi.mocked(screen.getDisplayMatching).mockReturnValue({
+        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 0, y: 0, width: 1920, height: 1040 }
+      } as Electron.Display)
+
+      expect(wm.center(id)).toBe(true)
+
+      expect(win.setFullScreen).toHaveBeenCalledWith(false)
+      expect(win.unmaximize).toHaveBeenCalledTimes(1)
+      expect(win.setBounds).toHaveBeenCalledWith({ x: 560, y: 220, width: 800, height: 600 })
+    })
+
+    it('center() returns false for unknown windowId', () => {
+      expect(wm.center('does-not-exist')).toBe(false)
+    })
   })
 
   // ─── Window state forwarding (OS events → renderer) ────

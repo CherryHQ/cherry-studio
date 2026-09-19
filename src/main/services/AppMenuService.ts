@@ -1,5 +1,4 @@
-import type { BrowserWindow } from 'electron'
-import { app, Menu } from 'electron'
+import { app, BrowserWindow, Menu } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -143,6 +142,17 @@ export class AppMenuService extends BaseService {
         children: [
           { type: 'role', role: 'minimize', label: t('appMenu.minimize') },
           { type: 'role', role: 'zoom', label: t('appMenu.zoom') },
+          {
+            type: 'custom',
+            label: t('appMenu.center'),
+            click: () => {
+              const focused = BrowserWindow.getFocusedWindow()
+              if (!focused) return
+              const wm = application.get('WindowManager')
+              const windowId = wm.getWindowId(focused)
+              if (windowId) wm.center(windowId)
+            }
+          },
           { type: 'separator' },
           { type: 'role', role: 'front', label: t('appMenu.front') }
         ]

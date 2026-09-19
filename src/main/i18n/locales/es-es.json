@@ -32,6 +32,7 @@
   "apiGateway.docs.tags.gemini": "Endpoints compatibles con Gemini, servidos bajo `/v1beta` como en la API original.",
   "apiGateway.docs.tags.openai": "Endpoints compatibles con OpenAI. Apunta la URL base de un SDK de OpenAI a esta pasarela para usarlos.",
   "appMenu.about": "Acerca de",
+  "appMenu.center": "Centrar",
   "appMenu.close": "Cerrar ventana",
   "appMenu.copy": "Copiar",
   "appMenu.cut": "Cortar",
