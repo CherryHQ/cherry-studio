@@ -4,6 +4,10 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 import type {
+  ExternalKnowledgeScopePreview,
+  ExternalKnowledgeScopeResolution
+} from '@shared/data/types/externalKnowledgeRead'
+import type {
   CreateKnowledgeBaseDto,
   KnowledgeAddConflictStrategy,
   KnowledgeAddItemInput,
@@ -120,6 +124,14 @@ export class KnowledgeService extends BaseService {
 
   async validateFeishuConnection(connectionId: string): Promise<ExternalKnowledgeConnection> {
     return await this.externalKnowledgeRuntime.validateConnection(connectionId)
+  }
+
+  async resolveFeishuScope(connectionId: string, url: string): Promise<ExternalKnowledgeScopeResolution> {
+    return await this.externalKnowledgeRuntime.resolveFeishuScope(connectionId, url)
+  }
+
+  async previewFeishuScope(connectionId: string, url: string): Promise<ExternalKnowledgeScopePreview> {
+    return await this.externalKnowledgeRuntime.previewFeishuScope(connectionId, url)
   }
 
   async removeExternalKnowledgeConnection(connectionId: string): Promise<void> {

@@ -33,6 +33,27 @@ function mapExternalKnowledgeError(error: unknown, fallback: { code: string; mes
           knowledgeErrorCodes.FEISHU_IDENTITY_UNVERIFIABLE,
           'The Feishu account identity could not be verified'
         )
+      case 'invalid-scope-url':
+        return new IpcError(knowledgeErrorCodes.FEISHU_INVALID_SCOPE_URL, 'The Feishu scope URL is not supported')
+      case 'resource-permission-denied':
+        return new IpcError(
+          knowledgeErrorCodes.FEISHU_RESOURCE_PERMISSION_DENIED,
+          'The Feishu account cannot access this resource'
+        )
+      case 'scope-not-found':
+        return new IpcError(knowledgeErrorCodes.FEISHU_SCOPE_NOT_FOUND, 'The Feishu scope was not found')
+      case 'unsupported-resource':
+        return new IpcError(
+          knowledgeErrorCodes.FEISHU_UNSUPPORTED_RESOURCE,
+          'This Feishu resource type is not supported'
+        )
+      case 'transient':
+        return new IpcError(
+          knowledgeErrorCodes.FEISHU_PROVIDER_UNAVAILABLE,
+          'Feishu is temporarily unavailable; try again later'
+        )
+      case 'invalid-provider-response':
+        return new IpcError(knowledgeErrorCodes.FEISHU_INVALID_PROVIDER_RESPONSE, 'Feishu returned an invalid response')
       case 'credential-unavailable':
         return new IpcError(
           knowledgeErrorCodes.EXTERNAL_CREDENTIAL_UNAVAILABLE,
@@ -113,6 +134,16 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
       application.get('KnowledgeService').removeExternalKnowledgeConnection(connectionId)
     )
   },
+  'knowledge.feishu.scope.resolve': async ({ connectionId, url }) =>
+    externalKnowledgeCommand(() => application.get('KnowledgeService').resolveFeishuScope(connectionId, url), {
+      code: knowledgeErrorCodes.FEISHU_INVALID_PROVIDER_RESPONSE,
+      message: 'Feishu scope resolution failed'
+    }),
+  'knowledge.feishu.scope.preview': async ({ connectionId, url }) =>
+    externalKnowledgeCommand(() => application.get('KnowledgeService').previewFeishuScope(connectionId, url), {
+      code: knowledgeErrorCodes.FEISHU_INVALID_PROVIDER_RESPONSE,
+      message: 'Feishu scope preview failed'
+    }),
   'knowledge.create_base': async ({ base }) => application.get('KnowledgeService').createBase(base),
   'knowledge.restore_base': async (dto) => application.get('KnowledgeService').restoreBase(dto),
   'knowledge.delete_base': async ({ baseId }) => {
