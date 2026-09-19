@@ -50,9 +50,14 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
   readonly canPersistEmptyTerminal = true
   readonly canPersistEmptySuccessTerminal = true
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
+  private persistedSuccess = false
 
   constructor(private readonly opts: AgentSessionMessageBackendOptions) {
     this.afterPersist = opts.afterPersist
+      ? async (message) => {
+          if (this.persistedSuccess) await opts.afterPersist?.(message)
+        }
+      : undefined
   }
 
   persistAssistant(input: PersistAssistantInput): PersistedAssistant {
@@ -109,6 +114,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
       saved = save()
     }
+    this.persistedSuccess = status === 'success' && !isEmptySuccessTerminal
     return {
       messageId: saved.id,
       messageRevision: String(Date.parse(saved.updatedAt)),

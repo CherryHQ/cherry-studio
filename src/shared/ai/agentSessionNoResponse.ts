@@ -14,11 +14,11 @@ import {
   REPORT_ARTIFACTS_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from './builtinTools'
-import { CLAUDE_TOOL_DEFS } from './claudecode/toolRegistry'
 import { DSH_BUILTIN_TOOLS } from './dshBuiltinTools'
 import { GENERATE_IMAGE_TOOL_NAME } from './generateImageTool'
 import { META_TOOL_NAMES } from './metaToolNames'
 import { PI_BUILTIN_TOOLS } from './piBuiltinTools'
+import { RENDERED_AGENT_TOOL_NAMES } from './renderedAgentToolNames'
 
 /**
  * Part types that never render as visible content in an agent-session turn.
@@ -41,7 +41,7 @@ export const AGENT_SESSION_HIDDEN_PART_TYPES: ReadonlySet<string> = new Set([
  * this set render nothing, so a turn containing only them is turn-empty.
  */
 const RENDERED_TOOL_NAMES: ReadonlySet<string> = new Set([
-  ...CLAUDE_TOOL_DEFS.map((def) => def.name),
+  ...Object.values(RENDERED_AGENT_TOOL_NAMES),
   ...PI_BUILTIN_TOOLS.map((tool) => tool.name),
   ...DSH_BUILTIN_TOOLS.map((tool) => tool.name),
   ...META_TOOL_NAMES,
