@@ -7,11 +7,11 @@ import { listDetachedBackgroundTasks, stopDetachedBackgroundTask, type Backgroun
 import { listBackgroundTaskRecords, saveBackgroundTaskRecord } from './backgroundTaskStore'
 
 function storageDirFor(agentId: string): string {
-  if (!agentService.getAgent(agentId)) throw new Error(`Agent ${agentId} not found`)
   return path.join(application.getPath('feature.agents.data'), agentId, 'background-tasks')
 }
 
 export async function listAgentBackgroundTasks(agentId: string): Promise<BackgroundTaskRecord[]> {
+  if (!agentService.getAgent(agentId)) throw new Error(`Agent ${agentId} not found`)
   const records = await listDetachedBackgroundTasks(storageDirFor(agentId))
   // Reconcile tasks completed while Cherry was closed and backfill pre-migration JSON records.
   for (const record of records) saveBackgroundTaskRecord(agentId, record)
@@ -23,7 +23,24 @@ export async function stopAgentBackgroundTask(
   taskId: string,
   force: boolean
 ): Promise<BackgroundTaskRecord | undefined> {
+  if (!agentService.getAgent(agentId)) throw new Error(`Agent ${agentId} not found`)
   const record = await stopDetachedBackgroundTask(storageDirFor(agentId), taskId, force)
   if (record) saveBackgroundTaskRecord(agentId, record)
   return record
+}
+
+/**
+ * Force-stops every running detached task of an agent. Permanent deletion calls
+ * this before the agent's records are swept: afterwards no Cherry control path
+ * can reach the process. Archival keeps tasks running so restore stays lossless.
+ */
+export async function stopAllAgentBackgroundTasks(agentId: string): Promise<void> {
+  const storageDir = storageDirFor(agentId)
+  for (const record of await listDetachedBackgroundTasks(storageDir)) {
+    if (record.status !== 'running') continue
+    const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
+    if (!stopped || stopped.status === 'running') {
+      throw new Error(`Cannot permanently delete Agent ${agentId} while background task ${record.id} is running`)
+    }
+  }
 }
