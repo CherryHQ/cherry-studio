@@ -57,6 +57,14 @@ describe('isVisibleAgentSessionPart', () => {
         input: {}
       } as never)
     ).toBe(false)
+    expect(
+      isVisibleAgentSessionPart({
+        type: 'tool-EnterPlanMode',
+        state: 'output-available',
+        toolCallId: 't4',
+        input: {}
+      } as never)
+    ).toBe(false)
   })
 
   it('judges whole part arrays with the same rule the renderer uses for the fallback', () => {
