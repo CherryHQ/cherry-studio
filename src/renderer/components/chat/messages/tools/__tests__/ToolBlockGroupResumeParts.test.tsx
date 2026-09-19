@@ -1,7 +1,8 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { AgentLaunchIndexProvider, PartsProvider } from '../../blocks/MessagePartsContext'
 import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
