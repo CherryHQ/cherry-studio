@@ -302,6 +302,38 @@ class ComfyuiTransport implements ImageGenerationTransport {
   }
 
   /**
+   * GET `url`, bounded by `timeoutMs` and combined with the caller's signal.
+   * When this request's own deadline fires the failure is structured, with
+   * `timeoutMessage`; every other rejection — the caller's cancellation, a
+   * network error — is rethrown untouched, so a caller that needs to tell the
+   * two apart can still inspect its own signal.
+   */
+  private async fetchWithDeadline(
+    url: string,
+    signal: AbortSignal | undefined,
+    timeoutMs: number,
+    timeoutMessage: string
+  ): Promise<Response> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), Math.max(0, timeoutMs))
+    try {
+      return await this.doFetch(url, {
+        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
+        headers: this.headers
+      })
+    } catch (error) {
+      // The combined signal aborts for the caller's cancellation AND for this
+      // request's own budget; only the latter is a deadline failure.
+      if (controller.signal.aborted && !signal?.aborted) {
+        throw createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })
+      }
+      throw error
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  /**
    * Read one history entry. Unlike `requestJson`, a non-OK response is not
    * automatically fatal: a 4xx (bar 429) can never succeed on retry, so it
    * surfaces as a structured failure, while a 5xx / 429 is left as a plain
@@ -313,34 +345,21 @@ class ComfyuiTransport implements ImageGenerationTransport {
     signal: AbortSignal | undefined,
     remainingMs: number
   ): Promise<Record<string, HistoryEntry>> {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), Math.max(0, remainingMs))
-    try {
-      const response = await this.doFetch(`${this.baseURL}/history/${taskId}`, {
-        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
-        headers: this.headers
-      })
-      if (!response.ok) {
-        const message = await readErrorMessage(response, t('paintings.comfyui.request_failed'))
-        if (isTerminalHttpStatus(response.status)) {
-          throw createPaintingGenerateError('REMOTE_ERROR', { message })
-        }
-        // A plain error, not a structured one: the poll loop retries it.
-        throw new Error(message)
+    const response = await this.fetchWithDeadline(
+      `${this.baseURL}/history/${taskId}`,
+      signal,
+      remainingMs,
+      t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
+    )
+    if (!response.ok) {
+      const message = await readErrorMessage(response, t('paintings.comfyui.request_failed'))
+      if (isTerminalHttpStatus(response.status)) {
+        throw createPaintingGenerateError('REMOTE_ERROR', { message })
       }
-      return (await response.json()) as Record<string, HistoryEntry>
-    } catch (error) {
-      // The abort combined the user's signal with this request's budget; only
-      // the former is a cancellation — the latter has exhausted the poll.
-      if (controller.signal.aborted && !signal?.aborted) {
-        throw createPaintingGenerateError('REMOTE_ERROR', {
-          message: t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
-        })
-      }
-      throw error
-    } finally {
-      clearTimeout(timer)
+      // A plain error, not a structured one: the poll loop retries it.
+      throw new Error(message)
     }
+    return (await response.json()) as Record<string, HistoryEntry>
   }
 
   /** The AI SDK downloads returned URLs itself, so hand back inline data. */
@@ -353,35 +372,31 @@ class ComfyuiTransport implements ImageGenerationTransport {
       subfolder: image.subfolder ?? '',
       type: image.type ?? 'output'
     })
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), IMAGE_TIMEOUT_MS)
+    let response: Response
     try {
-      const response = await this.doFetch(`${this.baseURL}/view?${query}`, {
-        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
-        headers: this.headers
-      })
-      if (!response.ok) {
-        throw createPaintingGenerateError('REMOTE_ERROR', {
-          message: await readErrorMessage(response, t('paintings.comfyui.image_fetch_failed'))
-        })
-      }
-      const buffer = Buffer.from(await response.arrayBuffer())
-      const contentType = response.headers.get('content-type') || 'image/png'
-      return `data:${contentType};base64,${buffer.toString('base64')}`
+      response = await this.fetchWithDeadline(
+        `${this.baseURL}/view?${query}`,
+        signal,
+        IMAGE_TIMEOUT_MS,
+        t('paintings.comfyui.image_download_timeout', { seconds: IMAGE_TIMEOUT_MS / 1000 })
+      )
     } catch (error) {
-      // The combined signal aborts for the user's cancellation AND for this
-      // download's own timeout; only the former is an AbortError — a timer fire
-      // is a failed download, not a cancelled generation.
-      if (error instanceof Error && error.name === 'AbortError') {
-        if (signal?.aborted) throw createAbortError('Task polling aborted')
-        throw createPaintingGenerateError('REMOTE_ERROR', {
-          message: t('paintings.comfyui.image_download_timeout', { seconds: IMAGE_TIMEOUT_MS / 1000 })
-        })
+      // The helper already reported this download's own timeout as a structured
+      // failure, so an AbortError left here is the user's cancellation — never a
+      // cancelled generation read as a failed download.
+      if (signal?.aborted && error instanceof Error && error.name === 'AbortError') {
+        throw createAbortError('Task polling aborted')
       }
       throw error
-    } finally {
-      clearTimeout(timer)
     }
+    if (!response.ok) {
+      throw createPaintingGenerateError('REMOTE_ERROR', {
+        message: await readErrorMessage(response, t('paintings.comfyui.image_fetch_failed'))
+      })
+    }
+    const buffer = Buffer.from(await response.arrayBuffer())
+    const contentType = response.headers.get('content-type') || 'image/png'
+    return `data:${contentType};base64,${buffer.toString('base64')}`
   }
 }
 

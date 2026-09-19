@@ -99,12 +99,10 @@ const PRIMITIVE_NODE = 'PrimitiveNode'
 
 export type Reference = [string, number]
 
-/** One hop of an alias resolution: the producer to keep following, or a final value. */
-interface AliasStep {
-  ref?: Reference
-  value?: unknown
-  type?: string
-}
+/** One hop of an alias resolution: the producer to keep following, or a final
+ * value. Tagged so the invalid state — both fields, or neither — cannot be
+ * represented. */
+type AliasStep = { kind: 'ref'; ref: Reference; type?: string } | { kind: 'value'; value: unknown }
 
 interface WidgetNames {
   /** Every positional slot a widget declaration spends, in declaration order.
@@ -381,7 +379,9 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
         if (link == null) return undefined
         const resolved = resolveLink(link, links, remap, bindings)
         if (resolved === undefined) return undefined
-        return isReference(resolved) ? { ref: resolved, type: node.inputs?.[inputSlot]?.type } : { value: resolved }
+        return isReference(resolved)
+          ? { kind: 'ref', ref: resolved, type: node.inputs?.[inputSlot]?.type }
+          : { kind: 'value', value: resolved }
       }
       if ((output.links ?? []).length > 0 && !(node.inputs ?? []).some((input) => input.link != null)) {
         warnings.push(`${kind} ${node.type} output ${slot} has no input to pass through`)
@@ -399,7 +399,7 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     const value = Array.isArray(node.widgets_values) ? node.widgets_values[0] : undefined
     const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
     ;(node.outputs ?? []).forEach((_, slot) => {
-      alias[slot] = () => ({ value: wrapWidgetValue(value) })
+      alias[slot] = () => ({ kind: 'value', value: wrapWidgetValue(value) })
     })
     aliases[String(remap.get(node.id)!)] = alias
   }
@@ -510,7 +510,7 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
           // The incoming consumer type rides into the subgraph (the frontend
           // resolves nested producers with it); the declared output type is
           // only the fallback when the consumer's type is unknown.
-          alias[slot] = (type) => ({ ref: [String(origin), link.origin_slot], type: type ?? def.type })
+          alias[slot] = (type) => ({ kind: 'ref', ref: [String(origin), link.origin_slot], type: type ?? def.type })
         }
         break
       }
@@ -558,7 +558,7 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
       if (!holder) return current.ref
       const step = holder(current.type)
       if (step === undefined) return undefined
-      if (step.ref === undefined) return step.value
+      if (step.kind === 'value') return step.value
       current = { ref: step.ref, type: step.type }
     }
   }
