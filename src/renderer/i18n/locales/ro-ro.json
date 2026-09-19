@@ -3729,7 +3729,7 @@
   "settings.data.obsidian.default_vault_no_vaults": "Nu s-au găsit seifuri Obsidian",
   "settings.data.obsidian.default_vault_placeholder": "Te rugăm să selectezi seiful Obsidian implicit",
   "settings.data.obsidian.title": "Configurare Obsidian",
-  "settings.data.protection.covers": "O copie de siguranță conține conversațiile, furnizorii și cheile API, limitele de cereri și bazele de cunoștințe — tot ceea ce stochează aplicația.",
+  "settings.data.protection.covers": "O copie de siguranță conține conversațiile, furnizorii și cheile API, limitele de cereri și bazele de cunoștințe — copiază acest singur fișier pe un computer nou și totul vine cu el. Cheile API se află în fișier ca text simplu, deci păstrează-l la fel de privat ca și cheile înseși.",
   "settings.data.protection.last_backup": "Ultima copie de siguranță: {{when}}",
   "settings.data.protection.none": "Nimic nu se face backup",
   "settings.data.protection.none_hint": "Activați backup mai jos. Fără el, un crash sau o ștergere accidentală duce la pierderea conversațiilor, furnizorilor și cheilor API.",

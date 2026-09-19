@@ -3729,7 +3729,7 @@
   "settings.data.obsidian.default_vault_no_vaults": "未找到 Obsidian 仓库",
   "settings.data.obsidian.default_vault_placeholder": "请选择默认 Obsidian 仓库",
   "settings.data.obsidian.title": "Obsidian 配置",
-  "settings.data.protection.covers": "备份包含您的聊天记录、提供者和 API 密钥、请求上限和知识库——应用存储的所有内容。",
+  "settings.data.protection.covers": "备份包含您的聊天记录、提供者和 API 密钥、请求上限和知识库——将这个文件复制到新电脑，一切都会随之而来。文件中的 API 密钥以纯文本形式存储，因此请像保护密钥本身一样保护它。",
   "settings.data.protection.last_backup": "最后备份：{{when}}",
   "settings.data.protection.none": "未备份任何内容",
   "settings.data.protection.none_hint": "在下方启用备份。没有备份，崩溃或误删会导致失去聊天记录、提供者和 API 密钥。",

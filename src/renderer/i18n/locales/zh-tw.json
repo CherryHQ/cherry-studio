@@ -3729,7 +3729,7 @@
   "settings.data.obsidian.default_vault_no_vaults": "未找到 Obsidian 儲存庫",
   "settings.data.obsidian.default_vault_placeholder": "請選擇預設 Obsidian 儲存庫",
   "settings.data.obsidian.title": "Obsidian 設定",
-  "settings.data.protection.covers": "備份包含您的聊天記錄、提供者和 API 金鑰、請求上限和知識庫——應用儲存的所有內容。",
+  "settings.data.protection.covers": "備份包含您的聊天記錄、提供者和 API 金鑰、請求上限和知識庫——將這個檔案複製到新電腦，一切都會隨之而來。檔案中的 API 金鑰以純文字形式儲存，因此請像保護金鑰本身一樣保護它。",
   "settings.data.protection.last_backup": "最後備份：{{when}}",
   "settings.data.protection.none": "未備份任何內容",
   "settings.data.protection.none_hint": "在下方啟用備份。沒有備份，當機或誤刪會導致失去聊天記錄、提供者和 API 金鑰。",

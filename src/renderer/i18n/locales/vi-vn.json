@@ -3729,7 +3729,7 @@
   "settings.data.obsidian.default_vault_no_vaults": "Không tìm thấy kho Obsidian nào",
   "settings.data.obsidian.default_vault_placeholder": "Vui lòng chọn kho Obsidian mặc định",
   "settings.data.obsidian.title": "Cấu hình Obsidian",
-  "settings.data.protection.covers": "Sao lưu chứa lịch sử trò chuyện, nhà cung cấp và khóa API, giới hạn yêu cầu và cơ sở tri thức của bạn — mọi thứ ứng dụng lưu trữ.",
+  "settings.data.protection.covers": "Sao lưu chứa lịch sử trò chuyện, nhà cung cấp và khóa API, giới hạn yêu cầu và cơ sở tri thức của bạn — sao chép tệp này sang máy tính mới và mọi thứ sẽ theo. Khóa API được lưu trữ trong tệp dưới dạng văn bản thuần túy, nên giữ nó riêng tư như chính những khóa đó.",
   "settings.data.protection.last_backup": "Sao lưu cuối cùng: {{when}}",
   "settings.data.protection.none": "Không có gì được sao lưu",
   "settings.data.protection.none_hint": "Bật sao lưu dưới đây. Không có sao lưu, một lỗi hoặc xóa nhầm sẽ mất lịch sử trò chuyện, nhà cung cấp và khóa API của bạn.",

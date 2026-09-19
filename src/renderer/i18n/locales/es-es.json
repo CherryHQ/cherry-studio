@@ -3729,7 +3729,7 @@
   "settings.data.obsidian.default_vault_no_vaults": "No se encontraron repositorios Obsidian",
   "settings.data.obsidian.default_vault_placeholder": "Seleccione un repositorio Obsidian predeterminado",
   "settings.data.obsidian.title": "Configuración de Obsidian",
-  "settings.data.protection.covers": "Una copia de seguridad contiene sus conversaciones, proveedores y claves API, límites de solicitudes y bases de conocimiento — todo lo que almacena la aplicación.",
+  "settings.data.protection.covers": "Una copia de seguridad contiene sus conversaciones, proveedores y claves API, límites de solicitudes y bases de conocimiento — copie este único archivo a un ordenador nuevo y todo lo acompaña. Las claves API se encuentran en el archivo como texto plano, así que manténgalo tan privado como las propias claves.",
   "settings.data.protection.last_backup": "Última copia de seguridad: {{when}}",
   "settings.data.protection.none": "No se está respaldando nada",
   "settings.data.protection.none_hint": "Active una copia de seguridad a continuación. Sin ella, un bloqueo o una eliminación accidental se lleva sus conversaciones, proveedores y claves API.",

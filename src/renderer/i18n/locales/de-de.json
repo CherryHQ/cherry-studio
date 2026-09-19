@@ -3729,7 +3729,7 @@
   "settings.data.obsidian.default_vault_no_vaults": "Kein Obsidian-Tresor gefunden",
   "settings.data.obsidian.default_vault_placeholder": "Bitte Standard-Obsidian-Tresor auswählen",
   "settings.data.obsidian.title": "Obsidian-Konfiguration",
-  "settings.data.protection.covers": "Eine Sicherung speichert Ihre Gespräche, Anbieter und API-Schlüssel, Anfragelimits und Wissensdatenbanken — alles, was die App speichert.",
+  "settings.data.protection.covers": "Eine Sicherung speichert Ihre Gespräche, Anbieter und API-Schlüssel, Anfragelimits und Wissensdatenbanken — kopieren Sie diese eine Datei auf einen neuen Computer und alles kommt mit. Die API-Schlüssel liegen in der Datei als Klartext vor, halten Sie sie daher so privat wie die Schlüssel selbst.",
   "settings.data.protection.last_backup": "Letzte Sicherung: {{when}}",
   "settings.data.protection.none": "Nichts wird gesichert",
   "settings.data.protection.none_hint": "Aktivieren Sie eine Sicherung unten. Ohne sie nimmt ein Absturz oder versehentliches Löschen Ihre Gespräche, Anbieter und API-Schlüssel mit sich.",

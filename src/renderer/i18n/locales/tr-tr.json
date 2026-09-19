@@ -3729,7 +3729,7 @@
   "settings.data.obsidian.default_vault_no_vaults": "Obsidian kasası bulunamadı",
   "settings.data.obsidian.default_vault_placeholder": "Varsayılan Obsidian kasasını seçin",
   "settings.data.obsidian.title": "Obsidian",
-  "settings.data.protection.covers": "Yedek; sohbetlerini, sağlayıcılarını ve API anahtarlarını, kota limitlerini ve bilgi bankalarını — uygulamanın sakladığı her şeyi içerir.",
+  "settings.data.protection.covers": "Yedek dosya sohbetlerini, sağlayıcılarını ve API anahtarlarını, kota limitlerini ve bilgi bankalarını içerir — yeni bir bilgisayara kopyala, her şey beraberinde gelir. API anahtarları dosya içinde düz metin olarak bulunur; dosyayı anahtarlar kadar özel tut.",
   "settings.data.protection.last_backup": "Son yedek: {{when}}",
   "settings.data.protection.none": "Hiçbir şey yedeklenmiyor",
   "settings.data.protection.none_hint": "Aşağıdan bir yedekleme aç. Yedek yoksa bir çökme veya yanlışlıkla silme, sohbetlerini, sağlayıcılarını ve API anahtarlarını da beraberinde götürür.",
