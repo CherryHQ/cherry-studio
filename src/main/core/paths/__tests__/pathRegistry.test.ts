@@ -336,6 +336,10 @@ describe('pathRegistry.shouldAutoEnsure', () => {
     it('returns true for the new feature.mcp.memory_file key', () => {
       expect(shouldAutoEnsure('feature.mcp.memory_file')).toBe(true)
     })
+
+    it('returns true for the new feature.notes.device_file key', () => {
+      expect(shouldAutoEnsure('feature.notes.device_file')).toBe(true)
+    })
   })
 
   describe('sys.* prefix — never auto-ensure (OS-managed directories)', () => {
