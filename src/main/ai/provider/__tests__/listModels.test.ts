@@ -317,8 +317,7 @@ describe('listModels — LM Studio', () => {
     'http://lmstudio.test:1234',
     'http://lmstudio.test:1234/api/v0',
     'http://lmstudio.test:1234/api/v1/',
-    'http://lmstudio.test:1234/v1/',
-    'http://lmstudio.test:1234#'
+    'http://lmstudio.test:1234/v1/'
   ])('imports from the legacy endpoint when native v1 is unavailable at %s', async (baseUrl) => {
     fetchMock.mockResolvedValueOnce(Response.json({ error: { message: 'Not Found' } }, { status: 404 }))
     fetchMock.mockResolvedValueOnce(Response.json({ data: [{ id: 'granite-3.0-2b-instruct' }] }))
@@ -332,6 +331,22 @@ describe('listModels — LM Studio', () => {
       'http://lmstudio.test:1234/v1/models'
     ])
   })
+
+  it.each(['https://proxy.test/lmstudio#', ' https://proxy.test/lmstudio# '])(
+    'keeps a trailing-# base URL %j verbatim when falling back to the legacy endpoint',
+    async (baseUrl) => {
+      fetchMock.mockResolvedValueOnce(Response.json({ error: { message: 'Not Found' } }, { status: 404 }))
+      fetchMock.mockResolvedValueOnce(Response.json({ data: [{ id: 'granite-3.0-2b-instruct' }] }))
+
+      const models = await listModels(makeLmStudioProvider(baseUrl), undefined, { throwOnError: true })
+
+      expect(models).toHaveLength(1)
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        'https://proxy.test/lmstudio/api/v1/models',
+        'https://proxy.test/lmstudio/models'
+      ])
+    }
+  )
 })
 
 describe('listModels — Ollama capabilities', () => {
@@ -455,6 +470,22 @@ describe('listModels — geminiFetcher API key transport', () => {
 
     // The key travels in the header instead.
     expect(call.headers['x-goog-api-key']).toBe('AIza-secret-key')
+  })
+
+  it.each([
+    ['https://proxy.test/gemini#', 'https://proxy.test/gemini/models'],
+    ['https://proxy.test/gemini/v1beta#', 'https://proxy.test/gemini/v1beta/models']
+  ])('keeps a trailing-# base URL %s verbatim instead of appending /v1beta', async (baseUrl, expectedUrl) => {
+    const provider = makeProvider({
+      id: 'gemini',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl } }
+    })
+
+    await listModels(provider)
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe(expectedUrl)
   })
 
   it('merges provider extraHeaders over application defaults case-insensitively', async () => {
@@ -684,6 +715,22 @@ describe('listModels — copilotFetcher (preset-aware routing)', () => {
 
     expect(getCopilotTokenMock).toHaveBeenCalledTimes(1)
     expect(models.map((m) => m.apiModelId)).toEqual(['gpt-4o'])
+  })
+
+  it('keeps a trailing-# base URL verbatim when building the models URL', async () => {
+    const provider = makeProvider({
+      id: 'copilot',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.test/copilot#' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'gpt-4o' }] } })
+
+    await listModels(provider)
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://proxy.test/copilot/models')
   })
 })
 
@@ -986,6 +1033,23 @@ describe('listModels — aiHubMixFetcher (configured base URL)', () => {
     expect(call.url).toBe('https://custom.example.com/api/v1/models')
     expect(models.map((m) => m.apiModelId)).toEqual(['qwen3.6-plus'])
   })
+
+  it.each(['https://proxy.test/aihubmix#', 'https://proxy.test/aihubmix/v1#'])(
+    'resolves the native models endpoint from the server root for a trailing-# base URL %s',
+    async (baseUrl) => {
+      const provider = makeProvider({
+        id: 'aihubmix',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl } }
+      })
+      aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ model_id: 'qwen3.6-plus' }] } })
+
+      await listModels(provider)
+
+      const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+      expect(call.url).toBe('https://proxy.test/aihubmix/api/v1/models')
+    }
+  )
 })
 
 describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
@@ -1145,6 +1209,22 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
     expect(models).toHaveLength(1)
     expect(models[0].apiModelId).toBe('gemini-2.0-flash')
     expect(models[0].ownedBy).toBe('google')
+  })
+
+  it('keeps a trailing-# custom host verbatim as the service endpoint', async () => {
+    const provider = makeProvider({
+      id: 'vertex',
+      authType: 'iam-gcp',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://proxy.test/vertex#' } }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { publisherModels: [] } })
+
+    await listModels(provider)
+
+    const urls = aiSdkGetFromApiMock.mock.calls.map((c) => (c[0] as { url: string }).url)
+    expect(urls).toHaveLength(DEFAULT_VERTEX_MODEL_PUBLISHERS.length)
+    expect(urls.every((u) => u.startsWith('https://proxy.test/vertex/v1beta1/publishers/'))).toBe(true)
   })
 
   it('bakes the publisher prefix into MaaS (non-google) model ids so the OpenAI-compatible endpoint gets the right model', async () => {

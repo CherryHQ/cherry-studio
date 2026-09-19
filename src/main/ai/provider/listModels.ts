@@ -26,7 +26,13 @@ import {
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, formatOllamaApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import {
+  formatApiHost,
+  formatOllamaApiHost,
+  isWithTrailingSharp,
+  withoutTrailingApiVersion,
+  withoutTrailingSlash
+} from '@shared/utils/api'
 import { deriveModelGroupName } from '@shared/utils/model'
 import {
   isAIGatewayProvider,
@@ -268,14 +274,13 @@ function isSupportedGeminiModel(model: z.infer<typeof GeminiModelsResponseSchema
 const geminiFetcher: ModelFetcher = {
   match: (p) => isGeminiProvider(p),
   fetch: async (provider, signal) => {
-    let baseUrl = withoutTrailingSlash(getBaseUrl(provider))
-    baseUrl = baseUrl.replace(/\/v1(beta)?$/, '')
+    const baseUrl = formatApiHost(withoutTrailingApiVersion(getBaseUrl(provider)), true, 'v1beta')
     const apiKey = providerService.getRotatedApiKey(provider.id)
     // Pass the key via the `x-goog-api-key` header (same as `@ai-sdk/google`'s chat path)
     // instead of the `?key=` query param: on failure `APICallError.url` is logged, which
     // would persist the key into local logs users attach to bug reports.
     const response = await getFromApi({
-      url: `${baseUrl}/v1beta/models`,
+      url: `${baseUrl}/models`,
       headers: mergeHeaders(
         getProviderAppHeaders(provider),
         { 'x-goog-api-key': apiKey },
@@ -397,7 +402,7 @@ const copilotFetcher: ModelFetcher = {
     // defaultHeaders) — GitHub's token endpoint rejects the conflicting header with 401.
     const { token } = await copilotService.getToken(null as any, copilotHeaders)
     const response = await getFromApi({
-      url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
+      url: `${formatApiHost(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS), false)}/models`,
       headers: mergeHeaders(copilotHeaders, { Authorization: `Bearer ${token}` }),
       responseSchema: CopilotModelsResponseSchema,
       abortSignal: signal
@@ -684,7 +689,7 @@ const aiHubMixFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.aihubmix,
   fetch: async (provider, signal) => {
     const response = await getFromApi({
-      url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/v1/models`,
+      url: `${withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false))}/api/v1/models`,
       headers: defaultHeaders(provider),
       responseSchema: AIHubMixModelsResponseSchema,
       abortSignal: signal
@@ -819,8 +824,10 @@ const openAICompatibleFetcher: ModelFetcher = {
 const lmStudioFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
   fetch: async (provider, signal) => {
+    // formatApiHost trims but isWithTrailingSharp does not; trim once so the fallback below classifies the same URL.
+    const baseUrl = getBaseUrl(provider).trim()
     // Both native and OpenAI-compatible endpoints must resolve from the server root.
-    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false).replace(/\/api\/v[01]$/, ''))
+    const root = withoutTrailingApiVersion(formatApiHost(baseUrl, false).replace(/\/api\/v[01]$/, ''))
     let response: z.infer<typeof LMStudioModelsResponseSchema>
     try {
       response = await getFromApi({
@@ -836,7 +843,9 @@ const lmStudioFetcher: ModelFetcher = {
         providerId: provider.id,
         errorType: getErrorType(error)
       })
-      return listOpenAICompatibleModels(provider, formatApiHost(root), signal)
+      // A trailing '#' pins the URL verbatim (same as chat), so the fallback must not re-append /v1.
+      const fallbackBaseUrl = isWithTrailingSharp(baseUrl) ? formatApiHost(baseUrl) : formatApiHost(root)
+      return listOpenAICompatibleModels(provider, fallbackBaseUrl, signal)
     }
 
     return dedup(response.models, (m) => m.key).map((m) => {
