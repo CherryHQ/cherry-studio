@@ -787,6 +787,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return new ClaudeCodeStreamAdapter({
       modelId,
       sessionId: this.input.sessionId,
+      resolveLaunchToolCallId: this.input.resolveLaunchToolCallId,
       streamOptions: {} as never,
       sink: {
         enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })

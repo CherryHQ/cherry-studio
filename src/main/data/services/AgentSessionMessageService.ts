@@ -762,6 +762,71 @@ export class AgentSessionMessageService {
   }
 
   /**
+   * The assistant host row whose parts contain `rootToolCallId`, for a fresh runtime entry (after
+   * a process restart or session reopen) to re-anchor detached subagent flow chunks to the launch
+   * message. The launch part is the earliest row carrying the id, so ascending creation order and
+   * LIMIT 1 pick it.
+   */
+  findFlowHostMessageId(sessionId: string, rootToolCallId: string): string | null {
+    const database = application.get('DbService').getDb()
+    const row = database
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.role, 'assistant'),
+          sql<boolean>`exists (
+            select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+            where json_extract(part.value, '$.toolCallId') = ${rootToolCallId}
+          )`
+        )
+      )
+      .orderBy(asc(sessionMessagesTable.createdAt))
+      .limit(1)
+      .all()
+    return row[0]?.id ?? null
+  }
+
+  /**
+   * The launch tool-use id for a background task, recovered from the persisted task event part of
+   * its earliest assistant row. A fresh adapter (app restart) has no in-memory task→tool-call
+   * mapping; resume edges then carry the resuming call's id, which must not displace the launch
+   * root every entry resolves to.
+   */
+  findLaunchToolCallId(sessionId: string, taskId: string): string | null {
+    const database = application.get('DbService').getDb()
+    const row = database
+      .select({
+        toolUseId: sql<string>`(
+          select json_extract(part.value, '$.data.toolUseId')
+          from json_each(${sessionMessagesTable.data}, '$.parts') as part
+          where json_extract(part.value, '$.type') = 'data-agent-task-event'
+            and json_extract(part.value, '$.data.taskId') = ${taskId}
+            and json_extract(part.value, '$.data.toolUseId') is not null
+          limit 1
+        )`
+      })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.role, 'assistant'),
+          sql`EXISTS (
+            select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+            where json_extract(part.value, '$.type') = 'data-agent-task-event'
+              and json_extract(part.value, '$.data.taskId') = ${taskId}
+              and json_extract(part.value, '$.data.toolUseId') is not null
+          )`
+        )
+      )
+      .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+      .limit(1)
+      .all()
+    return row[0]?.toolUseId ?? null
+  }
+
+  /**
    * Boot reconcile of crash-orphaned `pending` rows: resolve each row to `error` (with the
    * caller's terminalized `data`) and discard the affected sessions' resume tokens, atomically.
    * A crashed turn leaves the external CLI session in an untrusted state — resuming it can replay
