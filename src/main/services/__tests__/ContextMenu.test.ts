@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { menuMock, popupMock, tMock, loggerMock } = vi.hoisted(() => {
+const { menuMock, tMock, loggerMock } = vi.hoisted(() => {
   const popupMock = vi.fn()
   return {
-    popupMock,
     menuMock: {
       buildFromTemplate: vi.fn(() => ({ popup: popupMock }))
     },
@@ -52,20 +51,31 @@ const baseEditFlags = {
   canEditRichly: false
 }
 
+const editableSpellParams = (partial: {
+  selectionText: string
+  misspelledWord: string
+  dictionarySuggestions: string[]
+}): Electron.ContextMenuParams =>
+  ({
+    isEditable: true,
+    editFlags: baseEditFlags,
+    ...partial
+  }) as unknown as Electron.ContextMenuParams
+
 describe('contextMenu spell-check dictionary actions', () => {
-  let preventDefault: ReturnType<typeof vi.fn>
-  let addWord: ReturnType<typeof vi.fn>
-  let removeWord: ReturnType<typeof vi.fn>
-  let listWords: ReturnType<typeof vi.fn>
+  let preventDefault: ReturnType<typeof vi.fn<() => void>>
+  let addWord: ReturnType<typeof vi.fn<(word: string) => boolean>>
+  let removeWord: ReturnType<typeof vi.fn<(word: string) => boolean>>
+  let listWords: ReturnType<typeof vi.fn<() => Promise<string[]>>>
   let replaceMisspelling: ReturnType<typeof vi.fn>
   let onContextMenu: (event: { preventDefault: () => void }, properties: Electron.ContextMenuParams) => void
 
   beforeEach(() => {
     vi.clearAllMocks()
-    preventDefault = vi.fn()
-    addWord = vi.fn(() => true)
-    removeWord = vi.fn(() => true)
-    listWords = vi.fn(async () => [] as string[])
+    preventDefault = vi.fn<() => void>()
+    addWord = vi.fn<(word: string) => boolean>(() => true)
+    removeWord = vi.fn<(word: string) => boolean>(() => true)
+    listWords = vi.fn<() => Promise<string[]>>(async () => [])
     replaceMisspelling = vi.fn()
 
     const webContents = {
@@ -89,13 +99,14 @@ describe('contextMenu spell-check dictionary actions', () => {
   it('learns a misspelled word through the session dictionary API', async () => {
     listWords.mockResolvedValue([])
 
-    onContextMenu({ preventDefault }, {
-      isEditable: true,
-      selectionText: 'missspelled',
-      misspelledWord: 'missspelled',
-      dictionarySuggestions: ['misspelled'],
-      editFlags: baseEditFlags
-    } as Electron.ContextMenuParams)
+    onContextMenu(
+      { preventDefault },
+      editableSpellParams({
+        selectionText: 'missspelled',
+        misspelledWord: 'missspelled',
+        dictionarySuggestions: ['misspelled']
+      })
+    )
 
     await vi.waitFor(() => expect(menuMock.buildFromTemplate).toHaveBeenCalled())
 
@@ -109,13 +120,14 @@ describe('contextMenu spell-check dictionary actions', () => {
     // Regression for #20570: Learn Spelling had no reverse path once the word stopped being misspelled.
     listWords.mockResolvedValue(['CherryAI'])
 
-    onContextMenu({ preventDefault }, {
-      isEditable: true,
-      selectionText: 'CherryAI',
-      misspelledWord: '',
-      dictionarySuggestions: [],
-      editFlags: baseEditFlags
-    } as Electron.ContextMenuParams)
+    onContextMenu(
+      { preventDefault },
+      editableSpellParams({
+        selectionText: 'CherryAI',
+        misspelledWord: '',
+        dictionarySuggestions: []
+      })
+    )
 
     await vi.waitFor(() => expect(menuMock.buildFromTemplate).toHaveBeenCalled())
 
@@ -130,13 +142,14 @@ describe('contextMenu spell-check dictionary actions', () => {
     listWords.mockResolvedValue(['CherryAI'])
     removeWord.mockReturnValue(false)
 
-    onContextMenu({ preventDefault }, {
-      isEditable: true,
-      selectionText: 'CherryAI',
-      misspelledWord: '',
-      dictionarySuggestions: [],
-      editFlags: baseEditFlags
-    } as Electron.ContextMenuParams)
+    onContextMenu(
+      { preventDefault },
+      editableSpellParams({
+        selectionText: 'CherryAI',
+        misspelledWord: '',
+        dictionarySuggestions: []
+      })
+    )
 
     await vi.waitFor(() => expect(menuMock.buildFromTemplate).toHaveBeenCalled())
 
@@ -153,13 +166,14 @@ describe('contextMenu spell-check dictionary actions', () => {
   it('does not invent an Unlearn action when the custom dictionary is empty', async () => {
     listWords.mockResolvedValue([])
 
-    onContextMenu({ preventDefault }, {
-      isEditable: true,
-      selectionText: 'CherryAI',
-      misspelledWord: '',
-      dictionarySuggestions: [],
-      editFlags: baseEditFlags
-    } as Electron.ContextMenuParams)
+    onContextMenu(
+      { preventDefault },
+      editableSpellParams({
+        selectionText: 'CherryAI',
+        misspelledWord: '',
+        dictionarySuggestions: []
+      })
+    )
 
     await vi.waitFor(() => expect(menuMock.buildFromTemplate).toHaveBeenCalled())
 
