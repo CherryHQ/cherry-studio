@@ -141,6 +141,19 @@ describe('ai.agent.create IPC schema', () => {
   })
 })
 
+describe('ai.agent.session.fork IPC schema', () => {
+  it('accepts only the source session and checkpoint message, rejecting history reconstruction', () => {
+    const forkSession = aiRequestSchemas['ai.agent.session.fork'].input
+    const input = {
+      sourceSessionId: '11111111-1111-4111-8111-111111111111',
+      messageId: '22222222-2222-4222-8222-222222222222'
+    }
+
+    expect(forkSession.parse(input)).toEqual(input)
+    expect(forkSession.safeParse({ ...input, allowHistoryRebuild: true }).success).toBe(false)
+  })
+})
+
 describe('ai.agent.session.delete IPC schema', () => {
   const deleteSessions = aiRequestSchemas['ai.agent.session.delete'].input
 
@@ -151,6 +164,16 @@ describe('ai.agent.session.delete IPC schema', () => {
     expect(
       deleteSessions.safeParse({ sessionIds: Array.from({ length: 201 }, (_, i) => `session-${i}`) }).success
     ).toBe(false)
+  })
+})
+
+describe('ai.agent.session.restore IPC schema', () => {
+  const restoreSession = aiRequestSchemas['ai.agent.session.restore'].input
+
+  it('requires exactly one non-empty Session id', () => {
+    expect(restoreSession.safeParse({ sessionId: 'session-1' }).success).toBe(true)
+    expect(restoreSession.safeParse({ sessionId: '' }).success).toBe(false)
+    expect(restoreSession.safeParse({ sessionId: 'session-1', extra: true }).success).toBe(false)
   })
 })
 

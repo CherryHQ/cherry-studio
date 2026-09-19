@@ -6,7 +6,6 @@ import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { splitMessage } from '../../utils'
 
@@ -137,13 +136,13 @@ class QqAdapter extends ChannelAdapter {
     return !!(this.appId && this.clientSecret)
   }
 
-  protected override async performConnect(_signal: AbortSignal): Promise<void> {
+  protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.appId || !this.clientSecret) {
       throw new Error('QQ Bot AppID and ClientSecret are required')
     }
 
     this.shouldStop = false
-    await this.startGateway()
+    await this.startGateway(signal)
 
     this.log.info('QQ bot started')
   }
@@ -154,7 +153,7 @@ class QqAdapter extends ChannelAdapter {
     this.log.info('QQ bot stopped')
   }
 
-  private async getAccessToken(): Promise<string> {
+  private async getAccessToken(signal?: AbortSignal): Promise<string> {
     // Check cache
     if (this.tokenCache && Date.now() < this.tokenCache.expiresAt - 60000) {
       return this.tokenCache.accessToken
@@ -166,7 +165,8 @@ class QqAdapter extends ChannelAdapter {
       body: JSON.stringify({
         appId: this.appId,
         clientSecret: this.clientSecret
-      })
+      }),
+      signal
     })
 
     if (!response.ok) {
@@ -189,9 +189,10 @@ class QqAdapter extends ChannelAdapter {
 
   private async apiRequest(
     endpoint: string,
-    options?: { method?: string; body?: Record<string, unknown> }
+    options?: { method?: string; body?: Record<string, unknown> },
+    signal?: AbortSignal
   ): Promise<Response> {
-    const token = await this.getAccessToken()
+    const token = await this.getAccessToken(signal)
     const response = await net.fetch(endpoint, {
       method: options?.method ?? 'GET',
       headers: {
@@ -199,7 +200,8 @@ class QqAdapter extends ChannelAdapter {
         'Content-Type': 'application/json',
         'X-Union-Appid': this.appId
       },
-      ...(options?.body ? { body: JSON.stringify(options.body) } : {})
+      ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
+      signal
     })
 
     if (!response.ok) {
@@ -210,20 +212,21 @@ class QqAdapter extends ChannelAdapter {
     return response
   }
 
-  private async getGatewayUrl(): Promise<string> {
-    const response = await this.apiRequest(`${QQ_API_BASE}/gateway`)
+  private async getGatewayUrl(signal?: AbortSignal): Promise<string> {
+    const response = await this.apiRequest(`${QQ_API_BASE}/gateway`, undefined, signal)
     const data = (await response.json()) as { url: string }
     return data.url
   }
 
-  private async startGateway(): Promise<void> {
+  private async startGateway(signal?: AbortSignal): Promise<void> {
     if (this.isConnecting || this.shouldStop) return
     this.isConnecting = true
 
     try {
       this.cleanup()
 
-      const gatewayUrl = await this.getGatewayUrl()
+      const gatewayUrl = await this.getGatewayUrl(signal)
+      if (signal?.aborted || this.shouldStop) return
       this.log.info('Connecting to QQ gateway', { url: gatewayUrl })
 
       const ws = new WebSocket(gatewayUrl)
@@ -257,6 +260,7 @@ class QqAdapter extends ChannelAdapter {
         })
       })
     } catch (error) {
+      if (signal?.aborted) return
       this.log.error('Failed to start QQ gateway', {
         error: error instanceof Error ? error.message : String(error)
       })
@@ -797,12 +801,8 @@ class QqAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('qq', (channel, agentId) => {
+export function createQqAdapter(config: ChannelAdapterConfig<'qq'>) {
   return new QqAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

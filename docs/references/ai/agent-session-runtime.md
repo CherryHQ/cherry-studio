@@ -2,12 +2,17 @@
 description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
 sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/data/services/AgentSessionService.ts
+  - src/main/data/db/schemas/agentSession.ts
+  - src/main/ai/agents/runAgentTask.ts
   - src/main/ai/runtime/types.ts
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
   - src/main/ai/runtime/dsh
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
+  - src/main/ai/messages/readConversation.ts
+  - src/main/ai/mcp/servers/cherryAutonomyTools.ts
   - packages/dsh-bridge/src/plugin.ts
 ---
 
@@ -34,7 +39,8 @@ driver internals behind the same host contract.
 | Owner | Responsibility |
 |---|---|
 | `AgentChatContextProvider` | Validates the agent session, persists the user row (plus a pending assistant row on a fresh turn), and either starts a turn or enqueues a follow-up through the runtime. |
-| `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, quiescing, and deletion coordination. |
+| `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, and delivery quiescing. |
+| `AgentLifecycleService` | Coordinates archive, restore, purge, workspace deletion, and Agent-side backup quiescing; see [Agent Lifecycle](./agent-lifecycle.md). |
 | `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
 | `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `redirect` (mid-turn steer), `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
@@ -42,6 +48,36 @@ driver internals behind the same host contract.
 | Runtime drivers | Convert runtime-native events into the common event stream and map opaque resume tokens back into their SDK/session transport. |
 | Usage capture | Each driver exposes provider-invocation capture according to its transport; gateway-backed calls use AiService middleware rather than a runtime aggregate. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
+
+## Background sessions and conversation navigation
+
+`agent_session.type` distinguishes `conversation` from `background`. Heartbeat
+runs create background sessions, including replacements after failed admission;
+ordinary scheduled tasks retain their conversation behavior. The type is internal
+to Main and is not a renderer-controlled visibility flag.
+
+Conversation lists (including pins), latest-session selection, discovery search,
+and empty-session reuse only consider conversation sessions. The public
+session-by-id and message routes (reads, mutations, and workspace changes) apply
+that scope too, so a saved tab cannot restore a background session as an
+interactive conversation and a known background id is not addressable from the
+renderer surface. Runtime lookups retain access to all sessions through the
+internal `getById` method and service methods. Background activity publishes
+detail/message changes without invalidating the conversation navigation read
+models.
+
+The appended migration classifies existing sessions only when retained job
+records identify heartbeat execution — the fire ran on a schedule whose
+template carries the heartbeat sentinel — and no retained job records identify
+a different use of the same session. Unknown history remains a conversation;
+classification never relies on a session name or workspace. Session/message
+data is retained, and subsequent job retention cannot change the
+classification.
+
+This is a bounded classification within the existing session model. Separating
+execution sessions from user-managed conversation membership is tracked in
+[issue #20635](https://github.com/CherryHQ/cherry-studio/issues/20635); background-session retention and a dedicated activity UI
+also require their own lifecycle and product decisions.
 
 ## System prompt ownership
 
@@ -175,15 +211,21 @@ enters the runtime's process-local follow-up queue.
 ### Tool contract
 
 Each `cherry-tools` instance receives its trusted `agentId` and `sessionId` from `settingsBuilder`
-and exposes five tools:
+and exposes the session tools below:
 
 - `session_list` — deterministically enumerate visible Sessions and filter by Agent;
+- `session_read` — read a Chat topic, Agent Session, or live temporary conversation by its ID,
+  using the existing storage query rules. The caller does not supply a conversation type;
+  ambiguous IDs fail rather than selecting the first matching store;
+- `agent_list` — discover Agents independently of their Sessions, with public identity, runtime
+  availability, and whether a model is configured;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
   Session metadata, returning evidence snippets rather than adding an embedding dependency. Agent
   filters are applied before either search limit. The final limit counts distinct Sessions, each
   Session keeps its strongest message evidence, and `metadataMatches` identifies name/description
   hits instead of overloading an empty message-match list;
-- `session_create` — atomically create a same-Agent Session plus its first completion request;
+- `session_create` — atomically create a Session plus its first completion request, optionally
+  choosing another Agent with `target_agent_id`;
 - `session_send` — send one-way or request an asynchronous terminal completion;
 - `session_deliveries` — inspect incoming and outgoing request/result state.
 
@@ -202,8 +244,10 @@ Session. Every request owns one independent target turn; delivery never redirect
 turn and never enters the runtime's process-local follow-up queue. The tool returns after the
 durable request reaches `accepted`; it never waits for scheduling or target execution.
 
-`session_create` reuses the same completion-request path after creating the same-Agent Session. The
-model is not a tool argument because Sessions use their owning Agent's model.
+`session_create` reuses the same completion-request path. Omitting `target_agent_id` creates a
+same-Agent Session; providing it creates a Session owned by the selected Agent. The sender remains
+the trusted calling Agent/Session, and the current workspace policy is retained. The model is not a
+tool argument because Sessions use their owning Agent's model.
 
 ### Deliberate security ceiling
 
@@ -225,6 +269,13 @@ List, search, send, create, and delivery-query visibility share one authorizatio
 scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover Sessions
 but still require a live approval for delegation. Knowing a Session or message id never grants
 access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
+
+`session_read` shares this caller authorization boundary. It reads current source data, without a
+cutoff or snapshot. Topic queries retain branch and sibling options; Agent Session queries
+retain their existing pagination. Temporary conversations retain their in-memory lifetime and list
+semantics. Exact message reads check conversation membership. A `tool_call_id` with `message_id`
+uses the same persisted tool-output reconstruction as the renderer, including its explicit fallback
+when an offloaded blob is missing. Reading history does not grant filesystem attachment access.
 
 ### Durable row shape
 
@@ -348,7 +399,7 @@ backup and shutdown drains cannot be held by a synchronous retry loop. Legacy `c
 rows compare using their effective `claude-code` runtime type.
 
 Session deletion is a mixed operation and therefore uses the IpcApi
-`ai.agent.session.delete`, not DataApi DELETE. `AgentSessionDeliveryService` calls the data service
+`ai.agent.session.delete`, not DataApi DELETE. `AgentLifecycleService` calls the data service
 for one transaction that creates exact failure results before cascading target rows, then closes the
 deleted Sessions' runtimes before kicking only those returned result rows. A caller that has already
 been deleted cannot receive a result; that terminal routing failure is recorded rather than retried.
@@ -708,6 +759,19 @@ and terminal reasons into `AgentRuntimeEvent`s. DSH child-session lifecycle is
 coordinated separately so nested content is either attached to the current host
 turn or persisted as background flow without corrupting the main transcript.
 
+### Approval feedback and Full Access shell validation
+
+When an approval is rejected with a reason, the bridge injects that feedback into
+the current Agent turn so the harness can respond to it. Agent tool calls without
+a verified workspace directory are denied.
+
+In Full Access mode, the bridge removes `sandbox_permissions` and `justification`
+from the native `bash` and `pwsh` tool schemas. A runtime guard also rejects calls
+that still supply either field, before executing the command, and tells the Agent
+to retry using its current permissions. This validation does not terminate the
+conversation or add a general retry limit. No setup is required; repeated invalid
+requests can be corrected by removing those fields or stopping the run.
+
 ## Internal Agent continuation normalization
 
 When a Cherry-internal Agent Session request enters the API gateway in Anthropic
@@ -721,21 +785,17 @@ transcript's user-visible history, or the renderer. Direct Anthropic requests do
 not enter the gateway, and external gateway requests remain unchanged so their
 callers can intentionally use assistant prefill.
 
-## Corrupt resume history recovery
+## Native resume failures
 
-Each Claude Code connection may recover once from either a missing resumed
-conversation (`No conversation found with session ID`) or a request-time duplicate
-tool-use id failure (`tool_use ids must be unique`). The driver discards the failed
-resume token, rebuilds the SDK input queue and query without `resume`, and replays the
-pending user input with an empty SDK `session_id`. The replacement query's next
-`system/init` advances the normal resume-token persistence path to the new session id.
+Claude Code surfaces native resume failures, including missing conversations and
+duplicate tool-use IDs. The adapter does not discard the resume token and replay
+the pending input into a fresh conversation. Native history and its recovery
+semantics belong to the harness.
 
-Duplicate-id recovery is allowed only before the current turn emits any non-metadata
-chunk. Text, reasoning, tool calls, tool results, and background-flow chunks all close
-that safety gate because replay could repeat visible output or a tool side effect. If
-the gate has closed, the driver does not rebuild or replay; it surfaces the original
-error. Missing-conversation recovery keeps its existing compatibility behavior and is
-not activity-gated, but both reasons share the same one-attempt connection budget.
+Forked sessions use the same persisted native resume-token path as other Agent
+sessions. Cherry does not rebuild their context from visible messages when native
+history is unavailable. See [Agent Session Fork](./agent-session-fork.md) for the
+separate publication and file-resource recovery path.
 
 ## Idle and shutdown
 
@@ -801,12 +861,17 @@ parts and runtime close barriers that may still flush external state after their
 The resulting stream writes belong to `AiStreamManager`'s drain. This is distinct from the BaseService
 lifecycle pause and never touches service state.
 `AgentSessionDeliveryService` suppresses accepted-row kicks while a
-hold is live, tracks validation/claim/send handoffs and deletion orchestration in its drain set,
+hold is live, tracks validation/claim/send handoffs in its drain set,
 rechecks the hold and target busy/live state after asynchronous validation before any transaction, then re-kicks
 suppressed target Sessions when the final hold releases. Runtime `closeSession()` also emits the
 generic idle event so accepted work blocked by a stopped turn is not stranded.
 Per-Session kicks use a rerun latch: an idle/terminal wake arriving while the previous single-flight
 kick unwinds is replayed after ownership releases rather than being dropped as a duplicate.
+
+BackupManager reaches these Agent-specific participants through `AgentLifecycleService`.
+The lifecycle owner separately tracks archive/restore/purge work and aggregates it with
+Channel, Delivery, and Runtime drains. Its ingress barrier precedes execution pause;
+see [Backup and shutdown](./agent-lifecycle.md#backup-and-shutdown).
 
 ## Verification
 

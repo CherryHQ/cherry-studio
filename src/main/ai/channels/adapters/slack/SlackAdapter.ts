@@ -5,7 +5,6 @@ import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { splitMessage } from '../../utils'
@@ -225,12 +224,13 @@ class SlackAdapter extends ChannelAdapter {
     return !!(this.botToken && this.appToken)
   }
 
-  protected override async performConnect(_signal: AbortSignal): Promise<void> {
+  protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.botToken) throw new Error('Slack bot token (xoxb-...) is required')
     if (!this.appToken) throw new Error('Slack app-level token (xapp-...) is required for Socket Mode')
     this.shouldStop = false
-    await this.fetchBotUserId()
-    await this.startSocketMode()
+    await this.fetchBotUserId(signal)
+    if (signal.aborted || this.shouldStop) return
+    await this.startSocketMode(signal)
     this.log.info('Slack bot started')
   }
 
@@ -247,25 +247,27 @@ class SlackAdapter extends ChannelAdapter {
 
   // ─── Socket Mode Connection ─────────────────────────────────
 
-  private async fetchBotUserId(): Promise<void> {
+  private async fetchBotUserId(signal?: AbortSignal): Promise<void> {
     try {
-      const data = (await this.apiRequest('auth.test', {})) as { user_id?: string }
+      const data = (await this.apiRequest('auth.test', {}, signal)) as { user_id?: string }
       this.botUserId = data.user_id ?? null
       this.log.info('Slack bot identity resolved', { botUserId: this.botUserId })
     } catch (error) {
+      if (signal?.aborted) return
       this.log.warn('Failed to resolve bot user ID', {
         error: error instanceof Error ? error.message : String(error)
       })
     }
   }
 
-  private async getSocketModeUrl(): Promise<string> {
+  private async getSocketModeUrl(signal?: AbortSignal): Promise<string> {
     const response = await net.fetch(`${SLACK_API_BASE}/apps.connections.open`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.appToken}`,
         'Content-Type': 'application/x-www-form-urlencoded'
-      }
+      },
+      signal
     })
 
     if (!response.ok) {
@@ -280,13 +282,14 @@ class SlackAdapter extends ChannelAdapter {
     return data.url
   }
 
-  private async startSocketMode(): Promise<void> {
+  private async startSocketMode(signal?: AbortSignal): Promise<void> {
     if (this.shouldStop) return
 
     try {
       this.cleanup()
 
-      const wsUrl = await this.getSocketModeUrl()
+      const wsUrl = await this.getSocketModeUrl(signal)
+      if (signal?.aborted || this.shouldStop) return
       this.log.info('Connecting to Slack Socket Mode')
 
       const ws = new WebSocket(wsUrl)
@@ -320,6 +323,7 @@ class SlackAdapter extends ChannelAdapter {
         this.log.error('Slack WebSocket error', { error: err.message })
       })
     } catch (error) {
+      if (signal?.aborted) return
       this.log.error('Failed to start Slack Socket Mode', {
         error: error instanceof Error ? error.message : String(error)
       })
@@ -624,14 +628,15 @@ class SlackAdapter extends ChannelAdapter {
 
   // ─── Slack Web API Helper ──────────────────────────────────
 
-  private async apiRequest(method: string, body: Record<string, unknown>): Promise<unknown> {
+  private async apiRequest(method: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     const response = await net.fetch(`${SLACK_API_BASE}/${method}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.botToken}`,
         'Content-Type': 'application/json; charset=utf-8'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal
     })
 
     if (!response.ok) {
@@ -701,12 +706,8 @@ class SlackAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('slack', (channel, agentId) => {
+export function createSlackAdapter(config: ChannelAdapterConfig<'slack'>) {
   return new SlackAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

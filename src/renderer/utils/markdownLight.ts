@@ -20,19 +20,6 @@ export const findCitationInChildren = (children: any): string => {
 }
 
 /**
- * 转换数学公式格式：
- * - 将 LaTeX 格式的 '\\[' 和 '\\]' 转换为 '$$$$'。
- * - 将 LaTeX 格式的 '\\(' 和 '\\)' 转换为 '$$'。
- * @param {string} input 输入字符串
- * @returns {string} 转换后的字符串
- */
-export function convertMathFormula(input: string): string {
-  return input
-    ? input.replaceAll('\\[', '$$$$').replaceAll('\\]', '$$$$').replaceAll('\\(', '$$').replaceAll('\\)', '$$')
-    : input
-}
-
-/**
  * 移除 Markdown 文本中每行末尾的两个空格。
  * @param {string} markdown 输入的 Markdown 文本
  * @returns {string} 处理后的文本

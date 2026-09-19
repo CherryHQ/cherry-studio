@@ -13,6 +13,7 @@ import {
 
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { isAbortError } from '@main/utils/error'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
@@ -192,7 +193,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         throw err
       }
 
-      logger.error('agent generate error', err as Error)
+      logger.error('agent generate error', chatErrorContext(err))
       if (hooks.onError) {
         try {
           await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
@@ -413,7 +414,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           params.errorContext?.modelId ?? params.modelId
         )
         const action = await invokeOnError(streamError)
-        const logError = streamError instanceof Error ? streamError : serializeError(streamError)
+        const logError = chatErrorContext(streamError)
         if (action === 'retry') {
           // TODO: retry logic
           // retry is reserved for a future implementation — today the loop logs and aborts.
