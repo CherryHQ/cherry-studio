@@ -1,5 +1,9 @@
-import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
+import { MoreHorizontal } from 'lucide-react'
+import { memo, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@renderer/components/OpenTarget'
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import { getFileIconName } from '@renderer/utils/fileIconName'
@@ -7,9 +11,6 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { MoreHorizontal } from 'lucide-react'
-import { memo, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 
@@ -17,17 +18,25 @@ interface ClickableFilePathProps {
   path: string
   displayName?: string
   interactive?: boolean
+  preserveWrappingPunctuation?: boolean
 }
 
 export const ClickableFilePath = memo(function ClickableFilePath({
   path,
   displayName,
-  interactive = true
+  interactive = true,
+  preserveWrappingPunctuation = false
 }: ClickableFilePathProps) {
   const { t } = useTranslation()
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
-  const displayPath = useMemo(() => normalizeInlineFilePath(path), [path])
-  const unresolvedTargetPath = useMemo(() => resolveInlineFilePath(path), [path])
+  const displayPath = useMemo(
+    () => (preserveWrappingPunctuation ? path : normalizeInlineFilePath(path)),
+    [path, preserveWrappingPunctuation]
+  )
+  const unresolvedTargetPath = useMemo(
+    () => resolveInlineFilePath(path, { preserveWrappingPunctuation }),
+    [path, preserveWrappingPunctuation]
+  )
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const actions = useOptionalMessageListActions()
   const resolvePath = actions?.resolvePath

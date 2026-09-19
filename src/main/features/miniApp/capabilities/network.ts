@@ -1,10 +1,11 @@
 import dns from 'node:dns'
 import { BlockList, isIP } from 'node:net'
 
-import { application } from '@application'
-import { MiniAppManifestSchema } from '@shared/types/miniAppManifest'
 import { net } from 'electron'
 import * as z from 'zod'
+
+import { application } from '@application'
+import { MiniAppManifestSchema } from '@shared/types/miniAppManifest'
 
 import { MiniAppUnavailableError } from '../errors'
 import { PermissionDeniedError } from '../grants'

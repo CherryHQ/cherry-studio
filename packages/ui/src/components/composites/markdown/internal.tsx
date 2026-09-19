@@ -40,7 +40,13 @@ import {
   SVG_ELEMENT_REGEX
 } from './utils'
 
-const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.values(defaultRemarkPlugins)
+const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).map(([name, plugin]) => {
+  if (name !== 'gfm' || !Array.isArray(plugin)) return plugin
+
+  // Keep GFM extensions while treating single tildes as literal chat text.
+  const [gfmPlugin, options] = plugin
+  return [gfmPlugin, { ...(options as Record<string, unknown>), singleTilde: false }] as Pluggable
+})
 
 function MarkdownBlock({ content, ...props }: BlockProps): ReactElement {
   const markdownCtx = useMemo(() => ({ content }), [content])
@@ -98,6 +104,7 @@ export interface MarkdownCoreProps {
   mode: 'static' | 'streaming'
   /** Repair half-typed markdown at the tail (only meaningful in streaming mode). */
   parseIncompleteMarkdown?: boolean
+  parseMarkdownIntoBlocksFn?: (source: string) => string[]
   className?: string
   disallowedElements?: readonly string[]
   /** Override the default 'Footnotes' label (for i18n). */
@@ -116,6 +123,7 @@ export function MarkdownCore({
   animated,
   mode,
   parseIncompleteMarkdown,
+  parseMarkdownIntoBlocksFn,
   className,
   disallowedElements = DISALLOWED_ELEMENTS,
   footnoteLabel = 'Footnotes',
@@ -196,6 +204,7 @@ export function MarkdownCore({
           disallowedElements={disallowedElements}
           urlTransform={urlTransform}
           parseIncompleteMarkdown={parseIncompleteMarkdown}
+          parseMarkdownIntoBlocksFn={parseMarkdownIntoBlocksFn}
           normalizeHtmlIndentation
           remarkRehypeOptions={remarkRehypeOptions}
           animated={animated || undefined}

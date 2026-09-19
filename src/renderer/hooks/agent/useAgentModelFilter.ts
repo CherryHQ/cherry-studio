@@ -10,6 +10,9 @@
  * those make sense as chat targets).
  */
 
+import { useMemo } from 'react'
+import useSWR from 'swr'
+
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
@@ -17,8 +20,6 @@ import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
-import { useMemo } from 'react'
-import useSWR from 'swr'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'

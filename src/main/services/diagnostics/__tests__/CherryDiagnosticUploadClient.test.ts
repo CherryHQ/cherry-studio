@@ -3,10 +3,11 @@ import { appendFile, mkdtemp, rename, rm, truncate, utimes, writeFile } from 'no
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type * as FileUtils from '@main/utils/file'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as FileUtils from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const signerMocks = vi.hoisted(() => ({ generateDiagnosticUploadHeaders: vi.fn() }))
 const snapshotHooks = vi.hoisted(() => ({ onFirstRead: undefined as undefined | (() => Promise<void>) }))

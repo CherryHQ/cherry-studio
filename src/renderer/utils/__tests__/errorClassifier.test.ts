@@ -1,5 +1,6 @@
-import type { SerializedError } from '@renderer/types/error'
 import { describe, expect, it } from 'vitest'
+
+import type { SerializedError } from '@renderer/types/error'
 
 import { classifyError } from '../errorClassifier'
 
@@ -396,7 +397,7 @@ describe('classifyError', () => {
   it('classifies embedding error as knowledge', () => {
     const result = classifyError(makeError({ message: 'embedding model failed' }))
     expect(result.category).toBe('knowledge')
-    expect(result.navTarget).toBe('/knowledge')
+    expect(result.navTarget).toBe('/app/knowledge')
   })
 
   it('classifies knowledge base error as knowledge', () => {

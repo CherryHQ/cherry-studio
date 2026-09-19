@@ -40,7 +40,8 @@ export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'chat-list-position',
     titleKey: 'settings.display.list_position.chat',
-    groupKey: 'settings.general.common.sections.display_language'
+    groupKey: 'settings.general.common.sections.display_language',
+    aliases: ['sidebar', '侧边栏']
   },
   {
     anchorId: 'work-list-position',
@@ -116,12 +117,14 @@ export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'use-serif-font',
     titleKey: 'settings.messages.use_serif_font',
-    groupKey: messagesGroup
+    groupKey: messagesGroup,
+    aliases: ['serif', 'serif font', 'message font', '字体', '衬线']
   },
   {
     anchorId: 'thought-auto-collapse',
     titleKey: 'chat.settings.thought_auto_collapse.label',
-    groupKey: messagesGroup
+    groupKey: messagesGroup,
+    aliases: ['thinking', '思维链']
   },
   {
     anchorId: 'show-message-outline',
@@ -131,7 +134,8 @@ export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'message-style',
     titleKey: 'message.message.style.label',
-    groupKey: messagesGroup
+    groupKey: messagesGroup,
+    aliases: ['气泡', '气泡样式', '对话样式']
   },
   {
     anchorId: 'multi-model-style',

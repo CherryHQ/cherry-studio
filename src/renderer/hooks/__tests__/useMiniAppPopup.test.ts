@@ -1,4 +1,3 @@
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { mockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
@@ -6,8 +5,10 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { MiniApp } from '@shared/data/types/miniApp'
+
 // Mock side-effect dependencies BEFORE importing the hook
-vi.mock('@renderer/utils/webviewStateManager', () => ({
+vi.mock('@renderer/services/MiniAppWebviewService', () => ({
   clearWebviewState: vi.fn(),
   setWebviewLoaded: vi.fn()
 }))
@@ -38,7 +39,7 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 // Import mocked modules
-import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/services/MiniAppWebviewService'
 
 const mockClearWebviewState = vi.mocked(clearWebviewState)
 const mockSetWebviewLoaded = vi.mocked(setWebviewLoaded)
@@ -552,7 +553,7 @@ describe('useMiniAppPopup', () => {
         })
       })
 
-      expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', 'https://example.com/help')
+      expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', 'https://example.com/help')
       expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_path', expect.anything())
       expect(mockTabs.openTab).not.toHaveBeenCalled()
       expect(getKeepAlive()).toEqual([])
@@ -576,7 +577,7 @@ describe('useMiniAppPopup', () => {
         'system.shell.open_path',
         '/Applications/Cherry Studio/resources/releases.html'
       )
-      expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_website', expect.anything())
+      expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_external_website', expect.anything())
       expect(mockTabs.openTab).not.toHaveBeenCalled()
       expect(getKeepAlive()).toEqual([])
     })

@@ -1,3 +1,7 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { describe, expect, it, vi } from 'vitest'
+
 import {
   RightPanel,
   type RightPanelCapability,
@@ -5,9 +9,6 @@ import {
   RightPanelShortcut
 } from '@renderer/components/chat/panes/Shell'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
-import { fireEvent, render, screen } from '@testing-library/react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
 
 import ConversationShell from '../ConversationShell'
 import { ConversationTopBarPortal, ConversationTopBarPortalHost } from '../ConversationTopBarPortal'
@@ -128,6 +129,15 @@ describe('ConversationShell', () => {
     expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('')
     expect(topRightTool).toHaveClass('h-(--navbar-height)')
     expect(rightSpacer).toHaveClass('w-2')
+  })
+
+  it('inherits embedded height from its flex parent', () => {
+    const { container } = render(<ConversationShell center={<div />} />)
+    const shell = container.firstElementChild
+
+    // Parent-owned height prevents overflow-hidden ancestors from becoming hidden scroll containers.
+    expect(shell).toHaveClass('h-full', 'min-h-0')
+    expect(shell?.className).not.toContain('100vh')
   })
 
   it('fits detached content below the standalone window title bar', () => {

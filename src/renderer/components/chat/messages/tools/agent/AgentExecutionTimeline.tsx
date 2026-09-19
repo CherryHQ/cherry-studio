@@ -1,8 +1,9 @@
-import { useAgentLaunchIndex, usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { parse as parsePartialJson } from 'partial-json'
 import { type ReactElement, useDeferredValue, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useAgentLaunchIndex, usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import {
   type AgentLaunchIndex,

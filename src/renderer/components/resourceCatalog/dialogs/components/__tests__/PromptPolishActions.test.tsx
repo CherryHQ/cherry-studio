@@ -1,7 +1,8 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Profiler, startTransition, Suspense, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 const mocks = vi.hoisted(() => ({
   fetchGenerate: vi.fn(),
@@ -114,7 +115,8 @@ describe('PromptPolishActions', () => {
     expect(mocks.fetchGenerate).toHaveBeenCalledWith({
       prompt: TEST_EXISTING_SYSTEM_PROMPT,
       content: 'Draft {{date}} for ${city}',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
 
     const undoButton = screen.getByRole('button', { name: 'Undo' })
@@ -146,7 +148,8 @@ describe('PromptPolishActions', () => {
     expect(mocks.fetchGenerate).toHaveBeenCalledWith({
       prompt: TEST_GENERATE_SYSTEM_PROMPT,
       content: 'Alpha Agent',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))

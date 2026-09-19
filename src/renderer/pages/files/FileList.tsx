@@ -1,17 +1,9 @@
-import { Button, Checkbox, type CheckedState } from '@cherrystudio/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  FolderOpen,
-  Pencil,
-  RotateCcw,
-  SquareArrowOutUpRight,
-  Trash2
-} from 'lucide-react'
+import { ChevronDown, ChevronsUpDown, ChevronUp, FolderOpen, Pencil, SquareArrowOutUpRight, Trash2 } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Checkbox, type CheckedState } from '@cherrystudio/ui'
 
 import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
@@ -47,7 +39,7 @@ function SortHeader({
       variant="ghost"
       size="sm"
       onClick={() => onSort(field)}
-      className="!text-muted-foreground hover:!text-foreground h-full min-h-0 w-full justify-start gap-1 rounded-none px-0 py-0 font-medium text-xs shadow-none hover:bg-transparent">
+      className="h-full min-h-0 w-full justify-start gap-1 rounded-none px-0 py-0 text-xs font-medium !text-muted-foreground shadow-none hover:bg-transparent hover:!text-foreground">
       <span>{label}</span>
       <SortIcon size={9} className={iconClass} />
     </Button>
@@ -70,7 +62,7 @@ export const FileListHeader = memo(function FileListHeader({
   const { t } = useTranslation()
 
   return (
-    <div className={`${FILE_LIST_GRID} mx-3 mb-2 h-10 shrink-0 border-border border-b px-2.5`}>
+    <div className={`${FILE_LIST_GRID} mx-3 mb-2 h-10 shrink-0 border-b border-border px-2.5`}>
       <div className="flex items-center self-stretch">
         <label className="flex size-full cursor-pointer items-center">
           <Checkbox
@@ -111,30 +103,28 @@ export const FileList = memo(function FileList({
   onSelect,
   onOpen,
   onDelete,
-  onRestore,
   onRename,
   onShowInFolder,
-  isTrash,
   menuActions,
   scrollRef,
   renamingId,
   onRenameConfirm,
-  onRenameCancel
+  onRenameCancel,
+  deleteDisabled = false
 }: {
   files: FileItem[]
   selectedIds: Set<string>
   onSelect: (id: string, isChecked: boolean, shouldSelectRange: boolean) => void
   onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
-  onRestore: (id: string) => void
   onRename: (id: string) => void
   onShowInFolder: (id: string) => void
-  isTrash: boolean
   menuActions: FileContextMenuActions
   scrollRef: RefObject<HTMLDivElement | null>
   renamingId: string | null
   onRenameConfirm: (id: string, name: string) => void
   onRenameCancel: () => void
+  deleteDisabled?: boolean
 }) {
   const { t } = useTranslation()
   const getItemKey = useCallback((index: number) => files[index]?.id ?? index, [files])
@@ -161,19 +151,14 @@ export const FileList = memo(function FileList({
         const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
         const canUseFileActions = !file.isMissing
-        const canRestore = isTrash && canUseFileActions
-        const canOpen = !isTrash && canUseFileActions
-        const canRename = !isTrash && canUseFileActions
-        const canShowInFolder = !isTrash && canUseFileActions
-        const deleteLabel = isTrash
-          ? t('files.permanent_delete')
-          : file.origin === 'external'
-            ? t('files.remove_from_library')
-            : t('files.delete.label')
+        const canOpen = canUseFileActions
+        const canRename = canUseFileActions
+        const canShowInFolder = canUseFileActions
+        const deleteLabel = file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
         const renderActionPlaceholder = (key: string) => <div key={key} className="size-6" aria-hidden="true" />
 
         return (
-          <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
+          <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
             <div
               onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
@@ -210,7 +195,7 @@ export const FileList = memo(function FileList({
                   />
                 ) : (
                   <>
-                    <span className="truncate text-foreground text-sm">{file.name}</span>
+                    <span className="truncate text-sm text-foreground">{file.name}</span>
                     {file.isMissing && (
                       <span className="shrink-0 rounded border border-error-border bg-error-subtle px-1.5 py-0.5 text-[10px] text-error-subtle-foreground">
                         {t('files.missing')}
@@ -219,9 +204,9 @@ export const FileList = memo(function FileList({
                   </>
                 )}
               </div>
-              <span className="truncate text-muted-foreground text-xs">{file.size}</span>
-              <span className="truncate text-muted-foreground text-xs">{getFormatLabel(file.format)}</span>
-              <span className="truncate text-foreground-tertiary text-xs">{file.updatedAt}</span>
+              <span className="truncate text-xs text-muted-foreground">{file.size}</span>
+              <span className="truncate text-xs text-muted-foreground">{getFormatLabel(file.format)}</span>
+              <span className="truncate text-xs text-foreground-tertiary">{file.updatedAt}</span>
               <div className="grid grid-cols-4 justify-items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                 {canOpen ? (
                   <Button
@@ -229,7 +214,7 @@ export const FileList = memo(function FileList({
                     size="icon-sm"
                     aria-label={t('files.open')}
                     title={t('files.open')}
-                    className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
+                    className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-foreground"
                     onClick={(e) => {
                       e.stopPropagation()
                       onOpen(file)
@@ -245,7 +230,7 @@ export const FileList = memo(function FileList({
                     size="icon-sm"
                     aria-label={t('files.rename')}
                     title={t('files.rename')}
-                    className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
+                    className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-foreground"
                     onClick={(e) => {
                       e.stopPropagation()
                       onRename(file.id)
@@ -255,26 +240,13 @@ export const FileList = memo(function FileList({
                 ) : (
                   renderActionPlaceholder('rename')
                 )}
-                {canRestore ? (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('files.restore')}
-                    title={t('files.restore')}
-                    className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRestore(file.id)
-                    }}>
-                    <RotateCcw size={13} />
-                  </Button>
-                ) : canShowInFolder ? (
+                {canShowInFolder ? (
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     aria-label={t('files.show_in_folder')}
                     title={t('files.show_in_folder')}
-                    className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
+                    className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-foreground"
                     onClick={(e) => {
                       e.stopPropagation()
                       onShowInFolder(file.id)
@@ -287,9 +259,10 @@ export const FileList = memo(function FileList({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  disabled={deleteDisabled}
                   aria-label={deleteLabel}
                   title={deleteLabel}
-                  className="!text-muted-foreground hover:!text-destructive size-6 hover:bg-transparent"
+                  className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-destructive"
                   onClick={(e) => {
                     e.stopPropagation()
                     onDelete(file.id)

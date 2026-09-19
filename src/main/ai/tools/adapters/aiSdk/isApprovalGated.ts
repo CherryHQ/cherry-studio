@@ -1,5 +1,6 @@
-import { loggerService } from '@logger'
 import type { ModelMessage, Tool } from 'ai'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('isApprovalGated')
 

@@ -1,19 +1,23 @@
+import { memo, useEffect, useMemo } from 'react'
+
 import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
 import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
-import type { MessageListActions, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListActions,
+  MessageListSelectAllPagination,
+  MessageStreamingLayers
+} from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
-import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
+import { type Topic, TopicType } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { memo, useEffect, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
 import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
@@ -33,9 +37,13 @@ type Props = {
   hasOlder?: boolean
   /** Trigger fetching the next older page. */
   loadOlder?: () => void
+  /** Load-all handle for the multi-select "select all" action. */
+  selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openBrowserUrl?: MessageListActions['openBrowserUrl']
+  openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
@@ -52,14 +60,16 @@ const AgentSessionMessages = ({
   isLoading,
   hasOlder = false,
   loadOlder,
+  selectAllPagination,
   onOpenCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
+  openBrowserUrl,
+  openExternalUrl,
   openDiagnosticReport,
   deleteMessage,
   respondToolApproval
 }: Props) => {
-  const { t } = useTranslation()
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
@@ -83,7 +93,7 @@ const AgentSessionMessages = ({
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index]
       if (message?.role !== 'assistant') continue
-      const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+      const parts = partsByMessageId[message.id] ?? message.parts ?? []
       if (parts.length > 0) return message.id
     }
     return undefined
@@ -102,7 +112,7 @@ const AgentSessionMessages = ({
   const derivedTopic = useMemo<Topic>(
     () => ({
       id: sessionTopicId,
-      type: TopicType.Session as TopicTypeEnum,
+      type: TopicType.Session,
       assistantId: sessionAssistantId,
       name: sessionName,
       lastActivityAt: sessionLastActivityAt,
@@ -112,7 +122,7 @@ const AgentSessionMessages = ({
     }),
     [sessionTopicId, sessionAssistantId, sessionName, sessionLastActivityAt, sessionCreatedAt, sessionUpdatedAt]
   )
-  const diagnosticReport = useMemo(() => ({ location: t('error.diagnostic_report.locations.agent') }), [t])
+  const diagnosticReport = useMemo(() => ({ location: 'agent' }), [])
 
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
@@ -124,9 +134,12 @@ const AgentSessionMessages = ({
     isLoading,
     hasOlder,
     loadOlder,
+    selectAllPagination,
     openCitationsPanel: onOpenCitationsPanel,
     openAgentToolFlow,
     openArtifactFile,
+    openBrowserUrl,
+    openExternalUrl,
     openDiagnosticReport,
     diagnosticReport,
     deleteMessage,

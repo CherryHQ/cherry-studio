@@ -1,8 +1,9 @@
-import { Tooltip } from '@cherrystudio/ui'
-import type { ActionTool } from '@renderer/components/ActionTools'
 import { EllipsisVertical } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
+import type { ActionTool } from '@renderer/components/ActionTools'
 
 import CodeToolButton from './CodeToolButton'
 import { ToolWrapper } from './styles'

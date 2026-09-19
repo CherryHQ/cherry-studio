@@ -1,7 +1,8 @@
-import { loggerService } from '@logger'
 import type { Attributes, Span, SpanKind, SpanOptions, TimeInput, Tracer } from '@opentelemetry/api'
 import { ROOT_CONTEXT, SpanStatusCode, trace, TraceFlags } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+
+import { loggerService } from '@logger'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { TRACER_NAME } from '../constants'

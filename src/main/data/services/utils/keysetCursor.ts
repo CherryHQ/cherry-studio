@@ -23,8 +23,9 @@
  *   via `parseCursor` but keeps its own throw policy.
  */
 
-import { loggerService } from '@logger'
 import { and, asc, desc, eq, gt, lt, or, type SQL, type SQLWrapper } from 'drizzle-orm'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('keysetCursor')
 
