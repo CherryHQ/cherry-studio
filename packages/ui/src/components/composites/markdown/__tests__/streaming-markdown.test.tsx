@@ -139,4 +139,40 @@ describe('StreamingMarkdown', () => {
     await user.click(screen.getByRole('button', { name: 'Copy table' }))
     expect(copied).toEqual([tableMarkdown])
   })
+
+  it('reuses memoized blocks when content grows but plugin values are unchanged', () => {
+    // New array identities with equal contents must not force every block to
+    // re-parse on each streaming tick — only the grown tail re-renders.
+    const rendered: string[] = []
+    function CountingParagraph({ children }: JSX.IntrinsicElements['p'] & ExtraProps) {
+      rendered.push(String(children))
+      return <p>{children}</p>
+    }
+    const remarkNoop = () => {}
+    const rehypeNoop = () => {}
+    const first = 'First paragraph\n\nSecond paragraph'
+    const { rerender } = render(
+      <StreamingMarkdown
+        id="stable-blocks"
+        animated={false}
+        components={{ p: CountingParagraph }}
+        remarkPlugins={[remarkNoop]}
+        rehypePlugins={[rehypeNoop]}>
+        {first}
+      </StreamingMarkdown>
+    )
+    expect(rendered).toEqual(['First paragraph', 'Second paragraph'])
+    rendered.length = 0
+    rerender(
+      <StreamingMarkdown
+        id="stable-blocks"
+        animated={false}
+        components={{ p: CountingParagraph }}
+        remarkPlugins={[remarkNoop]}
+        rehypePlugins={[rehypeNoop]}>
+        {`${first}\n\nThird paragraph`}
+      </StreamingMarkdown>
+    )
+    expect(rendered).toEqual(['Third paragraph'])
+  })
 })
