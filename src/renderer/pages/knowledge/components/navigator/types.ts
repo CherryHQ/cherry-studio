@@ -11,8 +11,11 @@ export interface BaseNavigatorContentProps {
   groups: Group[]
   groupById: ReadonlyMap<string, Group>
   selectedBaseId: string
+  checkedBaseIds: ReadonlySet<string>
   getGroupLabel: (groupId: string | null) => string
   onSelectBase: (baseId: string) => void
+  onToggleBaseChecked: (baseId: string, next: boolean) => void
+  onToggleAllChecked: (next: boolean) => void
   onMoveBase: (baseId: string, groupId: string | null) => Promise<void> | void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onRenameGroup: (group: Pick<Group, 'id' | 'name'>) => void
@@ -28,7 +31,9 @@ export interface BaseNavigatorGroupSectionProps {
   groupLabel: string
   groups: Group[]
   selectedBaseId: string
+  checkedBaseIds: ReadonlySet<string>
   onSelectBase: (baseId: string) => void
+  onToggleBaseChecked: (baseId: string, next: boolean) => void
   onMoveBase: (baseId: string, groupId: string | null) => Promise<void> | void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onRenameGroup: (group: Pick<Group, 'id' | 'name'>) => void
@@ -54,7 +59,9 @@ export interface KnowledgeBaseRowProps {
   base: KnowledgeBaseListItem
   groups: Group[]
   selected: boolean
+  checked: boolean
   onSelectBase: (baseId: string) => void
+  onToggleChecked: (next: boolean) => void
   onMoveBase: (baseId: string, groupId: string | null) => Promise<void> | void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onCreateGroup: (baseId: string) => void

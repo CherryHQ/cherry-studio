@@ -12,7 +12,9 @@ const BaseNavigatorGroupSection = ({
   groupLabel,
   groups,
   selectedBaseId,
+  checkedBaseIds,
   onSelectBase,
+  onToggleBaseChecked,
   onMoveBase,
   onRenameBase,
   onRenameGroup,
@@ -48,7 +50,9 @@ const BaseNavigatorGroupSection = ({
               base={base}
               groups={groups}
               selected={base.id === selectedBaseId}
+              checked={checkedBaseIds.has(base.id)}
               onSelectBase={onSelectBase}
+              onToggleChecked={(next) => onToggleBaseChecked(base.id, next)}
               onMoveBase={onMoveBase}
               onRenameBase={onRenameBase}
               onCreateGroup={onCreateGroup}

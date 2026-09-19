@@ -623,7 +623,54 @@ describe('useDeleteKnowledgeBase', () => {
     expect(result.current.isDeleting).toBe(false)
     expect(result.current.deleteError).toBe(deleteError)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge base', deleteError, {
-      baseId: 'base-1'
+      baseId: 'base-1',
+      baseIds: ['base-1']
+    })
+  })
+
+  // Catches a bulk-delete path that fans out one cache invalidate per base (N IPC deletes
+  // must share a single refresh) or that silently skips remaining ids after the first call.
+  it('deletes every selected base then refreshes dependent caches once', async () => {
+    const { result } = renderHook(() => useDeleteKnowledgeBase())
+
+    await act(async () => {
+      await result.current.deleteBases(['base-1', 'base-2', 'base-1'])
+    })
+
+    expect(mockIpcRequest.mock.calls).toEqual([
+      ['knowledge.delete_base', { baseId: 'base-1' }],
+      ['knowledge.delete_base', { baseId: 'base-2' }]
+    ])
+    expect(mockInvalidateCache).toHaveBeenCalledOnce()
+    expect(mockInvalidateCache).toHaveBeenCalledWith([
+      '/knowledge-bases',
+      '/agents',
+      '/agents/*',
+      '/assistants',
+      '/assistants/*'
+    ])
+    expect(result.current.isDeleting).toBe(false)
+    expect(result.current.deleteError).toBeUndefined()
+  })
+
+  it('stops on the first failed bulk delete, still refreshes once, and rejects', async () => {
+    const deleteError = new Error('delete failed')
+    mockIpcRequest.mockResolvedValueOnce(undefined).mockRejectedValueOnce(deleteError)
+    const { result } = renderHook(() => useDeleteKnowledgeBase())
+
+    await act(async () => {
+      await expect(result.current.deleteBases(['base-1', 'base-2', 'base-3'])).rejects.toBe(deleteError)
+    })
+
+    expect(mockIpcRequest.mock.calls).toEqual([
+      ['knowledge.delete_base', { baseId: 'base-1' }],
+      ['knowledge.delete_base', { baseId: 'base-2' }]
+    ])
+    expect(mockInvalidateCache).toHaveBeenCalledOnce()
+    expect(result.current.deleteError).toBe(deleteError)
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge base', deleteError, {
+      baseId: 'base-2',
+      baseIds: ['base-1', 'base-2', 'base-3']
     })
   })
 })

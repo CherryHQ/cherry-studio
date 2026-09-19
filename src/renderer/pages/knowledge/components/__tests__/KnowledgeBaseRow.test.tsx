@@ -43,6 +43,23 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  Checkbox: ({
+    checked,
+    onCheckedChange,
+    'aria-label': ariaLabel
+  }: {
+    checked?: boolean | 'indeterminate'
+    onCheckedChange?: (checked: boolean | 'indeterminate') => void
+    'aria-label'?: string
+  }) => (
+    <input
+      type="checkbox"
+      aria-label={ariaLabel}
+      aria-checked={checked === 'indeterminate' ? 'mixed' : Boolean(checked)}
+      checked={checked === true}
+      onChange={(event) => onCheckedChange?.(event.target.checked)}
+    />
+  ),
   ConfirmDialog: () => null,
   DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -83,6 +100,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.context.delete': '删除知识库',
           'knowledge.context.move_to': '移动到',
           'knowledge.context.rename': '重命名',
+          'knowledge.navigator.select_row': '选择知识库',
           'launchpad.pin_to_sidebar': '添加到侧边栏'
         }) as Record<string, string>
       )[key] ?? key
@@ -127,7 +145,9 @@ describe('KnowledgeBaseRow', () => {
         base={createKnowledgeBase({ itemCount: 3 })}
         groups={[createGroup()]}
         selected={false}
+        checked={false}
         onSelectBase={vi.fn()}
+        onToggleChecked={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
         onCreateGroup={vi.fn()}
@@ -148,7 +168,9 @@ describe('KnowledgeBaseRow', () => {
         base={createKnowledgeBase()}
         groups={[createGroup()]}
         selected={false}
+        checked={false}
         onSelectBase={vi.fn()}
+        onToggleChecked={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
         onCreateGroup={vi.fn()}
@@ -170,7 +192,9 @@ describe('KnowledgeBaseRow', () => {
         base={base}
         groups={[createGroup()]}
         selected={false}
+        checked={false}
         onSelectBase={vi.fn()}
+        onToggleChecked={vi.fn()}
         onMoveBase={vi.fn()}
         onRenameBase={vi.fn()}
         onCreateGroup={vi.fn()}
@@ -183,5 +207,32 @@ describe('KnowledgeBaseRow', () => {
     fireEvent.click(screen.getByRole('button', { name: '添加到侧边栏' }))
 
     expect(onToggleSidebar).toHaveBeenCalledWith(base)
+  })
+
+  it('toggles batch selection without activating the base', () => {
+    const onSelectBase = vi.fn()
+    const onToggleChecked = vi.fn()
+
+    render(
+      <KnowledgeBaseRow
+        base={createKnowledgeBase()}
+        groups={[createGroup()]}
+        selected={false}
+        checked={false}
+        onSelectBase={onSelectBase}
+        onToggleChecked={onToggleChecked}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        sidebarPinned={false}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择知识库' }))
+
+    expect(onToggleChecked).toHaveBeenCalledWith(true)
+    expect(onSelectBase).not.toHaveBeenCalled()
   })
 })
