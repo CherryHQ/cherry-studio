@@ -132,7 +132,7 @@ describe('knowledge routes (v2)', () => {
 
     const { status, body } = await call('POST', '/knowledge-bases', { name: 'Imported notes' })
 
-    expect(status).toBe(200)
+    expect(status).toBe(201)
     expect(mockCreateBase).toHaveBeenCalledWith({
       name: 'Imported notes',
       embeddingModelId: undefined,

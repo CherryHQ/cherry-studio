@@ -63,17 +63,20 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   )
   .post(
     '/',
-    async ({ body }) => {
+    async ({ body, status }) => {
       const orchestrator = application.get('KnowledgeService')
-      return await orchestrator.createBase({
-        name: body.name,
-        embeddingModelId: body.embedding_model_id,
-        dimensions: body.dimensions
-      })
+      return status(
+        201,
+        await orchestrator.createBase({
+          name: body.name,
+          embeddingModelId: body.embedding_model_id,
+          dimensions: body.dimensions
+        })
+      )
     },
     {
       body: CreateKnowledgeBaseRequestSchema,
-      response: { 200: KnowledgeBaseResponseSchema },
+      response: { 201: KnowledgeBaseResponseSchema },
       detail: {
         tags: [DOC_TAGS.cherry],
         summary: 'Create Knowledge Base',
