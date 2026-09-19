@@ -4,6 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
+import { withPathMutationLock } from '../mutationLock'
 import { logger, validatePath } from '../types'
 
 // Schema definition
@@ -29,51 +30,57 @@ export const writeToolDefinition = {
 export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, baseDir: string): Promise<CallToolResult> {
   const filePath = args.file_path
   const validPath = await validatePath(filePath, baseDir)
-
-  // Create parent directory if it doesn't exist
-  const parentDir = path.dirname(validPath)
-  try {
-    await fs.mkdir(parentDir, { recursive: true })
-  } catch (error: any) {
-    if (error.code !== 'EEXIST') {
-      throw new Error(`Failed to create parent directory: ${error.message}`)
-    }
-  }
-
-  // Check if file exists (for logging)
-  let isOverwrite = false
-  try {
-    await fs.stat(validPath)
-    isOverwrite = true
-  } catch {
-    // File doesn't exist, that's fine
-  }
-
-  // Write the file
-  try {
-    await fs.writeFile(validPath, args.content, 'utf-8')
-  } catch (error: any) {
-    throw new Error(`Failed to write file: ${error.message}`)
-  }
-
-  // Log the operation
-  logger.info('File written', {
-    path: validPath,
-    overwrite: isOverwrite,
-    size: args.content.length
-  })
-
-  // Format output
-  const relativePath = path.relative(baseDir, validPath)
-  const action = isOverwrite ? 'Updated' : 'Created'
-  const lines = args.content.split('\n').length
-
-  return {
-    content: [
-      {
-        type: 'text',
-        text: `${action} file: ${relativePath}\n` + `Size: ${args.content.length} bytes\n` + `Lines: ${lines}`
+  return withPathMutationLock(validPath, async () => {
+    // Create parent directory if it doesn't exist
+    const parentDir = path.dirname(validPath)
+    try {
+      await fs.mkdir(parentDir, { recursive: true })
+    } catch (error: any) {
+      if (error.code !== 'EEXIST') {
+        throw new Error(`Failed to create parent directory: ${error.message}`)
       }
-    ]
-  }
+    }
+
+    // Check if file exists (for logging)
+    let isOverwrite = false
+    try {
+      await fs.stat(validPath)
+      isOverwrite = true
+    } catch {
+      // File doesn't exist, that's fine
+    }
+
+    // Write the file
+    try {
+      await fs.writeFile(validPath, args.content, 'utf-8')
+    } catch (error: any) {
+      throw new Error(`Failed to write file: ${error.message}`)
+    }
+
+    const writtenContent = await fs.readFile(validPath, 'utf-8')
+    if (writtenContent !== args.content) {
+      throw new Error('Post-write verification failed: file content did not match requested content')
+    }
+
+    // Log the operation
+    logger.info('File written', {
+      path: validPath,
+      overwrite: isOverwrite,
+      size: args.content.length
+    })
+
+    // Format output
+    const relativePath = path.relative(baseDir, validPath)
+    const action = isOverwrite ? 'Updated' : 'Created'
+    const lines = args.content.split('\n').length
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `${action} file: ${relativePath}\n` + `Size: ${args.content.length} bytes\n` + `Lines: ${lines}`
+        }
+      ]
+    }
+  })
 }
