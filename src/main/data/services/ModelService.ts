@@ -47,7 +47,8 @@ import type {
   ModelCapability,
   RuntimeModelPricing,
   RuntimeParameterSupport,
-  RuntimeReasoning
+  RuntimeReasoning,
+  ServerToolOverrides
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
 
@@ -180,6 +181,7 @@ export interface UserModelOverlay {
   // Persisted reasoning rows may have optional fields the runtime type requires;
   // applyUserOverlay narrows it via cast on copy.
   reasoning?: Partial<RuntimeReasoning> | null
+  serverToolOverrides?: ServerToolOverrides | null
 }
 
 /**
@@ -234,6 +236,9 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
   }
   if (overlay.pricing != null) {
     result.pricing = overlay.pricing
+  }
+  if (overlay.serverToolOverrides != null) {
+    result.serverToolOverrides = overlay.serverToolOverrides
   }
 
   return result
@@ -300,7 +305,8 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'isEnabled',
   'isHidden',
   'isDeprecated',
-  'notes'
+  'notes',
+  'serverToolOverrides'
 ]
 
 /** Convert CreateModelDto to an InsertUserModelRow (shared by preset and custom paths). */
@@ -325,6 +331,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     reasoning: null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
+    serverToolOverrides: dto.serverToolOverrides ?? null,
     isEnabled: true,
     isHidden: false
   }
@@ -390,6 +397,7 @@ function presetDeltaToNewUserModel(
     reasoning: null,
     parameters: fields.has('parameters') ? (dto.parameterSupport ?? null) : null,
     pricing: fields.has('pricing') ? (dto.pricing ?? null) : null,
+    serverToolOverrides: dto.serverToolOverrides ?? null,
     isEnabled: true,
     isHidden: false
   }
@@ -455,7 +463,8 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
-    notes: row.notes ?? undefined
+    notes: row.notes ?? undefined,
+    serverToolOverrides: row.serverToolOverrides ?? undefined
   }
 }
 
@@ -469,7 +478,8 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
-    notes: row.notes ?? undefined
+    notes: row.notes ?? undefined,
+    serverToolOverrides: row.serverToolOverrides ?? undefined
   }
 }
 

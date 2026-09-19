@@ -11,6 +11,7 @@ import { getDefaultGroupName } from '@renderer/utils/naming'
 import type { UpdateModelDto } from '@shared/data/api/schemas/models'
 import { type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import { getDeliverableWebSearchEndpointTypes, isBuiltinWebSearchAvailable } from '@shared/utils/provider'
 
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
@@ -20,6 +21,7 @@ import {
   areModelClassificationsEqual,
   buildModelCapabilities,
   buildModelInputModalities,
+  buildServerToolOverrides,
   getInitialModelClassification,
   getModelApiId
 } from './helpers'
@@ -41,7 +43,8 @@ import type {
   ModelClassificationState,
   ModelDrawerMode,
   ModelInputModality,
-  ModelPrimaryType
+  ModelPrimaryType,
+  ModelWebSearchOverride
 } from './types'
 
 interface EditModelDrawerProps {
@@ -211,7 +214,20 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         ...(hasMaxOutputTokensOverride && nextMaxOutputTokens !== undefined
           ? { maxOutputTokens: nextMaxOutputTokens }
           : {}),
-        ...(hasPricingOverride ? { pricing: overrides.pricing } : {})
+        ...(hasPricingOverride ? { pricing: overrides.pricing } : {}),
+        ...(nextClassification
+          ? {
+              serverToolOverrides: buildServerToolOverrides(
+                effectiveClassification,
+                hasPurposeFieldsOverride && resolvedPurposeFields
+                  ? resolvedPurposeFields.endpointTypes
+                  : hasEndpointTypesOverride
+                    ? (overrides?.endpointTypes ?? endpointTypes)
+                    : (model.endpointTypes ?? endpointTypes),
+                defaultChatEndpoint
+              )
+            }
+          : {})
       }
     },
     [
@@ -225,6 +241,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       purposeFields,
       classification,
       defaultChatEndpoint,
+      endpointTypes,
       supportsStreaming
     ]
   )
@@ -308,6 +325,32 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     },
     [classification, commitClassification]
   )
+
+  const registryWebSearchAvailable = useMemo(() => {
+    if (!model || !provider) return false
+    return isBuiltinWebSearchAvailable({ ...model, serverToolOverrides: undefined }, provider)
+  }, [model, provider])
+
+  const webSearchEnableAllowed = useMemo(() => {
+    const endpoints = endpointTypes.length ? endpointTypes : model?.endpointTypes
+    return getDeliverableWebSearchEndpointTypes(endpoints, defaultChatEndpoint).length > 0
+  }, [defaultChatEndpoint, endpointTypes, model?.endpointTypes])
+
+  const webSearchSelected =
+    classification.webSearch === 'enabled' || (classification.webSearch === 'inherit' && registryWebSearchAvailable)
+
+  const handleToggleWebSearch = useCallback(() => {
+    let next: ModelWebSearchOverride
+    if (webSearchSelected) {
+      next = registryWebSearchAvailable ? 'disabled' : 'inherit'
+    } else if (!webSearchEnableAllowed && !registryWebSearchAvailable) {
+      toast.error(t('settings.models.add.web_search.endpoint_required'))
+      return
+    } else {
+      next = registryWebSearchAvailable ? 'inherit' : 'enabled'
+    }
+    commitClassification({ ...classification, webSearch: next })
+  }, [classification, commitClassification, registryWebSearchAvailable, t, webSearchEnableAllowed, webSearchSelected])
 
   const handleToggleInputModality = useCallback(
     (modality: ModelInputModality) => {
@@ -444,8 +487,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 <ModelClassificationControls
                   value={classification}
                   hasChanges={hasClassificationChanges}
+                  webSearchSelected={webSearchSelected}
+                  webSearchEnableAllowed={webSearchEnableAllowed || registryWebSearchAvailable}
                   onPrimaryTypeChange={handlePrimaryTypeChange}
                   onCapabilityToggle={handleToggleCapability}
+                  onWebSearchToggle={handleToggleWebSearch}
                   onInputModalityToggle={handleToggleInputModality}
                   onReset={handleResetClassification}
                 />

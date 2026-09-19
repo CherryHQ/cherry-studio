@@ -239,6 +239,30 @@ export type ModelTag = ModelCapabilityTag | (typeof UI_SERVER_TOOL_TAGS)[number]
 /** All possible ModelTag values (for iteration) */
 export const ALL_MODEL_TAGS: readonly ModelTag[] = [...UI_CAPABILITY_TAGS, ...UI_SERVER_TOOL_TAGS, 'free'] as const
 
+/**
+ * User-owned availability override for a known provider-native server tool.
+ * Describes availability only — delivery stays owned by Cherry Studio.
+ */
+export const ServerToolOverrideSchema = z.discriminatedUnion('state', [
+  z.object({
+    state: z.literal('enabled'),
+    /** Endpoint protocols on which the override makes the tool available. */
+    endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).min(1)
+  }),
+  z.object({
+    state: z.literal('disabled')
+  })
+])
+export type ServerToolOverride = z.infer<typeof ServerToolOverrideSchema>
+
+/** Per-tool overrides keyed by ServerTool id. Absent key ⇒ inherit provider registry. */
+export const ServerToolOverridesSchema = z
+  .object({
+    [SERVER_TOOL.WEB_SEARCH]: ServerToolOverrideSchema.optional()
+  })
+  .strict()
+export type ServerToolOverrides = z.infer<typeof ServerToolOverridesSchema>
+
 export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
 
 /** Persistable intrinsic reasoning metadata. Provider wire details are excluded. */
@@ -441,7 +465,13 @@ export const ModelSchema = z.object({
 
   // UI metadata
   /** User notes about this model */
-  notes: z.string().optional()
+  notes: z.string().optional(),
+
+  /**
+   * User-owned provider-native tool availability overrides for this
+   * provider-model pair. Absent / undefined inherits the provider registry.
+   */
+  serverToolOverrides: ServerToolOverridesSchema.optional()
 })
 
 export type Model = z.infer<typeof ModelSchema>

@@ -4693,6 +4693,7 @@
   "settings.models.add.quick_presets": "Schnellvorgaben",
   "settings.models.add.supported_text_delta.label": "Unterstützt inkrementelle Textausgabe",
   "settings.models.add.supported_text_delta.tooltip": "Modell gibt Text inkrementell zurück statt alles auf einmal. Standardmäßig aktiviert, bei Nicht-Unterstützung deaktivieren",
+  "settings.models.add.web_search.endpoint_required": "Die integrierte Websuche benötigt einen Responses-, Anthropic- oder Gemini-Endpunkt für dieses Modell.",
   "settings.models.api_key": "API-Schlüssel",
   "settings.models.base_url": "Basis-URL",
   "settings.models.bulk_disable": "Alle deaktivieren",

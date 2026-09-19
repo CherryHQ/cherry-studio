@@ -1,0 +1,1 @@
+ALTER TABLE `user_model` ADD `server_tool_overrides` text;

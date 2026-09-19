@@ -4693,6 +4693,7 @@
   "settings.models.add.quick_presets": "快速預設",
   "settings.models.add.supported_text_delta.label": "支援增量文字輸出",
   "settings.models.add.supported_text_delta.tooltip": "模型每次回傳文字增量，而不是一次性回傳所有文字，預設開啟，如果模型不支援，請關閉",
+  "settings.models.add.web_search.endpoint_required": "啟用模型內建聯網需要此模型設定 Responses、Anthropic 或 Gemini 端點。",
   "settings.models.api_key": "API 金鑰",
   "settings.models.base_url": "基礎 URL",
   "settings.models.bulk_disable": "全部停用",

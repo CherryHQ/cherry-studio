@@ -4693,6 +4693,7 @@
   "settings.models.add.quick_presets": "Presetări rapide",
   "settings.models.add.supported_text_delta.label": "Suportă ieșire text incrementală",
   "settings.models.add.supported_text_delta.tooltip": "Modelul returnează text incremental, mai degrabă decât tot odată. Activat implicit, dacă modelul nu acceptă acest lucru, te rugăm să dezactivezi această opțiune",
+  "settings.models.add.web_search.endpoint_required": "Căutarea web integrată necesită un endpoint Responses, Anthropic sau Gemini pe acest model.",
   "settings.models.api_key": "Cheie API",
   "settings.models.base_url": "URL de bază",
   "settings.models.bulk_disable": "Dezactivează tot",

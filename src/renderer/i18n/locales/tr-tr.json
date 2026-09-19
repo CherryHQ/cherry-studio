@@ -4693,6 +4693,7 @@
   "settings.models.add.quick_presets": "Hızlı ön ayarlar",
   "settings.models.add.supported_text_delta.label": "Artımlı metin çıktısını destekle",
   "settings.models.add.supported_text_delta.tooltip": "Model, metni tek seferde değil artımlı olarak döndürür. Varsayılan olarak etkindir; model bunu desteklemiyorsa bu seçeneği devre dışı bırakın",
+  "settings.models.add.web_search.endpoint_required": "Yerleşik web araması için bu modelde Responses, Anthropic veya Gemini uç noktası gerekir.",
   "settings.models.api_key": "API anahtarı",
   "settings.models.base_url": "Temel URL",
   "settings.models.bulk_disable": "Tümünü devre dışı bırak",

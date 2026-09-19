@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
 import {
   areModelClassificationsEqual,
   buildModelCapabilities,
   buildModelInputModalities,
+  buildServerToolOverrides,
   getInitialAddModelFormState,
   getInitialModelClassification,
   MODEL_ENDPOINT_OPTIONS,
@@ -46,6 +47,41 @@ describe('model drawer classification helpers', () => {
     expect(classification.primaryType).toBe('image')
     expect(classification.capabilities).toEqual(new Set([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]))
     expect(classification.inputModalities).toEqual(new Set([MODALITY.IMAGE, MODALITY.AUDIO]))
+    expect(classification.webSearch).toBe('inherit')
+  })
+
+  it('round-trips an enabled web-search override into a deliverable serverToolOverrides payload', () => {
+    const classification = getInitialModelClassification(
+      makeModel({
+        serverToolOverrides: {
+          [SERVER_TOOL.WEB_SEARCH]: {
+            state: 'enabled',
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+          }
+        }
+      })
+    )
+
+    expect(classification.webSearch).toBe('enabled')
+    expect(
+      buildServerToolOverrides(classification, [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+    ).toEqual({
+      [SERVER_TOOL.WEB_SEARCH]: {
+        state: 'enabled',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+      }
+    })
+  })
+
+  it('clears serverToolOverrides when web search is set back to inherit', () => {
+    const classification = getInitialModelClassification(
+      makeModel({
+        serverToolOverrides: { [SERVER_TOOL.WEB_SEARCH]: { state: 'disabled' } }
+      })
+    )
+    expect(classification.webSearch).toBe('disabled')
+    classification.webSearch = 'inherit'
+    expect(buildServerToolOverrides(classification, [ENDPOINT_TYPE.OPENAI_RESPONSES])).toBeNull()
   })
 
   it('normalizes legacy recognition capabilities to input modalities while preserving unknown capabilities', () => {
