@@ -287,7 +287,8 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
     removeAllListeners: ReturnType<typeof vi.fn>
   }
 
-  type LagTestable = InstanceType<typeof SelectionService> & {
+  // Avoid intersecting private SelectionService fields (TS reduces that to never).
+  type LagTestable = {
     selectionHook: HookMock | null
     hooksPausedForMainLag: boolean
     triggerMode: string
@@ -306,7 +307,7 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     BaseService.resetInstances()
-    svc = new SelectionService() as LagTestable
+    svc = new SelectionService() as unknown as LagTestable
     hook = {
       stop: vi.fn(),
       start: vi.fn(() => true),
