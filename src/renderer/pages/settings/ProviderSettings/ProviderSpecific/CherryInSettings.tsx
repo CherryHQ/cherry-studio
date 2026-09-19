@@ -5,6 +5,11 @@ import { useTranslation } from 'react-i18next'
 
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
+import {
+  getLastWrittenEndpointConfigs,
+  serializeEndpointConfigsWrite,
+  setLastWrittenEndpointConfigs
+} from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/endpointConfigsWriteCoordinator'
 import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
@@ -28,7 +33,7 @@ const API_HOST_OPTIONS = [
 ]
 
 const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, updateProvider, refetch } = useProvider(providerId)
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
@@ -49,14 +54,34 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
   const handleHostChange = useCallback(
     async (value: string) => {
       setOpen(false)
-      const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, value)
+      const staleConfigs = provider?.endpointConfigs
       try {
-        await updateProvider({ endpointConfigs: newEndpointConfigs })
+        // Serialize with the request-configuration drawer (and the ApiHost
+        // writers): endpointConfigs PATCHes replace the object wholesale, so an
+        // overlapping drawer save would otherwise lose either the new host or
+        // the drawer's reasoningFormat. Refetch inside the section so the
+        // domain swap builds on the latest committed snapshot.
+        await serializeEndpointConfigsWrite(providerId, async () => {
+          let baseConfigs = staleConfigs
+          try {
+            const fresh = (await refetch()) as { endpointConfigs?: typeof baseConfigs } | undefined
+            if (fresh?.endpointConfigs) {
+              baseConfigs = fresh.endpointConfigs
+            } else {
+              baseConfigs = getLastWrittenEndpointConfigs(providerId) ?? staleConfigs
+            }
+          } catch {
+            baseConfigs = getLastWrittenEndpointConfigs(providerId) ?? staleConfigs
+          }
+          const newEndpointConfigs = replaceEndpointConfigDomain(baseConfigs, value)
+          await updateProvider({ endpointConfigs: newEndpointConfigs })
+          setLastWrittenEndpointConfigs(providerId, newEndpointConfigs)
+        })
       } catch {
         toast.error(t('settings.provider.save_failed'))
       }
     },
-    [provider?.endpointConfigs, t, updateProvider]
+    [provider?.endpointConfigs, providerId, refetch, t, updateProvider]
   )
 
   return (
