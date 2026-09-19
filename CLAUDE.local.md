@@ -130,10 +130,20 @@ Bitti demeden önce dördünü de yap:
    bakamıyorum ki."* Yani her arayüz değişikliğinden sonra sırayla sen yap:
 
    ```powershell
-   Get-Process -Name electron -ErrorAction SilentlyContinue | Stop-Process -Force
+   Get-Process -Name electron -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+   $deadline=(Get-Date).AddSeconds(30)
+   while ((Get-Process -Name electron -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
    ./node_modules/.bin/electron-vite build
    Start-Process ".\node_modules\electron\dist\electron.exe" -ArgumentList "."
    ```
+
+   **Çıkışı gerçekten bekle, sabit `Start-Sleep` koyma.** Sabit 1.2 sn ile denendi ve
+   2026-09-19 03:49'da patladı: önceki süreç SQLite kilidini bırakmadan yenisi açıldı,
+   `Failed to configure WAL mode disk I/O error` → `V2MigrationGate: Migration status check
+   failed`. Uygulama hiç açılmadı. (Veri bozulmadı — göç kapısı yazmadan önce düştü — ama
+   bir sonraki sefer o kadar şanslı olmayabilir.) Açılıştan sonra logda `Bootstrap complete`
+   **ve** `level: error` satırı olup olmadığına bak; sadece `Bootstrap complete` aramak bu
+   hatayı kaçırır çünkü o satır hiç yazılmaz.
 
    Sonra `$env:APPDATA\CherryStudioDev\logs\app.<tarih>.log` içinden `Bootstrap complete`
    ve servis hatalarını oku. Kullanıcıya "şunu aç ve bak" deme; pencere önünde açık olur,
