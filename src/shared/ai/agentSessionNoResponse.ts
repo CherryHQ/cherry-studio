@@ -1,6 +1,7 @@
 import { getToolName, isToolUIPart } from 'ai'
 
 import type { CherryMessagePart } from '../data/types/message'
+import { fileHandleFromPart } from '../utils/file'
 import { AGENT_RUNTIME_CAPABILITIES } from './agentRuntimeCapabilities'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from './agentSessionDelivery'
 import {
@@ -75,6 +76,19 @@ function isRenderedToolPart(part: CherryMessagePart): boolean {
   return RENDERED_TOOL_NAMES.has(toolName) || toolName.startsWith('mcp__')
 }
 
+// An image file renders only with a URL; any other file only with a resolvable handle.
+function isRenderedFilePart(part: CherryMessagePart): boolean {
+  const filePart = part as { mediaType?: string; url?: string }
+  if (filePart.mediaType?.startsWith('image/')) return !!filePart.url
+  return fileHandleFromPart(part) !== undefined
+}
+
+// MessageVideo renders nothing without a URL or a local path.
+function isRenderedVideoPart(part: CherryMessagePart): boolean {
+  const data = (part as { data?: { url?: string; filePath?: string } }).data
+  return !!data && !!(data.url || data.filePath)
+}
+
 /** True when a part can render as visible turn content. */
 export function isVisibleAgentSessionPart(part: CherryMessagePart): boolean {
   if (AGENT_SESSION_HIDDEN_PART_TYPES.has(part.type)) return false
@@ -86,6 +100,9 @@ export function isVisibleAgentSessionPart(part: CherryMessagePart): boolean {
   if (part.type === 'dynamic-tool' || (typeof part.type === 'string' && part.type.startsWith('tool-'))) {
     return isRenderedToolPart(part)
   }
+  // Mirror the renderer's file/video blocks, which drop unrenderable parts entirely.
+  if (part.type === 'file') return isRenderedFilePart(part)
+  if (part.type === 'data-video') return isRenderedVideoPart(part)
   return true
 }
 
