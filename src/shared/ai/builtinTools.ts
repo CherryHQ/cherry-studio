@@ -526,6 +526,7 @@ export { GENERATE_IMAGE_TOOL_NAME, generateImageOutputItemSchema, generateImageO
 export const CRON_TOOL_NAME = 'cron'
 export const NOTIFY_TOOL_NAME = 'notify'
 export const CONFIG_TOOL_NAME = 'config'
+export const BACKGROUND_TASK_TOOL_NAME = 'background_task'
 
 // ── read_file ────────────────────────────────────────────────────
 

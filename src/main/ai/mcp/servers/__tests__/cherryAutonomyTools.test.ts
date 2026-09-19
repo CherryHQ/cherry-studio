@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -139,6 +139,9 @@ vi.mock('@main/services/MainWindowService', () => ({
 }))
 
 const { CherryAutonomyTools } = await import('../cherryAutonomyTools')
+// Dynamic import keeps the hoisted '@application' mock factory from evaluating
+// before this module's top-level mock fns exist.
+const { application } = await import('@application')
 type CherryAutonomyToolsInstance = InstanceType<typeof CherryAutonomyTools>
 const WORKSPACE_SOURCE = { type: 'system' as const }
 const WORKSPACE_PATH = '/tmp/cherry-test-workspace'
@@ -1927,6 +1930,132 @@ describe('CherryAutonomyTools', () => {
 
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('Unknown action')
+    })
+  })
+
+  describe('background task tool', () => {
+    let agentsDataDir: string
+    let workspaceDir: string
+
+    beforeEach(async () => {
+      agentsDataDir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-agents-'))
+      workspaceDir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-workspace-'))
+      // vi.clearAllMocks() above keeps implementations, so overriding getPath per test is enough.
+      vi.mocked(application.getPath).mockImplementation((key: string) =>
+        key === 'feature.agents.data' ? agentsDataDir : `/mock/${key}`
+      )
+    })
+
+    afterEach(async () => {
+      await rm(agentsDataDir, { recursive: true, force: true })
+      await rm(workspaceDir, { recursive: true, force: true })
+    })
+
+    const nodeBin = `"${process.execPath}"`
+
+    it('blocks destructive detached commands for protected built-in Agents', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: { builtin_role: 'assistant' } })
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: 'rm -rf important-data' },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('permanent file deletion')
+    })
+
+    it('denies every detached shell command for Cherry Support in headless turns', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: { builtin_role: 'support' } })
+      mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'stream' })
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: `${nodeBin} -e "process.exit(0)"` },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('cannot run shell commands for Cherry Support')
+    })
+
+    it('denies detached feedback submissions for the Assistant without a live responder', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: { builtin_role: 'assistant' } })
+      mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'unavailable' })
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: 'gh issue create --title "bug"' },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('cannot submit Cherry Studio feedback')
+    })
+
+    it('starts a detached task stored under the agent data dir and rejects missing commands', async () => {
+      const server = createServer('agent_test', workspaceDir)
+      const result = await callTool(
+        server,
+        { action: 'start', command: `${nodeBin} -e "process.exit(0)"`, name: 'probe' },
+        'background_task'
+      )
+
+      const record = JSON.parse(result.content[0].text)
+      expect(record.status).toBe('running')
+      expect(record.pid).toBeGreaterThan(0)
+      expect(record.command).toContain('process.exit(0)')
+      expect(record.name).toBe('probe')
+      expect(record.logFile).toBe(path.join(agentsDataDir, 'agent_test', 'background-tasks', `${record.id}.log`))
+
+      const missing = await callTool(server, { action: 'start' }, 'background_task')
+      expect(missing.isError).toBe(true)
+      expect(missing.content[0].text).toContain("'command' is required")
+    })
+
+    it('notifies configured channels when the task exits', async () => {
+      mockGetNotifyAdapters.mockReturnValue([
+        { channelId: 'ch1', connected: true, notifyChatIds: ['100'], sendMessage: mockSendMessage }
+      ])
+      mockSendMessage.mockResolvedValue(undefined)
+
+      const server = createServer('agent_test', workspaceDir)
+      await callTool(server, { action: 'start', command: `${nodeBin} -e "process.exit(0)"` }, 'background_task')
+
+      await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+      expect(mockSendMessage.mock.calls[0][0]).toBe('100')
+      expect(mockSendMessage.mock.calls[0][1]).toContain('finished with exit code 0')
+    })
+
+    it('reports status reconciliation and errors for unknown task ids', async () => {
+      const server = createServer('agent_test', workspaceDir)
+      const missing = await callTool(server, { action: 'status', task_id: 'bt-missing' }, 'background_task')
+      expect(missing.isError).toBe(true)
+      expect(missing.content[0].text).toContain('not found')
+
+      const emptyId = await callTool(server, { action: 'status' }, 'background_task')
+      expect(emptyId.isError).toBe(true)
+      expect(emptyId.content[0].text).toContain("'task_id' is required")
+
+      const unknownAction = await callTool(server, { action: 'tail' }, 'background_task')
+      expect(unknownAction.isError).toBe(true)
+      expect(unknownAction.content[0].text).toContain('Unknown action')
+    })
+
+    it('lists tasks recorded on disk so a later session can discover them', async () => {
+      const server = createServer('agent_test', workspaceDir)
+      const started = await callTool(
+        server,
+        { action: 'start', command: `${nodeBin} -e "process.exit(0)"` },
+        'background_task'
+      )
+      const record = JSON.parse(started.content[0].text)
+
+      const listed = await callTool(server, { action: 'list' }, 'background_task')
+      const tasks = JSON.parse(listed.content[0].text).tasks
+      expect(tasks.map((task: { id: string }) => task.id)).toContain(record.id)
+
+      // The durable record file, not process memory, is what a restarted app reads back.
+      const onDisk = JSON.parse(
+        await readFile(path.join(agentsDataDir, 'agent_test', 'background-tasks', `${record.id}.json`), 'utf8')
+      )
+      expect(onDisk.command).toBe(record.command)
+      expect(onDisk.startedAt).toBe(record.startedAt)
     })
   })
 })
