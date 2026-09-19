@@ -30,9 +30,9 @@ orchestration, and it lives in `ingestion/` and `tasks/`.
 | --- | --- |
 | `KnowledgeService.ts` | Lifecycle facade: registers job handlers, runs boot recovery, delegates every public method, and creates the shared per-base mutation lock (`KeyedMutex`). No domain logic. |
 | `base/` | Per-base domain: lifecycle admin (`KnowledgeBaseAdminService` — create with rollback, delete, restore), failed-base guard (`baseGuards.ts`). |
-| `ingestion/` | Write-side orchestration: admission checks, item creation, add-conflict resolution, job enqueueing, subtree purge (`subtreePurge.ts`), boot recovery, and the reusable `indexKnowledgeItem` leaf operation. |
+| `ingestion/` | Write-side orchestration: admission checks, item creation, add-conflict resolution, job enqueueing, subtree purge (`subtreePurge.ts`), boot recovery, the reusable publication-free `prepareKnowledgeMaterial` kernel, and the existing `indexKnowledgeItem` Job composition that publishes material and lifecycle state. |
 | `external/` | External Knowledge connection foundation: main-only encrypted credentials, Feishu user authorization, token refresh, and the runtime owned by `KnowledgeService`. Layer 2 adds source/document persistence elsewhere but does not traverse or ingest remote content. |
-| `pipeline/sources/` | Input stage: directory expansion, url fetch (Jina reader), url/note snapshot capture, OKF frontmatter. |
+| `pipeline/sources/` | Input stage: directory expansion, url fetch (Jina reader), and URL/note snapshot capture with Cherry OKF frontmatter. External snapshots are already-pinned provider-normalized Markdown and do not use Cherry frontmatter. |
 | `pipeline/readers/` | Preprocess stage: file → markdown/text `Document[]` readers (pdf/docx/epub/…). |
 | `pipeline/indexing/` | Index stage: offset-preserving splitter + chunker, `AiService` embedding/rerank wrappers. |
 | `pipeline/vectorstore/` | Persist stage: per-base `index.sqlite` lifecycle (`KnowledgeVectorStoreService`), the store itself (`indexStore/`, synchronous better-sqlite3 driver), vector deletion + index space reclamation (`vectorCleanup.ts`). |
@@ -48,7 +48,7 @@ All jobs run on the per-base queue `base.{baseId}`; idempotency keys prevent dou
 | Job | Does | Enqueued by |
 | --- | --- | --- |
 | `knowledge.prepare-root` | Expand a directory root into child items, then enqueue leaf indexing. | `ingestion` (add), reindex handler |
-| `knowledge.index-documents` | Adapt JobManager context to `indexKnowledgeItem`, which reads → chunks → embeds → calls `rebuildMaterial` in one store transaction. | `ingestion`, prepare-root, fp-check |
+| `knowledge.index-documents` | Adapt JobManager context to `indexKnowledgeItem`, which owns live lookup/status, URL/note capture, `prepareKnowledgeMaterial`, the base-locked store rebuild, and completion. | `ingestion`, prepare-root, fp-check |
 | `knowledge.check-file-processing-result` | Poll a FileProcessingService job (5s delay per round); on success enqueue indexing. | `ingestion` (files needing conversion) |
 | `knowledge.delete-subtree` | Cancel active jobs → delete vectors → delete files → delete rows. | `ingestion` (delete), boot recovery |
 | `knowledge.reindex-subtree` | Verify source → re-acquire it → delete vectors → reset statuses → re-enqueue indexing. | `ingestion` (reindex) |
@@ -60,6 +60,22 @@ interrupted items at `failed` instead. Only `knowledge.delete-subtree` uses `rec
 Item status flow: `preparing` (directory) / `processing` → `completed` | `failed`; any status →
 `deleting` → row removed. `reading`/`embedding` are transient sub-phases surfaced while the index
 job runs.
+
+`prepareKnowledgeMaterial` is the reusable read → chunk → embed layer. It takes
+an explicit item descriptor and returns the store rebuild input without opening
+or publishing a store, changing rows or statuses, or moving a snapshot. The
+operation still reads files, performs embedding calls, and reports progress;
+"publication-free" means it has no persistent publication side effect. The
+current `indexKnowledgeItem` composition remains the publication owner for Job
+indexing. A future external synchronizer must stage provider Markdown at a
+distinct versioned path/item id and provide that descriptor to preparation;
+Layer 2 does not implement that synchronizer or its visibility commit.
+
+URL/note snapshot files contain Cherry OKF frontmatter, which their reader
+removes before chunking. External snapshots contain provider-normalized
+Markdown with no Cherry wrapper; the reader preserves the decoded UTF-8 text
+verbatim, including provider-authored frontmatter. The owning document's
+`contentHash` must correspond to that exact chunker input.
 
 **Reindex rebuilds from the type's authoritative local input.** A file re-copies the user's original
 over its `raw/` copy (and reprocesses if the base has a document processor), a directory rescans its

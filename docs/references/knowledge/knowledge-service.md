@@ -99,9 +99,12 @@ Each base also owns a directory under
 Item `relativePath` values are POSIX-style paths relative to `raw/`; main-process
 path guards reject absolute, escaping, and `.cherry/**` paths. Directory imports
 retain their subtree below one reserved top-level prefix. URL and note snapshots
-are Markdown with OKF frontmatter, which readers strip before indexing.
-An external item also points at a pinned local snapshot below `raw/`; Layer 2
-indexing never fetches a provider.
+are Markdown with Cherry OKF frontmatter, which readers strip before indexing.
+An external item points at provider-normalized Markdown in a pinned local
+snapshot below `raw/`. Its reader decodes the file as UTF-8 text and supplies it
+verbatim to the chunker, including any provider-authored leading frontmatter;
+the document `contentHash` must describe that exact text. Layer 2 indexing never
+fetches a provider.
 
 The per-base index is a rebuildable seven-table SQLite projection (`meta`,
 `material`, `content`, `search_unit`, `search_text`, `embedding`, and
@@ -149,6 +152,23 @@ sync-run entity, provider traversal, synchronization jobs, scheduling, or UI.
 Public `KnowledgeAddItemInput` also remains limited to user-owned source types;
 only trusted internal domain paths may create an external item after its local
 snapshot is pinned.
+
+Connection removal has a durable-delete-first contract. The runtime first runs
+a no-side-effect Source-reference preflight, closes admission for that
+credential generation, aborts and drains its authorization/request/refresh
+work, then calls `removeUnreferenced`, which rechecks Source references and
+deletes the Connection in one main-DB transaction. Only after that commit does
+the runtime best-effort revoke the provider token and remove the credential;
+startup reconciliation retires credential residue. The reference checks do not
+filter on Source state, so both active and paused Sources block removal.
+
+Layer 2 does not implement a Document publication writer. A future writer that
+binds or replaces `ExternalKnowledgeDocument.knowledgeItemId` must, in the same
+owner transaction, verify that the candidate item belongs to the Source's base,
+has type `external`, and is `completed` rather than deleting or otherwise
+active. It must also publish the content hash and remote revision that match the
+prepared snapshot. These are deferred writer requirements, not current Layer 2
+behavior.
 
 ## Caller Contract
 
@@ -274,15 +294,19 @@ Current status writes are:
 
 `status` is the durable business state. JobManager progress is diagnostic execution state and is not the source of truth for item lifecycle. Container status is reconciled from immediate child statuses.
 
-The feature-local `indexKnowledgeItem` operation owns the complete leaf path:
-load and lifecycle checks, snapshot resolution, reading, chunking, embedding
-reuse, atomic material rebuild, status transitions, and progress reporting.
-The durable indexing job is a thin adapter that preserves its recovery, retry,
-timeout, queue, and settled-failure behavior. Future synchronization code may
-call the same operation, but Layer 2 introduces no synchronizer. Missing,
-deleting, and already-completed items are safe no-ops; an indexable item that
-produces no chunks fails instead of replacing an existing material with an
-empty one.
+The reusable `prepareKnowledgeMaterial` kernel reads an explicit indexable item
+descriptor, chunks it, looks up only the embedding-text hashes supplied by that
+preparation, embeds missing bodies, and returns `RebuildMaterialInput`. It
+validates a completed base, material path, abort state, and non-empty output,
+but does not open/publish the store or mutate item rows. The feature-local
+`indexKnowledgeItem` Job composition owns live lookup and lifecycle checks,
+URL/note snapshot capture, status transitions, preparation, the base-locked
+live-row recheck, atomic material rebuild, and completion. The durable indexing
+job remains a thin adapter preserving recovery, retry, timeout, queue, and
+settled-failure behavior. Layer 2 introduces no synchronizer or alternate
+publication path. Missing, deleting, and already-completed items are safe
+no-ops; an indexable item that produces no chunks fails instead of replacing an
+existing material with an empty one.
 
 Current persisted `knowledge_base` columns include:
 
@@ -323,10 +347,10 @@ If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls bac
 `reindex-items` currently runs:
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
-2. Orchestration rejects the request unless every selected subtree item is terminal: `completed` or `failed`.
+2. Orchestration rejects active document ownership, then requires every selected subtree item to be terminal (`completed` or `failed`) and every selected root source to be available.
 3. Workflow service enqueues `knowledge.reindex-subtree`.
 4. The reindex job skips if delete won the race and any subtree item is now `deleting`.
-5. Under the base mutation lock, the reindex job deletes old vectors, removes expanded descendants for selected container roots, resets selected roots to `preparing` or `processing`, and schedules each selected root through the workflow service.
+5. Under the base mutation lock, the reindex job rechecks abort state, delete state, active ownership, and source availability before resetting statuses or touching artifacts; it then replaces source bytes, deletes old vectors and expanded descendants, and schedules each selected root through the workflow service.
 
 Reindex is not a cancellation primitive. Delete is the operation that can preempt active work.
 

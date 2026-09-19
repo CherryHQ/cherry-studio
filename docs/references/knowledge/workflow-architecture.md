@@ -77,19 +77,60 @@ If a child is another `directory`, `scheduleItem` queues another `knowledge.prep
 
 ## Indexing Operation
 
-`createIndexKnowledgeItem` creates the Knowledge feature-local operation with
-this call shape:
+The reusable indexing layer is `prepareKnowledgeMaterial`. Given a completed
+base, an explicit `IndexableKnowledgeItem` descriptor, an abort signal, and
+progress callbacks, it reads the descriptor's local input, chunks it, performs
+the narrow existing-embedding hash lookup supplied by its caller, embeds only
+missing chunk bodies, and returns `RebuildMaterialInput`. It validates base
+readiness, the item's material path, abort state, and non-empty output, but it
+does not open or publish an index store, mutate a `knowledge_item` row, capture
+or move a snapshot, or mark anything completed.
+
+`createIndexKnowledgeItem` composes that preparation kernel into the existing
+Job operation with this call shape:
 
 ```ts
 indexKnowledgeItem({ baseId, itemId, signal, reportProgress })
 ```
 
-It owns leaf validation, local snapshot reading, chunking, embedding reuse,
-material rebuild, lifecycle writes, and progress. The current
-`knowledge.index-documents` handler only adapts JobManager context to this
-operation and retains the job's existing retry, timeout, recovery, and settled
-semantics. External items use their already-pinned local snapshot; this layer
-does not perform provider I/O.
+`indexKnowledgeItem` remains the owner of live base/item lookup, lifecycle and
+status handling, URL/note capture, base-lock acquisition, the final live-item
+recheck, vector-store `rebuildMaterial`, and the `completed` transition. The
+current `knowledge.index-documents` handler only adapts JobManager context to
+this operation and retains the job's existing retry, timeout, recovery, and
+settled semantics. External items use their already-pinned local snapshot; this
+layer does not perform provider I/O.
+
+A future external synchronizer may reuse `prepareKnowledgeMaterial` by passing
+an explicit descriptor for a staged snapshot. It must not reuse
+`indexKnowledgeItem` as a publication operation: preparation alone neither
+opens the store nor changes row visibility.
+
+### Future External Publication Constraint
+
+Layer 2 does not implement the external synchronizer or its writer. That future
+writer must preserve this visibility protocol:
+
+1. Stage the provider-normalized snapshot and run slow preparation outside the
+   base mutation lock, using a distinct versioned snapshot path and new item id.
+2. Acquire the base lock, then recheck the source revision and current document
+   owner before publishing anything.
+3. Write the prepared material under the new item id while the staged snapshot
+   and material remain invisible: neither is reachable from a visible main-DB
+   `knowledge_item` row yet.
+4. In one main-database transaction, create the new external item already
+   `completed`, switch the document's owner, content hash, and remote revision
+   to that item, then delete the now-unowned old item row. The transaction must
+   not leave the old item visible as ownerless static content.
+5. After commit, remove the old snapshot and vector material best-effort. If the
+   main-DB transaction fails, compensate by removing the unpublished new
+   artifacts; startup reconciliation must collect residue from either cleanup
+   direction.
+
+The main database and per-base index store cannot participate in one distributed
+transaction. Cross-store consistency therefore depends on invisibility before
+the main-DB commit plus compensation and reconciliation, not distributed
+atomicity.
 
 ## Job Types
 
