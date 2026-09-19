@@ -61,6 +61,7 @@ const RENDERED_TOOL_NAMES: ReadonlySet<string> = new Set([
   GENERATE_IMAGE_TOOL_NAME,
   REPORT_ARTIFACTS_TOOL_NAME,
   // Historical `builtin_*` wire names kept for messages already stored in DB.
+  'builtin_AskUserQuestion',
   'builtin_web_search',
   'builtin_web_search_preview',
   'builtin_knowledge_search'
