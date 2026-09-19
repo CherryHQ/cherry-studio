@@ -28,6 +28,7 @@ import {
   stopDetachedBackgroundTask
 } from '@main/ai/agents/backgroundTasks'
 import { saveBackgroundTaskRecord } from '@main/ai/agents/backgroundTaskStore'
+import { detectDestructiveAssistantCommand } from '@main/ai/agents/builtin/assistantCommandSafety'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -56,6 +57,7 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { BACKGROUND_TASK_TOOL_NAME, CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -841,6 +843,11 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
     case 'start': {
       const command = args.command?.trim() ?? ''
       if (!command) throw new Error("'command' is required for start")
+      const agent = agentService.getAgent(ctx.agentId)
+      if (isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)) {
+        const reason = detectDestructiveAssistantCommand(command)
+        if (reason) throw new Error(`This built-in Agent blocked ${reason}`)
+      }
       const record = await startDetachedBackgroundTask({
         storageDir: backgroundTaskStorageDir(ctx),
         command,

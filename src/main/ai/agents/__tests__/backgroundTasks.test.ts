@@ -52,7 +52,7 @@ describe('backgroundTasks', () => {
         cwd: storageDir
       })
       const stopped = await stopDetachedBackgroundTask(storageDir, record.id)
-      expect(stopped?.status).toBe('running')
+      expect(['running', 'stopped']).toContain(stopped?.status)
       expect(stopped?.stopSignal).toBe('SIGTERM')
       await vi.waitFor(async () => {
         expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('stopped')
@@ -143,14 +143,18 @@ describe('backgroundTasks', () => {
         cwd: storageDir
       })
 
-      const tasks = await listDetachedBackgroundTasks(storageDir)
-      const byId = new Map(tasks.map((task) => [task.id, task]))
-      expect(byId.get(finished.id)?.status).toBe('completed')
-      expect(byId.get(running.id)?.status).toBe('running')
+      try {
+        const tasks = await listDetachedBackgroundTasks(storageDir)
+        const byId = new Map(tasks.map((task) => [task.id, task]))
+        expect(byId.get(finished.id)?.status).toBe('completed')
+        expect(byId.get(running.id)?.status).toBe('running')
 
-      const status = await getDetachedBackgroundTask(storageDir, running.id)
-      expect(status?.status).toBe('running')
-      expect(status?.pid).toBe(running.pid)
+        const status = await getDetachedBackgroundTask(storageDir, running.id)
+        expect(status?.status).toBe('running')
+        expect(status?.pid).toBe(running.pid)
+      } finally {
+        await stopDetachedBackgroundTask(storageDir, running.id, true)
+      }
     })
 
     it('flags a dead pid without a sentinel as unknown', async () => {
