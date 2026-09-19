@@ -4786,6 +4786,7 @@
   "settings.models.painting_model": "Görsel Oluşturma Modeli",
   "settings.models.painting_model_description": "Görsel oluşturmak için kullanılan model",
   "settings.models.provider_id": "Sağlayıcı kimliği",
+  "settings.models.provider_import_auto_sync": "Onaylandıktan sonra modeller otomatik olarak eşitlenir ve en az bir model bulunursa bu yeni sağlayıcı etkinleştirilir.",
   "settings.models.provider_key_add_confirm": "{{provider}} için API anahtarı eklensin mi?",
   "settings.models.provider_key_add_failed_by_invalid_data": "Veri biçimi hatası nedeniyle sağlayıcı API anahtarı eklenemedi",
   "settings.models.provider_key_added": "{{provider}} için API anahtarı başarıyla eklendi",
