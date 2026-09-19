@@ -12,10 +12,12 @@ import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '
 import type { ApiGatewayPairedDeviceMetadata } from '@shared/data/types/apiGatewayPairedDevice'
 import type { OutputFor } from '@shared/ipc/types'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
+import { API_GATEWAY_LAN_PORT } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
 import { ApiGatewayPairing, type ApiGatewayPairingResult } from './ApiGatewayPairing'
 import type { ApiGateway } from './server'
+import { ensureWindowsLanFirewallRule } from './windowsLanFirewall'
 
 const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
@@ -317,8 +319,19 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   private async startLanGateway(): Promise<void> {
     if (this.lanGateway?.isRunning()) return
+    if (this.getCurrentConfig().port === API_GATEWAY_LAN_PORT) {
+      throw new Error(
+        `LAN port ${API_GATEWAY_LAN_PORT} conflicts with the local API Gateway port; choose a different local port`
+      )
+    }
+    const firewall = await ensureWindowsLanFirewallRule({ port: API_GATEWAY_LAN_PORT })
+    if (firewall === 'failed') {
+      throw new Error(
+        `Windows Firewall blocked creating an allow rule for LAN port ${API_GATEWAY_LAN_PORT}. Run Cherry Studio as administrator once, or add an inbound TCP allow rule for port ${API_GATEWAY_LAN_PORT}.`
+      )
+    }
     const { ApiGateway } = await import('./server')
-    this.lanGateway = new ApiGateway({ host: '0.0.0.0', port: 0 })
+    this.lanGateway = new ApiGateway({ host: '0.0.0.0', port: API_GATEWAY_LAN_PORT })
     try {
       await this.lanGateway.start()
     } catch (error) {

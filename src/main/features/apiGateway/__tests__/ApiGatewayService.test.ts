@@ -47,6 +47,14 @@ vi.mock('../server', () => ({
   })
 }))
 
+const { mockEnsureWindowsLanFirewallRule } = vi.hoisted(() => ({
+  mockEnsureWindowsLanFirewallRule: vi.fn()
+}))
+
+vi.mock('../windowsLanFirewall', () => ({
+  ensureWindowsLanFirewallRule: mockEnsureWindowsLanFirewallRule
+}))
+
 vi.mock('@data/services/ApiGatewayPairedDeviceService', () => ({
   apiGatewayPairedDeviceService: { create: vi.fn() }
 }))
@@ -81,6 +89,8 @@ vi.mock('@application', async () => {
   } as any)
 })
 
+import { API_GATEWAY_LAN_PORT } from '@shared/utils/apiGateway'
+
 import { ApiGatewayService } from '../ApiGatewayService'
 import { ApiGateway } from '../server'
 
@@ -111,6 +121,7 @@ beforeEach(() => {
   mockStop.mockReset()
   mockLanStart.mockReset().mockResolvedValue(undefined)
   mockLanStop.mockReset().mockResolvedValue(undefined)
+  mockEnsureWindowsLanFirewallRule.mockReset().mockResolvedValue('skipped')
   mockSetShared.mockClear()
   mockGetActiveUsageContext.mockReset()
   mockGetActiveUsageContext.mockReturnValue({
@@ -400,7 +411,7 @@ describe('ApiGatewayService LAN shutdown', () => {
 
     expect(service.isActivated).toBe(true)
     expect(service.getCurrentConfig()).toMatchObject({ enabled: true, host: '0.0.0.0' })
-    expect(ApiGateway).toHaveBeenLastCalledWith({ host: '0.0.0.0', port: 0 })
+    expect(ApiGateway).toHaveBeenLastCalledWith({ host: '0.0.0.0', port: API_GATEWAY_LAN_PORT })
     expect(service.createPairingOffer().addresses).toEqual(['192.168.1.8'])
   })
 })
@@ -419,6 +430,7 @@ describe('ApiGatewayService independent LAN access', () => {
     await service.setLanEnabled(true)
     const offer = service.createPairingOffer()
     expect(offer.port).toBe(34444)
+    expect(ApiGateway).toHaveBeenCalledWith({ host: '0.0.0.0', port: API_GATEWAY_LAN_PORT })
     expect(service.getCurrentConfig()).toMatchObject({ enabled: true, host: '0.0.0.0', port: 23333 })
 
     await service.setLanEnabled(false)
@@ -429,6 +441,30 @@ describe('ApiGatewayService independent LAN access', () => {
     expect(service.pairDevice(offer.code, { name: 'Phone', platform: 'android' })).toBeNull()
     expect(mockStop).not.toHaveBeenCalled()
     service.releaseLease()
+  })
+
+  it('refuses LAN enable when Windows cannot create the inbound firewall allow rule', async () => {
+    // Catches enabling LAN into a Public/Block drop with no desktop signal (#20736).
+    mockEnsureWindowsLanFirewallRule.mockResolvedValueOnce('failed')
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    await expect(service.setLanEnabled(true)).rejects.toThrow(/Windows Firewall/)
+
+    expect(service.getCurrentConfig()).toMatchObject({ enabled: true, host: '127.0.0.1' })
+    expect(() => service.createPairingOffer()).toThrow('LAN access is disabled')
+    expect(mockLanStart).not.toHaveBeenCalled()
+  })
+
+  it('refuses LAN enable when the local gateway port collides with the stable LAN port', async () => {
+    captured.portPreference = API_GATEWAY_LAN_PORT
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    await expect(service.setLanEnabled(true)).rejects.toThrow(/conflicts with the local API Gateway port/)
+
+    expect(mockEnsureWindowsLanFirewallRule).not.toHaveBeenCalled()
+    expect(mockLanStart).not.toHaveBeenCalled()
   })
 
   it.each(['listen', 'persist'])('keeps LAN disabled when its %s step fails', async (failure) => {
