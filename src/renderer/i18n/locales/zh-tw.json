@@ -2935,6 +2935,8 @@
   "paintings.person_generation_options.allow_none": "不允許",
   "paintings.person_generation_tip": "允許模型產生人物影像",
   "paintings.ppio.output_format": "輸出格式",
+  "paintings.prompt_dock.expand": "展開提示詞",
+  "paintings.prompt_dock.minimize": "收起提示詞",
   "paintings.prompt_enhancement": "提示詞增強",
   "paintings.prompt_enhancement_tip": "開啟後將提示重寫為詳細的、適合模型的版本",
   "paintings.prompt_placeholder": "描述你想建立的圖片，例如：一個寧靜的湖泊，夕陽西下，遠處是群山",

@@ -2935,6 +2935,8 @@
   "paintings.person_generation_options.allow_none": "Keine erlauben",
   "paintings.person_generation_tip": "Erlauben Sie dem Modell, Bilder von Menschen zu generieren",
   "paintings.ppio.output_format": "Ausgabeformat",
+  "paintings.prompt_dock.expand": "Prompt erweitern",
+  "paintings.prompt_dock.minimize": "Prompt minimieren",
   "paintings.prompt_enhancement": "Prompt-Verbesserung",
   "paintings.prompt_enhancement_tip": "Nach Aktivierung wird der Prompt in eine detaillierte, modellgerechte Version umgeschrieben",
   "paintings.prompt_placeholder": "Beschreiben Sie das gewünschte Bild, z.B.: Ein ruhiger See bei Sonnenuntergang mit Bergen in der Ferne",

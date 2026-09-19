@@ -2935,6 +2935,8 @@
   "paintings.person_generation_options.allow_none": "Να μην επιτρέπεται τίποτα",
   "paintings.person_generation_tip": "Επιτρέψτε στο μοντέλο να δημιουργεί εικόνες ανθρώπων",
   "paintings.ppio.output_format": "Μορφή εξόδου",
+  "paintings.prompt_dock.expand": "Ανάπτυξη prompt",
+  "paintings.prompt_dock.minimize": "Ελαχιστοποίηση prompt",
   "paintings.prompt_enhancement": "Βελτίωση προτροπής",
   "paintings.prompt_enhancement_tip": "Όταν ενεργοποιηθεί, οι προτροπές αναδιατυπώνονται σε λεπτομερείς εκδοχές κατάλληλες για το μοντέλο.",
   "paintings.prompt_placeholder": "Περιγράψτε την εικόνα που θέλετε να δημιουργήσετε, π.χ. μια γαλήνια λίμνη στο ηλιοβασίλεμα με βουνά στο βάθος",
