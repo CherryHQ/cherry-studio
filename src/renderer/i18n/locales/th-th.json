@@ -5295,6 +5295,8 @@
   "settings.models.context_management.truncate_threshold_description": "เอาต์พุตเครื่องมือที่เกินจำนวนตัวอักษรนี้ถูกโหลดออกไปยังไฟล์และตัดทอน โมเดลสามารถอ่านกลับได้ตามต้องการ ผู้ช่วยสามารถแทนที่ค่านี้ได้",
   "settings.models.default_assistant_model": "โมเดลผู้ช่วยเริ่มต้น",
   "settings.models.default_assistant_model_description": "ใช้เมื่อผู้ช่วยไม่มีโมเดล",
+  "settings.models.display_name.description": "แสดง ID โมเดลดั้งเดิม (เช่น gpt-5.6-sol) แทนชื่อที่ตกแต่งแล้ว (เช่น GPT 5.6 Sol) ในรายการโมเดล",
+  "settings.models.display_name.title": "แสดง ID โมเดลดั้งเดิม",
   "settings.models.docs": "เอกสารโมเดล",
   "settings.models.edit.classification_save_hint": "การตั้งค่าบางส่วนอาจมาจากแคตตาล็อกโมเดล การเปลี่ยนแปลงถูกบันทึกทันที มอดาลิตีอินพุตที่ตั้งล่วงหน้าซึ่งตรงกับแคตตาล็อกจะยังตามการอัปเดตของแคตตาล็อก ส่วนค่าที่ต่างจะถูกบันทึกเป็น override โมเดล custom จะบันทึกมอดาลิตีอินพุตที่แสดงตามที่เห็น",
   "settings.models.empty": "เลือกโมเดล",

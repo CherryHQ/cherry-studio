@@ -1,6 +1,7 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { preferenceService } from '@data/PreferenceService'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../modelSync'
@@ -66,7 +67,7 @@ describe('fetchResolvedProviderModels', () => {
         id: 'new-api::agent/deepseek-v3.2',
         providerId: 'new-api',
         apiModelId: 'agent/deepseek-v3.2',
-        name: 'DeepSeek V3.2',
+        name: 'agent/deepseek-v3.2',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
       }
     ])
@@ -74,7 +75,7 @@ describe('fetchResolvedProviderModels', () => {
     const { models } = await fetchResolvedProviderModels('new-api')
 
     expect(models[0]).toMatchObject({
-      name: 'DeepSeek V3.2',
+      name: 'agent/deepseek-v3.2',
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     })
   })
@@ -121,7 +122,8 @@ describe('fetchResolvedProviderModels', () => {
     })
   })
 
-  it('uses the resolved friendly name when the provider only echoes the raw id', async () => {
+  it('uses the resolved raw id as the name when the provider echoes the raw id', async () => {
+    // Would catch a regression that overlays a decorated registry name while raw-id mode is on.
     listModelsMock.mockResolvedValueOnce({
       models: [
         {
@@ -137,19 +139,20 @@ describe('fetchResolvedProviderModels', () => {
         id: 'dashscope::qwen1.5-1.8b-chat',
         providerId: 'dashscope',
         apiModelId: 'qwen1.5-1.8b-chat',
-        name: 'Qwen1.5 1.8b Chat'
+        name: 'qwen1.5-1.8b-chat'
       }
     ])
 
     const { models } = await fetchResolvedProviderModels('dashscope')
 
-    expect(models[0].name).toBe('Qwen1.5 1.8b Chat')
+    expect(models[0].name).toBe('qwen1.5-1.8b-chat')
   })
 
   it.each([
     { kind: 'custom', presetModelId: undefined },
     { kind: 'preset', presetModelId: 'custom-model' }
-  ])('keeps a provider display name for a $kind model', async ({ presetModelId }) => {
+  ])('always uses the raw id as the name for a $kind model in raw-id mode', async ({ presetModelId }) => {
+    // The provider's /models reports a display name, but the pulled list must show the raw id.
     listModelsMock.mockResolvedValueOnce({
       models: [
         {
@@ -166,13 +169,48 @@ describe('fetchResolvedProviderModels', () => {
         providerId: 'custom',
         apiModelId: 'custom-model',
         presetModelId,
-        name: 'Custom Model'
+        name: 'custom-model'
       }
     ])
 
     const { models } = await fetchResolvedProviderModels('custom')
 
-    expect(models[0].name).toBe('Provider Display Name')
+    expect(models[0].name).toBe('custom-model')
+  })
+
+  it.each([
+    { kind: 'custom', presetModelId: undefined },
+    { kind: 'preset', presetModelId: 'custom-model' }
+  ])('keeps a provider display name for a $kind model in decorated mode', async ({ presetModelId }) => {
+    // Would catch a regression that always overwrites provider display names with the registry name.
+    await preferenceService.set('models.display_name.show_raw_id', false)
+    try {
+      listModelsMock.mockResolvedValueOnce({
+        models: [
+          {
+            id: 'custom::custom-model',
+            providerId: 'custom',
+            apiModelId: 'custom-model',
+            name: 'Provider Display Name'
+          }
+        ]
+      })
+      dataApiGetMock.mockResolvedValueOnce([
+        {
+          id: 'custom::custom-model',
+          providerId: 'custom',
+          apiModelId: 'custom-model',
+          presetModelId,
+          name: 'Custom Model'
+        }
+      ])
+
+      const { models } = await fetchResolvedProviderModels('custom')
+
+      expect(models[0].name).toBe('Provider Display Name')
+    } finally {
+      await preferenceService.set('models.display_name.show_raw_id', true)
+    }
   })
 })
 
