@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
 import { TAB_LIMITS } from '@renderer/services/TabLruManager'
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
 
 let currentLanguage = 'en'
 
@@ -119,7 +122,11 @@ vi.mock('@renderer/ipc', () => ({
   useIpcOn: vi.fn()
 }))
 
-import { useCloseConversationTabs, useTabsContext } from '@renderer/hooks/tab'
+vi.mock('@renderer/hooks/useWindowInitData', () => ({
+  useWindowInitData: () => null
+}))
+
+import { useCloseConversationTabs, useMainWindowNavigation, useTabsContext } from '@renderer/hooks/tab'
 
 import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
 
@@ -290,6 +297,31 @@ function TabSnapshot() {
   )
 }
 
+function ErrorRecoveryNavigationControls() {
+  useMainWindowNavigation()
+  const { navigateErrorTarget } = useMessageErrorActions({ getDoctorSubject: () => undefined })
+  const { activeTabId, closeTabs, tabs } = useTabsContext()
+  const settingsTab = tabs.find((tab) => isSettingsPath(tab.url))
+
+  return (
+    <>
+      <button type="button" onClick={() => navigateErrorTarget?.('/settings/provider?id=openai')}>
+        Open recovery settings
+      </button>
+      <button
+        type="button"
+        disabled={!settingsTab}
+        onClick={() => {
+          if (settingsTab) closeTabs([settingsTab.id], 'agent-session')
+        }}>
+        Back from settings
+      </button>
+      <div data-testid="recovery-active-tab">{activeTabId}</div>
+      <div data-testid="recovery-tabs">{tabs.map((tab) => `${tab.id}=${tab.url}`).join(',')}</div>
+    </>
+  )
+}
+
 function CloseTabOnMount({ tabId }: { tabId: string }) {
   const { closeTab } = useTabsContext()
   const didCloseRef = useRef(false)
@@ -413,6 +445,41 @@ afterEach(() => {
 })
 
 describe('TabsProvider', () => {
+  it('preserves the source conversation while opening and closing error recovery settings', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'agent-session',
+          type: 'route',
+          url: '/app/agents?agentId=cherry-support&sessionId=session-1',
+          title: 'Support session',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <ErrorRecoveryNavigationControls />
+      </TabsProvider>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Open recovery settings' }))
+
+    await waitFor(() => expect(screen.getByTestId('recovery-active-tab')).not.toHaveTextContent('agent-session'))
+    expect(screen.getByTestId('recovery-tabs')).toHaveTextContent(
+      'agent-session=/app/agents?agentId=cherry-support&sessionId=session-1'
+    )
+    expect(screen.getByTestId('recovery-tabs')).toHaveTextContent('/settings/provider?id=openai')
+
+    await user.click(screen.getByRole('button', { name: 'Back from settings' }))
+
+    await waitFor(() => expect(screen.getByTestId('recovery-active-tab')).toHaveTextContent('agent-session'))
+    expect(screen.getByTestId('recovery-tabs')).toHaveTextContent(
+      'agent-session=/app/agents?agentId=cherry-support&sessionId=session-1'
+    )
+    expect(screen.getByTestId('recovery-tabs')).not.toHaveTextContent('/settings/provider')
+  })
+
   it('keeps conversation tab actions isolated while reading the latest tab state', async () => {
     render(
       <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>

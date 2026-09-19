@@ -25,6 +25,7 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { getAutoApprovedBrowserTools, resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
@@ -71,6 +72,7 @@ import {
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
+import { DshForkCheckpointSchema } from './forkCheckpoint'
 import { type DshProviderInjection, resolveDshProviderInjectionFromSnapshot, usesDshGateway } from './modelInjection'
 
 const logger = loggerService.withContext('DshRuntimeConnection')
@@ -104,13 +106,16 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     source: BridgeEventSource
   }> = []
   private readonly committedInvocationIds = new Set<string>()
+  private pendingTurnEnd?: Promise<void>
   private readonly adapter = new DshStreamAdapter({
     enqueue: (chunk) => {
       this.subagents.noteMainChunk(chunk)
       this.eventQueue.push({ type: 'chunk', chunk })
     },
     onAssistantUsage: (info) => this.recordProviderInvocation(info),
-    onTurnEnd: (reason) => this.handleTurnEnd(reason),
+    onTurnEnd: (reason, boundary) => {
+      this.pendingTurnEnd = this.handleTurnEnd(reason, boundary)
+    },
     onCompaction: (event) => this.eventQueue.push(event),
     onApiRetry: (retry) => this.eventQueue.push({ type: 'api-retry', retry }),
     onAutonomousTurnState: (event) => {
@@ -130,6 +135,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private compositionPath?: string
   private resumeToken?: string
   private closed = false
+  private startPromise?: Promise<this>
+  private closePromise?: Promise<void>
   private turnActive = false
   /** Monotonic host-turn identity; child items pin it at open so they never split across streams. */
   private turnEpoch = 0
@@ -160,7 +167,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     return this._usageCapture
   }
 
-  constructor(private readonly input: AgentRuntimeConnectInput) {
+  constructor(
+    private readonly input: AgentRuntimeConnectInput,
+    private readonly onClosed: () => void = () => undefined
+  ) {
     this.resumeToken = input.resumeToken
     this.traceContext = input.trace
     // Constructor-body creation: parameter properties are not yet assigned while
@@ -232,7 +242,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  async start(): Promise<this> {
+  start(): Promise<this> {
+    return (this.startPromise ??= this.startRuntime())
+  }
+
+  private async startRuntime(): Promise<this> {
     if (this.input.resumeToken) assertValidDshResumeToken(this.input.resumeToken)
     const runtimeExecutable = await resolveDshBunRuntime()
     const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
@@ -374,6 +388,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
+        onDisconnect: () => {
+          this.eventQueue.push({
+            type: 'error',
+            error: new Error('dsh bridge disconnected; runtime execution is stopping')
+          })
+          void this.close().catch((error) => logger.warn('dsh disconnected runtime close failed', { error }))
+        },
         onGuardCheck: async (toolName, args, cwd) => {
           const browserPermission = resolveBrowserToolPermission(toolName)
           if (browserPermission === 'deny')
@@ -434,7 +455,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         provider: injection.providerName,
         model: injection.modelId,
         cwd: workspacePath,
-        // The plugin degrades resume to a fresh create when no session log exists yet.
         resume: Boolean(this.input.resumeToken),
         policy: this.buildPolicy(),
         tools: toolBridge.tools
@@ -483,7 +503,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.turnActive = false
       this.adapter.abortTurn()
       if (this.closed) return
-      logger.error('dsh prompt failed', error as Error)
+      logger.error('dsh prompt failed', chatErrorContext(error))
       this.eventQueue.push({ type: 'error', error })
     }
   }
@@ -631,9 +651,43 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return
+  async snapshotForFork(boundary: number, signal?: AbortSignal): Promise<unknown[] | undefined> {
+    if (this.startPromise) await this.waitForForkTransition(this.startPromise, signal)
+    signal?.throwIfAborted()
+    if (this.closePromise) {
+      await this.waitForForkTransition(this.closePromise, signal)
+      // The source has finished flushing; the driver can now use persisted history.
+      return undefined
+    }
+    if (!this.bridge || this.closed) throw new Error('DSH connection is closed')
+    const result = await this.bridge.request(
+      'session/fork-snapshot',
+      { sessionId: this.input.sessionId, boundary },
+      { timeoutMs: 60_000, signal }
+    )
+    return result.events
+  }
+
+  private async waitForForkTransition(transition: Promise<unknown>, signal?: AbortSignal): Promise<void> {
+    const timeout = AbortSignal.timeout(60_000)
+    const waitSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
+    waitSignal.throwIfAborted()
+    const aborted = Promise.withResolvers<never>()
+    const onAbort = () => aborted.reject(waitSignal.reason)
+    waitSignal.addEventListener('abort', onAbort, { once: true })
+    try {
+      await Promise.race([transition, aborted.promise])
+    } finally {
+      waitSignal.removeEventListener('abort', onAbort)
+    }
+  }
+
+  close(): Promise<void> {
     this.closed = true
+    return (this.closePromise ??= Promise.resolve().then(() => this.finishClose()))
+  }
+
+  private async finishClose(): Promise<void> {
     this.pendingBridgeEvents.length = 0
     this.sessionEventSeqs.clear()
     this.subagents.close()
@@ -649,6 +703,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
     await this.disposeRuntime()
     this.eventQueue.close()
+    this.onClosed()
   }
 
   /** Best-effort teardown shared by close() and start() failure cleanup. */
@@ -743,6 +798,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         } else {
           this.traceRecorder?.handleEvent(event)
           this.adapter.handleEvent(event)
+          // Preserve turn order while capturing the exact completed prefix.
+          await this.pendingTurnEnd
+          this.pendingTurnEnd = undefined
         }
         this.sessionEventSeqs.set(params.sessionId, event.seq)
         for (const pending of this.pendingBridgeEvents.splice(0)) {
@@ -796,14 +854,23 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-end', id } })
   }
 
-  private handleTurnEnd(reason: TurnEndReason): void {
+  private async handleTurnEnd(reason: TurnEndReason, boundary?: number): Promise<void> {
     if (this.closed) return
     this.turnActive = false
     switch (reason.kind) {
       case 'completed':
-      case 'max-tokens':
-        this.eventQueue.push({ type: 'turn-complete' })
+      case 'max-tokens': {
+        const checkpoint = DshForkCheckpointSchema.safeParse({
+          runtime: 'dsh',
+          runtimeSessionId: this.input.sessionId,
+          boundary
+        })
+        this.eventQueue.push({
+          type: 'turn-complete',
+          forkAnchor: checkpoint.success ? { checkpoint: checkpoint.data } : undefined
+        })
         return
+      }
       case 'aborted':
       case 'interrupted':
         // Arrives only during teardown/cancel — the host is already settling this turn.
