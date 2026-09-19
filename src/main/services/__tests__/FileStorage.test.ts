@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 
-import { dialog, shell } from 'electron'
+import { BrowserWindow, dialog, shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
@@ -13,9 +13,17 @@ import { fileStorage } from '../FileStorage'
 
 const event = {} as Electron.IpcMainInvokeEvent
 
+// The global electron mock has no BrowserWindow statics. Default the sender
+// lookup to "no window" (unparented fallback); parented tests override it.
+function mockSenderWindow(ownerWindow: Electron.BrowserWindow | null): Electron.IpcMainInvokeEvent {
+  Object.assign(BrowserWindow, { fromWebContents: vi.fn(() => ownerWindow) })
+  return { sender: {} as Electron.WebContents } as Electron.IpcMainInvokeEvent
+}
+
 describe('FileStorage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.assign(BrowserWindow, { fromWebContents: vi.fn(() => null) })
   })
 
   afterEach(() => {
@@ -31,6 +39,26 @@ describe('FileStorage', () => {
     it('returns null when the dialog resolves without a file path', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' })
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
+    })
+
+    it('parents the save dialog to the caller window, keeping a Unicode file name', async () => {
+      const ownerWindow = {} as Electron.BrowserWindow
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await expect(fileStorage.save(mockSenderWindow(ownerWindow), '测试-笔记-note.md', 'content')).resolves.toBeNull()
+
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+        ownerWindow,
+        expect.objectContaining({ defaultPath: '测试-笔记-note.md' })
+      )
+    })
+
+    it('falls back to an unparented dialog when the sender window is gone', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await expect(fileStorage.save(mockSenderWindow(null), '测试-笔记-note.md', 'content')).resolves.toBeNull()
+
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '测试-笔记-note.md' }))
     })
   })
 
@@ -185,6 +213,30 @@ describe('FileStorage', () => {
       } finally {
         fs.rmSync(tmpFile, { force: true })
       }
+    })
+
+    it('parents the image save dialog to the caller window, keeping a Unicode file name', async () => {
+      const ownerWindow = {} as Electron.BrowserWindow
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await expect(
+        fileStorage.saveImage(mockSenderWindow(ownerWindow), '图片-导出', 'data:image/png;base64,AAAA')
+      ).resolves.toBe(false)
+
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+        ownerWindow,
+        expect.objectContaining({ defaultPath: '图片-导出.png' })
+      )
+    })
+
+    it('falls back to an unparented dialog when the sender window is gone', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await expect(
+        fileStorage.saveImage(mockSenderWindow(null), '图片-导出', 'data:image/png;base64,AAAA')
+      ).resolves.toBe(false)
+
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '图片-导出.png' }))
     })
   })
 })
