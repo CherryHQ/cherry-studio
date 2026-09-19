@@ -562,8 +562,14 @@ export class SkillService {
         )
       }
       // A bare repo URL names the repo, not the skill: a reserved derivation (`CON` → `CON-skill`)
-      // can collide with an unrelated sibling stored under the suffixed folder, so refuse it too.
-      if (folderMatch && reservedFolderNameStem(folderName) && isBareGithubRepoUrl(sourceUrl)) {
+      // can collide with an unrelated sibling stored under the suffixed folder. Same skill name
+      // reinstalls still update in place; a different stored name means a sibling, so refuse it.
+      if (
+        folderMatch &&
+        reservedFolderNameStem(folderName) &&
+        isBareGithubRepoUrl(sourceUrl) &&
+        folderMatch.name !== metadata.name
+      ) {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
             `refusing to overwrite it with a ${source} install.`
