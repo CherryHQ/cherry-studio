@@ -1272,6 +1272,32 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('ppio')
     })
 
+    it('routes ComfyUI IMAGE models through ComfyUI config with no API version appended', async () => {
+      // ComfyUI's API is unversioned — `/prompt`, `/object_info` and `/view` sit at the host
+      // root — so the extension's transport has to receive the bare host. An appended `/v1`
+      // makes every call the transport makes a 404.
+      const provider = makeProvider({
+        id: 'comfyui',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+            baseUrl: 'http://localhost:8188',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'comfyui',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('comfyui')
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('http://localhost:8188')
+    })
+
     it.each([
       ['minimax', undefined, 'https://api.minimaxi.com/v1'],
       ['minimax-global', 'minimax', 'https://api.minimax.io/v1']

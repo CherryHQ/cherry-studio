@@ -32,6 +32,7 @@ const providerKeyMap = {
   cherryai: 'provider.cherryai',
   cherryin: 'provider.cherryin',
   'claude-code': 'provider.claude-code',
+  comfyui: 'provider.comfyui',
   copilot: 'provider.copilot',
   dashscope: 'provider.dashscope',
   deepseek: 'provider.deepseek',

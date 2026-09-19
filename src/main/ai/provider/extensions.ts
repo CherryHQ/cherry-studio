@@ -22,6 +22,7 @@ import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { AihubmixProviderSettings } from './custom/aihubmix/aihubmixProvider'
+import type { ComfyuiProviderSettings } from './custom/comfyui/comfyuiProvider'
 import type { DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
 import type { DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
 import type { LocalEmbeddingProviderSettings } from './custom/localEmbedding/localEmbeddingProvider'
@@ -325,6 +326,12 @@ export const DoubaoExtension = ProviderExtension.create({
   create: async (settings) => (await import('@ai-sdk/bytedance')).createByteDance(settings)
 } as const satisfies ProviderExtensionConfig<ByteDanceProviderSettings, ProviderV3, 'doubao'>)
 
+export const ComfyuiExtension = ProviderExtension.create({
+  name: 'comfyui',
+  supportsImageGeneration: true,
+  create: async (settings) => (await import('./custom/comfyui/comfyuiProvider')).createComfyuiProvider(settings)
+} as const satisfies ProviderExtensionConfig<ComfyuiProviderSettings, ProviderV3, 'comfyui'>)
+
 /**
  * OVMS Extension - unified chat + embedding + image (local OpenVINO Model Server, no auth)
  */
@@ -417,6 +424,7 @@ export const extensions = [
   ZhipuExtension,
   DoubaoExtension,
   OvmsExtension,
+  ComfyuiExtension,
   ModelscopeExtension,
   DashScopeExtension,
   TokenhubExtension,

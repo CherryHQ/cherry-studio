@@ -37,8 +37,10 @@ import {
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
+import { customFetch } from '../utils/customFetch'
 import { defaultHeaders, getBaseUrl, getExtraHeaders, getProviderAppHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { listWorkflows } from './custom/comfyui/comfyuiTransport'
 import {
   createVertexModelListRequest,
   DEFAULT_VERTEX_MODEL_PUBLISHERS,
@@ -435,6 +437,29 @@ const ovmsFetcher: ModelFetcher = {
     // fails to load them server-side — the UI communicates readiness, not OVMS.
     return dedup(Object.entries(response), ([name]) => name).map(([name]) =>
       toModel(name, provider, { ownedBy: 'ovms' })
+    )
+  }
+}
+
+const comfyuiFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.comfyui),
+  fetch: async (provider, signal) => {
+    // ComfyUI has no model catalogue: its server serves whatever graphs it can
+    // execute, so the user's saved workflows are the pickable units. The same
+    // headers and proxy-aware fetch the transport uses, so a preset-derived
+    // instance behaves like the canonical one.
+    const workflows = await listWorkflows(formatApiHost(getBaseUrl(provider), false), signal, {
+      headers: { ...getProviderAppHeaders(provider), ...getExtraHeaders(provider) },
+      fetch: customFetch
+    })
+    return workflows.map((name) =>
+      toModel(name, provider, {
+        name,
+        ownedBy: 'comfyui',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        outputModalities: ['image'],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
     )
   }
 }
@@ -900,6 +925,7 @@ const fetchers: ModelFetcher[] = [
   vertexFetcher,
   copilotFetcher,
   ovmsFetcher,
+  comfyuiFetcher,
   togetherFetcher,
   newApiFetcher,
   tokenDanceFetcher,

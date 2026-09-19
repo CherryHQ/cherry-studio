@@ -109,8 +109,18 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   if (isOllamaProvider(provider)) return formatOllamaApiHost(baseURL)
   if (isGeminiProvider(provider)) return formatApiHost(baseURL, appendApiVersion, 'v1beta')
 
-  // Providers that don't append API version
-  const noVersionProviders = ['copilot', CHERRYAI_PROVIDER_ID, 'perplexity', 'newapi', 'new-api', 'azure-openai']
+  // Providers that don't append API version. ComfyUI is here because its API is not
+  // versioned at all — `/prompt`, `/view` and `/object_info` sit at the host root, so an
+  // appended `/v1` would 404 every call the extension's transport makes.
+  const noVersionProviders = [
+    'copilot',
+    CHERRYAI_PROVIDER_ID,
+    'perplexity',
+    'newapi',
+    'new-api',
+    'azure-openai',
+    SystemProviderIds.comfyui
+  ]
   if (noVersionProviders.includes(provider.id) || noVersionProviders.includes(provider.presetProviderId ?? '')) {
     return formatApiHost(baseURL, false)
   }
@@ -125,7 +135,8 @@ const IMAGE_EXTENSION_PRESETS = [
   SystemProviderIds.silicon,
   SystemProviderIds.doubao,
   SystemProviderIds.dmxapi,
-  SystemProviderIds.tokenhub
+  SystemProviderIds.tokenhub,
+  SystemProviderIds.comfyui
 ] as const
 
 // ── SDK Config Building ──

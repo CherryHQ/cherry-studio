@@ -465,8 +465,8 @@
     }
   ],
   "providers": {
-    "version": "c1e12f94463bc3de",
-    "count": 63,
+    "version": "4cc9e1dfb5650906",
+    "count": 64,
     "entries": [
       {
         "id": "cherryin",
@@ -567,6 +567,10 @@
       {
         "id": "claude-code",
         "name": "Claude Code"
+      },
+      {
+        "id": "comfyui",
+        "name": "ComfyUI"
       },
       {
         "id": "openai-codex",
