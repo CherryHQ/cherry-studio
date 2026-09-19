@@ -14,6 +14,7 @@ import type { Topic } from '@shared/data/types/topic'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
 
+import azAZ from '../../../i18n/locales/az-az.json'
 import deDE from '../../../i18n/locales/de-de.json'
 import elGR from '../../../i18n/locales/el-gr.json'
 import enUS from '../../../i18n/locales/en-us.json'
@@ -1797,7 +1798,7 @@ describe('HistoryRecordsView locale resources', () => {
       'title'
     ]
     const originalLocaleResources = [enUS, zhCN, zhTW]
-    const runtimeLocaleResources = [enUS, zhCN, zhTW, deDE, elGR, esES, frFR, jaJP, ptPT, roRO, ruRU, trTR, viVN]
+    const runtimeLocaleResources = [enUS, zhCN, zhTW, azAZ, deDE, elGR, esES, frFR, jaJP, ptPT, roRO, ruRU, trTR, viVN]
 
     for (const resource of runtimeLocaleResources) {
       for (const key of requiredGlobalKeys) {
