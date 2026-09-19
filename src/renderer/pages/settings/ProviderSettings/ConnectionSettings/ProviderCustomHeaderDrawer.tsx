@@ -236,7 +236,7 @@ export function findInvalidSecondaryEndpointUrl(
 
 export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }: ProviderCustomHeaderDrawerProps) {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, updateProvider, refetch } = useProvider(providerId)
   const { syncProviderModels } = useProviderModelSync(providerId)
 
   const topology = getProviderHostTopology(provider)
@@ -348,11 +348,19 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    const textEndpointConfigs = mergeEndpointConfigs(
-      provider.endpointConfigs,
-      endpointDrafts,
-      openEndpointConfigsRef.current
-    )
+    // A reasoning format committed elsewhere may have PATCHed while its
+    // refresh is still outstanding, leaving `provider` stale. Refetch so
+    // untouched drafts preserve it instead of writing the stale snapshot.
+    let existingConfigs = provider?.endpointConfigs
+    try {
+      const fresh = (await refetch()) as { endpointConfigs?: typeof existingConfigs } | undefined
+      if (fresh?.endpointConfigs) {
+        existingConfigs = fresh.endpointConfigs
+      }
+    } catch {
+      // Fall back to the cached provider on refetch failure.
+    }
+    const textEndpointConfigs = mergeEndpointConfigs(existingConfigs, endpointDrafts, openEndpointConfigsRef.current)
     const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
     const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
     const defaultEndpointChanged = defaultChatEndpoint !== primaryEndpoint
@@ -408,6 +416,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     primaryEndpoint,
     provider,
     providerId,
+    refetch,
     rows,
     sourceHeaders,
     syncProviderModels,
