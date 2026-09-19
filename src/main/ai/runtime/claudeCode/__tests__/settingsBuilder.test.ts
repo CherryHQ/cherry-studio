@@ -78,7 +78,11 @@ const mocks = vi.hoisted(() => ({
   loadAgentsMdInitialContext: vi.fn(),
   agentsMdHook: vi.fn(async () => ({})),
   platform: { isLinux: false, isMac: false },
-  isWin: false
+  isWin: false,
+  resolveWindowsAgentShell: vi.fn(() => ({
+    kind: 'powershell',
+    path: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+  }))
 }))
 
 vi.mock('node:module', async (importOriginal) => {
@@ -242,7 +246,8 @@ vi.mock('@main/utils/binaryResolver', () => ({
 }))
 
 vi.mock('@main/utils/commandResolver', () => ({
-  autoDiscoverGitBash: vi.fn(() => null)
+  autoDiscoverGitBash: vi.fn(() => null),
+  resolveWindowsAgentShell: mocks.resolveWindowsAgentShell
 }))
 
 vi.mock('@main/utils/rtk', () => ({
@@ -370,6 +375,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false
+    mocks.resolveWindowsAgentShell.mockReturnValue({
+      kind: 'powershell',
+      path: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+    })
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
@@ -1794,6 +1803,37 @@ describe('buildClaudeCodeSessionSettings', () => {
     // Tools classified `disabled` in the declarative registry stay blocked.
     expect(disallowed).toEqual(expect.arrayContaining(['CronCreate', 'NotebookEdit', 'TodoWrite']))
     expect(new Set(disallowed).size).toBe(disallowed.length)
+  })
+
+  it('disallows Bash when Windows PowerShell tool mode is active', async () => {
+    // Bug this catches: without Bash in disallowedTools, PowerShell mode still left Bash callable
+    // and the SDK failed those calls with a generic empty/unavailable shell experience.
+    mocks.isWin = true
+    mocks.resolveWindowsAgentShell.mockReturnValue({
+      kind: 'powershell',
+      path: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: {}
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: 'C:\\workspace\\project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env?.CLAUDE_CODE_USE_POWERSHELL_TOOL).toBe('1')
+    expect(settings.disallowedTools ?? []).toEqual(expect.arrayContaining(['Bash', 'builtin_Bash']))
   })
 
   it('does not bake headless-only interactive denials into disallowedTools', async () => {

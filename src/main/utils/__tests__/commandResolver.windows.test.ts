@@ -17,7 +17,16 @@ vi.mock('which')
 vi.mock('../bundledGit', () => ({ getBundledGitPath: () => 'C:\\Cherry\\git\\git.exe' }))
 vi.mock('@main/core/platform', () => ({ isWin: true }))
 
-const { findCommandInShellEnv, findExecutable, findExecutableInEnv, findViaMise } = await import('../commandResolver')
+const {
+  autoDiscoverGitBash,
+  findCommandInShellEnv,
+  findExecutable,
+  findExecutableInEnv,
+  findGitBash,
+  findPowerShell,
+  findViaMise,
+  resolveWindowsAgentShell
+} = await import('../commandResolver')
 
 describe('findCommandInShellEnv on Windows', () => {
   beforeEach(() => {
@@ -198,5 +207,89 @@ describe('Windows mise lookup', () => {
     const rejected = expect(pending).rejects.toThrow()
     controller.abort()
     await rejected
+  })
+})
+
+describe('Windows agent shell discovery', () => {
+  const savedEnv = process.env
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(which.sync)
+      .mockReset()
+      .mockReturnValue(null as never)
+    vi.mocked(fs.existsSync).mockReset().mockReturnValue(false)
+    process.env = {
+      SystemRoot: 'C:\\Windows',
+      ProgramFiles: 'C:\\Program Files',
+      // Stale GUI PATH: no Scoop / user toolchain segments.
+      Path: 'C:\\Windows\\system32'
+    }
+    delete process.env.CLAUDE_CODE_GIT_BASH_PATH
+  })
+
+  afterEach(() => {
+    process.env = savedEnv
+  })
+
+  it('finds Scoop Git Bash through the login-shell PATH when process.env Path is stale', () => {
+    // Bug this catches: packaged Electron keeps a stale GUI Path. Discovery that only
+    // searches process.env misses Scoop/user installs that are present on the registry
+    // login PATH, so Claude Code starts with no shell tool and no actionable error.
+    const gitPath = 'C:\\Users\\User\\scoop\\apps\\git\\current\\cmd\\git.exe'
+    const bashPath = 'C:\\Users\\User\\scoop\\apps\\git\\current\\bin\\bash.exe'
+    const loginPath = 'C:\\Users\\User\\scoop\\apps\\git\\current\\cmd;C:\\Windows\\system32'
+
+    vi.mocked(which.sync).mockImplementation((command, options) => {
+      if (command === 'git' && options && typeof options === 'object' && 'path' in options) {
+        return options.path === loginPath ? ([gitPath] as never) : (null as never)
+      }
+      return null as never
+    })
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === bashPath || p === gitPath)
+
+    expect(findGitBash(null, { Path: loginPath })).toBe(bashPath)
+    expect(findGitBash()).toBeNull()
+  })
+
+  it('autoDiscoverGitBash forwards the login env into discovery', () => {
+    const gitPath = 'C:\\Users\\User\\scoop\\apps\\git\\current\\cmd\\git.exe'
+    const bashPath = 'C:\\Users\\User\\scoop\\apps\\git\\current\\bin\\bash.exe'
+    const loginPath = 'C:\\Users\\User\\scoop\\shims;C:\\Windows\\system32'
+
+    vi.mocked(which.sync).mockImplementation((command, options) => {
+      if (command === 'git' && options && typeof options === 'object' && 'path' in options) {
+        return options.path === loginPath ? ([gitPath] as never) : (null as never)
+      }
+      return null as never
+    })
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === bashPath || p === gitPath)
+
+    expect(autoDiscoverGitBash({ Path: loginPath })).toBe(bashPath)
+  })
+
+  it('prefers Git Bash, otherwise PowerShell, otherwise an actionable unavailable reason', () => {
+    const powershellPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === powershellPath)
+
+    expect(resolveWindowsAgentShell({ Path: 'C:\\Windows\\system32' })).toEqual({
+      kind: 'powershell',
+      path: powershellPath
+    })
+
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+    const unavailable = resolveWindowsAgentShell({ Path: 'C:\\empty' })
+    expect(unavailable.kind).toBe('unavailable')
+    if (unavailable.kind === 'unavailable') {
+      expect(unavailable.reason).toMatch(/Git for Windows/i)
+      expect(unavailable.reason).toMatch(/PowerShell/i)
+      expect(unavailable.reason).toMatch(/CLAUDE_CODE_GIT_BASH_PATH/)
+    }
+  })
+
+  it('findPowerShell resolves the system Windows PowerShell install', () => {
+    const powershellPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === powershellPath)
+    expect(findPowerShell({ Path: 'C:\\Windows\\system32' })).toBe(powershellPath)
   })
 })
