@@ -9,12 +9,12 @@
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
+import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import {
   appendNoResponseErrorPart,
   hasVisibleAgentSessionPart,
   type NoResponseErrorPartOptions
 } from '@shared/ai/agentSessionNoResponse'
-import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 

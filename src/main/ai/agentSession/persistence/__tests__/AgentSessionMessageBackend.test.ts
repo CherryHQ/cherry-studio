@@ -66,11 +66,14 @@ describe('AgentSessionMessageBackend', () => {
   it('downgrades hidden-only success to a terminal error', async () => {
     const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
     const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
-    await listener.onDone({ status: 'success', finalMessage: {
-      id: assistantMessageId,
-      role: 'assistant',
-      parts: [{ type: 'step-start' }, { type: 'text', text: '   ' }]
-    } as never })
+    await listener.onDone({
+      status: 'success',
+      finalMessage: {
+        id: assistantMessageId,
+        role: 'assistant',
+        parts: [{ type: 'step-start' }, { type: 'text', text: '   ' }]
+      } as never
+    })
     const saved = agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)
     expect(saved.status).toBe('error')
     expect(saved.data.parts).toContainEqual(expect.objectContaining({ type: 'data-error' }))

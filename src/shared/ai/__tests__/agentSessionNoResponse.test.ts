@@ -38,6 +38,14 @@ describe('isVisibleAgentSessionPart', () => {
     expect(
       isVisibleAgentSessionPart({ type: 'tool-bash', state: 'output-available', toolCallId: 't1', input: {} } as never)
     ).toBe(true)
+    expect(
+      isVisibleAgentSessionPart({
+        type: 'tool-builtin_AskUserQuestion',
+        state: 'output-available',
+        toolCallId: 't1-legacy',
+        input: {}
+      } as never)
+    ).toBe(true)
     // MCP-resolved tools always render the generic MCP card.
     expect(
       isVisibleAgentSessionPart({
