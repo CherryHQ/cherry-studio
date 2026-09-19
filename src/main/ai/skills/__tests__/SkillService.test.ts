@@ -1969,6 +1969,70 @@ describe('SkillService', () => {
       }
     })
 
+    it('updates a bare-URL reserved-name skill in place when the reinstall renames it by case only', async () => {
+      const root = await createTempDir('github-reserved-case-rename-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      // A case-only metadata rename (`CON` to `con`) keeps the derived folder, so the reinstall
+      // is still the same skill: update the row in place instead of refusing it as a sibling.
+      const sourceUrl = 'https://github.com/owner/repo'
+      await seedAgent()
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'CON',
+        folderName: 'CON-skill',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
+      const sourceDir = await createTempDir('reserved-case-rename-source-')
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# new')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'CON',
+        name: 'con',
+        description: 'Reserved-name skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory: string) => path.join(directory, 'SKILL.md'))
+      const skillService = new SkillService()
+
+      try {
+        const installed = (await skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)) as {
+          id: string
+          folderName: string
+        }
+
+        expect(installed.id).toBe(SKILL_ID_1)
+        expect(installed.folderName).toBe('CON-skill')
+        const rows = await dbh.db.select().from(agentGlobalSkillTable)
+        expect(rows).toHaveLength(1)
+        expect(rows.find((row) => row.id === SKILL_ID_1)).toMatchObject({
+          folderName: 'CON-skill',
+          description: 'Reserved-name skill'
+        })
+        expect(await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))).toHaveLength(
+          1
+        )
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+        vi.mocked(findSkillMdPath).mockReset()
+      }
+    })
+
     it('uses an explicit tag namespace when a branch has the same name', async () => {
       const tagOid = 'b'.repeat(40)
       const { skillService, installSpy, gitCalls } = await setupGithubInstall({
