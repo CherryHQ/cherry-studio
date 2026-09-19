@@ -779,11 +779,15 @@ class FileStorage {
     options?: SaveDialogOptions
   ): Promise<string | null> => {
     try {
-      const result: SaveDialogReturnValue = await dialog.showSaveDialog({
+      const dialogOptions: SaveDialogOptions = {
         title: t('dialog.save_file'),
         defaultPath: fileName,
         ...options
-      })
+      }
+      const ownerWindow = _.sender?.getOwnerBrowserWindow?.()
+      const result: SaveDialogReturnValue = ownerWindow
+        ? await dialog.showSaveDialog(ownerWindow, dialogOptions)
+        : await dialog.showSaveDialog(dialogOptions)
 
       if (result.canceled || !result.filePath) {
         return null
@@ -801,10 +805,14 @@ class FileStorage {
 
   public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
     try {
-      const result: SaveDialogReturnValue = await dialog.showSaveDialog({
+      const dialogOptions: SaveDialogOptions = {
         defaultPath: `${name}.png`,
         filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
-      })
+      }
+      const ownerWindow = _.sender?.getOwnerBrowserWindow?.()
+      const result: SaveDialogReturnValue = ownerWindow
+        ? await dialog.showSaveDialog(ownerWindow, dialogOptions)
+        : await dialog.showSaveDialog(dialogOptions)
 
       if (!result.canceled && result.filePath) {
         await assertOutsideManagedStorageMutation(result.filePath)

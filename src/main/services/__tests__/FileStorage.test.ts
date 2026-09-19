@@ -32,6 +32,23 @@ describe('FileStorage', () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' })
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
     })
+
+    it('parents the save dialog to the sender window when available', async () => {
+      const ownerWindow = {} as Electron.BrowserWindow
+      const eventWithOwner = {
+        sender: {
+          getOwnerBrowserWindow: vi.fn(() => ownerWindow)
+        }
+      } as unknown as Electron.IpcMainInvokeEvent
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await expect(fileStorage.save(eventWithOwner, 'note.md', 'content')).resolves.toBeNull()
+
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+        ownerWindow,
+        expect.objectContaining({ defaultPath: 'note.md' })
+      )
+    })
   })
 
   // resolveHomeRelativeFilePath is module-private; exercise it through showInFolder,
@@ -185,6 +202,23 @@ describe('FileStorage', () => {
       } finally {
         fs.rmSync(tmpFile, { force: true })
       }
+    })
+
+    it('parents the image save dialog to the sender window when available', async () => {
+      const ownerWindow = {} as Electron.BrowserWindow
+      const eventWithOwner = {
+        sender: {
+          getOwnerBrowserWindow: vi.fn(() => ownerWindow)
+        }
+      } as unknown as Electron.IpcMainInvokeEvent
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await expect(fileStorage.saveImage(eventWithOwner, 'pic', 'data:image/png;base64,AAAA')).resolves.toBe(false)
+
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+        ownerWindow,
+        expect.objectContaining({ defaultPath: 'pic.png' })
+      )
     })
   })
 })
