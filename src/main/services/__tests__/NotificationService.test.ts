@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   preferenceGet: vi.fn(),
   preferenceValues: {} as Record<string, boolean>,
   send: vi.fn(),
-  setBadgeCount: vi.fn(() => true),
+  setBadgeCount: vi.fn((_count?: number) => true),
   showMainWindow: vi.fn(),
   streamApprovalListener: undefined as ((event: ApprovalRequestedEvent) => void) | undefined,
   subscribeMultipleChanges: vi.fn(),
@@ -59,7 +59,7 @@ vi.mock('@main/i18n', () => ({
 }))
 vi.mock('electron', () => ({
   app: {
-    setBadgeCount: (...args: unknown[]) => mocks.setBadgeCount(...args)
+    setBadgeCount: (...args: Parameters<typeof mocks.setBadgeCount>) => mocks.setBadgeCount(...args)
   },
   Notification: class {
     private readonly state: (typeof mocks.electronNotifications)[number]
