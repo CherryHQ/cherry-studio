@@ -7,10 +7,11 @@ import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
+import { getHttpMessageLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
+import { getProviderDisplayNameById } from '@renderer/utils/naming'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -57,7 +58,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
       return (
         <Trans
           i18nKey={i18nKey}
-          values={{ provider: t(getProviderLabelKey(providerId)) }}
+          values={{ provider: getProviderDisplayNameById(providerId) }}
           components={{
             provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
           }}
@@ -102,7 +103,7 @@ const MessageErrorInfo: React.FC<{
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
   const localizedErrorMessage = useMemo(
-    () => t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined),
+    () => t(classification.i18nKey, providerId ? { provider: getProviderDisplayNameById(providerId) } : undefined),
     [classification.i18nKey, providerId, t]
   )
 
