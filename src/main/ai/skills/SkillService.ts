@@ -543,12 +543,13 @@ export class SkillService {
       }
       // A bare repo URL names the repo, not the skill: a reserved derivation (`CON` → `CON-skill`)
       // can collide with an unrelated sibling stored under the suffixed folder. Same skill name
-      // reinstalls still update in place; a different stored name means a sibling, so refuse it.
+      // reinstalls still update in place — compared case-insensitively, since a case-only rename
+      // is still the same skill; a different stored name means a sibling, so refuse it.
       if (
         folderMatch &&
         reservedFolderNameStem(folderName) &&
         isBareGithubRepoUrl(sourceUrl) &&
-        folderMatch.name !== metadata.name
+        folderMatch.name.toLowerCase() !== metadata.name.toLowerCase()
       ) {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
@@ -1513,7 +1514,7 @@ export class SkillService {
       return null
     }
     if (isBareGithubRepoUrl(sourceUrl)) return null
-    if (candidate.name !== skillName && source !== 'local' && source !== 'zip') return null
+    if (candidate.name.toLowerCase() !== skillName.toLowerCase() && source !== 'local' && source !== 'zip') return null
     return candidate
   }
 
