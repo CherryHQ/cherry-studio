@@ -9,10 +9,14 @@ const SETTLE_MS = 300
 
 /** Re-emit the guest caret rect to macOS IME after launch geometry and window resize. */
 export function syncMacWebviewIme(webview: WebviewTag): void {
+  // Clearing the host selection would steal IME from composer/other chrome when
+  // this webview is not the focused surface (ready/settle/resize can fire then).
+  if (document.activeElement !== webview) return
   releaseDocumentFocus()
   requestAnimationFrame(() => {
     try {
-      void webview.executeJavaScript(CLAIM_DOCUMENT_FOCUS_SCRIPT)
+      // Guest may detach before the deferred claim runs; next focus/ready retries.
+      void webview.executeJavaScript(CLAIM_DOCUMENT_FOCUS_SCRIPT).catch(() => {})
     } catch {
       // Guest may not be attached yet; the next focus/ready pass retries.
     }
