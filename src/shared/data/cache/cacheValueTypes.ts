@@ -1,4 +1,3 @@
-import type { UIMessageChunk } from 'ai'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { DoctorState } from '@shared/types/doctor'
@@ -194,18 +193,6 @@ export type CacheAgentSessionBackgroundTasks = AgentSessionBackgroundTasks
 export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
 export type CacheAgentSessionFlowParts = AgentSessionFlowParts
 export type CacheAgentSessionTurnOrigin = AutonomousTurnOrigin | null
-
-/**
- * Detached chunks whose host row had not committed when the session closed. Restart-safe so a
- * reopen that finds the row can still deliver them; `orphannedAt` lets stale entries expire.
- */
-export interface CacheAgentSessionFlowRecoveryOrphan {
-  sessionId: string
-  rootToolCallId: string
-  /** Epoch ms of the teardown that orphaned the batch. */
-  orphannedAt: number
-  chunks: UIMessageChunk[]
-}
 
 /**
  * Persisted window geometry for the WindowManager "remember bounds" capability.
