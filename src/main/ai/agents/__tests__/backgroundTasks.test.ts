@@ -18,7 +18,8 @@ import {
 
 // Double quotes survive both POSIX sh and cmd.exe, including spaced paths.
 const nodeBin = `"${process.execPath}"`
-const okCommand = `${nodeBin} -e "process.stdout.write('bg-ok')"`
+// Exercise the shell's own output so this test isolates the detached task log redirection.
+const okCommand = 'echo bg-ok'
 const failCommand = `${nodeBin} -e "process.exit(3)"`
 
 describe('backgroundTasks', () => {
