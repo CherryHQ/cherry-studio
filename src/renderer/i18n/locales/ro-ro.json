@@ -4875,6 +4875,8 @@
   "settings.provider.add.name.required": "Introdu numele furnizorului",
   "settings.provider.add.title": "Adaugă furnizor",
   "settings.provider.add.type": "Tip furnizor",
+  "settings.provider.allow_self_signed_tls.help": "Dezactivat implicit: certificatul TLS al acestui furnizor este verificat. Când este activată, verificarea certificatelor este omisă pentru gazdele API HTTPS ale acestui furnizor — certificatele auto-semnate, de CA privată, expirate sau cu nume de gazdă greșit sunt toate acceptate — un atacator (man-in-the-middle) ar putea intercepta traficul API al acestor gazde.",
+  "settings.provider.allow_self_signed_tls.title": "Permite certificatele auto-semnate",
   "settings.provider.anthropic_api_host": "Gazdă API Anthropic",
   "settings.provider.anthropic_api_host_preview": "Previzualizare Anthropic: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Folosește doar când furnizorul oferă un URL de bază compatibil cu Claude.",

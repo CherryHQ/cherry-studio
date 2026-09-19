@@ -4875,6 +4875,8 @@
   "settings.provider.add.name.required": "請輸入供應商名稱",
   "settings.provider.add.title": "新增供應商",
   "settings.provider.add.type": "供應商類型",
+  "settings.provider.allow_self_signed_tls.help": "預設關閉：會驗證此供應商的 TLS 憑證。開啟後將跳過對該供應商 HTTPS API 主機的憑證驗證——自簽、私有 CA、過期或網域不符的憑證均會被接受，中間人可能攔截這些主機的 API 流量。",
+  "settings.provider.allow_self_signed_tls.title": "允許自簽憑證",
   "settings.provider.anthropic_api_host": "Anthropic API 主機位址",
   "settings.provider.anthropic_api_host_preview": "Anthropic 預覽：{{url}}",
   "settings.provider.anthropic_api_host_tooltip": "僅在供應商提供 Claude 相容的基礎網址時設定。",

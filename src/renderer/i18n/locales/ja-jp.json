@@ -4875,6 +4875,8 @@
   "settings.provider.add.name.required": "プロバイダー名を入力してください",
   "settings.provider.add.title": "プロバイダーを追加",
   "settings.provider.add.type": "プロバイダータイプ",
+  "settings.provider.allow_self_signed_tls.help": "デフォルトはオフ：このプロバイダーの TLS 証明書を検証します。有効にすると、このプロバイダーの HTTPS API ホストの証明書検証がスキップされます — 自己署名・プライベート CA・期限切れ・ホスト名不一致の証明書がすべて受け入れられ、中間者がそれらのホストの API 通信を傍受するおそれがあります。",
+  "settings.provider.allow_self_signed_tls.title": "自己署名証明書を許可",
   "settings.provider.anthropic_api_host": "Anthropic APIアドレス",
   "settings.provider.anthropic_api_host_preview": "Anthropic プレビュー：{{url}}",
   "settings.provider.anthropic_api_host_tooltip": "サービスプロバイダーがClaude互換のベースアドレスを提供する場合のみ入力してください。",

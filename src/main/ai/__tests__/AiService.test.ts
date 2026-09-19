@@ -107,6 +107,10 @@ vi.mock('../utils/customFetch', async (importOriginal) => ({
   customFetch: vi.fn()
 }))
 
+vi.mock('../utils/providerTlsExceptions', () => ({
+  installProviderCertificateVerifyProc: () => () => {}
+}))
+
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     getByProviderId: (...args: unknown[]) => mockProviderGetByProviderId(...args),

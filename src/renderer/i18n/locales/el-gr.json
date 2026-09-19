@@ -4875,6 +4875,8 @@
   "settings.provider.add.name.required": "Παρακαλώ εισάγετε το όνομα του παρόχου",
   "settings.provider.add.title": "Προσθήκη παρόχου",
   "settings.provider.add.type": "Τύπος παρόχου",
+  "settings.provider.allow_self_signed_tls.help": "Απενεργοποιημένο από προεπιλογή: το πιστοποιητικό TLS αυτού του παρόχου επαληθεύεται. Όταν είναι ενεργοποιημένο, η επαλήθευση πιστοποιητικών παρακάμπτεται για τους κεντρικούς υπολογιστές HTTPS API αυτού του παρόχου — δεκτά είναι τόσο τα αυτο-υπογεγραμμένα και ιδιωτικής CA, όσο και τα ληγμένα ή με λάθος όνομα κεντρικού υπολογιστή — ένας επιτιθέμενος (man-in-the-middle) θα μπορούσε να υποκλέψει την κυκλοφορία API αυτών των κεντρικών υπολογιστών.",
+  "settings.provider.allow_self_signed_tls.title": "Να επιτρέπονται αυτο-υπογεγραμμένα πιστοποιητικά",
   "settings.provider.anthropic_api_host": "Διεύθυνση API Anthropic",
   "settings.provider.anthropic_api_host_preview": "Προεπισκόπηση Anthropic: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Συμπληρώστε μόνο όταν ο πάροχος παρέχει βασική διεύθυνση συμβατή με Claude.",

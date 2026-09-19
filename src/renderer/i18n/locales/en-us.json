@@ -4875,6 +4875,8 @@
   "settings.provider.add.name.required": "Please enter the provider name",
   "settings.provider.add.title": "Add Provider",
   "settings.provider.add.type": "Provider Type",
+  "settings.provider.allow_self_signed_tls.help": "Off by default: this provider's TLS certificate is verified. When enabled, certificate verification is skipped for this provider's HTTPS API hosts — self-signed, private-CA, expired, or wrong-hostname certificates are all accepted, and a man-in-the-middle could intercept API traffic for those hosts.",
+  "settings.provider.allow_self_signed_tls.title": "Allow Self-Signed Certificates",
   "settings.provider.anthropic_api_host": "Anthropic API Host",
   "settings.provider.anthropic_api_host_preview": "Anthropic preview: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Use only when the provider offers a Claude-compatible base URL.",
