@@ -12,11 +12,13 @@ import {
 import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
 
 import { makeModel } from '../../__tests__/fixtures'
-import { encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'
+import { collectRequestBodyKeys, encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'
 
 const budgetProfile: ReasoningWireProfile = {
   effort: {
-    operations: [{ target: 'thinking.budgetTokens', value: { source: 'budget' } }],
+    operations: [
+      { target: 'thinking.budgetTokens', value: { source: 'budget' }, delivery: 'provider-option' as const }
+    ],
     budget: { min: 1024, missing: { type: 'fallback', value: 13_312 }, clampToMaxTokens: true }
   }
 }
@@ -50,7 +52,7 @@ describe('resolveReasoningInvocation budget constraints', () => {
   it('encodes an audited provider budget target without serializer model branches', () => {
     const profile: ReasoningWireProfile = {
       effort: {
-        operations: [{ target: 'reasoning_budget', value: { source: 'budget' } }],
+        operations: [{ target: 'reasoning_budget', value: { source: 'budget' }, delivery: 'provider-option' as const }],
         budget: { min: 1, missing: { type: 'omit-mode' } }
       }
     }
@@ -62,7 +64,13 @@ describe('resolveReasoningInvocation budget constraints', () => {
   it('encodes an audited nested string toggle target', () => {
     const profile: ReasoningWireProfile = {
       auto: {
-        operations: [{ target: 'chat_template_kwargs.thinking_mode', value: { source: 'literal', value: 'adaptive' } }]
+        operations: [
+          {
+            target: 'chat_template_kwargs.thinking_mode',
+            value: { source: 'literal', value: 'adaptive' },
+            delivery: 'request-body' as const
+          }
+        ]
       }
     }
     const toggleModel = makeModel({
@@ -88,6 +96,58 @@ describe('resolveReasoningInvocation budget constraints', () => {
     expect(encodeReasoningInvocation(enabled)).toEqual({ think: true })
     expect(encodeReasoningInvocation(disabled)).toEqual({ think: false })
   })
+
+  it('encodes the self-hosted chat_template_kwargs toggle', () => {
+    const toggleModel = makeModel({
+      reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
+    })
+    const profile = REASONING_FORMAT_PROFILES['self-hosted'].wire
+
+    const enabled = resolveReasoningInvocation({ selection: 'auto', model: toggleModel, profile })
+    expect(enabled.kind).toBe('auto')
+    expect(encodeReasoningInvocation(enabled)).toEqual({
+      chat_template_kwargs: { enable_thinking: true }
+    })
+
+    const disabled = resolveReasoningInvocation({ selection: 'none', model: toggleModel, profile })
+    expect(encodeReasoningInvocation(disabled)).toEqual({ chat_template_kwargs: { enable_thinking: false } })
+  })
+
+  it('encodes self-hosted with no budget even when model declares a budget', () => {
+    const profile = REASONING_FORMAT_PROFILES['self-hosted'].wire
+
+    const enabled = resolveReasoningInvocation({ selection: 'high', model, profile })
+    expect(enabled.kind).toBe('effort')
+    expect(encodeReasoningInvocation(enabled)).toEqual({ chat_template_kwargs: { enable_thinking: true } })
+  })
+})
+
+describe('collectRequestBodyKeys', () => {
+  it('collects the self-hosted body key from every mode', () => {
+    expect(collectRequestBodyKeys(REASONING_FORMAT_PROFILES['self-hosted'].wire)).toEqual(
+      new Set(['chat_template_kwargs'])
+    )
+  })
+
+  it('ignores provider-option wires such as NVIDIA NIM', () => {
+    const profile: ReasoningWireProfile = {
+      auto: {
+        operations: [
+          {
+            target: 'chat_template_kwargs.enable_thinking',
+            value: { source: 'literal', value: true },
+            delivery: 'provider-option' as const
+          }
+        ]
+      }
+    }
+    expect(collectRequestBodyKeys(profile)).toEqual(new Set())
+  })
+
+  it('returns no keys for disabled or missing profiles', () => {
+    expect(collectRequestBodyKeys({ disabled: true })).toEqual(new Set())
+    expect(collectRequestBodyKeys(undefined)).toEqual(new Set())
+  })
 })
 
 // A gateway request carries canonical `auto` (Claude Code's adaptive thinking, Gemini's -1 budget),
@@ -100,7 +160,7 @@ describe('automatic effort against a model that does not declare it', () => {
   ) =>
     ({
       auto: {
-        operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+        operations: [{ target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' }],
         effortMap: { auto: autoEffort, ...translations }
       }
     }) satisfies ReasoningWireProfile
@@ -122,7 +182,9 @@ describe('automatic effort against a model that does not declare it', () => {
   // DashScope's Kimi K3 is shaped this way and would otherwise receive the literal string `auto`.
   describe('a profile whose effort mode has to stand in for auto', () => {
     const effortOnly = {
-      effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
+      effort: {
+        operations: [{ target: 'reasoning_effort', value: { source: 'effort' }, delivery: 'provider-option' }]
+      }
     } satisfies ReasoningWireProfile
 
     it("falls back to the model's own default tier", () => {
@@ -177,7 +239,7 @@ describe('automatic effort against a model that does not declare it', () => {
       model: withEfforts('low', 'xhigh'),
       profile: {
         effort: {
-          operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+          operations: [{ target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' }],
           effortMap: { xhigh: 'max' }
         }
       }

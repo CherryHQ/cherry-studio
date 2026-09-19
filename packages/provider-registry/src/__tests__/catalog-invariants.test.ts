@@ -98,8 +98,8 @@ describe('catalog invariants (data/*.json)', () => {
   const baseIds = new Set(ids)
 
   it.each([
-    // OpenRouter renamed the vendor prefix (Microsoft → MicrosoftAI) in the same batch as MiniMax → MiniMaxAI.
-    ['mai-image-2-5', 'microsoft', 'MicrosoftAI: MAI-Image-2.5'],
+    // OpenRouter renamed the vendor prefix again (MicrosoftAI → Microsoft AI).
+    ['mai-image-2-5', 'microsoft', 'Microsoft AI: MAI-Image-2.5'],
     ['recraft-v4-1-vector', 'recraft', 'Recraft: Recraft V4.1 Vector'],
     ['riverflow-v2-5-fast', 'sourceful', 'Sourceful: Riverflow V2.5 Fast'],
     ['seedream-4-5', 'bytedance', 'Seedream 4.5']
@@ -434,7 +434,7 @@ describe('catalog invariants (data/*.json)', () => {
   it('budget wire operations require an explicit budget policy', () => {
     const result = ReasoningWireProfileSchema.safeParse({
       effort: {
-        operations: [{ target: 'thinking_budget', value: { source: 'budget' } }]
+        operations: [{ target: 'thinking_budget', value: { source: 'budget' }, delivery: 'provider-option' as const }]
       }
     })
     expect(result.success).toBe(false)

@@ -15,11 +15,15 @@ const effortSupport = (values: ReasoningEffort[], defaultEffort?: ReasoningEffor
 const minimaxM3Wire: ReasoningWireProfile = modeWire('thinking.type', { off: 'disabled', auto: 'adaptive' })
 
 const qwenBudgetWire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
+  off: {
+    operations: [
+      { target: 'thinking.type', value: { source: 'literal', value: 'disabled' }, delivery: 'provider-option' as const }
+    ]
+  },
   effort: {
     operations: [
-      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-      { target: 'thinking.budgetTokens', value: { source: 'budget' } }
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' as const },
+      { target: 'thinking.budgetTokens', value: { source: 'budget' }, delivery: 'provider-option' as const }
     ],
     budget: { min: 1024, clampToMaxTokens: true, missing: { type: 'omit-mode' } }
   }
@@ -45,6 +49,7 @@ const chatEffortModels: Array<{
   pricing?: ProviderModelOverride['pricing']
 }> = [
   { modelId: 'deepseek-flash', values: ['high', 'max'] },
+  { modelId: 'deepseek-v4-1-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-flash-vision-exp', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-pro', values: ['high', 'max'] },

@@ -1084,6 +1084,126 @@ describe('ProviderRegistryService', () => {
 
       expect(result.reasoningProfile.format).toBe('openai-chat')
     })
+
+    it('resolves a self-hosted reasoning format from a custom provider endpoint config', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'custom-relay',
+        presetProviderId: null,
+        name: 'Custom Relay',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://relay.example/v1',
+            reasoningFormat: { type: 'self-hosted' }
+          }
+        } as never,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const result = providerRegistryService.lookupModel('custom-relay', 'qwen3-5')
+
+      expect(result.reasoningProfile.format).toBe('self-hosted')
+      expect(result.reasoningProfile.wire.auto?.operations).toEqual([
+        {
+          target: 'chat_template_kwargs.enable_thinking',
+          value: { source: 'literal', value: true },
+          delivery: 'request-body'
+        }
+      ])
+      expect(result.reasoningProfile.wire.off?.operations).toEqual([
+        {
+          target: 'chat_template_kwargs.enable_thinking',
+          value: { source: 'literal', value: false },
+          delivery: 'request-body'
+        }
+      ])
+    })
+
+    it('keeps the registry endpoint wire when the persisted value selects the same format type', async () => {
+      const endpointWire = {
+        off: {
+          operations: [
+            { target: 'thinking.type', value: { source: 'literal', value: 'disabled' }, delivery: 'provider-option' }
+          ]
+        },
+        auto: {
+          operations: [
+            { target: 'thinking.type', value: { source: 'literal', value: 'auto' }, delivery: 'provider-option' }
+          ]
+        },
+        effort: {
+          operations: [
+            { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' }
+          ]
+        }
+      }
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'kimi-k2.5', name: 'Kimi K2.5', capabilities: ['reasoning'] }]
+      })
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'moonshot', modelId: 'kimi-k2.5' }]
+      })
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'moonshot',
+            name: 'Moonshot AI',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: {
+              'openai-chat-completions': {
+                baseUrl: 'https://api.moonshot.cn/v1',
+                reasoningFormat: { type: 'openai-chat', wire: endpointWire }
+              }
+            },
+            metadata: {}
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+      // An unmodified preset row carries the selector projection (`{ type }`,
+      // never the wire) produced by buildPersistedEndpointConfigs.
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'moonshot',
+        presetProviderId: 'moonshot',
+        name: 'Moonshot AI',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://api.moonshot.cn/v1',
+            reasoningFormat: { type: 'openai-chat' }
+          }
+        } as never,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const result = providerRegistryService.lookupModel('moonshot', 'kimi-k2.5')
+
+      expect(result.reasoningProfile.format).toBe('openai-chat')
+      expect(result.reasoningProfile.wire).toEqual(endpointWire)
+    })
+
+    it('keeps the default openai-chat format when a custom provider has no reasoningFormat', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'custom-relay',
+        presetProviderId: null,
+        name: 'Custom Relay',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://relay.example/v1'
+          }
+        } as never,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const result = providerRegistryService.lookupModel('custom-relay', 'qwen3-5')
+
+      expect(result.reasoningProfile.format).toBe('openai-chat')
+    })
   })
 })
 
@@ -1095,13 +1215,15 @@ describe('projectRuntimeReasoning summary options', () => {
     const withSummary = projectRuntimeReasoning(effortSupport, {
       effort: {
         operations: [
-          { target: 'reasoningEffort', value: { source: 'effort' } },
-          { target: 'reasoningSummary', value: { source: 'assistant-summary' } }
+          { target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' as const },
+          { target: 'reasoningSummary', value: { source: 'assistant-summary' }, delivery: 'provider-option' }
         ]
       }
     })
     const withoutSummary = projectRuntimeReasoning(effortSupport, {
-      effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
+      effort: {
+        operations: [{ target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' as const }]
+      }
     })
 
     expect(withSummary.summaryOptions).toEqual(['auto', 'concise', 'detailed'])

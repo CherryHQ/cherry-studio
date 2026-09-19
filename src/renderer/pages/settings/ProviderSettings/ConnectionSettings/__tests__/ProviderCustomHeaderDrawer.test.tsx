@@ -1,11 +1,18 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
+import {
+  clearLastWrittenEndpointConfigs,
+  serializeEndpointConfigsWrite,
+  setLastWrittenEndpointConfigs
+} from '../../hooks/providerSetting/endpointConfigsWriteCoordinator'
+
 const useProviderMock = vi.fn()
 const updateProviderMock = vi.fn()
+const refetchMock = vi.fn()
 const syncProviderModelsMock = vi.fn()
 
 vi.mock('@cherrystudio/ui', () => {
@@ -23,6 +30,11 @@ vi.mock('@cherrystudio/ui', () => {
     Popover: ({ children }: any) => React.createElement('div', null, children),
     PopoverContent: ({ children }: any) => React.createElement('div', null, children),
     PopoverTrigger: ({ children }: any) => children,
+    Select: ({ children }: any) => React.createElement('div', null, children),
+    SelectContent: ({ children }: any) => React.createElement('div', null, children),
+    SelectItem: ({ children }: any) => React.createElement('div', null, children),
+    SelectTrigger: ({ children, ...props }: any) => React.createElement('button', props, children),
+    SelectValue: () => React.createElement('span', null, 'value'),
     Tooltip: ({ children }: any) => children
   }
 })
@@ -92,7 +104,8 @@ describe('ProviderCustomHeaderDrawer', () => {
     vi.clearAllMocks()
     updateProviderMock.mockResolvedValue(undefined)
     syncProviderModelsMock.mockResolvedValue([])
-    useProviderMock.mockReturnValue({ provider, updateProvider: updateProviderMock })
+    refetchMock.mockResolvedValue(undefined)
+    useProviderMock.mockReturnValue({ provider, updateProvider: updateProviderMock, refetch: refetchMock })
   })
 
   it('persists a configured endpoint as the provider default', async () => {
@@ -134,7 +147,8 @@ describe('ProviderCustomHeaderDrawer', () => {
         ...provider,
         settings: { extraHeaders: { 'X-Only': 'a' } }
       },
-      updateProvider: updateProviderMock
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
     })
 
     render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
@@ -160,7 +174,8 @@ describe('ProviderCustomHeaderDrawer', () => {
         ...provider,
         settings: { extraHeaders: { 'X-Keep': 'a', 'X-Remove': 'b' } }
       },
-      updateProvider: updateProviderMock
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
     })
 
     render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
@@ -186,7 +201,8 @@ describe('ProviderCustomHeaderDrawer', () => {
         ...provider,
         settings: { extraHeaders: { toString: 'a' } }
       },
-      updateProvider: updateProviderMock
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
     })
 
     render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
@@ -212,7 +228,8 @@ describe('ProviderCustomHeaderDrawer', () => {
         ...provider,
         settings: { extraHeaders: { 'X-Only': 'a' } }
       },
-      updateProvider: updateProviderMock
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
     })
 
     render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
@@ -231,5 +248,105 @@ describe('ProviderCustomHeaderDrawer', () => {
       })
     })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves a reasoning format committed while its refresh is outstanding', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const freshProvider = {
+      ...provider,
+      endpointConfigs: {
+        ...provider.endpointConfigs,
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://openai.example.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    }
+    refetchMock.mockResolvedValue(freshProvider)
+    useProviderMock.mockReturnValue({
+      provider,
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpointConfigs: expect.objectContaining({
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: expect.objectContaining({
+              reasoningFormat: { type: 'self-hosted' }
+            })
+          })
+        })
+      )
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for an in-flight reasoning commit before saving so its value survives', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const raceProvider = {
+      ...provider,
+      id: 'race-provider',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://openai.example.com' }
+      }
+    }
+    const freshConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://openai.example.com',
+        reasoningFormat: { type: 'self-hosted' }
+      }
+    }
+    useProviderMock.mockReturnValue({
+      provider: raceProvider,
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
+    })
+    refetchMock.mockResolvedValue({ endpointConfigs: freshConfigs })
+
+    // An ApiHost reasoning commit started before the drawer save and is still
+    // in flight: the save must wait for it instead of refetching a snapshot
+    // that predates the commit and writing it back over the new value.
+    let releaseCommit!: () => void
+    const commitGate = new Promise<void>((resolve) => {
+      releaseCommit = resolve
+    })
+    const reasoningWrite = serializeEndpointConfigsWrite(raceProvider.id, () =>
+      commitGate.then(() => {
+        setLastWrittenEndpointConfigs(raceProvider.id, freshConfigs as any)
+      })
+    )
+
+    render(<ProviderCustomHeaderDrawer providerId={raceProvider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    await act(async () => {})
+
+    expect(refetchMock).not.toHaveBeenCalled()
+    expect(updateProviderMock).not.toHaveBeenCalled()
+
+    releaseCommit()
+    await reasoningWrite
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpointConfigs: expect.objectContaining({
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: expect.objectContaining({
+              reasoningFormat: { type: 'self-hosted' }
+            })
+          })
+        })
+      )
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    clearLastWrittenEndpointConfigs(raceProvider.id)
   })
 })
