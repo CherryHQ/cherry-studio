@@ -53,13 +53,17 @@ function toControllerItem(row: FollowupQueueRow): FollowupQueueItem {
 
 // A send that never settles would hold its heartbeat-renewed claim forever and
 // wedge its scope's FIFO. Abandon the wait after a lease-scale bound instead.
-async function awaitSendWithTimeout(send: Promise<boolean>): Promise<boolean> {
+interface SendOutcome {
+  sent: boolean
+  timedOut: boolean
+}
+async function awaitSendWithTimeout(send: Promise<boolean>): Promise<SendOutcome> {
   let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<boolean>((resolve) => {
-    timer = setTimeout(() => resolve(false), FOLLOWUP_QUEUE_SEND_TIMEOUT_MS)
+  const timeout = new Promise<SendOutcome>((resolve) => {
+    timer = setTimeout(() => resolve({ sent: false, timedOut: true }), FOLLOWUP_QUEUE_SEND_TIMEOUT_MS)
   })
   try {
-    return await Promise.race([send, timeout])
+    return await Promise.race([send.then((sent) => ({ sent, timedOut: false })), timeout])
   } finally {
     if (timer !== undefined) clearTimeout(timer)
   }
@@ -233,6 +237,9 @@ export function useFollowupQueue({
   // Background claim retries, unlike resolve retries, belong to the live edge:
   // they stop when the hook unmounts.
   const pendingClaimRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  // Drafts orphaned when a scope switch lands mid-take and the replacement
+  // enqueue keeps failing: retried until the write lands, like resolve retries.
+  const pendingReenqueueRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   // Single-flight pause writes: rapid Pause/Resume coalesces to the latest
   // request instead of letting concurrent PUTs resolve out of order.
   const pausedInflightRef = useRef<{ scopeKey: string; paused: boolean } | null>(null)
@@ -361,10 +368,18 @@ export function useFollowupQueue({
         // Scope moved while DELETE was pending: the row is gone, but its draft
         // belongs to the old scope — put it back at the end of that scope's
         // queue instead of restoring it into the new composer.
-        try {
-          await enqueueTrigger({ body: { scopeKey: scope, draft: item.draft, payload: item.payload } })
-        } catch {
+        let restored = false
+        for (let attempt = 0; attempt < 3 && !restored; attempt++) {
+          try {
+            await enqueueTrigger({ body: { scopeKey: scope, draft: item.draft, payload: item.payload } })
+            restored = true
+          } catch {
+            // Transient failure — retry inline, then in the background below.
+          }
+        }
+        if (!restored) {
           toast.error(t('message.error.operation_unavailable'))
+          scheduleReenqueueRetryRef.current(scope, item.draft, item.payload)
         }
         return undefined
       }
@@ -485,6 +500,32 @@ export function useFollowupQueue({
     pendingResolveRef.current.set(id, setTimeout(tick, 5000))
   }
 
+  // Background restore for a take orphaned by a mid-delete scope switch whose
+  // replacement enqueue keeps failing. Uncapped like resolve retries — each
+  // tick is one statement — and refetches on success so mirrors converge.
+  const scheduleReenqueueRetryRef = useRef<
+    (scope: string, draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
+  >(() => {})
+  scheduleReenqueueRetryRef.current = (
+    scope: string,
+    draft: ComposerSerializedDraft,
+    payload: ComposerQueuedMessagePayload
+  ) => {
+    const key = crypto.randomUUID()
+    const tick = () => {
+      pendingReenqueueRef.current.delete(key)
+      void (async () => {
+        try {
+          await enqueueTrigger({ body: { scopeKey: scope, draft, payload } })
+          if (mountedRef.current) void refetch()
+        } catch {
+          scheduleReenqueueRetryRef.current(scope, draft, payload)
+        }
+      })()
+    }
+    pendingReenqueueRef.current.set(key, setTimeout(tick, 5000))
+  }
+
   // Resolve a won claim: dequeue on success, mark failed otherwise. Retried so
   // a successful send is not replayed after a lost dequeue write. Also stops
   // the ownership heartbeat: every owned claim ends here.
@@ -511,6 +552,26 @@ export function useFollowupQueue({
       return false
     },
     [removeTrigger, markFailedTrigger]
+  )
+
+  // A send abandoned by the timeout can still report success late. The row was
+  // settled as failed and stays queued, so reclaim and dequeue it without resending.
+  const repairLateSend = useCallback(
+    async (id: string) => {
+      const claim = await claimItem(id)
+      if (!claim?.claimed) return
+      startHeartbeat(id)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await markSentTrigger({ params: { id } })
+          break
+        } catch {
+          // Transient failure — retry before settling.
+        }
+      }
+      await settleItem(id, true)
+    },
+    [claimItem, startHeartbeat, markSentTrigger, settleItem]
   )
 
   // Shared delivery for a won claim (steer + auto-drain): scope check, skip when
@@ -542,19 +603,32 @@ export function useFollowupQueue({
       startHeartbeat(id)
       let sent = false
       try {
-        sent = await awaitSendWithTimeout(send(payload))
+        const pending = send(payload)
+        const outcome = await awaitSendWithTimeout(pending)
+        sent = outcome.sent
+        if (outcome.timedOut) {
+          // FIFO moves on now, but the orphaned send may still succeed late —
+          // repair it then so the row cannot be redrained and resent.
+          void pending.then(
+            (late) => {
+              if (late) void repairLateSend(id)
+            },
+            () => {}
+          )
+        }
       } catch {
         sent = false
       }
       if (sent) {
-        // Record the send before resolving: a crash after this point replays
-        // as a skip (via the check above), never as a second send. Best
-        // effort — when it fails the resolve retry still dequeues, and the
-        // reclaim lease bounds the residual replay window.
-        try {
-          await markSentTrigger({ params: { id } })
-        } catch {
-          // Fall through to settle; see above.
+        // Record the send before resolving so a crash replays as a skip, never
+        // a resend. Retried; if marking keeps failing the resolve retry still dequeues.
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            await markSentTrigger({ params: { id } })
+            break
+          } catch {
+            // Transient failure — retry before settling.
+          }
         }
       }
       const settled = await settleItem(id, sent)
@@ -563,7 +637,7 @@ export function useFollowupQueue({
       }
       return sent
     },
-    [settleItem, startHeartbeat, markSentTrigger, t]
+    [settleItem, startHeartbeat, markSentTrigger, t, repairLateSend]
   )
 
   // Manual steer through the same claim arbitration as auto-drain: only the
@@ -618,6 +692,9 @@ export function useFollowupQueue({
   const drainHeadRef = useRef<(head: FollowupQueueItem) => Promise<void>>(() => Promise.resolve())
   drainHeadRef.current = async (head: FollowupQueueItem) => {
     const scope = scopeKeyRef.current
+    // Snapshot the send path with the scope: the handler closes over the current
+    // conversation, so a scope switch mid-drain must not redirect the old payload.
+    const sendForScope = onDrainRef.current
     if (drainBusyScopesRef.current.has(scope) || activeIdsRef.current.has(head.id)) return
     drainBusyScopesRef.current.add(scope)
     activeIdsRef.current.add(head.id)
@@ -660,7 +737,7 @@ export function useFollowupQueue({
         scope,
         payload: target.payload,
         alreadySent: won.alreadySent,
-        send: (payload) => onDrainRef.current(payload),
+        send: (payload) => sendForScope(payload),
         onCommitted: () => markSeenRef.current()
       })
       if (!sent) onDrainFailedRef.current?.()

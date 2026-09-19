@@ -1,7 +1,12 @@
 import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { vi } from 'vitest'
 
-import { STALE_SENDING_CLAIM_MS, type FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/followupQueue'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import {
+  FOLLOWUP_QUEUE_LIMIT,
+  STALE_SENDING_CLAIM_MS,
+  type FollowupQueueItem as FollowupQueueRow
+} from '@shared/data/types/followupQueue'
 
 /**
  * In-test fake for the follow-up queue DataApi endpoints.
@@ -76,6 +81,11 @@ export function installFakeFollowupQueueBackend() {
           }: {
             body: { scopeKey: string; draft: FollowupQueueRow['draft']; payload: FollowupQueueRow['payload'] }
           }) => {
+            // Mirror production: the write path rejects past the per-scope limit.
+            const scopedCount = state.rows.filter((row) => row.scopeKey === body.scopeKey).length
+            if (scopedCount >= FOLLOWUP_QUEUE_LIMIT) {
+              throw new DataApiError(ErrorCode.CONFLICT, `fake queue: scope ${body.scopeKey} is full`, 409)
+            }
             counter += 1
             const row: FollowupQueueRow = {
               id: `fake-queue-${counter}`,
@@ -99,7 +109,7 @@ export function installFakeFollowupQueueBackend() {
         ...shell,
         trigger: vi.fn(async ({ params }: { params: { id: string } }) => {
           const index = state.rows.findIndex((row) => row.id === params.id)
-          if (index === -1) throw new Error(`fake queue: missing id ${params.id}`)
+          if (index === -1) throw new DataApiError(ErrorCode.NOT_FOUND, `fake queue: missing id ${params.id}`, 404)
           state.rows.splice(index, 1)
           return undefined
         })
@@ -115,20 +125,21 @@ export function installFakeFollowupQueueBackend() {
             body: { moves: Array<{ id: string; anchor: { before?: string; after?: string; position?: string } }> }
           }) => {
             const first = state.rows.find((row) => row.id === body.moves[0]?.id)
-            if (!first) throw new Error(`fake queue: missing id ${body.moves[0]?.id}`)
+            if (!first) throw new DataApiError(ErrorCode.NOT_FOUND, `fake queue: missing id ${body.moves[0]?.id}`, 404)
             if (state.rows.some((row) => row.scopeKey === first.scopeKey && isLiveSending(row))) {
-              throw new Error('fake queue: reorder conflicts with an in-flight send')
+              throw new DataApiError(ErrorCode.CONFLICT, 'fake queue: reorder conflicts with an in-flight send', 409)
             }
             for (const move of body.moves) {
               const index = state.rows.findIndex((row) => row.id === move.id)
-              if (index === -1) throw new Error(`fake queue: missing id ${move.id}`)
+              if (index === -1) throw new DataApiError(ErrorCode.NOT_FOUND, `fake queue: missing id ${move.id}`, 404)
               const [moved] = state.rows.splice(index, 1)
               if (move.anchor.position === 'first') state.rows.unshift(moved)
               else if (move.anchor.position === 'last') state.rows.push(moved)
               else {
                 const targetId = move.anchor.before ?? move.anchor.after ?? ''
                 const targetIndex = state.rows.findIndex((row) => row.id === targetId)
-                if (targetIndex === -1) throw new Error(`fake queue: missing anchor ${targetId}`)
+                if (targetIndex === -1)
+                  throw new DataApiError(ErrorCode.NOT_FOUND, `fake queue: missing anchor ${targetId}`, 404)
                 state.rows.splice(move.anchor.before ? targetIndex : targetIndex + 1, 0, moved)
               }
             }

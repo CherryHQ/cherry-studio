@@ -676,6 +676,199 @@ describe('useFollowupQueue', () => {
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
   })
 
+  it('retries the scope-mismatch restore until the replacement enqueue lands', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
+    let resolveDelete!: () => void
+    deleteTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDelete = () => resolve(undefined)
+      })
+    )
+    postTrigger
+      .mockRejectedValueOnce(new Error('db down'))
+      .mockRejectedValueOnce(new Error('db down'))
+      .mockResolvedValueOnce({})
+
+    const { result, rerender } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+      initialProps: { scopeKey: SCOPE }
+    })
+
+    let taken: unknown = 'unset'
+    await act(async () => {
+      void result.current.takeForEdit('h').then((value) => {
+        taken = value
+      })
+    })
+    await act(async () => {
+      rerender({ scopeKey: 's2' })
+    })
+    await act(async () => {
+      resolveDelete()
+    })
+    await act(async () => {})
+
+    expect(taken).toBeUndefined()
+    expect(postTrigger).toHaveBeenCalledTimes(3)
+    expect(postTrigger).toHaveBeenCalledWith({
+      body: { scopeKey: SCOPE, draft: draft('head'), payload: payload('head') }
+    })
+  })
+
+  it('retries an orphaned restore in the background until the enqueue lands', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimTrigger, deleteTrigger, postTrigger } = wireMutations()
+      claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
+      let resolveDelete!: () => void
+      deleteTrigger.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveDelete = () => resolve(undefined)
+        })
+      )
+      postTrigger.mockRejectedValue(new Error('db down'))
+
+      const { result, rerender } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+        initialProps: { scopeKey: SCOPE }
+      })
+
+      let taken: unknown = 'unset'
+      await act(async () => {
+        void result.current.takeForEdit('h').then((value) => {
+          taken = value
+        })
+      })
+      await act(async () => {
+        rerender({ scopeKey: 's2' })
+      })
+      await act(async () => {
+        resolveDelete()
+      })
+      await act(async () => {})
+      expect(taken).toBeUndefined()
+      expect(postTrigger).toHaveBeenCalledTimes(3)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(4)
+      expect(postTrigger).toHaveBeenLastCalledWith({
+        body: { scopeKey: SCOPE, draft: draft('head'), payload: payload('head') }
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('releases the head claim without sending when the scope moves mid-claim', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, failTrigger } = wireMutations()
+    let resolveClaim!: (value: { claimed: true; id: string; alreadySent: boolean }) => void
+    claimHeadTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveClaim = resolve
+      })
+    )
+    const onDrain = vi.fn(async () => true)
+    const { rerender } = renderHook(
+      ({ scopeKey, isFulfilled }) => useFollowupQueue(baseProps({ scopeKey, isFulfilled, onDrain })),
+      { initialProps: { scopeKey: SCOPE, isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ scopeKey: SCOPE, isFulfilled: true })
+    })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
+    await act(async () => {
+      rerender({ scopeKey: 's2', isFulfilled: true })
+    })
+    await act(async () => {
+      resolveClaim({ claimed: true, id: 'h', alreadySent: false })
+    })
+    await act(async () => {})
+
+    expect(onDrain).not.toHaveBeenCalled()
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+  })
+
+  it('sends through the drain-start handler when onDrain changes mid-claim', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, deleteTrigger } = wireMutations()
+    let resolveClaim!: (value: { claimed: true; id: string; alreadySent: boolean }) => void
+    claimHeadTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveClaim = resolve
+      })
+    )
+    const firstDrain = vi.fn(async () => true)
+    const secondDrain = vi.fn(async () => true)
+    const { rerender } = renderHook(
+      ({ isFulfilled, onDrain }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })),
+      { initialProps: { isFulfilled: false, onDrain: firstDrain } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true, onDrain: firstDrain })
+    })
+    await act(async () => {
+      rerender({ isFulfilled: true, onDrain: secondDrain })
+    })
+    await act(async () => {
+      resolveClaim({ claimed: true, id: 'h', alreadySent: false })
+    })
+    await act(async () => {})
+
+    expect(firstDrain).toHaveBeenCalledTimes(1)
+    expect(secondDrain).not.toHaveBeenCalled()
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+  })
+
+  it('reclaims and dequeues a late send success without resending it', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head'), row('t', 'tail')])
+      const { claimHeadTrigger, claimTrigger, deleteTrigger, failTrigger, markSentTrigger } = wireMutations()
+      claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
+      claimTrigger.mockResolvedValue({ claimed: true, alreadySent: false })
+      let resolveSend!: (value: boolean) => void
+      const onDrain = vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveSend = resolve
+          })
+      )
+      const onDrainFailed = vi.fn()
+      const { rerender } = renderHook(
+        ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain, onDrainFailed })),
+        { initialProps: { isFulfilled: false } }
+      )
+
+      await act(async () => {
+        rerender({ isFulfilled: true })
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+      })
+      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+
+      await act(async () => {
+        resolveSend(true)
+      })
+      await act(async () => {})
+
+      // Repaired, not resent: the row is marked sent and dequeued on the
+      // reclaim, while the payload itself went out exactly once.
+      expect(onDrain).toHaveBeenCalledTimes(1)
+      expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('refreshes an owned claim while the send is in flight and stops after settle', async () => {
     vi.useFakeTimers()
     try {
@@ -749,7 +942,8 @@ describe('useFollowupQueue', () => {
       expect(deleteTrigger).not.toHaveBeenCalled()
       expect(onDrainFailed).toHaveBeenCalledOnce()
 
-      // The orphaned send settling late is ignored — no dequeue, no duplicate.
+      // The orphaned send settling late is repaired, not resent: here the reclaim
+      // fails, so nothing is dequeued and no duplicate goes out.
       await act(async () => {
         resolveSend(true)
       })
