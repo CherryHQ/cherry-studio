@@ -296,6 +296,8 @@ export class FollowupQueueService {
    * still in flight. Without this, a send outliving the fixed reclaim lease
    * could be reclaimed by another window and delivered twice. Not a new claim:
    * stale or absent rows report `live: false` and are left for the reclaim path.
+   * Silent: mirrors already show the row as sending from the claim, so no
+   * notification is published and idle composers never refetch on heartbeats.
    */
   heartbeat(id: string): { live: boolean } {
     const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
@@ -313,7 +315,6 @@ export class FollowupQueueService {
       .all()
 
     if (!row) return { live: false }
-    notifyQueueChange('projection', row.scopeKey, [row.id])
     return { live: true }
   }
 

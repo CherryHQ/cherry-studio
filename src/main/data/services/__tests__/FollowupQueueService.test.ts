@@ -251,9 +251,9 @@ describe('FollowupQueueService', () => {
       notifyDataApiDataChangeMock.mockClear()
 
       expect(followupQueueService.heartbeat(item.id)).toEqual({ live: true })
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
-        { endpoint: '/followup-queues', kind: 'projection', entityIds: [item.id] }
-      ])
+      // Silent: mirrors already show the row as sending from the claim, so no
+      // notification fans out to idle composers.
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
 
       // A pending row holds no claim: nothing to refresh.
       const pending = enqueueIn(SCOPE_A, 'b')
