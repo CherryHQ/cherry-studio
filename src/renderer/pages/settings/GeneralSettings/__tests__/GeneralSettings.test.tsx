@@ -116,12 +116,14 @@ describe('GeneralSettings', () => {
       'chat.retry.enabled': true,
       'chat.retry.max_attempts': 3,
       'chat.retry.backoff_enabled': true,
-      'chat.retry.fallback_model_ids': ['openai::gpt-4o']
+      'chat.retry.fallback_model_ids': ['openai::gpt-4o'],
+      'image.retry.max_attempts': 4
     })
 
     render(<GeneralSettings />)
 
     expect(screen.getByLabelText('settings.models.retry.max_attempts')).toHaveValue('3')
+    expect(screen.getByLabelText('settings.models.retry.image_max_attempts')).toHaveValue('4')
     expect(screen.getByLabelText('settings.models.retry.backoff')).toBeInTheDocument()
     expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
 

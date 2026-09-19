@@ -4805,6 +4805,8 @@
   "settings.models.retry.fallback_models": "Yedek modeller",
   "settings.models.retry.fallback_models_count": "{{count}} model seçildi",
   "settings.models.retry.fallback_models_description": "Birincil model başarısız olduğunda sırayla denenen modeller",
+  "settings.models.retry.image_max_attempts": "Görüntü yeniden deneme sayısı",
+  "settings.models.retry.image_max_attempts_description": "Geçici hatalarda doğrudan görüntü oluşturmayı yeniden dener. Her yeniden deneme tekrar ücretlendirilebilir — devre dışı bırakmak için 0 yapın.",
   "settings.models.retry.label": "Model Çağrısını Yeniden Deneme",
   "settings.models.retry.max_attempts": "En fazla yeniden deneme sayısı",
   "settings.models.retry.tooltip": "Yeniden denenebilir hatalarda mevcut model, yapılandırılan sınıra kadar tekrar denenir. Hata devam ederse veya yeniden denenebilir değilse yedek modeller sırayla birer kez denenir. Aynı model için birden fazla API anahtarı varsa 401/429 hatalarında önce sonraki anahtara geçilir. Yeniden denemeler ve yedek modeller yalnızca içerik akışı başlamadan önce uygulanır.",

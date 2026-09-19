@@ -54,6 +54,7 @@ const mockReadRetryPolicy = vi.fn(() => ({
   backoffEnabled: true,
   fallbackModelIds: ['fallback::model']
 }))
+const mockReadImageMaxRetries = vi.fn(() => 2)
 const mockGetImageGenerationSupport = vi.fn()
 const mockResolveImageTransport = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
@@ -228,6 +229,7 @@ vi.mock('../runtime/aiSdk/retry/buildApiKeyFallbackModels', () => ({
 }))
 
 vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
+  readImageMaxRetries: () => mockReadImageMaxRetries(),
   readRetryPolicy: () => mockReadRetryPolicy()
 }))
 
@@ -571,7 +573,7 @@ describe('AiService', () => {
         size: '1024x1024',
         aspectRatio: '9:19.5',
         seed: 7,
-        maxRetries: 0,
+        maxRetries: 2,
         providerOptions: {
           'test-provider': {
             negative_prompt: 'blurry',
@@ -634,6 +636,37 @@ describe('AiService', () => {
     })
 
     expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ maxRetries: 3 }))
+  })
+
+  it('reads direct image retries from the image.retry.max_attempts preference', async () => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'test-provider',
+        providerSettings: {},
+        modelId: 'test-model'
+      }
+    })
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    const request = {
+      uniqueModelId: 'test-provider::test-model',
+      cleanupPolicy: 'delete_when_unreferenced',
+      prompt: 'draw a cat',
+      paramValues: {}
+    } as const
+
+    // 0 disables retries entirely (each retry may bill again).
+    mockReadImageMaxRetries.mockReturnValueOnce(0)
+    await service.generateImage({ ...request })
+    expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ maxRetries: 0 }))
+
+    mockReadImageMaxRetries.mockReturnValueOnce(5)
+    await service.generateImage({ ...request })
+    expect(mockGenerateImage.mock.calls[1]?.[2]).toEqual(expect.objectContaining({ maxRetries: 5 }))
   })
 
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
@@ -1912,6 +1945,9 @@ describe('AiService tool approval', () => {
     await service.checkModel({ uniqueModelId: 'test-provider::test-image' })
 
     expect(imageSpy).toHaveBeenCalledWith(expect.objectContaining({ prompt: expect.any(String) }))
+    expect(imageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ requestOptions: expect.objectContaining({ maxRetries: 0 }) })
+    )
     expect(generateSpy).not.toHaveBeenCalled()
   })
 
