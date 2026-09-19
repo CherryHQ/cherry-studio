@@ -1955,11 +1955,22 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private handleApiRetry(entry: AgentSessionRuntimeEntry, retry: AgentSessionApiRetryInfo): void {
     if (!this.isCurrentEntry(entry)) return
+    const startedAt = new Date().toISOString()
     application.get('CacheService').setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), {
       status: 'retrying',
-      startedAt: new Date().toISOString(),
+      startedAt,
       ...retry
     })
+    const turn = this.liveTurn(entry)
+    if (turn) {
+      // A stable id updates one durable history row instead of creating dozens of rows in a
+      // provider outage. It remains in the assistant message after the ephemeral cache clears.
+      this.deliverRuntimeChunk(entry, {
+        type: 'data-agent-api-retry',
+        id: `agent-api-retry-${turn.assistantMessageId}`,
+        data: { ...retry, startedAt }
+      })
+    }
   }
 
   /** The ephemeral retry status IS the shared-cache entry — read it back instead of shadowing it. */

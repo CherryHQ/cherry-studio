@@ -3,7 +3,6 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
-import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -35,6 +34,7 @@ import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { createNoResponseErrorPart, hasVisibleAgentSessionPart } from '@shared/ai/agentSessionNoResponse'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
@@ -55,7 +55,8 @@ const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 function withTerminalErrorFallback(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
-  noResponseMessage: string
+  noDetailMessage: string,
+  noOutputMessage: string
 ): Record<string, CherryMessagePart[]> {
   let next = partsByMessageId
 
@@ -63,19 +64,15 @@ function withTerminalErrorFallback(
     if (message.role !== 'assistant') continue
     const status = message.metadata?.status
     const parts = partsByMessageId[message.id] ?? message.parts ?? []
-    const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
-      (status === 'success' && !hasVisiblePart)
+      (status === 'success' && !hasVisibleAgentSessionPart(parts))
     if (!needsFallback) continue
 
     if (next === partsByMessageId) next = { ...partsByMessageId }
     next[message.id] = [
       ...parts,
-      {
-        type: 'data-error',
-        data: { name: 'AgentRuntimeError', message: noResponseMessage, stack: null }
-      }
+      createNoResponseErrorPart({ message: status === 'error' ? noDetailMessage : noOutputMessage })
     ]
   }
 
@@ -192,7 +189,13 @@ export function useAgentMessageListProviderValue({
     >()
   )
   const displayPartsByMessageId = useMemo(
-    () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
+    () =>
+      withTerminalErrorFallback(
+        messages,
+        partsByMessageId,
+        t('error.agent_turn_failed_no_detail'),
+        t('error.agent_turn_no_output')
+      ),
     [messages, partsByMessageId, t]
   )
   const displayStreamingLayers = useMemo(() => {
@@ -201,7 +204,8 @@ export function useAgentMessageListProviderValue({
     const historyPartsByMessageId = withTerminalErrorFallback(
       messages,
       streamingLayers.historyPartsByMessageId,
-      t('error.no_response')
+      t('error.agent_turn_failed_no_detail'),
+      t('error.agent_turn_no_output')
     )
     if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
 

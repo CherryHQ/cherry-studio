@@ -692,22 +692,37 @@ describe('useAgentMessageListProviderValue', () => {
     render(<Probe />)
 
     expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ message: 'error.agent_turn_failed_no_detail' })
+      })
     ])
     expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ message: 'error.agent_turn_no_output' })
+      })
     ])
     expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
     expect(value?.state.partsByMessageId?.['assistant-hidden-success']).toEqual([
       expect.objectContaining({ type: 'data-agent-task-event' }),
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ message: 'error.agent_turn_no_output' })
+      })
     ])
     expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-error']).toEqual([
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ message: 'error.agent_turn_failed_no_detail' })
+      })
     ])
     expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-hidden-success']).toEqual([
       expect.objectContaining({ type: 'data-agent-task-event' }),
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ message: 'error.agent_turn_no_output' })
+      })
     ])
     expect(value?.state.streamingLayers?.liveMessageIds).toEqual([])
   })

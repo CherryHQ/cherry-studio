@@ -36,6 +36,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
+import { appendNoResponseErrorPart, type NoResponseErrorPartOptions } from '@shared/ai/agentSessionNoResponse'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -259,6 +260,12 @@ function replaceAgentSessionMessageFileRefsTx(
       .values(rows.slice(index, index + SQLITE_INARRAY_CHUNK))
       .run()
   }
+}
+
+/** Synthetic error folded into assistant rows that terminalize without their real stream error. */
+const AGENT_SESSION_NO_RESPONSE_ERROR: Omit<NoResponseErrorPartOptions, 'reason'> = {
+  message: 'The agent turn failed without a captured error detail.',
+  i18nKey: 'agent_turn_failed_no_detail'
 }
 
 function terminalResultData(
@@ -776,7 +783,14 @@ export class AgentSessionMessageService {
       const updatedAt = Date.now()
       for (const message of messages) {
         tx.update(sessionMessagesTable)
-          .set({ status: 'error', data: message.data, updatedAt })
+          .set({
+            status: 'error',
+            data: appendNoResponseErrorPart(message.data, {
+              ...AGENT_SESSION_NO_RESPONSE_ERROR,
+              reason: 'crash-orphan-reconcile'
+            }),
+            updatedAt
+          })
           .where(eq(sessionMessagesTable.id, message.id))
           .run()
       }
@@ -791,20 +805,32 @@ export class AgentSessionMessageService {
 
   /** Best-effort terminalization after a live assistant persistence failure. */
   markAssistantMessageTerminalError(sessionId: string, messageId: string): void {
+    const terminalErrorCondition = and(
+      eq(sessionMessagesTable.sessionId, sessionId),
+      eq(sessionMessagesTable.id, messageId),
+      eq(sessionMessagesTable.role, 'assistant'),
+      eq(sessionMessagesTable.status, 'pending')
+    )
     const changed = application.get('DbService').withWriteTx((tx) => {
-      const result = tx
+      const [row] = tx
+        .select({ data: sessionMessagesTable.data })
+        .from(sessionMessagesTable)
+        .where(terminalErrorCondition)
+        .limit(1)
+        .all()
+      if (!row) return { changes: 0 }
+      return tx
         .update(sessionMessagesTable)
-        .set({ status: 'error', updatedAt: Date.now() })
-        .where(
-          and(
-            eq(sessionMessagesTable.sessionId, sessionId),
-            eq(sessionMessagesTable.id, messageId),
-            eq(sessionMessagesTable.role, 'assistant'),
-            eq(sessionMessagesTable.status, 'pending')
-          )
-        )
+        .set({
+          status: 'error',
+          data: appendNoResponseErrorPart(row.data, {
+            ...AGENT_SESSION_NO_RESPONSE_ERROR,
+            reason: 'terminal-error'
+          }),
+          updatedAt: Date.now()
+        })
+        .where(terminalErrorCondition)
         .run()
-      return result
     })
     if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
   }

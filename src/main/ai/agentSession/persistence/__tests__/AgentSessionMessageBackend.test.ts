@@ -42,14 +42,41 @@ describe('AgentSessionMessageBackend', () => {
     expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId).status).toBe('error')
   })
 
-  it('terminalizes an empty successful Agent reply on its reserved placeholder', async () => {
-    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
+  it('downgrades an empty successful reply and skips the success hook', async () => {
+    const afterPersist = vi.fn().mockResolvedValue(undefined)
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId, afterPersist })
     const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
     await listener.onDone({ status: 'success', finalMessage: undefined })
+    const saved = agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)
+    expect(saved.status).toBe('error')
+    expect(saved.data.parts).toContainEqual(expect.objectContaining({ type: 'data-error' }))
+    expect(afterPersist).not.toHaveBeenCalled()
+  })
+
+  it('keeps an empty paused turn paused and persists a visible resume hint', async () => {
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+    await listener.onPaused({ status: 'paused', finalMessage: undefined })
     expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)).toMatchObject({
-      status: 'success',
-      data: { parts: [] }
+      status: 'paused',
+      data: { parts: [{ type: 'data-agent-paused', data: {} }] }
     })
+  })
+
+  it('downgrades hidden-only success to a terminal error', async () => {
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+    await listener.onDone({
+      status: 'success',
+      finalMessage: {
+        id: assistantMessageId,
+        role: 'assistant',
+        parts: [{ type: 'step-start' }, { type: 'text', text: '   ' }]
+      } as never
+    })
+    const saved = agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)
+    expect(saved.status).toBe('error')
+    expect(saved.data.parts).toContainEqual(expect.objectContaining({ type: 'data-error' }))
   })
 
   it('persists an unknown runtime checkpoint intact without exposing it in public messages', async () => {

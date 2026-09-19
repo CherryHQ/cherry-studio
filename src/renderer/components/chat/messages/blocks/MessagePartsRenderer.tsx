@@ -63,6 +63,8 @@ import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
+import AgentApiRetryBlock from './AgentApiRetryBlock'
+import AgentPausedBlock from './AgentPausedBlock'
 import AgentSessionForkBlock from './AgentSessionForkBlock'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
@@ -721,6 +723,12 @@ function renderPart(
       if (!rawData) return null
       return <RetryStatusBlock key={partId} data={rawData} />
     }
+
+    case 'data-agent-api-retry':
+      return <AgentApiRetryBlock key={partId} data={part.data} />
+
+    case 'data-agent-paused':
+      return <AgentPausedBlock key={partId} />
 
     case 'data-agent-task-event':
       // Agent task events are hidden inline state consumed by the agent status panes.
