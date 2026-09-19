@@ -1638,10 +1638,7 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private isCompactionInternalContent(
-    message: SDKMessage,
-    parentToolUseId: string | null | undefined
-  ): message is SDKPartialAssistantMessage | SDKAssistantMessage | SDKUserMessage {
+  private isCompactionInternalContent(message: SDKMessage, parentToolUseId: string | null | undefined): boolean {
     if (parentToolUseId != null || !this.runtimeCompactionActive) return false
     if (message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user') {
       logger.debug('Suppressing runtime compaction content from transcript stream', {
