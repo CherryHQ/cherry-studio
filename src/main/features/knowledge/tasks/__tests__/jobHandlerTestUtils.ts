@@ -210,7 +210,7 @@ vi.mock('../../pipeline/indexing/localEmbeddingTokenLimit', () => ({
 
 export const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')
 export const { createCheckFileProcessingResultJobHandler } = await import('../checkFileProcessingResultJobHandler')
-export const { createIndexKnowledgeItem } = await import('../../ingestion/indexKnowledgeItem')
+export const { createIndexKnowledgeItem, prepareKnowledgeMaterial } = await import('../../ingestion/indexKnowledgeItem')
 const { createIndexDocumentsJobHandler: createActualIndexDocumentsJobHandler } =
   await import('../indexDocumentsJobHandler')
 export const createIndexDocumentsJobHandler = (lockManager: KeyedMutex) =>

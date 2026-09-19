@@ -3,10 +3,10 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import { DataApiErrorFactory, isDataApiNotFoundError } from '@shared/data/api/errors'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import type { CompletedKnowledgeBase, KnowledgeBase } from '@shared/data/types/knowledge'
+import { isCompletedKnowledgeBase, isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { IndexableKnowledgeItem } from '../items'
 import { isIndexableKnowledgeItem, toMaterialRelativePath } from '../items'
@@ -58,7 +58,32 @@ export interface IndexKnowledgeItemInput {
   reportProgress: (progress: number, detail: KnowledgeProgressDetail) => void
 }
 
+export interface PrepareKnowledgeMaterialInput {
+  base: CompletedKnowledgeBase
+  item: IndexableKnowledgeItem
+  signal: AbortSignal
+  reportProgress: IndexKnowledgeItemInput['reportProgress']
+  /** Reports the transient percentage for actual embedding work, when any is needed. */
+  reportEmbeddingProgress?: (progress: number) => void
+  /** Looks up reusable embedding hashes without exposing the index store to preparation. */
+  listExistingEmbeddingHashes?: (hashes: string[]) => Set<string>
+}
+
+export interface PreparedKnowledgeMaterial {
+  item: IndexableKnowledgeItem
+  rebuildInput: RebuildMaterialInput
+}
+
 export type IndexKnowledgeItem = (input: IndexKnowledgeItemInput) => Promise<void>
+
+function assertKnowledgeBaseReadyForPreparation(base: KnowledgeBase): asserts base is CompletedKnowledgeBase {
+  if (!isCompletedKnowledgeBase(base)) {
+    throw DataApiErrorFactory.invalidOperation(
+      'prepareKnowledgeMaterial',
+      `Knowledge base '${base.id}' is not ready for material preparation`
+    )
+  }
+}
 
 export function createIndexKnowledgeItem(knowledgeLockManager: KeyedMutex): IndexKnowledgeItem {
   return async (input) => {
@@ -66,34 +91,62 @@ export function createIndexKnowledgeItem(knowledgeLockManager: KeyedMutex): Inde
     const loaded = loadIndexDocumentsInputOrSkip(input)
     if (!loaded) return
     const { base, item } = loaded
+    assertKnowledgeBaseReadyForPreparation(base)
 
     input.reportProgress(0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
     knowledgeItemService.updateStatus(input.itemId, 'reading')
 
     const readableItem = await ensureSnapshot(input, item, knowledgeLockManager)
-    const documents = await readItemDocuments(input, readableItem)
-    const chunked = await chunkItemDocuments(base, documents, input.signal)
-    if (chunked.chunks.length === 0) {
-      logger.warn('Knowledge item produced no indexable text; failing indexing', {
-        baseId: input.baseId,
-        itemId: input.itemId
-      })
-      throw new Error(EMPTY_INDEXABLE_TEXT_ERROR)
-    }
-
-    input.reportProgress(40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
-    knowledgeItemService.updateStatus(input.itemId, 'embedding')
-    application.get('CacheService').deleteShared(embeddingProgressCacheKey(item.id))
-
+    const listExistingEmbeddingHashes = isCompletedVectorKnowledgeBase(base)
+      ? (hashes: string[]) =>
+          application.get('KnowledgeVectorStoreService').getIndexStore(base).listExistingEmbeddingHashes(hashes)
+      : undefined
+    let embeddingStarted = false
     try {
-      const rebuildInput = await buildRebuildMaterialInput(input, base, readableItem, chunked)
+      const { rebuildInput } = await prepareKnowledgeMaterial({
+        base,
+        item: readableItem,
+        signal: input.signal,
+        reportProgress: (progress, detail) => {
+          input.reportProgress(progress, detail)
+          knowledgeItemService.updateStatus(input.itemId, 'embedding')
+          application.get('CacheService').deleteShared(embeddingProgressCacheKey(item.id))
+          embeddingStarted = true
+        },
+        reportEmbeddingProgress: (progress) =>
+          application.get('CacheService').setShared(embeddingProgressCacheKey(item.id), progress),
+        listExistingEmbeddingHashes
+      })
       input.reportProgress(80, { stage: 'writing', currentFile: 0, totalFiles: 1 })
       await writeItemMaterial(input, base, rebuildInput, knowledgeLockManager)
       input.reportProgress(100, { stage: 'done', currentFile: 1, totalFiles: 1 })
     } finally {
-      lingerEmbeddingProgress(input.itemId)
+      if (embeddingStarted) {
+        lingerEmbeddingProgress(input.itemId)
+      }
     }
   }
+}
+
+export async function prepareKnowledgeMaterial(
+  input: PrepareKnowledgeMaterialInput
+): Promise<PreparedKnowledgeMaterial> {
+  input.signal.throwIfAborted()
+  assertKnowledgeBaseReadyForPreparation(input.base)
+  toMaterialRelativePath(input.item)
+  const documents = await readItemDocuments(input.signal, input.item)
+  const chunked = await chunkItemDocuments(input.base, documents, input.signal)
+  if (chunked.chunks.length === 0) {
+    logger.warn('Knowledge item produced no indexable text; failing indexing', {
+      baseId: input.base.id,
+      itemId: input.item.id
+    })
+    throw new Error(EMPTY_INDEXABLE_TEXT_ERROR)
+  }
+
+  input.reportProgress(40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
+  const rebuildInput = await buildRebuildMaterialInput(input, input.base, input.item, chunked)
+  return { item: input.item, rebuildInput }
 }
 
 function loadIndexDocumentsInputOrSkip(input: IndexKnowledgeItemInput): LoadedIndexDocumentsInput | null {
@@ -136,11 +189,8 @@ function loadIndexDocumentsInputOrSkip(input: IndexKnowledgeItemInput): LoadedIn
   return { base, item }
 }
 
-async function readItemDocuments(
-  input: IndexKnowledgeItemInput,
-  item: IndexableKnowledgeItem
-): Promise<LoadedDocuments> {
-  input.signal.throwIfAborted()
+async function readItemDocuments(signal: AbortSignal, item: IndexableKnowledgeItem): Promise<LoadedDocuments> {
+  signal.throwIfAborted()
   return await loadKnowledgeItemDocuments(item)
 }
 
@@ -253,7 +303,7 @@ async function chunkItemDocuments(
  * store keys embeddings by that same hash, so every unit resolves its vector.
  */
 async function buildRebuildMaterialInput(
-  input: IndexKnowledgeItemInput,
+  input: PrepareKnowledgeMaterialInput,
   base: KnowledgeBase,
   item: IndexableKnowledgeItem,
   chunked: ChunkedKnowledgeContent
@@ -273,19 +323,13 @@ async function buildRebuildMaterialInput(
   const usesEmbeddings = isCompletedVectorKnowledgeBase(base)
   let embeddings: RebuildMaterialEmbeddingInput[] = []
   if (usesEmbeddings) {
-    const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const store = vectorStoreService.getIndexStore(base)
-    const existingHashes = store.listExistingEmbeddingHashes([...bodyByHash.keys()])
+    const existingHashes = input.listExistingEmbeddingHashes?.([...bodyByHash.keys()]) ?? new Set<string>()
     const missing = [...bodyByHash.entries()].filter(([hash]) => !existingHashes.has(hash))
 
     if (missing.length > 0) {
-      const cacheService = application.get('CacheService')
-      const progressKey = embeddingProgressCacheKey(item.id)
-      // The first write here is what creates the key — earlier paths must not: a
-      // BM25-only base or a rebuild whose chunks all reuse stored vectors never
-      // embeds anything and must not surface a spurious 0%. No TTL while active;
-      // the exit path applies one (see EMBEDDING_PROGRESS_LINGER_TTL_MS).
-      cacheService.setShared(progressKey, 0)
+      // The first report here is what creates transient progress for the live-job
+      // caller. A BM25-only or fully reused rebuild never reports a spurious 0%.
+      input.reportEmbeddingProgress?.(0)
       const vectors: number[][] = []
       for (let i = 0; i < missing.length; i += EMBEDDING_PROGRESS_BATCH_SIZE) {
         input.signal.throwIfAborted()
@@ -295,8 +339,9 @@ async function buildRebuildMaterialInput(
           batch.map(([, body]) => body),
           input.signal
         )
+        input.signal.throwIfAborted()
         vectors.push(...batchVectors)
-        cacheService.setShared(progressKey, Math.round((vectors.length / missing.length) * 100))
+        input.reportEmbeddingProgress?.(Math.round((vectors.length / missing.length) * 100))
       }
 
       embeddings = missing.map(([embeddingTextHash], index) => ({ embeddingTextHash, vector: vectors[index] }))
