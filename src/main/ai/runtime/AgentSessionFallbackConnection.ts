@@ -114,10 +114,11 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
         for await (const event of this.current.events) {
           if (this.closed) return
           if (event.type === 'resume-token') this.resumeToken = event.token
-          // Once the turn completes, a later failure belongs to driver-driven work (e.g. an
-          // autonomous round) whose input never passed through send() — replaying the stale
-          // user input would re-run a turn that already produced its result.
-          if (event.type === 'turn-complete') this.lastInput = undefined
+          // An autonomous generation can start before the host turn's terminal event.
+          // Its failure does not belong to the stored send(), even if that prompt is queued.
+          if (event.type === 'turn-complete' || (event.type === 'autonomous-turn-state' && event.state === 'started')) {
+            this.lastInput = undefined
+          }
           if (event.type === 'background-tasks') this.backgroundTasksRunning = event.tasks.length > 0
           if (event.type === 'background-work-state') this.backgroundWorkActive = event.active
           if (event.type === 'chunk') this.hasActivity = true

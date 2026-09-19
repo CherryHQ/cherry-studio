@@ -72,6 +72,25 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('does not replay a queued host input when autonomous generation fails before turn completion', async () => {
+    const primary = fakeConnection()
+    const driver = { connect: vi.fn() }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'queued-user-input' } } as never)
+    primary.events.push({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } })
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'autonomous-turn-state', state: 'started' } })
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    expect(driver.connect).not.toHaveBeenCalled()
+    await wrapper.close()
+  })
+
   it('keeps a connection with live background work instead of tearing it down for fallback', async () => {
     const primary = fakeConnection()
     const driver = { connect: vi.fn() }
