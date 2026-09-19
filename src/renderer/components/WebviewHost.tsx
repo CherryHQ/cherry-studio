@@ -13,6 +13,7 @@ import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useMacWebviewImeSync } from '@renderer/hooks/useMacWebviewImeSync'
 import { ipcApi } from '@renderer/ipc'
 import { WEBVIEW_KEYDOWN_CHANNEL, type WebviewKeyPayload } from '@shared/utils/webviewKey'
 
@@ -76,10 +77,12 @@ export function WebviewHost({
 }: Props) {
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [webview, setWebview] = useState<WebviewTag | null>(null)
+  const [imeReady, setImeReady] = useState(false)
   const onWebviewChangeRef = useRef(onWebviewChange)
   const readyWebviewRef = useRef<WebviewTag | null>(null)
   const committedLocationRef = useRef<{ webview: WebviewTag; url: string } | null>(null)
   const loadedSourceRef = useRef<{ reloadKey?: number | string; src?: string; webview?: WebviewTag }>({})
+  useMacWebviewImeSync(webview, imeReady)
 
   const handleRef = useCallback(
     (element: WebviewTag | null) => {
@@ -125,11 +128,13 @@ export function WebviewHost({
 
   const handleDomReady = useEffectEvent((guest: WebviewTag) => {
     readyWebviewRef.current = guest
+    setImeReady(true)
     applyGuestPreferences(guest)
     onDomReady?.(guest)
   })
   const handleStartLoading = useEffectEvent(() => {
     readyWebviewRef.current = null
+    setImeReady(false)
     onDidStartLoading?.()
   })
   const handleNavigate = useEffectEvent((event: DidNavigateEvent | DidNavigateInPageEvent) => {
@@ -201,6 +206,7 @@ export function WebviewHost({
       webview.removeEventListener('page-title-updated', handleTitleUpdated)
       webview.removeEventListener('page-favicon-updated', handleFaviconUpdated)
       if (readyWebviewRef.current === webview) readyWebviewRef.current = null
+      setImeReady(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- This lint version does not recognize React 19.2 Effect Events.
   }, [webview])
