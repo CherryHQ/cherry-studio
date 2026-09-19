@@ -3922,6 +3922,52 @@ describe('ClaudeCodeRuntimeDriver', () => {
       })
     })
 
+    // Catches #20552: host keeps a live-turn connection on 'rebuild', so without a latch every
+    // subsequent push reconcile re-derives and re-logs while baseline stays frozen.
+    it('latches an outstanding rebuild so repeated reconciles do not re-log', async () => {
+      const { connection } = await connectWithSnapshot()
+      mocks.deriveConfig.mockResolvedValue(
+        makeConfig({
+          signature: 'sig-2',
+          factFingerprints: { modelId: 'model-hash-1', skills: 'skills-hash-2' }
+        })
+      )
+
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+
+      expect(
+        mockMainLoggerService.info.mock.calls.filter(
+          ([message]) => message === 'Connection configuration requires rebuild'
+        )
+      ).toHaveLength(1)
+    })
+
+    // Catches a latch that short-circuits reconcile entirely: a mid-turn tool disable after the
+    // rebuild was first reported must still tighten immediately.
+    it('still hot-patches live tool policy while a rebuild is outstanding', async () => {
+      const { connection, toolPolicySnapshot } = await connectWithSnapshot()
+      mocks.deriveConfig.mockResolvedValue(
+        makeConfig({
+          signature: 'sig-2',
+          factFingerprints: { modelId: 'model-hash-1', skills: 'skills-hash-2' }
+        })
+      )
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+      toolPolicySnapshot.update.mockClear()
+
+      mocks.deriveConfig.mockResolvedValue(
+        makeConfig({
+          signature: 'sig-2',
+          factFingerprints: { modelId: 'model-hash-1', skills: 'skills-hash-2' },
+          disabledTools: ['Bash']
+        })
+      )
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+      expect(toolPolicySnapshot.update).toHaveBeenCalledOnce()
+    })
+
     it('fails closed when the live patch cannot be applied', async () => {
       const { connection, query, toolPolicySnapshot } = await connectWithSnapshot()
 

@@ -346,6 +346,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly committedInvocationIds = new Set<string>()
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
+  /** Spawn-frozen drift already reported; host defers close until the next turn boundary (#20552). */
+  private rebuildOutstanding = false
   /** Set when a steer hook (PreToolUse or PostToolBatch) injects a steer; the next top-level
    *  assistant `message_start` emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
@@ -585,14 +587,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
 
     if (baseline.rebuildSignature !== fresh.rebuildSignature) {
-      logger.info('Connection configuration requires rebuild', {
-        sessionId: this.input.sessionId,
-        changedFacts: getChangedRebuildFacts(baseline, fresh),
-        baselineSignature: baseline.rebuildSignature.slice(0, 12),
-        freshSignature: fresh.rebuildSignature.slice(0, 12)
-      })
+      // Baseline stays frozen (subprocess truth); latch so live-turn push reconciles do not re-log.
+      if (!this.rebuildOutstanding) {
+        logger.info('Connection configuration requires rebuild', {
+          sessionId: this.input.sessionId,
+          changedFacts: getChangedRebuildFacts(baseline, fresh),
+          baselineSignature: baseline.rebuildSignature.slice(0, 12),
+          freshSignature: fresh.rebuildSignature.slice(0, 12)
+        })
+        this.rebuildOutstanding = true
+      }
       return 'rebuild'
     }
+    this.rebuildOutstanding = false
     return patched ? 'patched' : 'current'
   }
 
