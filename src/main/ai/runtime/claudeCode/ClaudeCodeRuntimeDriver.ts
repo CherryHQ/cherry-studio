@@ -69,8 +69,8 @@ import {
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
-import { resolveAgentSessionFallback } from './modelFallback'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
+import { resolveAgentSessionFallback } from './modelFallback'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
@@ -331,7 +331,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private spawnOptions?: Options
   private processDiagnostics?: ClaudeCodeProcessDiagnostics
   private lastSdkUserMessage?: SDKUserMessage
-  private resumeRecoveryRetried = false
   /** One model-fallback restart per turn: reset by every `send()`, consumed by the first attempt. */
   private fallbackAttempted = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
@@ -496,8 +495,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
-    this.lastSdkUserMessage = sdkMessage
     this.sdkInputQueue.push(sdkMessage)
+    this.lastSdkUserMessage = sdkMessage
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -804,55 +803,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.query = undefined
       this.eventQueue.close()
     }
-  }
-
-  /** Rebuilds one failed resumed query without its corrupt or missing conversation history. */
-  private tryRecoverWithoutResume(error: unknown): boolean {
-    const createClaudeQuery = this.createQuery
-    if (
-      this.resumeRecoveryRetried ||
-      !this.resumeToken ||
-      !this.spawnOptions ||
-      !createClaudeQuery ||
-      this.abortController.signal.aborted
-    ) {
-      return false
-    }
-    const reason = getResumeRecoveryReason(error)
-    if (!reason) return false
-    // Error results advance `resumeToken` before throwing. The pending input's session id proves the
-    // failed request actually resumed prior history rather than merely reporting a new session id.
-    if (reason === 'duplicate-tool-use-id' && !this.lastSdkUserMessage?.session_id) return false
-    if (reason === 'duplicate-tool-use-id' && this.adapter?.hasTurnActivity === true) {
-      logger.warn('Refusing resume recovery after the turn produced non-metadata activity', {
-        sessionId: this.input.sessionId,
-        reason
-      })
-      return false
-    }
-    this.resumeRecoveryRetried = true
-
-    logger.warn('Recovering Claude Code conversation without its resume history', {
-      sessionId: this.input.sessionId,
-      reason
-    })
-    this.resumeToken = undefined
-    // Tell the user, in the transcript itself, that the reply below starts fresh. Persisted with the
-    // recovered turn like any other data part.
-    this.eventQueue.push({
-      type: 'chunk',
-      chunk: { type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} }
-    })
-    this.sdkInputQueue.close()
-    this.sdkInputQueue = new SdkInputQueue()
-    if (this.lastSdkUserMessage) {
-      this.sdkInputQueue.push({ ...this.lastSdkUserMessage, session_id: '' })
-    }
-    this.query = createClaudeQuery({
-      prompt: this.sdkInputQueue,
-      options: { ...this.spawnOptions, resume: undefined }
-    })
-    return true
   }
 
   /**

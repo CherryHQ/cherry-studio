@@ -47,7 +47,6 @@ import type {
   ComposerMessageToken,
   ModelFallbackPartData
 } from '@shared/data/types/uiParts'
-import { readCherryMeta } from '@shared/data/types/uiParts'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
