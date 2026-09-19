@@ -186,6 +186,7 @@ describe('cancel', () => {
 
 describe('poll', () => {
   const POLL_INTERVAL_MS = 1500
+  const POLL_TIMEOUT_MS = 10 * 60 * 1000
   /** A history response with one output image; the transport then fetches it. */
   const historyWithImage = () =>
     respond({
@@ -302,6 +303,56 @@ describe('poll', () => {
 
     expect(images).toHaveLength(1)
     expect(calls).toBeGreaterThanOrEqual(3)
+  })
+
+  it('retries a transient 5xx history response instead of ending the generation', async () => {
+    let calls = 0
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      calls += 1
+      if (String(input).includes('/history/')) {
+        if (calls < 3) return new Response('temporarily unavailable', { status: 503 })
+        return historyWithImage()
+      }
+      return new Response(new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }), { status: 200 })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const promise = transport.poll('pid-1')
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3)
+    const images = await promise
+
+    expect(images).toHaveLength(1)
+    expect(calls).toBeGreaterThanOrEqual(3)
+  })
+
+  it('fails fast on a terminal 4xx history response rather than looping to the timeout', async () => {
+    const doFetch = vi.fn(async () => new Response('not found', { status: 404 }))
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const promise = transport.poll('pid-1').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(PaintingGenerateError)
+    expect((error as PaintingGenerateError).code).toBe('REMOTE_ERROR')
+    expect(doFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('bounds a hanging history request by the poll timeout, not as an AbortError', async () => {
+    const doFetch = abortableFetch(() => {
+      const e = new Error('The operation was aborted')
+      e.name = 'AbortError'
+      return e
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const promise = transport.poll('pid-1').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(POLL_TIMEOUT_MS)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(PaintingGenerateError)
+    expect((error as PaintingGenerateError).code).toBe('REMOTE_ERROR')
+    expect((error as Error).message).toContain('poll_timeout')
   })
 
   it('surfaces a workflow error status as a structured REMOTE_ERROR', async () => {

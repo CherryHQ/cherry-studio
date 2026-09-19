@@ -10,7 +10,7 @@ import type {
   ImageTransportDescriptor
 } from '../imageGenerationModel'
 import { readErrorMessage } from '../readErrorMessage'
-import { createAbortError, waitWithSignal } from '../transportUtils'
+import { createAbortError, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 import {
   convertUiWorkflowToPrompt,
   findPromptTarget,
@@ -47,6 +47,12 @@ export interface ComfyuiRequestOptions {
 
 export interface ComfyuiTransportSettings extends ComfyuiRequestOptions {
   baseURL?: string
+}
+
+/** One `/history/{id}` entry: the images it produced, or the failure it reported. */
+interface HistoryEntry {
+  outputs?: Record<string, { images?: Array<{ filename: string; subfolder?: string; type?: string }> }>
+  status?: { status_str?: string; messages?: unknown[] }
 }
 
 interface UserDataEntry {
@@ -212,18 +218,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
       // catch below as a failed generation.
       if (options.signal?.aborted) throw createAbortError('Task polling aborted')
       try {
-        const history = await fetchJson<
-          Record<
-            string,
-            {
-              outputs?: Record<string, { images?: Array<{ filename: string; subfolder?: string; type?: string }> }>
-              status?: { status_str?: string; messages?: unknown[] }
-            }
-          >
-        >(`${this.baseURL}/history/${taskId}`, options.signal, {
-          headers: this.headers,
-          fetch: this.doFetch
-        })
+        const history = await this.fetchHistory(taskId, options.signal, deadline - Date.now())
         const entry = history[taskId]
         if (entry?.outputs && Object.keys(entry.outputs).length > 0) {
           const images = Object.values(entry.outputs).flatMap((output) => output.images ?? [])
@@ -242,8 +237,9 @@ class ComfyuiTransport implements ImageGenerationTransport {
         if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
           throw createAbortError('Task polling aborted')
         }
-        // Structured failures (workflow error, no image) end the poll loop;
-        // anything else — a transient network blip on the history GET — retries.
+        // Structured failures (workflow error, no image, a terminal 4xx history
+        // response) end the poll loop; anything else — a network blip, a 5xx or
+        // a 429 on the history GET — retries until the overall deadline.
         if (error instanceof PaintingGenerateError) throw error
       }
       ticks += 1
@@ -274,6 +270,48 @@ class ComfyuiTransport implements ImageGenerationTransport {
       headers: { ...this.headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt_id: taskId })
     }).catch(() => undefined)
+  }
+
+  /**
+   * Read one history entry. Unlike `requestJson`, a non-OK response is not
+   * automatically fatal: a 4xx (bar 429) can never succeed on retry, so it
+   * surfaces as a structured failure, while a 5xx / 429 is left as a plain
+   * error for the poll loop to retry. The request is also bounded by the poll's
+   * remaining budget, so a hanging GET cannot outlive `POLL_TIMEOUT_MS`.
+   */
+  private async fetchHistory(
+    taskId: string,
+    signal: AbortSignal | undefined,
+    remainingMs: number
+  ): Promise<Record<string, HistoryEntry>> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), Math.max(0, remainingMs))
+    try {
+      const response = await this.doFetch(`${this.baseURL}/history/${taskId}`, {
+        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
+        headers: this.headers
+      })
+      if (!response.ok) {
+        const message = await readErrorMessage(response, t('paintings.comfyui.request_failed'))
+        if (isTerminalHttpStatus(response.status)) {
+          throw createPaintingGenerateError('REMOTE_ERROR', { message })
+        }
+        // A plain error, not a structured one: the poll loop retries it.
+        throw new Error(message)
+      }
+      return (await response.json()) as Record<string, HistoryEntry>
+    } catch (error) {
+      // The abort combined the user's signal with this request's budget; only
+      // the former is a cancellation — the latter has exhausted the poll.
+      if (controller.signal.aborted && !signal?.aborted) {
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message: t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
+        })
+      }
+      throw error
+    } finally {
+      clearTimeout(timer)
+    }
   }
 
   /** The AI SDK downloads returned URLs itself, so hand back inline data. */
