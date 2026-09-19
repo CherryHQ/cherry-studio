@@ -2,6 +2,7 @@
 description: User-configurable same-model retry plus fallback models via ai-retry wrapModel, driven by chat.retry.* preferences
 sources:
   - src/main/ai/runtime/aiSdk/retry
+  - src/main/ai/runtime/claudeCode/modelFallback.ts
   - src/renderer/pages/settings/ModelSettings/ModelSettings.tsx
 ---
 
@@ -40,6 +41,15 @@ AiService.streamText/generateText
 Settings UI lives in `src/renderer/pages/settings/ModelSettings/ModelSettings.tsx`
 (toggle + max attempts + backoff + multi-model picker via `ModelSelector`
 with `multiple` / `selectionType="id"`).
+
+Agent edit settings also provide one agent-specific fallback model. It is stored as
+`configuration.fallback_model_ids` on the agent; an empty list follows the global
+chat preference. A configured agent fallback enables fallback for that agent even
+when the global chat retry toggle is off. Agent-session fallback remains limited
+to one replay before any turn content. Claude Code rebuilds its query in its
+driver; Pi and DSH rebuild their connection behind a stable host event stream.
+Pi/DSH skip fallback while background work is active because rebuilding would
+tear down those runtime-owned tasks.
 
 These keys are generated from `scripts/data-classify/data/target-key-definitions.json`
 — edit there and regenerate, never edit `preferenceSchemas.ts` by hand.
@@ -133,7 +143,33 @@ with both failed and fallback ids; terminal logs preserve the original error
 and per-attempt diagnostics. All logging goes through
 `loggerService.withContext('ModelRetry')`.
 
+## Agent sessions — turn-level fallback
+
+The wrapper above never reaches agent-session turns: Claude Code / Pi / DSH
+own their provider transport. Claude Code implements turn-level fallback in
+`src/main/ai/runtime/claudeCode/modelFallback.ts`; Pi and DSH use
+`src/main/ai/runtime/AgentSessionFallbackConnection.ts`.
+
+- When a turn terminally fails on a **retryable provider error** — a result
+  error carrying `api_error_status` 429/500/502/503/529, or an `api_error` terminal reason
+  whose diagnostics name a rate limit / quota / overload — **and the turn has
+  produced no content yet**, the runtime reconnects using the first configured
+  fallback model and replays the same user message in the host turn.
+- The fallback is **visible**: a persisted `data-model-fallback` part rides the
+  assistant row and renders as a transcript divider (`ModelFallbackBlock`), so
+  history shows that the reply came from a different model.
+- An agent's `configuration.fallback_model_ids` takes precedence when set;
+  otherwise the global `chat.retry.enabled` and `chat.retry.fallback_model_ids`
+  preference applies. The fallback is turn-scoped; a fresh turn reconciles
+  against the agent's primary model.
+
+Limitations: one fallback attempt per turn; no
+capability gating (a fallback is picked purely by id, so a non-vision fallback
+can receive image parts); the assistant row keeps the primary model's `modelId`
+stamp — the transcript notice carries the model that actually answered.
+
 ### Embeddings & Rerank — no ai-retry
+
 
 Neither uses the ai-retry model wrapper. There is no cross-model fallback for
 embeddings (vectors from different models live in incompatible spaces and would

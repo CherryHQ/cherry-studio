@@ -155,6 +155,7 @@ const mocks = vi.hoisted(() => ({
   deriveConfig: vi.fn(),
   getAgent: vi.fn(),
   getModelByKey: vi.fn(),
+  getPreference: vi.fn(),
   applicationGet: vi.fn(),
   getPhysicalPath: vi.fn(),
   probeReadable: vi.fn(),
@@ -499,7 +500,16 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
       if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
+      if (name === 'PreferenceService') return { get: mocks.getPreference }
       throw new Error(`Unexpected application.get(${name})`)
+    })
+    // Model retry is disabled unless a fallback test opts in.
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return false
+      if (key === 'chat.retry.max_attempts') return 3
+      if (key === 'chat.retry.backoff_enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return []
+      return undefined
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
     mocks.getPhysicalPath.mockImplementation((id: string) => `/managed/${id}`)
@@ -3319,6 +3329,142 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen).not.toContainEqual(expect.objectContaining({ type: 'chunk' }))
     expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
     await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+    void connection.close()
+  })
+
+  it('falls back to the next configured model when a rate-limited turn fails before any content', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    // The same turn restarts on the fallback model: a new query is spawned from a request rebuilt
+    // for the fallback id, and the original user message re-enters it.
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    expect(mocks.buildRequest.mock.calls[1]).toEqual([
+      'session-1',
+      'failed-session',
+      'other-provider::haiku',
+      'default',
+      false,
+      undefined
+    ])
+    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
+    expect(retrySpawn.options).toMatchObject({ model: 'haiku' })
+    const replayed = await retrySpawn.prompt[Symbol.asyncIterator]().next()
+    expect(replayed.value).toMatchObject({ type: 'user', session_id: 'failed-session' })
+
+    fallbackQueue.push({ type: 'system', subtype: 'init', session_id: 'fallback-1' })
+    fallbackQueue.push({ type: 'result', subtype: 'success', session_id: 'fallback-1', usage: {} })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      seen.push(next.value)
+      if (next.value?.type === 'turn-complete' || next.done) break
+    }
+    expect(seen.map((event) => event?.type)).not.toContain('error')
+    expect(seen).toContainEqual(
+      expect.objectContaining({
+        type: 'chunk',
+        chunk: expect.objectContaining({
+          type: 'data-model-fallback',
+          data: { from: 'claude-code::sonnet', to: 'other-provider::haiku', reason: 'http 429' }
+        })
+      })
+    )
+    void connection.close()
+  })
+
+  it('keeps the primary model and surfaces the error when the failed turn already produced content', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    // Content streams first — the response is committed to the primary model, like the chat path.
+    queryQueue.push({ type: 'stream_event', event: { type: 'content_block_delta' } })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      if (next.done) break
+      seen.push(next.value)
+    }
+    expect(seen).toContainEqual(
+      expect.objectContaining({
+        type: 'error',
+        error: expect.objectContaining({ message: expect.stringContaining('429') })
+      })
+    )
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
     void connection.close()
   })
 

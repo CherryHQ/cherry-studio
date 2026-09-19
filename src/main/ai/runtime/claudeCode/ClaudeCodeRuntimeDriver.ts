@@ -47,6 +47,7 @@ import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
+import { readRetryPolicy } from '../aiSdk'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -60,6 +61,7 @@ import type {
 } from '../types'
 import {
   buildClaudeCodeQueryRequestForAgentSession,
+  type ClaudeCodeAgentSessionQueryRequest,
   type ConnectionConfig,
   deriveConnectionConfig,
   toolPolicyFactsEqual
@@ -68,6 +70,7 @@ import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from
 import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
+import { resolveAgentSessionFallback } from './modelFallback'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
@@ -327,6 +330,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Keep the effective child environment for native checkpoint capture. */
   private spawnOptions?: Options
   private processDiagnostics?: ClaudeCodeProcessDiagnostics
+  private lastSdkUserMessage?: SDKUserMessage
+  /** One model-fallback restart per turn: reset by every `send()`, consumed by the first attempt. */
+  private fallbackAttempted = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
@@ -380,6 +386,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
+    await this.installQuery(request)
+    void this.runQueryLoop()
+    return this
+  }
+
+  /**
+   * Installs a freshly materialized request onto this connection: query options, warm-query
+   * consumption, session-scoped state, and the session-scoped adapter. `start()` uses it for the
+   * primary model; the model-fallback restart reuses it with a request rebuilt for the fallback.
+   */
+  private async installQuery(request: ClaudeCodeAgentSessionQueryRequest): Promise<void> {
     this.connectionConfig = request.connectionConfig
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
@@ -454,8 +471,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         this.input.onSteerInjected?.(inputs)
       }
     }
-    void this.runQueryLoop()
-    return this
   }
 
   private async prepareTraceEnv(): Promise<Record<string, string> | undefined> {
@@ -474,12 +489,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
 
     this.adapter?.beginTurn()
+    this.fallbackAttempted = false
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
     this.sdkInputQueue.push(sdkMessage)
+    this.lastSdkUserMessage = sdkMessage
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -760,6 +777,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           ? createClaudeCodeProcessExitError(error, this.processDiagnostics)
           : error
       const salvaged = this.adapter?.handleTruncationError(surfacedError) ?? false
+      if (!salvaged && (await this.tryFallbackModel(surfacedError))) {
+        // `await` is load-bearing: without it the finally below closes the event queue while the
+        // restarted loop is still streaming (same contract as the resume recovery above).
+        return await this.runQueryLoop()
+      }
       this.adapter?.finalizeOpenTextParts()
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
@@ -781,6 +803,85 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.query = undefined
       this.eventQueue.close()
     }
+  }
+
+  /**
+   * Turn-level model fallback. When the turn terminally failed on a retryable provider error
+   * (429 / 5x) before producing any content, restart the SAME host turn once on the first
+   * configured fallback model (`chat.retry.*`). The host turn stays live — like the resume
+   * recovery above, the replayed user message re-enters a freshly built query — and the
+   * transcript carries a persisted `data-model-fallback` part so the swap is visible. The
+   * fallback is turn-scoped: the next fresh turn reconciles against the agent's model as usual.
+   */
+  private async tryFallbackModel(error: unknown): Promise<boolean> {
+    try {
+      if (this.fallbackAttempted || this.abortController.signal.aborted) return false
+      const decision = resolveAgentSessionFallback({
+        error,
+        currentModelId: this.input.modelId,
+        hasTurnActivity: this.adapter?.hasTurnActivity === true,
+        policy: this.readFallbackPolicy()
+      })
+      if (!decision) return false
+      this.fallbackAttempted = true
+      const request = await buildClaudeCodeQueryRequestForAgentSession(
+        this.input.sessionId,
+        this.resumeToken,
+        decision.fallbackModelId,
+        this.input.reasoningEffort ?? 'default',
+        this.input.fastMode === true,
+        this.input.knowledgeBaseIds
+      ).catch((cause) => {
+        logger.warn('Failed to build the fallback-model query request; surfacing the original turn error', {
+          sessionId: this.input.sessionId,
+          fallbackModelId: decision.fallbackModelId,
+          cause
+        })
+        return undefined
+      })
+      if (!request) return false
+      logger.warn('Agent session turn fell back to the next configured model', {
+        sessionId: this.input.sessionId,
+        from: this.input.modelId,
+        to: decision.fallbackModelId,
+        reason: decision.reason
+      })
+      // Rebind before the host can observe the fallback chunk: it re-reads `usageCapture` on it,
+      // and the capture must already describe the fallback model (installQuery may still refine
+      // it with a consumed warm query's receipt — same fallback model either way).
+      this._usageCapture = request.usageCapture
+      // Tell the user in the transcript itself — persisted with the turn like any other data part.
+      this.eventQueue.push({
+        type: 'chunk',
+        chunk: {
+          type: 'data-model-fallback',
+          id: crypto.randomUUID(),
+          data: { from: this.input.modelId, to: decision.fallbackModelId, reason: decision.reason }
+        }
+      })
+      this.sdkInputQueue.close()
+      this.sdkInputQueue = new SdkInputQueue()
+      if (this.lastSdkUserMessage) {
+        this.sdkInputQueue.push({ ...this.lastSdkUserMessage, session_id: this.resumeToken ?? '' })
+      }
+      await this.installQuery(request)
+      // installQuery swapped the adapter; the replayed message must land inside an open turn.
+      this.adapter?.beginTurn()
+      return true
+    } catch (cause) {
+      // A fallback decision must never break error surfacing — degrade to the ordinary error path.
+      logger.warn('Model fallback attempt failed; surfacing the original turn error', {
+        sessionId: this.input.sessionId,
+        cause
+      })
+      return false
+    }
+  }
+
+  private readFallbackPolicy() {
+    const global = readRetryPolicy()
+    const configured = agentService.getAgent(this.input.agentId)?.configuration?.fallback_model_ids
+    return configured?.length ? { ...global, enabled: true, fallbackModelIds: configured } : global
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {

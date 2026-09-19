@@ -10,6 +10,7 @@ import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsag
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { AgentSessionFallbackConnection } from '@main/ai/runtime/AgentSessionFallbackConnection'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -1664,7 +1665,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
-    const connection = await driver.connect({
+    const connectInput = {
       sessionId: entry.sessionId,
       agentId: entry.agentId,
       modelId: target.modelId,
@@ -1675,7 +1676,12 @@ export class AgentSessionRuntimeService extends BaseService {
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
-    })
+    }
+    const baseConnection = await driver.connect(connectInput)
+    const connection =
+      entry.agentType === 'pi' || entry.agentType === 'dsh'
+        ? new AgentSessionFallbackConnection(driver, connectInput, baseConnection)
+        : baseConnection
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       await this.closeRuntimeConnection(connection, entry.sessionId)
       return false
@@ -1737,6 +1743,8 @@ export class AgentSessionRuntimeService extends BaseService {
         if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry)
         break
       case 'chunk': {
+        // A Pi/DSH fallback can change the usage owner along with its provider route.
+        if (event.chunk.type === 'data-model-fallback') entry.usageCapture = connection?.usageCapture
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
         this.clearApiRetry(entry)

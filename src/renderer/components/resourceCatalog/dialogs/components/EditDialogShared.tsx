@@ -62,8 +62,10 @@ export const resourceDialogHeaderClassName =
   'flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3.5 pr-12'
 export const resourceDialogTitleClassName = 'truncate text-sm'
 
-export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId' | 'contextCompressModelId'
-export type ModelLabels = Record<ModelLabelKey, string | null>
+export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId' | 'contextCompressModelId' | 'fallbackModelId'
+export type ModelLabels = Record<Exclude<ModelLabelKey, 'fallbackModelId'>, string | null> & {
+  fallbackModelId?: string | null
+}
 
 export type EditDialogBaseProps = {
   open: boolean

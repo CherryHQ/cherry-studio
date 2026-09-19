@@ -91,6 +91,7 @@ type AgentEditFormValues = {
   modelId: UniqueModelId | null
   planModelId: UniqueModelId | ''
   smallModelId: UniqueModelId | ''
+  fallbackModelId: UniqueModelId | ''
   instructions: string
   mcps: string[]
   knowledgeBaseIds: string[]
@@ -146,6 +147,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     modelId: form.model || null,
     planModelId: form.planModel,
     smallModelId: form.smallModel,
+    fallbackModelId: form.fallbackModel,
     instructions: form.instructions,
     mcps: [...form.mcps],
     knowledgeBaseIds: [...form.knowledgeBaseIds],
@@ -176,6 +178,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     model: values.modelId ?? '',
     planModel: values.planModelId || '',
     smallModel: values.smallModelId || '',
+    fallbackModel: values.fallbackModelId || '',
     instructions: values.instructions,
     mcps: [...values.mcps],
     knowledgeBaseIds: [...values.knowledgeBaseIds],
@@ -218,6 +221,7 @@ function advanceAgentFormBaseline(
     if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
     if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
     if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
+    if (hasOwn(configuration, 'fallback_model_ids')) next.fallbackModel = submitted.fallbackModel
   }
 
   return next
@@ -227,6 +231,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('modelId', next.model || null, { shouldDirty: true })
   form.setValue('planModelId', next.planModel, { shouldDirty: true })
   form.setValue('smallModelId', next.smallModel, { shouldDirty: true })
+  form.setValue('fallbackModelId', next.fallbackModel, { shouldDirty: true })
   form.setValue('mcps', next.mcps, { shouldDirty: true })
   form.setValue('knowledgeBaseIds', next.knowledgeBaseIds, { shouldDirty: true })
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
@@ -638,6 +643,23 @@ function AgentBasicFields({
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
         onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
+        onSettingsNavigate={onSettingsNavigate}
+        layout="row"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+      />
+      <CompactModelField
+        form={form}
+        name="fallbackModelId"
+        includeAgentOnlyModels
+        label={t('library.config.agent.field.fallback_model.label')}
+        emptyLabel={t('library.config.agent.field.fallback_model.empty')}
+        allowClear
+        filter={modelFilter}
+        isModelDisabled={isModelDisabled}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onModelChange={(modelId) => patchAgentForm({ fallbackModel: modelId ?? '' })}
         onSettingsNavigate={onSettingsNavigate}
         layout="row"
         triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
