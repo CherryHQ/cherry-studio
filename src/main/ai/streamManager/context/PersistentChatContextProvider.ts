@@ -5,6 +5,8 @@
  * per-execution `PersistenceListener`s.
  */
 
+import { randomUUID } from 'node:crypto'
+
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import type { ModelMessage, UIMessage } from 'ai'
 
@@ -45,6 +47,7 @@ import { resolveRequestContextSettings } from '../../contextBuild/resolveRequest
 import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
+import { buildAssignmentReminder, buildBreakdownPrompt, parseBreakdown } from '../../orchestration/headController'
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
 import type { AiStreamRequest } from '../../types'
@@ -67,6 +70,9 @@ import type { ContinueDispatchRequest, MainDispatchRequest, MainSteerContinuatio
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
+
+/** The split is one short planning call; past this the turn is better off ungoverned than stalled. */
+const CONTROLLER_BREAKDOWN_TIMEOUT_MS = 30_000
 
 /**
  * Adapt a turn subscriber into a {@link CompactionSink}.
@@ -191,6 +197,43 @@ function withSteerReminder(history: CherryUIMessage[]): CherryUIMessage[] {
     )
     const next = history.slice()
     next[i] = { ...message, parts }
+    return next
+  }
+  return history
+}
+
+/** Text of the last user message in the model-facing history — what the controller divides up. */
+function trailingUserText(history: CherryUIMessage[]): string | undefined {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role !== 'user') continue
+    const text = history[i].parts
+      .filter((part) => part.type === 'text')
+      .map((part) => (part as { text: string }).text)
+      .join('\n')
+      .trim()
+    return text || undefined
+  }
+  return undefined
+}
+
+/**
+ * Append a worker's assignment to the trailing user message, model-facing copy only — same
+ * treatment {@link withSteerReminder} gives a steer, for the same reason: the persisted row is
+ * what the user wrote, and it stays that way.
+ */
+function withAssignment(history: CherryUIMessage[], instruction: string): CherryUIMessage[] {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role !== 'user') continue
+    const message = history[i]
+    const reminder = buildAssignmentReminder(instruction)
+    let attached = false
+    const parts = message.parts.map((part) => {
+      if (attached || part.type !== 'text' || !part.text.trim()) return part
+      attached = true
+      return { ...part, text: `${part.text}\n\n${reminder}` }
+    })
+    const next = history.slice()
+    next[i] = { ...message, parts: attached ? parts : [...parts, { type: 'text' as const, text: reminder }] }
     return next
   }
   return history
@@ -484,13 +527,20 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         toCompactionSink(subscriber)
       )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
+      // Placeholders already exist, so the user watches empty replies while the controller thinks
+      // rather than watching nothing at all.
+      const assignments = await this.resolveControllerAssignments(
+        req.trigger,
+        assistantPlaceholders.map((p) => p.model),
+        history
+      )
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
         request: this.buildStreamRequest(
           req.topicId,
           assistantId,
           model.id,
-          history,
+          assignments?.get(model.id) ? withAssignment(history, assignments.get(model.id)!) : history,
           placeholder.id,
           knowledgeBaseIds,
           turnOptions.reasoningEffort,
@@ -658,6 +708,52 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       if (didResetRow) messageService.markMessagesError([target.id])
       endTurnRootSpansWithError(turnRootSpans, error)
       throw error
+    }
+  }
+
+  /**
+   * Ask the controller model to divide the request among the selected models.
+   *
+   * Returns `undefined` — meaning "send the ordinary turn" — for every reason it could not be
+   * done: no controller chosen, a single model (nothing to divide), a regenerate (the turn
+   * already exists), a controller that timed out or errored, or a reply that made no sense.
+   * Orchestration is an optimisation, and invariant 2 says no request is ever refused.
+   */
+  private async resolveControllerAssignments(
+    trigger: MainDispatchRequest['trigger'],
+    models: Model[],
+    history: CherryUIMessage[]
+  ): Promise<Map<UniqueModelId, string> | undefined> {
+    if (trigger !== 'submit-message' || models.length < 2) return undefined
+
+    const controllerModelId = application.get('PreferenceService').get('chat.routing.controller_model')
+    if (!controllerModelId) return undefined
+
+    const userRequest = trailingUserText(history)
+    if (!userRequest) return undefined
+
+    const workers = models.map((model) => ({ modelId: model.id, name: model.name }))
+    // A controller that never answers would hang the dispatch, and with it `ai.stream.open`.
+    const abort = AbortSignal.timeout(CONTROLLER_BREAKDOWN_TIMEOUT_MS)
+
+    try {
+      const { text } = await application.get('AiService').generateText({
+        uniqueModelId: controllerModelId as UniqueModelId,
+        // Planning the split is its own exchange; it must not join the user's thread.
+        conversation: { id: `controller:${randomUUID()}` },
+        prompt: buildBreakdownPrompt(userRequest, workers),
+        requestOptions: { signal: abort }
+      })
+
+      const assignments = parseBreakdown(text, workers, userRequest)
+      if (!assignments) {
+        logger.info('controller produced no usable split, sending the ordinary turn', { controllerModelId })
+        return undefined
+      }
+      return new Map(assignments.map((assignment) => [assignment.modelId, assignment.instruction]))
+    } catch (error) {
+      logger.warn('controller breakdown failed, sending the ordinary turn', { controllerModelId, error })
+      return undefined
     }
   }
 

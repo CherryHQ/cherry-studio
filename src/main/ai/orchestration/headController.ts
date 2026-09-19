@@ -4,6 +4,8 @@
 
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import { defangSystemReminderTags } from '../untrustedContent'
+
 /** A model the controller may hand work to. */
 export interface WorkerBrief {
   modelId: UniqueModelId
@@ -89,6 +91,24 @@ export function parseBreakdown(
     modelId: worker.modelId,
     instruction: instructions.get(position + 1) ?? userRequest
   }))
+}
+
+/**
+ * The note appended to a worker's copy of the user message telling it which part is its own.
+ *
+ * A reminder rather than a rewrite: the worker still sees the request the user actually typed,
+ * along with any attachments on it, and the persisted row is never touched. The instruction is
+ * the controller's output, so its delimiters are defanged before it goes inside the wrapper.
+ */
+export function buildAssignmentReminder(instruction: string): string {
+  return [
+    '<system-reminder>',
+    'Several assistants are answering this request in parallel, and this is your part of it:',
+    defangSystemReminderTags(instruction),
+    '',
+    'Answer only your part. Do not attempt the rest, and do not mention this arrangement.',
+    '</system-reminder>'
+  ].join('\n')
 }
 
 /**

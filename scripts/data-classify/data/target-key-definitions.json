@@ -313,6 +313,13 @@
       "description": "UniqueModelId to use for every new conversation, overriding category routing; empty string means no pin"
     },
     {
+      "targetKey": "chat.routing.controller_model",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "UniqueModelId of the model that coordinates the other selected models — it splits the user request among them and merges their answers; empty string means no coordinator"
+    },
+    {
       "targetKey": "chat.routing.local_worker_model",
       "type": "string",
       "defaultValue": "",

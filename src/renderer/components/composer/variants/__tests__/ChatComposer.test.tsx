@@ -375,7 +375,9 @@ vi.mock('@renderer/components/ModelSelector', () => ({
 
     return (
       <div
-        data-testid="model-selector"
+        // The composer now mounts two: the mentioned-model picker (multiple) and the head
+        // controller (single). Assertions below all mean the first one.
+        data-testid={multiple ? 'model-selector' : 'controller-model-selector'}
         data-multiple={String(multiple)}
         data-open={String(Boolean(open))}
         data-default-multi-select={String(Boolean(defaultMultiSelectMode))}
