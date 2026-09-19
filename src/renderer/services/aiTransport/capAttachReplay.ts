@@ -12,14 +12,21 @@ export const MAX_ATTACH_REPLAY_CHUNKS = 1000
 // this window are also inside the attach snapshot; drop the covered ones.
 export function dropCoveredOverflow(
   replay: readonly StreamChunkPayload[],
-  overflow: readonly StreamChunkPayload[]
+  overflow: readonly StreamChunkPayload[],
+  droppedSeqs: readonly number[] = []
 ): StreamChunkPayload[] {
   let watermark = -1
   for (const payload of replay) {
     if (payload.seq !== undefined && payload.seq > watermark) watermark = payload.seq
   }
-  if (watermark < 0) return [...overflow]
-  return overflow.filter((payload) => payload.seq === undefined || payload.seq > watermark)
+  const dropped = droppedSeqs.length > 0 ? new Set(droppedSeqs) : undefined
+  if (watermark < 0 && !dropped) return [...overflow]
+  return overflow.filter((payload) => {
+    if (payload.seq === undefined) return true
+    // Repair-dropped chunks stay dropped even above the watermark.
+    if (dropped?.has(payload.seq)) return false
+    return payload.seq > watermark
+  })
 }
 
 function scopedPartKey(payload: StreamChunkPayload, kind: 'text' | 'reasoning' | 'tool-input', id: string): string {
@@ -80,8 +87,8 @@ function buildTail(chunks: readonly StreamChunkPayload[], max: number): StreamCh
 export function capAttachReplayChunks(
   chunks: readonly StreamChunkPayload[],
   max: number = MAX_ATTACH_REPLAY_CHUNKS
-): StreamChunkPayload[] {
-  if (chunks.length <= max) return [...chunks]
+): { replay: StreamChunkPayload[]; droppedSeqs: number[] } {
+  if (chunks.length <= max) return { replay: [...chunks], droppedSeqs: [] }
 
   // Collect authoritative tool identity per toolCallId. Scanning the full
   // buffer (not just the retained tail) keeps the attach→live handoff from
@@ -102,16 +109,30 @@ export function capAttachReplayChunks(
   // work), so shrink once by the net added and finish without synthesis.
   const tail = buildTail(chunks, max)
   const out = replayTail(tail, toolInfoByKey)
-  if (out.length <= max) return out
+  if (out.length <= max) return withDroppedSeqs(chunks, out)
 
   const budget = Math.max(0, max - (out.length - tail.length))
   const tail2 = buildTail(chunks, budget)
   const out2 = replayTail(tail2, toolInfoByKey)
-  if (out2.length <= max) return out2
+  if (out2.length <= max) return withDroppedSeqs(chunks, out2)
 
   // Boundary churn (shrinking exposed as many orphans as it removed): drop
   // orphans instead of synthesizing, so delivery stays bounded and parseable.
-  return replayTail(tail2, toolInfoByKey, false)
+  return withDroppedSeqs(chunks, replayTail(tail2, toolInfoByKey, false))
+}
+
+// Seqs the cap/repair step intentionally discarded. The handoff excludes these
+// from overflow: a repair-dropped tip chunk can sit above the replay watermark.
+function withDroppedSeqs(
+  chunks: readonly StreamChunkPayload[],
+  replay: StreamChunkPayload[]
+): { replay: StreamChunkPayload[]; droppedSeqs: number[] } {
+  const retained = new Set(replay)
+  const droppedSeqs: number[] = []
+  for (const payload of chunks) {
+    if (payload.seq !== undefined && !retained.has(payload)) droppedSeqs.push(payload.seq)
+  }
+  return { replay, droppedSeqs }
 }
 
 function replayTail(

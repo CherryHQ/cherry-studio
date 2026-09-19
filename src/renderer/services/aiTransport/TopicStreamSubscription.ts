@@ -497,9 +497,16 @@ export class TopicStreamSubscription {
           case 'attached': {
             const chunks = res.bufferedChunks
             let replay = chunks
+            let droppedSeqs: readonly number[] = []
             if (chunks.length > MAX_ATTACH_REPLAY_CHUNKS) {
-              logger.warn('attach replay capped', { total: chunks.length, topicId: this.#topicId })
-              replay = capAttachReplayChunks(chunks, MAX_ATTACH_REPLAY_CHUNKS)
+              logger.warn('attach replay capped', {
+                total: chunks.length,
+                topicId: this.#topicId,
+                overflowChunks: this.#attachBuffer?.length ?? 0
+              })
+              const capped = capAttachReplayChunks(chunks, MAX_ATTACH_REPLAY_CHUNKS)
+              replay = capped.replay
+              droppedSeqs = capped.droppedSeqs
             }
             const live = this.#attachBuffer
             const queuedTerminals = this.#attachTerminals
@@ -508,7 +515,7 @@ export class TopicStreamSubscription {
             for (const payload of replay) this.#routeChunk(payload)
             // Pre-attach live chunks already covered by the snapshot above are
             // dropped; only genuinely new chunks drain after replay, in order.
-            const fresh = live ? dropCoveredOverflow(replay, live) : undefined
+            const fresh = live ? dropCoveredOverflow(replay, live, droppedSeqs) : undefined
             if (fresh) for (const payload of fresh) this.#routeChunk(payload)
             // Mid-flight terminals settle branches only after their data is
             // routed, so replay and buffered chunks are never dropped as late.

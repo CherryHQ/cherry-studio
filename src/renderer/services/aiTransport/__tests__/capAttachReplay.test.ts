@@ -1,3 +1,4 @@
+import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import type { StreamChunkPayload } from '@shared/ai/transport'
@@ -18,7 +19,7 @@ describe('capAttachReplayChunks', () => {
       for (let d = 0; d < 11; d++) bufferedChunks.push(textDelta(`p${p}`, `p${p}-d${d}`))
     }
 
-    const out = capAttachReplayChunks(bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS)
+    const out = capAttachReplayChunks(bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS).replay
 
     // The bound holds with the synthesized opener included, not just the tail.
     expect(out.length).toBeLessThanOrEqual(MAX_ATTACH_REPLAY_CHUNKS)
@@ -36,7 +37,7 @@ describe('capAttachReplayChunks', () => {
     // Adversarial: 1200 distinct single-delta parts whose openers were all cut.
     const bufferedChunks = Array.from({ length: 1200 }, (_, i) => textDelta(`p${i}`, `d${i}`))
 
-    const out = capAttachReplayChunks(bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS)
+    const out = capAttachReplayChunks(bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS).replay
 
     expect(out.length).toBeLessThanOrEqual(MAX_ATTACH_REPLAY_CHUNKS)
   })
@@ -74,5 +75,29 @@ describe('dropCoveredOverflow', () => {
     const overflow = [seqDelta(50, 'old'), seqDelta(102, 'new')]
 
     expect(dropCoveredOverflow(replay, overflow)).toEqual([seqDelta(102, 'new')])
+  })
+
+  it('overflow handoff does not resurrect chunks replay repair intentionally dropped', () => {
+    // The cap drops the orphan tool-input-delta (no resolvable opener), so the
+    // retained replay watermark stops at seq 12 — yet the same orphan arrives
+    // in the attach-time overflow with seq 13. Dropped by repair plus newer
+    // than the watermark must still mean dropped from overflow.
+    const orphanToolDelta = (seq: number): StreamChunkPayload => ({
+      topicId: 't',
+      seq,
+      chunk: { type: 'tool-input-delta', toolCallId: 't1', inputTextDelta: 'x' } as unknown as UIMessageChunk
+    })
+    const buffered: StreamChunkPayload[] = [
+      { topicId: 't', seq: 10, chunk: { type: 'text-start', id: 'p' } },
+      seqDelta(11, 'a'),
+      seqDelta(12, 'b'),
+      orphanToolDelta(13)
+    ]
+
+    const { replay, droppedSeqs } = capAttachReplayChunks(buffered, 3)
+    expect(droppedSeqs).toContain(13)
+
+    const fresh = seqDelta(14, 'c')
+    expect(dropCoveredOverflow(replay, [orphanToolDelta(13), fresh], droppedSeqs)).toEqual([fresh])
   })
 })
