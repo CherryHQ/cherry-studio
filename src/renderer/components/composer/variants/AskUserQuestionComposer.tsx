@@ -55,11 +55,9 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   const currentCustomAnswerText = currentCustomAnswer.trim()
 
   const hasAnswerAt = useCallback(
-    (index: number, answersByIndex: AnswersByIndex = selectedAnswers) => {
-      const selected = answersByIndex[index] ?? []
-      return selected.length > 0
-    },
-    [selectedAnswers]
+    (index: number, answersByIndex: AnswersByIndex = selectedAnswers) =>
+      (answersByIndex[index] ?? []).length > 0 || !!customAnswers[index]?.trim(),
+    [customAnswers, selectedAnswers]
   )
 
   const hasAnyAnswer = useCallback(
@@ -69,8 +67,8 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   )
 
   const selectedForCurrent = selectedAnswers[currentIndex] ?? []
-  const hasAnySelectedAnswer = useMemo(() => hasAnyAnswer(selectedAnswers), [hasAnyAnswer, selectedAnswers])
-  const customActionSubmitsAll = isLastQuestion && (hasAnySelectedAnswer || !!currentCustomAnswerText)
+  const hasAnyAnswerValue = useMemo(() => hasAnyAnswer(), [hasAnyAnswer])
+  const customActionSubmitsAll = isLastQuestion && hasAnyAnswerValue
 
   const buildAnswers = useCallback(
     (answersByIndex: AnswersByIndex = selectedAnswers) => {
@@ -78,15 +76,38 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
       questions.forEach((question, index) => {
         const values = answersByIndex[index] ?? []
+        const notes = customAnswers[index]?.trim()
 
         if (values.length > 0) {
           answers[question.question] = values.join(', ')
+        } else if (notes) {
+          // Typed text without a selection is the answer itself; next to a selection
+          // it travels as an `annotations` note instead (see buildAnnotations).
+          answers[question.question] = notes
         }
       })
 
       return answers
     },
-    [questions, selectedAnswers]
+    [customAnswers, questions, selectedAnswers]
+  )
+
+  const buildAnnotations = useCallback(
+    (answersByIndex: AnswersByIndex = selectedAnswers) => {
+      const annotations: Record<string, { notes: string }> = {}
+
+      questions.forEach((question, index) => {
+        const notes = customAnswers[index]?.trim()
+        if (!notes || (answersByIndex[index] ?? []).length === 0) return
+
+        // The typed text supplements a selected option, so it goes out as the
+        // protocol's per-question `notes` annotation instead of replacing the answer.
+        annotations[question.question] = { notes }
+      })
+
+      return Object.keys(annotations).length > 0 ? annotations : undefined
+    },
+    [customAnswers, questions, selectedAnswers]
   )
 
   const respond = useCallback(
@@ -111,16 +132,18 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
     async (answersByIndex: AnswersByIndex = selectedAnswers) => {
       if (!hasAnyAnswer(answersByIndex) || isSubmitting) return
 
+      const annotations = buildAnnotations(answersByIndex)
       await respond({
         match: request.match,
         approved: true,
         updatedInput: {
           ...request.input,
-          answers: buildAnswers(answersByIndex)
+          answers: buildAnswers(answersByIndex),
+          ...(annotations && { annotations })
         }
       })
     },
-    [buildAnswers, hasAnyAnswer, isSubmitting, request.input, request.match, respond, selectedAnswers]
+    [buildAnnotations, buildAnswers, hasAnyAnswer, isSubmitting, request.input, request.match, respond, selectedAnswers]
   )
 
   const handleDismiss = useCallback(async () => {
@@ -155,11 +178,13 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         ? current.includes(label)
           ? current.filter((value) => value !== label)
           : [...current, label]
-        : [label]
+        : current.includes(label)
+          ? []
+          : [label]
       const nextSelectedAnswers = { ...selectedAnswers, [currentIndex]: nextForCurrent }
 
       setSelectedAnswers(nextSelectedAnswers)
-      if (!isMultiSelect) completeCurrentQuestion(nextSelectedAnswers)
+      if (!isMultiSelect && nextForCurrent.length > 0) completeCurrentQuestion(nextSelectedAnswers)
     },
     [completeCurrentQuestion, currentIndex, currentQuestion, isSubmitting, selectedAnswers]
   )
@@ -167,29 +192,13 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   const handleCustomAction = useCallback(async () => {
     if (isSubmitting) return
 
-    if (currentCustomAnswerText) {
-      const nextSelectedAnswers = { ...selectedAnswers, [currentIndex]: [currentCustomAnswerText] }
-      setSelectedAnswers(nextSelectedAnswers)
-      completeCurrentQuestion(nextSelectedAnswers)
-      return
-    }
-
     if (customActionSubmitsAll) {
       await submitAnswers(selectedAnswers)
       return
     }
 
     if (!isLastQuestion) setCurrentIndex((index) => index + 1)
-  }, [
-    completeCurrentQuestion,
-    currentCustomAnswerText,
-    currentIndex,
-    customActionSubmitsAll,
-    isLastQuestion,
-    isSubmitting,
-    selectedAnswers,
-    submitAnswers
-  ])
+  }, [customActionSubmitsAll, isLastQuestion, isSubmitting, selectedAnswers, submitAnswers])
 
   if (!currentQuestion) return null
 
@@ -227,7 +236,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
               size="icon-sm"
               className="size-7 shadow-none"
               aria-label={isLastQuestion ? t('agent.askUserQuestion.submit') : t('agent.askUserQuestion.next')}
-              disabled={(isLastQuestion && !hasAnySelectedAnswer) || isSubmitting}
+              disabled={(isLastQuestion && !hasAnyAnswerValue) || isSubmitting}
               onClick={
                 isLastQuestion
                   ? () => void submitAnswers()
