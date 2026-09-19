@@ -48,8 +48,9 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     effects.add('destructive')
     effects.add('irreversible')
   }
-  // `find ... -delete` removes matching files in batch.
-  if (/\bfind\b[\s\S]*\s-delete(\s|$)/.test(text)) {
+  // `find ... -delete` removes matching files in batch, scoped to one simple
+  // command so a later `-delete` past `&&`/`;`/`|` can't leak in.
+  if (/\bfind\b[^;&|]*\s-delete(\s|$)/.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
@@ -58,10 +59,10 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   if (/\bmv\s+\S+\s+\S+/.test(text)) {
     effects.add('destructive')
   }
-  // Git operations that discard work, matched within one simple command so flags
-  // past `&&`/`;` don't leak. `-f` skips `clean -n` dry runs; `-D` skips safe `-d`.
+  // Git work-discarders, scoped to one simple command so flags past `&&`/`;`/`|`
+  // can't leak. `-f` skips `-n`/`--dry-run` previews; `-D` skips safe `-d`.
   if (
-    /\bgit\s+clean[^;&|]*-f/.test(text) ||
+    /\bgit\s+clean(?![^;&|]*--dry-run)(?![^;&|]*\s-[a-zA-Z]*n)[^;&|]*-f/.test(text) ||
     /\bgit\s+reset[^;&|]*--hard/.test(text) ||
     /\bgit\s+branch[^;&|]*-D/.test(text)
   ) {

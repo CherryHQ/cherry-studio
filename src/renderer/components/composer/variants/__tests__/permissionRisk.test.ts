@@ -167,6 +167,16 @@ describe('getPermissionRiskEffects', () => {
     ).toEqual([])
   })
 
+  it('does not leak find flags across command boundaries', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'find . -type f && echo -delete' })).toEqual([])
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'find . -type f; echo -delete' })).toEqual([])
+  })
+
+  it('leaves explicit git clean dry runs unflagged', () => {
+    for (const command of ['git clean -n -f', 'git clean --dry-run -f', 'git clean -ndf']) {
+      expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual([])
+    }
+  })
   it('does not treat ssh key tooling as network activity', () => {
     expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'ssh-keygen -t ed25519' })).toEqual([])
     expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'ssh-add -l' })).toEqual([])
