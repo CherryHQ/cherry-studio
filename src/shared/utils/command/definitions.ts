@@ -248,6 +248,28 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'tab.history.back',
+    titleKey: 'settings.shortcuts.history_back',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      // Cmd+[ / Cmd+] are already left/right sidebar toggles; Alt+arrows avoid that clash
+      // and match the usual Win/Linux browser back/forward chord on every platform.
+      defaultBinding: ['Alt', 'Left'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'tab.history.forward',
+    titleKey: 'settings.shortcuts.history_forward',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['Alt', 'Right'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
     id: 'tab.next',
     titleKey: 'settings.shortcuts.next_tab',
     categoryKey: 'settings.shortcuts.general',

@@ -5272,6 +5272,8 @@
   "settings.shortcuts.empty": "В этой группе нет доступных ярлыков",
   "settings.shortcuts.exit_fullscreen": "Выйти из полноэкранного режима",
   "settings.shortcuts.focus_input": "Перейти к полю ввода",
+  "settings.shortcuts.history_back": "Назад",
+  "settings.shortcuts.history_forward": "Вперёд",
   "settings.shortcuts.new_topic": "Новый топик",
   "settings.shortcuts.next_tab": "Следующая вкладка",
   "settings.shortcuts.occupied_by_other_application": "Это сочетание клавиш уже используется системой или другим приложением",
