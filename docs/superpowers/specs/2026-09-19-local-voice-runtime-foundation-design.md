@@ -232,8 +232,10 @@ stop/restart, native termination, and real FileManager cleanup independently.
 
 FunASR conversion license/provenance and cross-platform native testing remain
 release limitations. The real WebM fixture tests now cover Opus pre-skip and terminal discard padding.
-Production IpcApi inference under denied network and packaged helper signing/smoke
-still require the final runtime evidence before completion can be claimed.
+Production IpcApi inference under denied network and the packaged helper's local
+ad-hoc signing/smoke are recorded in the implementation plan. Those results do
+not establish Developer ID signing, notarization, packaged renderer IPC, or
+platform coverage beyond the tested macOS 26.3 arm64 machine.
 
 ## Privacy and acceptance
 
