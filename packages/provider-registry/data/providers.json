@@ -1010,7 +1010,7 @@
     {
       "authOptional": true,
       "availableInEditions": ["global", "cn"],
-      "defaultChatEndpoint": "openai-chat-completions",
+      "defaultChatEndpoint": "openai-responses",
       "description": "oMLX - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -1023,6 +1023,10 @@
           "reasoningFormat": {
             "type": "openai-chat"
           }
+        },
+        "openai-responses": {
+          "adapterFamily": "open-responses",
+          "baseUrl": "http://localhost:8000"
         }
       },
       "id": "omlx",
@@ -2629,5 +2633,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "f9161b6475511c1e"
+  "version": "2435ad1032e8114c"
 }

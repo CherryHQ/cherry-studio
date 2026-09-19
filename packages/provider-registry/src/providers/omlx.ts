@@ -1,15 +1,35 @@
-import { openaiCompatible } from './types'
+import { defineProvider } from './types'
 
-export default openaiCompatible({
+/**
+ * oMLX's Responses endpoint is its native chat surface, so it is the default.
+ * `openai-chat-completions` stays declared: the server still serves it and
+ * other integrations still speak it.
+ */
+export default defineProvider({
   id: 'omlx',
   name: 'oMLX',
-  baseUrl: 'http://localhost:8000',
-  anthropic: 'http://localhost:8000',
-  authOptional: true,
-  reasoningFormat: { type: 'openai-chat' },
   availableInEditions: ['global', 'cn'],
-  website: {
-    docs: 'https://github.com/jundot/omlx',
-    official: 'https://omlx.ai'
+  authOptional: true,
+  defaultChatEndpoint: 'openai-responses',
+  endpointConfigs: {
+    'anthropic-messages': {
+      adapterFamily: 'anthropic',
+      baseUrl: 'http://localhost:8000'
+    },
+    'openai-responses': {
+      adapterFamily: 'open-responses',
+      baseUrl: 'http://localhost:8000'
+    },
+    'openai-chat-completions': {
+      adapterFamily: 'openai-compatible',
+      baseUrl: 'http://localhost:8000',
+      reasoningFormat: { type: 'openai-chat' }
+    }
+  },
+  metadata: {
+    website: {
+      docs: 'https://github.com/jundot/omlx',
+      official: 'https://omlx.ai'
+    }
   }
 })
