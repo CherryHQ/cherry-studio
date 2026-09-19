@@ -906,8 +906,8 @@ export class AiStreamManager extends BaseService {
     contextOwner?: ContextOwner
     /**
      * Terminal policy for turns with no renderable content. Agent sessions,
-     * the API gateway, and mini-app chat set this; ordinary chat leaves it
-     * unset and such turns become a `NoResponseError`.
+     * the API gateway, mini-app chat, and translate set this; ordinary chat
+     * leaves it unset and such turns become a `NoResponseError`.
      */
     allowEmptySuccess?: boolean
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */

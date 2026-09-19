@@ -603,7 +603,7 @@ unhandledRejection.
 | Exit path | Handler | Behaviour |
 |---|---|---|
 | Normal end | `onExecutionDone` | `exec.status = 'done'`, finalMessage persisted as `success` |
-| Clean `success` with no renderable parts | `onExecutionError` (`NoResponseError`) | Unless `request.allowEmptySuccess` — set by agent sessions, the API gateway, and mini-app chat — an empty-but-successful turn is folded as a `no_response` error instead of persisting a blank bubble |
+| Clean `success` with no renderable parts | `onExecutionError` (`NoResponseError`) | Unless `request.allowEmptySuccess` — set by agent sessions, the API gateway, mini-app chat, and translate — an empty-but-successful turn is folded as a `no_response` error instead of persisting a blank bubble |
 | `signal.aborted` + `exec.status === 'aborted'` | `onExecutionPaused` | (Possibly partial) finalMessage persisted as `paused` |
 | `streamErrorText` (in-stream `error` chunk) | `onExecutionError` | Error part folded into finalMessage, persisted as `error` |
 | Pre-stream or broadcast throw | `onExecutionError` | Same — error part folded, persisted |
