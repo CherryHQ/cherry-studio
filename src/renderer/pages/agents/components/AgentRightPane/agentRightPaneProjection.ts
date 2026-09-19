@@ -415,22 +415,29 @@ function isTerminalToolState(state: string | undefined): boolean {
 }
 
 /**
- * Whether the call at `toolCallId` is a SendMessage receipt — whose own id is not a flow root, so
- * opening it would render an empty or unrelated pane.
+ * Whether the call at `toolCallId` is a continuation receipt whose own id is not a flow root.
+ *
+ * Gated on the canonical tool name: an output that merely carries an agent id is not a receipt — a
+ * DSH `subagent` launch reports one too. A call with content parented under it stays a root
+ * regardless, because a cold-resumed DSH child streams under its own `send_message` call.
  */
 export function isResumeReceiptCall(
   toolCallId: string,
   partsByMessageId: Record<string, CherryMessagePart[]> | null
 ): boolean {
   if (!partsByMessageId) return false
+  let isReceipt = false
+  let hasChildren = false
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
+      if (getPartParentToolCallId(part) === toolCallId) hasChildren = true
       const record = part as { toolCallId?: unknown; output?: unknown }
       if (record.toolCallId !== toolCallId) continue
-      return getResumedAgentId(record.output) !== undefined
+      if (getCanonicalToolName(part) !== AgentToolsType.SendMessage) continue
+      if (getResumedAgentId(record.output) !== undefined) isReceipt = true
     }
   }
-  return false
+  return isReceipt && !hasChildren
 }
 
 /**
@@ -581,7 +588,7 @@ export function buildAgentToolFlowProjection(
         for (const part of parts) {
           const toolCallId = getToolCallId(part)
           if (!toolCallId || receiptPrompts.has(toolCallId)) continue
-          if (!isToolUIPart(part) || getToolNameFromPart(part) !== AgentToolsType.SendMessage) continue
+          if (!isToolUIPart(part) || getCanonicalToolName(part) !== AgentToolsType.SendMessage) continue
           if (!isResumeReceiptFor(part, launchedAgentId)) continue
           ownReceiptCallIds.add(toolCallId)
           const prompt = getResumeReceiptPromptText(part)
