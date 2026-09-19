@@ -60,6 +60,7 @@ import type { Provider } from './types'
 import p_vertexai from './vertexai'
 import p_voyageai from './voyageai'
 import p_xirang from './xirang'
+import p_y_api from './y-api'
 import p_zai from './zai'
 import p_zhipu from './zhipu'
 
@@ -86,6 +87,7 @@ export const PROVIDERS: Provider[] = [
   p_ollama,
   p_radeon_cloud,
   p_tokendance,
+  p_y_api,
   p_new_api,
   p_lmstudio,
   p_anthropic,

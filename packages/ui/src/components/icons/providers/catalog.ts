@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-09-10T18:57:46.000Z
- * Total icons: 161
+ * Generated at: 2026-09-15T02:04:31.029Z
+ * Total icons: 162
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -164,6 +164,7 @@ import { WorkersAiIcon } from './workers-ai'
 import { XiaoyiIcon } from './xiaoyi'
 import { XinghuoIcon } from './xinghuo'
 import { XirangIcon } from './xirang'
+import { YApiIcon } from './y-api/y-api'
 import { YouIcon } from './you'
 import { YuanbaoIcon } from './yuanbao'
 import { ZAiIcon } from './z-ai'
@@ -327,6 +328,7 @@ export const PROVIDER_ICON_CATALOG = {
   xiaoyi: XiaoyiIcon,
   xinghuo: XinghuoIcon,
   xirang: XirangIcon,
+  'y-api': YApiIcon,
   you: YouIcon,
   yuanbao: YuanbaoIcon,
   'z-ai': ZAiIcon,
