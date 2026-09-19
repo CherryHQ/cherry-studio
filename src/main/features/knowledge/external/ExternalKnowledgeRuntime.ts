@@ -43,6 +43,7 @@ import {
 } from './feishuKnowledgeProvider'
 import {
   FeishuKnowledgeReadError,
+  parseFeishuKnowledgeUrl,
   previewFeishuKnowledgeScope,
   readFeishuDocx,
   resolveFeishuKnowledgeScope,
@@ -505,6 +506,8 @@ export class ExternalKnowledgeRuntime {
   }
 
   async resolveFeishuScope(connectionId: string, url: string): Promise<ExternalKnowledgeScopeResolution> {
+    this.assertAccepting()
+    this.assertValidFeishuScopeUrl(url)
     return await this.runAuthorizedRead(connectionId, async (context) => {
       const resolved = await resolveFeishuKnowledgeScope(
         { connection: context.connection, url },
@@ -516,6 +519,8 @@ export class ExternalKnowledgeRuntime {
   }
 
   async previewFeishuScope(connectionId: string, url: string): Promise<ExternalKnowledgeScopePreview> {
+    this.assertAccepting()
+    this.assertValidFeishuScopeUrl(url)
     return await this.runAuthorizedRead(connectionId, async (context) => {
       const result = await previewFeishuKnowledgeScope(
         { connection: context.connection, url },
@@ -581,6 +586,15 @@ export class ExternalKnowledgeRuntime {
       if (state.requestTail === tail) state.requestTail = undefined
     })
     return await this.track(task)
+  }
+
+  private assertValidFeishuScopeUrl(url: string): void {
+    try {
+      parseFeishuKnowledgeUrl(url)
+    } catch (error) {
+      if (error instanceof FeishuKnowledgeReadError) throw new ExternalKnowledgeRuntimeError(error.code)
+      throw error
+    }
   }
 
   private feishuReadOperations(context: AuthorizedReadContext): FeishuKnowledgeReadOperations {

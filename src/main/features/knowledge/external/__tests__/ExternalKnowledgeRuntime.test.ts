@@ -195,6 +195,25 @@ function validCredential(id: string, now = 1_000): ExternalKnowledgeCredential {
 }
 
 describe('ExternalKnowledgeRuntime', () => {
+  it('rejects an untrusted scope URL before reading credentials or making a provider request', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const provider = createProvider()
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+    credentials.read.mockClear()
+
+    await expect(runtime.resolveFeishuScope(value.id, 'https://acme.larksuite.com/wiki/root')).rejects.toMatchObject({
+      code: 'invalid-scope-url'
+    })
+    expect(credentials.read).not.toHaveBeenCalled()
+    expect(provider.getUserIdentity).not.toHaveBeenCalled()
+    expect(provider.getWikiNode).not.toHaveBeenCalled()
+  })
+
   it('applies the verified Wiki endpoint budget between individual page requests', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
