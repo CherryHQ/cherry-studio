@@ -1073,20 +1073,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 }
 
-/**
- * Whether the turn's model accepts native image input. Unresolvable models keep the
- * legacy always-native behavior instead of silently degrading images to OCR text.
- */
+/** Whether the turn's model accepts native image input. Unresolvable models fail closed. */
 function resolveModelImageSupport(uniqueModelId: UniqueModelId): boolean {
   try {
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
     return isVisionModel(modelService.getByKey(providerId, modelId))
   } catch (error) {
-    logger.warn('Failed to resolve model for image support; assuming vision-capable', {
+    logger.warn('Failed to resolve model for image support; denying native image input', {
       uniqueModelId,
       error
     })
-    return true
+    return false
   }
 }
 

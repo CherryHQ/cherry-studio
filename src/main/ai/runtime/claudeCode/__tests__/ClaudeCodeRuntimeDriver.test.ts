@@ -1463,7 +1463,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('assumes vision support when the turn model cannot be resolved', async () => {
+  it('denies native image input when the turn model cannot be resolved', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -1492,17 +1492,10 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     })
 
-    await expect(nextInput).resolves.toMatchObject({
-      value: {
-        message: {
-          role: 'user',
-          content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }]
-        }
-      },
-      done: false
-    })
+    await expect(nextInput).resolves.toMatchObject({ value: { message: { role: 'user' } }, done: false })
+    expect((await nextInput).value.message.content).not.toContainEqual(expect.objectContaining({ type: 'image' }))
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'Failed to resolve model for image support; assuming vision-capable',
+      'Failed to resolve model for image support; denying native image input',
       expect.objectContaining({ uniqueModelId: 'claude-code::sonnet' })
     )
     void connection.close()
