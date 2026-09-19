@@ -346,7 +346,7 @@ export class VoiceSessionService extends BaseService {
         for (const id of session.files.keys()) await this.deleteFile(session, id)
         this.sessions.delete(session.id)
       } catch (error) {
-        if (session.cleanup === cleanup) session.cleanup = undefined
+        session.cleanup = undefined
         throw error
       }
     })()
