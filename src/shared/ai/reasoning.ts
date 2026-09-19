@@ -1,8 +1,7 @@
 /** Provider-neutral reasoning vocabulary and budget policy shared by Main and Renderer. */
 import { REASONING_EFFORT_ORDER } from '@cherrystudio/provider-registry'
-import type { Model, RuntimeReasoning } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, type RuntimeReasoning } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { isReasoningModel } from '@shared/utils/model'
 
 type BudgetEffort = Exclude<ReasoningEffortOption, 'default' | 'none' | 'auto'>
 
@@ -22,7 +21,7 @@ const EFFORT_ORDER_INDEX = new Map<ReasoningEffortOption, number>(
 )
 
 export function deriveThinkingOptions(model: Model): ReasoningEffortOption[] | undefined {
-  if (!isReasoningModel(model)) return undefined
+  if (!model.capabilities.includes(MODEL_CAPABILITY.REASONING)) return undefined
   const vocabulary = model.reasoning?.selectableEfforts
   if (!vocabulary?.length) return undefined
 

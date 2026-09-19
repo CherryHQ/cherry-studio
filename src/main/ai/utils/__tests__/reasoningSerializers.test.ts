@@ -10,9 +10,13 @@ import {
   type ReasoningWireProfile
 } from '@cherrystudio/provider-registry'
 import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
-import { makeModel } from '../../__tests__/fixtures'
+import { makeModel as makeModelFixture } from '../../__tests__/fixtures'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'
+
+const makeModel = (overrides: Parameters<typeof makeModelFixture>[0] = {}) =>
+  makeModelFixture({ capabilities: [MODEL_CAPABILITY.REASONING], ...overrides })
 
 const budgetProfile: ReasoningWireProfile = {
   effort: {
@@ -30,6 +34,24 @@ const model = makeModel({
 })
 
 describe('resolveReasoningInvocation budget constraints', () => {
+  it('omits a retained reasoning descriptor when the explicit capability is disabled', () => {
+    const disabledModel = makeModel({ capabilities: [], reasoning: model.reasoning })
+
+    expect(resolveReasoningInvocation({ selection: 'high', model: disabledModel, profile: budgetProfile })).toEqual({
+      kind: 'omit',
+      selection: 'high',
+      emissions: []
+    })
+
+    const enabledModel = makeModel({
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: model.reasoning
+    })
+    expect(resolveReasoningInvocation({ selection: 'high', model: enabledModel, profile: budgetProfile }).kind).toBe(
+      'budget'
+    )
+  })
+
   it.each([256, 1024])('omits a budget mode when maxTokens=%i cannot satisfy its minimum', (maxTokens) => {
     expect(resolveReasoningInvocation({ selection: 'high', model, profile: budgetProfile, maxTokens })).toEqual({
       kind: 'omit',
