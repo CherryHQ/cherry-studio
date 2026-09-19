@@ -164,6 +164,22 @@ describe('knowledgeHandlers', () => {
     )
   })
 
+  it('maps referenced connection removal to a stable IPC error', async () => {
+    knowledgeService.removeExternalKnowledgeConnection.mockRejectedValue(
+      new ExternalKnowledgeRuntimeError('connection-in-use')
+    )
+
+    const error = await knowledgeHandlers['knowledge.feishu.connection.remove'](
+      { connectionId: '01960000-0000-7000-8000-000000000001' },
+      ctx
+    ).catch((cause) => cause)
+
+    expect(error).toMatchObject({
+      code: knowledgeErrorCodes.EXTERNAL_CONNECTION_IN_USE,
+      message: 'External Knowledge connection is in use'
+    })
+  })
+
   it('create_base unwraps { base } and returns KnowledgeService.createBase result', async () => {
     const base = { name: 'KB', dimensions: 1536, embeddingModelId: 'm' }
     const created = { id: 'base-1' }
