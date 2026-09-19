@@ -598,7 +598,7 @@ export function buildAgentToolFlowProjection(
         ? undefined
         : selectedOutputText
       if (foregroundResultText) {
-        segments[0].parts.push({ type: 'text', text: foregroundResultText } as CherryMessagePart)
+        segments[0].parts.push({ type: 'text', text: foregroundResultText })
       }
     }
     let segmentIndex = 0
@@ -663,7 +663,7 @@ export function buildAgentToolFlowProjection(
           )
           if (resumeMessage) {
             flowMessages.push(resumeMessage)
-            flowPartsByMessageId[resumeMessage.id] = resumeMessage.parts as CherryMessagePart[]
+            flowPartsByMessageId[resumeMessage.id] = resumeMessage.parts
           }
           if (isResumeReceipt) continue
           // A tagged part belongs to the new round — fall through to descendant inclusion.
