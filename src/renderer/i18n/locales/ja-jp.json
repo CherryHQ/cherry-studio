@@ -3729,7 +3729,7 @@
   "settings.data.obsidian.default_vault_no_vaults": "Obsidian 保管庫が見つかりません",
   "settings.data.obsidian.default_vault_placeholder": "デフォルトの Obsidian 保管庫を選択してください",
   "settings.data.obsidian.title": "Obsidian 設定",
-  "settings.data.protection.covers": "バックアップには、チャット履歴、プロバイダー、APIキー、リクエスト上限、ナレッジベースが含まれています — このファイルを新しいコンピュータにコピーすれば、すべてが一緒に持ち込まれます。ファイル内のAPIキーはプレーンテキストで保存されているため、キー自体と同じくらいプライベートに保っておいてください。",
+  "settings.data.protection.covers": "バックアップには、チャット履歴、プロバイダー、APIキー、クォータ制限、ナレッジベースが含まれており、別のコンピュータで復元されます。MCP サインインやアシスタントのメモリファイルは含まれていません。それらはそれの外側に存在します。ファイル内のAPIキーはプレーンテキストで保存されているため、キー自体と同じくらいプライベートに保ってください。",
   "settings.data.protection.last_backup": "最後のバックアップ: {{when}}",
   "settings.data.protection.none": "バックアップされていません",
   "settings.data.protection.none_hint": "以下でバックアップを有効にしてください。バックアップがないと、クラッシュや誤削除でチャット履歴、プロバイダー、APIキーが失われます。",

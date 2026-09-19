@@ -3729,7 +3729,7 @@
   "settings.data.obsidian.default_vault_no_vaults": "Nenhum repositório Obsidian encontrado",
   "settings.data.obsidian.default_vault_placeholder": "Selecione o repositório Obsidian padrão",
   "settings.data.obsidian.title": "Configuração do Obsidian",
-  "settings.data.protection.covers": "Um backup mantém suas conversas, provedores e chaves de API, limites de pedidos e bases de conhecimento — copie este arquivo para um novo computador e tudo vem com ele. As chaves de API estão no arquivo como texto simples, portanto guarde-o tão confidencial quanto as próprias chaves.",
+  "settings.data.protection.covers": "Uma cópia de segurança contém suas conversas, provedores e chaves de API, limites de quota e bases de conhecimento, e é restaurada em outro computador. Não contém autenticações MCP ou o arquivo de memória do assistente, que ficam fora dela. As chaves de API estão no arquivo como texto simples, portanto guarde-o tão confidencial quanto as próprias chaves.",
   "settings.data.protection.last_backup": "Última cópia de segurança: {{when}}",
   "settings.data.protection.none": "Nada está sendo feito backup",
   "settings.data.protection.none_hint": "Ative um backup abaixo. Sem ele, um travamento ou exclusão acidental leva suas conversas, provedores e chaves de API com você.",

@@ -3729,7 +3729,7 @@
   "settings.data.obsidian.default_vault_no_vaults": "Aucun référentiel Obsidian trouvé",
   "settings.data.obsidian.default_vault_placeholder": "Veuillez sélectionner un référentiel Obsidian par défaut",
   "settings.data.obsidian.title": "Configuration d'Obsidian",
-  "settings.data.protection.covers": "Une sauvegarde contient vos conversations, fournisseurs et clés API, limites de requêtes et bases de connaissances — copiez ce seul fichier sur un nouvel ordinateur et tout vient avec lui. Les clés API se trouvent dans le fichier sous forme de texte brut, gardez-le aussi privé que les clés elles-mêmes.",
+  "settings.data.protection.covers": "Une sauvegarde contient vos conversations, fournisseurs et clés API, limites de quota et bases de connaissances, et se restaure sur un autre ordinateur. Elle ne contient pas les connexions MCP ou le fichier mémoire de l'assistant, qui se trouvent en dehors. Les clés API se trouvent dans le fichier sous forme de texte brut, gardez-le aussi privé que les clés elles-mêmes.",
   "settings.data.protection.last_backup": "Dernière sauvegarde : {{when}}",
   "settings.data.protection.none": "Rien n'est en cours de sauvegarde",
   "settings.data.protection.none_hint": "Activez une sauvegarde ci-dessous. Sans elle, un plantage ou une suppression accidentelle entraîne la perte de vos conversations, fournisseurs et clés API.",
