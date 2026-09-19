@@ -1495,6 +1495,13 @@ export class MessageService {
 
       const existing = rowToMessage(existingRow)
 
+      if (
+        dto.expectedParts !== undefined &&
+        JSON.stringify(existing.data.parts ?? []) !== JSON.stringify(dto.expectedParts)
+      ) {
+        throw DataApiErrorFactory.concurrentModification('Message', id)
+      }
+
       // Single-root guards (mirror createSibling/delete; the CHECK + unique index are the
       // structural backstop, these give clean errors):
       // - the virtual root cannot be reparented (it would lose its null parent → topic

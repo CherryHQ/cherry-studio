@@ -448,6 +448,20 @@ describe('useChatWriteActions — edit message', () => {
     })
     expect(cache.rollbackBranch).toHaveBeenCalledOnce()
   })
+
+  it('forwards expectedParts for conditional dismissal writes', async () => {
+    const editedParts = [{ type: 'text', text: 'edited' }]
+    const expectedParts = [{ type: 'text', text: 'base' }]
+    const { actions, cache } = renderActions([uiMsg('m1', 'user', 'vroot')])
+
+    await actions.editMessage('m1', editedParts as any, { expectedParts: expectedParts as any })
+
+    expect(cache.patchMessageTrigger).toHaveBeenCalledWith({
+      params: { id: 'm1' },
+      body: { data: { parts: editedParts }, expectedParts }
+    })
+    expect(cache.rollbackBranch).not.toHaveBeenCalled()
+  })
 })
 
 describe('useChatWriteActions — regenerate', () => {

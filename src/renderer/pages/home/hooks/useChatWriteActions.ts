@@ -260,7 +260,7 @@ export function useChatWriteActions(params: Params): Result {
   )
 
   const handleEditMessage = useCallback<ChatWriteActions['editMessage']>(
-    async (messageId, editedParts) => {
+    async (messageId, editedParts, options) => {
       await seedOptimisticBranch((items) => {
         const patch = (msg: BranchMessagesResponse['items'][number]['message']) =>
           msg.id === messageId ? { ...msg, data: { ...msg.data, parts: editedParts } } : msg
@@ -271,7 +271,13 @@ export function useChatWriteActions(params: Params): Result {
         }))
       })
       try {
-        await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
+        await patchMessageTrigger({
+          params: { id: messageId },
+          body: {
+            data: { parts: editedParts },
+            ...(options?.expectedParts !== undefined && { expectedParts: options.expectedParts })
+          }
+        })
         logger.info('Edited message', { messageId, partCount: editedParts.length })
       } catch (err) {
         await rollbackBranch()
