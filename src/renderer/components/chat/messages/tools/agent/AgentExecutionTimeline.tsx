@@ -3,13 +3,14 @@ import { type ReactElement, useDeferredValue, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentLaunchIndex, usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { useOptionalMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import {
-  type AgentLaunchIndex,
   AgentToolsType,
-  getResumedAgentId,
-  isAskUserQuestionToolName
+  isAskUserQuestionToolName,
+  resolveResumeReceiptState,
+  type ResumeReceiptState
 } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext, ToolHeader } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
@@ -32,21 +33,16 @@ function getStringArg(args: unknown, key: string): string | undefined {
  * launch card's continuation. Returns undefined when this receipt does not resolve to a launch.
  */
 export function buildResumeToolHeader(
+  state: Exclude<ResumeReceiptState, { kind: 'none' }>,
   toolResponse: ToolResponseLike,
-  launchIndex: AgentLaunchIndex | null,
-  t: ReturnType<typeof useTranslation>['t'],
-  resumedLaunch?: { toolCallId: string; description?: string }
-): { resumedLaunch?: { toolCallId: string; description?: string }; header: ReactElement } | undefined {
-  // Resume detection only needs the receipt's own output; launch-identity resolution is an
-  // enhancement that must never gate the label. Gated to SendMessage — only its receipts carry
-  // agent ids, and this header drives labels for every tool row.
+  t: ReturnType<typeof useTranslation>['t']
+): { header: ReactElement } | undefined {
   if (toolResponse.tool.name !== AgentToolsType.SendMessage) return undefined
-  const resumedAgentId = getResumedAgentId(toolResponse.response)
-  if (!resumedAgentId) return undefined
-  const resolved = resumedLaunch ?? launchIndex?.launchesByAgentId.get(resumedAgentId)
-  const identity = resolved?.description ?? getStringArg(toolResponse.arguments, 'summary')
+  // The label serves the resolved identity; an unresolvable receipt never reaches here, so the
+  // summary is only the fallback for hosts whose index carries no description.
+  const identity =
+    (state.kind === 'navigable' ? state.description : undefined) ?? getStringArg(toolResponse.arguments, 'summary')
   return {
-    resumedLaunch: resolved,
     header: (
       <ToolHeader
         label={t('message.tools.activity.continueHandle')}
@@ -80,21 +76,19 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
 
   // Hooks stay above every early return below: a tool flipping out of its approval wait must not
   // change this component's hook count (React #310).
-  const resumedAgentId = tool?.name === AgentToolsType.SendMessage ? getResumedAgentId(response) : undefined
-  // Primary source: adapter-stamped launch root (zero scanning). Fallback: cross-message index.
-  const stampedLaunchId = tool?.name === AgentToolsType.SendMessage ? getPartLaunchToolCallId(toolResponse) : undefined
-  const resumedLaunch = useMemo(() => {
-    const resolved = resumedAgentId ? launchIndex?.launchesByAgentId.get(resumedAgentId) : undefined
-    if (stampedLaunchId) {
-      // The stamped id navigates without scanning, but it must still point inside the loaded
-      // parts window — a paged-out launch root would open an empty flow pane on click.
-      if (launchIndex?.toolCallIds.has(stampedLaunchId)) {
-        return { toolCallId: stampedLaunchId, description: resolved?.description }
-      }
-      return resolved
-    }
-    return resolved
-  }, [resumedAgentId, launchIndex, stampedLaunchId])
+  const listActions = useOptionalMessageListActions()
+  const resumeState = useMemo(
+    () =>
+      tool?.name === AgentToolsType.SendMessage
+        ? resolveResumeReceiptState(
+            response,
+            getPartLaunchToolCallId(toolResponse),
+            launchIndex,
+            Boolean(listActions?.openAgentToolFlow)
+          )
+        : undefined,
+    [tool?.name, response, toolResponse, launchIndex, listActions]
+  )
 
   if (tool?.name === 'mcp__assistant__navigate') {
     return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />
@@ -120,9 +114,9 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
 
   const isLoading = effectiveStatus === 'streaming' || effectiveStatus === 'invoking'
   const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
-  // Reuse the memoized launch resolution instead of re-scanning — buildResumeToolHeader keeps
-  // its own scan for the group header, which has no memo here.
-  const resumeHeader = buildResumeToolHeader(toolResponse, launchIndex, t, resumedLaunch)
+  const resumeHeader =
+    resumeState && resumeState.kind !== 'none' ? buildResumeToolHeader(resumeState, toolResponse, t) : undefined
+  const resumeTarget = resumeState?.kind === 'navigable' ? resumeState : undefined
   return (
     <>
       <AgentToolCallCard
@@ -134,11 +128,11 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
         status={effectiveStatus}
         hasError={status === 'error'}
         isCherrySessionTool={isCherrySessionToolResponse(toolResponse)}
-        openFlowOnClick={isSubagentTool || (resumeHeader !== undefined && resumedLaunch !== undefined)}
-        flowTargetToolCallId={resumedLaunch?.toolCallId}
+        openFlowOnClick={isSubagentTool || resumeTarget !== undefined}
+        flowTargetToolCallId={resumeTarget?.toolCallId}
         // The flow is the agent's whole timeline — keep its title the launch identity, not the
         // resume request's summary.
-        flowTitle={resumedLaunch?.description ?? getAgentToolFlowTitle(tool?.name, args ?? parsedPartialArgs)}
+        flowTitle={resumeTarget?.description ?? getAgentToolFlowTitle(tool?.name, args ?? parsedPartialArgs)}
         labelOverride={resumeHeader?.header}
         showInlineDetails={!isSubagentTool}
       />

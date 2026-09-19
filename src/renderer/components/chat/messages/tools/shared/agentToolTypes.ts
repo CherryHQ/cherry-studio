@@ -363,7 +363,12 @@ export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMes
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
       const record = part as { toolName?: unknown; toolCallId?: unknown; input?: unknown; output?: unknown }
-      if (record.toolName !== AgentToolsType.Agent && record.toolName !== AgentToolsType.Task) continue
+      if (
+        record.toolName !== AgentToolsType.Agent &&
+        record.toolName !== AgentToolsType.Task &&
+        record.toolName !== AgentToolsType.Workflow
+      )
+        continue
       if (typeof record.toolCallId !== 'string') continue
       toolCallIds.add(record.toolCallId)
       // First registration wins, mirroring the task-row binding: the launch receipt is the earliest
@@ -377,13 +382,36 @@ export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMes
   return { toolCallIds, launchesByAgentId }
 }
 
-export function resolveResumedAgent(
+/**
+ * How a `SendMessage` receipt reads: nothing special, a label with no destination, or a label that
+ * navigates to the launch root. One decision drives both the label and the click, so they can never
+ * disagree; a host that mounts no launch index (image capture, export) offers no navigation and
+ * keeps the truthful label, while a host that offers navigation degrades an unresolvable receipt to
+ * a plain tool row.
+ */
+export type ResumeReceiptState =
+  | { kind: 'none' }
+  | { kind: 'labelled' }
+  | { kind: 'navigable'; toolCallId: string; description?: string }
+
+export function resolveResumeReceiptState(
   output: unknown,
-  fullPartsMap: Record<string, CherryMessagePart[]> | null
-): { toolCallId: string; description?: string } | undefined {
+  launchToolCallId: string | undefined,
+  launchIndex: AgentLaunchIndex | null,
+  canNavigate: boolean
+): ResumeReceiptState {
   const resumedAgentId = getResumedAgentId(output)
-  if (!resumedAgentId || !fullPartsMap) return undefined
-  return buildAgentLaunchIndex(fullPartsMap).launchesByAgentId.get(resumedAgentId)
+  if (!resumedAgentId) return { kind: 'none' }
+  const launch = launchIndex?.launchesByAgentId.get(resumedAgentId)
+  // The stamp resolves without scanning, but either source must land inside the loaded window —
+  // a paged-out launch root would open an empty flow pane.
+  const toolCallId = launchToolCallId ?? launch?.toolCallId
+  if (toolCallId && launchIndex?.toolCallIds.has(toolCallId)) {
+    return { kind: 'navigable', toolCallId, description: launch?.description }
+  }
+  // Unresolved: a host that cannot navigate keeps the truthful label, while one that can would
+  // otherwise show an affordance it cannot honour.
+  return canNavigate ? { kind: 'none' } : { kind: 'labelled' }
 }
 export type TeamCreateToolInput = Record<string, unknown>
 export type TeamCreateToolOutput = string

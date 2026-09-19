@@ -1267,7 +1267,7 @@ describe('AgentToolRenderer', () => {
 
     // The continue-handling label must not gate on resolution (B-label enhacement), but the click
     // must: an unresolved resume would otherwise open the receipt's own empty flow.
-    it('labels an un-resolvable resume receipt but does not open a flow for it', () => {
+    it('shows no continuation affordance for an unresolvable receipt in a navigable host', () => {
       const openAgentToolFlow = vi.fn()
       mockMessageListActions.mockReturnValue({ openAgentToolFlow })
       mockPartsMap.mockReturnValue({}) // launch part is outside the loaded window
@@ -1280,10 +1280,9 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      // The label still identifies the receipt as a continuation…
-      expect(screen.getByText('Continue handling')).toBeInTheDocument()
-      // …but the entry is not clickable, so it cannot target the receipt's own call id.
-      expect(screen.getByText('Continue handling').closest('[role="button"]')).toBeNull()
+      // A host that can navigate offers no continuation affordance it cannot honour, and the
+      // entry never falls back to targeting the receipt's own call id.
+      expect(screen.queryByText('Continue handling')).toBeNull()
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
@@ -1344,8 +1343,8 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // The resume label still shows, but nothing navigates to a paged-out launch.
-      expect(screen.getByText('Continue handling')).toBeInTheDocument()
-      expect(screen.getByText('Continue handling').closest('[role="button"]')).toBeNull()
+      // A host that can navigate offers no continuation affordance it cannot honour.
+      expect(screen.queryByText('Continue handling')).toBeNull()
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
@@ -1374,7 +1373,8 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByText('Continue handling').closest('[role="button"]')).toBeNull()
+      // A host that can navigate offers no continuation affordance it cannot honour.
+      expect(screen.queryByText('Continue handling')).toBeNull()
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
@@ -1403,7 +1403,8 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByText('Continue handling').closest('[role="button"]')).toBeNull()
+      // A host that can navigate offers no continuation affordance it cannot honour.
+      expect(screen.queryByText('Continue handling')).toBeNull()
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
@@ -1432,7 +1433,8 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByText('Continue handling').closest('[role="button"]')).toBeNull()
+      // A host that can navigate offers no continuation affordance it cannot honour.
+      expect(screen.queryByText('Continue handling')).toBeNull()
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 

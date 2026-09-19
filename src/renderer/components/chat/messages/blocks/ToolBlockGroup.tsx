@@ -27,11 +27,13 @@ import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
+import { useOptionalMessageListActions } from '../MessageListProvider'
 import { buildResumeToolHeader } from '../tools/agent'
 import MessageTools from '../tools/MessageTools'
-import { AgentToolsType, getResumedAgentId } from '../tools/shared/agentToolTypes'
+import { AgentToolsType, getResumedAgentId, resolveResumeReceiptState } from '../tools/shared/agentToolTypes'
 import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTools'
 import ToolHeader, { getReadableToolActivity } from '../tools/ToolHeader'
+import { getPartLaunchToolCallId } from '../tools/toolParentMetadata'
 import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
 import { PartsContext, PartsProvider, useAgentLaunchIndex, usePartsMap } from './MessagePartsContext'
@@ -355,6 +357,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     const { t } = useTranslation()
     const partsMap = usePartsMap()
     const launchIndex = useAgentLaunchIndex()
+    const canOpenFlow = Boolean(useOptionalMessageListActions()?.openAgentToolFlow)
     const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
     const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
     const nextCandidate = React.useMemo<ToolHeaderCandidate>(() => {
@@ -484,7 +487,14 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
     // A send-then-resume receipt heads its group exactly like the launch card: continue-handling
     // verb + launch identity, in place of the generic SendMessage or semantic title.
-    const resumeHeader = buildResumeToolHeader(displayCandidate.item.toolResponse, launchIndex, t)
+    const resumeReceipt = displayCandidate.item.toolResponse
+    const resumeState = resolveResumeReceiptState(
+      resumeReceipt.response,
+      getPartLaunchToolCallId(resumeReceipt),
+      launchIndex,
+      canOpenFlow
+    )
+    const resumeHeader = resumeState.kind === 'none' ? undefined : buildResumeToolHeader(resumeState, resumeReceipt, t)
 
     if (resumeHeader) {
       return renderWithElapsed(
