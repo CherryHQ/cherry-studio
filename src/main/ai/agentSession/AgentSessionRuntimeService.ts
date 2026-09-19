@@ -1030,9 +1030,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Awaits the connection's graceful turn interrupt, bounded by the stopped turn's own lifetime:
-   * once that turn is no longer live the stop has landed, and waiting longer would hold the stop
-   * behind whatever runs on the shared connection next.
+   * Awaits the connection's graceful turn interrupt. When the stopped turn leaves before the
+   * driver verdict, the stop still waits for the in-flight interrupt to land — the driver cancel
+   * is identity-free on the connection, and the topic dispatch lock behind this stop must not
+   * admit a queued successor under a still-traveling cancel.
    */
   private async raceAbortTurn(
     connection: AgentRuntimeConnection | undefined,
@@ -1061,14 +1062,13 @@ export class AgentSessionRuntimeService extends BaseService {
       turnLeftLive().then((value) => ({ source: 'turn-left' as const, value }))
     ])
     raceSettled = true
-    if (result.source === 'turn-left' && result.value) {
-      // Release Stop when its turn settles, but honor a later failed driver verdict. DSH can
-      // report terminal before its separate cancel request times out.
-      void aborting.then((value) => {
-        if (value === false) void this.closeAfterFailedUserStop(sessionId, stoppingTurnId, connection)
-      })
-    }
-    return result.value
+    if (result.source !== 'turn-left' || !result.value) return result.value
+    // The turn left while the interrupt was still in flight. Hold the stop until the interrupt
+    // lands before releasing: the driver cancel is identity-free on the connection, and the
+    // topic dispatch lock behind this stop must not admit a queued successor under a
+    // still-traveling cancel. Bounded by the driver's own interrupt timeouts; a late failed
+    // verdict still reaches the teardown fallback in `stopForUser`.
+    return aborting
   }
 
   closeSession(sessionId: string): Promise<void> {
