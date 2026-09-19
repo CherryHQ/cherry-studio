@@ -120,8 +120,6 @@ const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
 /** A host-row miss is re-queried after this long — the row can be committed mid-connection. */
 const FLOW_HOST_MISS_RECHECK_MS = 5_000
-/** Teardown orphaned recovery chunks survive long enough for a reopened session to pick them up. */
-const FLOW_RECOVERY_ORPHAN_TTL_MS = 600_000
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -302,8 +300,6 @@ type AgentSessionRuntimeEntry = {
   checkedFlowHostMisses?: Map<string, number>
   /** Detached chunks buffered while their host-row recovery is retried (root tool-call id keyed). */
   pendingRecoveryFlowChunks?: Map<string, UIMessageChunk[]>
-  /** Roots whose durable orphan batch was replayed — kept persisted until the row commits. */
-  replayedOrphanRoots?: Set<string>
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
 }
@@ -2187,60 +2183,14 @@ export class AgentSessionRuntimeService extends BaseService {
         this.enqueueBackgroundFlowChunk(entry, hostMessageId, replayedChunk)
       }
     }
-    // A previous teardown orphaned chunks whose host row had not committed; now that the row is
-    // here, they flow first (they are the oldest content). The persist tier survives restarts.
-    const cacheService = application.get('CacheService')
-    const orphanKey = 'agent.session.flow_recovery_orphans'
-    const orphans = [...(cacheService.getPersist(orphanKey) ?? [])]
-    const now = Date.now()
-    // Every recovery also prunes expired orphans, so a root whose row never appears does not
-    // leave stragglers behind.
-    const expired = new Set(orphans.filter((orphan) => now - orphan.orphannedAt >= FLOW_RECOVERY_ORPHAN_TTL_MS))
-    if (expired.size) {
-      cacheService.setPersist(
-        orphanKey,
-        orphans.filter((orphan) => !expired.has(orphan))
-      )
-    }
-    const matching = orphans.find(
-      (orphan) =>
-        orphan.sessionId === entry.sessionId && orphan.rootToolCallId === rootToolCallId && !expired.has(orphan)
-    )
-    if (matching?.chunks.length && !entry.replayedOrphanRoots?.has(rootToolCallId)) {
-      // Replay at most once per root; the batch stays persisted until the row commits, so a
-      // crash before persistence replays it again rather than losing it.
-      ;(entry.replayedOrphanRoots ??= new Set()).add(rootToolCallId)
-      replay(matching.chunks)
-    }
-    // Chunks buffered across the transient recovery errors flow into the anchor next; nested
-    // tool calls inside them register anchors exactly like the normal chunk path below.
+    // Chunks buffered across transient recovery errors flow into the anchor; nested tool calls
+    // inside them register anchors exactly like the normal chunk path below.
     const buffered = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
     if (buffered?.length) {
       entry.pendingRecoveryFlowChunks?.delete(rootToolCallId)
       replay(buffered)
     }
     return hostMessageId
-  }
-
-  /** Drop persisted orphan batches once their root's chunks are durably in the message row. */
-  private acknowledgeFlowRecoveryOrphans(entry: AgentSessionRuntimeEntry, messageId: string): void {
-    const roots = entry.replayedOrphanRoots
-    if (!roots?.size) return
-    const acknowledged = [...(entry.flowMessageIdsByToolCallId ?? [])]
-      .filter(([rootToolCallId, anchoredMessageId]) => anchoredMessageId === messageId && roots.has(rootToolCallId))
-      .map(([rootToolCallId]) => rootToolCallId)
-    if (!acknowledged.length) return
-    const cacheService = application.get('CacheService')
-    const orphanKey = 'agent.session.flow_recovery_orphans'
-    const orphans = cacheService.getPersist(orphanKey) ?? []
-    const remaining = orphans.filter(
-      (orphan) =>
-        !acknowledged.some(
-          (rootToolCallId) => orphan.sessionId === entry.sessionId && orphan.rootToolCallId === rootToolCallId
-        )
-    )
-    if (remaining.length !== orphans.length) cacheService.setPersist(orphanKey, remaining)
-    for (const rootToolCallId of acknowledged) roots.delete(rootToolCallId)
   }
 
   /** Buffer an unrecoverable-root chunk so a later successful re-query can deliver it. */
@@ -2250,22 +2200,6 @@ export class AgentSessionRuntimeService extends BaseService {
     const chunks = buffered.get(rootToolCallId) ?? []
     chunks.push(chunk)
     buffered.set(rootToolCallId, chunks)
-  }
-
-  /** Persist an orphaned batch restart-safe, merging with earlier batches for the same root. */
-  private persistFlowRecoveryOrphan(sessionId: string, rootToolCallId: string, chunks: UIMessageChunk[]): void {
-    const cacheService = application.get('CacheService')
-    const orphanKey = 'agent.session.flow_recovery_orphans'
-    const orphans = cacheService.getPersist(orphanKey) ?? []
-    const now = Date.now()
-    const live = orphans.filter((orphan) => now - orphan.orphannedAt < FLOW_RECOVERY_ORPHAN_TTL_MS)
-    const existing = live.find((orphan) => orphan.sessionId === sessionId && orphan.rootToolCallId === rootToolCallId)
-    cacheService.setPersist(
-      orphanKey,
-      existing
-        ? live.map((orphan) => (orphan === existing ? { ...orphan, chunks: [...orphan.chunks, ...chunks] } : orphan))
-        : [...live, { sessionId, rootToolCallId, orphannedAt: now, chunks }]
-    )
   }
 
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
@@ -2486,8 +2420,6 @@ export class AgentSessionRuntimeService extends BaseService {
             continue
           }
           completedFlows.push({ messageId: accumulator.messageId, parts })
-          // The replayed orphan batch is durably in the row now — drop its persisted copy.
-          this.acknowledgeFlowRecoveryOrphans(entry, accumulator.messageId)
         }
 
         // Only drop the accumulators this flush closed — one created mid-drain belongs to newer
@@ -3507,16 +3439,8 @@ export class AgentSessionRuntimeService extends BaseService {
       // an accumulator (or the pending buffer) and will be drained by the cascade below.
       for (const rootToolCallId of [...(entry.pendingRecoveryFlowChunks?.keys() ?? [])]) {
         try {
-          if (!this.recoverDetachedFlowHost(entry, rootToolCallId)) {
-            // The host row never committed: orphan the (still-unreplayed) buffered chunks to the
-            // restart-safe persist tier so a reopened session that later finds the row delivers
-            // them instead of dropping the output.
-            const orphan = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
-            if (orphan?.length) this.persistFlowRecoveryOrphan(entry.sessionId, rootToolCallId, orphan)
-          }
+          this.recoverDetachedFlowHost(entry, rootToolCallId)
         } catch (error) {
-          const orphan = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
-          if (orphan?.length) this.persistFlowRecoveryOrphan(entry.sessionId, rootToolCallId, orphan)
           logger.warn('Detached flow recovery lookup failed at teardown', {
             sessionId: entry.sessionId,
             rootToolCallId,

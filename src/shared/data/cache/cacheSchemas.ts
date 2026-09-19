@@ -527,7 +527,6 @@ export type MainPersistCacheSchema = {
   // windowBoundsTracker is the sole writer and controls which keys appear.
   'window.bounds': Record<string, CacheValueTypes.WindowBoundsState>
   // Teardown-orphaned detached-flow chunks, restart-safe so a reopen can still deliver them.
-  'agent.session.flow_recovery_orphans': CacheValueTypes.CacheAgentSessionFlowRecoveryOrphan[]
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
@@ -535,7 +534,6 @@ export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
   'window.bounds': {},
-  'agent.session.flow_recovery_orphans': []
 }
 
 // ============================================================================
