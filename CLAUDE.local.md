@@ -44,6 +44,13 @@ Kullanıcı Türkçe yazıyor, cevaplar Türkçe. **Kod, yorum ve commit mesajla
   (Üst `CLAUDE.md` imza şart koşuyor — o kural yukarı akış PR'ları için, burada geçerli değil.)
 - **Pre-commit hook dosyaları biçimlendirir** ve hazırlanmamış değişikliklerle çakışıp commit'i
   düşürebilir. Takılırsa: `./node_modules/.bin/oxfmt --write .` çalıştır, `git add -u`, tekrar dene.
+- **Dosyaları UTF-8 yaz — PowerShell'de asla `Set-Content`/`Out-File` varsayılanıyla değil.**
+  `Set-Content` sistem ANSI kod sayfasını kullanır; `-Encoding utf8` şart. En güvenlisi `Write`
+  aracı veya `fs.writeFileSync(path, text, 'utf8')`.
+  **Bu kural bedelini ödetti:** `7acf1c5` (2026-09-17) 13 dile 4 anahtar eklerken 8 dil dosyasını
+  cp1252 ile yeniden yazdı ve **30.412 mevcut çeviriyi bozdu** (`添加智能体失败` → `æ·»åŠ æ™ºèƒ½ä½"å¤±è´¥`).
+  İki gün kimse fark etmedi; `pnpm i18n:check` bunu **yakalamıyor**. Locale dosyasına dokunan her
+  iş bittikten sonra bozuk kodlama taraması yap — sıralama ve placeholder kontrolü yetmez.
 - **Derleme:** `./node_modules/.bin/electron-vite build` sonra
   `./node_modules/.bin/electron-builder --win --x64 --dir --config.npmRebuild=false`
   → `dist/win-unpacked/Cherry Studio.exe`. NSIS kurulum paketi `node-pty` yüzünden üretilemiyor.

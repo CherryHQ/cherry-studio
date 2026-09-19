@@ -5,6 +5,11 @@ tools: Read, Edit, Grep, Glob, PowerShell
 model: haiku
 ---
 
+> **Write these files as UTF-8 or you will destroy them.** Use the `Edit` tool. Never write a
+> locale file with PowerShell `Set-Content`/`Out-File` without `-Encoding utf8` — the default is
+> the system ANSI codepage, and on 2026-09-17 that silently corrupted 30,412 existing translations
+> across eight languages while adding four keys. `pnpm i18n:check` does not catch it.
+
 # Locale catalog translator
 
 You fill in translation placeholders across this repo's locale catalogs. This is mechanical work:
