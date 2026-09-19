@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 vi.mock('@application', () => ({
@@ -60,5 +60,31 @@ describe('resolveCapabilities — provider-builtin web search config key', () =>
     })
 
     expect(capabilities.webSearchPluginConfig).toBeUndefined()
+  })
+})
+
+describe('resolveCapabilities — reasoning override', () => {
+  const provider = { id: 'openai' } as Provider
+  const reasoningModel = {
+    id: 'openai::reasoning-model',
+    providerId: 'openai',
+    apiModelId: 'reasoning-model',
+    reasoning: { selectableEfforts: ['low', 'high'] }
+  } as unknown as Model
+
+  it('does not serialize reasoning when the explicit capability is disabled', () => {
+    const capabilities = resolveCapabilities({ ...reasoningModel, capabilities: [] }, provider, assistant)
+
+    expect(capabilities.enableReasoning).toBe(false)
+  })
+
+  it('enables reasoning when the capability and descriptor both support it', () => {
+    const capabilities = resolveCapabilities(
+      { ...reasoningModel, capabilities: [MODEL_CAPABILITY.REASONING] },
+      provider,
+      assistant
+    )
+
+    expect(capabilities.enableReasoning).toBe(true)
   })
 })
