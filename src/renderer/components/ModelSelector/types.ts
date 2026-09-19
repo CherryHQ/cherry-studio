@@ -102,6 +102,8 @@ export interface ModelSelectorModelItem {
   showIdentifier: boolean
   /** Set when the model is demoted: still selectable, but sorted last and badged. */
   passiveReason?: ModelPassiveReason
+  /** Requests left across this provider's keys. Absent when no key declares a ceiling. */
+  remainingQuota?: number
 }
 
 export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem

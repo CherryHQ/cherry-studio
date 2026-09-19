@@ -18,7 +18,13 @@ import { periodStartOf } from '@shared/utils/apiKeyLimit'
 import { isAgentOnlyProvider } from '@shared/utils/provider'
 
 import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
-import { getModelPassiveReason, isQuotaExhausted, type ModelPassiveReason, passiveSortRank } from './modelAvailability'
+import {
+  getModelPassiveReason,
+  getRemainingQuota,
+  isQuotaExhausted,
+  type ModelPassiveReason,
+  passiveSortRank
+} from './modelAvailability'
 import type {
   FlatListItem,
   ModelSelectorModelItem,
@@ -175,6 +181,22 @@ export function useModelSelectorData({
     return exhausted
   }, [apiKeyLimits, providers, models, quotaUsageCounts])
 
+  // What is left on each model, so searching one model name shows how much room each provider
+  // serving it actually has — the user should not have to remember which account still had some.
+  const remainingQuotaByModelId = useMemo(() => {
+    const remaining = new Map<UniqueModelId, number>()
+    if (!apiKeyLimits || Object.keys(apiKeyLimits).length === 0) return remaining
+    const providerById = new Map(providers.map((p) => [p.id, p]))
+
+    for (const model of models) {
+      const provider = providerById.get(model.providerId)
+      if (!provider) continue
+      const left = getRemainingQuota(provider, model.id, apiKeyLimits, quotaUsageCounts)
+      if (left !== undefined) remaining.set(model.id, left)
+    }
+    return remaining
+  }, [apiKeyLimits, providers, models, quotaUsageCounts])
+
   const passiveReasonByModelId = useMemo(() => {
     const providerById = new Map(providers.map((provider) => [provider.id, provider]))
     const reasons = new Map<UniqueModelId, ModelPassiveReason>()
@@ -323,10 +345,11 @@ export function useModelSelectorData({
         modelIdentifier: getModelIdentifier(model),
         isPinned,
         showIdentifier,
-        ...(passiveReasonByModelId.has(modelId) && { passiveReason: passiveReasonByModelId.get(modelId) })
+        ...(passiveReasonByModelId.has(modelId) && { passiveReason: passiveReasonByModelId.get(modelId) }),
+        ...(remainingQuotaByModelId.has(modelId) && { remainingQuota: remainingQuotaByModelId.get(modelId) })
       }
     },
-    [passiveReasonByModelId]
+    [passiveReasonByModelId, remainingQuotaByModelId]
   )
 
   const { listItems, modelItems } = useMemo(() => {

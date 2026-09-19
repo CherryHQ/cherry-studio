@@ -2588,6 +2588,8 @@
   "models.price.validation_min_input_tokens": "Gib eine positive ganze Zahl ein.",
   "models.price.validation_min_input_tokens_order": "Die Stufe muss nach der vorherigen Stufe beginnen.",
   "models.price.validation_price": "Geben Sie einen Preis größer oder gleich 0 ein.",
+  "models.quota.remaining_one": "{{count}} übrig",
+  "models.quota.remaining_other": "{{count}} übrig",
   "models.search.placeholder": "Modelle durchsuchen...",
   "models.selection.context_window": "Kontext {{count}}",
   "models.selection.remove_model": "Entferne {{name}}",

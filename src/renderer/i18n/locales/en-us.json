@@ -2588,6 +2588,8 @@
   "models.price.validation_min_input_tokens": "Enter a positive whole number.",
   "models.price.validation_min_input_tokens_order": "The tier must start after the previous tier.",
   "models.price.validation_price": "Enter a price greater than or equal to 0.",
+  "models.quota.remaining_one": "{{count}} left",
+  "models.quota.remaining_other": "{{count}} left",
   "models.search.placeholder": "Search models...",
   "models.selection.context_window": "Context {{count}}",
   "models.selection.remove_model": "Remove {{name}}",

@@ -2588,6 +2588,8 @@
   "models.price.validation_min_input_tokens": "Nháº­p má»™t sá»‘ nguyÃªn dÆ°Æ¡ng.",
   "models.price.validation_min_input_tokens_order": "Báº­c nÃ y pháº£i báº¯t Ä‘áº§u sau báº­c trÆ°á»›c.",
   "models.price.validation_price": "Nháº­p giÃ¡ lá»›n hÆ¡n hoáº·c báº±ng 0.",
+  "models.quota.remaining_one": "{{count}} còn lại",
+  "models.quota.remaining_other": "{{count}} còn lại",
   "models.search.placeholder": "TÃ¬m kiáº¿m mÃ´ hÃ¬nh...",
   "models.selection.context_window": "Ngá»¯ cáº£nh {{count}}",
   "models.selection.remove_model": "XÃ³a {{name}}",

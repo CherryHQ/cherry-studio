@@ -2588,6 +2588,8 @@
   "models.price.validation_min_input_tokens": "Î•Î¹ÏƒÎ¬Î³ÎµÏ„Îµ Î­Î½Î±Î½ Î¸ÎµÏ„Î¹ÎºÏŒ Î±ÎºÎ­ÏÎ±Î¹Î¿ Î±ÏÎ¹Î¸Î¼ÏŒ.",
   "models.price.validation_min_input_tokens_order": "Î— Î²Î±Î¸Î¼Î¯Î´Î± Ï€ÏÎ­Ï€ÎµÎ¹ Î½Î± Î¾ÎµÎºÎ¹Î½Î¬ Î¼ÎµÏ„Î¬ Ï„Î·Î½ Ï€ÏÎ¿Î·Î³Î¿ÏÎ¼ÎµÎ½Î· Î²Î±Î¸Î¼Î¯Î´Î±.",
   "models.price.validation_price": "Î•Î¹ÏƒÎ±Î³Î¬Î³ÎµÏ„Îµ Î¼Î¹Î± Ï„Î¹Î¼Î® Î¼ÎµÎ³Î±Î»ÏÏ„ÎµÏÎ· Î® Î¯ÏƒÎ· Î¼Îµ 0.",
+  "models.quota.remaining_one": "{{count}} διαθέσιμα",
+  "models.quota.remaining_other": "{{count}} διαθέσιμα",
   "models.search.placeholder": "Î‘Î½Î±Î¶Î®Ï„Î·ÏƒÎ· Î¼Î¿Î½Ï„Î­Î»Î¿Ï…...",
   "models.selection.context_window": "Î£Ï…Î³ÎºÎµÎ¯Î¼ÎµÎ½Î¿ {{count}}",
   "models.selection.remove_model": "Î‘Ï†Î±Î¯ÏÎµÏƒÎ· {{name}}",

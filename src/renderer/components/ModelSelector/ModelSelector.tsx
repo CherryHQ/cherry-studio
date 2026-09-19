@@ -177,7 +177,8 @@ function ModelRow({
   isPinActionDisabled: boolean
   isSelected: boolean
   detailPortalContainer?: SelectorShellLayout['portalContainer']
-  t: (key: string) => string
+  /** Takes options because the remaining-quota label interpolates a count. */
+  t: (key: string, options?: Record<string, unknown>) => string
 }) {
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
   const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
@@ -262,6 +263,13 @@ function ModelRow({
         {passiveLabel && (
           <span className="min-w-0 shrink-0 truncate text-amber-600 text-xs dark:text-amber-500" title={passiveLabel}>
             {passiveLabel}
+          </span>
+        )}
+        {/* One model name often sits on several providers; this is how the user sees which of
+            them still has room without going to look it up. */}
+        {!passiveLabel && item.remainingQuota !== undefined && (
+          <span className="min-w-0 shrink-0 truncate text-muted-foreground text-xs">
+            {t('models.quota.remaining', { count: item.remainingQuota })}
           </span>
         )}
         {disambiguationLabel && (

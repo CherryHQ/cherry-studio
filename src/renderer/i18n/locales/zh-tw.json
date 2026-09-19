@@ -2588,6 +2588,8 @@
   "models.price.validation_min_input_tokens": "è«‹è¼¸å…¥æ­£æ•´æ•¸ã€‚",
   "models.price.validation_min_input_tokens_order": "æ­¤ç´šè·å¿…é ˆå¾å‰ä¸€å€‹ç´šè·ä¹‹å¾Œé–‹å§‹ã€‚",
   "models.price.validation_price": "è«‹è¼¸å…¥å¤§æ–¼æˆ–ç­‰æ–¼ 0 çš„åƒ¹æ ¼ã€‚",
+  "models.quota.remaining_one": "{{count}}個",
+  "models.quota.remaining_other": "{{count}}個",
   "models.search.placeholder": "æœå°‹æ¨¡å‹...",
   "models.selection.context_window": "ä¸Šä¸‹æ–‡ {{count}}",
   "models.selection.remove_model": "ç§»é™¤ {{name}}",

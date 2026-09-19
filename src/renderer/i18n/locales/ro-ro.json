@@ -2588,6 +2588,8 @@
   "models.price.validation_min_input_tokens": "IntroduceÈ›i un numÄƒr Ã®ntreg pozitiv.",
   "models.price.validation_min_input_tokens_order": "Nivelul trebuie sÄƒ Ã®nceapÄƒ dupÄƒ nivelul anterior.",
   "models.price.validation_price": "IntroduceÈ›i un preÈ› mai mare sau egal cu 0.",
+  "models.quota.remaining_one": "{{count}} rămas",
+  "models.quota.remaining_other": "{{count}} rămas",
   "models.search.placeholder": "CautÄƒ modele...",
   "models.selection.context_window": "Context {{count}}",
   "models.selection.remove_model": "EliminÄƒ {{name}}",

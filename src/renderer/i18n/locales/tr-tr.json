@@ -2588,6 +2588,8 @@
   "models.price.validation_min_input_tokens": "Pozitif bir tam sayı girin.",
   "models.price.validation_min_input_tokens_order": "Kademe, önceki kademeden sonra başlamalıdır.",
   "models.price.validation_price": "0 veya daha büyük bir fiyat girin.",
+  "models.quota.remaining_one": "{{count}} hak kaldı",
+  "models.quota.remaining_other": "{{count}} hak kaldı",
   "models.search.placeholder": "Modellerde ara...",
   "models.selection.context_window": "Bağlam {{count}}",
   "models.selection.remove_model": "{{name}} modelini kaldır",

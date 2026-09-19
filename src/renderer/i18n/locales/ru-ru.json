@@ -2588,6 +2588,8 @@
   "models.price.validation_min_input_tokens": "Ğ’Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ Ğ¿Ğ¾Ğ»Ğ¾Ğ¶Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ¾Ğµ Ñ†ĞµĞ»Ğ¾Ğµ Ñ‡Ğ¸ÑĞ»Ğ¾.",
   "models.price.validation_min_input_tokens_order": "Ğ£Ñ€Ğ¾Ğ²ĞµĞ½ÑŒ Ğ´Ğ¾Ğ»Ğ¶ĞµĞ½ Ğ½Ğ°Ñ‡Ğ¸Ğ½Ğ°Ñ‚ÑŒÑÑ Ğ¿Ğ¾ÑĞ»Ğµ Ğ¿Ñ€ĞµĞ´Ñ‹Ğ´ÑƒÑ‰ĞµĞ³Ğ¾ ÑƒÑ€Ğ¾Ğ²Ğ½Ñ.",
   "models.price.validation_price": "Ğ’Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ Ñ†ĞµĞ½Ñƒ Ğ±Ğ¾Ğ»ÑŒÑˆĞµ Ğ¸Ğ»Ğ¸ Ñ€Ğ°Ğ²Ğ½ÑƒÑ 0.",
+  "models.quota.remaining_one": "{{count}} осталось",
+  "models.quota.remaining_other": "{{count}} осталось",
   "models.search.placeholder": "ĞŸĞ¾Ğ¸ÑĞº Ğ¼Ğ¾Ğ´ĞµĞ»ĞµĞ¹...",
   "models.selection.context_window": "ĞšĞ¾Ğ½Ñ‚ĞµĞºÑÑ‚ {{count}}",
   "models.selection.remove_model": "Ğ£Ğ´Ğ°Ğ»Ğ¸Ñ‚ÑŒ {{name}}",

@@ -26,6 +26,30 @@ function hasUsableCredential(provider: Provider): boolean {
 }
 
 /**
+ * Requests left on each usable key for this provider+model, in key order.
+ *
+ * A key with no ceiling declared contributes `undefined` — unknown, not unlimited and not zero.
+ * Resolution order (model-scoped ceiling, then the key's own) mirrors the main-process
+ * `apiKeyQuota.ts`, so the picker and the router never disagree about a key.
+ */
+function remainingPerKey(
+  provider: Provider,
+  modelId: UniqueModelId,
+  limits: ApiKeyLimitMap | null | undefined,
+  usageCounts: ReadonlyMap<string, number> | undefined
+): Array<number | undefined> {
+  if (!limits || !usageCounts) return []
+  return provider.apiKeys
+    .filter((key) => key.isEnabled)
+    .map((key) => {
+      const limit =
+        limits[apiKeyModelLimitId(provider.id, key.id, modelId)] ?? limits[apiKeyLimitId(provider.id, key.id)]
+      if (!limit) return undefined
+      return Math.max(0, limit.limit - (usageCounts.get(key.id) ?? 0))
+    })
+}
+
+/**
  * Check if every usable key for this provider+model is over quota.
  * Uses the same resolution logic as the main-process `apiKeyQuota.ts`.
  */
@@ -35,18 +59,31 @@ export function isQuotaExhausted(
   limits: ApiKeyLimitMap | null | undefined,
   usageCounts: ReadonlyMap<string, number> | undefined
 ): boolean {
-  if (!limits || !usageCounts) return false
-  const usableKeys = provider.apiKeys.filter((k) => k.isEnabled)
-  if (usableKeys.length === 0) return false
+  const remaining = remainingPerKey(provider, modelId, limits, usageCounts)
+  if (remaining.length === 0) return false
+  // A key whose ceiling is unknown might well answer, so it keeps the model out of "exhausted".
+  return remaining.every((left) => left === 0)
+}
 
-  return usableKeys.every((key) => {
-    const modelLimit = limits[apiKeyModelLimitId(provider.id, key.id, modelId)]
-    const keyLimit = limits[apiKeyLimitId(provider.id, key.id)]
-    const limit = modelLimit ?? keyLimit
-    if (!limit) return false
-    const used = usageCounts.get(key.id) ?? 0
-    return used >= limit.limit
-  })
+/**
+ * Requests left across this provider's keys for one model, or `undefined` when no key declares a
+ * ceiling — which is the common case and must read as "unknown", never as "none left".
+ *
+ * This is what lets one model name be compared across the providers that serve it: search
+ * "deepseek" and each row says how much room it actually has, instead of the user having to
+ * remember which account still had some.
+ */
+export function getRemainingQuota(
+  provider: Provider,
+  modelId: UniqueModelId,
+  limits: ApiKeyLimitMap | null | undefined,
+  usageCounts: ReadonlyMap<string, number> | undefined
+): number | undefined {
+  const known = remainingPerKey(provider, modelId, limits, usageCounts).filter(
+    (left): left is number => left !== undefined
+  )
+  if (known.length === 0) return undefined
+  return known.reduce((total, left) => total + left, 0)
 }
 
 export function getModelPassiveReason(

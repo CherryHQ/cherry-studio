@@ -2588,6 +2588,8 @@
   "models.price.validation_min_input_tokens": "Entrez un nombre entier positif.",
   "models.price.validation_min_input_tokens_order": "Le niveau doit commencer aprÃ¨s le niveau prÃ©cÃ©dent.",
   "models.price.validation_price": "Entrez un prix supÃ©rieur ou Ã©gal Ã  0.",
+  "models.quota.remaining_one": "{{count}} restant",
+  "models.quota.remaining_other": "{{count}} restant",
   "models.search.placeholder": "Rechercher un modÃ¨le...",
   "models.selection.context_window": "Contexte {{count}}",
   "models.selection.remove_model": "Supprimer {{name}}",
