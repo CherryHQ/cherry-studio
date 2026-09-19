@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { healthCheckErrorToDisplayString } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import {
+  healthCheckErrorToDiagnosis,
+  healthCheckErrorToDisplayString
+} from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 import ApiKeyCheckResults from './ApiKeyCheckResults'
@@ -84,9 +87,18 @@ export default function ModelCheckStatus({ result, apiKeyEntries, savingKeyId, o
         ) : (
           <>
             {result.kind === 'failed' && result.keyResults.length === 0 && result.error ? (
-              <p className="mb-2 whitespace-pre-wrap break-words text-error text-xs">
-                {healthCheckErrorToDisplayString(result.error)}
-              </p>
+              <>
+                {/* What it means comes first; the provider's own wording stays underneath as
+                    the evidence for it. */}
+                {healthCheckErrorToDiagnosis(result.error, t) ? (
+                  <p className="mb-1 break-words text-foreground text-xs">
+                    {healthCheckErrorToDiagnosis(result.error, t)}
+                  </p>
+                ) : null}
+                <p className="mb-2 whitespace-pre-wrap break-words text-error text-xs">
+                  {healthCheckErrorToDisplayString(result.error)}
+                </p>
+              </>
             ) : null}
             <ApiKeyCheckResults
               keyResults={result.keyResults}

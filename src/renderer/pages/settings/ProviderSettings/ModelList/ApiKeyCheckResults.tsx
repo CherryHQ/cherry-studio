@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { Switch } from '@cherrystudio/ui'
 import type { ApiKeyWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { healthCheckErrorToDisplayString } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import {
+  healthCheckErrorToDiagnosis,
+  healthCheckErrorToDisplayString
+} from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 
@@ -34,9 +37,16 @@ export default function ApiKeyCheckResults({
                 {t('settings.models.check.provider_auth')}
               </div>
               {result.kind === 'failed' ? (
-                <p className="mt-2 whitespace-pre-wrap break-words text-error text-xs">
-                  {healthCheckErrorToDisplayString(result.error)}
-                </p>
+                <div className="mt-2">
+                  {healthCheckErrorToDiagnosis(result.error, t) ? (
+                    <p className="mb-1 break-words text-foreground text-xs">
+                      {healthCheckErrorToDiagnosis(result.error, t)}
+                    </p>
+                  ) : null}
+                  <p className="whitespace-pre-wrap break-words text-error text-xs">
+                    {healthCheckErrorToDisplayString(result.error)}
+                  </p>
+                </div>
               ) : null}
             </div>
           )
@@ -81,9 +91,16 @@ export default function ApiKeyCheckResults({
               ) : null}
             </div>
             {result.kind === 'failed' ? (
-              <p className="mt-2 whitespace-pre-wrap break-words border-border-subtle border-t pt-2 text-error text-xs">
-                {healthCheckErrorToDisplayString(result.error)}
-              </p>
+              <div className="mt-2 border-border-subtle border-t pt-2">
+                {healthCheckErrorToDiagnosis(result.error, t) ? (
+                  <p className="mb-1 break-words text-foreground text-xs">
+                    {healthCheckErrorToDiagnosis(result.error, t)}
+                  </p>
+                ) : null}
+                <p className="whitespace-pre-wrap break-words text-error text-xs">
+                  {healthCheckErrorToDisplayString(result.error)}
+                </p>
+              </div>
             ) : null}
           </div>
         )

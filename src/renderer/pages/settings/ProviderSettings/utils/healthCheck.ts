@@ -2,6 +2,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
 import { providerErrorText, serializeHealthCheckError } from '@renderer/utils/error'
+import { classifyError } from '@renderer/utils/errorClassifier'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import {
@@ -75,6 +76,24 @@ export function resolveModelCheckCredentials(
   }
 
   return enabledEntries.map((entry) => ({ kind: 'api-key', entry }))
+}
+
+/**
+ * What a failed check means and what to do about it, in the user's language.
+ *
+ * The provider's own words are accurate but not actionable — "Insufficient Balance" does not say
+ * that the key is fine and the account is empty. Chat replies have had this dictionary all along
+ * (`classifyError` → `error.diagnosis.*`); the settings screens that people actually stare at
+ * while setting up a key were the ones showing raw provider text.
+ */
+export function healthCheckErrorToDiagnosis(
+  error: SerializedError | string | undefined | null,
+  t: (key: string) => string
+): string | undefined {
+  if (error == null || typeof error === 'string') return undefined
+  const { category, i18nKey } = classifyError(error)
+  if (category === 'unknown') return undefined
+  return t(i18nKey)
 }
 
 export function healthCheckErrorToDisplayString(error: SerializedError | string | undefined | null): string {

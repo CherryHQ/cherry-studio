@@ -56,7 +56,9 @@ vi.mock('@data/hooks/usePreference', () => ({
 vi.mock('../../utils/healthCheck', () => ({
   checkApi: (...args: unknown[]) => checkApiMock(...args),
   // Every model in these tests is chat-capable; the real rule skips image/audio models.
-  getModelHealthCheckSkipReason: () => null
+  getModelHealthCheckSkipReason: () => null,
+  // The real one classifies the provider error; here the raw message is enough to assert on.
+  healthCheckErrorToDiagnosis: () => undefined
 }))
 
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
