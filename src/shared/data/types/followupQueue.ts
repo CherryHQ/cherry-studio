@@ -60,6 +60,10 @@ export const STALE_SENDING_CLAIM_MS = 30 * 60 * 1000
  */
 export const FOLLOWUP_QUEUE_HEARTBEAT_MS = 5 * 60 * 1000
 
+// Bound on waiting for an owned send: a hung send is abandoned (row failed)
+// instead of holding its heartbeat-renewed claim and wedging FIFO forever.
+export const FOLLOWUP_QUEUE_SEND_TIMEOUT_MS = 30 * 60 * 1000
+
 /** Canonical membership dimension for `/followup-queues` change effects. */
 export const FOLLOWUP_QUEUE_SCOPE_DIMENSION = 'scopeKey'
 

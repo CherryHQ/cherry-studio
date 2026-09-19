@@ -741,6 +741,13 @@ export class AssistantDataService {
     pinService.purgeForEntitiesTx(tx, 'assistant', ids)
     // Rows moved to the Recycle Bin before this release were soft-deleted without a binding purge.
     promptService.purgeForTargetsTx(tx, 'assistant', ids)
+    // Surviving topics keep their rows, but their queued follow-ups can never
+    // drain — purge those scopes, mirroring the permanent-delete path.
+    for (const id of ids) {
+      for (const topicId of topicService.listIdsByAssistantTx(tx, id)) {
+        followupQueueService.purgeForScopePrefixTx(tx, topicFollowupScopePrefix(topicId))
+      }
+    }
     tx.delete(assistantTable).where(inArray(assistantTable.id, ids)).run()
     return ids
   }

@@ -80,6 +80,7 @@ const PURGE_DOMAINS: ReadonlyArray<{
       return completedPurgeBatch(purgedIds, purgedIds.length === limit, () => {
         assistantDataService.notifyReadModelChange(purgedIds, 'membership')
         promptService.notifyTargetBindingsChanged()
+        if (purgedIds.length > 0) followupQueueService.notifyPurged()
       })
     }
   },

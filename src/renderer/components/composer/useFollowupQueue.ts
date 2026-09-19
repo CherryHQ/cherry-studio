@@ -9,6 +9,7 @@ import type { ClaimHeadFollowupQueueResult } from '@shared/data/api/schemas/foll
 import {
   FOLLOWUP_QUEUE_HEARTBEAT_MS,
   FOLLOWUP_QUEUE_LIMIT,
+  FOLLOWUP_QUEUE_SEND_TIMEOUT_MS,
   type FollowupQueueItem as FollowupQueueRow
 } from '@shared/data/types/followupQueue'
 
@@ -47,6 +48,20 @@ function toControllerItem(row: FollowupQueueRow): FollowupQueueItem {
     payload: row.payload,
     status: row.status,
     updatedAt: row.updatedAt
+  }
+}
+
+// A send that never settles would hold its heartbeat-renewed claim forever and
+// wedge its scope's FIFO. Abandon the wait after a lease-scale bound instead.
+async function awaitSendWithTimeout(send: Promise<boolean>): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), FOLLOWUP_QUEUE_SEND_TIMEOUT_MS)
+  })
+  try {
+    return await Promise.race([send, timeout])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
   }
 }
 
@@ -498,6 +513,59 @@ export function useFollowupQueue({
     [removeTrigger, markFailedTrigger]
   )
 
+  // Shared delivery for a won claim (steer + auto-drain): scope check, skip when
+  // already sent, heartbeat-guarded send, sent-marker, settle. Resolves sent/not.
+  const deliverWonClaim = useCallback(
+    async (args: {
+      id: string
+      scope: string
+      payload: ComposerQueuedMessagePayload
+      alreadySent: boolean
+      send: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
+      /** Edge-driven ack hook: fires where the drain used to ack (pre-send + already-sent skip). */
+      onCommitted?: () => void
+    }): Promise<boolean> => {
+      const { id, scope, payload, alreadySent, send, onCommitted } = args
+      // Scope switched mid-flight: release the claim without sending — the payload
+      // belongs to the previous scope. Only our own won claim reaches here.
+      if (scopeKeyRef.current !== scope) {
+        await settleItem(id, false)
+        return false
+      }
+      if (alreadySent) {
+        // Crash recovery: already sent before dying — dequeue silently.
+        await settleItem(id, true)
+        onCommitted?.()
+        return true
+      }
+      onCommitted?.()
+      startHeartbeat(id)
+      let sent = false
+      try {
+        sent = await awaitSendWithTimeout(send(payload))
+      } catch {
+        sent = false
+      }
+      if (sent) {
+        // Record the send before resolving: a crash after this point replays
+        // as a skip (via the check above), never as a second send. Best
+        // effort — when it fails the resolve retry still dequeues, and the
+        // reclaim lease bounds the residual replay window.
+        try {
+          await markSentTrigger({ params: { id } })
+        } catch {
+          // Fall through to settle; see above.
+        }
+      }
+      const settled = await settleItem(id, sent)
+      if (!settled && sent) {
+        toast.error(t('message.error.operation_unavailable'))
+      }
+      return sent
+    },
+    [settleItem, startHeartbeat, markSentTrigger, t]
+  )
+
   // Manual steer through the same claim arbitration as auto-drain: only the
   // window whose claim wins sends. A lost claim means another window owns the
   // item (our mirror converges through the change notification); a failed
@@ -515,47 +583,12 @@ export function useFollowupQueue({
           return false
         }
         if (!claim.claimed) return false
-        // Scope switched mid-flight: release the claim without sending — the
-        // payload belongs to the previous scope's conversation. This runs only
-        // on our own won claim: a lost claim returns above, so scope cleanup
-        // can never release another window's active send.
-        if (scopeKeyRef.current !== scope) {
-          await settleItem(id, false)
-          return false
-        }
-        if (claim.alreadySent) {
-          // Crash recovery: already sent before dying — dequeue silently.
-          await settleItem(id, true)
-          return true
-        }
-        startHeartbeat(id)
-        let sent = false
-        try {
-          sent = await send(item.payload)
-        } catch {
-          sent = false
-        }
-        if (sent) {
-          // Record the send before resolving: a crash after this point replays
-          // as a skip (via the check above), never as a second send. Best
-          // effort — when it fails the resolve retry still dequeues, and the
-          // reclaim lease bounds the residual replay window.
-          try {
-            await markSentTrigger({ params: { id } })
-          } catch {
-            // Fall through to settle; see above.
-          }
-        }
-        const settled = await settleItem(id, sent)
-        if (!settled && sent) {
-          toast.error(t('message.error.operation_unavailable'))
-        }
-        return sent
+        return await deliverWonClaim({ id, scope, payload: item.payload, alreadySent: claim.alreadySent, send })
       } finally {
         activeIdsRef.current.delete(id)
       }
     },
-    [claimItem, settleItem, startHeartbeat, markSentTrigger, t]
+    [claimItem, deliverWonClaim, t]
   )
 
   // Background claim retry while the completion edge stays unacked: a claim
@@ -612,19 +645,6 @@ export function useFollowupQueue({
         if (scopeKeyRef.current === scope && itemsRef.current[0]) markSeenRef.current()
         return
       }
-      // Scope switched mid-flight: release the claim without sending or
-      // acking — the head belongs to the previous scope's conversation.
-      if (scopeKeyRef.current !== scope) {
-        await settleItem(won.id, false)
-        return
-      }
-      if (won.alreadySent) {
-        // Crash recovery: this profile already sent this row before dying, so
-        // dequeue without replaying. The edge is acked — the queue made progress.
-        await settleItem(won.id, true)
-        markSeenRef.current()
-        return
-      }
       const target = itemsRef.current.find((entry) => entry.id === won.id)
       if (!target) {
         // Won the true head but the mirror hasn't caught up: release it back
@@ -635,29 +655,14 @@ export function useFollowupQueue({
         void refetch()
         return
       }
-      markSeenRef.current()
-      startHeartbeat(won.id)
-      let sent = false
-      try {
-        sent = await onDrainRef.current(target.payload)
-      } catch {
-        sent = false
-      }
-      // Record the send before resolving: a crash after this point replays as
-      // a skip (via the check above), never as a second send. Best effort —
-      // when it fails the resolve retry still dequeues, and the reclaim lease
-      // bounds the residual replay window.
-      if (sent) {
-        try {
-          await markSentTrigger({ params: { id: won.id } })
-        } catch {
-          // Fall through to settle; see above.
-        }
-      }
-      const settled = await settleItem(won.id, sent)
-      if (!settled && sent) {
-        toast.error(t('message.error.operation_unavailable'))
-      }
+      const sent = await deliverWonClaim({
+        id: won.id,
+        scope,
+        payload: target.payload,
+        alreadySent: won.alreadySent,
+        send: (payload) => onDrainRef.current(payload),
+        onCommitted: () => markSeenRef.current()
+      })
       if (!sent) onDrainFailedRef.current?.()
     } finally {
       drainBusyScopesRef.current.delete(scope)
