@@ -129,6 +129,7 @@ Bir özellik eksik görünüyorsa önce "kapalı mı?" diye bak; çoğu kez yaz�
 | **B2/B3 arayüz** | ✅ | `cb6ef8a` — anahtar satırında tür (ücretsiz/ücretli/deneme) ve aylık kotalarda yenileme günü. **Bulunan boşluk:** `tier`/`renewalAnchor` şemada vardı ama `UpdateApiKeySchema` `strictObject` olduğu için API onları reddediyordu; şema + servis + arayüz birlikte tamamlandı |
 | **C** | ✅ | Oto geçiş düğmesi composer'da (gönder düğmesinin yanı), varsayılan **kapalı**. Kapalıyken `readRetryPolicy` hiç yedek model döndürmüyor — aynı model üzerinde tekrar ve anahtar döndürme etkilenmiyor. Ayrıca kota dolmuş yedek model ve kota dolmuş anahtar artık gerçekten **atlanıyor** (`buildFallbackModels`, `buildApiKeyFallbackModels`), sadece sıralama değişmiyor |
 | **U4 (kısmi)** | ✅ | `5158b41` — U1'in açtığı boşluk: klasör seçilmemişken yedek ekranı hem yolu hem durumu gizliyordu, yani çalışırken boş görünüyordu. Etkin klasör artık girdi ipucunda, durum satırı her koşulda görünüyor. `app.get_info`'ya `defaultBackupPath` eklendi |
+| **U4** | ✅ | Ayarlar→Veri'nin en üstünde tek satır: **son yedek ne zaman**, ya da "açık ama hiç çalışmadı", ya da kırmızıyla "hiçbir şey yedeklenmiyor" + neyi kaybedeceğin. U1 yedeği açmıştı ama koruma görünmüyordu; görünmeyen riske kimse önlem almaz. Üç ayrım özellikle yapıldı: açık olmak yedek olmak değil, başarısız çalışma yedek değil, ve kapatılmış bir hedefin eski başarısı bugünkü makineye kefil olamaz. Arşivi yazıp eski kopyaları silemeyen çalışma **sayılır** (arşiv var). 6 test |
 | **W4 (kısmi)** | ✅ | Yeni ekran açmadım — Ayarlar→MCP'de yerleşik sunucu listesi zaten vardı. Gerçek hata oradaydı: seeder bu sunucuları `isActive: false` ile kuruyor ama satır yeşil tikle **"Kurulu"** diyordu, yani hiçbir şey yapmayan bir yetenek açıkmış gibi görünüyordu. `@cherry/browser`'ın kapalı olduğunu bu oturumda ancak kaynak okuyarak öğrendim. Satır artık **Açık/Kapalı** gösteriyor ve oradan açılıyor. 4 test. **Kalan:** MCP dışındaki kapalı yetenekler (ör. sağlayıcı/özellik bayrakları) hâlâ tek ekranda toplanmış değil |
 | **W2** | ✅ | Sözlüğün kendisi **zaten vardı** — `classifyError` → `error.diagnosis.*`, 20 kategori, Türkçesi dahil, sohbetteki hata kutusunda gösteriliyor. Eksik olan: anahtar kurarken bakılan ekranlar (model denetimi, anahtar listesi, anahtar denemesi) sağlayıcının ham metnini basıp susuyordu. Artık önce ne anlama geldiği, altında sağlayıcının kendi sözleri kanıt olarak. Sınıflandırıcı bilemezse hiçbir şey eklenmiyor — uydurma açıklama kullanıcıyı yanlış ayar sayfasına yollar. 5 test |
 | **P2** | ✅ | Model seçicide, limiti tanımlı her modelin yanında **"N hak kaldı"**. Aynı model adı birden çok sağlayıcıda olduğu için ("deepseek" ara → DeepSeek, OpenRouter, SiliconFlow satırları) hangisinde yer kaldığını orada görüyorsun; hangi hesapta olduğunu hatırlamaya gerek yok. Ayrı ekran açılmadı — seçim zaten seçicide yapılıyor. **Sıralamaya dokunulmadı:** plan "kalan hakka göre sıralı" diyordu ama seçicideki sıra kullanıcının kendi model düzeni; sayıyı gösterip kararı ona bıraktım. Limiti olmayan anahtar "bilinmiyor" sayılıyor, "0" değil — aksi halde her model tükenmiş görünürdü. 7 test |
@@ -175,7 +176,27 @@ Bunları kendi değişikliğinin sonucu sanma. İkisi de bu oturum başlamadan �
    testleri; Latin olmayan/aksanlı diller (zh-cn, zh-tw, ja-jp, el-gr, ru-ru, ro-ro, vi-vn)
    için `updateSession` çağrılmıyor. Latin/ASCII diller geçiyor.
 
-**Sonraki sırada:** F (web siteleri sağlayıcı olarak — kesin istendi), K (hafıza), P2/P3 (ters model arama, anahtar rotasyon politikası), G (otonom kodlama).
+**Sonraki sırada:** U6 (silmeden sor / çöp kutusu), U2 (tek dosya dışa aktarma), W1 (kurulum sihirbazı),
+W3 (sağlık ekranı), sonra F2 (web sitesi adaptörleri) ve G (otonom kodlama).
+
+### Model değişirse: hangi maddeye başlanır, hangisine başlanmaz
+
+Bu oturumu Opus yürüttü. Model küçültülürse (Sonnet/Haiku) tahmin yürütme, buraya bak.
+
+**Küçük modelle güvenli** — sınırları belli, mevcut deseni taklit etmek yetiyor:
+`U6` · `U2` · `W1` · `W3` · `Q` maddeleri · kalan `P` maddeleri · `L4` `L6` `L7` `L10` ·
+`Z2` `Z4` `Z5` `Z6` `Z7` `Z8` · `S4` `S5` `S7` · `R7` `R9` `R10` `R11` `R12` · `Y1` `Y2` · i18n işleri.
+
+**Başlama, söyle ve dur** — çok dosya, ince değişmezler, hassas alanlar:
+`F2` (adaptör motoru) · `G2` `G3` · `I` · `K2` `K3` · `L5` · `O1` `O4` · `R2` `R3` `R5` ·
+`S1` `S2` `S3` · `T1` `T2` · `X1` · `Z1` `Z3` · `U5` (anahtar şifreleme — göç işi, yanlış yapılırsa
+kullanıcı kendi anahtarlarına erişemez).
+
+**Neden bu ayrım:** bu oturumda değer üreten şeylerin çoğu kod yazmak değildi — W2'de sözlüğün
+zaten var olduğunu görüp asıl boşluğu başka yerde bulmak, ücretsiz katman sayılarını *uydurmamaya*
+karar vermek, yeşil "Kurulu" tikinin yalan söylediğini fark etmek, model seçicisini kotaya göre
+yeniden sıralamayı reddetmek. Küçük modelin riski kod yazamamak değil, **planın yazdığını harfiyen
+yapıp planın yanlış olduğunu fark etmemek**. Yukarıdaki ikinci listede plan yanlışsa bedeli ağır.
 R1'in otomatik yarısı, D (baş kontrolcü).
 
 ---
