@@ -32,6 +32,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { withNoResponseFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -49,9 +50,12 @@ import { createComposerRichClipboardContentFromParts } from '@renderer/utils/mes
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
+import { hasRenderableContent } from '@shared/ai/messageRenderability'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
+import { createDismissedNoResponsePart, hasDismissedNoResponsePart } from '@shared/data/types/uiParts'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -64,6 +68,31 @@ import {
 } from './topicImageActionBus'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
+
+/**
+ * Whether a display-derived synthetic-fallback edit is still safe to persist.
+ * An in-place retry reuses the message id, so by write time the persisted
+ * parts may already hold the retried turn. Parts that still need the fallback
+ * (no renderable content, no real error, not dismissed) prove the display
+ * snapshot is still current; anything else means a retry landed and the edit
+ * must be dropped instead of overwriting fresh content.
+ */
+function canPersistSyntheticFallbackEdit(persistedParts: CherryMessagePart[]): boolean {
+  return (
+    !hasDismissedNoResponsePart(persistedParts) &&
+    !hasRenderableContent(persistedParts) &&
+    !persistedParts.some((part) => part.type === 'data-error')
+  )
+}
+
+/**
+ * Whether a concurrent writer replaced the parts after the dismissal base was
+ * read. The PATCH carries the base as `expectedParts`, so the main-process
+ * transaction rejects the write instead of overwriting fresh retry output.
+ */
+function isDismissalConflict(error: unknown): boolean {
+  return error instanceof DataApiError && error.code === ErrorCode.CONCURRENT_MODIFICATION
+}
 
 interface HomeMessageListParams {
   topic: Topic
@@ -215,6 +244,35 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
+  const displayPartsByMessageId = useMemo(
+    () => withNoResponseFallback(messages, partsByMessageId, t('error.no_response')),
+    [messages, partsByMessageId, t]
+  )
+  const displayStreamingLayers = useMemo(() => {
+    if (!streamingLayers) return undefined
+
+    const historyPartsByMessageId = withNoResponseFallback(
+      messages,
+      streamingLayers.historyPartsByMessageId,
+      t('error.no_response')
+    )
+    if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
+
+    return { ...streamingLayers, historyPartsByMessageId }
+  }, [messages, streamingLayers, t])
+
+  const displayPartsByMessageIdRef = useRef(displayPartsByMessageId)
+  useEffect(() => {
+    displayPartsByMessageIdRef.current = displayPartsByMessageId
+  }, [displayPartsByMessageId])
+
+  // Live-message ids go stale in async callbacks; dismissal re-checks them
+  // right before writing so a retry that started mid-dismissal still wins.
+  const liveMessageIdsRef = useRef(streamingLayers?.liveMessageIds)
+  useEffect(() => {
+    liveMessageIdsRef.current = streamingLayers?.liveMessageIds
+  }, [streamingLayers?.liveMessageIds])
+
   const getDoctorSubject = useCallback((message: MessageListItem): DoctorSubjectRef | undefined => {
     const model = getMessageListItemModel(message)
     return model ? { kind: 'chat', providerId: model.provider, modelId: model.id } : undefined
@@ -242,7 +300,7 @@ export function useHomeMessageListProviderValue({
     topicName: topic.name,
     messages: messageItems,
     partsByMessageId,
-    streamingLayers,
+    streamingLayers: displayStreamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     diagnosticReport,
     getDoctorSubject,
@@ -493,15 +551,92 @@ export function useHomeMessageListProviderValue({
   const removeMessageErrorPart = useCallback<NonNullable<MessageListActions['removeMessageErrorPart']>>(
     async ({ messageId, partId }) => {
       try {
+        // A retry owns this message right now and its terminal persist is the
+        // writer; any parts-derived edit would race it.
+        if (liveMessageIdsRef.current?.includes(messageId)) {
+          logger.warn('Skipping error dismissal for a live message', { messageId })
+          return
+        }
         const persistedMessage = await dataApiService.get(`/messages/${messageId}`)
         const persistedParts = persistedMessage.data.parts ?? []
         const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
-        if (!resolved || resolved.messageId !== messageId || (resolved.part.type as string) !== 'data-error') return
+        if (resolved && resolved.messageId === messageId && resolved.part.type === 'data-error') {
+          // Part ids encode the index, so a same-index error from a retry that
+          // replaced the parts would pass a type-only check. Dismiss only the
+          // exact part that was clicked.
+          const clickedPartSnapshot = JSON.stringify(resolved.part)
+          // Re-read before writing: an in-place retry reuses the message id and
+          // may have replaced the parts after the first read.
+          const freshMessage = await dataApiService.get(`/messages/${messageId}`)
+          const freshParts = freshMessage.data.parts ?? []
+          const freshResolved = resolvePartFromParts({ [messageId]: freshParts }, partId)
+          if (
+            !freshResolved ||
+            freshResolved.messageId !== messageId ||
+            freshResolved.part.type !== 'data-error' ||
+            JSON.stringify(freshResolved.part) !== clickedPartSnapshot
+          ) {
+            logger.warn('Skipping error dismissal for superseded parts', { messageId })
+            return
+          }
+          const filtered = freshParts.filter((_, index) => index !== freshResolved.index)
+          // A removed persisted no-response error would recreate itself through the
+          // display fallback, so record the dismissal like the synthetic fallback.
+          const removedData = (freshResolved.part as unknown as { data?: { name?: unknown } }).data
+          const durableParts =
+            removedData?.name === 'NoResponseError' ? [...filtered, createDismissedNoResponsePart()] : filtered
 
-        await requireChatWrite('removeMessageErrorPart').editMessage(
-          messageId,
-          persistedParts.filter((_, index) => index !== resolved.index)
-        )
+          if (liveMessageIdsRef.current?.includes(messageId)) {
+            logger.warn('Skipping error dismissal for a live message', { messageId })
+            return
+          }
+          try {
+            await requireChatWrite('removeMessageErrorPart').editMessage(messageId, durableParts, {
+              expectedParts: freshParts
+            })
+          } catch (error) {
+            if (isDismissalConflict(error)) {
+              logger.warn('Skipping error dismissal for superseded parts', { messageId })
+              return
+            }
+            throw error
+          }
+          return
+        }
+
+        // Synthetic fallback error is display-only: resolve it from the display
+        // map, then persist the dismissal against freshly re-read parts. The
+        // display snapshot may predate an in-place retry, so writing it back
+        // would overwrite the retried parts — drop the edit instead when the
+        // persisted parts no longer need the fallback.
+        const displayParts = displayPartsByMessageIdRef.current[messageId] ?? []
+        const displayResolved = resolvePartFromParts({ [messageId]: displayParts }, partId)
+        if (!displayResolved || displayResolved.messageId !== messageId || displayResolved.part.type !== 'data-error')
+          return
+        const freshMessage = await dataApiService.get(`/messages/${messageId}`)
+        const freshParts = freshMessage.data.parts ?? []
+        if (!canPersistSyntheticFallbackEdit(freshParts)) {
+          logger.warn('Skipping synthetic error dismissal for superseded parts', { messageId })
+          return
+        }
+
+        if (liveMessageIdsRef.current?.includes(messageId)) {
+          logger.warn('Skipping error dismissal for a live message', { messageId })
+          return
+        }
+        try {
+          await requireChatWrite('removeMessageErrorPart').editMessage(
+            messageId,
+            [...freshParts, createDismissedNoResponsePart()],
+            { expectedParts: freshParts }
+          )
+        } catch (error) {
+          if (isDismissalConflict(error)) {
+            logger.warn('Skipping synthetic error dismissal for superseded parts', { messageId })
+            return
+          }
+          throw error
+        }
       } catch (error) {
         logger.error('Failed to remove error part:', error as Error)
         throw error
@@ -780,8 +915,8 @@ export function useHomeMessageListProviderValue({
     () => ({
       topic,
       messages: messageItems,
-      partsByMessageId,
-      streamingLayers,
+      partsByMessageId: displayPartsByMessageId,
+      streamingLayers: displayStreamingLayers,
       isInitialLoading,
       isMessagesStale,
       hasOlder,
@@ -803,6 +938,8 @@ export function useHomeMessageListProviderValue({
       getTranslationLanguageLabel
     }),
     [
+      displayPartsByMessageId,
+      displayStreamingLayers,
       editingMessageId,
       getMessageActivityState,
       getMessageSiblings,
@@ -817,11 +954,9 @@ export function useHomeMessageListProviderValue({
       messageItems,
       messageActivityStore,
       messageNavigation,
-      partsByMessageId,
       renderConfig,
       resolvedAssistantId,
       selectionController.selection,
-      streamingLayers,
       topic,
       translationLanguages,
       translationLanguagesStatus

@@ -1809,6 +1809,42 @@ describe('MessageService', () => {
       expect(updated.data.parts).toEqual(mainText('edited').parts)
       expect(updated.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
     })
+
+    it('applies a parts update when expectedParts matches the stored parts', async () => {
+      const topicId = 'topic-expected-parts-match'
+      await seedTopicWithRoot(topicId)
+      const message = messageService.create(topicId, {
+        role: 'assistant',
+        data: mainText('before'),
+        status: 'error'
+      })
+
+      const updated = messageService.update(message.id, {
+        data: mainText('after'),
+        expectedParts: mainText('before').parts
+      })
+
+      expect(updated.data.parts).toEqual(mainText('after').parts)
+    })
+
+    it('rejects a parts update when expectedParts no longer matches', async () => {
+      const topicId = 'topic-expected-parts-conflict'
+      await seedTopicWithRoot(topicId)
+      const message = messageService.create(topicId, {
+        role: 'assistant',
+        data: mainText('before'),
+        status: 'error'
+      })
+      messageService.update(message.id, { data: mainText('retry answer') })
+
+      expect(() =>
+        messageService.update(message.id, {
+          data: mainText('dismissed'),
+          expectedParts: mainText('before').parts
+        })
+      ).toThrowError(expect.objectContaining({ code: ErrorCode.CONCURRENT_MODIFICATION }))
+      expect(messageService.getById(message.id).data.parts).toEqual(mainText('retry answer').parts)
+    })
   })
 
   describe('chat message file refs', () => {

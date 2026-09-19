@@ -2752,7 +2752,8 @@ export class AgentSessionRuntimeService extends BaseService {
         reasoningEffort,
         serviceTier,
         ...(fastMode ? { fastMode: true } : {}),
-        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
+        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId },
+        allowEmptySuccess: true
       },
       abortController: nextTurn.abortController,
       listeners: [
@@ -2824,7 +2825,8 @@ export class AgentSessionRuntimeService extends BaseService {
         messages,
         reasoningEffort: turn.reasoningEffort,
         serviceTier: turn.serviceTier,
-        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId: turn.turnId }
+        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId: turn.turnId },
+        allowEmptySuccess: true
       },
       abortController: turn.abortController,
       listeners: [
@@ -2933,7 +2935,8 @@ export class AgentSessionRuntimeService extends BaseService {
         messages,
         reasoningEffort,
         serviceTier,
-        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
+        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId },
+        allowEmptySuccess: true
       },
       abortController: receiveOnlyTurn.abortController,
       listeners: [
@@ -3050,7 +3053,8 @@ export class AgentSessionRuntimeService extends BaseService {
         reasoningEffort,
         serviceTier,
         ...(fastMode ? { fastMode: true } : {}),
-        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
+        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId },
+        allowEmptySuccess: true
       },
       abortController: continuationTurn.abortController,
       listeners: [

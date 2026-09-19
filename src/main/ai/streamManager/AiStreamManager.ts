@@ -24,6 +24,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import { hasRenderableContent } from '@shared/ai/messageRenderability'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -57,6 +58,7 @@ import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { TerminalPersistenceError } from './listeners/PersistenceListener'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import { dropEmptyContentParts, stripTransientStatusParts } from './persistence/PersistenceBackend'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import type {
@@ -294,6 +296,16 @@ function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
 function toolNameFromApprovalChunk(chunk: UIMessageChunk): string | undefined {
   const metadata = (chunk as { providerMetadata?: { cherry?: { toolName?: unknown } } }).providerMetadata
   return typeof metadata?.cherry?.toolName === 'string' ? metadata.cherry.toolName : undefined
+}
+
+function isEmptySuccessTurn(finalMessage: CherryUIMessage | undefined): boolean {
+  if (!finalMessage) return true
+  const parts = finalMessage.parts as CherryMessagePart[]
+  if (!parts || parts.length === 0) return true
+  // Same normalization PersistenceListener applies before storage, then the
+  // shared renderability check (hidden markers + empty structured payloads).
+  const stripped = dropEmptyContentParts(stripTransientStatusParts(parts))
+  return !hasRenderableContent(stripped)
 }
 
 /**
@@ -892,6 +904,12 @@ export class AiStreamManager extends BaseService {
     callOverrides?: CallOverrides
     /** Which layer owns history shaping; omitted means Cherry-managed. */
     contextOwner?: ContextOwner
+    /**
+     * Terminal policy for turns with no renderable content. Agent sessions,
+     * the API gateway, mini-app chat, and translate set this; ordinary chat
+     * leaves it unset and such turns become a `NoResponseError`.
+     */
+    allowEmptySuccess?: boolean
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
     /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
@@ -920,6 +938,7 @@ export class AiStreamManager extends BaseService {
       messages,
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,
+      allowEmptySuccess: input.allowEmptySuccess,
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
@@ -2040,6 +2059,14 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
+    } else if (!request.allowEmptySuccess && isEmptySuccessTurn(exec.finalMessage)) {
+      const noResponseError: SerializedError = {
+        name: 'NoResponseError',
+        message: 'No response',
+        stack: null,
+        i18nKey: 'no_response'
+      }
+      await this.onExecutionError(topicId, modelId, noResponseError, exec)
     } else {
       await this.onExecutionDone(topicId, modelId, exec)
     }
