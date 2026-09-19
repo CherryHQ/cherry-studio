@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type * as MessageListItemUtils from '@renderer/components/chat/messages/utils/messageListItem'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
@@ -610,7 +611,8 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     const written = vi.mocked(chatWriteMock.editMessage).mock.calls.at(-1)?.[1] ?? []
     expect(vi.mocked(chatWriteMock.editMessage)).toHaveBeenCalledWith(
       'error-message',
-      expect.arrayContaining([expect.objectContaining({ type: 'data-no-response-dismissed' })])
+      expect.arrayContaining([expect.objectContaining({ type: 'data-no-response-dismissed' })]),
+      { expectedParts: persistedParts }
     )
     expect(written.some((part) => part.type === 'data-error')).toBe(false)
 
@@ -692,7 +694,8 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     const written = vi.mocked(chatWriteMock.editMessage).mock.calls.at(-1)?.[1] ?? []
     expect(vi.mocked(chatWriteMock.editMessage)).toHaveBeenCalledWith(
       'empty-message',
-      expect.arrayContaining([expect.objectContaining({ type: 'data-no-response-dismissed' })])
+      expect.arrayContaining([expect.objectContaining({ type: 'data-no-response-dismissed' })]),
+      { expectedParts: [] }
     )
     expect(written.some((part) => part.type === 'data-error')).toBe(false)
     vi.mocked(resolvePartFromParts).mockReset()
@@ -779,11 +782,12 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       parts: errorParts
     } as CherryUIMessage
     // The fresh read still shows the clicked error; the retry persists its
-    // answer after that read but before the dismissal write.
-    vi.mocked(dataApiService.get)
-      .mockResolvedValueOnce({ data: { parts: errorParts } })
-      .mockResolvedValueOnce({ data: { parts: errorParts } })
-      .mockResolvedValueOnce({ data: { parts: [{ type: 'text', text: 'fresh answer' }] } })
+    // answer after that read. The PATCH carries the fresh base as
+    // `expectedParts`, so main rejects it instead of overwriting the answer.
+    vi.mocked(dataApiService.get).mockResolvedValue({ data: { parts: errorParts } })
+    vi.mocked(chatWriteMock.editMessage).mockRejectedValueOnce(
+      DataApiErrorFactory.concurrentModification('Message', 'retry-message')
+    )
     vi.mocked(resolvePartFromParts).mockImplementation((partsMap, partId) => {
       const dash = partId.lastIndexOf('-part-')
       if (dash === -1) return null
@@ -807,7 +811,9 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     await value?.actions.removeMessageErrorPart?.({ messageId: 'retry-message', partId: 'retry-message-part-1' })
 
-    expect(vi.mocked(chatWriteMock.editMessage)).not.toHaveBeenCalled()
+    expect(vi.mocked(chatWriteMock.editMessage)).toHaveBeenCalledWith('retry-message', expect.any(Array), {
+      expectedParts: errorParts
+    })
     vi.mocked(resolvePartFromParts).mockReset()
   })
 
@@ -864,10 +870,10 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       metadata: { status: 'error' },
       parts: []
     } as CherryUIMessage
-    vi.mocked(dataApiService.get)
-      .mockResolvedValueOnce({ data: { parts: [] } })
-      .mockResolvedValueOnce({ data: { parts: [] } })
-      .mockResolvedValueOnce({ data: { parts: [{ type: 'text', text: 'fresh answer' }] } })
+    vi.mocked(dataApiService.get).mockResolvedValue({ data: { parts: [] } })
+    vi.mocked(chatWriteMock.editMessage).mockRejectedValueOnce(
+      DataApiErrorFactory.concurrentModification('Message', 'retry-message')
+    )
     vi.mocked(resolvePartFromParts).mockImplementation((partsMap) => {
       const parts = partsMap['retry-message'] ?? []
       const part = parts[0]
@@ -887,7 +893,11 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     await value?.actions.removeMessageErrorPart?.({ messageId: 'retry-message', partId: 'retry-message-part-0' })
 
-    expect(vi.mocked(chatWriteMock.editMessage)).not.toHaveBeenCalled()
+    expect(vi.mocked(chatWriteMock.editMessage)).toHaveBeenCalledWith(
+      'retry-message',
+      expect.arrayContaining([expect.objectContaining({ type: 'data-no-response-dismissed' })]),
+      { expectedParts: [] }
+    )
     vi.mocked(resolvePartFromParts).mockReset()
   })
 

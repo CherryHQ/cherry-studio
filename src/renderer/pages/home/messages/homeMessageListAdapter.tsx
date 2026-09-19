@@ -51,6 +51,7 @@ import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens
 import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
 import { hasRenderableContent } from '@shared/ai/messageRenderability'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
@@ -85,26 +86,12 @@ function canPersistSyntheticFallbackEdit(persistedParts: CherryMessagePart[]): b
 }
 
 /**
- * Final gate before an error-dismissal write. An in-place retry reuses the
- * message id, so a retry that landed after the edit was computed must win:
- * the write goes ahead only when the persisted parts still equal the snapshot
- * and the message is not live right now.
+ * Whether a concurrent writer replaced the parts after the dismissal base was
+ * read. The PATCH carries the base as `expectedParts`, so the main-process
+ * transaction rejects the write instead of overwriting fresh retry output.
  */
-async function isDismissalWriteStillSafe(
-  messageId: string,
-  baseParts: CherryMessagePart[],
-  liveMessageIds: readonly string[] | undefined
-): Promise<boolean> {
-  if (liveMessageIds?.includes(messageId)) {
-    logger.warn('Skipping error dismissal for a live message', { messageId })
-    return false
-  }
-  const currentParts = (await dataApiService.get(`/messages/${messageId}`)).data.parts ?? []
-  if (JSON.stringify(currentParts) !== JSON.stringify(baseParts)) {
-    logger.warn('Skipping error dismissal for superseded parts', { messageId })
-    return false
-  }
-  return true
+function isDismissalConflict(error: unknown): boolean {
+  return error instanceof DataApiError && error.code === ErrorCode.CONCURRENT_MODIFICATION
 }
 
 interface HomeMessageListParams {
@@ -599,8 +586,21 @@ export function useHomeMessageListProviderValue({
           const durableParts =
             removedData?.name === 'NoResponseError' ? [...filtered, createDismissedNoResponsePart()] : filtered
 
-          if (!(await isDismissalWriteStillSafe(messageId, freshParts, liveMessageIdsRef.current))) return
-          await requireChatWrite('removeMessageErrorPart').editMessage(messageId, durableParts)
+          if (liveMessageIdsRef.current?.includes(messageId)) {
+            logger.warn('Skipping error dismissal for a live message', { messageId })
+            return
+          }
+          try {
+            await requireChatWrite('removeMessageErrorPart').editMessage(messageId, durableParts, {
+              expectedParts: freshParts
+            })
+          } catch (error) {
+            if (isDismissalConflict(error)) {
+              logger.warn('Skipping error dismissal for superseded parts', { messageId })
+              return
+            }
+            throw error
+          }
           return
         }
 
@@ -620,11 +620,23 @@ export function useHomeMessageListProviderValue({
           return
         }
 
-        if (!(await isDismissalWriteStillSafe(messageId, freshParts, liveMessageIdsRef.current))) return
-        await requireChatWrite('removeMessageErrorPart').editMessage(messageId, [
-          ...freshParts,
-          createDismissedNoResponsePart()
-        ])
+        if (liveMessageIdsRef.current?.includes(messageId)) {
+          logger.warn('Skipping error dismissal for a live message', { messageId })
+          return
+        }
+        try {
+          await requireChatWrite('removeMessageErrorPart').editMessage(
+            messageId,
+            [...freshParts, createDismissedNoResponsePart()],
+            { expectedParts: freshParts }
+          )
+        } catch (error) {
+          if (isDismissalConflict(error)) {
+            logger.warn('Skipping synthetic error dismissal for superseded parts', { messageId })
+            return
+          }
+          throw error
+        }
       } catch (error) {
         logger.error('Failed to remove error part:', error as Error)
         throw error

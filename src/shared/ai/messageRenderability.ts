@@ -1,5 +1,13 @@
 // Cross-process renderability policy for main empty-success checks and renderer fallbacks.
-// Main cannot import renderer, so this mirrors `chooseTool`/`messagePartLayouts` — keep them in sync.
+// Main cannot import renderer (`chooseTool` returns React nodes and `AgentToolsType`
+// lives in renderer), so tool-card recognition stays mirrored — keep in sync with:
+// - `src/renderer/components/chat/messages/tools/chooseTool.tsx`
+// - `src/renderer/components/chat/messages/tools/toolResponse.ts` (`getCanonicalToolName`, `resolveToolType`)
+// - `src/renderer/components/chat/messages/blocks/messagePartLayouts.ts` (`isHiddenPart`, `isEmptyContentPart`)
+// Canonical sources are imported wherever possible (`AGENT_RUNTIME_CAPABILITIES`,
+// session-delivery names, `reportArtifactsInputSchema`, `DSH_BUILTIN_TOOLS`, pi builtins);
+// only the card-name set itself is mirrored. Unifying the taxonomy (e.g. moving
+// `AgentToolsType` to shared) is a broader refactor deliberately left out of this PR.
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
