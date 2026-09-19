@@ -1314,7 +1314,7 @@ export class ClaudeCodeStreamAdapter {
         this.handleTaskSystemMessage(message, ctx)
         return
       case 'status':
-        this.handleStatusSystemMessage(message)
+        this.handleStatusSystemMessage(message, ctx)
         return
       case 'compact_boundary':
         this.handleCompactBoundarySystemMessage(message)
@@ -1505,8 +1505,9 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private handleStatusSystemMessage(message: SDKStatusMessage): void {
+  private handleStatusSystemMessage(message: SDKStatusMessage, ctx: StreamContext): void {
     if (message.status === 'compacting') {
+      this.closeActiveTextPart(ctx)
       this.runtimeCompactionActive = true
       this.statusSink.emit({ type: 'compaction-start' })
       return
@@ -1518,10 +1519,8 @@ export class ClaudeCodeStreamAdapter {
       return
     }
     if (message.compact_result === 'success') {
-      this.runtimeCompactionActive = false
-      // A successful compaction may report `success` WITHOUT a following `compact_boundary` (the SDK
-      // does not guarantee one). Settle idempotently with a no-anchor completion so the session does
-      // not stay `compacting` until the idle TTL; a real boundary below still wins with the anchor.
+      // Keep suppression open through compact_boundary / turn result: content between success and
+      // the boundary is still internal transfer output. Cleared on boundary, failure, or result.
       this.statusSink.emit({ type: 'compaction-complete' })
     }
   }
