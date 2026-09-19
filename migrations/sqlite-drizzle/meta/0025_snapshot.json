@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f6c0e9b0-adce-44b3-9616-a0e7d1a2f8c4",
-  "prevId": "5637ac06-8c5f-4c9f-a11c-508966683923",
+  "id": "efc098ca-fa0d-4e30-acd0-4276c72b195d",
+  "prevId": "60663efc-b716-444a-afbb-50fd77ebb24f",
   "tables": {
     "agent": {
       "name": "agent",
@@ -79,6 +79,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'{}'"
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "order_key": {
           "name": "order_key",
@@ -165,6 +172,19 @@
           "tableTo": "user_model",
           "columnsFrom": [
             "small_model"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_group_id_group_id_fk": {
+          "name": "agent_group_id_group_id_fk",
+          "tableFrom": "agent",
+          "tableTo": "group",
+          "columnsFrom": [
+            "group_id"
           ],
           "columnsTo": [
             "id"
@@ -629,6 +649,14 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'conversation'"
         },
         "agent_id": {
           "name": "agent_id",

@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
@@ -12,6 +12,9 @@ export function useGroups(entityType: EntityType, options: { enabled?: boolean }
     ...(options.enabled !== undefined && { enabled: options.enabled }),
     query: { entityType }
   })
+  // Group writes land from any window (create/rename/reorder/delete); without
+  // this subscription the broadcasts have no listener to refetch the others.
+  useDataChange('/groups', () => void refetch())
   const groups = useMemo(() => data ?? [], [data])
 
   return { groups, isLoading, error, refetch }

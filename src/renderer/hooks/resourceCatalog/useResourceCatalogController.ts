@@ -46,7 +46,7 @@ function buildGroups(resources: ResourceItem[], groups: Group[], filterType?: Re
   const counts = new Map<string, number>()
   const list = filterType ? resources.filter((r) => r.type === filterType) : resources
   for (const resource of list) {
-    if (resource.type === 'assistant' && resource.groupId) {
+    if ((resource.type === 'assistant' || resource.type === 'agent') && resource.groupId) {
       counts.set(resource.groupId, (counts.get(resource.groupId) ?? 0) + 1)
     }
   }
@@ -79,6 +79,9 @@ export function useResourceCatalogController(
   const deletingProtectedAgentRef = useRef<string | null>(null)
 
   const isAssistantLibrary = resourceType === 'assistant'
+  // Agents share the group-management surface; groups are per-entityType rows.
+  const groupEntityType: 'assistant' | 'agent' = resourceType === 'agent' ? 'agent' : 'assistant'
+  const isGroupedLibrary = isAssistantLibrary || resourceType === 'agent'
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
 
@@ -90,7 +93,7 @@ export function useResourceCatalogController(
     refetch
   } = useResourceLibrary({
     resourceType,
-    activeGroupId: isAssistantLibrary ? activeGroupId : null,
+    activeGroupId: isGroupedLibrary ? activeGroupId : null,
     search,
     sort: 'name'
   })
@@ -117,14 +120,22 @@ export function useResourceCatalogController(
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
   const { createAgent } = useAgentMutations()
-  const { groups } = useGroups('assistant')
-  const { createGroup } = useGroupMutations('assistant')
+  const { groups } = useGroups(groupEntityType)
+  const { createGroup } = useGroupMutations(groupEntityType)
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group] as const)), [groups])
 
+  // A group deleted in another window must not leave the filter pointed at a
+  // ghost; converge once the refreshed group list says it is gone.
+  useEffect(() => {
+    if (activeGroupId && !groups.some((group) => group.id === activeGroupId)) {
+      setActiveGroupId(null)
+    }
+  }, [activeGroupId, groups])
+
   const scopedGroups = useMemo(() => {
-    if (!isAssistantLibrary) return []
-    return buildGroups(allResources, groups, 'assistant')
-  }, [allResources, groups, isAssistantLibrary])
+    if (!isGroupedLibrary) return []
+    return buildGroups(allResources, groups, groupEntityType)
+  }, [allResources, groupEntityType, groups, isGroupedLibrary])
 
   useEffect(() => {
     if (createDialogOpen || !createDialogKind) return

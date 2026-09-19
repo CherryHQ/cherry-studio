@@ -13,6 +13,7 @@ import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
+import { GroupIdSchema } from '../../types/group'
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
@@ -139,7 +140,8 @@ export const AGENT_MUTABLE_FIELDS = {
   mcps: true,
   knowledgeBaseIds: true,
   disabledTools: true,
-  configuration: true
+  configuration: true,
+  groupId: true
 } as const
 
 export const AgentEntitySchema = AgentBaseSchema.extend({
@@ -149,6 +151,8 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
   updatedAt: z.string(),
   /** Persistent ordering key. Read-only; modified only through order endpoints. */
   orderKey: z.string(),
+  /** Group membership; null = ungrouped. Cleared when the group row is deleted. */
+  groupId: GroupIdSchema.nullable(),
   model: UniqueModelIdSchema.nullable(),
   /** Read-only soft-delete timestamp, present only for trashed agents. */
   deletedAt: z.string().optional(),
@@ -266,6 +270,8 @@ export const ListAgentsQuerySchema = z.strictObject({
   inTrash: z.boolean().optional(),
   /** Free-text match against name OR description, including builtin fallback text (case-insensitive LIKE). */
   search: z.string().trim().min(1).optional(),
+  /** Restrict to one group's members. */
+  groupId: GroupIdSchema.optional(),
   /** Positive integer, defaults to {@link AGENTS_DEFAULT_PAGE}. */
   page: z.int().positive().default(AGENTS_DEFAULT_PAGE),
   /** Positive integer, max {@link AGENTS_MAX_LIMIT}, defaults to {@link AGENTS_DEFAULT_LIMIT}. */

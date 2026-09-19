@@ -326,6 +326,15 @@ describe('useResourceCatalogController', () => {
   })
 
   it('clears the active group when the resource type changes', async () => {
+    // Chips only exist for real groups, so the selected id has a backing row.
+    controllerMocks.groups.push({
+      id: '11111111-1111-4111-8111-111111111111',
+      entityType: 'assistant',
+      name: 'work',
+      orderKey: 'a0',
+      createdAt: '2026-09-15T00:00:00.000Z',
+      updatedAt: '2026-09-15T00:00:00.000Z'
+    })
     const { result, rerender } = renderHook(
       ({ resourceType }: { resourceType: ControllerResourceType }) => useResourceCatalogController(resourceType),
       { initialProps: { resourceType: 'assistant' as ControllerResourceType } }

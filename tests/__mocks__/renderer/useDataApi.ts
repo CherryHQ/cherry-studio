@@ -62,6 +62,11 @@ function createMockDataForPath(path: string): any {
     }
   }
 
+  // GET /groups responds with a bare Group[] — the group hooks spread it directly.
+  if (path === '/groups') {
+    return []
+  }
+
   if (path.includes('/topics')) {
     if (path.endsWith('/topics')) {
       return {

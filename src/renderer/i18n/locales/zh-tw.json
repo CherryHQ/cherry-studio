@@ -104,6 +104,8 @@
   "agent.delete.error.failed": "刪除 Agent 失敗",
   "agent.delete.title": "刪除 Agent",
   "agent.edit.title": "編輯 Agent",
+  "agent.groups.group_by": "分組顯示",
+  "agent.groups.ungroup": "取消分組",
   "agent.heartbeat.action_failed": "無法儲存或啟動心跳，請查看日誌後重試。",
   "agent.heartbeat.conflict": "任務已在其他地方修改，請複製目前編輯內容後重新載入。",
   "agent.heartbeat.description": "智慧體會在每次心跳時檢查這些任務。有任務內容的執行會呼叫所選模型。",

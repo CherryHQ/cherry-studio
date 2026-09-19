@@ -104,6 +104,8 @@
   "agent.delete.error.failed": "エージェントの削除に失敗しました",
   "agent.delete.title": "エージェントを削除",
   "agent.edit.title": "編集エージェント",
+  "agent.groups.group_by": "グループで表示",
+  "agent.groups.ungroup": "グループ解除",
   "agent.heartbeat.action_failed": "保存または実行できませんでした。ログを確認して再試行してください。",
   "agent.heartbeat.conflict": "タスクが外部で変更されました。編集内容をコピーしてから再読み込みしてください。",
   "agent.heartbeat.description": "エージェントは各ハートビートでこれらのタスクを確認します。内容がある場合、選択したモデルを使用します。",

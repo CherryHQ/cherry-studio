@@ -104,6 +104,8 @@
   "agent.delete.error.failed": "Nu s-a putut șterge agentul",
   "agent.delete.title": "Șterge agentul",
   "agent.edit.title": "Editează agentul",
+  "agent.groups.group_by": "Afișează în grupuri",
+  "agent.groups.ungroup": "Oprește gruparea",
   "agent.heartbeat.action_failed": "Heartbeat nu a putut fi salvat sau pornit. Verifică jurnalele și încearcă din nou.",
   "agent.heartbeat.conflict": "Sarcinile au fost modificate în afara editorului. Copiază modificările înainte de reîncărcare.",
   "agent.heartbeat.description": "Agentul verifică aceste sarcini la fiecare heartbeat. Fiecare rulare cu conținut folosește modelul selectat.",

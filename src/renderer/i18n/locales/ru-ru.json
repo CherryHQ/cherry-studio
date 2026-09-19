@@ -104,6 +104,8 @@
   "agent.delete.error.failed": "Не удалось удалить агента",
   "agent.delete.title": "Удалить агента",
   "agent.edit.title": "Редактировать агент",
+  "agent.groups.group_by": "Показывать по группам",
+  "agent.groups.ungroup": "Отменить группировку",
   "agent.heartbeat.action_failed": "Не удалось сохранить или запустить heartbeat. Проверьте журналы и повторите попытку.",
   "agent.heartbeat.conflict": "Задачи изменены вне редактора. Скопируйте свои изменения перед перезагрузкой.",
   "agent.heartbeat.description": "Агент проверяет эти задачи при каждом heartbeat. Каждый запуск с содержимым использует выбранную модель.",

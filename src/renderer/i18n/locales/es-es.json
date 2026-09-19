@@ -104,6 +104,8 @@
   "agent.delete.error.failed": "Error al eliminar el agente",
   "agent.delete.title": "Eliminar Agent",
   "agent.edit.title": "Agent de edición",
+  "agent.groups.group_by": "Mostrar en grupos",
+  "agent.groups.ungroup": "Dejar de agrupar",
   "agent.heartbeat.action_failed": "No se pudo guardar o iniciar el heartbeat. Revisa los registros e inténtalo de nuevo.",
   "agent.heartbeat.conflict": "Las tareas se modificaron fuera del editor. Copia tus cambios antes de recargar.",
   "agent.heartbeat.description": "El agente revisa estas tareas en cada heartbeat. Cada ejecución con contenido utiliza el modelo seleccionado.",

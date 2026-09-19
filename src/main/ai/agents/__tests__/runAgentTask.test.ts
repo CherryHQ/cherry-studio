@@ -178,6 +178,7 @@ function makeAgent(config: Record<string, unknown> = {}): AgentEntity {
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:00.000Z',
     orderKey: 'k',
+    groupId: null,
     modelName: null
   }
 }
