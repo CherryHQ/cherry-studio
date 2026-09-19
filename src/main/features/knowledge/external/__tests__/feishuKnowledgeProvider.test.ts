@@ -6,6 +6,7 @@ import {
   FeishuProviderError,
   beginDeviceAuthorization,
   exchangeDeviceAuthorization,
+  getWikiNode,
   getUserIdentity,
   refreshUserToken,
   revokeUserToken
@@ -133,6 +134,65 @@ describe('feishuKnowledgeProvider', () => {
       tenantKey: 'tenant-key',
       displayName: 'Alice',
       avatarUrl: 'https://example.com/avatar.png'
+    })
+  })
+
+  it('reads Wiki node metadata only from the fixed Feishu China API origin', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          node: {
+            space_id: 'space-1',
+            node_token: 'wikcnNode',
+            obj_token: 'doxcnDocument',
+            obj_type: 'docx',
+            parent_node_token: 'wikcnParent',
+            node_type: 'origin',
+            title: 'Architecture',
+            has_child: false,
+            obj_edit_time: '42'
+          }
+        }
+      })
+    )
+
+    await expect(getWikiNode('access-token', { token: 'wikcnNode', objType: 'wiki' })).resolves.toMatchObject({
+      spaceId: 'space-1',
+      nodeToken: 'wikcnNode',
+      objToken: 'doxcnDocument'
+    })
+    expect(vi.mocked(net.fetch).mock.calls[0][0]).toBe(
+      'https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node?token=wikcnNode&obj_type=wiki'
+    )
+  })
+
+  it('rejects incomplete or contradictory Wiki node responses', async () => {
+    vi.mocked(net.fetch)
+      .mockResolvedValueOnce(response({ code: 0, data: { node: { space_id: 'space-1', node_token: 'wikcnNode' } } }))
+      .mockResolvedValueOnce(
+        response({
+          code: 0,
+          data: {
+            node: {
+              space_id: 'space-1',
+              node_token: 'shortcut-1',
+              obj_token: 'doc-1',
+              obj_type: 'docx',
+              node_type: 'shortcut',
+              title: 'Shortcut',
+              has_child: false,
+              obj_edit_time: '42'
+            }
+          }
+        })
+      )
+
+    await expect(getWikiNode('access-token', { token: 'wikcnNode', objType: 'wiki' })).rejects.toMatchObject({
+      code: 'invalid-response'
+    })
+    await expect(getWikiNode('access-token', { token: 'shortcut-1', objType: 'wiki' })).rejects.toMatchObject({
+      code: 'invalid-response'
     })
   })
 
