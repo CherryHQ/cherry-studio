@@ -6,6 +6,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 const useProviderMock = vi.fn()
 const updateProviderMock = vi.fn()
+const refetchMock = vi.fn()
 const syncProviderModelsMock = vi.fn()
 
 vi.mock('@cherrystudio/ui', () => {
@@ -97,7 +98,8 @@ describe('ProviderCustomHeaderDrawer', () => {
     vi.clearAllMocks()
     updateProviderMock.mockResolvedValue(undefined)
     syncProviderModelsMock.mockResolvedValue([])
-    useProviderMock.mockReturnValue({ provider, updateProvider: updateProviderMock })
+    refetchMock.mockResolvedValue(undefined)
+    useProviderMock.mockReturnValue({ provider, updateProvider: updateProviderMock, refetch: refetchMock })
   })
 
   it('persists a configured endpoint as the provider default', async () => {
@@ -139,7 +141,8 @@ describe('ProviderCustomHeaderDrawer', () => {
         ...provider,
         settings: { extraHeaders: { 'X-Only': 'a' } }
       },
-      updateProvider: updateProviderMock
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
     })
 
     render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
@@ -165,7 +168,8 @@ describe('ProviderCustomHeaderDrawer', () => {
         ...provider,
         settings: { extraHeaders: { 'X-Keep': 'a', 'X-Remove': 'b' } }
       },
-      updateProvider: updateProviderMock
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
     })
 
     render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
@@ -191,7 +195,8 @@ describe('ProviderCustomHeaderDrawer', () => {
         ...provider,
         settings: { extraHeaders: { toString: 'a' } }
       },
-      updateProvider: updateProviderMock
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
     })
 
     render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
@@ -217,7 +222,8 @@ describe('ProviderCustomHeaderDrawer', () => {
         ...provider,
         settings: { extraHeaders: { 'X-Only': 'a' } }
       },
-      updateProvider: updateProviderMock
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
     })
 
     render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
@@ -234,6 +240,44 @@ describe('ProviderCustomHeaderDrawer', () => {
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         providerSettings: { extraHeaders: { 'X-Only': null } }
       })
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves a reasoning format committed while its refresh is outstanding', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const freshProvider = {
+      ...provider,
+      endpointConfigs: {
+        ...provider.endpointConfigs,
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://openai.example.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    } as any
+    refetchMock.mockResolvedValue(freshProvider)
+    useProviderMock.mockReturnValue({
+      provider,
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpointConfigs: expect.objectContaining({
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: expect.objectContaining({
+              reasoningFormat: { type: 'self-hosted' }
+            })
+          })
+        })
+      )
     })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
