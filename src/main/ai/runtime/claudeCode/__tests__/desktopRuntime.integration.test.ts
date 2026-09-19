@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url'
 import { startup, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -1148,3 +1149,46 @@ it.each([
   },
   30000
 )
+
+// Catches #20552: the host keeps a live-turn connection on 'rebuild', so every later push reconcile
+// re-derived and re-logged the same frozen baseline.
+it('reports an outstanding rebuild once across repeated reconciles', async () => {
+  const modelId = 'native-test::claude-sonnet-4-6'
+  const test = await desktop()
+  const built = await ports.build()
+  const connection = await test.connect()
+  const stale = { ...built.connectionConfig, rebuildSignature: 'native-test-next' }
+  for (let i = 0; i < 3; i++) {
+    ports.derive.mockResolvedValueOnce({ ok: true, config: stale })
+    expect(await connection.reconcile({ modelId })).toBe('rebuild')
+  }
+  const rebuildLogs = mockMainLoggerService.info.mock.calls.filter(
+    ([message]) => message === 'Connection configuration requires rebuild'
+  )
+  expect(rebuildLogs).toHaveLength(1)
+})
+
+// Catches a latch that short-circuits reconcile: a tool disabled mid-turn after the rebuild was
+// first reported must still tighten immediately.
+it('still applies live tool policy while a rebuild is outstanding', async () => {
+  const modelId = 'native-test::claude-sonnet-4-6'
+  const test = await desktop()
+  const agentId = randomUUID()
+  dbh.db
+    .insert(agentTable)
+    .values({ id: agentId, type: 'claude-code', name: 'Agent', instructions: '', orderKey: 'a0' })
+    .run()
+  const snapshot = await createClaudeAgentToolPolicySnapshot(agentService.getAgent(agentId)!)
+  const update = vi.spyOn(snapshot, 'update')
+  const built = await ports.build()
+  built.settings.toolPolicySnapshot = snapshot
+  const connection = await test.connect(undefined, undefined, true, { sessionId: test.sessionId, agentId, modelId })
+  const stale = { ...built.connectionConfig, rebuildSignature: 'native-test-next' }
+  ports.derive.mockResolvedValueOnce({ ok: true, config: stale })
+  expect(await connection.reconcile({ modelId })).toBe('rebuild')
+
+  const toolPolicy = { ...stale.live.toolPolicy, disabledTools: ['Bash'] }
+  ports.derive.mockResolvedValueOnce({ ok: true, config: { ...stale, live: { ...stale.live, toolPolicy } } })
+  expect(await connection.reconcile({ modelId })).toBe('rebuild')
+  expect(update).toHaveBeenCalledOnce()
+})

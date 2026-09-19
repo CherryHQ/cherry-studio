@@ -157,6 +157,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private _usageCapture?: AgentSessionUsageCapture
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
+  /** Spawn-frozen drift already reported; host defers close until the next turn boundary (#20552). */
+  private rebuildOutstanding = false
 
   readonly events = this.eventQueue
   get usageCapture(): AgentSessionUsageCapture | undefined {
@@ -403,14 +405,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
 
     if (baseline.rebuildSignature !== fresh.rebuildSignature) {
-      logger.info('Connection configuration requires rebuild', {
-        sessionId: this.input.sessionId,
-        changedFacts: getChangedRebuildFacts(baseline, fresh),
-        baselineSignature: baseline.rebuildSignature.slice(0, 12),
-        freshSignature: fresh.rebuildSignature.slice(0, 12)
-      })
+      // Baseline stays frozen (subprocess truth); latch so live-turn push reconciles do not re-log.
+      if (!this.rebuildOutstanding) {
+        logger.info('Connection configuration requires rebuild', {
+          sessionId: this.input.sessionId,
+          changedFacts: getChangedRebuildFacts(baseline, fresh),
+          baselineSignature: baseline.rebuildSignature.slice(0, 12),
+          freshSignature: fresh.rebuildSignature.slice(0, 12)
+        })
+        this.rebuildOutstanding = true
+      }
       return 'rebuild'
     }
+    this.rebuildOutstanding = false
     return patched ? 'patched' : 'current'
   }
 
