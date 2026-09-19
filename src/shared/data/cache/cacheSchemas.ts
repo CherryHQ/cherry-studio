@@ -427,7 +427,7 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
-  'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled' | 'free'
   // Usage statistics view selections, persisted so leaving and re-entering the page restores
   // them. The heatmap drill-down date stays component-local: a stored past date would reopen
   // the page on an empty range.
