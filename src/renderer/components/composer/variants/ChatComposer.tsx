@@ -612,8 +612,13 @@ const ChatComposerInner = ({
     Boolean(editingMessageForCurrentTopic) ||
     rootPanelVisible ||
     knowledgeBasePanelVisible
+  // Sticky once requested: useKnowledgeBases empties its list while disabled, so a
+  // closed picker would otherwise collapse a loaded list to [] and the launcher
+  // would read that as "no knowledge bases" and disable itself (launcher dead-end).
+  const knowledgeBasesRequestedRef = useRef(false)
+  if (knowledgeBasesDataEnabled) knowledgeBasesRequestedRef.current = true
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
-    enabled: knowledgeBasesDataEnabled
+    enabled: knowledgeBasesDataEnabled || knowledgeBasesRequestedRef.current
   })
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
@@ -1036,7 +1041,10 @@ const ChatComposerInner = ({
     isKnowledgeBasesLoading,
     scopeKey: selectedKnowledgeBasesScopeKey,
     selectedKnowledgeBases,
-    setSelectedKnowledgeBases
+    setSelectedKnowledgeBases,
+    // Chat scope shows every base and auto-links unconfigured ones on select (#20238);
+    // the Agent composer keeps the configured intersection.
+    allowUnconfigured: true
   })
 
   useEffect(() => {
