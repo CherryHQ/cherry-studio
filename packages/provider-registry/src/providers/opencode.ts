@@ -51,6 +51,7 @@ const chatEffortModels: Array<{
   pricing?: ProviderModelOverride['pricing']
 }> = [
   { modelId: 'deepseek-flash', values: ['high', 'max'] },
+  { modelId: 'deepseek-v4-1-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-flash-vision-exp', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-pro', values: ['high', 'max'] },
