@@ -6,6 +6,7 @@ import {
   FeishuProviderError,
   beginDeviceAuthorization,
   exchangeDeviceAuthorization,
+  getDocxMarkdown,
   getWikiNode,
   listWikiChildNodes,
   getUserIdentity,
@@ -235,6 +236,52 @@ describe('feishuKnowledgeProvider', () => {
 
     await expect(listWikiChildNodes('access-token', 'space-1', 'root')).rejects.toMatchObject({
       code: 'invalid-response'
+    })
+  })
+
+  it('reads Docx Markdown from the sole supported content endpoint', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 0, data: { content: '---\ntitle: Kept\n---\n{{placeholder}}' } })
+    )
+
+    await expect(getDocxMarkdown('access-token', 'doxcnDocument')).resolves.toBe(
+      '---\ntitle: Kept\n---\n{{placeholder}}'
+    )
+    expect(vi.mocked(net.fetch).mock.calls[0][0]).toBe(
+      'https://open.feishu.cn/open-apis/docs/v1/content?doc_token=doxcnDocument&doc_type=docx&content_type=markdown'
+    )
+  })
+
+  it.each([
+    [2889902, 403, 'resource-permission-denied'],
+    [2889914, 404, 'scope-not-found']
+  ] as const)('classifies resource error %s without invalidating the connection', async (code, status, expected) => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code, msg: 'private-provider-detail' }, { status }))
+
+    const error = await getDocxMarkdown('access-token', 'doxcnDocument').catch((cause: unknown) => cause)
+
+    expect(error).toMatchObject({ code: expected, terminal: false })
+    expect((error as Error).message).not.toContain('private-provider-detail')
+  })
+
+  it('classifies an expired access token as terminal reauthorization', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 99991668, msg: 'expired' }, { status: 401 }))
+
+    await expect(getDocxMarkdown('access-token', 'doxcnDocument')).rejects.toMatchObject({
+      code: 'reauthorization-required',
+      terminal: true
+    })
+  })
+
+  it('classifies provider rate limits with Retry-After as transient', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({ code: 99991663, msg: 'rate limit' }, { status: 400, headers: { 'Retry-After': '2' } })
+    )
+
+    await expect(getDocxMarkdown('access-token', 'doxcnDocument')).rejects.toMatchObject({
+      code: 'transient',
+      terminal: false,
+      retryAfterMs: 2000
     })
   })
 

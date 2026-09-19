@@ -6,6 +6,7 @@ import {
   FeishuKnowledgeReadError,
   parseFeishuKnowledgeUrl,
   previewFeishuKnowledgeScope,
+  readFeishuDocx,
   resolveFeishuKnowledgeScope,
   type FeishuKnowledgeReadOperations,
   type FeishuWikiNode
@@ -54,7 +55,11 @@ function node(overrides: Partial<FeishuWikiNode> = {}): FeishuWikiNode {
 }
 
 function operations(value: FeishuWikiNode = node()): FeishuKnowledgeReadOperations {
-  return { getNode: vi.fn().mockResolvedValue(value), listChildNodes: vi.fn().mockResolvedValue({ nodes: [] }) }
+  return {
+    getNode: vi.fn().mockResolvedValue(value),
+    listChildNodes: vi.fn().mockResolvedValue({ nodes: [] }),
+    getDocumentMarkdown: vi.fn().mockResolvedValue('')
+  }
 }
 
 describe('parseFeishuKnowledgeUrl', () => {
@@ -199,7 +204,7 @@ describe('previewFeishuKnowledgeScope', () => {
 
     const result = await previewFeishuKnowledgeScope(
       { connection: connection(), url: 'https://acme.feishu.cn/wiki/root' },
-      { getNode: vi.fn().mockResolvedValue(root), listChildNodes }
+      { ...operations(root), listChildNodes }
     )
 
     expect(result.preview).toEqual({
@@ -237,10 +242,7 @@ describe('previewFeishuKnowledgeScope', () => {
 
     const result = await previewFeishuKnowledgeScope(
       { connection: connection(), url: 'https://acme.feishu.cn/wiki/root' },
-      {
-        getNode: vi.fn().mockResolvedValue(root),
-        listChildNodes: vi.fn().mockResolvedValue({ nodes: [child] })
-      }
+      { ...operations(root), listChildNodes: vi.fn().mockResolvedValue({ nodes: [child] }) }
     )
 
     expect(result.preview).toMatchObject({
@@ -259,7 +261,7 @@ describe('previewFeishuKnowledgeScope', () => {
       previewFeishuKnowledgeScope(
         { connection: connection(), url: 'https://acme.feishu.cn/wiki/root' },
         {
-          getNode: vi.fn().mockResolvedValue(root),
+          ...operations(root),
           listChildNodes: vi.fn().mockResolvedValue({
             nodes: [node({ nodeToken: 'child', parentNodeToken: 'wrong-parent', spaceId: 'other-space' })]
           })
@@ -268,3 +270,39 @@ describe('previewFeishuKnowledgeScope', () => {
     ).rejects.toMatchObject({ code: 'invalid-provider-response' })
   })
 })
+
+describe('readFeishuDocx', () => {
+  it('normalizes transport newlines without prepending the Wiki title or changing provider Markdown', async () => {
+    const provider = operations()
+    vi.mocked(provider.getDocumentMarkdown).mockResolvedValue(
+      '---\r\ntitle: Provider frontmatter\r\n---\r\n{{unsupported_widget}}\rLast line'
+    )
+    const resolved = await resolveFeishuKnowledgeScope(
+      { connection: connection(), url: 'https://acme.feishu.cn/docx/doc-1' },
+      provider
+    )
+
+    await expect(readFeishuDocx(referenceFrom(resolved), provider)).resolves.toEqual({
+      descriptor: resolved.resolution.selected,
+      contentType: 'markdown',
+      content: '---\ntitle: Provider frontmatter\n---\n{{unsupported_widget}}\nLast line'
+    })
+  })
+
+  it('rejects unsupported metadata before requesting any document body', async () => {
+    const provider = operations(node({ objType: 'sheet', objToken: 'sheet-1' }))
+    const resolved = await resolveFeishuKnowledgeScope(
+      { connection: connection(), url: 'https://acme.feishu.cn/wiki/wiki-node' },
+      provider
+    )
+
+    await expect(readFeishuDocx(referenceFrom(resolved), provider)).rejects.toMatchObject({
+      code: 'unsupported-resource'
+    })
+    expect(provider.getDocumentMarkdown).not.toHaveBeenCalled()
+  })
+})
+
+function referenceFrom(resolved: Awaited<ReturnType<typeof resolveFeishuKnowledgeScope>>) {
+  return { descriptor: resolved.resolution.selected, providerData: resolved.providerData }
+}

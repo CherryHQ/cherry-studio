@@ -32,6 +32,13 @@ export const ExternalKnowledgeReadDescriptorSchema = z.strictObject({
 })
 export type ExternalKnowledgeReadDescriptor = z.infer<typeof ExternalKnowledgeReadDescriptorSchema>
 
+export const ExternalKnowledgeDocumentReadSchema = z.strictObject({
+  descriptor: ExternalKnowledgeReadDescriptorSchema,
+  contentType: z.literal('markdown'),
+  content: z.string()
+})
+export type ExternalKnowledgeDocumentRead = z.infer<typeof ExternalKnowledgeDocumentReadSchema>
+
 const ExternalKnowledgeResolvedAccountSchema = z.strictObject({
   userId: NonBlankStringSchema,
   displayName: NonBlankStringSchema.nullable()

@@ -1,5 +1,6 @@
 import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 import type {
+  ExternalKnowledgeDocumentRead,
   ExternalKnowledgeDocumentKind,
   ExternalKnowledgeReadDescriptor,
   ExternalKnowledgeScopePreview,
@@ -16,7 +17,7 @@ export type FeishuKnowledgeUrl = {
   originalUrl: string
 }
 
-export type FeishuKnowledgeReadErrorCode = 'invalid-scope-url' | 'invalid-provider-response'
+export type FeishuKnowledgeReadErrorCode = 'invalid-scope-url' | 'invalid-provider-response' | 'unsupported-resource'
 
 export class FeishuKnowledgeReadError extends Error {
   constructor(readonly code: FeishuKnowledgeReadErrorCode) {
@@ -33,6 +34,7 @@ export type FeishuKnowledgeReadOperations = {
     pageToken?: string,
     signal?: AbortSignal
   ): Promise<{ nodes: FeishuWikiNode[]; nextPageToken?: string }>
+  getDocumentMarkdown(documentToken: string, signal?: AbortSignal): Promise<string>
 }
 
 export type FeishuKnowledgeNodeData = {
@@ -247,4 +249,20 @@ export async function previewFeishuKnowledgeScope(
     warnings: supportedDocxCount === 0 ? ['no-supported-documents'] : []
   }
   return { resolution: resolved.resolution, preview, references }
+}
+
+export async function readFeishuDocx(
+  item: FeishuKnowledgeReference,
+  operations: FeishuKnowledgeReadOperations,
+  signal?: AbortSignal
+): Promise<ExternalKnowledgeDocumentRead> {
+  if (item.descriptor.supportState !== 'supported' || item.providerData.objType !== 'docx') {
+    throw new FeishuKnowledgeReadError('unsupported-resource')
+  }
+  const markdown = await operations.getDocumentMarkdown(item.providerData.objToken, signal)
+  return {
+    descriptor: item.descriptor,
+    contentType: 'markdown',
+    content: markdown.replace(/\r\n?/g, '\n')
+  }
 }

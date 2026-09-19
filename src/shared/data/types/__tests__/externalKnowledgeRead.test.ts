@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ExternalKnowledgeReadDescriptorSchema,
+  ExternalKnowledgeDocumentReadSchema,
   ExternalKnowledgeScopePreviewSchema,
   ExternalKnowledgeScopeResolutionSchema
 } from '../externalKnowledgeRead'
@@ -42,6 +43,17 @@ describe('ExternalKnowledgeReadDescriptorSchema', () => {
     expect(
       ExternalKnowledgeReadDescriptorSchema.safeParse({ ...descriptor, objToken: 'provider-private' }).success
     ).toBe(false)
+  })
+})
+
+describe('ExternalKnowledgeDocumentReadSchema', () => {
+  it('carries normalized Markdown beside the provider-neutral descriptor only', () => {
+    const read = { descriptor, contentType: 'markdown' as const, content: '---\ntitle: Kept\n---\n{{placeholder}}' }
+
+    expect(ExternalKnowledgeDocumentReadSchema.parse(read)).toEqual(read)
+    expect(ExternalKnowledgeDocumentReadSchema.safeParse({ ...read, providerPayload: { private: true } }).success).toBe(
+      false
+    )
   })
 })
 
