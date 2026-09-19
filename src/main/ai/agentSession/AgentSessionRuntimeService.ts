@@ -1044,9 +1044,11 @@ export class AgentSessionRuntimeService extends BaseService {
       return false
     })
     if (!aborting || !stoppingTurnId) return aborting
+    // The losing poll must not keep ticking after the race settles.
+    let raceSettled = false
     const turnLeftLive = async (): Promise<boolean> => {
       const deadline = Date.now() + USER_STOP_TURN_LEAVE_TIMEOUT_MS
-      while (Date.now() < deadline) {
+      while (!raceSettled && Date.now() < deadline) {
         const entry = this.entries.get(sessionId)
         if (!entry || this.liveTurn(entry)?.turnId !== stoppingTurnId) return true
         await new Promise((resolve) => setTimeout(resolve, USER_STOP_TURN_LEAVE_POLL_MS))
@@ -1058,6 +1060,7 @@ export class AgentSessionRuntimeService extends BaseService {
       aborting.then((value) => ({ source: 'driver' as const, value })),
       turnLeftLive().then((value) => ({ source: 'turn-left' as const, value }))
     ])
+    raceSettled = true
     if (result.source === 'turn-left' && result.value) {
       // Release Stop when its turn settles, but honor a later failed driver verdict. DSH can
       // report terminal before its separate cancel request times out.
