@@ -1363,7 +1363,10 @@ describe('listModels — oMLX', () => {
   it('lists only chat models, dropping the diffusion and non-chat families', async () => {
     const provider = makeProvider({
       id: 'omlx',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'http://127.0.0.1:8000' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'http://127.0.0.1:8000' },
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8000' }
       }
     })
@@ -1402,9 +1405,18 @@ describe('listModels — oMLX', () => {
     // A VLM must also state its input modalities: exported configurations read
     // the capability, but the runtime model-compatibility checks read these.
     expect(models[1].inputModalities).toEqual([MODALITY.TEXT, MODALITY.IMAGE])
-    // Discovered models must declare both registry endpoints so Claude Code resolves the
-    // provider's anthropic-messages endpoint instead of routing through the local gateway.
-    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+    // The declared default (Responses) must lead, or `resolveEffectiveEndpoint` picks the
+    // chat-completions dialect over the provider's declared default. The other declared
+    // endpoints stay listed: Claude Code resolves Anthropic Messages directly, and the pi
+    // runtime keys its Anthropic preference off chat-completions + anthropic both being present.
+    expect(models[0].endpointTypes).toEqual([
+      ENDPOINT_TYPE.OPENAI_RESPONSES,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    ])
+    // MarkItDown is served only on the chat-completions route, so it must not advertise a
+    // dialect the pinned server does not implement for it.
+    expect(models[2].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
     // The server's own limits travel with the discovered model instead of being
     // dropped, so the window and output cap match what it enforces.
     expect(models[0].contextWindow).toBe(262144)
@@ -1421,5 +1433,35 @@ describe('listModels — oMLX', () => {
     // the id as the display name.
     expect(models[1].name).toBe('vlm-vision')
     expect(models[2].name).toBe('markitdown')
+  })
+
+  // The status document hangs off the server root, but a configured host may already carry
+  // any supported API version — not just /v1. Leaving the version on produced paths like
+  // /v2beta/v1/models/status, which 404s and silently empties discovery.
+  it.each([
+    ['http://127.0.0.1:8000', 'a bare host'],
+    ['http://127.0.0.1:8000/', 'a bare host with a trailing slash'],
+    ['http://127.0.0.1:8000/v1', 'a host pinned to v1'],
+    ['http://127.0.0.1:8000/v1/', 'a host pinned to v1 with a trailing slash'],
+    ['http://127.0.0.1:8000/v2', 'a host pinned to v2'],
+    ['http://127.0.0.1:8000/v2beta', 'a host pinned to a beta version'],
+    ['http://127.0.0.1:8000/v3alpha', 'a host pinned to an alpha version']
+  ])('asks %s for the status document at the versionless root (%s)', async (baseUrl) => {
+    const provider = makeProvider({
+      id: 'omlx',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: { models: [{ id: 'qwen3-coder', model_type: 'llm' }] }
+    })
+
+    const models = await listModels(provider, undefined, { throwOnError: true })
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('http://127.0.0.1:8000/v1/models/status')
+    expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-coder'])
   })
 })
