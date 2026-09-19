@@ -4693,6 +4693,7 @@
   "settings.models.add.quick_presets": "Giá trị đặt sẵn nhanh",
   "settings.models.add.supported_text_delta.label": "Hỗ trợ xuất văn bản tăng dần",
   "settings.models.add.supported_text_delta.tooltip": "Mô hình trả về văn bản theo từng phần, thay vì toàn bộ cùng lúc. Được bật theo mặc định, nếu mô hình không hỗ trợ, vui lòng tắt tùy chọn này",
+  "settings.models.add.web_search.endpoint_required": "Tìm kiếm web tích hợp cần endpoint Responses, Anthropic hoặc Gemini trên mô hình này.",
   "settings.models.api_key": "Khóa API",
   "settings.models.base_url": "URL cơ sở",
   "settings.models.bulk_disable": "Tắt tất cả",

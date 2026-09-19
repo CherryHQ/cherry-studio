@@ -4693,6 +4693,7 @@
   "settings.models.add.quick_presets": "Быстрые предустановки",
   "settings.models.add.supported_text_delta.label": "Поддержка инкрементного текстового вывода",
   "settings.models.add.supported_text_delta.tooltip": "Модель возвращает текст постепенно, а не целиком. Этот параметр включён по умолчанию; если модель его не поддерживает, отключите параметр.",
+  "settings.models.add.web_search.endpoint_required": "Встроенный веб-поиск требует endpoint Responses, Anthropic или Gemini для этой модели.",
   "settings.models.api_key": "API ключ",
   "settings.models.base_url": "Базовый URL",
   "settings.models.bulk_disable": "Отключить все",

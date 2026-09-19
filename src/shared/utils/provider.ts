@@ -224,6 +224,34 @@ function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) 
   return provider.serverTools?.find((tool) => tool.id === id)
 }
 
+/**
+ * Endpoint protocols that have a registered provider-native web-search delivery
+ * path when a custom provider uses the endpoint-type default adapter family.
+ * Enable overrides fail closed outside this set so routing cannot pick `server`
+ * and then inject nothing.
+ */
+export const WEB_SEARCH_DELIVERY_ENDPOINT_TYPES = [
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+] as const satisfies readonly EndpointType[]
+
+const WEB_SEARCH_DELIVERY_ENDPOINT_TYPE_SET: ReadonlySet<EndpointType> = new Set(WEB_SEARCH_DELIVERY_ENDPOINT_TYPES)
+
+/** Whether Cherry can deliver provider-native web search on this endpoint protocol. */
+export function isWebSearchDeliveryEndpoint(endpointType: EndpointType | undefined): boolean {
+  return endpointType !== undefined && WEB_SEARCH_DELIVERY_ENDPOINT_TYPE_SET.has(endpointType)
+}
+
+/** Deliverable web-search endpoints from a model/provider endpoint set. */
+export function getDeliverableWebSearchEndpointTypes(
+  endpointTypes: readonly EndpointType[] | undefined,
+  fallback?: EndpointType
+): EndpointType[] {
+  const candidates = endpointTypes?.length ? endpointTypes : fallback ? [fallback] : []
+  return candidates.filter(isWebSearchDeliveryEndpoint)
+}
+
 /** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
 function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): boolean {
   if (!tool.vendors?.length) return true
@@ -265,17 +293,30 @@ export function isBuiltinWebSearchAvailable(
   provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
+  if (isNonChatModel(model)) return false
+
+  const override = model.serverToolOverrides?.[SERVER_TOOL.WEB_SEARCH]
+  const effectiveEndpoint = resolveServerToolEndpoint(model, provider, endpointType)
+
+  if (override?.state === 'disabled') {
+    return false
+  }
+
+  if (override?.state === 'enabled') {
+    return (
+      effectiveEndpoint !== undefined &&
+      override.endpointTypes.includes(effectiveEndpoint) &&
+      isWebSearchDeliveryEndpoint(effectiveEndpoint)
+    )
+  }
+
   const tool = getServerTool(provider, SERVER_TOOL.WEB_SEARCH)
-  if (
-    !tool ||
-    !serverToolServesModelVendor(tool, model) ||
-    !serverToolServesEndpoint(tool, resolveServerToolEndpoint(model, provider, endpointType))
-  ) {
+  if (!tool || !serverToolServesModelVendor(tool, model) || !serverToolServesEndpoint(tool, effectiveEndpoint)) {
     return false
   }
 
   if (tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS) {
-    return !isNonChatModel(model)
+    return true
   }
 
   return isServerToolModelEligible(model, provider, SERVER_TOOL.WEB_SEARCH)

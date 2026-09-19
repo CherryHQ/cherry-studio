@@ -46,8 +46,14 @@ export const MODEL_INPUT_MODALITY_VALUES = [
 
 export type ModelInputModality = (typeof MODEL_INPUT_MODALITY_VALUES)[number]
 
+/** User override for provider-native web search on this model. */
+export const MODEL_WEB_SEARCH_OVERRIDE_VALUES = ['inherit', 'enabled', 'disabled'] as const
+
+export type ModelWebSearchOverride = (typeof MODEL_WEB_SEARCH_OVERRIDE_VALUES)[number]
+
 export interface ModelClassificationState {
   primaryType: ModelPrimaryType | null
   capabilities: Set<ModelCapabilityToggle>
   inputModalities: Set<ModelInputModality>
+  webSearch: ModelWebSearchOverride
 }
