@@ -14,6 +14,7 @@ const {
   mockList,
   mockGetById,
   mockListItems,
+  mockGetItemById,
   mockSearch,
   mockCreateBase,
   mockDeleteBase,
@@ -24,6 +25,7 @@ const {
   mockList: vi.fn<(query: unknown) => unknown>(),
   mockGetById: vi.fn<(id: string) => unknown>(),
   mockListItems: vi.fn<(baseId: string, query: unknown) => unknown>(),
+  mockGetItemById: vi.fn<(id: string) => unknown>(),
   mockSearch: vi.fn<(baseId: string, query: string) => Promise<unknown[]>>(),
   mockCreateBase: vi.fn<(input: unknown) => Promise<unknown>>(),
   mockDeleteBase: vi.fn<(baseId: string) => Promise<void>>(),
@@ -36,7 +38,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: { list: mockList, getById: mockGetById }
 }))
 vi.mock('@data/services/KnowledgeItemService', () => ({
-  knowledgeItemService: { list: mockListItems }
+  knowledgeItemService: { list: mockListItems, getById: mockGetItemById }
 }))
 vi.mock('@application', () => ({
   application: {
@@ -88,6 +90,7 @@ async function call(method: string, path: string, body?: unknown): Promise<{ sta
 describe('knowledge routes (v2)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetItemById.mockReturnValue({ id: 'note-1', baseId: 'kb-1' })
   })
 
   it('GET /knowledge-bases applies a true offset/limit window', async () => {
@@ -216,17 +219,29 @@ describe('knowledge routes (v2)', () => {
   it('DELETE /knowledge-bases/:id/documents/:documentId delegates subtree deletion', async () => {
     const { status, body } = await call('DELETE', '/knowledge-bases/kb-1/documents/note-1')
 
-    expect(status).toBe(200)
+    expect(status).toBe(202)
     expect(mockDeleteItems).toHaveBeenCalledWith('kb-1', ['note-1'])
-    expect(body).toEqual({ deleted: true })
+    expect(body).toEqual({ status: 'queued' })
   })
 
   it('POST /knowledge-bases/:id/documents/:documentId/reindex delegates durable reindexing', async () => {
     const { status, body } = await call('POST', '/knowledge-bases/kb-1/documents/note-1/reindex')
 
-    expect(status).toBe(200)
+    expect(status).toBe(202)
     expect(mockReindexItems).toHaveBeenCalledWith('kb-1', ['note-1'])
-    expect(body).toEqual({ reindexed: true })
+    expect(body).toEqual({ status: 'queued' })
+  })
+
+  it('rejects document operations when the document belongs to another knowledge base', async () => {
+    mockGetItemById.mockReturnValue({ id: 'note-1', baseId: 'kb-2' })
+
+    const deletion = await call('DELETE', '/knowledge-bases/kb-1/documents/note-1')
+    const reindex = await call('POST', '/knowledge-bases/kb-1/documents/note-1/reindex')
+
+    expect(deletion.status).toBe(404)
+    expect(reindex.status).toBe(404)
+    expect(mockDeleteItems).not.toHaveBeenCalled()
+    expect(mockReindexItems).not.toHaveBeenCalled()
   })
 
   it('DELETE /knowledge-bases/:id delegates base and artifact cleanup', async () => {

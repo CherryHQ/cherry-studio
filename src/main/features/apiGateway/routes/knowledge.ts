@@ -235,14 +235,18 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   )
   .delete(
     '/:id/documents/:documentId',
-    async ({ params }) => {
+    async ({ params, status }) => {
+      const document = knowledgeItemService.getById(params.documentId)
+      if (document.baseId !== params.id) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', params.documentId)
+      }
       const orchestrator = application.get('KnowledgeService')
       await orchestrator.deleteItems(params.id, [params.documentId])
-      return { deleted: true as const }
+      return status(202, { status: 'queued' as const })
     },
     {
       params: KnowledgeDocumentIdParamSchema,
-      response: { 200: DeleteKnowledgeDocumentResponseSchema },
+      response: { 202: DeleteKnowledgeDocumentResponseSchema },
       detail: {
         tags: [DOC_TAGS.cherry],
         summary: 'Delete Knowledge Document',
@@ -252,14 +256,18 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   )
   .post(
     '/:id/documents/:documentId/reindex',
-    async ({ params }) => {
+    async ({ params, status }) => {
+      const document = knowledgeItemService.getById(params.documentId)
+      if (document.baseId !== params.id) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', params.documentId)
+      }
       const orchestrator = application.get('KnowledgeService')
       await orchestrator.reindexItems(params.id, [params.documentId])
-      return { reindexed: true as const }
+      return status(202, { status: 'queued' as const })
     },
     {
       params: KnowledgeDocumentIdParamSchema,
-      response: { 200: ReindexKnowledgeDocumentResponseSchema },
+      response: { 202: ReindexKnowledgeDocumentResponseSchema },
       detail: {
         tags: [DOC_TAGS.cherry],
         summary: 'Reindex Knowledge Document',

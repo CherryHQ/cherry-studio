@@ -121,8 +121,8 @@ export const ListKnowledgeDocumentsResponseSchema = z.object({
 
 export const AddKnowledgeDocumentsResponseSchema = z.object({ status: z.literal('added') })
 
-export const DeleteKnowledgeDocumentResponseSchema = z.object({ deleted: z.literal(true) })
-export const ReindexKnowledgeDocumentResponseSchema = z.object({ reindexed: z.literal(true) })
+export const DeleteKnowledgeDocumentResponseSchema = z.object({ status: z.literal('queued') })
+export const ReindexKnowledgeDocumentResponseSchema = z.object({ status: z.literal('queued') })
 
 export const SearchKnowledgeResponseSchema = z.object({
   query: z.string(),
