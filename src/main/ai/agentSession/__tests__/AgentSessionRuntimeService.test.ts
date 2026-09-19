@@ -4960,10 +4960,9 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toBeDefined()
     expect(connection.close).not.toHaveBeenCalled()
 
-    // The late false verdict must not resurrect the teardown for a turn that already left.
+    // A late false verdict still requires teardown when no successor owns the connection.
     abortTurnSettled.resolve(false)
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(connection.close).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
     void service.closeSession('session-1')
     await stream.cancel().catch(() => undefined)
   })

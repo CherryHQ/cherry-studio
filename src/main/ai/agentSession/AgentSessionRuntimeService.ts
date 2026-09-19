@@ -1013,10 +1013,19 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = entry ? this.currentConnection(entry) : undefined
     const graceful = await this.raceAbortTurn(connection, sessionId, stoppingTurnId)
     if (graceful === true) return
-    // A failed interrupt falls back to the teardown unless the stopped turn already left the live
-    // set (settled or replaced) — the false-result contract outranks the background work the
-    // teardown also stops: an interrupt the subprocess ignored leaves no graceful path.
-    if (entry && stoppingTurnId && this.liveTurn(entry)?.turnId !== stoppingTurnId) return
+    await this.closeAfterFailedUserStop(sessionId, stoppingTurnId, connection)
+  }
+
+  private async closeAfterFailedUserStop(
+    sessionId: string,
+    stoppingTurnId: string | undefined,
+    connection: AgentRuntimeConnection | undefined
+  ): Promise<void> {
+    const entry = this.entries.get(sessionId)
+    if (!entry || this.currentConnection(entry) !== connection) return
+    // A successor owns the shared connection. An already-settled stopped turn does not.
+    const liveTurn = this.liveTurn(entry)
+    if (liveTurn && stoppingTurnId && liveTurn.turnId !== stoppingTurnId) return
     await this.closeSession(sessionId)
   }
 
@@ -1045,7 +1054,18 @@ export class AgentSessionRuntimeService extends BaseService {
       const entry = this.entries.get(sessionId)
       return !entry || (this.liveTurn(entry)?.turnId ?? stoppingTurnId) !== stoppingTurnId
     }
-    return Promise.race([aborting, turnLeftLive()])
+    const result = await Promise.race([
+      aborting.then((value) => ({ source: 'driver' as const, value })),
+      turnLeftLive().then((value) => ({ source: 'turn-left' as const, value }))
+    ])
+    if (result.source === 'turn-left' && result.value) {
+      // Release Stop when its turn settles, but honor a later failed driver verdict. DSH can
+      // report terminal before its separate cancel request times out.
+      void aborting.then((value) => {
+        if (value === false) void this.closeAfterFailedUserStop(sessionId, stoppingTurnId, connection)
+      })
+    }
+    return result.value
   }
 
   closeSession(sessionId: string): Promise<void> {
