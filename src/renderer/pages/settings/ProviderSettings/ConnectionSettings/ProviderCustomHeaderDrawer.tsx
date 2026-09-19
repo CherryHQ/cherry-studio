@@ -32,6 +32,10 @@ import type { EndpointConfig } from '@shared/data/types/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 
 import { ProviderImageEndpointFields } from '../components/ProviderImageEndpointFields'
+import {
+  serializeEndpointConfigsWrite,
+  setLastWrittenEndpointConfigs
+} from '../hooks/providerSetting/endpointConfigsWriteCoordinator'
 import { useProviderModelSync } from '../hooks/useProviderModelSync'
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -348,23 +352,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    // A reasoning format committed elsewhere may have PATCHed while its
-    // refresh is still outstanding, leaving `provider` stale. Refetch so
-    // untouched drafts preserve it instead of writing the stale snapshot.
-    let existingConfigs = provider?.endpointConfigs
-    try {
-      const fresh = (await refetch()) as { endpointConfigs?: typeof existingConfigs } | undefined
-      if (fresh?.endpointConfigs) {
-        existingConfigs = fresh.endpointConfigs
-      }
-    } catch {
-      // Fall back to the cached provider on refetch failure.
-    }
-    const textEndpointConfigs = mergeEndpointConfigs(existingConfigs, endpointDrafts, openEndpointConfigsRef.current)
-    const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
-    const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
-    const defaultEndpointChanged = defaultChatEndpoint !== primaryEndpoint
-
     let parsedHeaders: Record<string, string>
     if (headersUiMode === 'json') {
       const parsed = parseHeadersJsonDraft(jsonDraft)
@@ -377,22 +364,43 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       parsedHeaders = rowsToHeadersObject(rows)
     }
 
-    try {
-      await updateProvider({
-        endpointConfigs: nextEndpointConfigs,
-        defaultChatEndpoint,
-        providerSettings: {
-          ...provider.settings,
-          extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
+    // A reasoning format committed elsewhere may still be in flight: wait for
+    // coordinated writes to finish, then refetch so untouched drafts preserve
+    // the landed value instead of writing a stale snapshot over it.
+    const nextEndpointConfigs = await serializeEndpointConfigsWrite(provider.id, async () => {
+      let existingConfigs = provider?.endpointConfigs
+      try {
+        const fresh = (await refetch()) as { endpointConfigs?: typeof existingConfigs } | undefined
+        if (fresh?.endpointConfigs) {
+          existingConfigs = fresh.endpointConfigs
         }
-      })
-    } catch (error) {
-      // Surface the failure and keep the drawer open so the user can retry
-      // instead of silently losing their edits.
-      logger.error('Failed to save provider request config', error as Error, { providerId })
-      toast.error(t('settings.provider.save_failed'))
-      return
-    }
+      } catch {
+        // Fall back to the cached provider on refetch failure.
+      }
+      const textEndpointConfigs = mergeEndpointConfigs(existingConfigs, endpointDrafts, openEndpointConfigsRef.current)
+      const merged = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
+      try {
+        await updateProvider({
+          endpointConfigs: merged,
+          defaultChatEndpoint,
+          providerSettings: {
+            ...provider.settings,
+            extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
+          }
+        })
+      } catch (error) {
+        // Surface the failure and keep the drawer open so the user can retry
+        // instead of silently losing their edits.
+        logger.error('Failed to save provider request config', error as Error, { providerId })
+        toast.error(t('settings.provider.save_failed'))
+        return undefined
+      }
+      setLastWrittenEndpointConfigs(provider.id, merged)
+      return merged
+    })
+    if (!nextEndpointConfigs) return
+    const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
+    const defaultEndpointChanged = defaultChatEndpoint !== primaryEndpoint
 
     if (defaultEndpointChanged || defaultEndpointDraft !== previousDefaultBaseUrl) {
       syncProviderModels({
