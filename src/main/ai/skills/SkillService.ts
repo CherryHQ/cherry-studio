@@ -639,9 +639,20 @@ export class SkillService {
           agentGlobalSkillService.updateTx(tx, renamed.id, { folderName, ...metadataUpdate })
         })
       } catch (error) {
-        // Best-effort rollback to the complete old state; a leftover `.bak` marker is restored
-        // by startup recovery, so even a double fault loses nothing.
-        if (backupPath) {
+        // Drop the replacement before consuming the marker: a failed cleanup keeps
+        // the marker for startup recovery instead of orphaning a duplicate.
+        let replacementRemoved = false
+        try {
+          await this.installer.uninstall(destPath)
+          replacementRemoved = true
+        } catch (cleanupError) {
+          logger.error('Failed to clean up skill files after migration failure', {
+            folderName,
+            destPath,
+            error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+          })
+        }
+        if (replacementRemoved && backupPath) {
           try {
             await this.installer.restoreMigrationBackup(backupPath, this.getSkillStoragePath(renamed.folderName))
           } catch (restoreError) {
@@ -650,15 +661,6 @@ export class SkillService {
               error: restoreError instanceof Error ? restoreError.message : String(restoreError)
             })
           }
-        }
-        try {
-          await this.installer.uninstall(destPath)
-        } catch (cleanupError) {
-          logger.error('Failed to clean up skill files after migration failure', {
-            folderName,
-            destPath,
-            error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
-          })
         }
         throw error
       }
