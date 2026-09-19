@@ -182,7 +182,7 @@ describe('AppMenuService', () => {
   it('does not call center when the focused window is unmanaged', async () => {
     await (service as any).onInit()
 
-    getFocusedWindowMock.mockReturnValue({ id: 7 } as BrowserWindow)
+    getFocusedWindowMock.mockReturnValue({ id: 7 })
     windowManagerMock.getWindowId.mockReturnValue(undefined)
 
     const windowSubmenu = latestTemplate()[4].submenu as MenuItemConstructorOptions[]
