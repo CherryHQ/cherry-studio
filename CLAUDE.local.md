@@ -193,10 +193,24 @@ Kurulu Haiku alt ajanları — mekanik iş bunlara gider, ana bağlamı kirletme
 | `i18n-translator` | `pnpm i18n:sync` `[to be translated]:` bıraktığında |
 | `preference-key-adder` | Yeni `usePreference` anahtarı gerektiğinde (üretilen dosya tuzağını bilir) |
 | `catalog-data-writer` | Sağlayıcı ön ayarı, model denklik haritası, site adaptörü gibi toplu veri |
+| `cherry-builder` | **Sonnet.** `GOREVLER-2.md`'deki bir maddeyi baştan commit'e kadar götürür. Yalnız "küçük modelle güvenli" listesindekiler için |
 | `Explore` (yerleşik) | "Bu nerede tanımlı" aramaları |
 
 Ana oturum: tasarım kararı, mimari, hata ayıklama, yeni özellik.
 **Mekanik bir iş 3+ dosyaya yayılıyorsa ve karar gerektirmiyorsa alt ajana ver.**
+
+### Token bütçesi — varsayılan olarak `cherry-builder`'a ver
+
+Kullanıcı **Pro** planda ve haftalık bütçe gerçek bir sınır (2026-09-19'da bir gecede %36
+harcanmıştı). Ana oturum pahalı modelde çalışıyor; iş orada yapılırsa bütçe erken biter.
+
+Kural: `GOREVLER-2.md`'de **"küçük modelle güvenli"** listesindeki bir maddeye ana oturumda
+başlama — `cherry-builder`'a (Sonnet) ver, sonucunu oku, gerekirse düzelt. Ana oturum yalnızca
+"başlama, söyle ve dur" listesindeki maddeleri kendi yapar.
+
+**Kendi modelini/eforunu değiştiremezsin** — araç bunu tasarım gereği reddediyor. Bütçe sıkışıksa
+kullanıcıya söyle: model seçicisinden daha ucuz bir model, ve **Max → high** efor. Max en pahalı
+ayar ve rutin iş için gereksiz.
 Yeni ajan gerekirse `.claude/agents/<isim>.md` aç, `model: haiku` yaz; `i18n-translator.md` örnek.
 
 ## Bozulmaması gereken tasarım kuralları
