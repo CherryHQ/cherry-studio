@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { ModelHealthMemory } from '@shared/data/preference/preferenceTypes'
 import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import { MODEL_HEALTH_STALE_AFTER_MS } from '@shared/utils/modelHealth'
 
 import { deriveRoutingTable, type RoutableModel } from '../deriveRoutingTable'
 
@@ -31,8 +32,8 @@ describe('deriveRoutingTable', () => {
 
   it('ranks a model that failed its last probe below a weaker one that answers', () => {
     const health: ModelHealthMemory = {
-      ['openai::gpt-5.6' as UniqueModelId]: { ok: false, checkedAt: 1 },
-      ['groq::llama-3.2-3b' as UniqueModelId]: { ok: true, checkedAt: 1 }
+      ['openai::gpt-5.6' as UniqueModelId]: { ok: false, checkedAt: Date.now() },
+      ['groq::llama-3.2-3b' as UniqueModelId]: { ok: true, checkedAt: Date.now() }
     }
 
     const ids = idsFor(
@@ -47,6 +48,42 @@ describe('deriveRoutingTable', () => {
     expect(ids[0]).toBe('groq::llama-3.2-3b')
     // Demoted, not dropped — the provider may have recovered since the probe.
     expect(ids).toContain('openai::gpt-5.6')
+  })
+
+  it('stops ranking a failed probe below a healthy one once both are older than the staleness window', () => {
+    const stale = Date.now() - MODEL_HEALTH_STALE_AFTER_MS - 1
+    const health: ModelHealthMemory = {
+      ['openai::gpt-5.6' as UniqueModelId]: { ok: false, checkedAt: stale },
+      ['groq::llama-3.2-3b' as UniqueModelId]: { ok: true, checkedAt: stale }
+    }
+
+    const ids = idsFor(
+      deriveRoutingTable({
+        models: [model('openai::gpt-5.6'), model('groq::llama-3.2-3b')],
+        health,
+        exhaustedProviderIds: noneExhausted
+      }),
+      'general'
+    )
+
+    // Neither an old failure nor an old success is evidence about right now, so quality alone decides.
+    expect(ids[0]).toBe('openai::gpt-5.6')
+  })
+
+  it('treats the exact staleness boundary as expired, not fresh', () => {
+    const boundary = Date.now() - MODEL_HEALTH_STALE_AFTER_MS
+    const health: ModelHealthMemory = { ['openai::gpt-5.6' as UniqueModelId]: { ok: false, checkedAt: boundary } }
+
+    const ids = idsFor(
+      deriveRoutingTable({
+        models: [model('openai::gpt-5.6'), model('groq::llama-3.2-3b')],
+        health,
+        exhaustedProviderIds: noneExhausted
+      }),
+      'general'
+    )
+
+    expect(ids[0]).toBe('openai::gpt-5.6')
   })
 
   it('keeps a model whose provider is out of quota, ranked last', () => {

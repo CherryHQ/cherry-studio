@@ -5,6 +5,7 @@
 import type { ModelHealthMemory, TaskCategory } from '@shared/data/preference/preferenceTypes'
 import { MODALITY, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { DerivedRoutingTable, RoutingCandidate } from '@shared/data/types/routing'
+import { freshModelHealth } from '@shared/utils/modelHealth'
 import { getModelQualityScore } from '@shared/utils/modelQuality'
 
 /** The slice of a model this ranking needs; keeps the function free of the data layer. */
@@ -83,7 +84,7 @@ function categoryAffinity(model: RoutableModel, category: TaskCategory): number 
 }
 
 function scoreFor(model: RoutableModel, category: TaskCategory, input: DeriveRoutingInput): RoutingCandidate {
-  const probe = input.health[model.id]
+  const probe = freshModelHealth(input.health[model.id])
   const quality = getModelQualityScore(model.id)
   const affinity = categoryAffinity(model, category)
   const healthDelta = probe?.ok === false ? -UNHEALTHY_PENALTY : probe?.ok === true ? HEALTHY_BONUS : 0

@@ -6,6 +6,7 @@ import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { MODEL_HEALTH_STALE_AFTER_MS } from '@shared/utils/modelHealth'
 
 import { summarizeHealth } from '../healthSummary'
 
@@ -106,7 +107,7 @@ describe('summarizeHealth models', () => {
 
   it('counts a model with a successful health record as healthy, not unchecked', () => {
     const model = makeModel('gpt', 'openai')
-    const health: ModelHealthMemory = { [model.id]: { ok: true, checkedAt: 1 } }
+    const health: ModelHealthMemory = { [model.id]: { ok: true, checkedAt: Date.now() } }
     expect(summarize({ providers: [provider], models: [model], modelHealth: health }).models).toEqual({
       healthyCount: 1,
       unhealthyCount: 0,
@@ -116,11 +117,36 @@ describe('summarizeHealth models', () => {
 
   it('counts a model with a failed health record as unhealthy, not healthy', () => {
     const model = makeModel('gpt', 'openai')
-    const health: ModelHealthMemory = { [model.id]: { ok: false, checkedAt: 1 } }
+    const health: ModelHealthMemory = { [model.id]: { ok: false, checkedAt: Date.now() } }
     expect(summarize({ providers: [provider], models: [model], modelHealth: health }).models).toEqual({
       healthyCount: 0,
       unhealthyCount: 1,
       uncheckedCount: 0
+    })
+  })
+
+  it('counts a failed health record older than the staleness window as unchecked, not unhealthy', () => {
+    const model = makeModel('gpt', 'openai')
+    const health: ModelHealthMemory = {
+      [model.id]: { ok: false, checkedAt: Date.now() - MODEL_HEALTH_STALE_AFTER_MS - 1 }
+    }
+    expect(summarize({ providers: [provider], models: [model], modelHealth: health }).models).toEqual({
+      healthyCount: 0,
+      unhealthyCount: 0,
+      uncheckedCount: 1
+    })
+  })
+
+  it('counts a successful health record older than the staleness window as unchecked too', () => {
+    // An old ok: true is not evidence the model still answers, so it must not read as healthy either.
+    const model = makeModel('gpt', 'openai')
+    const health: ModelHealthMemory = {
+      [model.id]: { ok: true, checkedAt: Date.now() - MODEL_HEALTH_STALE_AFTER_MS - 1 }
+    }
+    expect(summarize({ providers: [provider], models: [model], modelHealth: health }).models).toEqual({
+      healthyCount: 0,
+      unhealthyCount: 0,
+      uncheckedCount: 1
     })
   })
 
@@ -158,12 +184,24 @@ describe('summarizeHealth localRuntimes', () => {
     const provider = makeProvider('lmstudio', { authOptional: true, name: 'LM Studio' })
     const older = makeModel('a', 'lmstudio')
     const newer = makeModel('b', 'lmstudio')
+    const now = Date.now()
     const health: ModelHealthMemory = {
-      [older.id]: { ok: true, checkedAt: 1000 },
-      [newer.id]: { ok: false, checkedAt: 2000 }
+      [older.id]: { ok: true, checkedAt: now - 2000 },
+      [newer.id]: { ok: false, checkedAt: now - 1000 }
     }
     expect(summarize({ providers: [provider], models: [older, newer], modelHealth: health }).localRuntimes).toEqual([
-      { providerId: 'lmstudio', name: 'LM Studio', state: 'down', checkedAt: 2000 }
+      { providerId: 'lmstudio', name: 'LM Studio', state: 'down', checkedAt: now - 1000 }
+    ])
+  })
+
+  it('falls back to unknown once the freshest probe result has itself gone stale', () => {
+    const provider = makeProvider('lmstudio', { authOptional: true, name: 'LM Studio' })
+    const model = makeModel('a', 'lmstudio')
+    const health: ModelHealthMemory = {
+      [model.id]: { ok: false, checkedAt: Date.now() - MODEL_HEALTH_STALE_AFTER_MS - 1 }
+    }
+    expect(summarize({ providers: [provider], models: [model], modelHealth: health }).localRuntimes).toEqual([
+      { providerId: 'lmstudio', name: 'LM Studio', state: 'unknown' }
     ])
   })
 

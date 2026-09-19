@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ApiKeyLimitMap } from '@shared/data/preference/preferenceTypes'
-import { createUniqueModelId } from '@shared/data/types/model'
+import type { ApiKeyLimitMap, ModelHealthMemory } from '@shared/data/preference/preferenceTypes'
+import { createUniqueModelId, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { apiKeyLimitId, apiKeyModelLimitId } from '@shared/utils/apiKeyLimit'
+import { MODEL_HEALTH_STALE_AFTER_MS } from '@shared/utils/modelHealth'
 
-import { getRemainingQuota, isQuotaExhausted } from '../modelAvailability'
+import { getModelPassiveReason, getRemainingQuota, isQuotaExhausted } from '../modelAvailability'
 
 const MODEL_ID = createUniqueModelId('deepseek', 'deepseek-chat')
 const OTHER_MODEL_ID = createUniqueModelId('deepseek', 'deepseek-reasoner')
@@ -100,5 +101,29 @@ describe('isQuotaExhausted', () => {
     const limits: ApiKeyLimitMap = { [apiKeyLimitId('deepseek', 'k1')]: { limit: 10, period: 'daily' } }
 
     expect(isQuotaExhausted(twoKeys, MODEL_ID, limits, new Map([['k1', 10]]))).toBe(false)
+  })
+})
+
+describe('getModelPassiveReason model health', () => {
+  const model = { id: MODEL_ID, isEnabled: true } as unknown as Model
+
+  it('demotes a model whose last probe failed a moment ago', () => {
+    const health: ModelHealthMemory = { [MODEL_ID]: { ok: false, checkedAt: Date.now() } }
+
+    expect(getModelPassiveReason(model, twoKeys, health)).toBe('unhealthy')
+  })
+
+  it('stops demoting once that failure is older than the staleness window', () => {
+    const health: ModelHealthMemory = {
+      [MODEL_ID]: { ok: false, checkedAt: Date.now() - MODEL_HEALTH_STALE_AFTER_MS - 1 }
+    }
+
+    expect(getModelPassiveReason(model, twoKeys, health)).toBeUndefined()
+  })
+
+  it('treats the exact staleness boundary as expired, not fresh', () => {
+    const health: ModelHealthMemory = { [MODEL_ID]: { ok: false, checkedAt: Date.now() - MODEL_HEALTH_STALE_AFTER_MS } }
+
+    expect(getModelPassiveReason(model, twoKeys, health)).toBeUndefined()
   })
 })

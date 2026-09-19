@@ -4,6 +4,7 @@ import type { ModelHealthMemory } from '@shared/data/preference/preferenceTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { freshModelHealth } from '@shared/utils/modelHealth'
 import { hasApiKeys, isLoginBasedProvider } from '@shared/utils/provider'
 
 export type LocalRuntimeState = 'ok' | 'down' | 'unknown'
@@ -47,8 +48,8 @@ function summarizeModels(
   health: ModelHealthMemory
 ): { relevant: Model[]; healthyCount: number; unhealthyCount: number; uncheckedCount: number } {
   const relevant = models.filter((model) => model.isEnabled && enabledProviderIds.has(model.providerId))
-  const healthyCount = relevant.filter((model) => health[model.id]?.ok === true).length
-  const unhealthyCount = relevant.filter((model) => health[model.id]?.ok === false).length
+  const healthyCount = relevant.filter((model) => freshModelHealth(health[model.id])?.ok === true).length
+  const unhealthyCount = relevant.filter((model) => freshModelHealth(health[model.id])?.ok === false).length
   return { relevant, healthyCount, unhealthyCount, uncheckedCount: relevant.length - healthyCount - unhealthyCount }
 }
 
@@ -64,7 +65,7 @@ function summarizeLocalRuntimes(
       const freshest = relevantModels
         .filter((model) => model.providerId === provider.id)
         .reduce<{ ok: boolean; checkedAt: number } | undefined>((latest, model) => {
-          const record = health[model.id]
+          const record = freshModelHealth(health[model.id])
           if (!record) return latest
           return !latest || record.checkedAt > latest.checkedAt ? record : latest
         }, undefined)

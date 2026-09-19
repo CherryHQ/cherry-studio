@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { UniqueModelId } from '@shared/data/types/model'
+import { MODEL_HEALTH_STALE_AFTER_MS } from '@shared/utils/modelHealth'
 
 const preferenceGet = vi.fn()
 const getByKey = vi.fn()
@@ -96,7 +97,7 @@ describe('routeDefaultModelId', () => {
   it('skips a candidate whose last health probe failed', () => {
     withPreferences({
       categoryModels: { code: [CODER, RESEARCHER] },
-      health: { [CODER]: { ok: false, checkedAt: 1 } }
+      health: { [CODER]: { ok: false, checkedAt: Date.now() } }
     })
 
     expect(routeDefaultModelId(textParts('bu kodu derle'), FALLBACK)).toBe(RESEARCHER)
@@ -152,7 +153,7 @@ describe('routeDefaultModelId — rescuing a broken default', () => {
   it('replaces a default whose last probe failed with the best healthy model', () => {
     withPreferences({
       categoryModels: {},
-      health: { [FALLBACK]: { ok: false, checkedAt: 1 }, [CODER]: { ok: true, checkedAt: 1 } }
+      health: { [FALLBACK]: { ok: false, checkedAt: Date.now() }, [CODER]: { ok: true, checkedAt: Date.now() } }
     })
 
     expect(routeDefaultModelId(textParts('naber'), FALLBACK)).toBe(CODER)
@@ -161,7 +162,7 @@ describe('routeDefaultModelId — rescuing a broken default', () => {
   it('leaves a default that still answers alone', () => {
     withPreferences({
       categoryModels: {},
-      health: { [FALLBACK]: { ok: true, checkedAt: 1 }, [CODER]: { ok: true, checkedAt: 1 } }
+      health: { [FALLBACK]: { ok: true, checkedAt: Date.now() }, [CODER]: { ok: true, checkedAt: Date.now() } }
     })
 
     expect(routeDefaultModelId(textParts('naber'), FALLBACK)).toBe(FALLBACK)
@@ -170,6 +171,40 @@ describe('routeDefaultModelId — rescuing a broken default', () => {
   it('keeps an unprobed default rather than guessing', () => {
     withPreferences({ categoryModels: {}, health: {} })
 
+    expect(routeDefaultModelId(textParts('naber'), FALLBACK)).toBe(FALLBACK)
+  })
+
+  it('keeps a default whose last probe failed once that failure is older than the staleness window', () => {
+    const stale = Date.now() - MODEL_HEALTH_STALE_AFTER_MS - 1
+    withPreferences({
+      categoryModels: {},
+      health: { [FALLBACK]: { ok: false, checkedAt: stale }, [CODER]: { ok: true, checkedAt: Date.now() } }
+    })
+
+    expect(routeDefaultModelId(textParts('naber'), FALLBACK)).toBe(FALLBACK)
+  })
+
+  it('treats a failure recorded exactly at the staleness boundary as expired, not fresh', () => {
+    const boundary = Date.now() - MODEL_HEALTH_STALE_AFTER_MS
+    withPreferences({
+      categoryModels: {},
+      health: { [FALLBACK]: { ok: false, checkedAt: boundary }, [CODER]: { ok: true, checkedAt: Date.now() } }
+    })
+
+    expect(routeDefaultModelId(textParts('naber'), FALLBACK)).toBe(FALLBACK)
+  })
+
+  it('does not rescue with a healthy verdict that has itself gone stale', () => {
+    withPreferences({
+      categoryModels: {},
+      health: {
+        [FALLBACK]: { ok: false, checkedAt: Date.now() },
+        [CODER]: { ok: true, checkedAt: Date.now() - MODEL_HEALTH_STALE_AFTER_MS - 1 }
+      }
+    })
+
+    // The default's own failure is fresh, but its only rescue candidate's health has expired too —
+    // an old ok: true is not proof CODER answers now, so there is nothing safe to switch to.
     expect(routeDefaultModelId(textParts('naber'), FALLBACK)).toBe(FALLBACK)
   })
 })

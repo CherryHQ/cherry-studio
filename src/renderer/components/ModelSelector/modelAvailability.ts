@@ -2,6 +2,7 @@ import type { ApiKeyLimitMap, ModelHealthMemory } from '@shared/data/preference/
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { apiKeyLimitId, apiKeyModelLimitId } from '@shared/utils/apiKeyLimit'
+import { freshModelHealth } from '@shared/utils/modelHealth'
 import { isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
@@ -97,7 +98,7 @@ export function getModelPassiveReason(
   if (isCherryAIProvider(provider)) return 'unavailable'
   if (!model.isEnabled) return 'disabled'
   if (!hasUsableCredential(provider)) return 'no_credential'
-  if (health?.[model.id]?.ok === false) return 'unhealthy'
+  if (freshModelHealth(health?.[model.id])?.ok === false) return 'unhealthy'
   if (quotaExhaustedIds?.has(model.id)) return 'quota_exhausted'
   return undefined
 }

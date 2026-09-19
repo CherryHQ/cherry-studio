@@ -7,6 +7,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import type { ModelHealthMemory, TaskCategory } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { freshModelHealth } from '@shared/utils/modelHealth'
 import { getModelQualityScore } from '@shared/utils/modelQuality'
 import { classifyTaskCategory, estimateTaskDifficulty } from '@shared/utils/taskCategory'
 
@@ -24,7 +25,10 @@ function promptTextOf(parts: readonly TextPart[]): string {
 /** Highest-quality model whose last probe passed, used to rescue a known-broken default. */
 function bestHealthyModelId(health: ModelHealthMemory): UniqueModelId | undefined {
   return Object.entries(health)
-    .filter(([uniqueModelId, entry]) => entry.ok && isUniqueModelId(uniqueModelId) && modelExists(uniqueModelId))
+    .filter(
+      ([uniqueModelId, entry]) =>
+        freshModelHealth(entry)?.ok && isUniqueModelId(uniqueModelId) && modelExists(uniqueModelId)
+    )
     .map(([uniqueModelId]) => uniqueModelId as UniqueModelId)
     .sort((a, b) => getModelQualityScore(b) - getModelQualityScore(a))[0]
 }
@@ -79,7 +83,7 @@ export function routeDefaultModelId(parts: readonly TextPart[], fallback: Unique
     // A default left over from onboarding can point at a provider the user has since switched off;
     // treat that as broken too, otherwise every chat fails with "model may not exist".
     if (candidates.length === 0) {
-      if (health[fallback]?.ok !== false && modelExists(fallback)) return fallback
+      if (freshModelHealth(health[fallback])?.ok !== false && modelExists(fallback)) return fallback
       const rescue = bestHealthyModelId(health)
       if (rescue) logger.info('replaced a model that failed its last probe', { category, rescue })
       return rescue ?? fallback
@@ -87,7 +91,7 @@ export function routeDefaultModelId(parts: readonly TextPart[], fallback: Unique
 
     // Hard work gets the strongest model configured for the category; easy work gets the weakest
     // one, so a scarce frontier quota is not spent on a one-line edit.
-    const usable = candidates.filter((id) => health[id]?.ok !== false)
+    const usable = candidates.filter((id) => freshModelHealth(health[id])?.ok !== false)
     const pool = usable.length > 0 ? usable : candidates
     const difficulty = estimateTaskDifficulty(promptText)
     const byQuality = [...pool].sort((a, b) => getModelQualityScore(b) - getModelQualityScore(a))

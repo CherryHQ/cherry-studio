@@ -3,12 +3,13 @@
 
 import type { ModelHealthMemory, RetryFallbackModelId } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { freshModelHealth } from '@shared/utils/modelHealth'
 import { getModelQualityScore } from '@shared/utils/modelQuality'
 
 const HEALTH_RANK = { ok: 0, unknown: 1, failed: 2 } as const
 
 function healthRank(id: RetryFallbackModelId, health: ModelHealthMemory): number {
-  const entry = health[id]
+  const entry = freshModelHealth(health[id])
   if (!entry) return HEALTH_RANK.unknown
   return entry.ok ? HEALTH_RANK.ok : HEALTH_RANK.failed
 }

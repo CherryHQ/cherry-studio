@@ -6,6 +6,7 @@ import { modelService } from '@main/data/services/ModelService'
 import type { ModelHealthMemory, RetryFallbackModelId } from '@shared/data/preference/preferenceTypes'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
+import { freshModelHealth } from '@shared/utils/modelHealth'
 import { getModelQualityScore } from '@shared/utils/modelQuality'
 
 const logger = loggerService.withContext('AutoFallback')
@@ -19,7 +20,7 @@ const MAX_AUTO_FALLBACKS = 4
  */
 export function buildAutoFallbackModelIds(health: ModelHealthMemory): RetryFallbackModelId[] {
   const healthyIds = Object.entries(health)
-    .filter(([, entry]) => entry.ok)
+    .filter(([, entry]) => freshModelHealth(entry)?.ok)
     .map(([uniqueModelId]) => uniqueModelId)
   if (healthyIds.length === 0) return []
 
