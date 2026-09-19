@@ -1,5 +1,7 @@
 import * as z from 'zod'
 
+import { KNOWLEDGE_NOTE_CONTENT_MAX, KNOWLEDGE_RUNTIME_ITEMS_MAX } from '@shared/data/types/knowledge'
+
 /**
  * Request and response schemas for the knowledge routes. Request schemas validate
  * `query`/`body`/`params`; response schemas are passed to Elysia's `response` option
@@ -12,6 +14,35 @@ import * as z from 'zod'
 
 /** Knowledge base ID — non-empty string. */
 const KnowledgeBaseIdSchema = z.string().min(1, 'Knowledge base ID is required')
+const KnowledgeDocumentIdSchema = z.string().min(1, 'Knowledge document ID is required')
+
+/** `POST /` body. A missing model pair creates a BM25-only base. */
+export const CreateKnowledgeBaseRequestSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required'),
+    embedding_model_id: z.string().trim().min(1).nullable().optional(),
+    dimensions: z.number().int().positive().nullable().optional()
+  })
+  .superRefine((value, ctx) => {
+    if ((value.embedding_model_id == null) !== (value.dimensions == null)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dimensions'],
+        message: 'Embedding model and dimensions must be provided together'
+      })
+    }
+  })
+
+const RawTextDocumentSchema = z.object({
+  title: z.string().trim().min(1, 'Document title is required'),
+  content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX),
+  group_id: z.string().trim().min(1).nullable().optional()
+})
+
+/** `POST /:id/documents` body. The existing workflow preserves name collisions by renaming. */
+export const AddKnowledgeDocumentsRequestSchema = z.object({
+  documents: z.array(RawTextDocumentSchema).min(1).max(KNOWLEDGE_RUNTIME_ITEMS_MAX)
+})
 
 /** `POST /search` body. */
 export const KnowledgeSearchSchema = z.object({
@@ -31,6 +62,11 @@ export const KnowledgeBaseIdParamSchema = z.object({
   id: KnowledgeBaseIdSchema
 })
 
+export const KnowledgeDocumentIdParamSchema = z.object({
+  id: KnowledgeBaseIdSchema,
+  documentId: KnowledgeDocumentIdSchema
+})
+
 // ── Response schemas ────────────────────────────────────────────────
 
 /** A knowledge base entry / search result — kept loose (rich v2 shapes). */
@@ -44,6 +80,26 @@ export const ListKnowledgeBasesResponseSchema = z.object({
 })
 
 export const KnowledgeBaseResponseSchema = KnowledgeBaseEntry
+
+export const DeleteKnowledgeBaseResponseSchema = z.object({ deleted: z.literal(true) })
+
+const KnowledgeDocumentEntry = z.looseObject({
+  id: z.string(),
+  baseId: z.string(),
+  type: z.enum(['file', 'url', 'note', 'directory']),
+  status: z.string(),
+  groupId: z.string().nullable()
+})
+
+export const ListKnowledgeDocumentsResponseSchema = z.object({
+  documents: z.array(KnowledgeDocumentEntry),
+  total: z.number().int().nonnegative()
+})
+
+export const AddKnowledgeDocumentsResponseSchema = z.object({ status: z.literal('added') })
+
+export const DeleteKnowledgeDocumentResponseSchema = z.object({ deleted: z.literal(true) })
+export const ReindexKnowledgeDocumentResponseSchema = z.object({ reindexed: z.literal(true) })
 
 export const SearchKnowledgeResponseSchema = z.object({
   query: z.string(),

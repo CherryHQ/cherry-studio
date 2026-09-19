@@ -2,16 +2,25 @@ import { Elysia } from 'elysia'
 
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ERROR_STATUS_MAP, ErrorCode } from '@shared/data/api/errors'
 
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import {
+  AddKnowledgeDocumentsRequestSchema,
+  AddKnowledgeDocumentsResponseSchema,
+  CreateKnowledgeBaseRequestSchema,
+  DeleteKnowledgeBaseResponseSchema,
+  DeleteKnowledgeDocumentResponseSchema,
   KnowledgeBaseIdParamSchema,
   KnowledgeBaseResponseSchema,
+  KnowledgeDocumentIdParamSchema,
   KnowledgeSearchSchema,
+  ListKnowledgeDocumentsResponseSchema,
   ListKnowledgeBasesResponseSchema,
   PaginationQuerySchema,
+  ReindexKnowledgeDocumentResponseSchema,
   SearchKnowledgeResponseSchema
 } from './knowledgeSchemas'
 
@@ -48,6 +57,26 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
         tags: [DOC_TAGS.cherry],
         summary: 'List Knowledge Bases',
         description: DOC_DESCRIPTIONS.list_knowledge_bases
+      }
+    }
+  )
+  .post(
+    '/',
+    async ({ body }) => {
+      const orchestrator = application.get('KnowledgeService')
+      return await orchestrator.createBase({
+        name: body.name,
+        embeddingModelId: body.embedding_model_id,
+        dimensions: body.dimensions
+      })
+    },
+    {
+      body: CreateKnowledgeBaseRequestSchema,
+      response: { 200: KnowledgeBaseResponseSchema },
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'Create Knowledge Base',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
       }
     }
   )
@@ -146,6 +175,99 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
         tags: [DOC_TAGS.cherry],
         summary: 'Search Knowledge Bases',
         description: DOC_DESCRIPTIONS.search_knowledge_bases
+      }
+    }
+  )
+  .get(
+    '/:id/documents',
+    ({ params }) => {
+      const documents = knowledgeItemService
+        .getItemsByBaseId(params.id)
+        .map((document) => ({ ...document, groupId: document.groupId ?? null }))
+      return { documents, total: documents.length }
+    },
+    {
+      params: KnowledgeBaseIdParamSchema,
+      response: { 200: ListKnowledgeDocumentsResponseSchema },
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'List Knowledge Documents',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
+      }
+    }
+  )
+  .post(
+    '/:id/documents',
+    async ({ params, body }) => {
+      const orchestrator = application.get('KnowledgeService')
+      return await orchestrator.addItems(
+        params.id,
+        body.documents.map((document) => ({
+          type: 'note' as const,
+          groupId: document.group_id,
+          data: { source: document.title, content: document.content }
+        }))
+      )
+    },
+    {
+      params: KnowledgeBaseIdParamSchema,
+      body: AddKnowledgeDocumentsRequestSchema,
+      response: { 200: AddKnowledgeDocumentsResponseSchema },
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'Add Raw-Text Documents',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
+      }
+    }
+  )
+  .delete(
+    '/:id/documents/:documentId',
+    async ({ params }) => {
+      const orchestrator = application.get('KnowledgeService')
+      await orchestrator.deleteItems(params.id, [params.documentId])
+      return { deleted: true as const }
+    },
+    {
+      params: KnowledgeDocumentIdParamSchema,
+      response: { 200: DeleteKnowledgeDocumentResponseSchema },
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'Delete Knowledge Document',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
+      }
+    }
+  )
+  .post(
+    '/:id/documents/:documentId/reindex',
+    async ({ params }) => {
+      const orchestrator = application.get('KnowledgeService')
+      await orchestrator.reindexItems(params.id, [params.documentId])
+      return { reindexed: true as const }
+    },
+    {
+      params: KnowledgeDocumentIdParamSchema,
+      response: { 200: ReindexKnowledgeDocumentResponseSchema },
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'Reindex Knowledge Document',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
+      }
+    }
+  )
+  .delete(
+    '/:id',
+    async ({ params }) => {
+      const orchestrator = application.get('KnowledgeService')
+      await orchestrator.deleteBase(params.id)
+      return { deleted: true as const }
+    },
+    {
+      params: KnowledgeBaseIdParamSchema,
+      response: { 200: DeleteKnowledgeBaseResponseSchema },
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'Delete Knowledge Base',
+        description: DOC_DESCRIPTIONS.manage_knowledge_bases
       }
     }
   )

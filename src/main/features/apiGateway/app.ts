@@ -182,6 +182,8 @@ export function buildApp({
           messages: 'POST /v1/messages',
           generate_content: 'POST /v1beta/models/{model}:generateContent',
           knowledge_bases: 'GET /v1/knowledge-bases',
+          knowledge_base_create: 'POST /v1/knowledge-bases',
+          knowledge_documents: 'GET/POST /v1/knowledge-bases/{id}/documents',
           knowledge_search: 'POST /v1/knowledge-bases/search',
           mcp_servers: 'GET /v1/mcps',
           mcp_proxy: 'POST /v1/mcps/{server_id}/mcp'
