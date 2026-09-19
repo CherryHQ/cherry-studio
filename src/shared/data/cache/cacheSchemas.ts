@@ -160,6 +160,8 @@ export type UseCacheSchema = {
   'agent.session.waiting_id_map': Record<string, boolean>
   // Per-session composer draft. Renderer memory only; app restart discards it.
   'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
+  // Unsubmitted AskUserQuestion answers. Renderer memory only; cleared on submit/dismiss.
+  'agent.ask_user_question_draft.${approvalId}': CacheValueTypes.CacheAskUserQuestionDraft
 
   // Translate page state management
   /** Input text */
@@ -253,6 +255,11 @@ export const DefaultUseCache: UseCacheSchema = {
     knowledgeBaseIds: [],
     workspaceKey: '',
     agentId: ''
+  },
+  'agent.ask_user_question_draft.${approvalId}': {
+    selectedAnswers: {},
+    customAnswers: {},
+    currentIndex: 0
   },
 
   // Translate page state management

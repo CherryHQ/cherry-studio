@@ -1,6 +1,7 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -69,6 +70,12 @@ function makeRequest(requestQuestions = questions): AskUserQuestionComposerReque
 }
 
 describe('AskUserQuestionComposer', () => {
+  // Unsubmitted answers are cached per approval id, so the harness must not leak
+  // one test's draft into the next one.
+  beforeEach(() => {
+    MockCacheUtils.resetMocks()
+  })
+
   it('keeps the full question visible instead of clamping it to one line', () => {
     render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
 
@@ -175,6 +182,38 @@ describe('AskUserQuestionComposer', () => {
         }
       }
     })
+  })
+
+  it('restores unsubmitted answers after a remount', () => {
+    const view = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
+    fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'Use JSON logs' } })
+
+    view.unmount()
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.getByText('Add context')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Enter your answer...')).toHaveValue('Use JSON logs')
+    expect(screen.getByRole('button', { name: /Bunyan/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('drops the cached answers once the response is sent', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const view = render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+
+    view.unmount()
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.getByRole('heading', { name: 'Choose logger' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('disables controls while the final response is submitting', async () => {
