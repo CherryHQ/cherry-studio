@@ -93,11 +93,12 @@ describe('main i18n', () => {
           'fr-FR',
           'pt-PT',
           'ro-RO',
+          'th-TH',
           'tr-TR',
           'vi-VN'
         ])
       )
-      expect(SUPPORTED_LANGUAGES).toHaveLength(13)
+      expect(SUPPORTED_LANGUAGES).toHaveLength(14)
     })
   })
 })
