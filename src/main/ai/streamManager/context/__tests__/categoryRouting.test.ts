@@ -34,18 +34,21 @@ function withPreferences({
   enabled = true,
   categoryModels = {},
   health = {},
-  derived = {}
+  derived = {},
+  pinnedModel = ''
 }: {
   enabled?: boolean
   categoryModels?: Record<string, string[]>
   health?: Record<string, { ok: boolean; checkedAt: number }>
   derived?: Record<string, UniqueModelId[]>
+  pinnedModel?: string
 }) {
   derivedCandidatesFor.mockImplementation((category: string) => derived[category] ?? [])
   preferenceGet.mockImplementation((key: string) => {
     if (key === 'chat.routing.auto_enabled') return enabled
     if (key === 'chat.routing.category_models') return categoryModels
     if (key === 'chat.retry.model_health') return health
+    if (key === 'chat.routing.pinned_model') return pinnedModel
     throw new Error(`unexpected preference ${key}`)
   })
 }
@@ -62,6 +65,20 @@ describe('routeDefaultModelId', () => {
     withPreferences({ categoryModels: { code: [CODER] } })
 
     expect(routeDefaultModelId(textParts('şu fonksiyonu refactor et'), FALLBACK)).toBe(CODER)
+  })
+
+  it('sends everything to a pinned model, whatever the request is about', () => {
+    withPreferences({ categoryModels: { code: [CODER] }, pinnedModel: RESEARCHER })
+
+    expect(routeDefaultModelId(textParts('şu fonksiyonu refactor et'), FALLBACK)).toBe(RESEARCHER)
+  })
+
+  it('ignores a pinned model the user has since removed', () => {
+    // The preference holds an id, not a reference; deleting the model must not strand every turn.
+    providerEnabled = false
+    withPreferences({ categoryModels: { code: [CODER] }, pinnedModel: RESEARCHER })
+
+    expect(routeDefaultModelId(textParts('şu fonksiyonu refactor et'), FALLBACK)).not.toBe(RESEARCHER)
   })
 
   it('leaves the default alone when routing is disabled', () => {

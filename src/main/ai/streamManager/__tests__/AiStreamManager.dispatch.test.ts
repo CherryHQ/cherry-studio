@@ -164,3 +164,71 @@ describe('AiStreamManager.dispatch — boot reconcile gate', () => {
     expect(markMessagesError).toHaveBeenCalledWith(['stale-1', 'stale-2'])
   })
 })
+
+describe('AiStreamManager — head-controller merge chaining', () => {
+  let mgr: ManagerInstance
+
+  const merge = {
+    parentAnchorId: 'u1',
+    controllerModelId: 'openai::gpt-4o' as const,
+    workers: [{ messageId: 'a1', name: 'DeepSeek', instruction: 'Cover SQLite' }]
+  }
+
+  /** The chained-turn launcher the terminal hook calls once every worker settles. */
+  const startNextChatTurn = (manager: ManagerInstance, topicId: string) =>
+    (manager as unknown as { startNextChatTurn(id: string): Promise<void> }).startNextChatTurn(topicId)
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    dispatchEvents.length = 0
+    dispatchResolvers.length = 0
+    mgr = createManager()
+    await runOnInit(mgr)
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+  })
+
+  it('opens the merge turn once the workers have settled', async () => {
+    mgr.enqueuePendingMerge('t', merge)
+
+    const launch = startNextChatTurn(mgr, 't')
+    await flush()
+
+    expect(mockDispatchStreamRequest).toHaveBeenCalledWith(
+      mgr,
+      expect.anything(),
+      expect.objectContaining({ trigger: 'controller-merge', topicId: 't', parentAnchorId: 'u1' })
+    )
+    await settleDispatch(0)
+    await launch
+  })
+
+  it('answers a steer before merging, because the user is waiting on the steer', async () => {
+    mgr.enqueuePendingMerge('t', merge)
+    mgr.enqueuePendingSteer('t', 'steer-1')
+    await flush()
+
+    expect(mockDispatchStreamRequest).toHaveBeenCalledWith(
+      mgr,
+      expect.anything(),
+      expect.objectContaining({ trigger: 'steer-continuation', userMessageId: 'steer-1' })
+    )
+    await settleDispatch(0)
+  })
+
+  it('merges only once — a second launch has nothing left to chain', async () => {
+    mgr.enqueuePendingMerge('t', merge)
+
+    const first = startNextChatTurn(mgr, 't')
+    await flush()
+    await settleDispatch(0)
+    await first
+
+    await startNextChatTurn(mgr, 't')
+    await flush()
+
+    expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
+  })
+})

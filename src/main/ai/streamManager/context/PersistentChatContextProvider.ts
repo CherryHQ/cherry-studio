@@ -47,7 +47,12 @@ import { resolveRequestContextSettings } from '../../contextBuild/resolveRequest
 import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
-import { buildAssignmentReminder, buildBreakdownPrompt, parseBreakdown } from '../../orchestration/headController'
+import {
+  buildAssignmentReminder,
+  buildBreakdownPrompt,
+  buildMergePrompt,
+  parseBreakdown
+} from '../../orchestration/headController'
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
 import type { AiStreamRequest } from '../../types'
@@ -66,7 +71,12 @@ import {
   planKeepBoundary,
   summaryRow
 } from './compaction'
-import type { ContinueDispatchRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
+import type {
+  ContinueDispatchRequest,
+  MainControllerMergeRequest,
+  MainDispatchRequest,
+  MainSteerContinuationRequest
+} from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
@@ -216,6 +226,38 @@ function trailingUserText(history: CherryUIMessage[]): string | undefined {
   return undefined
 }
 
+/** Concatenated text of a persisted message — what a worker actually wrote. */
+function messageText(message: SharedMessage): string {
+  return (message.data.parts ?? [])
+    .filter((part) => part.type === 'text')
+    .map((part) => (part as { text: string }).text)
+    .join('\n')
+    .trim()
+}
+
+/**
+ * Swap the trailing user message's text for the merge prompt, model-facing copy only.
+ *
+ * The controller needs the worker answers in front of it, and they are far too long to carry as
+ * an extra turn; replacing the text keeps the shape of the history the model already expects.
+ */
+function withReplacedTrailingUserText(history: CherryUIMessage[], text: string): CherryUIMessage[] {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role !== 'user') continue
+    const message = history[i]
+    let replaced = false
+    const parts = message.parts.map((part) => {
+      if (replaced || part.type !== 'text') return part
+      replaced = true
+      return { ...part, text }
+    })
+    const next = history.slice()
+    next[i] = { ...message, parts: replaced ? parts : [...parts, { type: 'text' as const, text }] }
+    return next
+  }
+  return history
+}
+
 /**
  * Append a worker's assignment to the trailing user message, model-facing copy only — same
  * treatment {@link withSteerReminder} gives a steer, for the same reason: the persisted row is
@@ -306,6 +348,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // assistant placeholder under that user row (no new user row), single model.
     if (req.trigger === 'steer-continuation') {
       return this.prepareSteerContinuation(subscriber, req, topic?.assistantId ?? undefined)
+    }
+
+    // controller-merge folds a divided turn's worker replies into one more reply on the
+    // controller's model, under the same user message.
+    if (req.trigger === 'controller-merge') {
+      return this.prepareControllerMerge(subscriber, req, topic?.assistantId ?? undefined)
     }
 
     const selectedModelId = req.mentionedModelIds?.[0]
@@ -540,7 +588,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           req.topicId,
           assistantId,
           model.id,
-          assignments?.get(model.id) ? withAssignment(history, assignments.get(model.id)!) : history,
+          assignments?.instructions.get(model.id)
+            ? withAssignment(history, assignments.instructions.get(model.id)!)
+            : history,
           placeholder.id,
           knowledgeBaseIds,
           turnOptions.reasoningEffort,
@@ -568,7 +618,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
         liveExecutionChange: preparedLiveExecutionChange,
-        preserveActiveNode: Boolean(liveGroupAppendMessageId)
+        preserveActiveNode: Boolean(liveGroupAppendMessageId),
+        ...(assignments && {
+          pendingControllerMerge: {
+            parentAnchorId: userMessage.id,
+            controllerModelId: assignments.controllerModelId,
+            workers: assistantPlaceholders.map(({ model, placeholder }) => ({
+              messageId: placeholder.id,
+              name: model.name,
+              instruction: assignments.instructions.get(model.id) ?? ''
+            }))
+          }
+        })
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -723,7 +784,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     trigger: MainDispatchRequest['trigger'],
     models: Model[],
     history: CherryUIMessage[]
-  ): Promise<Map<UniqueModelId, string> | undefined> {
+  ): Promise<{ controllerModelId: UniqueModelId; instructions: Map<UniqueModelId, string> } | undefined> {
     if (trigger !== 'submit-message' || models.length < 2) return undefined
 
     const controllerModelId = application.get('PreferenceService').get('chat.routing.controller_model')
@@ -750,7 +811,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         logger.info('controller produced no usable split, sending the ordinary turn', { controllerModelId })
         return undefined
       }
-      return new Map(assignments.map((assignment) => [assignment.modelId, assignment.instruction]))
+      return {
+        controllerModelId: controllerModelId as UniqueModelId,
+        instructions: new Map(assignments.map((assignment) => [assignment.modelId, assignment.instruction]))
+      }
     } catch (error) {
       logger.warn('controller breakdown failed, sending the ordinary turn', { controllerModelId, error })
       return undefined
@@ -943,6 +1007,118 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               req.reasoningEffort,
               req.serviceTier,
               req.fastMode,
+              retainedContext
+            ),
+            rootSpan
+          }
+        ],
+        listeners,
+        reservedMessages: [toReservedUIMessage(placeholder)]
+      }
+    } catch (error) {
+      endTurnRootSpansWithError(turnRootSpans, error)
+      throw error
+    }
+  }
+
+  /**
+   * Fold a divided turn's worker replies into one more reply, written by the controller.
+   *
+   * Shaped like {@link prepareSteerContinuation}: one fresh placeholder under the same user
+   * message, single model. What differs is the model-facing history — its trailing user message
+   * is replaced by the merge prompt, so the controller reads the workers' answers while the
+   * persisted row stays what the user typed.
+   */
+  private async prepareControllerMerge(
+    subscriber: StreamListener,
+    req: MainControllerMergeRequest,
+    assistantId: string | undefined
+  ): Promise<PreparedDispatch> {
+    const anchor = messageService.getById(req.parentAnchorId)
+    if (anchor.role !== 'user') {
+      throw new Error(`'controller-merge' anchor must be a user message (got '${anchor.role}')`)
+    }
+    if (anchor.topicId !== req.topicId) {
+      throw new Error(`'controller-merge' anchor does not belong to topic ${req.topicId}`)
+    }
+
+    const answers = req.workers
+      .map((worker) => ({
+        name: worker.name,
+        instruction: worker.instruction,
+        answer: messageText(messageService.getById(worker.messageId))
+      }))
+      .filter((worker) => worker.answer.length > 0)
+    if (answers.length === 0) {
+      throw new Error('controller-merge has no worker replies to fold')
+    }
+
+    const [model] = resolveModels([req.controllerModelId], req.controllerModelId)
+    const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
+    const turnOptions = anchor.data.turnOptions
+
+    const containerTraceId = topicService.ensureTraceId(req.topicId)
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
+    const [{ span: rootSpan }] = turnRootSpans
+    try {
+      const { placeholders } = messageService.createUserMessageWithPlaceholders({
+        topicId: req.topicId,
+        userMessage: { mode: 'existing', id: req.parentAnchorId },
+        placeholders: [
+          {
+            role: 'assistant',
+            data: { parts: [], turnOptions },
+            status: 'pending',
+            modelId: model.id,
+            messageSnapshot
+          }
+        ]
+      })
+      const placeholder = placeholders[0]
+
+      const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
+      const listeners: StreamListener[] = [
+        subscriber,
+        new PersistenceListener({
+          topicId: req.topicId,
+          modelId: model.id,
+          backend: new MessageServiceBackend({
+            assistantMessageId: placeholder.id,
+            turnOptions,
+            contextSettingsOverride
+          }),
+          onPersistFailed: (error) =>
+            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
+        }),
+        new TraceFlushListener(req.topicId)
+      ]
+
+      const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
+        req.parentAnchorId,
+        req.topicId,
+        [model],
+        assistantId,
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
+      )
+      const userRequest = trailingUserText(compactedHistory) ?? ''
+      const history = withReplacedTrailingUserText(compactedHistory, buildMergePrompt(userRequest, answers))
+
+      return {
+        topicId: req.topicId,
+        models: [
+          {
+            modelId: model.id,
+            request: this.buildStreamRequest(
+              req.topicId,
+              assistantId,
+              model.id,
+              history,
+              placeholder.id,
+              getKnowledgeBaseIdsFromParts(anchor.data.parts ?? []),
+              turnOptions?.reasoningEffort,
+              turnOptions?.serviceTier,
+              turnOptions?.fastMode === true,
               retainedContext
             ),
             rootSpan
