@@ -75,6 +75,35 @@ describe('isVisibleAgentSessionPart', () => {
     ).toBe(false)
   })
 
+  it('drops file parts the renderer cannot render, keeps resolvable ones', () => {
+    // An image without a URL renders nothing.
+    expect(isVisibleAgentSessionPart({ type: 'file', mediaType: 'image/png' } as never)).toBe(false)
+    // A non-image file addressing no entry and no decodable path renders nothing.
+    expect(isVisibleAgentSessionPart({ type: 'file', mediaType: 'text/plain', filename: 'a.txt' } as never)).toBe(false)
+    expect(
+      isVisibleAgentSessionPart({ type: 'file', mediaType: 'text/plain', url: 'https://not-a-file' } as never)
+    ).toBe(false)
+    // An image with a URL and a file addressed by a file:// URL render.
+    expect(isVisibleAgentSessionPart({ type: 'file', mediaType: 'image/png', url: 'https://x/y.png' } as never)).toBe(
+      true
+    )
+    expect(
+      isVisibleAgentSessionPart({
+        type: 'file',
+        mediaType: 'text/plain',
+        url: 'file:///tmp/cherry/report.txt'
+      } as never)
+    ).toBe(true)
+  })
+
+  it('drops video parts without a URL or local path', () => {
+    expect(isVisibleAgentSessionPart({ type: 'data-video', data: {} } as never)).toBe(false)
+    expect(isVisibleAgentSessionPart({ type: 'data-video', data: { filePath: '/tmp/cherry/clip.mp4' } } as never)).toBe(
+      true
+    )
+    expect(isVisibleAgentSessionPart({ type: 'data-video', data: { url: 'https://x/clip.mp4' } } as never)).toBe(true)
+  })
+
   it('judges whole part arrays with the same rule the renderer uses for the fallback', () => {
     const hiddenOnly: CherryMessagePart[] = [
       { type: 'data-agent-task-event', data: { event: 'started', taskId: 'task-1' } },
