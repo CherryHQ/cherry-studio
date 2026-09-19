@@ -3,6 +3,7 @@ import path from 'path'
 
 import * as z from 'zod'
 
+import { resolveMutationLockKey, withPathMutationLock } from '../mutationLock'
 import { logger, replaceWithFuzzyMatch, validatePath } from '../types'
 
 // Schema definition
@@ -39,93 +40,109 @@ export async function handleEditTool(args: unknown, baseDir: string) {
 
   const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = parsed.data
 
-  // Validate path
-  const validPath = await validatePath(filePath, baseDir)
-
-  // Check if file exists
-  try {
-    const stats = await fs.stat(validPath)
-    if (!stats.isFile()) {
-      throw new Error(`Path is not a file: ${filePath}`)
-    }
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      // If old_string is empty, this is a create new file operation
-      if (oldString === '') {
-        // Create parent directory if needed
-        const parentDir = path.dirname(validPath)
-        await fs.mkdir(parentDir, { recursive: true })
-
-        // Write the new content
-        await fs.writeFile(validPath, newString, 'utf-8')
-
-        logger.info('File created', { path: validPath })
-
-        const relativePath = path.relative(baseDir, validPath)
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Created new file: ${relativePath}\nLines: ${newString.split('\n').length}`
-            }
-          ]
-        }
+  // Register in the lock chain before validating so concurrent calls queue in call order.
+  // The canonical lock below additionally serializes alias spellings of the same file.
+  const validPath = await withPathMutationLock(resolveMutationLockKey(filePath, baseDir), () =>
+    validatePath(filePath, baseDir)
+  )
+  return withPathMutationLock(validPath, async () => {
+    // Check if file exists
+    try {
+      const stats = await fs.stat(validPath)
+      if (!stats.isFile()) {
+        throw new Error(`Path is not a file: ${filePath}`)
       }
-      throw new Error(`File not found: ${filePath}`)
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        // If old_string is empty, this is a create new file operation
+        if (oldString === '') {
+          // Create parent directory if needed
+          const parentDir = path.dirname(validPath)
+          await fs.mkdir(parentDir, { recursive: true })
+
+          // Write the new content
+          await fs.writeFile(validPath, newString, 'utf-8')
+          const writtenContent = await fs.readFile(validPath, 'utf-8')
+          if (writtenContent !== newString) {
+            throw new Error('Post-write verification failed: file content did not match requested content')
+          }
+
+          logger.info('File created', { path: validPath })
+
+          const relativePath = path.relative(baseDir, validPath)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Created new file: ${relativePath}\nLines: ${newString.split('\n').length}`
+              }
+            ]
+          }
+        }
+        throw new Error(`File not found: ${filePath}`)
+      }
+      throw error
     }
-    throw error
-  }
 
-  // Read current content
-  const content = await fs.readFile(validPath, 'utf-8')
+    // Read current content
+    const content = await fs.readFile(validPath, 'utf-8')
 
-  // Handle special case: old_string is empty (create file with content)
-  if (oldString === '') {
-    await fs.writeFile(validPath, newString, 'utf-8')
+    // Handle special case: old_string is empty (create file with content)
+    if (oldString === '') {
+      await fs.writeFile(validPath, newString, 'utf-8')
+      const writtenContent = await fs.readFile(validPath, 'utf-8')
+      if (writtenContent !== newString) {
+        throw new Error('Post-write verification failed: file content did not match requested content')
+      }
 
-    logger.info('File overwritten', { path: validPath })
+      logger.info('File overwritten', { path: validPath })
+
+      const relativePath = path.relative(baseDir, validPath)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Overwrote file: ${relativePath}\nLines: ${newString.split('\n').length}`
+          }
+        ]
+      }
+    }
+
+    // Perform the replacement with fuzzy matching
+    const newContent = replaceWithFuzzyMatch(content, oldString, newString, replaceAll)
+
+    // Write the modified content
+    await fs.writeFile(validPath, newContent, 'utf-8')
+    const writtenContent = await fs.readFile(validPath, 'utf-8')
+    if (writtenContent !== newContent) {
+      throw new Error('Post-write verification failed: file content did not match requested content')
+    }
+
+    logger.info('File edited', {
+      path: validPath,
+      replaceAll
+    })
+
+    // Generate a simple diff summary
+    const oldLines = content.split('\n').length
+    const newLines = newContent.split('\n').length
+    const lineDiff = newLines - oldLines
 
     const relativePath = path.relative(baseDir, validPath)
+    let diffSummary = `Edited: ${relativePath}`
+    if (lineDiff > 0) {
+      diffSummary += `\n+${lineDiff} lines`
+    } else if (lineDiff < 0) {
+      diffSummary += `\n${lineDiff} lines`
+    }
+
     return {
       content: [
         {
           type: 'text',
-          text: `Overwrote file: ${relativePath}\nLines: ${newString.split('\n').length}`
+          text: diffSummary
         }
       ]
     }
-  }
-
-  // Perform the replacement with fuzzy matching
-  const newContent = replaceWithFuzzyMatch(content, oldString, newString, replaceAll)
-
-  // Write the modified content
-  await fs.writeFile(validPath, newContent, 'utf-8')
-
-  logger.info('File edited', {
-    path: validPath,
-    replaceAll
   })
-
-  // Generate a simple diff summary
-  const oldLines = content.split('\n').length
-  const newLines = newContent.split('\n').length
-  const lineDiff = newLines - oldLines
-
-  const relativePath = path.relative(baseDir, validPath)
-  let diffSummary = `Edited: ${relativePath}`
-  if (lineDiff > 0) {
-    diffSummary += `\n+${lineDiff} lines`
-  } else if (lineDiff < 0) {
-    diffSummary += `\n${lineDiff} lines`
-  }
-
-  return {
-    content: [
-      {
-        type: 'text',
-        text: diffSummary
-      }
-    ]
-  }
 }
