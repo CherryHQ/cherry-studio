@@ -2,7 +2,7 @@
   "version": "6",
   "dialect": "sqlite",
   "id": "c099b917-c2a3-4c25-bc77-afa4e14ac49c",
-  "prevId": "c099b917-c2a3-4c25-bc77-afa4e14ac49c",
+  "prevId": "60663efc-b716-444a-afbb-50fd77ebb24f",
   "tables": {
     "agent": {
       "name": "agent",
