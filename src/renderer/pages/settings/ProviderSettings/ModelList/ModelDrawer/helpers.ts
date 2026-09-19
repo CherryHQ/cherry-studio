@@ -5,8 +5,11 @@ import {
   type Model,
   MODEL_CAPABILITY,
   type ModelCapability,
-  parseUniqueModelId
+  parseUniqueModelId,
+  SERVER_TOOL,
+  type ServerToolOverrides
 } from '@shared/data/types/model'
+import { getDeliverableWebSearchEndpointTypes } from '@shared/utils/provider'
 
 import type {
   AddModelDrawerPrefill,
@@ -14,7 +17,8 @@ import type {
   ModelCapabilityToggle,
   ModelClassificationState,
   ModelDrawerEndpointType,
-  ModelInputModality
+  ModelInputModality,
+  ModelWebSearchOverride
 } from './types'
 
 const TOGGLE_TO_CAPABILITY: Record<ModelCapabilityToggle, ModelCapability> = {
@@ -126,6 +130,13 @@ const INPUT_MODALITY_TO_LEGACY_CAPABILITY = {
   [MODALITY.VIDEO]: MODEL_CAPABILITY.VIDEO_RECOGNITION
 } as const
 
+function getInitialWebSearchOverride(model?: Model | null): ModelWebSearchOverride {
+  const override = model?.serverToolOverrides?.[SERVER_TOOL.WEB_SEARCH]
+  if (override?.state === 'enabled') return 'enabled'
+  if (override?.state === 'disabled') return 'disabled'
+  return 'inherit'
+}
+
 export function getInitialModelClassification(model?: Model | null): ModelClassificationState {
   const capabilities = model?.capabilities ?? []
   let primaryType: ModelClassificationState['primaryType'] = 'text'
@@ -155,7 +166,38 @@ export function getInitialModelClassification(model?: Model | null): ModelClassi
   return {
     primaryType,
     capabilities: capsToToggleSet(capabilities),
-    inputModalities
+    inputModalities,
+    webSearch: getInitialWebSearchOverride(model)
+  }
+}
+
+/**
+ * Persistable server-tool overrides for the classification's web-search control.
+ * `null` clears a stored override (inherit registry).
+ */
+export function buildServerToolOverrides(
+  classification: ModelClassificationState,
+  endpointTypes: readonly ModelDrawerEndpointType[] | undefined,
+  fallbackEndpoint?: ModelDrawerEndpointType
+): ServerToolOverrides | null {
+  if (classification.webSearch === 'inherit') {
+    return null
+  }
+
+  if (classification.webSearch === 'disabled') {
+    return { [SERVER_TOOL.WEB_SEARCH]: { state: 'disabled' } }
+  }
+
+  const deliverable = getDeliverableWebSearchEndpointTypes(endpointTypes, fallbackEndpoint)
+  if (deliverable.length === 0) {
+    return null
+  }
+
+  return {
+    [SERVER_TOOL.WEB_SEARCH]: {
+      state: 'enabled',
+      endpointTypes: deliverable
+    }
   }
 }
 
@@ -203,7 +245,7 @@ export function buildModelInputModalities(
 }
 
 export function areModelClassificationsEqual(left: ModelClassificationState, right: ModelClassificationState): boolean {
-  if (left.primaryType !== right.primaryType) {
+  if (left.primaryType !== right.primaryType || left.webSearch !== right.webSearch) {
     return false
   }
 

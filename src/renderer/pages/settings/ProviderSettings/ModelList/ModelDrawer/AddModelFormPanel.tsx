@@ -1,13 +1,15 @@
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { FormEvent } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type UniqueModelId } from '@shared/data/types/model'
+import { getDeliverableWebSearchEndpointTypes, isBuiltinWebSearchAvailable } from '@shared/utils/provider'
 
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
@@ -15,6 +17,7 @@ import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
 import {
   buildModelCapabilities,
   buildModelInputModalities,
+  buildServerToolOverrides,
   getInitialAddModelFormState,
   getInitialModelClassification,
   splitModelIds
@@ -37,7 +40,8 @@ import type {
   ModelCapabilityToggle,
   ModelDrawerMode,
   ModelInputModality,
-  ModelPrimaryType
+  ModelPrimaryType,
+  ModelWebSearchOverride
 } from './types'
 
 function getInitialPurposeFields(
@@ -172,24 +176,27 @@ export default function AddModelFormPanel({
         inputModalitiesTouched ||
         prefill?.model?.inputModalities !== undefined ||
         (submittedInputModalities?.length ?? 0) > 0
+      const submittedEndpointTypes =
+        submittedPurposeFields != null
+          ? [...submittedPurposeFields.endpointTypes]
+          : mode === 'endpoint-types' && values.endpointTypes?.length
+            ? [...values.endpointTypes]
+            : undefined
+      const serverToolOverrides = buildServerToolOverrides(classification, submittedEndpointTypes, defaultChatEndpoint)
 
       await createModel({
         providerId,
         modelId,
         name: values.name ? values.name : modelId.toUpperCase(),
         group: values.group || getDefaultGroupName(modelId),
-        endpointTypes:
-          submittedPurposeFields != null
-            ? [...submittedPurposeFields.endpointTypes]
-            : mode === 'endpoint-types' && values.endpointTypes?.length
-              ? [...values.endpointTypes]
-              : undefined,
+        endpointTypes: submittedEndpointTypes,
         capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
         ...(shouldSubmitInputModalities ? { inputModalities: submittedInputModalities } : {}),
         outputModalities: submittedPurposeFields?.outputModalities,
         ...(values.contextWindow !== null ? { contextWindow: values.contextWindow } : {}),
         ...(values.maxInputTokens !== null ? { maxInputTokens: values.maxInputTokens } : {}),
-        ...(values.maxOutputTokens !== null ? { maxOutputTokens: values.maxOutputTokens } : {})
+        ...(values.maxOutputTokens !== null ? { maxOutputTokens: values.maxOutputTokens } : {}),
+        ...(serverToolOverrides ? { serverToolOverrides } : {})
       })
 
       return createUniqueModelId(providerId, modelId)
@@ -198,6 +205,7 @@ export default function AddModelFormPanel({
       chatEndpointType,
       classification,
       createModel,
+      defaultChatEndpoint,
       mode,
       modelPurpose,
       models,
@@ -270,6 +278,39 @@ export default function AddModelFormPanel({
       setIsSubmitting(false)
     }
   }, [addSingleModel, formState, mode, onSuccess, t])
+
+  const registryWebSearchAvailable = useMemo(() => {
+    if (!provider || !prefill?.model) return false
+    return isBuiltinWebSearchAvailable({ ...prefill.model, serverToolOverrides: undefined }, provider)
+  }, [prefill?.model, provider])
+
+  const webSearchEnableAllowed = useMemo(() => {
+    const endpoints =
+      purposeFields.endpointTypes?.length || formState.endpointTypes?.length
+        ? (purposeFields.endpointTypes ?? formState.endpointTypes)
+        : prefill?.model?.endpointTypes
+    return getDeliverableWebSearchEndpointTypes(endpoints, defaultChatEndpoint).length > 0
+  }, [defaultChatEndpoint, formState.endpointTypes, prefill?.model?.endpointTypes, purposeFields.endpointTypes])
+
+  const webSearchSelected =
+    classification.webSearch === 'enabled' || (classification.webSearch === 'inherit' && registryWebSearchAvailable)
+
+  const handleToggleWebSearch = useCallback(() => {
+    setClassification((current) => {
+      const selected =
+        current.webSearch === 'enabled' || (current.webSearch === 'inherit' && registryWebSearchAvailable)
+      let next: ModelWebSearchOverride
+      if (selected) {
+        next = registryWebSearchAvailable ? 'disabled' : 'inherit'
+      } else if (!webSearchEnableAllowed && !registryWebSearchAvailable) {
+        toast.error(t('settings.models.add.web_search.endpoint_required'))
+        return current
+      } else {
+        next = registryWebSearchAvailable ? 'inherit' : 'enabled'
+      }
+      return { ...current, webSearch: next }
+    })
+  }, [registryWebSearchAvailable, t, webSearchEnableAllowed])
 
   const handlePrimaryTypeChange = useCallback((primaryType: ModelPrimaryType) => {
     setClassification((current) => ({ ...current, primaryType }))
@@ -429,8 +470,11 @@ export default function AddModelFormPanel({
             <div className={drawerClasses.sectionCard}>
               <ModelClassificationControls
                 value={classification}
+                webSearchSelected={webSearchSelected}
+                webSearchEnableAllowed={webSearchEnableAllowed || registryWebSearchAvailable}
                 onPrimaryTypeChange={handlePrimaryTypeChange}
                 onCapabilityToggle={handleCapabilityToggle}
+                onWebSearchToggle={handleToggleWebSearch}
                 onInputModalityToggle={handleInputModalityToggle}
               />
             </div>

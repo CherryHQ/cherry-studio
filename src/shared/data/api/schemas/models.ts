@@ -16,6 +16,7 @@ import {
   objectValues,
   ParameterSupportDbSchema,
   RuntimeModelPricingSchema,
+  ServerToolOverridesSchema,
   type UniqueModelId,
   UniqueModelIdSchema
 } from '../../types/model'
@@ -66,7 +67,9 @@ export const CreateModelSchema = z.strictObject({
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
   /** Pricing configuration */
-  pricing: RuntimeModelPricingSchema.optional()
+  pricing: RuntimeModelPricingSchema.optional(),
+  /** Provider-native server-tool availability overrides */
+  serverToolOverrides: ServerToolOverridesSchema.optional()
 })
 export type CreateModelDto = z.infer<typeof CreateModelSchema>
 
@@ -100,7 +103,9 @@ export const UpdateModelSchema = CreateModelSchema.omit({
     isEnabled: z.boolean().optional(),
     isHidden: z.boolean().optional(),
     isDeprecated: z.boolean().optional(),
-    notes: z.string().optional()
+    notes: z.string().optional(),
+    /** `null` clears the override (inherit registry); absent leaves it unchanged. */
+    serverToolOverrides: ServerToolOverridesSchema.nullable().optional()
   })
 export type UpdateModelDto = z.infer<typeof UpdateModelSchema>
 

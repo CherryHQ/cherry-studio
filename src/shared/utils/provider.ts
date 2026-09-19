@@ -220,6 +220,34 @@ export const DASHSCOPE_HOSTED_WEB_SEARCH_MODELS = [
   { canonicalId: 'kimi-k3', wireIds: ['kimi-k3', 'kimi/kimi-k3'] }
 ] as const
 
+/**
+ * Endpoint protocols that have a registered provider-native web-search delivery
+ * path when a custom provider uses the endpoint-type default adapter family.
+ * Enable overrides fail closed outside this set so routing cannot pick `server`
+ * and then inject nothing.
+ */
+export const WEB_SEARCH_DELIVERY_ENDPOINT_TYPES = [
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+] as const satisfies readonly EndpointType[]
+
+const WEB_SEARCH_DELIVERY_ENDPOINT_TYPE_SET: ReadonlySet<EndpointType> = new Set(WEB_SEARCH_DELIVERY_ENDPOINT_TYPES)
+
+/** Whether Cherry can deliver provider-native web search on this endpoint protocol. */
+export function isWebSearchDeliveryEndpoint(endpointType: EndpointType | undefined): boolean {
+  return endpointType !== undefined && WEB_SEARCH_DELIVERY_ENDPOINT_TYPE_SET.has(endpointType)
+}
+
+/** Deliverable web-search endpoints from a model/provider endpoint set. */
+export function getDeliverableWebSearchEndpointTypes(
+  endpointTypes: readonly EndpointType[] | undefined,
+  fallback?: EndpointType
+): EndpointType[] {
+  const candidates = endpointTypes?.length ? endpointTypes : fallback ? [fallback] : []
+  return candidates.filter(isWebSearchDeliveryEndpoint)
+}
+
 /** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
 function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): boolean {
   if (!tool.vendors?.length) return true
@@ -272,6 +300,17 @@ export function isBuiltinWebSearchAvailable(
   provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
+  const override = model.serverToolOverrides?.[SERVER_TOOL.WEB_SEARCH]
+  if (override) {
+    if (isNonChatModel(model) || override.state === 'disabled') return false
+    const effectiveEndpoint = resolveServerToolEndpoint(model, provider, endpointType)
+    return (
+      effectiveEndpoint !== undefined &&
+      override.endpointTypes.includes(effectiveEndpoint) &&
+      isWebSearchDeliveryEndpoint(effectiveEndpoint)
+    )
+  }
+
   return isBuiltinServerToolAvailable(model, provider, SERVER_TOOL.WEB_SEARCH, endpointType)
 }
 
