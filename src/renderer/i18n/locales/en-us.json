@@ -5266,6 +5266,8 @@
   "settings.shortcuts.categories.chat": "Messages",
   "settings.shortcuts.categories.general": "General",
   "settings.shortcuts.categories.topic": "Conversations",
+  "settings.shortcuts.close_tab": "Close Tab",
+  "settings.shortcuts.close_window": "Close Window",
   "settings.shortcuts.conflict_with": "Already used by \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Copy Last Message",
   "settings.shortcuts.edit_last_user_message": "Edit Last User Message",

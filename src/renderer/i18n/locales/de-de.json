@@ -5266,6 +5266,8 @@
   "settings.shortcuts.categories.chat": "Nachrichteninteraktion",
   "settings.shortcuts.categories.general": "Global und Fenster",
   "settings.shortcuts.categories.topic": "Gespräch und Themen",
+  "settings.shortcuts.close_tab": "Tab schließen",
+  "settings.shortcuts.close_window": "Fenster schließen",
   "settings.shortcuts.conflict_with": "Bereits von \"{{name}}\" verwendet",
   "settings.shortcuts.copy_last_message": "Letzte Nachricht kopieren",
   "settings.shortcuts.edit_last_user_message": "Letzte Benutzernachricht bearbeiten",

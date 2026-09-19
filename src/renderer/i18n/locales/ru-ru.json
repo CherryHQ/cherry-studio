@@ -5266,6 +5266,8 @@
   "settings.shortcuts.categories.chat": "Взаимодействие с сообщениями",
   "settings.shortcuts.categories.general": "Глобальное и Окно",
   "settings.shortcuts.categories.topic": "Разговор и темы",
+  "settings.shortcuts.close_tab": "Закрыть вкладку",
+  "settings.shortcuts.close_window": "Закрыть окно",
   "settings.shortcuts.conflict_with": "Уже используется \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Копировать последнее сообщение",
   "settings.shortcuts.edit_last_user_message": "Редактировать последнее сообщение пользователя",

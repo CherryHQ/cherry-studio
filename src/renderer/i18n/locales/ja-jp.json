@@ -5266,6 +5266,8 @@
   "settings.shortcuts.categories.chat": "メッセージインタラクション",
   "settings.shortcuts.categories.general": "グローバルとウィンドウ",
   "settings.shortcuts.categories.topic": "会話と話題",
+  "settings.shortcuts.close_tab": "タブを閉じる",
+  "settings.shortcuts.close_window": "ウィンドウを閉じる",
   "settings.shortcuts.conflict_with": "すでに「{{name}}」によって使用されています",
   "settings.shortcuts.copy_last_message": "最後のメッセージをコピー",
   "settings.shortcuts.edit_last_user_message": "最後のユーザーメッセージを編集",

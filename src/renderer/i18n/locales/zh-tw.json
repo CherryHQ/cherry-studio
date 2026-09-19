@@ -5266,6 +5266,8 @@
   "settings.shortcuts.categories.chat": "訊息互動",
   "settings.shortcuts.categories.general": "全域與視窗",
   "settings.shortcuts.categories.topic": "對話與話題",
+  "settings.shortcuts.close_tab": "關閉分頁",
+  "settings.shortcuts.close_window": "關閉視窗",
   "settings.shortcuts.conflict_with": "已被「{{name}}」使用",
   "settings.shortcuts.copy_last_message": "複製上一則訊息",
   "settings.shortcuts.edit_last_user_message": "編輯最後一則使用者訊息",

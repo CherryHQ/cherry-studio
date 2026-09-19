@@ -5266,6 +5266,8 @@
   "settings.shortcuts.categories.chat": "Interação de Mensagem",
   "settings.shortcuts.categories.general": "Global e Janela",
   "settings.shortcuts.categories.topic": "Conversa e Tópicos",
+  "settings.shortcuts.close_tab": "Fechar aba",
+  "settings.shortcuts.close_window": "Fechar Janela",
   "settings.shortcuts.conflict_with": "Já usado por \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Copiar a última mensagem",
   "settings.shortcuts.edit_last_user_message": "Editar última mensagem do utilizador",

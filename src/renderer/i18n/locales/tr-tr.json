@@ -5266,6 +5266,8 @@
   "settings.shortcuts.categories.chat": "Mesajlar",
   "settings.shortcuts.categories.general": "Genel",
   "settings.shortcuts.categories.topic": "Konuşmalar",
+  "settings.shortcuts.close_tab": "Sekmeyi Kapat",
+  "settings.shortcuts.close_window": "Pencereyi Kapat",
   "settings.shortcuts.conflict_with": "Zaten \"{{name}}\" tarafından kullanılıyor",
   "settings.shortcuts.copy_last_message": "Son Mesajı Kopyala",
   "settings.shortcuts.edit_last_user_message": "Son Kullanıcı Mesajını Düzenle",

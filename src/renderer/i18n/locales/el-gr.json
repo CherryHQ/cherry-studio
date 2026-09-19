@@ -5266,6 +5266,8 @@
   "settings.shortcuts.categories.chat": "Αλληλεπίδραση Μηνυμάτων",
   "settings.shortcuts.categories.general": "Καθολικό και Παράθυρο",
   "settings.shortcuts.categories.topic": "Συζήτηση και Θέματα",
+  "settings.shortcuts.close_tab": "Κλείσιμο καρτέλας",
+  "settings.shortcuts.close_window": "Κλείσιμο Παραθύρου",
   "settings.shortcuts.conflict_with": "Ήδη χρησιμοποιείται από τον \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
   "settings.shortcuts.edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",

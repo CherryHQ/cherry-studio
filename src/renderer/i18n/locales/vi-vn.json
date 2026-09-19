@@ -5266,6 +5266,8 @@
   "settings.shortcuts.categories.chat": "Tương tác tin nhắn",
   "settings.shortcuts.categories.general": "Toàn cầu và Cửa sổ",
   "settings.shortcuts.categories.topic": "Cuộc trò chuyện và Chủ đề",
+  "settings.shortcuts.close_tab": "Đóng tab",
+  "settings.shortcuts.close_window": "Đóng cửa sổ",
   "settings.shortcuts.conflict_with": "Đã được \"{{name}}\" sử dụng",
   "settings.shortcuts.copy_last_message": "Sao tin nhắn cuối cùng",
   "settings.shortcuts.edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
