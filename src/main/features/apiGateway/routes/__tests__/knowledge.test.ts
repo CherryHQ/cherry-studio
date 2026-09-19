@@ -13,7 +13,7 @@ import { DataApiError, DataApiErrorFactory } from '@shared/data/api/errors'
 const {
   mockList,
   mockGetById,
-  mockGetItemsByBaseId,
+  mockListItems,
   mockSearch,
   mockCreateBase,
   mockDeleteBase,
@@ -23,7 +23,7 @@ const {
 } = vi.hoisted(() => ({
   mockList: vi.fn<(query: unknown) => unknown>(),
   mockGetById: vi.fn<(id: string) => unknown>(),
-  mockGetItemsByBaseId: vi.fn<(baseId: string) => unknown[]>(),
+  mockListItems: vi.fn<(baseId: string, query: unknown) => unknown>(),
   mockSearch: vi.fn<(baseId: string, query: string) => Promise<unknown[]>>(),
   mockCreateBase: vi.fn<(input: unknown) => Promise<unknown>>(),
   mockDeleteBase: vi.fn<(baseId: string) => Promise<void>>(),
@@ -36,7 +36,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: { list: mockList, getById: mockGetById }
 }))
 vi.mock('@data/services/KnowledgeItemService', () => ({
-  knowledgeItemService: { getItemsByBaseId: mockGetItemsByBaseId }
+  knowledgeItemService: { list: mockListItems }
 }))
 vi.mock('@application', () => ({
   application: {
@@ -148,17 +148,41 @@ describe('knowledge routes (v2)', () => {
     expect(mockCreateBase).not.toHaveBeenCalled()
   })
 
-  it('GET /knowledge-bases/:id/documents lists current non-deleting items', async () => {
-    mockGetItemsByBaseId.mockReturnValue([
-      { id: 'note-1', baseId: 'kb-1', type: 'note', status: 'completed', groupId: null, data: {} }
-    ])
+  it('GET /knowledge-bases/:id/documents returns bounded metadata without document content', async () => {
+    mockListItems.mockReturnValue({
+      items: [
+        {
+          id: 'note-1',
+          baseId: 'kb-1',
+          type: 'note',
+          status: 'completed',
+          groupId: null,
+          data: { source: 'joplin:42', content: 'private document body' },
+          error: null
+        }
+      ],
+      total: 101,
+      nextCursor: 'cursor-2'
+    })
 
-    const { status, body } = await call('GET', '/knowledge-bases/kb-1/documents')
+    const { status, body } = await call('GET', '/knowledge-bases/kb-1/documents?limit=1&cursor=cursor-1')
 
     expect(status).toBe(200)
-    expect(mockGetItemsByBaseId).toHaveBeenCalledWith('kb-1')
-    expect(body.total).toBe(1)
-    expect(body.documents[0].id).toBe('note-1')
+    expect(mockListItems).toHaveBeenCalledWith('kb-1', { limit: 1, cursor: 'cursor-1' })
+    expect(body).toEqual({
+      documents: [
+        {
+          id: 'note-1',
+          type: 'note',
+          status: 'completed',
+          group_id: null,
+          source: 'joplin:42',
+          error: null
+        }
+      ],
+      total: 101,
+      next_cursor: 'cursor-2'
+    })
   })
 
   it('POST /knowledge-bases/:id/documents adds raw text through the durable workflow', async () => {
@@ -169,10 +193,24 @@ describe('knowledge routes (v2)', () => {
     })
 
     expect(status).toBe(200)
-    expect(mockAddItems).toHaveBeenCalledWith('kb-1', [
-      { type: 'note', groupId: 'folder-1', data: { source: 'joplin:42', content: '# Updated' } }
-    ])
+    expect(mockAddItems).toHaveBeenCalledWith(
+      'kb-1',
+      [{ type: 'note', groupId: 'folder-1', data: { source: 'joplin:42', content: '# Updated' } }],
+      'rename'
+    )
     expect(body).toEqual({ status: 'added' })
+  })
+
+  it('POST /knowledge-bases/:id/documents rejects an oversized UTF-8 aggregate', async () => {
+    const { status } = await call('POST', '/knowledge-bases/kb-1/documents', {
+      documents: Array.from({ length: 11 }, (_, index) => ({
+        title: `note-${index}`,
+        content: '中'.repeat(333_334)
+      }))
+    })
+
+    expect(status).toBe(422)
+    expect(mockAddItems).not.toHaveBeenCalled()
   })
 
   it('DELETE /knowledge-bases/:id/documents/:documentId delegates subtree deletion', async () => {

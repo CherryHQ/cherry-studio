@@ -15,6 +15,7 @@ import { KNOWLEDGE_NOTE_CONTENT_MAX, KNOWLEDGE_RUNTIME_ITEMS_MAX } from '@shared
 /** Knowledge base ID — non-empty string. */
 const KnowledgeBaseIdSchema = z.string().min(1, 'Knowledge base ID is required')
 const KnowledgeDocumentIdSchema = z.string().min(1, 'Knowledge document ID is required')
+export const KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES = 10_000_000
 
 /** `POST /` body. A missing model pair creates a BM25-only base. */
 export const CreateKnowledgeBaseRequestSchema = z
@@ -40,9 +41,23 @@ const RawTextDocumentSchema = z.object({
 })
 
 /** `POST /:id/documents` body. The existing workflow preserves name collisions by renaming. */
-export const AddKnowledgeDocumentsRequestSchema = z.object({
-  documents: z.array(RawTextDocumentSchema).min(1).max(KNOWLEDGE_RUNTIME_ITEMS_MAX)
-})
+export const AddKnowledgeDocumentsRequestSchema = z
+  .object({
+    documents: z.array(RawTextDocumentSchema).min(1).max(KNOWLEDGE_RUNTIME_ITEMS_MAX)
+  })
+  .superRefine((value, ctx) => {
+    const byteLength = value.documents.reduce(
+      (total, document) => total + Buffer.byteLength(document.title) + Buffer.byteLength(document.content),
+      0
+    )
+    if (byteLength > KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['documents'],
+        message: `Document batch must be at most ${KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES} UTF-8 bytes`
+      })
+    }
+  })
 
 /** `POST /search` body. */
 export const KnowledgeSearchSchema = z.object({
@@ -55,6 +70,12 @@ export const KnowledgeSearchSchema = z.object({
 export const PaginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20).optional(),
   offset: z.coerce.number().int().min(0).default(0).optional()
+})
+
+/** `GET /:id/documents` cursor pagination query. */
+export const KnowledgeDocumentsQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20)
 })
 
 /** `GET /:id` route params. */
@@ -83,17 +104,19 @@ export const KnowledgeBaseResponseSchema = KnowledgeBaseEntry
 
 export const DeleteKnowledgeBaseResponseSchema = z.object({ deleted: z.literal(true) })
 
-const KnowledgeDocumentEntry = z.looseObject({
+const KnowledgeDocumentEntry = z.object({
   id: z.string(),
-  baseId: z.string(),
   type: z.enum(['file', 'url', 'note', 'directory']),
   status: z.string(),
-  groupId: z.string().nullable()
+  group_id: z.string().nullable(),
+  source: z.string(),
+  error: z.string().nullable()
 })
 
 export const ListKnowledgeDocumentsResponseSchema = z.object({
   documents: z.array(KnowledgeDocumentEntry),
-  total: z.number().int().nonnegative()
+  total: z.number().int().nonnegative(),
+  next_cursor: z.string().optional()
 })
 
 export const AddKnowledgeDocumentsResponseSchema = z.object({ status: z.literal('added') })

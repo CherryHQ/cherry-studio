@@ -16,6 +16,7 @@ import {
   KnowledgeBaseIdParamSchema,
   KnowledgeBaseResponseSchema,
   KnowledgeDocumentIdParamSchema,
+  KnowledgeDocumentsQuerySchema,
   KnowledgeSearchSchema,
   ListKnowledgeDocumentsResponseSchema,
   ListKnowledgeBasesResponseSchema,
@@ -180,14 +181,21 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   )
   .get(
     '/:id/documents',
-    ({ params }) => {
-      const documents = knowledgeItemService
-        .getItemsByBaseId(params.id)
-        .map((document) => ({ ...document, groupId: document.groupId ?? null }))
-      return { documents, total: documents.length }
+    ({ params, query }) => {
+      const page = knowledgeItemService.list(params.id, query)
+      const documents = page.items.map((document) => ({
+        id: document.id,
+        type: document.type,
+        status: document.status,
+        group_id: document.groupId ?? null,
+        source: document.data.source,
+        error: document.error
+      }))
+      return { documents, total: page.total, next_cursor: page.nextCursor }
     },
     {
       params: KnowledgeBaseIdParamSchema,
+      query: KnowledgeDocumentsQuerySchema,
       response: { 200: ListKnowledgeDocumentsResponseSchema },
       detail: {
         tags: [DOC_TAGS.cherry],
@@ -200,14 +208,19 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
     '/:id/documents',
     async ({ params, body }) => {
       const orchestrator = application.get('KnowledgeService')
-      return await orchestrator.addItems(
+      const result = await orchestrator.addItems(
         params.id,
         body.documents.map((document) => ({
           type: 'note' as const,
           groupId: document.group_id,
           data: { source: document.title, content: document.content }
-        }))
+        })),
+        'rename'
       )
+      if (result.status !== 'added') {
+        throw new Error('Rename conflict strategy unexpectedly returned conflicts')
+      }
+      return result
     },
     {
       params: KnowledgeBaseIdParamSchema,
