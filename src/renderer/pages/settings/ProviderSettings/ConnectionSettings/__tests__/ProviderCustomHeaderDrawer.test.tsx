@@ -256,7 +256,7 @@ describe('ProviderCustomHeaderDrawer', () => {
           reasoningFormat: { type: 'self-hosted' }
         }
       }
-    } as any
+    }
     refetchMock.mockResolvedValue(freshProvider)
     useProviderMock.mockReturnValue({
       provider,
