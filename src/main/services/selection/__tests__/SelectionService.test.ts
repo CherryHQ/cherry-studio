@@ -274,3 +274,98 @@ describe('SelectionService macOS toolbar', () => {
     expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
   })
 })
+
+describe('SelectionService main-lag OS hook pause/resume', () => {
+  type HookMock = {
+    stop: ReturnType<typeof vi.fn>
+    start: ReturnType<typeof vi.fn>
+    setGlobalFilterMode: ReturnType<typeof vi.fn>
+    setFineTunedList: ReturnType<typeof vi.fn>
+    setSelectionPassiveMode: ReturnType<typeof vi.fn>
+    on: ReturnType<typeof vi.fn>
+    off: ReturnType<typeof vi.fn>
+    removeAllListeners: ReturnType<typeof vi.fn>
+  }
+
+  // Avoid intersecting private SelectionService fields (TS reduces that to never).
+  type LagTestable = {
+    selectionHook: HookMock | null
+    hooksPausedForMainLag: boolean
+    triggerMode: string
+    filterMode: string
+    filterList: string[]
+    isCtrlkeyListenerActive: boolean
+    pauseOsHooksForMainLag(): void
+    resumeOsHooksAfterMainLag(): void
+    releaseActivationResources(): void
+    isActivated: boolean
+  }
+
+  let svc: LagTestable
+  let hook: HookMock
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    svc = new SelectionService() as unknown as LagTestable
+    hook = {
+      stop: vi.fn(),
+      start: vi.fn(() => true),
+      setGlobalFilterMode: vi.fn(() => true),
+      setFineTunedList: vi.fn(() => true),
+      setSelectionPassiveMode: vi.fn(() => true),
+      on: vi.fn(),
+      off: vi.fn(),
+      removeAllListeners: vi.fn()
+    }
+    svc.selectionHook = hook
+    svc.triggerMode = 'selected'
+    svc.filterMode = 'default'
+    svc.filterList = []
+    Object.defineProperty(svc, 'isActivated', { configurable: true, get: () => true })
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it('stops OS hooks when main-thread lag requires a pause', () => {
+    // Real bug: WH_*_LL stay installed while Electron main cannot drain hook callbacks (#20732).
+    svc.pauseOsHooksForMainLag()
+
+    expect(hook.stop).toHaveBeenCalledOnce()
+    expect(svc.hooksPausedForMainLag).toBe(true)
+  })
+
+  it('restarts OS hooks and restores trigger config after lag recovers', () => {
+    svc.hooksPausedForMainLag = true
+    const proto = Object.getPrototypeOf(svc)
+    const setFilter = vi.spyOn(proto, 'setHookGlobalFilterMode').mockImplementation(() => {})
+    const setFineTuned = vi.spyOn(proto, 'setHookFineTunedList').mockImplementation(() => {})
+
+    svc.resumeOsHooksAfterMainLag()
+
+    expect(hook.start).toHaveBeenCalledWith({ debug: false })
+    expect(setFilter).toHaveBeenCalledWith('default', [])
+    expect(setFineTuned).toHaveBeenCalledOnce()
+    expect(hook.setSelectionPassiveMode).toHaveBeenCalledWith(false)
+    expect(svc.hooksPausedForMainLag).toBe(false)
+  })
+
+  it('does not restart hooks when pause was never armed', () => {
+    svc.resumeOsHooksAfterMainLag()
+
+    expect(hook.start).not.toHaveBeenCalled()
+    expect(svc.hooksPausedForMainLag).toBe(false)
+  })
+
+  it('clears the lag-pause latch when activation resources are released', () => {
+    svc.hooksPausedForMainLag = true
+
+    svc.releaseActivationResources()
+
+    expect(hook.stop).toHaveBeenCalled()
+    expect(svc.hooksPausedForMainLag).toBe(false)
+  })
+})

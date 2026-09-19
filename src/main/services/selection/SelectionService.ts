@@ -18,6 +18,7 @@ import { getApplicationId } from '@main/utils/appEdition'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 
+import { decideMainLagHookAction, MAIN_LAG_HOOK_SAMPLE_INTERVAL_MS } from './mainLagHookPolicy'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from './selectionConfig'
 
 const logger = loggerService.withContext('SelectionService')
@@ -101,6 +102,11 @@ export class SelectionService extends BaseService implements Activatable {
    * -1 - Ctrlkey action triggered, no need to process again
    */
   private lastCtrlkeyDownTime: number = 0
+
+  /** Windows: true while OS hooks are stopped because main-thread lag exceeded budget. */
+  private hooksPausedForMainLag = false
+  private mainLagWatchdogTimer: ReturnType<typeof setInterval> | null = null
+  private mainLagSampleInFlight = false
 
   //Linux wayland specific
   //isLinuxWaylandDisplay: true when running under Wayland
@@ -222,6 +228,7 @@ export class SelectionService extends BaseService implements Activatable {
 
       this.initConfig()
       this.processTriggerMode()
+      this.startMainLagHookWatchdog()
       this.logInfo('SelectionService activated', true)
     } catch (error) {
       // Clean up partial state before throwing (Activatable failure contract)
@@ -1012,6 +1019,72 @@ export class SelectionService extends BaseService implements Activatable {
    * Global Mouse Event Handling
    */
 
+  /** Windows only: sample main-thread lag and pause/resume OS hooks around the budget. */
+  private startMainLagHookWatchdog(): void {
+    if (!isWin || this.mainLagWatchdogTimer) return
+
+    this.mainLagWatchdogTimer = setInterval(() => {
+      this.sampleMainLagForHooks()
+    }, MAIN_LAG_HOOK_SAMPLE_INTERVAL_MS)
+    this.mainLagWatchdogTimer.unref()
+  }
+
+  private stopMainLagHookWatchdog(): void {
+    if (!this.mainLagWatchdogTimer) return
+    clearInterval(this.mainLagWatchdogTimer)
+    this.mainLagWatchdogTimer = null
+  }
+
+  private sampleMainLagForHooks(): void {
+    if (!isWin || !this.selectionHook || !this.isActivated || this.mainLagSampleInFlight) return
+
+    this.mainLagSampleInFlight = true
+    const scheduledAt = Date.now()
+    setImmediate(() => {
+      this.mainLagSampleInFlight = false
+      if (!this.selectionHook || !this.isActivated) return
+
+      const action = decideMainLagHookAction({
+        paused: this.hooksPausedForMainLag,
+        lagMs: Date.now() - scheduledAt
+      })
+      if (action === 'pause') {
+        this.pauseOsHooksForMainLag()
+      } else if (action === 'resume') {
+        this.resumeOsHooksAfterMainLag()
+      }
+    })
+  }
+
+  private pauseOsHooksForMainLag(): void {
+    if (!this.selectionHook || this.hooksPausedForMainLag) return
+
+    try {
+      this.selectionHook.stop()
+      this.hooksPausedForMainLag = true
+      this.logInfo('Paused selection OS hooks due to main-thread lag', true)
+    } catch (error) {
+      this.logError('Failed to pause selection OS hooks for main-thread lag:', error as Error)
+    }
+  }
+
+  private resumeOsHooksAfterMainLag(): void {
+    if (!this.selectionHook || !this.hooksPausedForMainLag || !this.isActivated) return
+
+    try {
+      if (!this.selectionHook.start({ debug: isDev })) {
+        throw new Error('Failed to restart text selection hook')
+      }
+      this.setHookGlobalFilterMode(this.filterMode, this.filterList)
+      this.setHookFineTunedList()
+      this.processTriggerMode()
+      this.hooksPausedForMainLag = false
+      this.logInfo('Resumed selection OS hooks after main-thread lag recovered', true)
+    } catch (error) {
+      this.logError('Failed to resume selection OS hooks after main-thread lag:', error as Error)
+    }
+  }
+
   // Start monitoring global mouse clicks
   private startHideByMouseKeyListener(): void {
     try {
@@ -1217,6 +1290,8 @@ export class SelectionService extends BaseService implements Activatable {
    * the user closes them (suspendPool only destroys idle, never managed).
    */
   private releaseActivationResources(): void {
+    this.stopMainLagHookWatchdog()
+
     if (this.selectionHook) {
       try {
         this.selectionHook.stop()
@@ -1234,6 +1309,8 @@ export class SelectionService extends BaseService implements Activatable {
     this.isCtrlkeyListenerActive = false
     this.isHideByMouseKeyListenerActive = false
     this.lastCtrlkeyDownTime = 0
+    this.hooksPausedForMainLag = false
+    this.mainLagSampleInFlight = false
 
     const wm = application.get('WindowManager')
 
