@@ -57,6 +57,52 @@ describe('conversation entry route guards', () => {
     await agentBeforeLoad({ search: { sessionId: 'session-a' } })
 
     expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
+    expect(mocks.resolveAgentEntrySessionIdForAgent).not.toHaveBeenCalled()
+  })
+
+  it('resolves a leftover All Agents sessionId as the pinned Agent instead of staying on the directory', async () => {
+    mocks.resolveAgentEntrySessionIdForAgent.mockResolvedValue('session-pinned')
+
+    await expect(
+      agentBeforeLoad({ search: { sessionId: 'session-directory', agentId: 'agent-1' } })
+    ).rejects.toMatchObject({
+      options: {
+        to: '/app/agents',
+        search: { sessionId: 'session-pinned' },
+        replace: true
+      }
+    })
+
+    expect(mocks.resolveAgentEntrySessionIdForAgent).toHaveBeenCalledWith('agent-1')
+    expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
+  })
+
+  it('drops agentId after binding so a later load cannot retarget the conversation', async () => {
+    mocks.resolveAgentEntrySessionIdForAgent.mockResolvedValue('session-pinned')
+
+    await expect(
+      agentBeforeLoad({ search: { sessionId: 'session-pinned', agentId: 'agent-1' } })
+    ).rejects.toMatchObject({
+      options: {
+        to: '/app/agents',
+        search: { sessionId: 'session-pinned' },
+        replace: true
+      }
+    })
+
+    expect(mocks.resolveAgentEntrySessionIdForAgent).toHaveBeenCalledWith('agent-1')
+    expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
+  })
+
+  it('drops a leftover sessionId when the pinned Agent has no session yet', async () => {
+    await expect(
+      agentBeforeLoad({ search: { sessionId: 'session-directory', agentId: 'agent-1' } })
+    ).rejects.toMatchObject({
+      options: { to: '/app/agents', search: { agentId: 'agent-1' }, replace: true }
+    })
+
+    expect(mocks.resolveAgentEntrySessionIdForAgent).toHaveBeenCalledWith('agent-1')
+    expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
   })
 
   it('does not resolve a feedback-intent agent entry', async () => {
@@ -87,7 +133,11 @@ describe('conversation entry route guards', () => {
     mocks.resolveAgentEntrySessionIdForAgent.mockResolvedValue('session-agent')
 
     await expect(agentBeforeLoad({ search: { agentId: 'agent-1' } })).rejects.toMatchObject({
-      options: { to: '/app/agents', search: { sessionId: 'session-agent' }, replace: true }
+      options: {
+        to: '/app/agents',
+        search: { sessionId: 'session-agent' },
+        replace: true
+      }
     })
 
     expect(mocks.resolveAgentEntrySessionIdForAgent).toHaveBeenCalledWith('agent-1')

@@ -28,7 +28,7 @@ import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCloseConversationTabs, useCurrentTabId } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useCurrentTab, useCurrentTabId } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
@@ -59,6 +59,7 @@ import {
   type FeedbackComposerLaunch,
   getFeedbackIntentGuardCacheKey
 } from './feedbackComposerLaunch'
+import { parseAgentRouteSearch } from './routeSearch'
 import type { CreateAgentSessionDefaults } from './types'
 import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 
@@ -99,9 +100,13 @@ const AgentPage = () => {
   const { t } = useTranslation()
   const isFeedbackIntent = routeSearch.intent === 'feedback'
   const currentTabId = useCurrentTabId()
+  const currentTab = useCurrentTab()
   const routeSessionId = routeSearch.sessionId
   const forkReturnSessionId = routeSearch.forkReturnSessionId
   const routeAgentId = routeSearch.agentId
+  const tabAgentId = parseAgentRouteSearch(
+    Object.fromEntries(new URLSearchParams((currentTab?.url ?? '').split('?')[1] ?? ''))
+  ).agentId
   const routeActiveSessionId = routeSessionId ?? null
   // Shared full-list source for session UI plus exact latest/reusable lookups.
   const agentSessionsSource = useAgentSessionsSource()
@@ -502,9 +507,12 @@ const AgentPage = () => {
 
   useEffect(() => {
     const generation = ++routeAgentActivationGenerationRef.current
-    if (!routeAgentId || routeSessionId || activeSessionId || isAgentsLoading || !routeAgentExists) return
-
+    // Close even when this agent's latest session is already on screen: the tab URL
+    // still carries the pin while beforeLoad replaces it with sessionId-only search.
+    if (tabAgentId) closeSurface()
+    if (!routeAgentId || routeSessionId) return
     closeSurface()
+    if (activeSessionId || isAgentsLoading || !routeAgentExists) return
     const pendingRequest = routeAgentSessionRequestRef.current
     const sessionPromise =
       pendingRequest?.agentId === routeAgentId
@@ -542,7 +550,8 @@ const AgentPage = () => {
     routeAgentExists,
     routeAgentId,
     routeSessionId,
-    t
+    t,
+    tabAgentId
   ])
 
   const showMissingAgentSelection = useCallback(() => {

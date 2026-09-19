@@ -274,7 +274,18 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
     (destination, options) => {
       if (!options?.inNewTab) {
         if (activeTab && destination.matchesCurrent?.(activeTab.url)) return
-        if (activeTab && destination.conversation && findConversationTab([activeTab], destination.conversation)) return
+        if (activeTab && destination.conversation && findConversationTab([activeTab], destination.conversation)) {
+          // Same conversation can still need a URL rewrite (pinned Agent → ?agentId=).
+          if (activeTab.url !== destination.url) {
+            updateTab(activeTab.id, {
+              url: destination.url,
+              title: destination.title,
+              icon: destination.icon,
+              metadata: undefined
+            })
+          }
+          return
+        }
         const existing = destination.conversation
           ? findConversationTab(tabs, destination.conversation)
           : tabs.find(

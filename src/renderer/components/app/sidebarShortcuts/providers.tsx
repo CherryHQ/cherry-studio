@@ -206,10 +206,10 @@ const agentProvider: SidebarShortcutProvider = {
   async activate(target, gateway) {
     if (!this.validate(target)) return
     const sessionId = await resolveAgentEntrySessionIdForAgent(target.locator.resourceId)
+    // Keep conversation identity for tab reuse, but open via ?agentId= so a pin
+    // still retargets a tab that already shows this agent's latest session.
     gateway.openWorkspace({
-      url: sessionId
-        ? getSidebarApp('agents')!.conversationRoute!.urlForKey(sessionId)
-        : `/app/agents?agentId=${encodeURIComponent(target.locator.resourceId)}`,
+      url: `/app/agents?agentId=${encodeURIComponent(target.locator.resourceId)}`,
       conversation: sessionId ? { conversationType: 'agent', conversationId: sessionId } : undefined,
       title: target.locator.resourceId
     })
