@@ -1,1 +1,0 @@
-ALTER TABLE `followup_queue` ADD `sent_at` integer;

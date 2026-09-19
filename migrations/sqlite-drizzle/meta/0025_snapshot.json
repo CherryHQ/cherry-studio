@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "115d03fa-fd27-4f8a-8895-c7fdd97791bd",
-  "prevId": "007927cb-2016-4ebc-a4a1-ede74354b9c8",
+  "id": "3a4c8bf8-3aed-417a-9f84-6fd3db63e14f",
+  "prevId": "60663efc-b716-444a-afbb-50fd77ebb24f",
   "tables": {
     "agent": {
       "name": "agent",
@@ -629,6 +629,14 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'conversation'"
         },
         "agent_id": {
           "name": "agent_id",

@@ -11,6 +11,7 @@ CREATE TABLE `followup_queue` (
 	`draft` text NOT NULL,
 	`payload` text NOT NULL,
 	`status` text DEFAULT 'pending' NOT NULL,
+	`sent_at` integer,
 	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
