@@ -30,6 +30,7 @@ import {
   stopDetachedBackgroundTask
 } from '@main/ai/agents/backgroundTasks'
 import { saveBackgroundTaskRecord } from '@main/ai/agents/backgroundTaskStore'
+import { detectDestructiveAssistantCommand } from '@main/ai/agents/builtin/assistantCommandSafety'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -58,6 +59,7 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { BACKGROUND_TASK_TOOL_NAME, CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
@@ -963,6 +965,11 @@ export class CherryAutonomyTools {
   private async startBackgroundTask(args: Record<string, unknown>) {
     const command = typeof args.command === 'string' ? args.command : ''
     if (!command.trim()) throw new McpError(ErrorCode.InvalidParams, "'command' is required for start")
+    const agent = agentService.getAgent(this.agentId)
+    if (isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)) {
+      const reason = detectDestructiveAssistantCommand(command)
+      if (reason) throw new McpError(ErrorCode.InvalidRequest, `This built-in Agent blocked ${reason}`)
+    }
     const record = await startDetachedBackgroundTask({
       storageDir: this.backgroundTaskStorageDir,
       command,

@@ -356,13 +356,7 @@ export class AgentLifecycleService extends BaseService {
     if (permanent && agentService.getLifecycleState(agentId) !== targetState) return { deleted: false }
     // A purged agent's records are swept with its data dir; any detached task left
     // running would lose its only Cherry control path. Archival keeps them running.
-    if (permanent) {
-      try {
-        await stopAllAgentBackgroundTasks(agentId)
-      } catch (error) {
-        logger.warn('Failed to stop detached background tasks before Agent purge', { agentId, error })
-      }
-    }
+    if (permanent) await stopAllAgentBackgroundTasks(agentId)
     const deleteAgent = async () => {
       const { result, scheduleIds } = application.get('DbService').withWriteTx((tx) => {
         const result = agentService.deleteAgentStateTx(tx, agentId, { deleteSessions, permanent, targetState })

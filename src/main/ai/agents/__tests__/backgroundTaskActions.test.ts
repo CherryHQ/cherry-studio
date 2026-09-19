@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getPathMock } = vi.hoisted(() => ({ getPathMock: vi.fn() }))
 
-vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: vi.fn(() => ({ id: 'agent-1' })) } }))
+vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: vi.fn(() => null) } }))
 vi.mock('@application', () => ({ application: { getPath: getPathMock } }))
 
 import { stopAllAgentBackgroundTasks } from '../backgroundTaskActions'
@@ -31,7 +31,7 @@ describe('stopAllAgentBackgroundTasks', () => {
   })
 
   it.skipIf(process.platform === 'win32')(
-    'force-stops every running detached task so a purged agent leaves no unreachable process',
+    'force-stops a trashed Agent task before purge removes its control path',
     async () => {
       const record = await startDetachedBackgroundTask({
         storageDir,

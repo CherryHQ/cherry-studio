@@ -1953,6 +1953,17 @@ describe('CherryAutonomyTools', () => {
 
     const nodeBin = `"${process.execPath}"`
 
+    it('blocks destructive detached commands for protected built-in Agents', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: { builtin_role: 'assistant' } })
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: 'rm -rf important-data' },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('permanent file deletion')
+    })
+
     it('starts a detached task stored under the agent data dir and rejects missing commands', async () => {
       const server = createServer('agent_test', workspaceDir)
       const result = await callTool(

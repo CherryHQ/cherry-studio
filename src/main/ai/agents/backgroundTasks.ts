@@ -26,6 +26,23 @@ export type { BackgroundTaskRecord, BackgroundTaskStatus } from '@shared/ai/back
 
 const logger = loggerService.withContext('AgentBackgroundTasks')
 const activeTaskPids = new Map<string, number>()
+const recordLocks = new Map<string, Promise<void>>()
+
+async function withRecordLock<T>(taskId: string, operation: () => Promise<T>): Promise<T> {
+  const previous = recordLocks.get(taskId)
+  let release!: () => void
+  const current = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  recordLocks.set(taskId, current)
+  if (previous) await previous
+  try {
+    return await operation()
+  } finally {
+    release()
+    if (recordLocks.get(taskId) === current) recordLocks.delete(taskId)
+  }
+}
 
 export const BACKGROUND_TASK_RECORD_EXT = '.json'
 export const BACKGROUND_TASK_LOG_EXT = '.log'
@@ -137,7 +154,24 @@ export async function startDetachedBackgroundTask(
 
     // Synchronously, so an immediately-exiting task cannot finalize before the
     // running record exists on disk.
-    writeRecordSync(input.storageDir, record)
+    try {
+      writeRecordSync(input.storageDir, record)
+    } catch (error) {
+      settled = true
+      activeTaskPids.delete(id)
+      try {
+        if (record.pid > 0) {
+          if (process.platform === 'win32') {
+            execFileSync('taskkill', ['/PID', String(record.pid), '/T', '/F'], { timeout: 5_000 })
+          } else {
+            process.kill(-record.pid, 'SIGKILL')
+          }
+        }
+      } catch (stopError) {
+        logger.error('Could not stop unrecorded detached task', { taskId: id, stopError })
+      }
+      throw error
+    }
 
     logger.info('Detached background task started', { taskId: id, pid: record.pid })
     return record
@@ -161,6 +195,14 @@ export async function stopDetachedBackgroundTask(
   storageDir: string,
   taskId: string,
   force = false
+): Promise<BackgroundTaskRecord | undefined> {
+  return withRecordLock(taskId, () => stopDetachedBackgroundTaskUnlocked(storageDir, taskId, force))
+}
+
+async function stopDetachedBackgroundTaskUnlocked(
+  storageDir: string,
+  taskId: string,
+  force: boolean
 ): Promise<BackgroundTaskRecord | undefined> {
   const record = await getDetachedBackgroundTask(storageDir, taskId)
   if (!record || record.status !== 'running' || record.pid <= 0) return undefined
@@ -287,34 +329,36 @@ async function finalizeDetachedBackgroundTask(
   exitCode: number | null,
   signal: string | null
 ): Promise<void> {
-  try {
-    const current = await readRecord(storageDir, `${record.id}${BACKGROUND_TASK_RECORD_EXT}`)
-    if (current?.status === 'stopped') return
-    if (current?.stopRequestedAt) status = 'stopped'
-    const completion: BackgroundTaskCompletion = {
-      id: record.id,
-      status,
-      exitCode,
-      signal,
-      finishedAt: new Date().toISOString(),
-      durationMs: Date.now() - Date.parse(record.startedAt),
-      logFile: record.logFile
+  await withRecordLock(record.id, async () => {
+    try {
+      const current = await readRecord(storageDir, `${record.id}${BACKGROUND_TASK_RECORD_EXT}`)
+      if (current?.status === 'stopped') return
+      if (current?.stopRequestedAt) status = 'stopped'
+      const completion: BackgroundTaskCompletion = {
+        id: record.id,
+        status,
+        exitCode,
+        signal,
+        finishedAt: new Date().toISOString(),
+        durationMs: Date.now() - Date.parse(record.startedAt),
+        logFile: record.logFile
+      }
+      const finished: BackgroundTaskRecord = { ...(current ?? record), ...completion, note: undefined }
+      await writeRecord(storageDir, finished)
+      await writeFile(
+        path.join(storageDir, `${record.id}${BACKGROUND_TASK_SENTINEL_EXT}`),
+        JSON.stringify(completion, null, 2),
+        { mode: 0o600 }
+      )
+      const summary = `Background task "${finished.name}" (${finished.id}) finished with ${
+        signal ? `signal ${signal}` : `exit code ${exitCode ?? 'unknown'}`
+      }. Log: ${finished.logFile}`
+      logger.info('Detached background task finished', { taskId: finished.id, status, exitCode, signal })
+      onExit?.({ record: finished, summary })
+    } catch (error) {
+      logger.error('Failed to finalize detached background task', { taskId: record.id, error })
     }
-    const finished: BackgroundTaskRecord = { ...(current ?? record), ...completion, note: undefined }
-    await writeRecord(storageDir, finished)
-    await writeFile(
-      path.join(storageDir, `${record.id}${BACKGROUND_TASK_SENTINEL_EXT}`),
-      JSON.stringify(completion, null, 2),
-      { mode: 0o600 }
-    )
-    const summary = `Background task "${finished.name}" (${finished.id}) finished with ${
-      signal ? `signal ${signal}` : `exit code ${exitCode ?? 'unknown'}`
-    }. Log: ${finished.logFile}`
-    logger.info('Detached background task finished', { taskId: finished.id, status, exitCode, signal })
-    onExit?.({ record: finished, summary })
-  } catch (error) {
-    logger.error('Failed to finalize detached background task', { taskId: record.id, error })
-  }
+  })
 }
 
 function writeRecordSync(storageDir: string, record: BackgroundTaskRecord): void {
