@@ -113,6 +113,7 @@ const agentPageMocks = vi.hoisted(() => ({
 const activeSessionMocks = vi.hoisted(() => ({
   session: null as any,
   isLoading: false,
+  mutate: vi.fn(),
   error: undefined as Error | undefined,
   sessionSource: 'none' as 'query' | 'pending' | 'none'
 }))
@@ -272,6 +273,7 @@ vi.mock('@renderer/hooks/agent/useSession', () => {
       return {
         session: pendingSession ?? activeSessionMocks.session ?? undefined,
         isLoading: activeSessionMocks.isLoading,
+        mutate: activeSessionMocks.mutate,
         error: activeSessionMocks.error,
         sessionSource: pendingSession
           ? 'pending'
@@ -591,6 +593,7 @@ vi.mock('../AgentSidePanel', () => ({
 vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
   AgentResourceList: ({
     activeAgentId,
+    activeSessionId,
     historyRecordsActive,
     agentSessionsSource,
     onAddAgent,
@@ -600,6 +603,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     onSelectedAgentClick
   }: {
     activeAgentId?: string | null
+    activeSessionId?: string | null
     historyRecordsActive?: boolean
     agentSessionsSource?: unknown
     onAddAgent?: () => void | Promise<void>
@@ -613,6 +617,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     return (
       <div
         data-active-agent-id={activeAgentId ?? ''}
+        data-active-session-id={activeSessionId ?? ''}
         data-history-active={String(Boolean(historyRecordsActive))}
         data-testid="agent-resource-list">
         <button type="button" onClick={() => void onAddAgent?.()}>
@@ -676,10 +681,19 @@ vi.mock('../components/Sessions', () => ({
 }))
 
 vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
-  default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (sessionId: string | null) => void }) =>
+  default: ({
+    open,
+    onActiveRecordChange
+  }: {
+    open?: boolean
+    onActiveRecordChange?: (sessionId: string | null) => void
+  }) =>
     open ? (
       <div data-testid="history-records-view">
-        <button type="button" onClick={() => onRecordSelect?.(null)}>
+        <button type="button" onClick={() => onActiveRecordChange?.('session-next')}>
+          Replace history session
+        </button>
+        <button type="button" onClick={() => onActiveRecordChange?.(null)}>
           Clear history session
         </button>
       </div>
@@ -779,6 +793,7 @@ describe('AgentPage', () => {
     agentPageMocks.invalidateCache.mockResolvedValue(undefined)
     activeSessionMocks.session = null
     activeSessionMocks.isLoading = false
+    activeSessionMocks.mutate.mockReset()
     activeSessionMocks.error = undefined
     activeSessionMocks.sessionSource = 'none'
 
@@ -876,6 +891,7 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
     expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-active-agent-id', 'agent-a')
+    expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-active-session-id', 'session-created')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'agent-a')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true')
@@ -1454,6 +1470,44 @@ describe('AgentPage', () => {
     )
     expect(recoveryNavigations).toHaveLength(1)
   })
+
+  it.each(['success', 'not-found', 'failure', 'cancelled'])(
+    'settles fork navigation from a fresh destination query, ignoring cached errors: %s',
+    async (scenario) => {
+      const lookup = Promise.withResolvers<void>()
+      activeSessionMocks.mutate.mockImplementation((fetch) => fetch())
+      agentPageMocks.dataApiGet.mockReturnValueOnce(lookup.promise)
+      activeSessionMocks.error = DataApiErrorFactory.notFound('Session', 'parent')
+      agentPageMocks.routeSearch = { sessionId: 'parent', forkReturnSessionId: 'child' }
+      const { unmount } = render(<AgentPage />)
+      expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-sessions/parent')
+      expect(agentPageMocks.navigate).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+      if (scenario === 'cancelled') unmount()
+      await act(async () => {
+        if (scenario === 'success' || scenario === 'cancelled') lookup.resolve()
+        else lookup.reject(scenario === 'not-found' ? activeSessionMocks.error : new Error('Connection failed'))
+      })
+      if (scenario === 'cancelled') {
+        expect(agentPageMocks.navigate).not.toHaveBeenCalled()
+        return
+      }
+      expect(agentPageMocks.navigate.mock.calls).toEqual([
+        [
+          {
+            to: '/app/agents',
+            search: { sessionId: scenario === 'success' ? 'parent' : 'child' },
+            replace: true
+          }
+        ]
+      ])
+      if (scenario === 'success') expect(toast.error).not.toHaveBeenCalled()
+      else
+        expect(toast.error).toHaveBeenCalledWith(
+          scenario === 'not-found' ? 'agent_session_fork.source_not_found' : 'Connection failed'
+        )
+    }
+  )
 
   it('creates and activates an empty session after creating an agent from the classic-layout add entry', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
@@ -2076,22 +2130,23 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-active-session-id', 'session-next')
   })
 
-  it('creates a default empty session when history clears the active session', async () => {
+  it('keeps history open after replacing or clearing the active session without creating one', async () => {
+    const user = userEvent.setup()
     render(<AgentPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear history session' }))
-
-    await waitFor(() =>
-      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
-        body: {
-          agentId: 'agent-a',
-          name: '',
-          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-        }
-      })
-    )
-    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
+    await user.click(screen.getByRole('button', { name: 'Open history records' }))
+    await user.click(screen.getByRole('button', { name: 'Replace history session' }))
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-next'))
+    expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/agents',
+      search: { sessionId: 'session-next' },
+      replace: true
+    })
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Clear history session' }))
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull())
+    expect(agentPageMocks.navigate).toHaveBeenCalledWith({ to: '/app/agents', search: {}, replace: true })
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
   it('writes locate state into the current tab for a global-search session message', async () => {
@@ -2454,7 +2509,7 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-1')
     expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ appId: 'agents', preserveVisuals: false })
+      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: false })
     )
 
     agentPageMocks.routeSearch = { sessionId: 'session-2' }
@@ -2466,7 +2521,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('active-session')).toHaveTextContent('')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('true')
     expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ appId: 'agents', preserveVisuals: true })
+      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: true })
     )
 
     activeSessionMocks.session = {
@@ -2482,7 +2537,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-2')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('false')
     expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ appId: 'agents', preserveVisuals: false })
+      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: false })
     )
   })
 
@@ -2614,11 +2669,14 @@ describe('AgentPage', () => {
   })
 
   it('records the visible agent reported by the chat body', async () => {
+    const user = userEvent.setup()
     render(<AgentPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show visible agent' }))
+    await user.click(screen.getByRole('button', { name: 'Show visible agent' }))
 
-    await waitFor(() => expect(agentPageMocks.setLastUsedAgentId).toHaveBeenCalledWith('agent-visible'))
+    await waitFor(() =>
+      expect(cacheService.setPersist).toHaveBeenCalledWith('ui.agent.last_used_agent_id', 'agent-visible')
+    )
   })
 
   it('records the visible workspace reported by the chat body', async () => {

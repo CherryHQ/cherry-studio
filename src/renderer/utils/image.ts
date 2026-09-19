@@ -49,6 +49,8 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
 /** Per-source cap on a remote-image fetch, and the shared budget for the whole inline stage. */
 const REMOTE_INLINE_SOURCE_TIMEOUT_MS = 10_000
 const REMOTE_INLINE_STAGE_BUDGET_MS = 20_000
+/** In-flight remote fetches; kept under Chromium's per-host limit so this pass never bursts harder than the page load did. */
+const REMOTE_INLINE_CONCURRENCY = 4
 /** Cap on waiting for a swapped-in data URL to settle — data URLs decode locally, so this is generous. */
 const INLINE_SWAP_SETTLE_TIMEOUT_MS = 2_000
 
@@ -74,7 +76,7 @@ const isVisibleInCapture = (image: HTMLImageElement, root: HTMLElement): boolean
  * Resolves once the swapped-in src settles (load/error), so the clone rasterizes the
  * new intrinsic size — not the 0×0 of a still-loading swap. Bounded for silent decodes.
  */
-const waitForSwapSettle = (image: HTMLImageElement, timeoutMs = INLINE_SWAP_SETTLE_TIMEOUT_MS): Promise<void> =>
+const waitForSwapSettle = (image: HTMLImageElement): Promise<void> =>
   new Promise((resolve) => {
     if (image.complete && image.naturalWidth > 0) return resolve()
     const done = () => {
@@ -83,7 +85,7 @@ const waitForSwapSettle = (image: HTMLImageElement, timeoutMs = INLINE_SWAP_SETT
       image.removeEventListener('error', done)
       resolve()
     }
-    const timer = setTimeout(done, timeoutMs)
+    const timer = setTimeout(done, INLINE_SWAP_SETTLE_TIMEOUT_MS)
     image.addEventListener('load', done, { once: true })
     image.addEventListener('error', done, { once: true })
   })
@@ -105,39 +107,44 @@ async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void
 
   const originalSources = images.map((image) => ({
     image,
+    // currentSrc is the candidate the browser actually picked from srcset/sizes;
+    // inlining that candidate (not the src attribute) preserves responsive semantics.
+    source: image.currentSrc || image.src,
     src: image.getAttribute('src'),
     srcset: image.getAttribute('srcset')
   }))
-  const dataUrlBySource = new Map<string, Promise<string>>()
   const stageDeadline = Date.now() + REMOTE_INLINE_STAGE_BUDGET_MS
+  const dataUrlBySource = new Map<string, string>()
+  const queue = [...new Set(originalSources.map(({ source }) => source))]
 
-  for (const { image } of originalSources) {
-    // currentSrc is the candidate the browser actually picked from srcset/sizes;
-    // inlining that candidate (not the src attribute) preserves responsive semantics.
-    const source = image.currentSrc || image.src
-    let dataUrlPromise = dataUrlBySource.get(source)
-    if (!dataUrlPromise) {
+  const drainQueue = async () => {
+    for (let source = queue.shift(); source !== undefined; source = queue.shift()) {
       const budget = Math.min(REMOTE_INLINE_SOURCE_TIMEOUT_MS, stageDeadline - Date.now())
       if (budget <= 0) {
-        dataUrlPromise = Promise.reject(new Error(`Remote-image inline budget exhausted: ${source}`))
-      } else {
-        const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), budget)
-        dataUrlPromise = getImageBlobFromSource(source, { signal: controller.signal })
-          .then(blobToDataUrl)
-          .finally(() => clearTimeout(timer))
+        logger.warn('Remote-image inline budget exhausted, using placeholder', { source })
+        continue
       }
-      dataUrlBySource.set(source, dataUrlPromise)
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), budget)
+      try {
+        const blob = await getImageBlobFromSource(source, { signal: controller.signal })
+        dataUrlBySource.set(source, await blobToDataUrl(blob))
+      } catch (error) {
+        logger.warn('Failed to inline remote image for capture, using placeholder', error as Error, { source })
+      } finally {
+        clearTimeout(timer)
+      }
     }
-    try {
-      image.removeAttribute('srcset')
-      image.src = await dataUrlPromise
-    } catch {
-      image.removeAttribute('srcset')
-      image.src = TRANSPARENT_IMAGE_PLACEHOLDER
-    }
-    await waitForSwapSettle(image, stageDeadline - Date.now())
   }
+  await Promise.all(Array.from({ length: Math.min(REMOTE_INLINE_CONCURRENCY, queue.length) }, drainQueue))
+
+  await Promise.all(
+    originalSources.map(({ image, source }) => {
+      image.removeAttribute('srcset')
+      image.src = dataUrlBySource.get(source) ?? TRANSPARENT_IMAGE_PLACEHOLDER
+      return waitForSwapSettle(image)
+    })
+  )
 
   return () => {
     for (const { image, src, srcset } of originalSources) {
@@ -311,6 +318,9 @@ async function captureScrollableElement(el: HTMLElement | null) {
         new Promise((resolve) => setTimeout(resolve, 1000))
       ])
 
+      restoreLocalImageSources = await inlineLocalImageSources(el)
+      restoreRemoteImages = await inlineVerifiedRemoteImages(el)
+
       // calculate the size of the element
       const totalWidth = el.scrollWidth
       const totalHeight = el.scrollHeight
@@ -338,9 +348,6 @@ async function captureScrollableElement(el: HTMLElement | null) {
         }
         return true
       }
-
-      restoreLocalImageSources = await inlineLocalImageSources(el)
-      restoreRemoteImages = await inlineVerifiedRemoteImages(el)
 
       const fontEmbedCSS = await buildFontEmbedCSS()
       const captureOptions = {

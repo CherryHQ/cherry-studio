@@ -26,7 +26,6 @@ import {
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
-import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import {
   bindCaptureMessageImageRuntime,
   flushPendingMessageImageActions,
@@ -47,7 +46,6 @@ import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
-import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { isVisionModel } from '@renderer/utils/model'
@@ -57,6 +55,7 @@ import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import { createDismissedNoResponsePart, hasDismissedNoResponsePart } from '@shared/data/types/uiParts'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel } from '@shared/utils/model'
 
 import {
@@ -257,55 +256,14 @@ export function useHomeMessageListProviderValue({
     displayPartsByMessageIdRef.current = displayPartsByMessageId
   }, [displayPartsByMessageId])
 
-  const persistDiagnosis = useCallback(
-    async (partId: string, diagnosis: DiagnosisResult) => {
-      const parsed = parseMessagePartId(partId)
-      if (!parsed) return
-      if (streamingLayers?.liveMessageIds.includes(parsed.messageId)) {
-        // A retry owns this message right now and its terminal persist is the
-        // writer; a display-derived edit would race it.
-        logger.warn('Skipping diagnosis persist for a live message', { messageId: parsed.messageId })
-        return
-      }
+  const getDoctorSubject = useCallback((message: MessageListItem): DoctorSubjectRef | undefined => {
+    const model = getMessageListItemModel(message)
+    return model ? { kind: 'chat', providerId: model.provider, modelId: model.id } : undefined
+  }, [])
 
-      const persistedMessage = await dataApiService.get(`/messages/${parsed.messageId}`)
-      const persistedParts = persistedMessage.data.parts ?? []
-      // The diagnosed error may have been replaced by an in-place retry while
-      // the diagnosis was computed. Only a data-error target still accepts it.
-      const target = parsed.partIndex < persistedParts.length ? persistedParts[parsed.partIndex] : undefined
-      let updatedParts =
-        target?.type === 'data-error' ? withMessagePartDiagnosis(persistedParts, parsed.partIndex, diagnosis) : null
-      if (!updatedParts) {
-        // Synthetic fallback error is display-only: persisted lacks it but the
-        // display map has it at the same index. Materialize the fallback into
-        // persisted storage before attaching the diagnosis so the error detail
-        // popup can save — but only while the display snapshot still matches
-        // the persisted parts; otherwise a retry landed and the edit is dropped.
-        const displayParts = displayPartsByMessageIdRef.current[parsed.messageId]
-        if (displayParts) {
-          const displayTarget = parsed.partIndex < displayParts.length ? displayParts[parsed.partIndex] : undefined
-          if (
-            displayTarget?.type === 'data-error' &&
-            displayParts.length === persistedParts.length + 1 &&
-            JSON.stringify(displayParts.slice(0, displayParts.length - 1)) === JSON.stringify(persistedParts) &&
-            canPersistSyntheticFallbackEdit(persistedParts)
-          ) {
-            updatedParts = withMessagePartDiagnosis(displayParts, parsed.partIndex, diagnosis)
-          }
-        }
-      }
-      if (!updatedParts) {
-        logger.warn('Skipping diagnosis persist for a superseded error part', { partId })
-        return
-      }
-
-      await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
-    },
-    [streamingLayers]
-  )
   const diagnosticReport = useMemo(
-    () => (normalInteractionsEnabled ? { location: t('error.diagnostic_report.locations.home') } : undefined),
-    [normalInteractionsEnabled, t]
+    () => (normalInteractionsEnabled ? { location: 'home' } : undefined),
+    [normalInteractionsEnabled]
   )
 
   const {
@@ -328,7 +286,7 @@ export function useHomeMessageListProviderValue({
     streamingLayers: displayStreamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     diagnosticReport,
-    persistDiagnosis,
+    getDoctorSubject,
     selectAllPagination
   })
 
@@ -517,15 +475,20 @@ export function useHomeMessageListProviderValue({
   }, [canStartNewContext, requireChatWrite, t, topic.id])
 
   const saveCodeBlock = useCallback(
-    async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
-      const { msgBlockId, codeBlockId, newContent } = data
+    async (data: { msgBlockId: string; originalContent: string; newContent: string }) => {
+      const { msgBlockId, originalContent, newContent } = data
 
       try {
         const resolved = resolvePartFromParts(partsByMessageIdRef.current, msgBlockId)
         if (resolved && resolved.part.type === 'text') {
           const textPart = resolved.part as { text?: string }
           const { updateCodeBlock } = await import('@renderer/utils/markdown')
-          const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
+          const updatedText = updateCodeBlock(textPart.text || '', originalContent, newContent)
+          if (updatedText === null) {
+            logger.warn(`Failed to save code block to message block ${msgBlockId}: no unique matching code block`)
+            toast.error(t('code_block.edit.save.failed.label'))
+            return
+          }
           const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
           allParts[resolved.index] = {
             ...resolved.part,
@@ -536,12 +499,10 @@ export function useHomeMessageListProviderValue({
           return
         }
 
-        logger.error(
-          `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: unable to resolve part`
-        )
+        logger.error(`Failed to save code block content to message block ${msgBlockId}: unable to resolve part`)
         toast.error(t('code_block.edit.save.failed.label'))
       } catch (error) {
-        logger.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error as Error)
+        logger.error(`Failed to save code block content to message block ${msgBlockId}:`, error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },

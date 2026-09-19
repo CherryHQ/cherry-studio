@@ -11,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-commands'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-token-meter'
@@ -60,6 +60,7 @@ export function apply(ctx: Context): void {
   delete process.env[BRIDGE_TOKEN_ENV]
 
   const policies = new Map<string, BridgePolicy>()
+  const openedSessionIds = new Set<string>()
   const registeredTools = new Map<string, RegisteredBridgeTool>()
   const sessionTools = new Map<string, Set<string>>()
   /** Live command dispatches by sessionId — aborted by a `session/cancel` request. */
@@ -104,6 +105,7 @@ export function apply(ctx: Context): void {
   })
   ctx.effect(
     () => () => {
+      openedSessionIds.clear()
       for (const sessionId of [...sessionTools.keys()]) disposeTools(sessionId)
     },
     'cherry-bridge.tools'
@@ -112,6 +114,14 @@ export function apply(ctx: Context): void {
   /** Host→plugin dispatch; a rejection becomes the JSON-RPC error response. */
   async function handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
     switch (method) {
+      case 'session/fork-snapshot': {
+        const { sessionId, boundary } = params as BridgeHostParams<'session/fork-snapshot'>
+        const session = requireAgent(sessionId).session
+        if (session.eventAt(SessionSeq(boundary))?.type !== 'turn/end') {
+          throw new Error('history_changed')
+        }
+        return { events: session.snapshotEvents(SessionLogOffset(0), SessionLogOffset(boundary + 1)) }
+      }
       case 'session/open':
         return openSession(params as BridgeHostParams<'session/open'>)
       case 'session/prompt': {
@@ -188,22 +198,12 @@ export function apply(ctx: Context): void {
     try {
       replaceTools(params.sessionId, params.tools)
       if (params.resume) {
-        try {
-          const resumed = await ctx.agents.resume({ resumeSessionId: SessionId(params.sessionId), agentOptions })
-          if (resumed.agent.session.header.cwd !== params.cwd) {
-            await resumed.dispose()
-            throw new Error(
-              `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(params.cwd)}`
-            )
-          }
-        } catch (error) {
-          if (!isMissingSessionError(error)) throw error
-          // No persisted log for this id yet — degrade to a fresh create (pi parity).
-          await ctx.agents.create({
-            sessionId: SessionId(params.sessionId),
-            meta: { cwd: params.cwd },
-            agentOptions
-          })
+        const resumed = await ctx.agents.resume({ resumeSessionId: SessionId(params.sessionId), agentOptions })
+        if (resumed.agent.session.header.cwd !== params.cwd) {
+          await resumed.dispose()
+          throw new Error(
+            `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(params.cwd)}`
+          )
         }
       } else {
         await ctx.agents.create({
@@ -212,8 +212,10 @@ export function apply(ctx: Context): void {
           agentOptions
         })
       }
+      openedSessionIds.add(params.sessionId)
       return {}
     } catch (error) {
+      openedSessionIds.delete(params.sessionId)
       policies.delete(params.sessionId)
       disposeTools(params.sessionId)
       throw error
@@ -376,10 +378,11 @@ export function apply(ctx: Context): void {
     })
   })
 
-  /** The bridge policy key: the root ancestor's session id (host policies are per root). */
+  /** Resolve execution ownership; a host-opened fork's parentSession is history lineage only. */
   function rootSessionOf(agent: Agent): string {
     let current = agent
     while (true) {
+      if (openedSessionIds.has(current.id)) return current.id
       const parentId = current.session.header.parentSession
       if (parentId === undefined) return current.id
       const parent = ctx.agents.get(parentId)
@@ -393,11 +396,12 @@ export function apply(ctx: Context): void {
     const agent = exec.agent
     // Not an agent call: delegate to dsh's own chain (which fail-closes on ask).
     if (agent === undefined) return next()
-    const delegated = agent.session.header.parentSession !== undefined
     const rootSessionId = rootSessionOf(agent)
+    const delegated = agent.id !== rootSessionId
     if (!agent.session.header.cwd) {
       return { kind: 'deny' as const, reason: 'The tool caller has no verified workspace directory.' }
     }
+    let browserApproval: { kind: 'ask'; reason: string } | undefined
     try {
       const guard = await link.request(
         'guard/check',
@@ -410,6 +414,7 @@ export function apply(ctx: Context): void {
         exec.signal
       )
       if (guard.kind === 'deny') return guard
+      if (guard.kind === 'ask') browserApproval = guard
     } catch {
       return {
         kind: 'deny' as const,
@@ -427,9 +432,10 @@ export function apply(ctx: Context): void {
         reason: `no bridge policy is reachable for delegated agent "${agent.id}"`
       }
     }
-    return delegated
+    const decision = await (delegated
       ? decideDelegatedToolCall(policy, exec.name, exec.arguments)
-      : decideToolCall(policy, exec.name, exec.arguments)
+      : decideToolCall(policy, exec.name, exec.arguments))
+    return decision.kind === 'deny' ? decision : (browserApproval ?? decision)
   })
 
   // Hard guard, active in every mode (bypass included) and immune to later listeners.
@@ -485,12 +491,6 @@ export function apply(ctx: Context): void {
       return req.signal?.aborted ? 'cancelled' : 'rejected'
     }
   })
-}
-
-/** dsh has no error code for a missing persisted session; the loop throws `session "<id>" not found`. */
-function isMissingSessionError(error: unknown): boolean {
-  if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') return true
-  return /\bnot found\b/i.test(error instanceof Error ? error.message : String(error))
 }
 
 /** Attach the asked-about call's arguments: latest `tool/call` with the request's callId. */

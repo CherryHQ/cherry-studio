@@ -1,7 +1,7 @@
 import { renderAsync } from 'docx-preview'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
+import { type CSSProperties, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
@@ -9,7 +9,9 @@ import { loggerService } from '@logger'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import { assertZipLimits } from '../../officeZipPreflight'
+import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
+import { paragraphToDocxAnchor } from './docxSelectionAnchor'
 import { WordFilePreviewToolbar } from './WordFilePreviewToolbar'
 
 const logger = loggerService.withContext('WordFilePreview')
@@ -60,7 +62,20 @@ function sanitizeHyperlinks(body: HTMLElement): void {
   })
 }
 
-export default function WordFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
+/**
+ * Word preview with paragraph-level selection picking. The anchor is a body paragraph ordinal, and a
+ * click inside a link is a pick rather than a navigation, so it gets `preventDefault`. Unlike the pptx
+ * and pdf plugins the marker can live on the DOM as its own truth: docx has no in-mount rebuild path —
+ * the render effect re-runs only for `filePath` / `refreshKey` (and the metadata they carry), which
+ * remount the plugin through FilePreview's ErrorBoundary key rather than replacing the body.
+ */
+export default function WordFilePreview({
+  filePath,
+  fileName,
+  metadata,
+  refreshKey,
+  onSelectionReference
+}: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -217,6 +232,40 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
     return () => observer.disconnect()
   }, [pageCount])
 
+  // The marker goes on only after createSelectionReference confirms the host receives something: an empty
+  // paragraph must not look picked while the host gets null.
+  const handlePick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!onSelectionReference || !(event.target instanceof Element)) return
+      if (event.target.closest('a[href]')) event.preventDefault()
+      const bodyContainer = bodyRef.current
+      const previous = bodyContainer?.querySelector<HTMLElement>('[data-docx-picked="true"]') ?? null
+      const resolved = paragraphToDocxAnchor(event.target)
+      previous?.removeAttribute('data-docx-picked')
+
+      // Clicking the picked paragraph again clears the pick; anything else replaces it.
+      if (!resolved || resolved.element === previous) {
+        onSelectionReference(null)
+        return
+      }
+      const reference = createSelectionReference({
+        filePath,
+        anchor: resolved.anchor,
+        excerpt: resolved.excerpt,
+        metadata
+      })
+      if (reference) resolved.element.setAttribute('data-docx-picked', 'true')
+      onSelectionReference(reference)
+    },
+    [filePath, metadata, onSelectionReference]
+  )
+
+  // A pick outlives nothing: when the host stops capturing, the marker goes with it.
+  useEffect(() => {
+    if (onSelectionReference) return
+    bodyRef.current?.querySelector<HTMLElement>('[data-docx-picked="true"]')?.removeAttribute('data-docx-picked')
+  }, [onSelectionReference])
+
   const hasPages = !error && pageCount > 0
   const contentStyle = { zoom } as CSSProperties
 
@@ -250,8 +299,10 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
               ref={bodyRef}
               data-testid="docx-preview-content"
               data-zoom={zoom}
+              data-picker={onSelectionReference ? 'true' : undefined}
+              onClick={handlePick}
               style={contentStyle}
-              className="mx-auto w-fit min-w-0 [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_.docx-preview-wrapper]:mx-auto [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md"
+              className="mx-auto w-fit min-w-0 [&[data-picker=true]_p[data-docx-part=body]:not([data-docx-picked=true]):hover]:bg-primary/10 [&[data-picker=true]_p[data-docx-part=body]]:cursor-pointer [&_.docx-preview-wrapper]:mx-auto [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_p[data-docx-picked=true]]:bg-primary/15 [&_p[data-docx-picked=true]]:outline [&_p[data-docx-picked=true]]:outline-1 [&_p[data-docx-picked=true]]:outline-primary/60 [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md"
             />
           </div>
           {loading ? (

@@ -1,3 +1,4 @@
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
@@ -5,6 +6,7 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Topic } from '@renderer/types/topic'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import Chat from '../Chat'
 
@@ -212,6 +214,23 @@ describe('Chat panels', () => {
   }
 
   beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/assistants/:id', {
+      id: 'assistant-1',
+      name: 'Assistant',
+      prompt: '',
+      emoji: '😀',
+      description: '',
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS },
+      modelId: null,
+      modelName: null,
+      groupId: null,
+      orderKey: 'a0',
+      mcpServerIds: [],
+      knowledgeBaseIds: [],
+      createdAt: activeTopic.createdAt,
+      updatedAt: activeTopic.updatedAt
+    })
     renderCounters.chatContent = 0
     renderCounters.navbar = 0
     renderCounters.eventEmit.mockReset()

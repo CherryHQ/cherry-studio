@@ -430,7 +430,42 @@ describe('entryCleanup', () => {
       await seedInternal(id, 'delete_when_unreferenced')
       const report = await runEntryCleanup(makeDeps())
       const summary = summariseEntryCleanup(report)
-      expect(summary).toEqual({ outcome: 'completed', candidates: report.candidates, deleted: report.deleted })
+      expect(summary).toEqual({
+        outcome: 'completed',
+        candidates: report.candidates,
+        deleted: report.deleted,
+        hasPendingWork: false
+      })
+    })
+
+    it('marks a saturated batch as possible pending work', () => {
+      const summary = summariseEntryCleanup({
+        outcome: 'completed',
+        candidates: ENTRY_CLEANUP_BATCH_LIMIT,
+        deleted: ENTRY_CLEANUP_BATCH_LIMIT,
+        skippedRefsReappeared: 0,
+        gonePinned: 0,
+        failed: 0,
+        unlinkFailures: 0,
+        durationMs: 1
+      })
+
+      expect(summary.hasPendingWork).toBe(true)
+    })
+
+    it('marks an unlink failure as pending work', () => {
+      const summary = summariseEntryCleanup({
+        outcome: 'completed',
+        candidates: 1,
+        deleted: 1,
+        skippedRefsReappeared: 0,
+        gonePinned: 0,
+        failed: 0,
+        unlinkFailures: 1,
+        durationMs: 1
+      })
+
+      expect(summary.hasPendingWork).toBe(true)
     })
   })
 })

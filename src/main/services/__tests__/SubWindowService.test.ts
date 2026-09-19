@@ -14,6 +14,7 @@ const {
 } = vi.hoisted(() => {
   const platformState = { isMac: false, isWin: false, isLinux: false }
   const nativeThemeState = { shouldUseDarkColors: false }
+  const preferenceServiceMock = { get: vi.fn(() => 1.3) }
   const windowManagerMock = {
     open: vi.fn<(type: string, args?: { initData?: unknown; options?: Record<string, unknown> }) => string>(
       () => 'mock-window-id'
@@ -36,6 +37,7 @@ const {
     get: vi.fn((name: string) => {
       if (name === 'WindowManager') return windowManagerMock
       if (name === 'IpcApiService') return ipcApiServiceMock
+      if (name === 'PreferenceService') return preferenceServiceMock
       throw new Error(`unexpected service: ${name}`)
     }),
     getPath: vi.fn(() => '/mock/app/root')
@@ -116,6 +118,7 @@ interface MockBrowserWindow extends EventEmitter {
   setAlwaysOnTop: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   webContents: {
     isLoadingMainFrame: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    setZoomFactor: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
 }
 
@@ -132,7 +135,7 @@ function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrows
   win.getContentBounds = vi.fn(() => ({ x: 100, y: 100, width: 800, height: 600 }))
   win.setAlwaysOnTop = vi.fn()
   // Fresh (still-loading) window by default; reused-pool tests override isLoadingMainFrame → false.
-  win.webContents = { isLoadingMainFrame: vi.fn(() => true) }
+  win.webContents = { isLoadingMainFrame: vi.fn(() => true), setZoomFactor: vi.fn() }
   Object.assign(win, overrides)
   return win
 }
@@ -148,6 +151,14 @@ function getNativeOnHandler(channel: string) {
   const call = vi.mocked(ipcMain.on).mock.calls.find(([c]) => c === channel)
   if (!call) throw new Error(`ipcMain.on handler not registered for channel: ${channel}`)
   return call[1] as (event: any, payload: any) => void
+}
+
+function getOnWindowCreatedListener(): (managed: { window: unknown }) => void {
+  const call = windowManagerMock.onWindowCreatedByType.mock.calls.at(-1) as unknown as
+    | [string, (managed: { window: unknown }) => void]
+    | undefined
+  if (!call) throw new Error('onWindowCreatedByType was not subscribed')
+  return call[1]
 }
 
 describe('SubWindowService', () => {
@@ -299,6 +310,56 @@ describe('SubWindowService', () => {
       const opts = lastOpenCall().args.options
       expect(opts).not.toHaveProperty('x')
       expect(opts).not.toHaveProperty('y')
+    })
+  })
+
+  describe('zoom factor', () => {
+    it('injects the persisted app.zoom_factor via options.webPreferences and applies it to the window', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-zoom', url: 'u', title: 'Chat' })
+
+      const { args } = lastOpenCall()
+      expect(args.options).toMatchObject({ webPreferences: { zoomFactor: 1.3 } })
+      // Covers the pooled-standby path: a popped standby was constructed at warmup time
+      // with the default zoom, so options.webPreferences alone would not reach it.
+      expect(win.webContents.setZoomFactor).toHaveBeenCalledWith(1.3)
+    })
+
+    it('subscribes zoom tracking for SubWindow instances via onWindowCreatedByType', () => {
+      expect(windowManagerMock.onWindowCreatedByType).toHaveBeenCalledWith('subWindow', expect.any(Function))
+    })
+
+    it('re-applies app.zoom_factor on will-resize/restore so a standby does not snap back to 100%', () => {
+      const win = createMockWindow()
+      getOnWindowCreatedListener()({ window: win })
+
+      win.emit('will-resize')
+      win.emit('restore')
+      expect(win.webContents.setZoomFactor).toHaveBeenCalledTimes(2)
+      expect(win.webContents.setZoomFactor).toHaveBeenLastCalledWith(1.3)
+    })
+
+    it('re-applies zoom on plain resize on Linux only (resize fires instead of will-resize there)', async () => {
+      platformState.isLinux = true
+      const linuxSvc = new SubWindowService()
+      await (linuxSvc as any).onInit()
+
+      const win = createMockWindow()
+      getOnWindowCreatedListener()({ window: win })
+
+      win.emit('resize')
+      expect(win.webContents.setZoomFactor).toHaveBeenCalledWith(1.3)
+    })
+
+    it('skips zoom re-apply on a destroyed window', () => {
+      const win = createMockWindow()
+      getOnWindowCreatedListener()({ window: win })
+      win.isDestroyed = vi.fn(() => true)
+
+      win.emit('will-resize')
+      expect(win.webContents.setZoomFactor).not.toHaveBeenCalled()
     })
   })
 

@@ -290,10 +290,8 @@ function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
  */
 export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): Promise<PiDirectProviderInjection> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model] = await Promise.all([
-    providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId)
-  ])
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
 
   return resolvePiProviderInjectionFromSnapshot(provider, model)
 }
@@ -348,10 +346,8 @@ export async function resolvePiProviderInjectionForSession(
  */
 export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Promise<void> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model] = await Promise.all([
-    providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId)
-  ])
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
 
   // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
   if (usesPiGateway(provider)) {

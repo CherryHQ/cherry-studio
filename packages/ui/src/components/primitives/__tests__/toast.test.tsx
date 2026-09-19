@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getToastUtilities, type ToastLabels, ToastProvider, ToastViewport, useToasts } from '../toast'
@@ -29,6 +30,55 @@ describe('Toast', () => {
     expect(screen.getByText('Saved')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'notifications' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('dismisses an actionable toast before running its action without triggering the toast click', async () => {
+    const user = userEvent.setup()
+    const onToastClick = vi.fn()
+    const onAction = vi.fn(() => {
+      expect(toast.getToastQueue().toasts).toHaveLength(0)
+    })
+
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.success({
+        action: { label: 'Undo', onClick: onAction },
+        key: 'deleted-item',
+        onClick: onToastClick,
+        title: 'Item deleted'
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+
+    expect(screen.queryByText('Item deleted')).not.toBeInTheDocument()
+    expect(onToastClick).not.toHaveBeenCalled()
+    expect(onAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('aligns actionable toast controls to the primary content row', () => {
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.info({
+        action: { label: 'Undo', onClick: vi.fn() },
+        description: 'The item can be restored for 30 days.',
+        title: 'Item deleted'
+      })
+    })
+
+    const actionButton = screen.getByRole('button', { name: 'Undo' })
+    const closeButton = screen.getByRole('button', { name: 'Close' })
+    const title = screen.getByText('Item deleted')
+
+    expect(actionButton).toHaveAttribute('data-variant', 'outline')
+    // These layout classes keep the 28px action, primary copy, and close control on one row
+    // while the root remains top-aligned so the description stays below that row.
+    expect(screen.getByRole('status')).toHaveClass('items-start')
+    expect(actionButton).toHaveClass('min-h-7')
+    expect(title).toHaveClass('min-h-7', 'py-1')
+    expect(closeButton.parentElement).toHaveClass('flex', 'min-h-7', 'items-center')
   })
 
   it('marks toast items as no-drag so they stay clickable over titlebar drag regions', () => {

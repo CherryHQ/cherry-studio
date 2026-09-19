@@ -1230,12 +1230,12 @@ describe('BinaryManager', () => {
         expect(snapshots.bun).toEqual({
           name: 'bun',
           availability: { source: 'bundled', path: '/mock/cherry.bin/bun', version: '1.2.3' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'system', path: '/usr/local/bin/fd' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
       })
 
@@ -1257,14 +1257,14 @@ describe('BinaryManager', () => {
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
       })
 
       it.each([
-        ['a non-object', JSON.stringify(['not', 'an', 'object'])],
-        ['invalid spec entries', JSON.stringify({ fd: {} })]
-      ])('treats %s mise ls shape as query_failed, not absent', async (_case, stdout) => {
+        ['a non-object', JSON.stringify(['not', 'an', 'object']), 'mise ls --json returned a non-object shape'],
+        ['invalid spec entries', JSON.stringify({ fd: {} }), 'mise ls --json returned invalid entries for fd']
+      ])('treats %s mise ls shape as query_failed, not absent', async (_case, stdout, message) => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
         ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
@@ -1276,7 +1276,7 @@ describe('BinaryManager', () => {
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'none' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message }
         })
       })
 
@@ -3843,6 +3843,42 @@ describe('BinaryManager', () => {
   })
 
   describe('Agent CLI inventory', () => {
+    it('cancels the owned mise query and does not proceed to shim traversal', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      let started!: () => void
+      const ready = new Promise<void>((resolve) => {
+        started = resolve
+      })
+      mockExecFileAsync.mockImplementation((_file: string, _args: string[], options: { signal: AbortSignal }) => {
+        const result = new Promise((_resolve, reject) =>
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+        )
+        started()
+        return result
+      })
+      const controller = new AbortController()
+      const pending = service.getToolInventory(controller.signal)
+      await ready
+      const rejected = expect(pending).rejects.toThrow()
+      controller.abort()
+      await rejected
+      expect(mockFsp.readdir).not.toHaveBeenCalled()
+    })
+
+    it.each([undefined, new AbortController().signal])(
+      'reports query failure as unknown regardless of cancellation support (%s)',
+      async (signal) => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+        mockExecFileAsync.mockRejectedValue(new Error('mise read failed'))
+        const inventory = await service.getToolInventory(signal)
+        expect(inventory.length).toBeGreaterThan(0)
+        expect(inventory.every((entry) => entry.status === 'unknown')).toBe(true)
+      }
+    )
     it('aggregates bundled, fixed, custom, and runtime tools without `mise which` or exposed paths', async () => {
       manifestRef.value = [{ name: 'acme', tool: 'npm:acme', requestedVersion: '1.2.3' }]
       const service = new BinaryManager()

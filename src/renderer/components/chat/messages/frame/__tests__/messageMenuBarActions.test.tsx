@@ -190,6 +190,32 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
 }
 
 describe('messageMenuBarActions', () => {
+  it('uses the injected fork label and availability without owning session policy', async () => {
+    const forkSession = vi.fn()
+    const availability = vi.fn(() => ({ visible: true, enabled: true, reason: undefined as string | undefined }))
+    const context = createActionContext({
+      actions: { forkSession: { label: 'Fork this conversation', availability, run: forkSession } },
+      isProcessing: true,
+      isLastMessage: false
+    })
+    const forkAction = () => resolveMessageMenuBarMenuActions(context).find((action) => action.id === 'fork-session')!
+    expect(forkAction().availability.enabled).toBe(true)
+    expect(forkAction().label).toBe('Fork this conversation')
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    forkSession.mockClear()
+    availability.mockReturnValue({ visible: true, enabled: false, reason: 'Wait for the turn to finish' })
+    expect(forkAction().availability.enabled).toBe(false)
+    expect(forkAction().availability.reason).toBe('Wait for the turn to finish')
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).not.toHaveBeenCalled()
+    availability.mockReturnValue({ visible: true, enabled: true, reason: undefined })
+    expect(forkAction().availability.enabled).toBe(true)
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'new-branch')).toBe(false)
+  })
+
   it('keeps write actions hidden when capabilities are absent', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({

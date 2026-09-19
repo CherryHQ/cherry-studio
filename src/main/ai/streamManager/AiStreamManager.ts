@@ -7,6 +7,7 @@ import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import {
@@ -1019,6 +1020,17 @@ export class AiStreamManager extends BaseService {
     return (this.terminalPersistenceCounts.get(topicId) ?? 0) > 0
   }
 
+  /** True while archiving this topic could strand an admitted or queued chat turn. */
+  hasUnsettledTopicWork(topicId: string): boolean {
+    const status = this.activeStreams.get(topicId)?.status
+    if (status === 'pending' || status === 'streaming' || status === 'awaiting-approval') return true
+    if (this.hasTerminalPersistenceInFlight(topicId)) return true
+    if (this.terminalDispatchInFlight.has(topicId)) return true
+    if (this.pendingSteers.has(topicId) || this.startingNextChatTopicIds.has(topicId)) return true
+    if (this.inFlightChatContinuations.has(topicId)) return true
+    return [...this.inFlightDispatches.values()].includes(topicId)
+  }
+
   /** Resolves once this topic's in-flight terminal dispatch (listeners + lifecycle) has settled. */
   whenTerminalDispatchSettled(topicId: string): Promise<void> {
     return this.terminalDispatchInFlight.get(topicId)?.settled ?? Promise.resolve()
@@ -1982,7 +1994,9 @@ export class AiStreamManager extends BaseService {
         }
       })
     } catch (err) {
-      if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
+      if (!signal.aborted) {
+        logger.error('streamText failed before stream start', { topicId, modelId, err: chatErrorContext(err) })
+      }
       await this.onExecutionError(topicId, modelId, serializeError(err), exec)
       return
     }
@@ -2026,11 +2040,7 @@ export class AiStreamManager extends BaseService {
       if (signal.aborted) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logger.error('Execution loop error', {
-          topicId,
-          modelId,
-          err: result.threw.error instanceof Error ? result.threw.error : fromThrow
-        })
+        logger.error('Execution loop error', { topicId, modelId, err: chatErrorContext(result.threw.error) })
       }
       const serialized =
         result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow)

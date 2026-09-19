@@ -148,6 +148,7 @@ export type CherryDataPartTypes = {
   'compaction-anchor': CompactionAnchorPartData
   'conversation-reset': ConversationResetPartData
   'agent-task-event': AgentTaskEventPartData
+  'agent-session-fork': { sourceSessionId: string }
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
   'no-response-dismissed': DismissedNoResponsePartData
@@ -269,7 +270,8 @@ const ComposerMessageTokenKindSchema = z.enum([
   'command',
   'knowledge',
   'reference',
-  'quote'
+  'quote',
+  'webviewAnnotation'
 ])
 
 const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
