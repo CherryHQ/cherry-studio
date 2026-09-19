@@ -92,24 +92,22 @@ function useTooltipController(
  * timer，故清扫必须与实例生命周期解耦）。只清扫渲染时带 data-tooltip-sweepable 的内容
  * （即本组件非显式 forceMount 的门控渲染内容）；显式 forceMount 内容由用户持有，不受影响。
  */
-/** 跨 shadow 递归查找对某 contentId 的 trigger 引用（document.querySelector 不穿透 shadow boundary）。
- * 注：closed-mode shadow root 不可读、iframe 内引用不可达——与清扫器的观察权限面一致。 */
-function hasActiveAriaReference(tooltipId: string): boolean {
-  const scan = (root: ParentNode): boolean => {
-    for (const el of root.querySelectorAll('[aria-describedby]')) {
-      if (el.getAttribute('aria-describedby')?.split(/\s+/).includes(tooltipId)) return true
-    }
-    for (const el of root.querySelectorAll('*')) {
-      if (el.shadowRoot && scan(el.shadowRoot)) return true
-    }
-    return false
-  }
-  return scan(document)
-}
-
 function setupTooltipOrphanSweeper(): void {
   const pending = new WeakMap<Element, number>()
   const observedRoots = new WeakSet<Document | ShadowRoot>()
+  // 已观察 shadow root 的弱引用清单，替代「全文档元素级遍历 + 逐元素递归」的引用搜索
+  const shadowRoots: WeakRef<ShadowRoot>[] = []
+  /** 查找对某 contentId 的 trigger 引用：document 单查询 + 已观察 shadow root 逐个单查询。
+   * 只覆盖已观察的 shadow root（宿主插入后迟 attach 的 root 为已知边界）；iframe 不可达。 */
+  const hasActiveAriaReference = (tooltipId: string): boolean => {
+    const selector = `[aria-describedby~="${CSS.escape(tooltipId)}"]`
+    if (document.querySelector(selector)) return true
+    for (const ref of shadowRoots) {
+      const root = ref.deref()
+      if (root?.isConnected && root.querySelector(selector)) return true
+    }
+    return false
+  }
   const cancelPending = (node: Element) => {
     const previous = pending.get(node)
     if (previous != null) window.clearTimeout(previous)
@@ -226,6 +224,7 @@ function setupTooltipOrphanSweeper(): void {
   function ensureObserved(root: Document | ShadowRoot): void {
     if (observedRoots.has(root)) return
     observedRoots.add(root)
+    if (root instanceof ShadowRoot) shadowRoots.push(new WeakRef(root))
     observer.observe(root, {
       childList: true,
       subtree: true,
@@ -330,7 +329,8 @@ function TooltipContent({
     )
   }
   return (
-    <RadixPortal container={container}>
+    // Portal 层也须 forceMount：其内部 Presence 同样会在 closed 时卸载整棵子树
+    <RadixPortal container={container} forceMount={forceMount ? true : undefined}>
       <RadixContent
         data-slot="tooltip-content"
         sideOffset={sideOffset}

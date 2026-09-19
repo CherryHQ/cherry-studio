@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { Root as RadixTooltipRoot } from '@radix-ui/react-tooltip'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -10,6 +11,7 @@ import {
   Tooltip,
   TOOLTIP_EXIT_ANIMATION_MS,
   TooltipContent,
+  TooltipProvider,
   TooltipRoot,
   TooltipTrigger
 } from '../tooltip'
@@ -710,6 +712,71 @@ describe('Tooltip', () => {
           vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS * 2 + 100)
         })
         expect(document.querySelector('[data-slot="tooltip-content"]')).toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('mounts standalone forceMount content while closed (portal layer too)', () => {
+      vi.useFakeTimers()
+      try {
+        // 无 overlay context 的独立组合路径：Portal 层同样需要 forceMount，否则 closed 时整棵子树被卸载
+        render(
+          <TooltipProvider>
+            <RadixTooltipRoot open={false}>
+              <TooltipTrigger asChild>
+                <button type="button">Trigger</button>
+              </TooltipTrigger>
+              <TooltipContent forceMount>standalone-fm</TooltipContent>
+            </RadixTooltipRoot>
+          </TooltipProvider>
+        )
+        const content = document.querySelector('[data-slot="tooltip-content"]')
+        expect(content).toBeInTheDocument()
+        expect(content).toHaveAttribute('data-state', 'closed')
+        expect(content).not.toHaveAttribute('data-tooltip-sweepable')
+        act(() => {
+          vi.advanceTimersByTime(500)
+        })
+        expect(document.querySelector('[data-slot="tooltip-content"]')).toBeInTheDocument()
+        content?.remove()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps live content alive when several shadow roots each hold a reference', async () => {
+      vi.useFakeTimers()
+      try {
+        const roots: ShadowRoot[] = []
+        for (const id of ['multi-shadow-a', 'multi-shadow-b']) {
+          const host = document.createElement('div')
+          const shadow = host.attachShadow({ mode: 'open' })
+          const trigger = document.createElement('button')
+          trigger.setAttribute('aria-describedby', id)
+          shadow.appendChild(trigger)
+          const content = document.createElement('div')
+          content.setAttribute('data-slot', 'tooltip-content')
+          content.setAttribute('data-tooltip-sweepable', '')
+          content.setAttribute('data-state', 'instant-open')
+          const span = document.createElement('span')
+          span.setAttribute('role', 'tooltip')
+          span.setAttribute('id', id)
+          content.appendChild(span)
+          shadow.appendChild(content)
+          document.body.appendChild(host)
+          roots.push(shadow)
+        }
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS * 2 + 100)
+        })
+        for (const shadow of roots) {
+          expect(shadow.querySelector('[data-slot="tooltip-content"]')).toBeInTheDocument()
+        }
+        for (const shadow of roots) {
+          shadow.querySelector('[data-slot="tooltip-content"]')?.remove()
+        }
       } finally {
         vi.useRealTimers()
       }
