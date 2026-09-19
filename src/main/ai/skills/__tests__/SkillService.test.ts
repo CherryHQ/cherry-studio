@@ -1793,6 +1793,62 @@ describe('SkillService', () => {
       }
     })
 
+    it('does not resolve the reserved alias for a same-name bare-URL sibling', async () => {
+      const root = await createTempDir('github-reserved-samename-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      // A bare repo URL is shared across skills.sh siblings, so the same name cannot prove the
+      // stem row is the same skill: the install must insert instead of overwriting the sibling.
+      const sourceUrl = 'https://github.com/owner/repo'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'CON',
+        folderName: 'CON',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      const sourceDir = await createTempDir('reserved-samename-source-')
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# new')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'CON-skill',
+        name: 'CON',
+        description: 'Same-named sibling',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory: string) => path.join(directory, 'SKILL.md'))
+      const skillService = new SkillService()
+
+      try {
+        const installed = await skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)
+
+        expect(installed.folderName).toBe('CON-skill')
+        expect(installed.id).not.toBe(SKILL_ID_1)
+        const rows = await dbh.db.select().from(agentGlobalSkillTable)
+        expect(rows).toHaveLength(2)
+        expect(rows.find((row) => row.id === SKILL_ID_1)).toMatchObject({
+          folderName: 'CON',
+          contentHash: 'old-hash'
+        })
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+        vi.mocked(findSkillMdPath).mockReset()
+      }
+    })
+
     it('uses an explicit tag namespace when a branch has the same name', async () => {
       const tagOid = 'b'.repeat(40)
       const { skillService, installSpy, gitCalls } = await setupGithubInstall({
