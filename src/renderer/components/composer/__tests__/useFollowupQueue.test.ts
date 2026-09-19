@@ -718,6 +718,92 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('abandons a hung auto-drain send instead of wedging FIFO', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head'), row('t', 'tail')])
+      const { claimHeadTrigger, deleteTrigger, failTrigger, heartbeatTrigger } = wireMutations()
+      claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
+      let resolveSend!: (value: boolean) => void
+      const onDrain = vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveSend = resolve
+          })
+      )
+      const onDrainFailed = vi.fn()
+      const { rerender } = renderHook(
+        ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain, onDrainFailed })),
+        { initialProps: { isFulfilled: false } }
+      )
+
+      await act(async () => {
+        rerender({ isFulfilled: true })
+      })
+      expect(onDrain).toHaveBeenCalledOnce()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+      })
+      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(deleteTrigger).not.toHaveBeenCalled()
+      expect(onDrainFailed).toHaveBeenCalledOnce()
+
+      // The orphaned send settling late is ignored — no dequeue, no duplicate.
+      await act(async () => {
+        resolveSend(true)
+      })
+      expect(deleteTrigger).not.toHaveBeenCalled()
+      expect(onDrain).toHaveBeenCalledOnce()
+
+      const beats = heartbeatTrigger.mock.calls.length
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+      })
+      expect(heartbeatTrigger.mock.calls.length).toBe(beats)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('abandons a hung steer send and releases the claim', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+      claimTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
+      let resolveSend!: (value: boolean) => void
+      const send = vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveSend = resolve
+          })
+      )
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      let steered!: Promise<boolean>
+      act(() => {
+        steered = result.current.steer('h', send)
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+      })
+
+      await act(async () => {
+        expect(await steered).toBe(false)
+      })
+      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(deleteTrigger).not.toHaveBeenCalled()
+
+      await act(async () => {
+        resolveSend(true)
+      })
+      expect(deleteTrigger).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not drain while the pause-state read errors', async () => {
     const refetch = vi.fn()
     mockUseQuery.mockImplementation((path: string) => {
