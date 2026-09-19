@@ -14,6 +14,12 @@ export const FEISHU_AUTOMATIC_ALLOWED_SCOPES = new Set<string>(FEISHU_REQUIRED_U
 
 const FEISHU_REQUEST_TIMEOUT_MS = 30_000
 
+export const FEISHU_READ_ENDPOINT_BUDGETS = {
+  getWikiNode: { key: 'feishu.wiki.get-node', minimumIntervalMs: 600 },
+  listWikiNodes: { key: 'feishu.wiki.list-nodes', minimumIntervalMs: 600 },
+  getDocxMarkdown: { key: 'feishu.docs.get-content', minimumIntervalMs: 200 }
+} as const
+
 const deviceAuthorizationSchema = z.object({
   device_code: z.string().min(1),
   user_code: z.string().min(1),
