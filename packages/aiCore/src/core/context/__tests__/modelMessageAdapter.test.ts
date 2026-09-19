@@ -390,6 +390,79 @@ describe('round-trip (ModelMessage → IR → ModelMessage)', () => {
   }
 })
 
+describe('tool result name repair', () => {
+  it('uses the originating tool-call name when restored history has a mismatched result name', () => {
+    const restored: ModelMessage[] = [
+      { role: 'user', content: 'read the skill' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool-call', toolCallId: 'call-read', toolName: 'read', input: {} },
+          { type: 'tool-call', toolCallId: 'call-skill', toolName: 'skill', input: {} }
+        ]
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-read',
+            toolName: 'skill',
+            output: { type: 'text', value: 'contents' }
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'call-skill',
+            toolName: 'read',
+            output: { type: 'text', value: 'details' }
+          }
+        ]
+      }
+    ]
+
+    const roundTripped = toModelMessages(fromModelMessages(restored))
+    const toolMessage = roundTripped.find((message) => message.role === 'tool')
+    if (toolMessage?.role !== 'tool') throw new Error('expected a tool message')
+    const results = toolMessage.content.filter((part) => part.type === 'tool-result')
+
+    expect(results.map(({ toolCallId, toolName }) => ({ toolCallId, toolName }))).toEqual([
+      { toolCallId: 'call-read', toolName: 'read' },
+      { toolCallId: 'call-skill', toolName: 'skill' }
+    ])
+  })
+
+  it('repairs an inline result from its originating assistant tool call', () => {
+    const restored: ModelMessage[] = [
+      { role: 'user', content: 'search the web' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool-call', toolCallId: 'call-search', toolName: 'web_search', input: { query: 'Cherry' } },
+          {
+            type: 'tool-result',
+            toolCallId: 'call-search',
+            toolName: 'read',
+            output: { type: 'text', value: 'result' }
+          }
+        ]
+      }
+    ]
+
+    const roundTripped = toModelMessages(fromModelMessages(restored))
+    const assistant = roundTripped.find((message) => message.role === 'assistant')
+    if (assistant?.role !== 'assistant' || typeof assistant.content === 'string') {
+      throw new Error('expected an assistant content array')
+    }
+    const result = assistant.content.find((part) => part.type === 'tool-result')
+
+    expect(result).toMatchObject({
+      toolCallId: 'call-search',
+      toolName: 'web_search',
+      output: { type: 'text', value: 'result' }
+    })
+  })
+})
+
 describe('toModelMessages', () => {
   it('emits a text-part array for synthetic messages (e.g. summary) with no pass-through', () => {
     const result = toModelMessages([{ role: 'user', content: 'summary text' }])
