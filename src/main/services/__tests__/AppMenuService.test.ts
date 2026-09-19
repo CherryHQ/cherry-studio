@@ -8,7 +8,9 @@ const {
   appMock,
   preferenceServiceMock,
   openSettingsInMainWindowMock,
-  commandServiceMock
+  commandServiceMock,
+  windowManagerMock,
+  getFocusedWindowMock
 } = vi.hoisted(() => {
   const preferenceServiceMock = {
     get: vi.fn(),
@@ -18,18 +20,24 @@ const {
   const commandServiceMock = {
     execute: vi.fn()
   }
+  const windowManagerMock = {
+    getWindowsByType: vi.fn(() => []),
+    getWindowId: vi.fn(),
+    center: vi.fn(() => true)
+  }
+  const getFocusedWindowMock = vi.fn()
 
   return {
     preferenceServiceMock,
     openSettingsInMainWindowMock,
     commandServiceMock,
+    windowManagerMock,
+    getFocusedWindowMock,
     applicationMock: {
       get: vi.fn((name: string) => {
         if (name === 'PreferenceService') return preferenceServiceMock
         if (name === 'CommandService') return commandServiceMock
-        if (name === 'WindowManager') {
-          return { getWindowsByType: vi.fn(() => []) }
-        }
+        if (name === 'WindowManager') return windowManagerMock
         return undefined
       })
     },
@@ -73,6 +81,7 @@ vi.mock('@main/core/lifecycle', () => {
 
 vi.mock('electron', () => ({
   app: appMock,
+  BrowserWindow: { getFocusedWindow: getFocusedWindowMock },
   Menu: menuMock,
   shell: shellMock
 }))
@@ -151,5 +160,35 @@ describe('AppMenuService', () => {
 
     expect(copyItem).toMatchObject({ role: 'copy', label: 'Copy' })
     expect(quitItem).toMatchObject({ role: 'quit', label: 'Quit Cherry Studio' })
+  })
+
+  it('centers the focused managed window from the Window menu', async () => {
+    await (service as any).onInit()
+
+    const focused = { id: 42 } as BrowserWindow
+    getFocusedWindowMock.mockReturnValue(focused)
+    windowManagerMock.getWindowId.mockReturnValue('win-1')
+
+    const windowSubmenu = latestTemplate()[4].submenu as MenuItemConstructorOptions[]
+    const centerItem = windowSubmenu.find((item) => item.label === 'Center')
+
+    expect(centerItem).toBeTruthy()
+    centerItem?.click?.(undefined as never, undefined, undefined as never)
+
+    expect(windowManagerMock.getWindowId).toHaveBeenCalledWith(focused)
+    expect(windowManagerMock.center).toHaveBeenCalledWith('win-1')
+  })
+
+  it('does not call center when the focused window is unmanaged', async () => {
+    await (service as any).onInit()
+
+    getFocusedWindowMock.mockReturnValue({ id: 7 })
+    windowManagerMock.getWindowId.mockReturnValue(undefined)
+
+    const windowSubmenu = latestTemplate()[4].submenu as MenuItemConstructorOptions[]
+    const centerItem = windowSubmenu.find((item) => item.label === 'Center')
+    centerItem?.click?.(undefined as never, undefined, undefined as never)
+
+    expect(windowManagerMock.center).not.toHaveBeenCalled()
   })
 })

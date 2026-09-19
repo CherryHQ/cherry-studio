@@ -538,6 +538,33 @@ export class WindowManager extends BaseService {
     return true
   }
 
+  /**
+   * Center a window on the display it currently occupies (multi-monitor safe).
+   * Uses normal (pre-maximize) size; exits fullscreen/maximized/minimized first.
+   * macOS centers within `display.bounds`; Windows/Linux use `display.workArea`.
+   */
+  public center(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed || managed.window.isDestroyed()) return false
+
+    const window = managed.window
+    const normal = window.getNormalBounds()
+
+    if (window.isFullScreen()) window.setFullScreen(false)
+    if (window.isMaximized()) window.unmaximize()
+    if (window.isMinimized()) window.restore()
+
+    const display = screen.getDisplayMatching(normal)
+    const area = isMac ? display.bounds : display.workArea
+    window.setBounds({
+      x: Math.round(area.x + (area.width - normal.width) / 2),
+      y: Math.round(area.y + (area.height - normal.height) / 2),
+      width: normal.width,
+      height: normal.height
+    })
+    return true
+  }
+
   public isMaximized(windowId: string): boolean {
     const managed = this.windows.get(windowId)
     if (!managed) return false
