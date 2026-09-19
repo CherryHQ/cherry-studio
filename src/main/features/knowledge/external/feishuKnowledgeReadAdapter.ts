@@ -2,6 +2,7 @@ import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKno
 import type {
   ExternalKnowledgeDocumentKind,
   ExternalKnowledgeReadDescriptor,
+  ExternalKnowledgeScopePreview,
   ExternalKnowledgeScopeResolution
 } from '@shared/data/types/externalKnowledgeRead'
 
@@ -26,6 +27,12 @@ export class FeishuKnowledgeReadError extends Error {
 
 export type FeishuKnowledgeReadOperations = {
   getNode(token: string, objType: 'wiki' | 'docx', signal?: AbortSignal): Promise<FeishuWikiNode>
+  listChildNodes(
+    spaceId: string,
+    parentNodeToken: string,
+    pageToken?: string,
+    signal?: AbortSignal
+  ): Promise<{ nodes: FeishuWikiNode[]; nextPageToken?: string }>
 }
 
 export type FeishuKnowledgeNodeData = {
@@ -41,6 +48,18 @@ export type FeishuKnowledgeNodeData = {
 export type ResolvedFeishuKnowledgeScope = {
   resolution: ExternalKnowledgeScopeResolution
   providerData: FeishuKnowledgeNodeData
+  selectedNode: FeishuWikiNode
+}
+
+export type FeishuKnowledgeReference = {
+  descriptor: ExternalKnowledgeReadDescriptor
+  providerData: FeishuKnowledgeNodeData
+}
+
+export type FeishuKnowledgeScopePreviewResult = {
+  resolution: ExternalKnowledgeScopeResolution
+  preview: ExternalKnowledgeScopePreview
+  references: FeishuKnowledgeReference[]
 }
 
 export type { FeishuWikiNode } from './feishuKnowledgeProvider'
@@ -84,13 +103,17 @@ function documentKind(objType: string): ExternalKnowledgeDocumentKind {
   }
 }
 
-function descriptor(node: FeishuWikiNode, originalUrl: string): ExternalKnowledgeReadDescriptor {
+function descriptor(
+  node: FeishuWikiNode,
+  originalUrl: string,
+  relativeBreadcrumb: string[] = [node.title]
+): ExternalKnowledgeReadDescriptor {
   const crossSpaceShortcut = node.nodeType === 'shortcut' && node.originSpaceId !== node.spaceId
   return {
     remoteObjectId: node.objToken,
     nodeId: node.nodeToken,
     parentNodeId: node.parentNodeToken,
-    relativeBreadcrumb: [node.title],
+    relativeBreadcrumb,
     title: node.title,
     originalUrl,
     remoteRevision: node.objEditTime,
@@ -136,6 +159,92 @@ export async function resolveFeishuKnowledgeScope(
       nodeType: node.nodeType,
       originNodeToken: node.originNodeToken,
       originSpaceId: node.originSpaceId
+    },
+    selectedNode: node
+  }
+}
+
+function providerData(node: FeishuWikiNode): FeishuKnowledgeNodeData {
+  return {
+    spaceId: node.spaceId,
+    nodeToken: node.nodeToken,
+    objToken: node.objToken,
+    objType: node.objType,
+    nodeType: node.nodeType,
+    originNodeToken: node.originNodeToken,
+    originSpaceId: node.originSpaceId
+  }
+}
+
+function reference(node: FeishuWikiNode, originalUrl: string, breadcrumb: string[]): FeishuKnowledgeReference {
+  return { descriptor: descriptor(node, originalUrl, breadcrumb), providerData: providerData(node) }
+}
+
+export async function previewFeishuKnowledgeScope(
+  input: { connection: ExternalKnowledgeConnection; url: string },
+  operations: FeishuKnowledgeReadOperations,
+  signal?: AbortSignal
+): Promise<FeishuKnowledgeScopePreviewResult> {
+  const resolved = await resolveFeishuKnowledgeScope(input, operations, signal)
+  const host = new URL(resolved.resolution.selected.originalUrl).hostname
+  const selectedReference = reference(
+    resolved.selectedNode,
+    resolved.resolution.selected.originalUrl,
+    resolved.resolution.selected.relativeBreadcrumb
+  )
+  const references = [selectedReference]
+  const seenNodeIds = new Set([resolved.selectedNode.nodeToken])
+  const pending =
+    resolved.resolution.scope.kind !== 'document' &&
+    resolved.selectedNode.nodeType === 'origin' &&
+    resolved.selectedNode.hasChild
+      ? [{ node: resolved.selectedNode, breadcrumb: resolved.resolution.selected.relativeBreadcrumb }]
+      : []
+
+  for (let index = 0; index < pending.length; index++) {
+    const parent = pending[index]
+    let pageToken: string | undefined
+    do {
+      const page = await operations.listChildNodes(
+        resolved.resolution.spaceId,
+        parent.node.nodeToken,
+        pageToken,
+        signal
+      )
+      for (const child of page.nodes) {
+        if (
+          child.spaceId !== resolved.resolution.spaceId ||
+          child.parentNodeToken !== parent.node.nodeToken ||
+          seenNodeIds.has(child.nodeToken)
+        ) {
+          throw new FeishuKnowledgeReadError('invalid-provider-response')
+        }
+        seenNodeIds.add(child.nodeToken)
+        const breadcrumb = [...parent.breadcrumb, child.title]
+        references.push(reference(child, `https://${host}/wiki/${child.nodeToken}`, breadcrumb))
+        if (child.nodeType === 'origin' && child.hasChild) pending.push({ node: child, breadcrumb })
+      }
+      pageToken = page.nextPageToken
+    } while (pageToken)
+  }
+
+  const supportedRemoteObjects = new Set<string>()
+  let unsupportedOrSkippedCount = 0
+  for (const item of references) {
+    if (item.descriptor.supportState === 'supported') {
+      supportedRemoteObjects.add(item.descriptor.remoteObjectId)
+    } else {
+      unsupportedOrSkippedCount++
     }
   }
+  const supportedDocxCount = supportedRemoteObjects.size
+  const preview: ExternalKnowledgeScopePreview = {
+    resolution: resolved.resolution,
+    visibleNodeCount: references.length,
+    supportedDocxCount,
+    unsupportedOrSkippedCount,
+    embeddingCostExact: false,
+    warnings: supportedDocxCount === 0 ? ['no-supported-documents'] : []
+  }
+  return { resolution: resolved.resolution, preview, references }
 }

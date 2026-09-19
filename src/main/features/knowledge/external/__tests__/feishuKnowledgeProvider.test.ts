@@ -7,6 +7,7 @@ import {
   beginDeviceAuthorization,
   exchangeDeviceAuthorization,
   getWikiNode,
+  listWikiChildNodes,
   getUserIdentity,
   refreshUserToken,
   revokeUserToken
@@ -192,6 +193,47 @@ describe('feishuKnowledgeProvider', () => {
       code: 'invalid-response'
     })
     await expect(getWikiNode('access-token', { token: 'shortcut-1', objType: 'wiki' })).rejects.toMatchObject({
+      code: 'invalid-response'
+    })
+  })
+
+  it('lists one Wiki child page from the fixed space endpoint', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          items: [
+            {
+              space_id: 'space-1',
+              node_token: 'child-1',
+              obj_token: 'doc-1',
+              obj_type: 'docx',
+              parent_node_token: 'root',
+              node_type: 'origin',
+              title: 'Child',
+              has_child: false,
+              obj_edit_time: '42'
+            }
+          ],
+          has_more: true,
+          page_token: 'page-2'
+        }
+      })
+    )
+
+    await expect(listWikiChildNodes('access-token', 'space-1', 'root', 'page-1')).resolves.toMatchObject({
+      nodes: [{ nodeToken: 'child-1' }],
+      nextPageToken: 'page-2'
+    })
+    expect(vi.mocked(net.fetch).mock.calls[0][0]).toBe(
+      'https://open.feishu.cn/open-apis/wiki/v2/spaces/space-1/nodes?page_size=50&parent_node_token=root&page_token=page-1'
+    )
+  })
+
+  it('rejects pagination responses that claim another page without a token', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 0, data: { items: [], has_more: true } }))
+
+    await expect(listWikiChildNodes('access-token', 'space-1', 'root')).rejects.toMatchObject({
       code: 'invalid-response'
     })
   })

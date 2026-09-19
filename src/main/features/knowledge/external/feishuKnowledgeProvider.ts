@@ -72,6 +72,21 @@ const wikiNodeResponseSchema = z.object({
   data: z.object({ node: wikiNodeSchema })
 })
 
+const wikiNodePageResponseSchema = z
+  .object({
+    code: z.literal(0),
+    data: z.object({
+      items: z.array(wikiNodeSchema),
+      has_more: z.boolean(),
+      page_token: z.string().trim().min(1).optional()
+    })
+  })
+  .superRefine((response, context) => {
+    if (response.data.has_more && !response.data.page_token) {
+      context.addIssue({ code: 'custom', path: ['data', 'page_token'], message: 'Next page token is required' })
+    }
+  })
+
 export type FeishuApplicationCredentials = { appId: string; appSecret: string }
 
 export type FeishuDeviceAuthorization = {
@@ -112,6 +127,8 @@ export type FeishuWikiNode = {
   hasChild: boolean
   objEditTime: string | null
 }
+
+export type FeishuWikiNodePage = { nodes: FeishuWikiNode[]; nextPageToken?: string }
 
 export type FeishuProviderErrorCode =
   | 'authorization-pending'
@@ -327,7 +344,10 @@ export async function getWikiNode(
     })
   )
   if (!parsed.success) throw new FeishuProviderError('invalid-response', false)
-  const node = parsed.data.data.node
+  return normalizeWikiNode(parsed.data.data.node)
+}
+
+function normalizeWikiNode(node: z.infer<typeof wikiNodeSchema>): FeishuWikiNode {
   return {
     spaceId: node.space_id,
     nodeToken: node.node_token,
@@ -340,6 +360,31 @@ export async function getWikiNode(
     title: node.title,
     hasChild: node.has_child,
     objEditTime: node.obj_edit_time === null || node.obj_edit_time === undefined ? null : String(node.obj_edit_time)
+  }
+}
+
+export async function listWikiChildNodes(
+  accessToken: string,
+  spaceId: string,
+  parentNodeToken: string,
+  pageToken?: string,
+  signal?: AbortSignal
+): Promise<FeishuWikiNodePage> {
+  const url = new URL(`https://open.feishu.cn/open-apis/wiki/v2/spaces/${encodeURIComponent(spaceId)}/nodes`)
+  url.searchParams.set('page_size', '50')
+  url.searchParams.set('parent_node_token', parentNodeToken)
+  if (pageToken) url.searchParams.set('page_token', pageToken)
+  const parsed = wikiNodePageResponseSchema.safeParse(
+    await request(url.toString(), {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal
+    })
+  )
+  if (!parsed.success) throw new FeishuProviderError('invalid-response', false)
+  return {
+    nodes: parsed.data.data.items.map(normalizeWikiNode),
+    ...(parsed.data.data.has_more ? { nextPageToken: parsed.data.data.page_token } : {})
   }
 }
 
