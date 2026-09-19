@@ -120,6 +120,11 @@
   "settings.mcp.oauth.callback.message": "このページを閉じてCherry Studioに戻ることができます",
   "settings.mcp.oauth.callback.title": "認証成功",
   "settings.title": "設定",
+  "skill.attach.disabled": "スキル「{{name}}」は無効です。スキル設定で有効にするか、メッセージから削除してください。",
+  "skill.attach.missing": "スキル「{{name}}」はインストールされていません。再インストールするか、メッセージから削除してください。",
+  "skill.attach.too_large": "スキル「{{name}}」は {{limit}} MB の上限を超えています。メッセージから削除してください。",
+  "skill.attach.total_too_large": "添付したスキルの合計が {{limit}} MB の上限を超えています。一部を削除してください。",
+  "skill.attach.unreadable": "スキル「{{name}}」を読み込めませんでした。メッセージから削除するか、再インストールしてください。",
   "tray.quit": "終了",
   "tray.show_quick_assistant": "クイックアシスタント",
   "tray.show_window": "ウィンドウを表示"

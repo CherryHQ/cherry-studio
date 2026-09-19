@@ -120,6 +120,11 @@
   "settings.mcp.oauth.callback.message": "Poți închide această pagină și te poți întoarce la Cherry Studio",
   "settings.mcp.oauth.callback.title": "Autentificare reușită",
   "settings.title": "Setări",
+  "skill.attach.disabled": "Abilitatea „{{name}}” este dezactivată. Activați-o în setările abilităților sau eliminați-o din mesaj.",
+  "skill.attach.missing": "Abilitatea „{{name}}” nu mai este instalată. Reinstalați-o sau eliminați-o din mesaj.",
+  "skill.attach.too_large": "Abilitatea „{{name}}” depășește limita de {{limit}} MB. Eliminați-o din mesaj.",
+  "skill.attach.total_too_large": "Abilitățile atașate depășesc împreună limita de {{limit}} MB. Eliminați o parte dintre ele.",
+  "skill.attach.unreadable": "Abilitatea „{{name}}” nu a putut fi citită. Eliminați-o din mesaj sau reinstalați-o.",
   "tray.quit": "Ieșire",
   "tray.show_quick_assistant": "Asistent rapid",
   "tray.show_window": "Afișează fereastra"

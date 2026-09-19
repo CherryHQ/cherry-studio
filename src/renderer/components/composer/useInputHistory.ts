@@ -3,9 +3,11 @@ import { useCallback, useRef, useState } from 'react'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 
 import { getNextInputHistoryIndex, type InputHistoryDirection } from './inputHistoryNavigation'
-import type { ComposerSerializedDraft } from './tokens'
+import type { ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 
 export const INPUT_HISTORY_LIMIT = 20
+
+type InputHistoryEntry = string | { text: string; skillTokens: ComposerSerializedToken[] }
 
 interface UseInputHistoryApplyOptions {
   source: 'history' | 'draft'
@@ -18,7 +20,7 @@ interface UseInputHistoryOptions {
 export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
   const [historyIndex, setHistoryIndex] = useState(-1)
   const draftBeforeHistoryRef = useRef<ComposerSerializedDraft | null>(null)
-  const navigationHistoryRef = useRef<string[] | null>(null)
+  const navigationHistoryRef = useRef<InputHistoryEntry[] | null>(null)
   const [history, setHistory] = usePersistCache('ui.composer.input_history')
 
   const applyHistoryIndex = useCallback(
@@ -41,7 +43,16 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
         return
       }
 
-      applyDraft({ text: historyItem, tokens: [] }, { source: 'history' })
+      // Entries with skill chips carry their tokens so recall restores the attachment; legacy
+      // plain-string entries recall as bare text.
+      const isTokenEntry = typeof historyItem !== 'string'
+      applyDraft(
+        {
+          text: isTokenEntry ? historyItem.text : historyItem,
+          tokens: isTokenEntry ? historyItem.skillTokens : []
+        },
+        { source: 'history' }
+      )
     },
     [applyDraft, history]
   )
@@ -86,14 +97,22 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
   }, [])
 
   const saveHistory = useCallback(
-    (content: string) => {
+    (content: string, skillTokens?: readonly ComposerSerializedToken[]) => {
       const normalizedContent = content.trim()
       if (!normalizedContent) {
         return
       }
 
+      // Dedupe by text so resending an edited variant of an entry replaces it in place.
+      const entry: InputHistoryEntry =
+        skillTokens && skillTokens.length > 0
+          ? { text: normalizedContent, skillTokens: [...skillTokens] }
+          : normalizedContent
       setHistory((prev) =>
-        [normalizedContent, ...prev.filter((item) => item !== normalizedContent)].slice(0, INPUT_HISTORY_LIMIT)
+        [entry, ...prev.filter((item) => (typeof item === 'string' ? item : item.text) !== normalizedContent)].slice(
+          0,
+          INPUT_HISTORY_LIMIT
+        )
       )
     },
     [setHistory]

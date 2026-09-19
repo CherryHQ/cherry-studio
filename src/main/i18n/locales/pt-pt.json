@@ -120,6 +120,11 @@
   "settings.mcp.oauth.callback.message": "Pode fechar esta página e regressar ao Cherry Studio",
   "settings.mcp.oauth.callback.title": "Autenticação Bem-Sucedida",
   "settings.title": "Configurações",
+  "skill.attach.disabled": "A habilidade «{{name}}» está desativada. Ative-a nas definições de habilidades ou remova-a da mensagem.",
+  "skill.attach.missing": "A habilidade «{{name}}» já não está instalada. Reinstale-a ou remova-a da mensagem.",
+  "skill.attach.too_large": "A habilidade «{{name}}» excede o limite de {{limit}} MB. Remova-a da mensagem.",
+  "skill.attach.total_too_large": "As habilidades anexadas excedem em conjunto o limite de {{limit}} MB. Remova algumas delas.",
+  "skill.attach.unreadable": "Não foi possível ler a habilidade «{{name}}». Remova-a da mensagem ou reinstale-a.",
   "tray.quit": "Sair",
   "tray.show_quick_assistant": "Assistente rápido",
   "tray.show_window": "Mostrar janela"

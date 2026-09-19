@@ -120,6 +120,11 @@
   "settings.mcp.oauth.callback.message": "Bạn có thể đóng trang này và quay lại Cherry Studio",
   "settings.mcp.oauth.callback.title": "Xác thực thành công",
   "settings.title": "Cài đặt",
+  "skill.attach.disabled": "Kỹ năng “{{name}}” đã bị tắt. Bật lại trong cài đặt kỹ năng hoặc bỏ khỏi tin nhắn.",
+  "skill.attach.missing": "Kỹ năng “{{name}}” không còn được cài đặt. Cài lại hoặc bỏ khỏi tin nhắn.",
+  "skill.attach.too_large": "Kỹ năng “{{name}}” vượt giới hạn {{limit}} MB. Bỏ khỏi tin nhắn.",
+  "skill.attach.total_too_large": "Các kỹ năng đính kèm vượt tổng giới hạn {{limit}} MB. Hãy bỏ bớt.",
+  "skill.attach.unreadable": "Không thể đọc kỹ năng “{{name}}”. Bỏ khỏi tin nhắn hoặc cài lại.",
   "tray.quit": "Thoát",
   "tray.show_quick_assistant": "Trợ lý nhanh",
   "tray.show_window": "Hiển thị cửa sổ"

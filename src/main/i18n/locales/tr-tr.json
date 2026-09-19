@@ -120,6 +120,11 @@
   "settings.mcp.oauth.callback.message": "Bu sayfayı kapatıp Cherry Studio'ya dönebilirsiniz",
   "settings.mcp.oauth.callback.title": "Kimlik Doğrulama Başarılı",
   "settings.title": "Ayarlar",
+  "skill.attach.disabled": "“{{name}}” yeteneği devre dışı. Yetenek ayarlarından etkinleştirin veya mesajdan kaldırın.",
+  "skill.attach.missing": "“{{name}}” yeteneği artık yüklü değil. Yeniden yükleyin veya mesajdan kaldırın.",
+  "skill.attach.too_large": "“{{name}}” yeteneği {{limit}} MB sınırını aşıyor. Mesajdan kaldırın.",
+  "skill.attach.total_too_large": "Eklenen yetenekler birlikte {{limit}} MB sınırını aşıyor. Bir kısmını kaldırın.",
+  "skill.attach.unreadable": "“{{name}}” yeteneği okunamadı. Mesajdan kaldırın veya yeniden yükleyin.",
   "tray.quit": "Çıkış",
   "tray.show_quick_assistant": "Hızlı Asistan",
   "tray.show_window": "Pencereyi Göster"

@@ -120,6 +120,11 @@
   "settings.mcp.oauth.callback.message": "Вы можете закрыть эту страницу и вернуться в Cherry Studio",
   "settings.mcp.oauth.callback.title": "Аутентификация выполнена",
   "settings.title": "Настройки",
+  "skill.attach.disabled": "Навык «{{name}}» отключён. Включите его в настройках навыков или уберите из сообщения.",
+  "skill.attach.missing": "Навык «{{name}}» больше не установлен. Переустановите его или уберите из сообщения.",
+  "skill.attach.too_large": "Навык «{{name}}» превышает лимит {{limit}} МБ. Уберите его из сообщения.",
+  "skill.attach.total_too_large": "Суммарный размер прикреплённых навыков превышает лимит {{limit}} МБ. Уберите часть из них.",
+  "skill.attach.unreadable": "Не удалось прочитать навык «{{name}}». Уберите его из сообщения или переустановите.",
   "tray.quit": "Выйти",
   "tray.show_quick_assistant": "Быстрый помощник",
   "tray.show_window": "Показать окно"

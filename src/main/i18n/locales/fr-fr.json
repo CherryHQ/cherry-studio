@@ -120,6 +120,11 @@
   "settings.mcp.oauth.callback.message": "Vous pouvez fermer cette page et retourner à Cherry Studio",
   "settings.mcp.oauth.callback.title": "Authentification Réussie",
   "settings.title": "Paramètres",
+  "skill.attach.disabled": "La compétence « {{name}} » est désactivée. Activez-la dans les paramètres des compétences ou retirez-la du message.",
+  "skill.attach.missing": "La compétence « {{name}} » n’est plus installée. Réinstallez-la ou retirez-la du message.",
+  "skill.attach.too_large": "La compétence « {{name}} » dépasse la limite de {{limit}} Mo. Retirez-la du message.",
+  "skill.attach.total_too_large": "Les compétences jointes dépassent ensemble la limite de {{limit}} Mo. Retirez-en certaines.",
+  "skill.attach.unreadable": "Impossible de lire la compétence « {{name}} ». Retirez-la du message ou réinstallez-la.",
   "tray.quit": "Quitter",
   "tray.show_quick_assistant": "Assistant Rapide",
   "tray.show_window": "Afficher la fenêtre"

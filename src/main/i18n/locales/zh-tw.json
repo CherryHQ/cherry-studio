@@ -120,6 +120,11 @@
   "settings.mcp.oauth.callback.message": "關閉此頁面後即可回到 Cherry Studio",
   "settings.mcp.oauth.callback.title": "認證成功",
   "settings.title": "設定",
+  "skill.attach.disabled": "技能「{{name}}」已被停用。請在技能設定中啟用，或從訊息中移除。",
+  "skill.attach.missing": "技能「{{name}}」已解除安裝。請重新安裝，或從訊息中移除。",
+  "skill.attach.too_large": "技能「{{name}}」超過 {{limit}} MB 上限。請從訊息中移除。",
+  "skill.attach.total_too_large": "附加的技能總大小超過 {{limit}} MB 上限。請移除部分技能。",
+  "skill.attach.unreadable": "無法讀取技能「{{name}}」。請從訊息中移除或重新安裝。",
   "tray.quit": "結束",
   "tray.show_quick_assistant": "快速助理",
   "tray.show_window": "顯示視窗"
