@@ -1893,6 +1893,30 @@ describe('AiService tool approval', () => {
     expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }))
   })
 
+  // #20730: custom Cloudflare Workers AI embeddings must be saved with
+  // openai-embeddings as primary endpoint so checkModel hits /embeddings, not chat.
+  it('checks embedding models whose primary endpoint is openai-embeddings via embedMany', async () => {
+    const service = createService()
+    const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'cloudflare::@cf/qwen/qwen3-embedding-0.6b',
+      providerId: 'cloudflare',
+      apiModelId: '@cf/qwen/qwen3-embedding-0.6b',
+      name: 'Qwen3 Embedding',
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'cloudflare::@cf/qwen/qwen3-embedding-0.6b' })
+
+    expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }))
+    expect(generateSpy).not.toHaveBeenCalled()
+  })
+
   it('checks image-only models through the image endpoint, not chat', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
