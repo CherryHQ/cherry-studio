@@ -162,6 +162,38 @@ describe('sidebar conversation navigation', () => {
     }
   )
 
+  it('repurposes the active tab for an app shortcut instead of focusing another tab of that app', async () => {
+    const tabs = tabContext([
+      { id: 'current', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat' },
+      { id: 'other-agent', type: 'route', url: '/app/agents?sessionId=session-1', title: 'Agent' }
+    ])
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+    const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.app')!
+
+    await act(async () => provider.activate(createSidebarShortcutTarget('core.app', 'agents'), result.current))
+
+    expect(tabs.updateTab).toHaveBeenCalledWith('current', expect.objectContaining({ url: '/app/agents' }))
+    expect(tabs.setActiveTab).not.toHaveBeenCalled()
+    expect(tabs.openTab).not.toHaveBeenCalled()
+  })
+
+  it('focuses an open code tool tab matched by param rather than by string equality', async () => {
+    const tabs = tabContext([
+      { id: 'current', type: 'route', url: '/app/files', title: 'Files' },
+      { id: 'code', type: 'route', url: '/app/code?foo=1&tool=pi', title: 'Code' }
+    ])
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+    const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.code-cli')!
+
+    await act(async () => provider.activate(createSidebarShortcutTarget('core.code-cli', 'pi'), result.current))
+
+    expect(tabs.setActiveTab).toHaveBeenCalledWith('code')
+    expect(tabs.updateTab).not.toHaveBeenCalled()
+    expect(tabs.openTab).not.toHaveBeenCalled()
+  })
+
   it('drops the previous conversation owner as soon as the route changes', () => {
     MockUseDataApiUtils.mockQueryData('/topics/topic-1', {
       id: 'topic-1',

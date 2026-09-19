@@ -278,7 +278,7 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
         const existing = destination.conversation
           ? findConversationTab(tabs, destination.conversation)
           : tabs.find(
-              (tab) => tab.type === 'route' && (destination.matchesCurrent?.(tab.url) ?? tab.url === destination.url)
+              (tab) => tab.type === 'route' && (destination.matchesTab?.(tab.url) ?? tab.url === destination.url)
             )
         if (existing) {
           setActiveTab(existing.id)
