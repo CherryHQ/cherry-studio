@@ -52,6 +52,10 @@ export function resolveKnowledgeReacquireProducer(item: IndexableKnowledgeItem):
     }
   }
 
+  if (item.type === 'external') {
+    return null
+  }
+
   const { source, content, relativePath } = item.data
   if (!relativePath) {
     return null

@@ -368,19 +368,21 @@ describe('reindex-subtree job handler', () => {
       ...createCtx({ baseId: 'kb-1', rootItemIds: ['url-1', 'url-2'] }, 'reindex-job'),
       signal: controller.signal
     }
-    let onDeadRecorded: () => void = () => {}
-    const deadRecorded = new Promise<void>((resolve) => {
-      onDeadRecorded = resolve
+    let onDeadFailed: () => void = () => {}
+    const deadFailed = new Promise<void>((resolve) => {
+      onDeadFailed = resolve
     })
-    knowledgeItemSetSubtreeStatusMock.mockImplementation(() => {
-      onDeadRecorded()
-      return []
-    })
-    fetchKnowledgeWebPageMock.mockRejectedValueOnce(new Error('404 Not Found')).mockImplementationOnce(async () => {
-      await deadRecorded
-      controller.abort(new Error('JobManager shutdown'))
-      throw new Error('JobManager shutdown')
-    })
+    fetchKnowledgeWebPageMock
+      .mockImplementationOnce(async () => {
+        onDeadFailed()
+        throw new Error('404 Not Found')
+      })
+      .mockImplementationOnce(async () => {
+        await deadFailed
+        await Promise.resolve()
+        controller.abort(new Error('JobManager shutdown'))
+        throw new Error('JobManager shutdown')
+      })
 
     await expect(handler.execute(ctx)).rejects.toThrow('404 Not Found')
 
