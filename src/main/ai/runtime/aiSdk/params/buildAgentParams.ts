@@ -49,6 +49,7 @@ import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
 import type { AiChatRequest, CallOverrides } from '../../../types'
+import { applyChatPromptCacheIdentity } from '../../../utils/chatPromptCacheKey'
 import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
@@ -632,11 +633,11 @@ function buildAgentOptions(
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
-  const effectiveProviderOptions = applyFastModeToProviderOptions(
+  const effectiveProviderOptions = applyChatPromptCacheIdentity(
     provider,
     model,
-    overridden.providerOptions,
-    request.fastMode === true
+    applyFastModeToProviderOptions(provider, model, overridden.providerOptions, request.fastMode === true),
+    request.conversation.id
   )
   // A namespace that ended up empty carries nothing; emitting it would ship a bare
   // `providerOptions` for callers that opted into nothing.

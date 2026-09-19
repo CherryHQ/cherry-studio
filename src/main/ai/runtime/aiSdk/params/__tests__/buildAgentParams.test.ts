@@ -12,6 +12,7 @@ import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
+import { deriveChatPromptCacheKey } from '../../../../utils/chatPromptCacheKey'
 
 const CONVERSATION = { id: 'conversation-1', topicId: 'topic-1' }
 import { createBrowserToolEntries } from '../../../../tools/adapters/aiSdk/builtin/BrowserTools'
@@ -195,7 +196,7 @@ describe('buildAgentParams provider resolution', () => {
       assistant
     })
 
-    expect(result.options.providerOptions?.groq).toEqual({ serviceTier: 'flex', seed: 7, extra: true })
+    expect(result.options.providerOptions?.groq).toMatchObject({ serviceTier: 'flex', seed: 7, extra: true })
   })
 
   it('falls an unsupported Groq Performance selection back to Standard', async () => {
@@ -258,7 +259,7 @@ describe('buildAgentParams provider resolution', () => {
       model
     })
 
-    expect(result.options.providerOptions?.openrouter).toEqual({ service_tier: 'flex', extra: true })
+    expect(result.options.providerOptions?.openrouter).toMatchObject({ service_tier: 'flex', extra: true })
   })
 
   it('injects OpenRouter Messages service_tier at the top level after custom request-body parameters', async () => {
@@ -310,6 +311,48 @@ describe('buildAgentParams provider resolution', () => {
 
     expect(sentBody).toEqual({ route_hint: 'keep-me', service_tier: 'priority', model: model.apiModelId })
     expect(result.options.providerOptions?.anthropic).not.toHaveProperty('service_tier')
+  })
+
+  it('rotates the openai-compatible user identity when conversation.id changes after clear-context', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'my-relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://relay.example/v1'
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'my-relay::claude-sonnet-5',
+      providerId: 'my-relay',
+      apiModelId: 'claude-sonnet-5',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    const before = await buildAgentParams({
+      request: { conversation: { id: 'topic-1', topicId: 'topic-1' } },
+      signal: undefined,
+      provider,
+      model
+    })
+    const after = await buildAgentParams({
+      request: { conversation: { id: 'topic-1:clear-2', topicId: 'topic-1' } },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(before.options.providerOptions?.['my-relay']?.user).toBe(deriveChatPromptCacheKey('topic-1'))
+    expect(after.options.providerOptions?.['my-relay']?.user).toBe(deriveChatPromptCacheKey('topic-1:clear-2'))
+    expect(after.options.providerOptions?.['my-relay']?.user).not.toBe(
+      before.options.providerOptions?.['my-relay']?.user
+    )
   })
 
   it('omits service tier parameters when the endpoint declares no capability', async () => {
