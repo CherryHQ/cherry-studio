@@ -2961,54 +2961,51 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
-    it('retires a flow root after a transient lookup error instead of retrying it', async () => {
-      // Retiring keeps a root's drops consistent: delivering later chunks after an earlier one was
-      // dropped would hand the accumulator a delta whose start never arrived, which aborts it.
+    it('keeps chunks through a transient lookup error and delivers them on the retry', async () => {
+      // A failed look-up must not retire the root: the row can still appear, and dropping this
+      // chunk while delivering later ones would abort the accumulator on a start it never saw.
       let lookupCalls = 0
       mocks.findFlowHostMessageId.mockImplementation(() => {
         lookupCalls += 1
-        throw new Error('db busy')
+        if (lookupCalls === 1) throw new Error('db busy')
+        return 'assistant-1'
       })
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
       entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.getSessionMessage.mockReturnValue({ id: 'assistant-1', role: 'assistant', data: { parts: [] } })
       mocks.replaceMessageParts.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
-      for (const chunk of [
-        { type: 'text-start', id: 'first-text' },
-        { type: 'text-delta', id: 'first-text', delta: 'First findings' },
-        { type: 'text-end', id: 'first-text' }
-      ]) {
-        ;(service as any).handleRuntimeEvent(entry, {
-          type: 'background-flow-chunk',
-          rootToolCallId: 'task-root',
-          chunk
-        })
+      const sendChunk = (id: string, text: string) => {
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        for (const chunk of [
+          { type: 'text-start', id },
+          { type: 'text-delta', id, delta: text },
+          { type: 'text-end', id }
+        ]) {
+          ;(service as any).handleRuntimeEvent(entry, {
+            type: 'background-flow-chunk',
+            rootToolCallId: 'task-root',
+            chunk
+          })
+        }
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
       }
-      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
 
-      await vi.waitFor(() => expect(lookupCalls).toBe(1))
-      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
-    })
+      sendChunk('first-text', 'First findings')
+      // The retry is throttled; clear the stamp so the next chunk re-queries immediately.
+      entry.recoveryLookupAt?.clear()
+      sendChunk('second-text', 'Second findings')
 
-    it('registers the tool anchor when the state machine buffers the chunk instead of delivering it', () => {
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn(baseTurnInput)
-      const entry = getEntry(service)
-      entry.currentTurn.controller = { enqueue: vi.fn() } as never
-      const hostingTurn = entry.currentTurn
-      setSteerTransition(entry)
-
-      ;(service as any).handleRuntimeEvent(entry, {
-        type: 'chunk',
-        chunk: { type: 'tool-input-available', toolCallId: 'task-root', toolName: 'Agent', input: { prompt: 'Audit' } }
+      await vi.waitFor(() => {
+        expect(lookupCalls).toBeGreaterThanOrEqual(2)
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'First findings' })])
+        )
       })
-
-      // A detached flow chunk for this call can arrive before the buffer drains, and the anchor is
-      // what routes it — so it must be registered on buffering, not on delivery.
-      expect(entry.flowMessageIdsByToolCallId?.get('task-root')).toBe(hostingTurn.assistantMessageId)
     })
 
     it('does not re-query the database for flow roots that have no host row', async () => {

@@ -30,6 +30,7 @@ const CHERRY_RUNTIME_TOOL_RENDER_NAMES = new Map<string, AgentToolsType>([
   ['exit_plan_mode', AgentToolsType.ExitPlanMode],
   ['read', AgentToolsType.Read],
   ['skill', AgentToolsType.Skill],
+  ['send_message', AgentToolsType.SendMessage],
   ['subagent', AgentToolsType.Task],
   ['subagent_fork', AgentToolsType.Task],
   ['todo_write', AgentToolsType.TodoWrite],
