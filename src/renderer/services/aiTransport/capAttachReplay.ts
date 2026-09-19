@@ -98,21 +98,26 @@ export function capAttachReplayChunks(
     }
   }
 
-  // Synthesized openers sit outside the tail budget, so a boundary cut can
-  // deliver more than `max`. Shrink the fair budget until the total fits.
-  let budget = max
-  let out = replayTail(buildTail(chunks, budget), toolInfoByKey)
-  while (out.length > max && budget > 0) {
-    budget = Math.max(0, budget - (out.length - max))
-    out = replayTail(buildTail(chunks, budget), toolInfoByKey)
-  }
+  // A shrink-to-fit loop re-scans the full buffer per pass (quadratic attach
+  // work), so shrink once by the net added and finish without synthesis.
+  const tail = buildTail(chunks, max)
+  const out = replayTail(tail, toolInfoByKey)
+  if (out.length <= max) return out
 
-  return out
+  const budget = Math.max(0, max - (out.length - tail.length))
+  const tail2 = buildTail(chunks, budget)
+  const out2 = replayTail(tail2, toolInfoByKey)
+  if (out2.length <= max) return out2
+
+  // Boundary churn (shrinking exposed as many orphans as it removed): drop
+  // orphans instead of synthesizing, so delivery stays bounded and parseable.
+  return replayTail(tail2, toolInfoByKey, false)
 }
 
 function replayTail(
   tail: readonly StreamChunkPayload[],
-  toolInfoByKey: ReadonlyMap<string, { toolName: string; dynamic?: boolean }>
+  toolInfoByKey: ReadonlyMap<string, { toolName: string; dynamic?: boolean }>,
+  synthesize = true
 ): StreamChunkPayload[] {
   const openParts = new Set<string>()
   const seenToolInput = new Set<string>()
@@ -140,6 +145,7 @@ function replayTail(
         const kind = chunk.type === 'text-delta' ? 'text' : 'reasoning'
         const key = scopedPartKey(payload, kind, chunk.id)
         if (!openParts.has(key)) {
+          if (!synthesize) break
           openParts.add(key)
           const startChunk: UIMessageChunk =
             kind === 'text' ? { type: 'text-start', id: chunk.id } : { type: 'reasoning-start', id: chunk.id }
@@ -154,7 +160,7 @@ function replayTail(
           const known = toolInfoByKey.get(key)
           // No authoritative name — dropping avoids `tool-unknown` pollution
           // and the orphan delta would still be orphaned without its start.
-          if (!known) break
+          if (!synthesize || !known) break
           openParts.add(key)
           seenToolInput.add(key)
           const startChunk: UIMessageChunk = known.dynamic
