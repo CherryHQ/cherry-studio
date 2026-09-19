@@ -6,6 +6,7 @@ import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as UseModelModule from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -317,7 +318,7 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/hooks/useModel')>()
+  const actual = await importOriginal<typeof UseModelModule>()
   return {
     ...actual,
     useDefaultModel: () => ({ defaultModel: DEFAULT_PROMPT_MODEL })
