@@ -46,6 +46,18 @@ const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
 
+// A bare repo URL names a repository, not a skill: skills.sh stores one per repo across siblings.
+function isBareGithubRepoUrl(sourceUrl: string | null): boolean {
+  if (!sourceUrl) return false
+  try {
+    const url = new URL(sourceUrl)
+    if (url.hostname.toLowerCase() !== 'github.com') return false
+    return url.pathname.split('/').filter(Boolean).length === 2
+  } catch {
+    return false
+  }
+}
+
 /**
  * Skill management service.
  *
@@ -1210,6 +1222,7 @@ export class SkillService {
     if (candidate.source !== source || (candidate.sourceUrl ?? null) !== (sourceUrl ?? null)) {
       return null
     }
+    if (isBareGithubRepoUrl(sourceUrl)) return null
     if (candidate.name !== skillName && source !== 'local' && source !== 'zip') return null
     return candidate
   }
