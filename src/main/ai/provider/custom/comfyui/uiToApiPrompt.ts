@@ -563,23 +563,20 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     }
   }
 
-  const settlePasses = Object.keys(aliases).length + 1
-  for (let pass = 0; pass < settlePasses; pass += 1) {
-    let changed = false
-    for (const node of Object.values(prompt)) {
-      for (const [name, value] of Object.entries(node.inputs)) {
-        if (!isReference(value)) continue
-        if (!aliases[value[0]]) continue
-        const resolved = resolveAlias(value, consumerInputType(node, name))
-        if (resolved === undefined) {
-          warnings.push(`alias ${value[0]} output slot ${value[1]} unresolved`)
-          continue
-        }
-        node.inputs[name] = resolved
-        changed = true
+  // `resolveAlias` already follows a chain to its end — a bypass fed by a
+  // bypass lands on the real producer or value in that one call — so a single
+  // pass settles every consumer and a fixpoint loop would re-scan to no end.
+  for (const node of Object.values(prompt)) {
+    for (const [name, value] of Object.entries(node.inputs)) {
+      if (!isReference(value)) continue
+      if (!aliases[value[0]]) continue
+      const resolved = resolveAlias(value, consumerInputType(node, name))
+      if (resolved === undefined) {
+        warnings.push(`alias ${value[0]} output slot ${value[1]} unresolved`)
+        continue
       }
+      node.inputs[name] = resolved
     }
-    if (!changed) break
   }
 
   // The frontend drops consumer inputs that still reference a node the prompt

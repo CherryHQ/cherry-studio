@@ -252,24 +252,53 @@ class ComfyuiTransport implements ImageGenerationTransport {
   }
 
   /**
-   * Cancel one generation. Queue entries key the prompt id at index 1
-   * (`[number, prompt_id, prompt, extra_data, outputs]`), so dequeue by
-   * `POST /queue {"delete": [id]}` — its filter matches index 1 — and
-   * interrupt by `POST /interrupt {"prompt_id": id}`, which the server only
-   * honours when this generation is the one executing. A finished id matches
-   * neither and both requests no-op.
+   * Cancel one generation. The two requests are not interchangeable: `POST
+   * /queue {"delete": [id]}` drops a *pending* prompt and is id-scoped, while
+   * `POST /interrupt {"prompt_id": id}` stops the one *executing* — and on a
+   * server that predates the `prompt_id` filter it is a global kill. So ask
+   * the queue which case applies and send exactly that request; a finished id
+   * matches neither and needs none.
+   *
+   * Splitting them also keeps a stalled queue write from swallowing a cancel:
+   * the interrupt path issues no dequeue, so a server that hangs on `/queue`
+   * can no longer delay the interrupt that stops the running generation.
    */
   async cancel(taskId: string): Promise<void> {
-    await this.doFetch(`${this.baseURL}/queue`, {
-      method: 'POST',
-      headers: { ...this.headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ delete: [taskId] })
-    }).catch(() => undefined)
-    await this.doFetch(`${this.baseURL}/interrupt`, {
-      method: 'POST',
-      headers: { ...this.headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt_id: taskId })
-    }).catch(() => undefined)
+    const action = await this.cancelAction(taskId)
+    const headers = { ...this.headers, 'Content-Type': 'application/json' }
+    if (action === 'running') {
+      await this.doFetch(`${this.baseURL}/interrupt`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ prompt_id: taskId })
+      }).catch(() => undefined)
+    } else if (action === 'pending') {
+      await this.doFetch(`${this.baseURL}/queue`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ delete: [taskId] })
+      }).catch(() => undefined)
+    }
+  }
+
+  /**
+   * Which cancellation request `taskId` needs, from the server's queue:
+   * `'running'` is interrupted, `'pending'` is dequeued. A queue entry keys
+   * the prompt id at index 1 (`[number, prompt_id, prompt, extra_data,
+   * outputs]`). An unreadable queue reports `'none'` — without proof the
+   * prompt is ours, neither request is safe to send.
+   */
+  private async cancelAction(taskId: string): Promise<'running' | 'pending' | 'none'> {
+    try {
+      const response = await this.doFetch(`${this.baseURL}/queue`, { headers: this.headers })
+      if (!response.ok) return 'none'
+      const queue = (await response.json()) as { queue_running?: unknown[][]; queue_pending?: unknown[][] }
+      if (queue.queue_running?.some((item) => item[1] === taskId)) return 'running'
+      if (queue.queue_pending?.some((item) => item[1] === taskId)) return 'pending'
+      return 'none'
+    } catch {
+      return 'none'
+    }
   }
 
   /**

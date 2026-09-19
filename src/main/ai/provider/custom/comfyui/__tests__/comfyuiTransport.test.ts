@@ -156,31 +156,52 @@ describe('listWorkflows', () => {
 })
 
 describe('cancel', () => {
-  it('dequeues the id and interrupts only that generation', async () => {
-    const doFetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
-      async () => new Response('', { status: 200 })
+  /** The queue read is the only GET; the write's response body is ignored. */
+  const queueFetch = (running: unknown[][], pending: unknown[][]) =>
+    vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () =>
+      respond({ queue_running: running, queue_pending: pending })
     )
+
+  const postWrites = (doFetch: ReturnType<typeof queueFetch>) =>
+    doFetch.mock.calls
+      .filter(([, init]) => init?.method === 'POST')
+      .map(([input, init]) => ({ url: String(input), body: JSON.parse(init?.body as string) }))
+
+  it('interrupts a running prompt by id and leaves the queue alone', async () => {
+    const doFetch = queueFetch([[1, 'pid-1', {}, {}, []]], [[2, 'other', {}, {}, []]])
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await transport.cancel('pid-1')
 
-    const requests = doFetch.mock.calls.map(([input, init]) => ({
-      url: String(input),
-      body: JSON.parse(init?.body as string)
-    }))
-    expect(requests).toEqual([
-      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
-      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
-    ])
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }])
   })
 
-  it('stays silent when the cancel requests fail', async () => {
-    const doFetch = vi.fn(async () => {
+  it('dequeues a pending prompt and does not interrupt the one that is running', async () => {
+    const doFetch = queueFetch([[1, 'other', {}, {}, []]], [[2, 'pid-1', {}, {}, []]])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+  })
+
+  it('sends no write for an id that is neither running nor pending', async () => {
+    const doFetch = queueFetch([[1, 'other', {}, {}, []]], [])
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    expect(postWrites(doFetch)).toEqual([])
+  })
+
+  it('stays silent when the queue read fails', async () => {
+    const doFetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => {
       throw new Error('server down')
     })
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await expect(transport.cancel('pid-1')).resolves.toBeUndefined()
+    expect(doFetch).toHaveBeenCalledTimes(1)
   })
 })
 
