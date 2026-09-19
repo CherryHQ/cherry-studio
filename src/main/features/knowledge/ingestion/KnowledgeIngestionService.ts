@@ -53,7 +53,7 @@ import {
 } from '../types'
 import { resolveKnowledgeAddConflicts } from './addConflicts'
 import { markUnscheduledKnowledgeItemsFailed } from './statusCleanup'
-import { purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
+import { assertNoActiveExternalOwner, purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
 
 const logger = loggerService.withContext('Knowledge:IngestionService')
 // Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
@@ -544,6 +544,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     // rootItemIds comes from getOutermostSelectedItemIds, which guarantees the roots are mutually
     // non-descendant (disjoint subtrees), so one batched query's union equals the per-root sum.
     const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
+    assertNoActiveExternalOwner(
+      subtreeItems.map((item) => item.id),
+      'reindexItems'
+    )
     const rootIdSet = new Set(rootItemIds)
     const roots = subtreeItems.filter((item) => rootIdSet.has(item.id))
 
