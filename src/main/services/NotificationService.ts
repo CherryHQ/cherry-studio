@@ -1,4 +1,4 @@
-import { Notification as ElectronNotification } from 'electron'
+import { app, Notification as ElectronNotification } from 'electron'
 
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -11,6 +11,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
+import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import {
   CONVERSATION_NOTIFICATION_ACTION_KEY,
@@ -19,6 +20,15 @@ import {
 } from '@shared/types/notification'
 
 const logger = loggerService.withContext('NotificationService')
+
+/** OS notification category gates — all off means the Dock badge must clear (#20709). */
+const OS_NOTIFICATION_PREF_KEYS = [
+  'app.notification.assistant.enabled',
+  'app.notification.backup.enabled',
+  'app.notification.knowledge.enabled',
+  'app.notification.update.enabled',
+  'app.notification.mini_app.enabled'
+] as const satisfies readonly UnifiedPreferenceKeyType[]
 
 function isConversationTarget(meta: unknown): meta is ConversationNavigationTarget {
   if (!meta || typeof meta !== 'object') return false
@@ -45,6 +55,12 @@ export class NotificationService extends BaseService {
     this.registerDisposable(
       application.get('AgentSessionRuntimeService').onApprovalRequested((event) => this.handleApprovalRequested(event))
     )
+    this.registerDisposable(
+      application
+        .get('PreferenceService')
+        .subscribeMultipleChanges([...OS_NOTIFICATION_PREF_KEYS], () => this.syncDockBadgeWithNotificationPrefs())
+    )
+    this.syncDockBadgeWithNotificationPrefs()
   }
 
   public async sendNotification(notification: Notification): Promise<void> {
@@ -114,6 +130,17 @@ export class NotificationService extends BaseService {
 
     if (!application.get('PreferenceService').get('app.notification.assistant.enabled')) return
     void this.sendNotification(notification)
+  }
+
+  private areAllOsNotificationPrefsDisabled(): boolean {
+    const preferences = application.get('PreferenceService')
+    return OS_NOTIFICATION_PREF_KEYS.every((key) => !preferences.get(key))
+  }
+
+  /** macOS Notification Center can leave a Dock count after prefs are all off (#20709). */
+  private syncDockBadgeWithNotificationPrefs(): void {
+    if (!this.areAllOsNotificationPrefsDisabled()) return
+    app.setBadgeCount(0)
   }
 
   private resolveConversationTarget(topicId: string): ConversationNavigationTarget {
