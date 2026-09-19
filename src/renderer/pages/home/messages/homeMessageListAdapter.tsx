@@ -534,14 +534,29 @@ export function useHomeMessageListProviderValue({
   const removeMessageErrorPart = useCallback<NonNullable<MessageListActions['removeMessageErrorPart']>>(
     async ({ messageId, partId }) => {
       try {
+        // A retry owns this message right now and its terminal persist is the
+        // writer; any parts-derived edit would race it.
+        if (streamingLayers?.liveMessageIds.includes(messageId)) {
+          logger.warn('Skipping error dismissal for a live message', { messageId })
+          return
+        }
         const persistedMessage = await dataApiService.get(`/messages/${messageId}`)
         const persistedParts = persistedMessage.data.parts ?? []
         const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
         if (resolved && resolved.messageId === messageId && resolved.part.type === 'data-error') {
-          const filtered = persistedParts.filter((_, index) => index !== resolved.index)
+          // Re-read before writing: an in-place retry reuses the message id and
+          // may have replaced the parts after the first read.
+          const freshMessage = await dataApiService.get(`/messages/${messageId}`)
+          const freshParts = freshMessage.data.parts ?? []
+          const freshResolved = resolvePartFromParts({ [messageId]: freshParts }, partId)
+          if (!freshResolved || freshResolved.messageId !== messageId || freshResolved.part.type !== 'data-error') {
+            logger.warn('Skipping error dismissal for superseded parts', { messageId })
+            return
+          }
+          const filtered = freshParts.filter((_, index) => index !== freshResolved.index)
           // A removed persisted no-response error would recreate itself through the
           // display fallback, so record the dismissal like the synthetic fallback.
-          const removedData = (resolved.part as unknown as { data?: { name?: unknown } }).data
+          const removedData = (freshResolved.part as unknown as { data?: { name?: unknown } }).data
           const durableParts =
             removedData?.name === 'NoResponseError' ? [...filtered, createDismissedNoResponsePart()] : filtered
 
@@ -549,12 +564,6 @@ export function useHomeMessageListProviderValue({
           return
         }
 
-        if (streamingLayers?.liveMessageIds.includes(messageId)) {
-          // A retry owns this message right now and its terminal persist is the
-          // writer; a display-derived edit would race it.
-          logger.warn('Skipping synthetic error dismissal for a live message', { messageId })
-          return
-        }
         // Synthetic fallback error is display-only: resolve it from the display
         // map, then persist the dismissal against freshly re-read parts. The
         // display snapshot may predate an in-place retry, so writing it back

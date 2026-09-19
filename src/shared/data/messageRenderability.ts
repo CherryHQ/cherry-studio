@@ -1,3 +1,5 @@
+// Cross-process renderability policy for main empty-success checks and renderer fallbacks.
+// Main cannot import renderer, so this mirrors `chooseTool`/`messagePartLayouts` — keep them in sync.
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
