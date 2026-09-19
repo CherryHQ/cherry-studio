@@ -266,28 +266,28 @@ const MessageGroup = ({
       const verticalPageSize = getScrollContainer()?.clientHeight ?? groupContainer.clientHeight
       const horizontalWheelDelta = normalizeWheelDelta(event.deltaX, event.deltaMode, groupContainer.clientWidth)
       const verticalWheelDelta = normalizeWheelDelta(event.deltaY, event.deltaMode, verticalPageSize)
-
-      // Column scroll owns vertical input until its boundary; this group's
-      // overflow-y:hidden then blocks chaining, so forward to the list runtime.
-      if (target?.closest('.message-content-container')) {
-        if (
-          verticalWheelDelta !== 0 &&
-          !findVerticalWheelConsumer(target, verticalWheelDelta, groupContainer) &&
-          scrollByWheel(verticalWheelDelta)
-        ) {
-          event.preventDefault()
-          event.stopPropagation()
-        }
-        return
-      }
-
       const horizontalDelta = event.shiftKey
         ? horizontalWheelDelta || normalizeWheelDelta(event.deltaY, event.deltaMode, groupContainer.clientWidth)
         : Math.abs(horizontalWheelDelta) > Math.abs(verticalWheelDelta)
           ? horizontalWheelDelta
           : 0
+      const inMessageColumn = Boolean(target?.closest('.message-content-container'))
 
-      if (horizontalDelta === 0) {
+      // Column owns vertical while it can scroll. At its boundary the group's
+      // overflow-y:hidden blocks chaining, so forward vertical-dominant wheels
+      // to the list runtime — but keep dominant-horizontal pans on the row.
+      if (inMessageColumn) {
+        if (verticalWheelDelta !== 0 && findVerticalWheelConsumer(target, verticalWheelDelta, groupContainer)) {
+          return
+        }
+        if (horizontalDelta === 0) {
+          if (verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+          return
+        }
+      } else if (horizontalDelta === 0) {
         if (horizontalWheelDelta !== 0 && verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
           event.preventDefault()
           event.stopPropagation()

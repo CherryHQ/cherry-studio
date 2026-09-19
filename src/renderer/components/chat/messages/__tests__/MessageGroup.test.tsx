@@ -9,6 +9,7 @@ import type { Model } from '@shared/data/types/model'
 
 import type MessageHeaderComponent from '../frame/MessageHeader'
 import type MessageMenuBarComponent from '../frame/MessageMenuBar'
+import type * as ScrollOwnershipContextModule from '../list/ScrollOwnershipContext'
 import type { MessageGroupRuntime, MessageListItem } from '../types'
 
 const mocks = vi.hoisted(() => ({
@@ -196,9 +197,7 @@ vi.mock('../list/MessageGroupMenuBar', () => ({
 }))
 
 vi.mock('../list/ScrollOwnershipContext', async () => {
-  const actual = await vi.importActual<typeof import('../list/ScrollOwnershipContext')>(
-    '../list/ScrollOwnershipContext'
-  )
+  const actual = await vi.importActual<typeof ScrollOwnershipContextModule>('../list/ScrollOwnershipContext')
   return {
     ...actual,
     useScrollRuntimeBoundary: () => ({ getScrollContainer: () => null, scrollByWheel: mocks.scrollByWheel }),
@@ -847,6 +846,34 @@ describe('MessageGroup', () => {
     expect(mocks.scrollByWheel).toHaveBeenCalledWith(-120)
     expect(wheelEvent.defaultPrevented).toBe(true)
     expect(parentWheel).not.toHaveBeenCalled()
+  })
+
+  it('pans the horizontal model row for dominant-horizontal wheels at a column boundary', () => {
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    setElementSize(horizontalGroup, {
+      clientWidth: 500,
+      scrollLeft: 0,
+      scrollWidth: 1000
+    })
+    setElementSize(contentContainer, {
+      clientHeight: 300,
+      scrollHeight: 600,
+      scrollTop: 0
+    })
+
+    const wheelEvent = createEvent.wheel(contentContainer, { deltaX: 160, deltaY: -4 })
+    fireEvent(contentContainer, wheelEvent)
+
+    expect(mocks.scrollByWheel).not.toHaveBeenCalled()
+    expect(wheelEvent.defaultPrevented).toBe(true)
+    expect(horizontalGroup.scrollLeft).toBe(160)
   })
 
   it('keeps upward wheel inside a message column while that column can still scroll', () => {
