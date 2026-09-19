@@ -377,6 +377,15 @@ describe('loadKnowledgeItemDocuments', () => {
     ])
   })
 
+  it('preserves provider frontmatter in an external snapshot', async () => {
+    const content = '---\ntitle: Provider document\n---\n# Body'
+    readFileMock.mockResolvedValueOnce(content)
+
+    const [document] = await loadKnowledgeItemDocuments(createExternalItem())
+
+    expect(document?.text).toBe(content)
+  })
+
   it('throws for unsupported directory items', async () => {
     const item = createDirectoryItem()
 
