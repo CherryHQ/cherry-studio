@@ -97,22 +97,35 @@ export const processCitations = (content: string, mode: 'remove' | 'normalize' =
 /**
  * Reads each pasted-text file part's stored content, keyed by `fileTokenSourceId`, so
  * copy reproduces the pasted text; an unreadable file falls back to the token label.
+ * Distinct source IDs are read concurrently; duplicate IDs retry later paths until one succeeds.
  */
 async function readPastedTextFileContents(messages: readonly ExportableMessage[]): Promise<Map<string, string>> {
-  const contents = new Map<string, string>()
+  const candidatesBySourceId = new Map<string, string[]>()
   for (const message of messages) {
     for (const part of message.parts ?? []) {
       if (part.type !== 'file') continue
       const meta = readCherryMeta(part)
       if (meta?.composerFileKind !== 'pasted-text' || !meta.fileTokenSourceId) continue
-      if (contents.has(meta.fileTokenSourceId)) continue
-      try {
-        contents.set(meta.fileTokenSourceId, await window.api.fs.readText(fileUrlToPath(part.url as FileUrlString)))
-      } catch {
-        // Leave the token's display label as the copy output for this file.
-      }
+      const path = fileUrlToPath(part.url as FileUrlString)
+      const existing = candidatesBySourceId.get(meta.fileTokenSourceId)
+      if (existing) existing.push(path)
+      else candidatesBySourceId.set(meta.fileTokenSourceId, [path])
     }
   }
+
+  const contents = new Map<string, string>()
+  await Promise.all(
+    [...candidatesBySourceId].map(async ([sourceId, paths]) => {
+      for (const path of paths) {
+        try {
+          contents.set(sourceId, await window.api.fs.readText(path))
+          return
+        } catch {
+          // Leave the token's display label as the copy output for this file.
+        }
+      }
+    })
+  )
   return contents
 }
 
