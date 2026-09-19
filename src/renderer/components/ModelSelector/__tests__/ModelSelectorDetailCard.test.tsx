@@ -3,7 +3,7 @@ import type { ReactNode, Ref } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as I18nLabelModule from '@renderer/i18n/label'
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { ModelSelectorDetailCard } from '../ModelSelectorDetailCard'
@@ -284,6 +284,7 @@ describe('ModelSelectorDetailCard', () => {
       id: 'openai::gpt-5-codex-max',
       apiModelId: 'gpt-5-codex-max',
       name: 'GPT-5 Codex Max',
+      capabilities: [MODEL_CAPABILITY.REASONING],
       reasoning: {
         selectableEfforts: ['max']
       }
@@ -307,6 +308,7 @@ describe('ModelSelectorDetailCard', () => {
       providerId: 'openai-codex',
       apiModelId: 'gpt-6-astra',
       name: 'GPT-6 Astra',
+      capabilities: [MODEL_CAPABILITY.REASONING],
       reasoning: { selectableEfforts: ['ultra'] }
     })
 
