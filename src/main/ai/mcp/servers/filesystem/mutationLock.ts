@@ -1,4 +1,4 @@
-import { realpathSync } from 'node:fs'
+import { realpathSync, statSync } from 'node:fs'
 import path from 'path'
 
 import { isMac, isWin } from '@main/core/platform'
@@ -34,8 +34,19 @@ export function resolveMutationLockKey(requestedPath: string, baseDir?: string):
   }
 }
 
+// Lock existing targets by filesystem identity so hard-link names share one queue.
+// Synchronous stat keeps call-order registration; missing targets use the path key.
+function toIdentityKey(filePath: string): string | undefined {
+  try {
+    const stats = statSync(filePath)
+    return `ino:${stats.dev}:${stats.ino}`
+  } catch {
+    return undefined
+  }
+}
+
 export function withPathMutationLock<T>(filePath: string, fn: () => Promise<T>): Promise<T> {
-  const lockKey = toLockKey(filePath)
+  const lockKey = toIdentityKey(filePath) ?? toLockKey(filePath)
   const previous = mutationChains.get(lockKey) ?? Promise.resolve()
   const next = previous.then(fn, fn)
   const tracked = next.catch(() => undefined)
