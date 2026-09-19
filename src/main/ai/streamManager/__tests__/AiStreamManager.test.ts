@@ -1829,7 +1829,7 @@ describe('AiStreamManager', () => {
       expect(nextTurnAdmitted).toBe(true)
     })
 
-    it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
+    it('drains an agent continuation launched during non-user teardown before releasing admission', async () => {
       vi.useRealTimers()
       const continuationListener = new FakeListener('persistence:continuation', 'persistence')
       let releaseContinuationPersistence!: () => void
@@ -1853,7 +1853,7 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('persistence:initial', 'persistence'), runtimeListener]
       })
 
-      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'agent-session-purge')
       let nextTurnAdmitted = false
       const nextTurn = mgr.withDispatchLock('agent-session:session-1', async () => {
         nextTurnAdmitted = true
@@ -1867,6 +1867,31 @@ describe('AiStreamManager', () => {
       await expect(stopping).resolves.toBeUndefined()
       await expect(nextTurn).resolves.toBeUndefined()
       expect(nextTurnAdmitted).toBe(true)
+    })
+
+    it('does not abort a replacement stream launched while a user Stop settles', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      const runtimeListener = new FakeListener('agent-runtime:session-1')
+      runtimeListener.onPausedImpl = () => {
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+      }
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence'), runtimeListener]
+      })
+
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+
+      expect(continuationListener.pausedResults).toHaveLength(0)
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1')
     })
 
     it('routes a user Stop through the runtime graceful path and every other drain through closeSession', async () => {

@@ -1262,9 +1262,9 @@ export class AiStreamManager extends BaseService {
           }
         }
 
-        await drainReplacementLoops()
+        if (reason !== USER_STOP_ABORT_REASON) await drainReplacementLoops()
         await runtimeClosing
-        await drainReplacementLoops()
+        if (reason !== USER_STOP_ABORT_REASON) await drainReplacementLoops()
       }
     })
   }

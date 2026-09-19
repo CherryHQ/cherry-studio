@@ -819,7 +819,7 @@ export class AgentSessionRuntimeService extends BaseService {
           // `connection.close()` turns into killing the warm query and its subagent.
           const onAbort = () => {
             if (input.signal.reason === USER_STOP_ABORT_REASON) {
-              void this.handleUserStop(entry.sessionId)
+              void this.handleUserStop(entry.sessionId, turn.turnId)
             } else {
               void this.closeSession(entry.sessionId)
             }
@@ -989,24 +989,28 @@ export class AgentSessionRuntimeService extends BaseService {
    * interrupt not answered in time). Single-flight: the turn stream's abort listener and the
    * stream manager's stop-and-drain both dispatch here for the same Stop.
    */
-  handleUserStop(sessionId: string): Promise<void> {
+  handleUserStop(sessionId: string, expectedTurnId?: string): Promise<void> {
     const inFlight = this.userStopSessions.get(sessionId)
     if (inFlight) return inFlight
-    const stopping = this.stopForUser(sessionId).finally(() => {
+    const stopping = this.stopForUser(sessionId, expectedTurnId).finally(() => {
       if (this.userStopSessions.get(sessionId) === stopping) this.userStopSessions.delete(sessionId)
     })
     this.userStopSessions.set(sessionId, stopping)
     return stopping
   }
 
-  private async stopForUser(sessionId: string): Promise<void> {
+  private async stopForUser(sessionId: string, expectedTurnId?: string): Promise<void> {
     const entry = this.entries.get(sessionId)
+    if (entry && expectedTurnId && this.liveTurn(entry)?.turnId !== expectedTurnId) return
     const connection = entry ? this.currentConnection(entry) : undefined
     const graceful = await connection?.abortTurn?.().catch((error) => {
       logger.warn('Agent runtime graceful turn interrupt failed', { sessionId, error })
       return false
     })
-    if (graceful !== true) await this.closeSession(sessionId)
+    if (graceful === true) return
+    if (entry && expectedTurnId && this.liveTurn(entry)?.turnId !== expectedTurnId) return
+    if (entry && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) return
+    await this.closeSession(sessionId)
   }
 
   closeSession(sessionId: string): Promise<void> {
