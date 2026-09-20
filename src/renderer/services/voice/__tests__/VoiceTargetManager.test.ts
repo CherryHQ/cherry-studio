@@ -64,7 +64,7 @@ describe('VoiceTargetManager exact binding', () => {
     })
     manager.markCurrent('composer')
     const stale = manager.captureCurrent()
-    manager.bind({
+    const secondCleanup = manager.bind({
       targetId: 'composer',
       owner: owner(),
       sourceEntityId: 'topic-b',
@@ -74,9 +74,10 @@ describe('VoiceTargetManager exact binding', () => {
 
     firstCleanup()
     expect(manager.markCurrent('composer')).toBe(true)
-    manager.unbind('composer')
+    secondCleanup()
     expect(manager.insert(stale!, 'late transcript')).toBe('unavailable')
     expect(manager.markCurrent('composer')).toBe(false)
+    expect('unbind' in manager).toBe(false)
   })
 
   it('rejects a completion when its owner window is closed', () => {
@@ -98,7 +99,7 @@ describe('VoiceTargetManager exact binding', () => {
     expect(replaceRange).not.toHaveBeenCalled()
   })
 
-  it('uses a live range only for an explicitly marked current target', () => {
+  it('uses a live range only for explicit user recovery on a marked current target', () => {
     const manager = new VoiceTargetManager()
     let range = { from: 1, to: 2 }
     const replaceRange = vi.fn(() => true)
@@ -110,12 +111,12 @@ describe('VoiceTargetManager exact binding', () => {
       replaceRange
     })
 
-    expect(manager.insertIntoCurrent('ignored')).toBe('unavailable')
+    expect(manager.insertIntoCurrent('ignored', 'user_recovery')).toBe('unavailable')
     expect(replaceRange).not.toHaveBeenCalled()
 
     manager.markCurrent('composer')
     range = { from: 9, to: 11 }
-    expect(manager.insertIntoCurrent('now')).toBe('inserted')
+    expect(manager.insertIntoCurrent('now', 'user_recovery')).toBe('inserted')
     expect(replaceRange).toHaveBeenCalledWith({ from: 9, to: 11 }, 'now')
   })
 
@@ -132,7 +133,7 @@ describe('VoiceTargetManager exact binding', () => {
     manager.markCurrent('composer')
 
     expect(manager.captureCurrent()).toBeNull()
-    expect(manager.insertIntoCurrent('text')).toBe('unavailable')
+    expect(manager.insertIntoCurrent('text', 'user_recovery')).toBe('unavailable')
     expect(replaceRange).not.toHaveBeenCalled()
   })
 })

@@ -56,11 +56,6 @@ export class VoiceTargetManager {
     }
   }
 
-  unbind(targetId: string): void {
-    const target = this.targets.get(targetId)
-    if (target) this.remove(target)
-  }
-
   markCurrent(targetId: string): boolean {
     const target = this.targets.get(targetId)
     if (!target || target.owner.closed) {
@@ -99,7 +94,8 @@ export class VoiceTargetManager {
     return target.replaceRange(binding.replaceRange, text) ? 'inserted' : 'unavailable'
   }
 
-  insertIntoCurrent(text: string): VoiceTargetInsertResult {
+  insertIntoCurrent(text: string, intent: 'user_recovery'): VoiceTargetInsertResult {
+    if (intent !== 'user_recovery') return 'unavailable'
     const binding = this.captureCurrent()
     return binding ? this.insert(binding, text) : 'unavailable'
   }

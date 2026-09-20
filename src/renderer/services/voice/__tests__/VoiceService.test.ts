@@ -13,7 +13,7 @@ const ids = [
 
 const request = vi.fn()
 const on = vi.fn()
-let voiceEvent: ((event: any) => void) | undefined
+let voiceEvents: Array<(event: any) => void>
 let unsubscribe: ReturnType<typeof vi.fn>
 let nextId = 0
 let ownerWindow: Window
@@ -30,14 +30,18 @@ beforeEach(() => {
   request.mockReset()
   on.mockReset()
   unsubscribe = vi.fn()
-  voiceEvent = undefined
+  voiceEvents = []
   nextId = 0
   ownerWindow = Object.assign(new EventTarget(), { closed: false }) as Window
   on.mockImplementation((_event: string, listener: (event: any) => void) => {
-    voiceEvent = listener
+    voiceEvents.push(listener)
     return unsubscribe
   })
 })
+
+function emitVoiceEvent(event: any): void {
+  voiceEvents.at(-1)?.(event)
+}
 
 describe('VoiceService state ownership', () => {
   it('subscribes before reading state and ignores a stale initial snapshot', async () => {
@@ -50,7 +54,7 @@ describe('VoiceService state ownership', () => {
     const initializing = service.initialize()
     expect(on).toHaveBeenCalledWith('ai.voice.session_event', expect.any(Function))
 
-    voiceEvent?.({
+    emitVoiceEvent({
       type: 'state',
       revision: 4,
       phase: 'playing',
@@ -80,9 +84,9 @@ describe('VoiceService state ownership', () => {
     const recording = service.startRecording({ source: 'dictation' })
     await recording.result
 
-    voiceEvent?.({ type: 'command', revision: 2, sessionId: ids[2], command: 'stop' })
-    voiceEvent?.({ type: 'command', revision: 1, sessionId: recording.sessionId, command: 'pause' })
-    voiceEvent?.({ type: 'command', revision: 2, sessionId: recording.sessionId, command: 'stop' })
+    emitVoiceEvent({ type: 'command', revision: 2, sessionId: ids[2], command: 'stop' })
+    emitVoiceEvent({ type: 'command', revision: 1, sessionId: recording.sessionId, command: 'pause' })
+    emitVoiceEvent({ type: 'command', revision: 2, sessionId: recording.sessionId, command: 'stop' })
 
     expect(commands).toEqual(['stop'])
   })
@@ -107,9 +111,9 @@ describe('VoiceService state ownership', () => {
     const second = service.startRecording({ source: 'dictation' })
     await Promise.resolve()
 
-    voiceEvent?.({ type: 'command', revision: 2, sessionId: first.sessionId, command: 'stop' })
-    voiceEvent?.({ type: 'state', revision: 3, phase: 'recording', sessionId: second.sessionId })
-    voiceEvent?.({ type: 'command', revision: 3, sessionId: second.sessionId, command: 'stop' })
+    emitVoiceEvent({ type: 'command', revision: 2, sessionId: first.sessionId, command: 'stop' })
+    emitVoiceEvent({ type: 'state', revision: 3, phase: 'recording', sessionId: second.sessionId })
+    emitVoiceEvent({ type: 'command', revision: 3, sessionId: second.sessionId, command: 'stop' })
     resolveSecond({ revision: 3, phase: 'recording', sessionId: second.sessionId })
     await second.result
 
@@ -170,7 +174,7 @@ describe('VoiceService state ownership', () => {
     await service.initialize()
     const second = service.startRecording({ source: 'dictation' })
     await second.result
-    voiceEvent?.({
+    emitVoiceEvent({
       type: 'command',
       revision: service.getSnapshot().revision,
       sessionId: second.sessionId,
@@ -207,7 +211,120 @@ describe('VoiceService state ownership', () => {
       expect(discarded).toEqual([first.sessionId, second.sessionId])
     })
     resolveSecond({ revision: 3, phase: 'recording', sessionId: second.sessionId })
-    await second.result
+    await expect(second.result).rejects.toMatchObject({ reason: 'aborted' })
+    await vi.waitFor(() => {
+      const discarded = request.mock.calls
+        .filter(([route]) => route === 'ai.voice.session.discard')
+        .map(([, input]) => input.sessionId)
+      expect(discarded).toEqual([first.sessionId, second.sessionId, second.sessionId])
+    })
+  })
+
+  it('tombstones a pending admission and discards it again after late materialization', async () => {
+    let resolveStart!: (state: unknown) => void
+    let materialized = false
+    const discardAfterMaterialize: boolean[] = []
+    request.mockImplementation((route: string) => {
+      if (route === 'ai.voice.session.state') return Promise.resolve({ revision: 1, phase: 'idle' })
+      if (route === 'ai.voice.recording.start') {
+        return new Promise((resolve) => {
+          resolveStart = (state) => {
+            materialized = true
+            resolve(state)
+          }
+        })
+      }
+      if (route === 'ai.voice.session.discard') {
+        discardAfterMaterialize.push(materialized)
+        return Promise.resolve(undefined)
+      }
+      return Promise.resolve(undefined)
+    })
+    const service = createService()
+    await service.initialize()
+    const recording = service.startRecording({ source: 'dictation' })
+    await Promise.resolve()
+
+    const tearingDown = service.teardown()
+    await tearingDown
+    resolveStart({ revision: 2, phase: 'recording', sessionId: recording.sessionId })
+
+    await expect(recording.result).rejects.toMatchObject({ reason: 'aborted' })
+    expect(discardAfterMaterialize).toEqual([false, true])
+  })
+
+  it('does not let a rejected stale initialization detach a newer generation', async () => {
+    let rejectFirst!: (error: unknown) => void
+    request
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => (rejectFirst = reject)))
+      .mockResolvedValueOnce({ revision: 2, phase: 'idle' })
+    const service = createService()
+
+    const firstInitialization = service.initialize()
+    await service.teardown()
+    await service.initialize()
+    expect(voiceEvents).toHaveLength(2)
+
+    rejectFirst(new Error('stale initialization failed'))
+    await expect(firstInitialization).rejects.toMatchObject({ reason: 'operation_failed' })
+    emitVoiceEvent({
+      type: 'state',
+      revision: 3,
+      phase: 'playing',
+      sessionId: ids[0],
+      source: 'playback',
+      trigger: 'manual'
+    })
+
+    expect(service.getSnapshot()).toMatchObject({ revision: 3, phase: 'playing', sessionId: ids[0] })
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('does not apply a stale successful initialization to a newer generation', async () => {
+    let resolveFirst!: (state: unknown) => void
+    request
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
+      .mockResolvedValueOnce({ revision: 4, phase: 'idle' })
+    const service = createService()
+
+    const firstInitialization = service.initialize()
+    await service.teardown()
+    await service.initialize()
+    resolveFirst({ revision: 99, phase: 'playing', sessionId: ids[0] })
+    await firstInitialization
+
+    expect(service.getSnapshot()).toEqual({ revision: 4, phase: 'idle' })
+  })
+
+  it('keeps a torn-down pending session id reserved until its late admission settles', async () => {
+    let resolveFirst!: (state: unknown) => void
+    let startCalls = 0
+    request.mockImplementation((route: string, input: any) => {
+      if (route === 'ai.voice.session.state') return Promise.resolve({ revision: 1, phase: 'idle' })
+      if (route === 'ai.voice.recording.start' && ++startCalls === 1) {
+        return new Promise((resolve) => (resolveFirst = resolve))
+      }
+      if (route === 'ai.voice.recording.start') {
+        return Promise.resolve({ revision: 2, phase: 'recording', sessionId: input.sessionId })
+      }
+      return Promise.resolve(undefined)
+    })
+    const service = createService()
+    await service.initialize()
+    const sessionId = ids[0]
+    const first = service.startRecording({ sessionId, requestId: ids[1], source: 'dictation' })
+    await Promise.resolve()
+    await service.teardown()
+
+    const collision = service.startRecording({ sessionId, requestId: ids[2], source: 'dictation' })
+    await expect(collision.result).rejects.toMatchObject({ reason: 'busy' })
+    expect(startCalls).toBe(1)
+
+    resolveFirst({ revision: 2, phase: 'recording', sessionId })
+    await expect(first.result).rejects.toMatchObject({ reason: 'aborted' })
+    const afterSettlement = service.startRecording({ sessionId, requestId: ids[3], source: 'dictation' })
+    await expect(afterSettlement.result).resolves.toMatchObject({ sessionId })
+    expect(startCalls).toBe(2)
   })
 
   it('does not replace lease command ownership with an asset installation session', async () => {
@@ -229,7 +346,7 @@ describe('VoiceService state ownership', () => {
     const install = service.installTranscriptionAsset({ language: 'en-US', source: 'settings' })
     await Promise.resolve()
 
-    voiceEvent?.({ type: 'command', revision: 2, sessionId: recording.sessionId, command: 'stop' })
+    emitVoiceEvent({ type: 'command', revision: 2, sessionId: recording.sessionId, command: 'stop' })
     expect(commands).toEqual(['stop'])
 
     await service.teardown()
@@ -283,6 +400,100 @@ describe('VoiceService error boundary', () => {
 })
 
 describe('VoiceService route facade', () => {
+  it('rejects concurrent install and recording admissions that reuse a reserved session id', async () => {
+    let resolveInstall!: () => void
+    let resolveStart!: (state: unknown) => void
+    request.mockImplementation((route: string) => {
+      if (route === 'ai.transcription.asset.install') return new Promise<void>((resolve) => (resolveInstall = resolve))
+      if (route === 'ai.voice.recording.start') return new Promise((resolve) => (resolveStart = resolve))
+      return Promise.resolve(undefined)
+    })
+    const service = createService()
+    const sessionId = ids[0]
+    const install = service.installTranscriptionAsset({
+      sessionId,
+      requestId: ids[1],
+      language: 'en-US',
+      source: 'settings'
+    })
+    const duplicateInstall = service.installTranscriptionAsset({
+      sessionId,
+      requestId: ids[2],
+      language: 'en-US',
+      source: 'settings'
+    })
+    const duplicateStart = service.startRecording({ sessionId, requestId: ids[3], source: 'dictation' })
+
+    await expect(duplicateInstall.result).rejects.toMatchObject({ reason: 'busy' })
+    await expect(duplicateStart.result).rejects.toMatchObject({ reason: 'busy' })
+    expect(request.mock.calls.filter(([route]) => route === 'ai.transcription.asset.install')).toHaveLength(1)
+    expect(request.mock.calls.filter(([route]) => route === 'ai.voice.recording.start')).toHaveLength(0)
+
+    resolveInstall()
+    await install.result
+    const recording = service.startRecording({ sessionId, requestId: ids[3], source: 'dictation' })
+    await Promise.resolve()
+    resolveStart({ revision: 1, phase: 'recording', sessionId })
+    await recording.result
+  })
+
+  it('continues only the owned sequential speech session after output release', async () => {
+    const sessionId = ids[0]
+    let releaseOutput!: () => void
+    request.mockImplementation((route: string, input: any) => {
+      if (route === 'ai.speech.generate') {
+        return Promise.resolve({
+          sessionId: input.sessionId,
+          requestId: input.requestId,
+          fileEntry: { id: `output-${input.chunkIndex}`, origin: 'internal' },
+          mimeType: 'audio/wav'
+        })
+      }
+      if (route === 'ai.voice.output.release') return new Promise<void>((resolve) => (releaseOutput = resolve))
+      return Promise.resolve(undefined)
+    })
+    const service = createService()
+    const first = service.generateSpeech({
+      sessionId,
+      requestId: ids[1],
+      text: 'first',
+      voice: 'voice-id',
+      source: 'playback',
+      chunkIndex: 0,
+      chunkCount: 2
+    })
+    const firstResult = await first.result
+
+    const premature = service.generateSpeech({
+      sessionId,
+      requestId: ids[2],
+      text: 'second',
+      voice: 'voice-id',
+      source: 'playback',
+      chunkIndex: 1,
+      chunkCount: 2
+    })
+    await expect(premature.result).rejects.toMatchObject({ reason: 'busy' })
+
+    const release = service.releaseOutput({ sessionId, fileEntryId: firstResult.fileEntry.id })
+    const duplicateRelease = service.releaseOutput({ sessionId, fileEntryId: firstResult.fileEntry.id })
+    await expect(duplicateRelease).rejects.toMatchObject({ reason: 'busy' })
+    releaseOutput()
+    await release
+
+    const second = service.generateSpeech({
+      sessionId,
+      requestId: ids[3],
+      text: 'second',
+      voice: 'voice-id',
+      source: 'playback',
+      chunkIndex: 1,
+      chunkCount: 2
+    })
+    await expect(second.result).resolves.toMatchObject({ sessionId })
+    expect(request.mock.calls.filter(([route]) => route === 'ai.speech.generate')).toHaveLength(2)
+  })
+
   it('generates controlled ids for recording, ASR retry, abort, and discard', async () => {
     request.mockImplementation(async (route: string, input: any) => {
       if (route === 'ai.voice.recording.start') return { revision: 1, phase: 'recording', sessionId: input.sessionId }
