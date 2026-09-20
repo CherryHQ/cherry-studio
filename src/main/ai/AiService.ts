@@ -1164,12 +1164,6 @@ export class AiService extends BaseService {
       ...(signal ? { abortSignal: signal } : {})
     })
 
-    this.trackUsage(
-      model,
-      { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 },
-      request.tokenUsageSource ?? 'chat'
-    )
-
     return { embeddings: result.embeddings, usage: result.usage }
   }
 

@@ -815,12 +815,28 @@ describe('AiService', () => {
         model: {
           id: 'test-provider::test-embedding-model',
           providerId: 'test-provider',
+          apiModelId: 'test-embedding-model',
           name: 'Test Embedding Model'
         },
         assistant: { id: 'assistant-1', name: 'Embedding Assistant', emoji: '📚' }
       })
       mockEmbedMany.mockResolvedValue({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
     }
+
+    it('returns embedding usage without reporting tokens to analytics', async () => {
+      const service = createService()
+      stubEmbedding(service)
+      const trackTokenUsage = vi.fn()
+      mockApplicationGet.mockReturnValue({ trackTokenUsage })
+
+      const result = await service.embedMany({
+        uniqueModelId: 'test-provider::test-embedding-model',
+        values: ['hello']
+      })
+
+      expect(result).toEqual({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
+      expect(trackTokenUsage).not.toHaveBeenCalled()
+    })
 
     it('records the usage entry with modality "embedding" and the token count', async () => {
       const service = createService()
