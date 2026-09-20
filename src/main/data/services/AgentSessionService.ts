@@ -39,6 +39,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
@@ -102,6 +103,8 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     id: clean.id,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
+    // modelId is legitimately nullable (null inherits the agent model) — preserve T | null.
+    modelId: row.session.modelId as UniqueModelId | null,
     name: clean.name,
     isNameManuallyEdited: clean.isNameManuallyEdited,
     description: clean.description,
@@ -266,7 +269,7 @@ export class AgentSessionService {
     const id = uuidv4()
     withSqliteErrors(() => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto, type)), {
       ...defaultHandlersFor('Session', id),
-      foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+      foreignKey: () => DataApiErrorFactory.notFound('Agent, Workspace, or Model')
     })
     this.notifyReadModelChange([id], 'membership')
     return this.getById(id)
@@ -315,6 +318,7 @@ export class AgentSessionService {
       id,
       type,
       agentId: dto.agentId,
+      modelId: dto.modelId ?? null,
       name: dto.name,
       description: dto.description,
       workspaceId,
@@ -326,6 +330,39 @@ export class AgentSessionService {
   /** Bump metadata modification time from a foreign service's transaction. */
   touchUpdatedAtTx(tx: DbOrTx, sessionId: string, timestampMs: number): void {
     tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
+  }
+
+  /**
+   * Clear overrides pointing at deleted models (the ADD COLUMN migration has
+   * no ON DELETE action); returns affected session ids for notification.
+   */
+  clearModelOverrideForModelsTx(tx: DbOrTx, modelIds: readonly string[]): string[] {
+    const uniqueIds = [...new Set(modelIds)].filter((id) => id.length > 0)
+    const cleared: string[] = []
+    for (let i = 0; i < uniqueIds.length; i += 500) {
+      const chunk = uniqueIds.slice(i, i + 500)
+      const rows = tx
+        .update(sessionsTable)
+        .set({ modelId: null })
+        .where(inArray(sessionsTable.modelId, chunk))
+        .returning({ id: sessionsTable.id })
+        .all()
+      for (const row of rows) cleared.push(row.id)
+    }
+    return cleared
+  }
+
+  /** Tolerant single-column read: null when the session inherits or is gone. */
+  getSessionModelId(sessionId: string): UniqueModelId | null {
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .select({ modelId: sessionsTable.modelId })
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.id, sessionId), isNull(sessionsTable.deletedAt)))
+      .limit(1)
+      .all()
+    return (row?.modelId ?? null) as UniqueModelId | null
   }
 
   /** Monotonically advance a session's activity time within the caller's write transaction. */
@@ -597,6 +634,11 @@ export class AgentSessionService {
           if (reusable) {
             const now = Date.now()
             this.advanceLastActivityAtTx(tx, reusable.session.id, now)
+            // A reused placeholder is a fresh start: drop any override a
+            // previous empty session left behind so it inherits again.
+            if (reusable.session.modelId) {
+              tx.update(sessionsTable).set({ modelId: null }).where(eq(sessionsTable.id, reusable.session.id)).run()
+            }
             const updatedSession = tx
               .select({ session: sessionsTable, workspace: agentWorkspaceTable })
               .from(sessionsTable)
@@ -805,11 +847,15 @@ export class AgentSessionService {
     }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (dto.modelId !== undefined) patch.modelId = dto.modelId
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const result = withSqliteErrors(
       () => application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch)),
-      defaultHandlersFor('Session', id)
+      {
+        ...defaultHandlersFor('Session', id),
+        foreignKey: () => DataApiErrorFactory.notFound('Agent or Model')
+      }
     )
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
@@ -836,9 +882,12 @@ export class AgentSessionService {
     if (reassigned && current.taskScheduleId) {
       this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.id, id))
     }
+    // A reassigned session inherits its new agent's model unless the caller
+    // explicitly carries an override over.
+    const effectivePatch = reassigned && patch.modelId === undefined ? { ...patch, modelId: null } : patch
     const [row] = tx
       .update(sessionsTable)
-      .set(patch)
+      .set(effectivePatch)
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .returning()
       .all()
@@ -918,6 +967,7 @@ export class AgentSessionService {
       type: AgentSessionType
       id: string
       agentId: string
+      modelId?: string | null
       name: string
       description?: string
       workspaceId: string

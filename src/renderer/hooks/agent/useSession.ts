@@ -1,10 +1,11 @@
 /**
  * DataApi-backed session queries and data mutations; lifecycle commands use IpcApi.
  *
- * Sessions are pure agent instances — only `id / agentId / name / description /
- * orderKey / timestamps` live here. For config (model / instructions /
- * configuration / ...) call {@link import('./useAgent').useAgent}
- * with `session.agentId`.
+ * Sessions are pure agent instances — only `id / agentId / modelId / name /
+ * description / orderKey / timestamps` live here. For remaining config
+ * (instructions / configuration / ...) call {@link import('./useAgent').useAgent}
+ * with `session.agentId`. `modelId` is the per-session override (null inherits
+ * the agent default).
  */
 
 import { isEqual } from 'es-toolkit/compat'
@@ -83,7 +84,7 @@ function useStructurallySharedSessions(sessions: AgentSessionEntity[]): AgentSes
 }
 
 /**
- * Fetch a single session by id. Config (model / instructions / ...) lives on
+ * Fetch a single session by id. Remaining config (instructions / ...) lives on
  * the parent agent — fetch via `useAgent(session.agentId)` separately. For
  * mutations call `useUpdateSession()` directly.
  */
@@ -477,10 +478,11 @@ export const useSessions = (
 }
 
 /**
- * Patch session-level fields (`name`, `description`, `agentId`). Config fields
- * (model, instructions, configuration, ...) live on the parent agent — use
- * {@link import('./useAgent').useUpdateAgent} for those. The workspace binding
- * is changed separately via {@link setSessionWorkspace} (only while empty).
+ * Patch session-level fields (`name`, `description`, `agentId`, `modelId`).
+ * Remaining config fields (instructions, configuration, ...) live on the
+ * parent agent — use {@link import('./useAgent').useUpdateAgent} for those.
+ * The workspace binding is changed separately via {@link setSessionWorkspace}
+ * (only while empty).
  */
 export const useUpdateSession = () => {
   const { t } = useTranslation()

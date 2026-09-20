@@ -1,0 +1,1 @@
+ALTER TABLE `agent_session` ADD `model_id` text REFERENCES user_model(id);

@@ -186,6 +186,7 @@ function makeSession(workspacePath: string | null = '/ws/a'): AgentSessionEntity
   return {
     id: 'sess-new',
     agentId: 'a1',
+    modelId: null,
     name: 'Scheduled task',
     workspaceId: 'ws-1',
     workspace: {

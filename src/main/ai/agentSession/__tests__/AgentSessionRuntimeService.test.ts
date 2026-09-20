@@ -46,6 +46,8 @@ const mocks = vi.hoisted(() => ({
   closeAgentSessionWarm: vi.fn(),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
+  getModelNames: vi.fn(() => new Map()),
+  getDb: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
   trackTokenUsage: vi.fn()
@@ -83,12 +85,21 @@ vi.mock('../fork/resources', async (importOriginal) => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
-    ensureTraceId: mocks.ensureTraceId
+    ensureTraceId: mocks.ensureTraceId,
+    getSessionModelId: (sessionId: string) => mocks.getSessionById(sessionId)?.modelId ?? null
   }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent, onAgentUpdated: () => () => {} }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getNamesByUniqueIdsTx: mocks.getModelNames }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getNamesByUniqueIdsTx: mocks.getModelNames }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -520,6 +531,7 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'ClaudeCodeWarmQueryManager')
         return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
+      if (name === 'DbService') return { getDb: mocks.getDb }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -1851,6 +1863,40 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toBeUndefined()
     expect(connect).toHaveBeenCalledTimes(1)
     await reader.cancel().catch(() => undefined)
+  })
+
+  it('keeps an override session entry when the agent default model is cleared', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
+
+    try {
+      await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+
+      expect(service.inspect('session-1')).toBeDefined()
+      expect(getEntry(service).modelId).toBe(baseTurnInput.modelId)
+      expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
+    } finally {
+      mocks.getSessionById.mockReset()
+    }
+  })
+
+  it('does not restamp an override session entry when the agent default changes', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: baseTurnInput.modelId })
+
+    try {
+      await (service as any).handleAgentUpdated(
+        'agent-1',
+        { model: switchedModelId },
+        { id: 'agent-1', model: switchedModelId }
+      )
+
+      expect(getEntry(service).modelId).toBe(baseTurnInput.modelId)
+    } finally {
+      mocks.getSessionById.mockReset()
+    }
   })
 
   it('keeps the live connection across a steer roll when the agent model changes mid-roll', async () => {
@@ -5909,6 +5955,63 @@ describe('AgentSessionRuntimeService', () => {
     )
     expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
     expect(getEntry(service).pendingTurns).toEqual([])
+  })
+
+  it('drains a queued turn on the session override when the agent default is gone', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    service.markTurnTerminal('session-1', 'success')
+    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default', fastMode: false })
+
+    // The agent default is gone but the session carries its own override: the
+    // queued follow-up must run on the override, not surface "no model configured".
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: null })
+    mocks.saveMessage.mockClear()
+    mocks.startRuntimeTurn.mockClear()
+    mocks.terminateHeldTopicStream.mockClear()
+
+    try {
+      await (service as any).startNextTurn(entry)
+
+      const assistantSave = mocks.saveMessage.mock.calls
+        .map((call) => call[0].message)
+        .filter((m: any) => m.role === 'assistant')
+        .at(-1)
+      expect(assistantSave?.modelId).toBe(switchedModelId)
+      expect(getEntry(service).modelId).toBe(switchedModelId)
+      expect(mocks.startRuntimeTurn).toHaveBeenCalled()
+      expect(mocks.terminateHeldTopicStream).not.toHaveBeenCalled()
+    } finally {
+      mocks.getSessionById.mockReset()
+    }
+  })
+
+  it('fails a queued turn closed when the agent is gone even with a session override', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    service.markTurnTerminal('session-1', 'success')
+    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default', fastMode: false })
+
+    // Orphan sessions never drain: fresh turns reject them, so the queued
+    // follow-up must terminate instead of running on the stale override.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: null, modelId: switchedModelId })
+    mocks.getAgent.mockReturnValue(null)
+    mocks.saveMessage.mockClear()
+    mocks.startRuntimeTurn.mockClear()
+
+    try {
+      await (service as any).startNextTurn(entry)
+
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+      expect(mocks.terminateHeldTopicStream).toHaveBeenCalled()
+      expect(getEntry(service).pendingTurns).toEqual([])
+    } finally {
+      mocks.getSessionById.mockReset()
+    }
   })
 
   it('does not consume a queued turn when startNextTurn runs before runtime ownership is idle', async () => {

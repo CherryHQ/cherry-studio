@@ -175,6 +175,20 @@
       "when": 1789636472109,
       "tag": "0024_lying_shatterstar",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1789877444012,
+      "tag": "0025_material_squadron_supreme",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1789883451753,
+      "tag": "0026_eminent_alex_power",
+      "breakpoints": true
     }
   ],
   "version": "7"

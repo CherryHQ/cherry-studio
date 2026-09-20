@@ -1,0 +1,1 @@
+CREATE INDEX `agent_session_model_id_idx` ON `agent_session` (`model_id`);
