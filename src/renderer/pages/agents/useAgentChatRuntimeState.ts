@@ -17,6 +17,7 @@ import type {
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
+import { clearAskUserQuestionDraftCache } from '@renderer/components/composer/variants/askUserQuestionDraftCache'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
@@ -38,6 +39,7 @@ type AskUserQuestionApprovalPart = CherryMessagePart & {
   toolCallId?: string
   input?: unknown
   output?: unknown
+  approval?: { id?: string }
 }
 
 export type AgentSendOptions = AgentComposerSendOptions
@@ -236,6 +238,8 @@ export function useAgentChatRuntimeState({
           changed = true
         }
         delete next[toolCallId]
+        // The persisted part settled the answers — the draft cache can go now.
+        if (sourcePart.approval?.id) clearAskUserQuestionDraftCache(sourcePart.approval.id)
       }
       return changed ? next : current
     })

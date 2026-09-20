@@ -108,7 +108,9 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       setIsSubmitting(true)
       try {
         await onRespond(input)
-        clearAskUserQuestionDraftCache(request.approvalId)
+        // A dismissal keeps no answers, so evict now. An approval's draft must outlive the
+        // dispatch ack — the runtime evicts it once the settled part confirms the answers.
+        if (!input.approved) clearAskUserQuestionDraftCache(request.approvalId)
       } catch (error) {
         logger.error('Failed to send ask-user-question response', error as Error, {
           approvalId: request.approvalId,

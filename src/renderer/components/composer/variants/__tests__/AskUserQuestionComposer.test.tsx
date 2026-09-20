@@ -202,12 +202,29 @@ describe('AskUserQuestionComposer', () => {
     expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('drops the cached answers once the response is sent', async () => {
+  it('keeps the cached answers after a successful approval so a remount before terminal persistence restores them', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     const view = render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
 
     fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
     fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+
+    // The dispatch ack does not mean the approval turn is durably persisted yet,
+    // so the draft must survive a fast session switch and remount.
+    view.unmount()
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.getByText('Add context')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Bunyan/ })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('drops the cached answers once a dismissal is sent', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const view = render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
 
     view.unmount()

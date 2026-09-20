@@ -1,7 +1,12 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, render, renderHook } from '@testing-library/react'
 import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  readAskUserQuestionDraftCache,
+  writeAskUserQuestionDraftCache
+} from '@renderer/components/composer/variants/askUserQuestionDraftCache'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 const mocks = vi.hoisted(() => ({
@@ -387,5 +392,65 @@ describe('useAgentChatRuntimeState', () => {
     // Actual session change: the stale input must be dropped.
     view.rerender(<ActivityHarness mode="visible" sessionId="session-2" />)
     expect(currentRuntime().optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+  })
+
+  it('evicts the AskUserQuestion draft cache only when the persisted part settles the answers', async () => {
+    MockCacheUtils.resetMocks()
+    writeAskUserQuestionDraftCache('approval-ask', {
+      selectedAnswers: { 0: ['Winston'] },
+      customAnswers: {},
+      currentIndex: 0
+    })
+    const { result, rerender } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.respondToolApproval(makeAskUserQuestionApproval())
+    })
+
+    // The dispatch ack lands before the assistant row is durably persisted, so
+    // the draft must still be readable for a remount in that window.
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({
+      'call-ask': askUserQuestionUpdatedInput
+    })
+    expect(readAskUserQuestionDraftCache('approval-ask').selectedAnswers[0]).toEqual(['Winston'])
+
+    // Terminal persistence arrives: the refreshed parts carry the settled
+    // answers, which retires both the optimistic input and the draft.
+    mocks.useAgentSessionParts.mockReturnValue({
+      messages: [
+        {
+          ...assistantMessage,
+          parts: [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+        }
+      ],
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: mocks.refresh,
+      seedReservedMessages: mocks.seedReservedMessages,
+      deleteMessage: mocks.deleteSessionMessage
+    })
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: {},
+      liveAssistants: [],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    await act(async () => {
+      rerender()
+    })
+
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+    expect(readAskUserQuestionDraftCache('approval-ask')).toEqual({
+      selectedAnswers: {},
+      customAnswers: {},
+      currentIndex: 0
+    })
   })
 })
