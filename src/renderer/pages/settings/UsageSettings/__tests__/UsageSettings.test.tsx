@@ -207,4 +207,31 @@ describe('UsageSettings', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByLabelText('总计 · Token')).toHaveTextContent('0')
   })
+  it.each(['loading', 'error'])('does not show a numeric analysis summary while %s', (state) => {
+    usageDataOverride.current = {
+      overviewTotals: { ...EMPTY_STATS_METRICS, requestCount: 1 },
+      exploreStatsLoading: state === 'loading',
+      exploreStatsError: state === 'error' ? new Error('Unavailable') : undefined
+    }
+    render(<UsageSettings />)
+    const header = screen.getByText('分析').parentElement!
+    expect(header).not.toHaveTextContent('· 0')
+  })
+
+  it('uses the aggregate response currency for the Total amount and analysis summary', () => {
+    MockCacheUtils.setInitialState({
+      persist: [
+        ['settings.usage.rollup', 'total'],
+        ['settings.usage.chart_metric', 'cost']
+      ]
+    })
+    usageDataOverride.current = {
+      overviewTotals: { ...EMPTY_STATS_METRICS, requestCount: 1 },
+      costCurrency: 'USD',
+      exploreTotals: { ...EMPTY_STATS_METRICS, totalCost: 12, costCurrency: 'CNY' }
+    }
+    render(<UsageSettings />)
+    expect(screen.getByLabelText('总计 · 成本')).toHaveTextContent('¥12.00')
+    expect(screen.getByText('分析').parentElement!).toHaveTextContent('¥12.00')
+  })
 })

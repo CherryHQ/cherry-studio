@@ -118,8 +118,11 @@ export function UsageDistributionChart({
     ]
   )
   const formatChartValue = useCallback(
-    (value: number) => (chartMetric === 'cost' ? formatCost(value, costCurrency) : formatCompactNumber(value)),
-    [chartMetric, costCurrency]
+    (value: number) =>
+      chartMetric === 'cost'
+        ? formatCost(value, rollup === 'total' ? exploreTotals.costCurrency : costCurrency)
+        : formatCompactNumber(value),
+    [chartMetric, costCurrency, exploreTotals.costCurrency, rollup]
   )
   const formatPeriod = useCallback(
     (periodKey: string) => {

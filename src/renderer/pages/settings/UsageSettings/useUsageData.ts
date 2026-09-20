@@ -86,7 +86,10 @@ export function useUsageData({
   )
   const overviewStatsResult = useQuery('/ai-usage-records/stats', { query: overviewStatsQuery })
   const previousOverviewStatsResult = useQuery('/ai-usage-records/stats', { query: previousOverviewStatsQuery })
-  const exploreStatsResult = useQuery('/ai-usage-records/stats', { query: exploreQuery })
+  const exploreStatsResult = useQuery('/ai-usage-records/stats', {
+    query: exploreQuery,
+    swrOptions: { keepPreviousData: false }
+  })
   const exploreTimelineResult = useQuery('/ai-usage-records/timeline', {
     query: exploreQuery,
     enabled: rollup !== 'total'

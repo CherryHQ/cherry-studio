@@ -11,7 +11,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Skeleton
 } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -380,7 +381,7 @@ function UsageSettings() {
   }
 
   const formatChartValue = (value: number) =>
-    chartMetric === 'cost' ? formatCost(value, costCurrency) : formatCompactNumber(value)
+    chartMetric === 'cost' ? formatCost(value, exploreTotals.costCurrency) : formatCompactNumber(value)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -531,7 +532,13 @@ function UsageSettings() {
               <UsageSectionTitle>{t('settings.usage.explore.analysis')}</UsageSectionTitle>
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-foreground-tertiary text-xs">
                 <span>{t(WINDOW_LABEL_KEYS[windowKey])}</span>
-                <span className="ml-1 text-muted-foreground">· {formatChartValue(totalExploreMetric)}</span>
+                {exploreStatsError ? (
+                  <span className="ml-1 text-muted-foreground">· {t('common.error')}</span>
+                ) : exploreStatsLoading ? (
+                  <Skeleton className="ml-1 h-3 w-12" />
+                ) : (
+                  <span className="ml-1 text-muted-foreground">· {formatChartValue(totalExploreMetric)}</span>
+                )}
               </div>
             </div>
           </UsageSectionHeader>
