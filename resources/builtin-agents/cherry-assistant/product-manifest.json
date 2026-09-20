@@ -465,8 +465,8 @@
     }
   ],
   "providers": {
-    "version": "c1e12f94463bc3de",
-    "count": 63,
+    "version": "2435ad1032e8114c",
+    "count": 64,
     "entries": [
       {
         "id": "cherryin",
@@ -575,6 +575,10 @@
       {
         "id": "grok-cli",
         "name": "Grok CLI"
+      },
+      {
+        "id": "omlx",
+        "name": "oMLX"
       },
       {
         "id": "openai",
