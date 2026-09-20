@@ -123,7 +123,7 @@ describe('same-dialect lossless pass-through', () => {
     })
   })
 
-  it('projects a native effort outside the model vocabulary instead of passing it through (#20287)', () => {
+  it('omits a native effort when the resolved wire carries no effort field (#20287)', () => {
     const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 
     expect(
@@ -133,7 +133,25 @@ describe('same-dialect lossless pass-through', () => {
         { type: 'enabled', budget_tokens: 4096 },
         'minimal'
       )
+    ).toEqual({ anthropic: { thinking: { type: 'enabled', budgetTokens: 4096 } } })
+    expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, { type: 'disabled' }, 'ultra')).toEqual({
+      anthropic: { thinking: { type: 'disabled' } }
+    })
+  })
+
+  it('projects a native effort when the resolved wire carries an effort field (#20287)', () => {
+    const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    const adaptiveWire = REASONING_FORMAT_PROFILES['anthropic'].wire
+    mocks.resolveReasoningProfile.mockReturnValueOnce({ format: 'anthropic', wire: adaptiveWire })
+    expect(
+      mapAnthropicThinkingToProviderOptions(
+        target,
+        anthropicBudgetModel,
+        { type: 'enabled', budget_tokens: 4096 },
+        'minimal'
+      )
     ).toEqual({ anthropic: { thinking: { type: 'enabled', budgetTokens: 4096 }, effort: 'low' } })
+    mocks.resolveReasoningProfile.mockReturnValueOnce({ format: 'anthropic', wire: adaptiveWire })
     expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, { type: 'disabled' }, 'ultra')).toEqual({
       anthropic: { thinking: { type: 'disabled' }, effort: 'high' }
     })
