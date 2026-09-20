@@ -109,7 +109,7 @@ function escapeHtml(value: string): string {
 }
 
 function stripCitationMarkers(value: string): string {
-  return value.replace(/([ \t]?)\[cite:[\w-]+\]/g, '')
+  return value.replace(/([ \t]?)\[cite:(?=[^\]\n]*[\w-])[^\]\n]*\]/g, '')
 }
 
 function phrasingToHtml(nodes: readonly PhrasingContent[]): string {
@@ -119,11 +119,12 @@ function phrasingToHtml(nodes: readonly PhrasingContent[]): string {
 function phrasingNodeToHtml(node: PhrasingContent): string {
   switch (node.type) {
     case 'text':
-      return escapeHtml(stripCitationMarkers(node.value))
+      return escapeHtml(node.value)
     case 'break':
       return '<br>'
     case 'image':
-      return isMeaningfulImageAlt(node.alt ?? '') ? escapeHtml(node.alt ?? '') : ''
+    case 'imageReference':
+      return `<img alt="${escapeHtml(node.alt ?? '')}">`
     case 'html':
       return node.value
     case 'emphasis':
@@ -134,7 +135,6 @@ function phrasingNodeToHtml(node: PhrasingContent): string {
       return phrasingToHtml(node.children)
     case 'inlineCode':
     case 'inlineMath':
-    case 'imageReference':
     case 'footnoteReference':
       return ''
   }
@@ -142,27 +142,34 @@ function phrasingNodeToHtml(node: PhrasingContent): string {
   return ''
 }
 
-function phrasingToText(nodes: readonly PhrasingContent[]): string {
-  return toReadableHtmlText(`<p>${phrasingToHtml(nodes)}</p>`)
+function listItemToHtml(node: Extract<RootContent, { type: 'listItem' }>): string {
+  const content = node.children
+    .map((child) => (child.type === 'paragraph' ? phrasingToHtml(child.children) : blockToHtml(child)))
+    .filter(Boolean)
+    .join('<br>')
+  return `<div>${content}</div>`
 }
 
-function renderBlock(node: RootContent): string {
+function blockToHtml(node: RootContent): string {
   switch (node.type) {
     case 'paragraph':
+      return `<p>${phrasingToHtml(node.children)}</p>`
     case 'heading':
+      return `<h${node.depth}>${phrasingToHtml(node.children)}</h${node.depth}>`
     case 'tableCell':
-      return phrasingToText(node.children)
+      return `<td>${phrasingToHtml(node.children)}</td>`
     case 'blockquote':
+      return `<div>${blocksToHtml(node.children)}</div>`
     case 'listItem':
-      return renderBlocks(node.children)
+      return listItemToHtml(node)
     case 'list':
-      return node.children.map(renderBlock).filter(Boolean).join('\n')
+      return `<div>${node.children.map(listItemToHtml).join('')}</div>`
     case 'table':
-      return node.children.map(renderBlock).filter(Boolean).join('\n')
+      return `<table>${node.children.map(blockToHtml).join('')}</table>`
     case 'tableRow':
-      return node.children.map(renderBlock).filter(Boolean).join(' ')
+      return `<tr>${node.children.map(blockToHtml).join('')}</tr>`
     case 'html':
-      return toReadableHtmlText(node.value)
+      return node.value
     case 'text':
     case 'break':
     case 'image':
@@ -171,7 +178,7 @@ function renderBlock(node: RootContent): string {
     case 'delete':
     case 'link':
     case 'linkReference':
-      return phrasingToText([node])
+      return `<p>${phrasingToHtml([node])}</p>`
     case 'code':
     case 'inlineCode':
     case 'math':
@@ -188,8 +195,8 @@ function renderBlock(node: RootContent): string {
   return ''
 }
 
-function renderBlocks(nodes: readonly RootContent[]): string {
-  return nodes.map(renderBlock).filter(Boolean).join('\n\n')
+function blocksToHtml(nodes: readonly RootContent[]): string {
+  return nodes.map(blockToHtml).join('\n')
 }
 
 function normalizeWhitespace(value: string): string {
@@ -207,10 +214,10 @@ function normalizeWhitespace(value: string): string {
 }
 
 export function normalizeReadableText(input: string, options: { mode?: ReadableTextMode } = {}): string {
-  if (options.mode === 'selection') return normalizeWhitespace(input)
+  if (options.mode === 'selection') return normalizeWhitespace(stripCitationMarkers(input))
 
   const tree = markdownParser.runSync(markdownParser.parse(input), input)
-  return normalizeWhitespace(renderBlocks(tree.children))
+  return normalizeWhitespace(stripCitationMarkers(toReadableHtmlText(blocksToHtml(tree.children))))
 }
 
 function safeSliceEnd(text: string, start: number, maximumEnd: number): number {
@@ -236,7 +243,10 @@ function findChunkBoundary(text: string, start: number, end: number): { end: num
   if (line >= start) return { end: line, next: consumeWhitespace(text, line + 1) }
 
   for (let index = end - 1; index >= start; index -= 1) {
-    if (/[.!?。！？；;]/.test(text[index]) && (index + 1 === text.length || /\s/.test(text[index + 1]))) {
+    const punctuation = text[index]
+    const cjkBoundary = /[。！？；]/.test(punctuation)
+    const spacedBoundary = /[.!?;]/.test(punctuation) && (index + 1 === text.length || /\s/.test(text[index + 1]))
+    if (cjkBoundary || spacedBoundary) {
       return { end: index + 1, next: consumeWhitespace(text, index + 1) }
     }
   }

@@ -9,6 +9,16 @@ import {
   planReadableText
 } from '../readableText'
 
+const privateContainerCases = [
+  ['tool call', '<tool-call>', '</tool-call>'],
+  ['thinking', '<think>', '</think>'],
+  ['reasoning', '<reasoning>', '</reasoning>'],
+  ['terminal output', '<terminal-output>', '</terminal-output>'],
+  ['approval prompt', '<approval-prompt>', '</approval-prompt>'],
+  ['metadata', '<metadata>', '</metadata>'],
+  ['voice-hidden data', '<section data-voice-skip>', '</section>']
+] as const
+
 describe('normalizeReadableText', () => {
   it('keeps prose structures in reading order while removing Markdown-only syntax', () => {
     const markdown = `# Release notes
@@ -53,12 +63,48 @@ Final sentence.`
     expect(normalizeReadableText(markdown)).toBe('Visible answer.\n\nFinal sentence.')
   })
 
+  it.each(privateContainerCases)(
+    'does not leak Markdown across blank lines inside a %s container',
+    (_label, open, close) => {
+      const markdown = `Before.
+
+${open}
+
+# Private heading
+
+- private **Markdown**
+- [private link](https://example.com/private)
+
+${close}
+
+After.`
+
+      expect(normalizeReadableText(markdown)).toBe('Before.\n\nAfter.')
+    }
+  )
+
+  it('removes chained and padded citation markers emitted through raw HTML without damaging punctuation', () => {
+    const markdown = '<p>First [cite:raw-1][cite: raw-2 ], second[cite:raw-3]!</p>'
+
+    expect(normalizeReadableText(markdown)).toBe('First, second!')
+  })
+
   it('reads only meaningful image alt text', () => {
     expect(
       normalizeReadableText(
         'Before ![image](secret.png) ![diagram.png](secret.png) ![System diagram](secret.png) after.'
       )
     ).toBe('Before System diagram after.')
+  })
+
+  it('applies meaningful-alt filtering to reference images', () => {
+    const markdown = `![Architecture overview][architecture] ![image][generic] ![diagram.png][filename]
+
+[architecture]: https://example.com/architecture.png
+[generic]: https://example.com/generic.png
+[filename]: https://example.com/filename.png`
+
+    expect(normalizeReadableText(markdown)).toBe('Architecture overview')
   })
 
   it('normalizes Unicode and natural whitespace without flattening paragraphs', () => {
@@ -69,6 +115,12 @@ Final sentence.`
     const selection = '  `const  answer = 42`\r\n\r\n$x^2$  '
 
     expect(normalizeReadableText(selection, { mode: 'selection' })).toBe('`const answer = 42`\n\n$x^2$')
+  })
+
+  it('removes internal citation markers from an explicit selection without removing selected code or math', () => {
+    const selection = '`answer()` [cite:source-1][cite: source-2 ] $x^2$'
+
+    expect(normalizeReadableText(selection, { mode: 'selection' })).toBe('`answer()` $x^2$')
   })
 })
 
@@ -93,6 +145,16 @@ describe('chunkReadableText', () => {
     expect(chunks.join('')).toBe(input)
     expect(chunks.every((chunk) => chunk.length <= 5)).toBe(true)
     expect(chunks.every((chunk) => !chunk.includes('\ufffd'))).toBe(true)
+  })
+
+  it('prefers CJK sentence punctuation even when no whitespace follows it', () => {
+    expect(chunkReadableText('甲句。乙句！丙句？丁句；尾句。', 4)).toEqual([
+      '甲句。',
+      '乙句！',
+      '丙句？',
+      '丁句；',
+      '尾句。'
+    ])
   })
 
   it('caps caller-supplied limits at the speech adapter maximum', () => {
