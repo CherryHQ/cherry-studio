@@ -195,37 +195,70 @@ export async function previewFeishuKnowledgeScope(
     resolved.resolution.selected.relativeBreadcrumb
   )
   const references = [selectedReference]
-  const seenNodeIds = new Set([resolved.selectedNode.nodeToken])
+  const selectedSpaceId = resolved.resolution.spaceId
+  const originNodes = new Map<string, FeishuWikiNode>()
+  if (resolved.selectedNode.nodeType === 'origin') {
+    originNodes.set(resolved.selectedNode.nodeToken, resolved.selectedNode)
+  }
   const pending =
     resolved.resolution.scope.kind !== 'document' &&
-    resolved.selectedNode.nodeType === 'origin' &&
-    resolved.selectedNode.hasChild
-      ? [{ node: resolved.selectedNode, breadcrumb: resolved.resolution.selected.relativeBreadcrumb }]
+    ((resolved.selectedNode.nodeType === 'origin' && resolved.selectedNode.hasChild) ||
+      (resolved.selectedNode.nodeType === 'shortcut' && resolved.selectedNode.originSpaceId === selectedSpaceId))
+      ? [
+          {
+            node: resolved.selectedNode,
+            breadcrumb: resolved.resolution.selected.relativeBreadcrumb,
+            ancestorNodeTokens: new Set<string>()
+          }
+        ]
       : []
 
   for (let index = 0; index < pending.length; index++) {
     const parent = pending[index]
+    let traversalNode = parent.node
+    if (parent.node.nodeType === 'shortcut') {
+      const originNodeToken = parent.node.originNodeToken
+      if (!originNodeToken) throw new FeishuKnowledgeReadError('invalid-provider-response')
+      traversalNode = originNodes.get(originNodeToken) ?? (await operations.getNode(originNodeToken, 'wiki', signal))
+      if (
+        traversalNode.spaceId !== selectedSpaceId ||
+        traversalNode.nodeToken !== originNodeToken ||
+        traversalNode.nodeType !== 'origin' ||
+        traversalNode.objToken !== parent.node.objToken ||
+        traversalNode.objType !== parent.node.objType
+      ) {
+        throw new FeishuKnowledgeReadError('invalid-provider-response')
+      }
+      originNodes.set(originNodeToken, traversalNode)
+      if (parent.ancestorNodeTokens.has(originNodeToken)) continue
+    }
+    if (!traversalNode.hasChild) continue
+    const ancestorNodeTokens = new Set(parent.ancestorNodeTokens)
+    ancestorNodeTokens.add(traversalNode.nodeToken)
     let pageToken: string | undefined
     const pageTokens = new Set<string>()
+    const childNodeTokens = new Set<string>()
     do {
-      const page = await operations.listChildNodes(
-        resolved.resolution.spaceId,
-        parent.node.nodeToken,
-        pageToken,
-        signal
-      )
+      const page = await operations.listChildNodes(selectedSpaceId, traversalNode.nodeToken, pageToken, signal)
       for (const child of page.nodes) {
         if (
-          child.spaceId !== resolved.resolution.spaceId ||
-          child.parentNodeToken !== parent.node.nodeToken ||
-          seenNodeIds.has(child.nodeToken)
+          child.spaceId !== selectedSpaceId ||
+          child.parentNodeToken !== traversalNode.nodeToken ||
+          ancestorNodeTokens.has(child.nodeToken) ||
+          childNodeTokens.has(child.nodeToken)
         ) {
           throw new FeishuKnowledgeReadError('invalid-provider-response')
         }
-        seenNodeIds.add(child.nodeToken)
+        childNodeTokens.add(child.nodeToken)
+        if (child.nodeType === 'origin') originNodes.set(child.nodeToken, child)
         const breadcrumb = [...parent.breadcrumb, child.title]
         references.push(reference(child, `https://${host}/wiki/${child.nodeToken}`, breadcrumb))
-        if (child.nodeType === 'origin' && child.hasChild) pending.push({ node: child, breadcrumb })
+        if (
+          (child.nodeType === 'origin' && child.hasChild) ||
+          (child.nodeType === 'shortcut' && child.originSpaceId === selectedSpaceId)
+        ) {
+          pending.push({ node: child, breadcrumb, ancestorNodeTokens })
+        }
       }
       pageToken = page.nextPageToken
       if (pageToken && pageTokens.has(pageToken)) {

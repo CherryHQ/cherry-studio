@@ -148,6 +148,125 @@ describe('resolveFeishuKnowledgeScope', () => {
 })
 
 describe('previewFeishuKnowledgeScope', () => {
+  it('traverses the target subtree when a same-space shortcut is selected directly', async () => {
+    const shortcut = node({
+      nodeToken: 'selected-shortcut',
+      objToken: 'target-doc',
+      nodeType: 'shortcut',
+      originNodeToken: 'target-origin',
+      originSpaceId: 'space-1',
+      title: 'Selected shortcut'
+    })
+    const target = node({
+      nodeToken: 'target-origin',
+      objToken: 'target-doc',
+      parentNodeToken: 'outside-scope',
+      title: 'Target origin',
+      hasChild: true
+    })
+    const descendant = node({
+      nodeToken: 'shortcut-descendant',
+      objToken: 'descendant-doc',
+      parentNodeToken: 'target-origin',
+      title: 'Descendant'
+    })
+    const provider = operations(shortcut)
+    vi.mocked(provider.getNode).mockImplementation(async (token) => {
+      if (token === 'selected-shortcut') return shortcut
+      if (token === 'target-origin') return target
+      throw new Error(`Unexpected node lookup: ${token}`)
+    })
+    vi.mocked(provider.listChildNodes).mockImplementation(async (_spaceId, parentNodeToken) => {
+      if (parentNodeToken === 'target-origin') return { nodes: [descendant] }
+      throw new Error(`Unexpected traversal: ${parentNodeToken}`)
+    })
+
+    const result = await previewFeishuKnowledgeScope(
+      { connection: connection(), url: 'https://acme.feishu.cn/wiki/selected-shortcut' },
+      provider
+    )
+
+    expect(
+      result.references.map(({ descriptor }) => ({
+        nodeId: descriptor.nodeId,
+        breadcrumb: descriptor.relativeBreadcrumb
+      }))
+    ).toEqual([
+      { nodeId: 'selected-shortcut', breadcrumb: ['Selected shortcut'] },
+      { nodeId: 'shortcut-descendant', breadcrumb: ['Selected shortcut', 'Descendant'] }
+    ])
+  })
+
+  it('traverses a nested same-space shortcut using the shortcut-relative breadcrumb', async () => {
+    const root = node({ nodeToken: 'root', objToken: 'root-doc', parentNodeToken: null, hasChild: true })
+    const shortcut = node({
+      nodeToken: 'nested-shortcut',
+      objToken: 'target-doc',
+      parentNodeToken: 'root',
+      nodeType: 'shortcut',
+      originNodeToken: 'target-origin',
+      originSpaceId: 'space-1',
+      title: 'Nested shortcut'
+    })
+    const target = node({
+      nodeToken: 'target-origin',
+      objToken: 'target-doc',
+      parentNodeToken: 'outside-scope',
+      title: 'Target origin',
+      hasChild: true
+    })
+    const descendant = node({
+      nodeToken: 'shortcut-descendant',
+      objToken: 'descendant-doc',
+      parentNodeToken: 'target-origin',
+      title: 'Descendant'
+    })
+    const provider = operations(root)
+    vi.mocked(provider.getNode).mockImplementation(async (token) => {
+      if (token === 'root') return root
+      if (token === 'target-origin') return target
+      throw new Error(`Unexpected node lookup: ${token}`)
+    })
+    vi.mocked(provider.listChildNodes).mockImplementation(async (_spaceId, parentNodeToken) => {
+      if (parentNodeToken === 'root') return { nodes: [shortcut] }
+      if (parentNodeToken === 'target-origin') return { nodes: [descendant] }
+      throw new Error(`Unexpected traversal: ${parentNodeToken}`)
+    })
+
+    const result = await previewFeishuKnowledgeScope(
+      { connection: connection(), url: 'https://acme.feishu.cn/wiki/root' },
+      provider
+    )
+
+    expect(result.references.at(-1)?.descriptor).toMatchObject({
+      nodeId: 'shortcut-descendant',
+      relativeBreadcrumb: ['Architecture', 'Nested shortcut', 'Descendant']
+    })
+  })
+
+  it('retains a visible shortcut without re-entering an origin already on its traversal path', async () => {
+    const root = node({ nodeToken: 'root', objToken: 'root-doc', parentNodeToken: null, hasChild: true })
+    const shortcutToRoot = node({
+      nodeToken: 'shortcut-to-root',
+      objToken: 'root-doc',
+      parentNodeToken: 'root',
+      nodeType: 'shortcut',
+      originNodeToken: 'root',
+      originSpaceId: 'space-1',
+      title: 'Back to root',
+      hasChild: true
+    })
+    const provider = operations(root)
+    vi.mocked(provider.listChildNodes).mockResolvedValue({ nodes: [shortcutToRoot] })
+
+    const result = await previewFeishuKnowledgeScope(
+      { connection: connection(), url: 'https://acme.feishu.cn/wiki/root' },
+      provider
+    )
+
+    expect(result.references.map(({ descriptor }) => descriptor.nodeId)).toEqual(['root', 'shortcut-to-root'])
+  })
+
   it('traverses every page and descendant without following a cross-space shortcut', async () => {
     const root = node({ nodeToken: 'root', objToken: 'doc-root', parentNodeToken: null, hasChild: true })
     const unsupportedParent = node({

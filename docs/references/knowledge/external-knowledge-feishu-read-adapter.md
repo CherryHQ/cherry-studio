@@ -45,8 +45,11 @@ provider response.
 Wiki preview includes the selected node and every visible descendant across all
 pages. Unsupported intermediate nodes remain traversal parents. A cross-space
 shortcut is visible and skipped, but is never followed outside the selected
-space. Same-space duplicate references increase the visible count without
-increasing the unique supported Docx count.
+space. A same-space shortcut resolves and validates its origin node, then
+traverses that target with the shortcut-relative breadcrumb. Per-path origin
+tracking stops shortcut cycles while allowing the same target to remain visible
+through independent in-scope references. Those duplicate references increase
+the visible count without increasing the unique supported Docx count.
 
 Preview counts have deliberately different units:
 
