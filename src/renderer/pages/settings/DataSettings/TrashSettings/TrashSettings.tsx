@@ -7,7 +7,7 @@ import { Button, ConfirmDialog, SelectDropdown } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
-import { SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingDivider, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
@@ -242,13 +242,14 @@ const TrashSettings: FC = () => {
 
   return (
     <>
-      <SettingTitle className="flex-wrap gap-3 text-lg">
-        <span>{t('settings.data.trash.title')}</span>
-        <Button variant="outline" className="text-destructive" onClick={() => setEmptyTrashOpen(true)}>
-          {t('settings.data.trash.empty_trash.button')}
-        </Button>
-      </SettingTitle>
-      <div className="mt-6">
+      <SettingGroup>
+        <SettingTitle className="flex-wrap gap-3">
+          <span>{t('settings.data.trash.title')}</span>
+          <Button variant="outline" className="text-destructive" onClick={() => setEmptyTrashOpen(true)}>
+            {t('settings.data.trash.empty_trash.button')}
+          </Button>
+        </SettingTitle>
+        <SettingDivider />
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-border border-b pb-3">
           <SelectDropdown
             items={categoryOptions}
@@ -282,7 +283,7 @@ const TrashSettings: FC = () => {
                 items={retentionOptions}
                 selectedId={String(retentionDays)}
                 onSelect={(id) => setRetentionDays(Number(id))}
-                triggerClassName="h-8 w-auto max-w-full gap-2 border-transparent px-2 text-xs"
+                triggerClassName="h-8 w-28 max-w-full gap-2 border-transparent px-2 text-xs"
                 renderSelected={({ label }) => <span className="truncate">{label}</span>}
                 renderItem={({ label }, isSelected) => (
                   <div className="flex w-full items-center gap-2">
@@ -302,7 +303,7 @@ const TrashSettings: FC = () => {
           </div>
         </div>
         <ActiveSection {...sectionProps} />
-      </div>
+      </SettingGroup>
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {
