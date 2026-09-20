@@ -130,8 +130,12 @@ describe('file preview registry', () => {
     expect(textFilePreviewPlugin.extensions).toEqual(TEXT_PREVIEW_EXTENSIONS)
   })
 
-  it('declares the image plugin extensions as exactly the shared image catalog', () => {
-    expect(imageFilePreviewPlugin.extensions).toEqual(imageExts.map((extension) => extension.slice(1)))
+  it('declares the image plugin extensions as the shared image catalog plus the preview-only svg literals', () => {
+    expect(imageFilePreviewPlugin.extensions).toEqual([
+      ...imageExts.map((extension) => extension.slice(1)),
+      'svg',
+      'svgz'
+    ])
   })
 
   it('does not route an unknown extension through the registry', () => {

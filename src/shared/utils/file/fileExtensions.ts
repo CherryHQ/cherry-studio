@@ -10,6 +10,13 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
  * `.ts`/`.mts` are deliberately absent despite mime-db's video/mp2t entry:
  * TypeScript owns them here, and the shared classifier already resolves both
  * as text.
+ *
+ * `.svg`/`.svgz` are deliberately absent despite mime-db's image/svg+xml
+ * entry: codeLanguages owns them as source text, and the text-only agent
+ * guard (`unsupportedImageRead` in `src/main/ai/runtime/claudeCode`) uses
+ * this catalog to decide which files a text-only model may read — SVG
+ * sources must stay readable. The image preview plugin re-adds them as
+ * preview-only literals.
  */
 export const imageExts = [
   '.apng',
@@ -29,8 +36,6 @@ export const imageExts = [
   '.ktx2',
   '.png',
   '.psd',
-  '.svg',
-  '.svgz',
   '.tif',
   '.tiff',
   '.webp'

@@ -103,7 +103,14 @@ describe('media catalogs are grounded in mime-db', () => {
 
   it('covers the common formats users actually produce', () => {
     expect(audioExts).toEqual(expect.arrayContaining(['.m4a', '.opus', '.wma', '.aiff', '.caf', '.mid']))
-    expect(imageExts).toEqual(expect.arrayContaining(['.heic', '.heif', '.avif', '.svg', '.tiff', '.psd', '.dng']))
+    expect(imageExts).toEqual(expect.arrayContaining(['.heic', '.heif', '.avif', '.ico', '.tiff', '.psd', '.dng']))
     expect(videoExts).toEqual(expect.arrayContaining(['.webm', '.m4v', '.mov', '.3gp']))
+  })
+
+  it('keeps svg out of the image catalog so text-only agents can read SVG sources', () => {
+    // codeLanguages owns `.svg` as source text; the text-only agent guard
+    // (`unsupportedImageRead`) blocks Read calls for every imageExts entry.
+    expect(imageExts).not.toContain('.svg')
+    expect(imageExts).not.toContain('.svgz')
   })
 })
