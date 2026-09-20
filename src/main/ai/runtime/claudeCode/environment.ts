@@ -4,6 +4,7 @@
  * derives the auto-compact window and per-request output cap from the model catalog.
  */
 
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -113,13 +114,23 @@ export function resolveClaudeExecutablePath(): string {
         `@anthropic-ai/claude-agent-sdk-linux-${process.arch}`
       ]
     : [`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`]
+  let missingUnpackedPath: string | undefined
 
   for (const packageName of nativePackages) {
     try {
-      return toAsarUnpackedPath(sdkRequire.resolve(`${packageName}/claude${extension}`))
+      const resolvedPath = sdkRequire.resolve(`${packageName}/claude${extension}`)
+      const executablePath = toAsarUnpackedPath(resolvedPath)
+      if (existsSync(executablePath)) return executablePath
+      if (executablePath !== resolvedPath) missingUnpackedPath = executablePath
     } catch {
       // Optional native packages are platform-specific; try the next candidate.
     }
+  }
+
+  if (missingUnpackedPath) {
+    throw new Error(
+      `Bundled Claude Code executable is missing at ${missingUnpackedPath}. Reinstall Cherry Studio from the official installer to restore it.`
+    )
   }
 
   throw new Error(
