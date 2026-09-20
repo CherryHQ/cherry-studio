@@ -10,12 +10,10 @@ import {
   type LocalVoiceModelFacts,
   type LocalTranscriptionModelId,
   VOICE_SESSION_SOURCES,
-  type VoiceSessionSource,
-  VOICE_SESSION_TRIGGERS,
-  type VoiceSessionTrigger
+  VOICE_SESSION_TRIGGERS
 } from '@shared/ai/localVoice'
 import { FileEntryIdSchema, InternalEntrySchema } from '@shared/data/types/file'
-import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
+import { voiceErrorCodes } from '@shared/ipc/errors/voice'
 
 import { defineRoute } from '../define'
 
@@ -31,6 +29,7 @@ const request = session.extend({
   source: z.enum(VOICE_SESSION_SOURCES).optional()
 })
 const abort = session.extend({ requestId: z.uuid() })
+const sessionFile = session.extend({ fileEntryId: FileEntryIdSchema })
 const modelId = z.enum(LOCAL_VOICE_MODEL_IDS)
 const asrModelId = z.enum([APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID])
 const speechInput = request
@@ -54,27 +53,39 @@ const speechInput = request
 export const VOICE_SESSION_PHASES = [
   'idle',
   'recording',
+  'recorded',
   'recognizing',
   'generating',
+  'ready',
   'playing',
   'paused',
-  'completed',
-  'failed',
-  'aborted'
+  'failed'
 ] as const
 export type VoiceSessionPhase = (typeof VOICE_SESSION_PHASES)[number]
 
 export const VOICE_SESSION_COMMANDS = ['pause', 'resume', 'stop'] as const
 export type VoiceSessionCommand = (typeof VOICE_SESSION_COMMANDS)[number]
 
-export type VoiceSessionState = {
-  sessionId: string
-  revision: number
-  phase: VoiceSessionPhase
-  source?: VoiceSessionSource
-  trigger?: VoiceSessionTrigger
-  reason?: VoiceErrorReason
-}
+const revision = z.number().int().nonnegative()
+const activePhase = z.enum(
+  VOICE_SESSION_PHASES.filter((phase) => phase !== 'idle') as [
+    Exclude<VoiceSessionPhase, 'idle'>,
+    ...Array<Exclude<VoiceSessionPhase, 'idle'>>
+  ]
+)
+export const voiceSessionStateSchema = z.union([
+  z.strictObject({ revision, phase: z.literal('idle') }),
+  session.extend({
+    revision,
+    phase: activePhase,
+    source: z.enum(VOICE_SESSION_SOURCES).optional(),
+    trigger: z.enum(VOICE_SESSION_TRIGGERS).optional(),
+    reason: z
+      .enum(Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>])
+      .optional()
+  })
+])
+export type VoiceSessionState = z.infer<typeof voiceSessionStateSchema>
 
 export type VoiceSessionEvent =
   | ({ type: 'state' } & VoiceSessionState)
@@ -93,7 +104,8 @@ export const voiceRequestSchemas = {
   'file.voice_recording.create': defineRoute({
     input: session.extend({
       audio: z.instanceof(Uint8Array).refine((value) => value.byteLength > 0 && value.byteLength <= 32 * 1024 * 1024),
-      mimeType: z.literal('audio/webm;codecs=opus')
+      mimeType: z.literal('audio/webm;codecs=opus'),
+      durationMs: z.number().int().min(0).max(300_000)
     }),
     output: InternalEntrySchema
   }),
@@ -119,6 +131,34 @@ export const voiceRequestSchemas = {
     })
   }),
   'ai.transcription.abort': defineRoute({ input: abort, output: z.void() }),
+  'ai.voice.session.state': defineRoute({ input: z.void(), output: voiceSessionStateSchema }),
+  'ai.voice.recording.start': defineRoute({ input: request, output: voiceSessionStateSchema }),
+  'ai.voice.output.read': defineRoute({
+    input: sessionFile,
+    output: z.strictObject({
+      audio: z.instanceof(Uint8Array).refine((value) => value.byteLength > 0),
+      mimeType: z.literal('audio/wav')
+    })
+  }),
+  'ai.voice.output.release': defineRoute({ input: sessionFile, output: z.void() }),
+  'ai.voice.playback.update': defineRoute({
+    input: session.extend({
+      phase: z.enum(['playing', 'paused', 'completed', 'failed']),
+      reason: z
+        .enum(Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>])
+        .optional()
+    }),
+    output: voiceSessionStateSchema
+  }),
+  'ai.voice.playback.control': defineRoute({
+    input: session.extend({ command: z.enum(VOICE_SESSION_COMMANDS) }),
+    output: voiceSessionStateSchema
+  }),
+  'ai.voice.microphone.status': defineRoute({
+    input: z.void(),
+    output: z.enum(['not-determined', 'granted', 'denied', 'restricted', 'unknown'])
+  }),
+  'ai.voice.microphone.open_settings': defineRoute({ input: z.void(), output: z.void() }),
   'ai.voice.session.discard': defineRoute({ input: session, output: z.void() }),
   'ai.voice.models.list': defineRoute({
     input: z.void(),

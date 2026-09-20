@@ -10,9 +10,17 @@ import { voiceHandlers } from '../voice'
 
 const boundary = vi.hoisted(() => ({
   abort: vi.fn(),
+  controlPlayback: vi.fn(),
   createRecording: vi.fn(),
+  getMicrophoneStatus: vi.fn(),
+  getState: vi.fn(),
+  openMicrophoneSettings: vi.fn(),
+  readOutput: vi.fn(),
+  releaseOutput: vi.fn(),
   speech: vi.fn(),
+  startRecording: vi.fn(),
   transcribe: vi.fn(),
+  updatePlayback: vi.fn(),
   window: vi.fn()
 }))
 vi.mock('@application', async () => {
@@ -23,9 +31,17 @@ vi.mock('@application', async () => {
     if (name === 'VoiceSessionService')
       return {
         abort: boundary.abort,
+        controlPlayback: boundary.controlPlayback,
         createRecording: boundary.createRecording,
+        getMicrophoneStatus: boundary.getMicrophoneStatus,
+        getState: boundary.getState,
+        openMicrophoneSettings: boundary.openMicrophoneSettings,
+        readOutput: boundary.readOutput,
+        releaseOutput: boundary.releaseOutput,
         speech: boundary.speech,
-        transcribe: boundary.transcribe
+        startRecording: boundary.startRecording,
+        transcribe: boundary.transcribe,
+        updatePlayback: boundary.updatePlayback
       }
     throw new Error('Unexpected service')
   })
@@ -47,7 +63,8 @@ const transcription = {
 const recording = {
   sessionId: input.sessionId,
   audio: new Uint8Array([1, 2]),
-  mimeType: 'audio/webm;codecs=opus'
+  mimeType: 'audio/webm;codecs=opus',
+  durationMs: 1_000
 }
 
 async function expectValidationFailure(result: Promise<unknown>) {
@@ -59,11 +76,68 @@ async function expectValidationFailure(result: Promise<unknown>) {
 describe('Voice handlers through real IpcRouter', () => {
   const router = new IpcRouter(voiceRequestSchemas, voiceHandlers)
   beforeEach(() => {
-    boundary.abort.mockReset()
-    boundary.createRecording.mockReset()
-    boundary.speech.mockReset()
-    boundary.transcribe.mockReset()
-    boundary.window.mockReset()
+    for (const mock of Object.values(boundary)) mock.mockReset()
+  })
+
+  it('rebuilds the managed owner for every Voice coordination route', async () => {
+    const webContents = { id: 10, isDestroyed: () => false }
+    const owner = { windowId: 'owner', webContents }
+    const fileEntryId = '00000000-0000-4000-8000-000000000004'
+    boundary.window.mockReturnValue({ webContents })
+    boundary.getState.mockReturnValue({ phase: 'idle', revision: 0 })
+    boundary.startRecording.mockReturnValue({ phase: 'recording', revision: 1, sessionId: input.sessionId })
+    boundary.readOutput.mockResolvedValue({ audio: new Uint8Array([1]), mimeType: 'audio/wav' })
+    boundary.getMicrophoneStatus.mockReturnValue('unknown')
+
+    await router.dispatch('ai.voice.session.state', undefined, { senderId: 'owner' })
+    await router.dispatch(
+      'ai.voice.recording.start',
+      { sessionId: input.sessionId, requestId: input.requestId, source: 'dictation' },
+      { senderId: 'owner' }
+    )
+    await router.dispatch('ai.voice.output.read', { sessionId: input.sessionId, fileEntryId }, { senderId: 'owner' })
+    await router.dispatch('ai.voice.output.release', { sessionId: input.sessionId, fileEntryId }, { senderId: 'owner' })
+    await router.dispatch(
+      'ai.voice.playback.update',
+      { sessionId: input.sessionId, phase: 'playing' },
+      { senderId: 'owner' }
+    )
+    await router.dispatch(
+      'ai.voice.playback.control',
+      { sessionId: input.sessionId, command: 'pause' },
+      { senderId: 'owner' }
+    )
+    await router.dispatch('ai.voice.microphone.status', undefined, { senderId: 'owner' })
+    await router.dispatch('ai.voice.microphone.open_settings', undefined, { senderId: 'owner' })
+
+    for (const method of [
+      boundary.getState,
+      boundary.startRecording,
+      boundary.readOutput,
+      boundary.releaseOutput,
+      boundary.updatePlayback,
+      boundary.controlPlayback,
+      boundary.getMicrophoneStatus,
+      boundary.openMicrophoneSettings
+    ]) {
+      expect(method.mock.calls[0]?.[0]).toEqual(owner)
+    }
+  })
+
+  it('rejects forged Voice coordination fields before the service boundary', async () => {
+    boundary.window.mockReturnValue({ webContents: { id: 10, isDestroyed: () => false } })
+    for (const [route, value] of [
+      ['ai.voice.recording.start', { sessionId: input.sessionId, requestId: input.requestId, ownerWindowId: 'other' }],
+      ['ai.voice.output.read', { sessionId: input.sessionId, fileEntryId: transcription.fileEntryId, path: '/tmp/x' }],
+      ['ai.voice.playback.control', { sessionId: input.sessionId, command: 'stop', adapter: 'apple' }],
+      ['ai.voice.microphone.open_settings', { url: 'https://evil.test' }]
+    ] as const) {
+      await expectValidationFailure(router.dispatch(route, value, { senderId: 'owner' }))
+    }
+    expect(boundary.startRecording).not.toHaveBeenCalled()
+    expect(boundary.readOutput).not.toHaveBeenCalled()
+    expect(boundary.controlPlayback).not.toHaveBeenCalled()
+    expect(boundary.openMicrophoneSettings).not.toHaveBeenCalled()
   })
 
   it('dispatches a FileEntry transcription with the managed owner', async () => {
@@ -131,7 +205,9 @@ describe('Voice handlers through real IpcRouter', () => {
 
   it.each([
     ['the wrong MIME type', { mimeType: 'audio/wav' }],
-    ['a physical path', { path: '/tmp/voice' }]
+    ['a physical path', { path: '/tmp/voice' }],
+    ['a negative duration', { durationMs: -1 }],
+    ['an excessive duration', { durationMs: 300_001 }]
   ])('rejects recording input containing %s before invoking the handler', async (_label, invalid) => {
     await expectValidationFailure(
       router.dispatch('file.voice_recording.create', { ...recording, ...invalid }, { senderId: 'owner' })
