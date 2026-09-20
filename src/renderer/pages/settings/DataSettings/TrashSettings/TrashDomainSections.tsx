@@ -39,6 +39,7 @@ const PREVIEW_BATCH_SIZE = 500
 export interface TrashDomainSectionProps {
   retentionDays: number
   isBatchMode: boolean
+  onBatchAvailabilityChange?: (available: boolean) => void
   isPermanentDeleting: boolean
   onRequestDelete: (request: PendingPermanentDelete) => void
 }
@@ -170,6 +171,7 @@ async function inspectFailedFileIds(
 export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
   isBatchMode,
+  onBatchAvailabilityChange,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -220,6 +222,7 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
     <TrashSection
       icon={MessageSquare}
       isBatchMode={isBatchMode}
+      onBatchAvailabilityChange={onBatchAvailabilityChange}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -240,6 +243,7 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
 export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
   isBatchMode,
+  onBatchAvailabilityChange,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -329,6 +333,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
     <TrashSection
       icon={SIDEBAR_ICON_COMPONENTS.agents}
       isBatchMode={isBatchMode}
+      onBatchAvailabilityChange={onBatchAvailabilityChange}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -358,6 +363,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
 export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
   isBatchMode,
+  onBatchAvailabilityChange,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -427,6 +433,7 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
     <TrashSection
       icon={MessagesSquare}
       isBatchMode={isBatchMode}
+      onBatchAvailabilityChange={onBatchAvailabilityChange}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -447,6 +454,7 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
 export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
   isBatchMode,
+  onBatchAvailabilityChange,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -512,6 +520,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
     <TrashSection
       icon={SIDEBAR_ICON_COMPONENTS.assistants}
       isBatchMode={isBatchMode}
+      onBatchAvailabilityChange={onBatchAvailabilityChange}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -541,6 +550,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
 export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
   isBatchMode,
+  onBatchAvailabilityChange,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -618,6 +628,7 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
     <TrashSection
       icon={SIDEBAR_ICON_COMPONENTS.paintings}
       isBatchMode={isBatchMode}
+      onBatchAvailabilityChange={onBatchAvailabilityChange}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -638,6 +649,7 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
 export const FileTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
   isBatchMode,
+  onBatchAvailabilityChange,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -731,6 +743,7 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({
     <TrashSection
       icon={SIDEBAR_ICON_COMPONENTS.files}
       isBatchMode={isBatchMode}
+      onBatchAvailabilityChange={onBatchAvailabilityChange}
       items={items}
       isLoading={isLoading}
       error={error}

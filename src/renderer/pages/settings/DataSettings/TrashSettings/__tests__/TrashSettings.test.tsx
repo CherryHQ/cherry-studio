@@ -16,6 +16,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof Cher
 
 const mocks = vi.hoisted(() => ({
   fileItems: [] as TrashItem[],
+  hideItems: false,
+  isLoading: false,
   ipcRequest: vi.fn(),
   deleteItem: vi.fn(),
   deleteItems: vi.fn(),
@@ -30,16 +32,18 @@ vi.mock('../TrashDomainSections', async () => {
   const topic = { id: 'topic-1', name: 'Deleted topic', deletedAt: 1_750_000_000_000 }
   const session = { id: 'session-1', name: 'Deleted session', deletedAt: 1_750_000_000_000 }
 
-  const buildSelectionSection = (item: TrashItem) =>
+  const buildSelectionSection = (item: TrashItem | null) =>
     function SelectionSection(props: {
       retentionDays: number
       onRequestDelete: (request: unknown) => void
       isBatchMode: boolean
+      onBatchAvailabilityChange?: (available: boolean) => void
       isPermanentDeleting: boolean
     }) {
       return React.createElement(TrashSection, {
-        items: [item],
-        isLoading: false,
+        items: item && !mocks.hideItems ? [item] : [],
+        isLoading: mocks.isLoading,
+        onBatchAvailabilityChange: props.onBatchAvailabilityChange,
         error: undefined,
         onRetry: vi.fn(),
         retentionDays: props.retentionDays,
@@ -47,7 +51,7 @@ vi.mock('../TrashDomainSections', async () => {
         pendingRestoreId: null,
         isPermanentDeleting: props.isPermanentDeleting,
         onRestore: vi.fn(),
-        onRestoreMany: vi.fn().mockResolvedValue({ succeeded: [item.id], failed: [] }),
+        onRestoreMany: vi.fn().mockResolvedValue({ succeeded: item ? [item.id] : [], failed: [] }),
         onPermanentDelete: mocks.deleteItem,
         onPermanentDeleteMany: mocks.deleteItems,
         onRequestDelete: props.onRequestDelete
@@ -72,7 +76,7 @@ vi.mock('../TrashDomainSections', async () => {
 
   const TopicSection = buildSelectionSection(topic)
   const SessionSection = buildSelectionSection(session)
-  const EmptySection = () => null
+  const EmptySection = buildSelectionSection(null)
   return {
     TopicTrashSection: TopicSection,
     AgentTrashSection: EmptySection,
@@ -94,13 +98,12 @@ function fileItems(count: number): TrashItem[] {
   }))
 }
 
-async function chooseCategory(user: ReturnType<typeof userEvent.setup>, current: string, next: string) {
-  await user.click(screen.getByRole('button', { name: current }))
-  await user.click(screen.getByRole('button', { name: next }))
+async function chooseCategory(user: ReturnType<typeof userEvent.setup>, next: string) {
+  await user.click(screen.getByRole('tab', { name: next }))
 }
 
 async function openFileDelete(user: ReturnType<typeof userEvent.setup>) {
-  await chooseCategory(user, 'Topics', 'Files')
+  await chooseCategory(user, 'Files')
   await user.click(screen.getByRole('button', { name: 'Open file permanent delete' }))
 }
 
@@ -115,10 +118,12 @@ beforeEach(async () => {
   mocks.deleteItems.mockReset().mockResolvedValue({ succeeded: ['topic-1'], failed: [] })
   mocks.runDelete.mockReset().mockResolvedValue({ succeeded: [], failed: [] })
   mocks.fileItems = fileItems(1)
+  mocks.hideItems = false
+  mocks.isLoading = false
 })
 
 describe('TrashSettings', () => {
-  it('keeps the cleanup preference editable from the compact toolbar without deleting items', async () => {
+  it('keeps the cleanup preference editable from its settings row without deleting items', async () => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setPreferenceValue('data.trash.retention_days', 30)
     render(<TrashSettings />)
@@ -134,22 +139,56 @@ describe('TrashSettings', () => {
     expect(mocks.deleteItems).not.toHaveBeenCalled()
   })
 
-  it('lists trash categories in product order with localized Chinese labels', async () => {
+  it('switches visible category tabs by click and keyboard with localized labels', async () => {
     const user = userEvent.setup()
     await i18n.changeLanguage('zh-CN')
     render(<TrashSettings />)
 
-    await user.click(screen.getByRole('button', { name: '话题' }))
+    const tabs = within(screen.getByRole('tablist', { name: '回收站' }))
+    for (const name of ['助手', '话题', '智能体', '会话', '绘图', '文件']) {
+      expect(tabs.getByRole('tab', { name })).toBeVisible()
+    }
+    expect(screen.getByRole('tabpanel', { name: '话题' })).toHaveTextContent('Deleted topic')
 
-    const categoryOptions = within(screen.getByRole('dialog')).getAllByRole('button')
-    expect(categoryOptions.map((option) => option.textContent)).toEqual([
-      '助手',
-      '话题',
-      '智能体',
-      '会话',
-      '绘图',
-      '文件'
-    ])
+    await user.click(tabs.getByRole('tab', { name: '会话' }))
+    expect(screen.getByRole('tabpanel', { name: '会话' })).toHaveTextContent('Deleted session')
+    expect(screen.queryByText('Deleted topic')).not.toBeInTheDocument()
+
+    await user.keyboard('{Home}{ArrowRight}')
+    expect(tabs.getByRole('tab', { name: '话题' })).toHaveFocus()
+    expect(screen.getByRole('tabpanel', { name: '话题' })).toHaveTextContent('Deleted topic')
+    expect(screen.queryByText('Deleted session')).not.toBeInTheDocument()
+  })
+
+  it('only enables batch management for loaded content in the current category', async () => {
+    const user = userEvent.setup()
+    mocks.isLoading = true
+    const { rerender } = render(<TrashSettings />)
+    const manage = screen.getByRole('button', { name: 'Batch manage' })
+    expect(manage).toBeDisabled()
+
+    mocks.isLoading = false
+    mocks.hideItems = true
+    rerender(<TrashSettings />)
+    expect(manage).toBeDisabled()
+    await user.click(manage)
+    expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
+
+    mocks.hideItems = false
+    rerender(<TrashSettings />)
+    expect(manage).toBeEnabled()
+    await chooseCategory(user, 'Assistants')
+    expect(manage).toBeDisabled()
+    await chooseCategory(user, 'Topics')
+    expect(manage).toBeEnabled()
+
+    await user.click(manage)
+    mocks.hideItems = true
+    rerender(<TrashSettings />)
+    const done = screen.getByRole('button', { name: 'Done' })
+    expect(done).toBeEnabled()
+    await user.click(done)
+    expect(screen.getByRole('button', { name: 'Batch manage' })).toBeDisabled()
   })
 
   it('reports referenced files kept instead of claiming the trash is empty', async () => {
@@ -229,7 +268,7 @@ describe('TrashSettings permanent-delete confirmation', () => {
     expect(screen.getByRole('button', { name: 'Delete Permanently 1' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Clear selection' })).toBeEnabled()
 
-    await chooseCategory(user, 'Topics', 'Sessions')
+    await chooseCategory(user, 'Sessions')
 
     expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument()
     expect(screen.queryByText('1 selected')).not.toBeInTheDocument()
@@ -373,8 +412,8 @@ describe('TrashSettings permanent-delete confirmation', () => {
     render(<TrashSettings />)
     await openFileDelete(user)
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    await chooseCategory(user, 'Files', 'Topics')
-    await chooseCategory(user, 'Topics', 'Files')
+    await chooseCategory(user, 'Topics')
+    await chooseCategory(user, 'Files')
     await user.click(screen.getByRole('button', { name: 'Open file permanent delete' }))
     expect(await screen.findByText(/1 file is still used by 3 records/)).toBeInTheDocument()
 

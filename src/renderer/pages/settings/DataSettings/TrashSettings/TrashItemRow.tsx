@@ -52,7 +52,9 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
   const isBatchBlocked = isSectionBusy && !isRestoring
 
   return (
-    <Item className="flex-nowrap gap-3 rounded-none border-0 border-border border-b px-0">
+    <Item
+      size="sm"
+      className="flex-nowrap gap-3 rounded-none border-0 border-border-subtle border-b px-0 py-2 last:border-b-0">
       {showSelection && (
         <Checkbox
           checked={selected}
@@ -89,27 +91,26 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
           )}
         </ItemDescription>
       </ItemContent>
-      <ItemActions className="shrink-0">
+      <ItemActions className="shrink-0 gap-1">
         <Tooltip title={t('settings.data.trash.restore.label')}>
           <Button
-            variant="outline"
-            size="sm"
-            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-40 dark:text-muted-foreground"
             aria-label={t('settings.data.trash.restore.label')}
             aria-disabled={isBatchBlocked || undefined}
             loading={isRestoring}
             onClick={() => {
               if (!isBatchBlocked) onRestore(item)
             }}>
-            {!isRestoring && <RotateCcw size={16} />}
-            {t('settings.data.trash.restore.label')}
+            {!isRestoring && <RotateCcw size={16} className="text-muted-foreground" />}
           </Button>
         </Tooltip>
         <Tooltip title={t('settings.data.trash.permanent_delete.label')}>
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-destructive hover:text-destructive focus-visible:text-destructive aria-disabled:cursor-not-allowed aria-disabled:opacity-40 dark:text-destructive"
+            className="text-muted-foreground hover:text-destructive focus-visible:text-destructive dark:text-muted-foreground dark:hover:text-destructive dark:focus-visible:text-destructive aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
             aria-label={t('settings.data.trash.permanent_delete.label')}
             aria-disabled={isBatchBlocked || undefined}
             disabled={isRestoring}

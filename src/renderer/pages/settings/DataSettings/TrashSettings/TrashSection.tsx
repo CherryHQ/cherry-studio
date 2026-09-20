@@ -39,6 +39,7 @@ interface TrashSectionProps {
   onRetry: () => void
   pagination?: TrashSectionPagination
   isBatchMode: boolean
+  onBatchAvailabilityChange?: (available: boolean) => void
   retentionDays: number
   pendingRestoreId: string | null
   isPermanentDeleting: boolean
@@ -58,6 +59,7 @@ const TrashSection: FC<TrashSectionProps> = ({
   onRetry,
   pagination,
   isBatchMode,
+  onBatchAvailabilityChange,
   retentionDays,
   pendingRestoreId,
   isPermanentDeleting,
@@ -75,6 +77,12 @@ const TrashSection: FC<TrashSectionProps> = ({
   const itemIds = useMemo(() => new Set(items.map((item) => item.id)), [items])
   const selectedItems = useMemo(() => items.filter((item) => selectedIds.has(item.id)), [items, selectedIds])
   const isSectionBusy = pendingRestoreId !== null || isBatchActionPending || isPermanentDeleting
+
+  const canBatchManage = !isLoading && !error && items.length > 0
+
+  useEffect(() => {
+    onBatchAvailabilityChange?.(canBatchManage)
+  }, [canBatchManage, onBatchAvailabilityChange])
 
   useEffect(
     () => () => {
@@ -174,7 +182,7 @@ const TrashSection: FC<TrashSectionProps> = ({
   return (
     <>
       {isBatchMode && (
-        <div className="flex min-h-8 flex-wrap items-center justify-between gap-3 border-border border-b py-3">
+        <div className="flex min-h-8 flex-wrap items-center justify-between gap-3 py-3">
           <div className="flex items-center gap-2">
             <Checkbox
               checked={
@@ -230,30 +238,32 @@ const TrashSection: FC<TrashSectionProps> = ({
           {items.length === 0 ? (
             <EmptyState title={t('settings.data.trash.empty.section')} />
           ) : (
-            items.map((item) => (
-              <TrashItemRow
-                key={item.id}
-                icon={icon}
-                item={item}
-                retentionDays={retentionDays}
-                isRestoring={pendingRestoreId === item.id}
-                showSelection={isBatchMode}
-                selected={selectedIds.has(item.id)}
-                onSelectedChange={(selected) =>
-                  setSelectedIds((current) => {
-                    const next = new Set(current)
-                    if (selected) next.add(item.id)
-                    else next.delete(item.id)
-                    return next
-                  })
-                }
-                // One mutation instance backs every row, so a second in-flight action would
-                // share and clobber its state — freeze the whole section until this one lands.
-                isSectionBusy={isSectionBusy}
-                onRestore={onRestore}
-                onDelete={(target) => requestPermanentDelete([target], false)}
-              />
-            ))
+            <div>
+              {items.map((item) => (
+                <TrashItemRow
+                  key={item.id}
+                  icon={icon}
+                  item={item}
+                  retentionDays={retentionDays}
+                  isRestoring={pendingRestoreId === item.id}
+                  showSelection={isBatchMode}
+                  selected={selectedIds.has(item.id)}
+                  onSelectedChange={(selected) =>
+                    setSelectedIds((current) => {
+                      const next = new Set(current)
+                      if (selected) next.add(item.id)
+                      else next.delete(item.id)
+                      return next
+                    })
+                  }
+                  // One mutation instance backs every row, so a second in-flight action would
+                  // share and clobber its state — freeze the whole section until this one lands.
+                  isSectionBusy={isSectionBusy}
+                  onRestore={onRestore}
+                  onDelete={(target) => requestPermanentDelete([target], false)}
+                />
+              ))}
+            </div>
           )}
           {pagination?.kind === 'cursor' && items.length > 0 && pagination.hasMore && (
             <div className="flex items-center justify-center">
