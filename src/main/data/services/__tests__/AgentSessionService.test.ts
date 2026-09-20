@@ -11,13 +11,17 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { pinService } from '@data/services/PinService'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -1837,5 +1841,147 @@ describe('AgentSessionService', () => {
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)
+  })
+
+  describe('session model override', () => {
+    const MODEL_A = 'test-provider::model-a' as UniqueModelId
+    const MODEL_B = 'test-provider::model-b' as UniqueModelId
+
+    beforeEach(async () => {
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'test-provider',
+        name: 'Test Provider',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+      await dbh.db.insert(userModelTable).values([
+        {
+          id: MODEL_A,
+          providerId: 'test-provider',
+          modelId: 'model-a',
+          name: 'Model A',
+          capabilities: [],
+          supportsStreaming: true,
+          orderKey: generateOrderKeyBetween(null, null)
+        },
+        {
+          id: MODEL_B,
+          providerId: 'test-provider',
+          modelId: 'model-b',
+          name: 'Model B',
+          capabilities: [],
+          supportsStreaming: true,
+          orderKey: generateOrderKeyBetween(null, null)
+        }
+      ])
+      await dbh.db.update(agentTable).set({ model: MODEL_A }).where(eq(agentTable.id, 'agent-session-test'))
+    })
+
+    it('keeps sibling sessions on independent models', async () => {
+      const first = await createSession('Sibling A')
+      const second = await createSession('Sibling B')
+      expect(first.modelId).toBeNull()
+
+      agentSessionService.update(first.id, { modelId: MODEL_A })
+      agentSessionService.update(second.id, { modelId: MODEL_B })
+      // An unrelated write to the sibling must not disturb the first session.
+      agentSessionService.update(second.id, { name: 'Sibling B renamed' })
+
+      expect(agentSessionService.getById(first.id).modelId).toBe(MODEL_A)
+      expect(agentSessionService.getById(second.id).modelId).toBe(MODEL_B)
+      const [agent] = await dbh.db
+        .select({ model: agentTable.model })
+        .from(agentTable)
+        .where(eq(agentTable.id, 'agent-session-test'))
+      expect(agent.model).toBe(MODEL_A)
+    })
+
+    it('inherits the agent model while the override is null and clears back to it', async () => {
+      const session = await createSession('Inheriting')
+
+      expect(agentSessionService.getById(session.id).modelId).toBeNull()
+
+      agentSessionService.update(session.id, { modelId: MODEL_B })
+      expect(agentSessionService.getById(session.id).modelId).toBe(MODEL_B)
+
+      agentSessionService.update(session.id, { modelId: null })
+      expect(agentSessionService.getById(session.id).modelId).toBeNull()
+    })
+
+    it('clears the override when the session moves to another agent unless carried over', async () => {
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-override-target',
+        type: 'claude-code',
+        name: 'Override Target',
+        instructions: '',
+        model: MODEL_B,
+        orderKey: 'z0'
+      })
+      const session = await createSession('Reassigned override')
+      agentSessionService.update(session.id, { modelId: MODEL_A })
+
+      agentSessionService.update(session.id, { agentId: 'agent-override-target' })
+      expect(agentSessionService.getById(session.id)).toMatchObject({ agentId: 'agent-override-target', modelId: null })
+
+      agentSessionService.update(session.id, { modelId: MODEL_A })
+      agentSessionService.update(session.id, { agentId: 'agent-session-test', modelId: MODEL_A })
+      expect(agentSessionService.getById(session.id)).toMatchObject({
+        agentId: 'agent-session-test',
+        modelId: MODEL_A
+      })
+    })
+
+    it('falls back to inheriting for sessions whose override model was removed', async () => {
+      const first = await createSession('Override removed A')
+      const second = await createSession('Override removed B')
+      agentSessionService.update(first.id, { modelId: MODEL_B })
+      agentSessionService.update(second.id, { modelId: MODEL_A })
+
+      const cleared = dbh.db.transaction((tx) => agentSessionService.clearModelOverrideForModelsTx(tx, [MODEL_B]))
+
+      expect(cleared).toEqual([first.id])
+      expect(agentSessionService.getById(first.id).modelId).toBeNull()
+      expect(agentSessionService.getById(second.id).modelId).toBe(MODEL_A)
+    })
+
+    it('drops the override when an empty placeholder is reused for a new chat', async () => {
+      const first = agentSessionService.reuseOrCreatePlaceholderWithImpact({
+        agentId: 'agent-session-test',
+        workspace: { type: 'system' }
+      })
+      expect(first.created).toBe(true)
+      agentSessionService.update(first.session.id, { modelId: MODEL_B })
+
+      const second = agentSessionService.reuseOrCreatePlaceholderWithImpact({
+        agentId: 'agent-session-test',
+        workspace: { type: 'system' }
+      })
+
+      expect(second.created).toBe(false)
+      expect(second.session.id).toBe(first.session.id)
+      expect(second.session.modelId).toBeNull()
+    })
+
+    it('reports a missing model instead of a missing session for bogus overrides', async () => {
+      const session = await createSession('Bogus override')
+
+      const error = captureError(() =>
+        agentSessionService.update(session.id, { modelId: 'missing::model' as UniqueModelId })
+      )
+      expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
+      expect(String((error as Error).message)).toMatch(/Model/)
+    })
+
+    it('reports a missing model instead of a missing agent on create', async () => {
+      const error = captureError(() =>
+        agentSessionService.create({
+          agentId: 'agent-session-test',
+          name: 'Bogus create',
+          modelId: 'missing::model' as UniqueModelId,
+          workspace: { type: 'system' }
+        })
+      )
+      expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
+      expect(String((error as Error).message)).toMatch(/Model/)
+    })
   })
 })
