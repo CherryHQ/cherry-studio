@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { forecastQuotaExhaustion, periodRenewsAt, periodStartOf } from '../apiKeyLimit'
+import {
+  dueQuotaNotices,
+  forecastQuotaExhaustion,
+  periodRenewsAt,
+  periodStartOf,
+  type QuotaNoticeInput
+} from '../apiKeyLimit'
 
 describe('periodStartOf', () => {
   beforeEach(() => {
@@ -132,5 +138,113 @@ describe('forecastQuotaExhaustion', () => {
       nowMs
     })
     expect(forecast).toEqual({ kind: 'runs-out', atMs: nowMs + 19 * 6 * HOUR })
+  })
+})
+
+describe('dueQuotaNotices', () => {
+  const dailyKey = (overrides: Partial<QuotaNoticeInput> = {}): QuotaNoticeInput => ({
+    limitKey: 'openrouter::key1',
+    period: 'daily',
+    limit: 20,
+    tier: 'free',
+    used: 0,
+    ...overrides
+  })
+
+  const trialTotalKey = (overrides: Partial<QuotaNoticeInput> = {}): QuotaNoticeInput => ({
+    limitKey: 'provider::trialkey',
+    period: 'total',
+    limit: 10,
+    tier: 'trial',
+    used: 0,
+    ...overrides
+  })
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  it('records a baseline for a never-before-seen limit without firing a notice', () => {
+    vi.setSystemTime(new Date('2026-09-18T14:30:00Z'))
+    const { notices, nextState } = dueQuotaNotices([dailyKey()], {})
+    expect(notices).toEqual([])
+    expect(nextState['openrouter::key1']?.lastPeriodStart).toBe(new Date('2026-09-18T00:00:00Z').getTime())
+  })
+
+  it('stays quiet on a later check within the same period', () => {
+    vi.setSystemTime(new Date('2026-09-18T08:00:00Z'))
+    const first = dueQuotaNotices([dailyKey()], {})
+
+    vi.setSystemTime(new Date('2026-09-18T20:00:00Z'))
+    const second = dueQuotaNotices([dailyKey()], first.nextState)
+
+    expect(second.notices).toEqual([])
+    expect(second.nextState).toEqual(first.nextState)
+  })
+
+  it('fires new_period once the period rolls over, and updates the recorded start', () => {
+    vi.setSystemTime(new Date('2026-09-18T08:00:00Z'))
+    const first = dueQuotaNotices([dailyKey()], {})
+
+    vi.setSystemTime(new Date('2026-09-19T08:00:00Z'))
+    const second = dueQuotaNotices([dailyKey()], first.nextState)
+
+    expect(second.notices).toEqual([{ kind: 'new_period', limitKey: 'openrouter::key1' }])
+    expect(second.nextState['openrouter::key1']?.lastPeriodStart).toBe(new Date('2026-09-19T00:00:00Z').getTime())
+  })
+
+  it('does not fire new_period twice for the same rollover across repeated checks', () => {
+    vi.setSystemTime(new Date('2026-09-18T08:00:00Z'))
+    const first = dueQuotaNotices([dailyKey()], {})
+
+    vi.setSystemTime(new Date('2026-09-19T08:00:00Z'))
+    const second = dueQuotaNotices([dailyKey()], first.nextState)
+    const third = dueQuotaNotices([dailyKey()], second.nextState)
+
+    expect(third.notices).toEqual([])
+  })
+
+  it('never fires new_period for a total-period limit, which has no calendar rollover', () => {
+    vi.setSystemTime(new Date('2026-09-18T08:00:00Z'))
+    const first = dueQuotaNotices([trialTotalKey()], {})
+
+    vi.setSystemTime(new Date('2027-09-18T08:00:00Z'))
+    const second = dueQuotaNotices([trialTotalKey()], first.nextState)
+
+    expect(second.notices).toEqual([])
+  })
+
+  it('fires trial_exhausted once usage reaches the declared limit', () => {
+    vi.setSystemTime(new Date('2026-09-18T08:00:00Z'))
+    const { notices, nextState } = dueQuotaNotices([trialTotalKey({ used: 10 })], {})
+
+    expect(notices).toEqual([{ kind: 'trial_exhausted', limitKey: 'provider::trialkey' }])
+    expect(nextState['provider::trialkey']?.trialEndingNotifiedAt).toBe(Date.now())
+  })
+
+  it('never fires trial_exhausted again for the same key once recorded', () => {
+    vi.setSystemTime(new Date('2026-09-18T08:00:00Z'))
+    const first = dueQuotaNotices([trialTotalKey({ used: 10 })], {})
+    const second = dueQuotaNotices([trialTotalKey({ used: 10 })], first.nextState)
+
+    expect(second.notices).toEqual([])
+  })
+
+  it('does not fire trial_exhausted while usage is under the limit', () => {
+    vi.setSystemTime(new Date('2026-09-18T08:00:00Z'))
+    const { notices } = dueQuotaNotices([trialTotalKey({ used: 9 })], {})
+    expect(notices).toEqual([])
+  })
+
+  it('never fires trial_exhausted for a free or paid total-period key', () => {
+    vi.setSystemTime(new Date('2026-09-18T08:00:00Z'))
+    const { notices } = dueQuotaNotices([trialTotalKey({ used: 10, tier: 'free' })], {})
+    expect(notices).toEqual([])
+  })
+
+  it('never fires trial_exhausted for a trial key on a renewing period — new_period covers it', () => {
+    vi.setSystemTime(new Date('2026-09-18T08:00:00Z'))
+    const first = dueQuotaNotices([dailyKey({ tier: 'trial', used: 20, limit: 20 })], {})
+    expect(first.notices).toEqual([])
   })
 })

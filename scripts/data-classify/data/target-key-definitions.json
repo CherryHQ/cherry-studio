@@ -313,6 +313,13 @@
       "description": "Usage counter per web/URL service, keyed by web::providerId"
     },
     {
+      "targetKey": "chat.routing.quota_notice_state",
+      "type": "PreferenceTypes.QuotaNoticeMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Which quota renewal/trial-exhaustion reminders have already been shown, keyed like chat.routing.api_key_limits, so a reminder fires once and never repeats across restarts"
+    },
+    {
       "targetKey": "chat.routing.pinned_model",
       "type": "string",
       "defaultValue": "",

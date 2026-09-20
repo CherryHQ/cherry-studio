@@ -2,6 +2,7 @@
 
 import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { ApiKeyTier } from '@shared/data/types/provider'
 
 /** Identifies a credential's quota entry in `chat.routing.api_key_limits`. */
 export const apiKeyLimitId = (providerId: string, keyId: string) => `${providerId}::${keyId}`
@@ -96,6 +97,77 @@ export function forecastQuotaExhaustion(input: {
   const atMs = nowMs + (limit - used) * msPerRequest
   if (renewsAtMs !== null && atMs >= renewsAtMs) return { kind: 'within-period' }
   return { kind: 'runs-out', atMs }
+}
+
+/** Per-limit bookkeeping for {@link dueQuotaNotices}, persisted so a reminder never repeats. */
+export type QuotaNoticeState = Record<string, { lastPeriodStart?: number; trialEndingNotifiedAt?: number }>
+
+/** One declared limit's current shape — enough to decide whether a notice about it is due. */
+export interface QuotaNoticeInput {
+  /** Same id as its entry in `chat.routing.api_key_limits` (`apiKeyLimitId` or `apiKeyModelLimitId`). */
+  limitKey: string
+  period: ApiKeyLimitPeriod
+  limit: number
+  tier: ApiKeyTier
+  renewalAnchor?: string
+  renewalTimezone?: string
+  /** Requests recorded so far in the current period; only consulted for a `trial` + `'total'` key. */
+  used: number
+}
+
+/** A quota event worth telling the user about once. */
+export type QuotaNotice = { kind: 'new_period'; limitKey: string } | { kind: 'trial_exhausted'; limitKey: string }
+
+/**
+ * Diffs each declared limit's current period (and, for a one-shot trial, its usage) against what
+ * was last recorded, and returns the notices that became true since then plus the state to
+ * persist for next time.
+ *
+ * - A limit seen for the first time only records a baseline, never a notice — otherwise every
+ *   key would "start a new period" the moment this feature ships.
+ * - `'new_period'` fires once per calendar rollover (`periodStartOf` advancing), for any tier. It
+ *   reports what the app's own usage tracking did, not a provider-verified reset.
+ * - `'trial_exhausted'` fires once, ever, for a `trial` + `'total'` key once usage reaches the
+ *   declared limit — that pool never refills, so there is nothing to repeat the warning about.
+ */
+export function dueQuotaNotices(
+  keys: readonly QuotaNoticeInput[],
+  state: QuotaNoticeState,
+  nowMs: number = Date.now()
+): { notices: QuotaNotice[]; nextState: QuotaNoticeState } {
+  const notices: QuotaNotice[] = []
+  const nextState: QuotaNoticeState = { ...state }
+
+  for (const key of keys) {
+    const prev = state[key.limitKey]
+
+    if (key.period !== 'total') {
+      const periodStart = periodStartOf(key.period, key.renewalAnchor, key.renewalTimezone)
+      if (prev?.lastPeriodStart !== undefined && periodStart > prev.lastPeriodStart) {
+        notices.push({ kind: 'new_period', limitKey: key.limitKey })
+      }
+      if (prev?.lastPeriodStart !== periodStart) {
+        nextState[key.limitKey] = { ...prev, lastPeriodStart: periodStart }
+      }
+      continue
+    }
+
+    if (key.tier !== 'trial' || prev?.trialEndingNotifiedAt !== undefined) continue
+
+    const forecast = forecastQuotaExhaustion({
+      used: key.used,
+      limit: key.limit,
+      periodStartMs: periodStartOf('total'),
+      renewsAtMs: periodRenewsAt('total'),
+      nowMs
+    })
+    if (forecast.kind === 'exhausted') {
+      notices.push({ kind: 'trial_exhausted', limitKey: key.limitKey })
+      nextState[key.limitKey] = { ...prev, trialEndingNotifiedAt: nowMs }
+    }
+  }
+
+  return { notices, nextState }
 }
 
 function zonedDate(utcMs: number, tz: string): Date {

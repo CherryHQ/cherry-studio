@@ -3,6 +3,7 @@ import * as z from 'zod'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { QuotaNoticeState } from '@shared/utils/apiKeyLimit'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
@@ -62,6 +63,13 @@ export type ApiKeyRotationMap = Record<string, ApiKeyRotationPolicy>
 
 /** Usage counter per web/URL service, keyed by `web::${providerId}`. */
 export type ServiceUsageMap = Record<string, { count: number; periodStart: number }>
+
+/**
+ * Which quota events have already been announced (a period rollover, or a one-shot trial key
+ * running dry), so a reminder fires once and never repeats across restarts. Keyed the same way
+ * as {@link ApiKeyLimitMap} — `providerId::keyId` or the model-scoped variant.
+ */
+export type QuotaNoticeMap = QuotaNoticeState
 
 /** Task kinds the router recognises; each maps to the models that are best at it. */
 export const TASK_CATEGORIES = ['code', 'research', 'writing', 'image', 'general'] as const
