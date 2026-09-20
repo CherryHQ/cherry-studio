@@ -74,12 +74,15 @@ export function withPathMutationLock<T>(lockKeys: string | MutationLockKeys, fn:
   const ancestorWaits = [...activeSubtreeRoots]
     .filter(([dirKey]) => isDescendantOrSelf(pathKey, dirKey))
     .map(([, pending]) => pending)
-  return withRawMutationLock(pathKey, async () => {
+  // Derive identity synchronously so hard-link aliases sharing one inode join the
+  // same queue in call order instead of racing to register it from inside the path queue.
+  const identityKey = toIdentityKey(probePath)
+  const keys = identityKey ? [pathKey, identityKey] : [pathKey]
+  return withCombinedMutationLocks(keys, async () => {
     if (ancestorWaits.length > 0) {
       await Promise.all(ancestorWaits.map((pending) => pending.catch(() => undefined)))
     }
-    const identityKey = toIdentityKey(probePath)
-    return identityKey ? withRawMutationLock(identityKey, fn) : fn()
+    return fn()
   })
 }
 
@@ -104,11 +107,12 @@ export function withMutationLockForRequest<T>(
     releaseRoot = resolve
   })
   activeSubtreeRoots.set(keys.pathKey, rootPending)
-  return withRawMutationLock(keys.pathKey, async () => {
+  const identityKey = toIdentityKey(keys.probePath)
+  const combinedKeys = identityKey ? [keys.pathKey, identityKey] : [keys.pathKey]
+  return withCombinedMutationLocks(combinedKeys, async () => {
     await Promise.all([...descendantWaits, ...overlappingRoots].map((pending) => pending.catch(() => undefined)))
     try {
-      const identityKey = toIdentityKey(keys.probePath)
-      return identityKey ? await withRawMutationLock(identityKey, fn) : await fn()
+      return await fn()
     } finally {
       if (activeSubtreeRoots.get(keys.pathKey) === rootPending) {
         activeSubtreeRoots.delete(keys.pathKey)
@@ -118,16 +122,22 @@ export function withMutationLockForRequest<T>(
   })
 }
 
-function withRawMutationLock<T>(lockKey: string, fn: () => Promise<T>): Promise<T> {
-  const previous = mutationChains.get(lockKey) ?? Promise.resolve()
-  const next = previous.then(fn, fn)
+// Registers every key synchronously at call time and runs fn once all
+// predecessors complete, so call order decides queue order on each key.
+function withCombinedMutationLocks<T>(lockKeys: string[], fn: () => Promise<T>): Promise<T> {
+  const uniqueKeys = [...new Set(lockKeys)]
+  const predecessors = uniqueKeys.map((key) => mutationChains.get(key) ?? Promise.resolve())
+  const gate = Promise.all(predecessors.map((pending) => pending.catch(() => undefined)))
+  const next = gate.then(fn, fn)
   const tracked = next.catch(() => undefined)
 
-  mutationChains.set(lockKey, tracked)
+  for (const key of uniqueKeys) mutationChains.set(key, tracked)
 
   void tracked.finally(() => {
-    if (mutationChains.get(lockKey) === tracked) {
-      mutationChains.delete(lockKey)
+    for (const key of uniqueKeys) {
+      if (mutationChains.get(key) === tracked) {
+        mutationChains.delete(key)
+      }
     }
   })
 
