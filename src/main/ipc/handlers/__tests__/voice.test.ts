@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { IpcRouter } from '@main/ipc/IpcRouter'
+import type { InternalFileEntry } from '@shared/data/types/file'
 import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import { voiceRequestSchemas } from '@shared/ipc/schemas/voice'
 
@@ -42,6 +43,11 @@ const transcription = {
   fileEntryId: '00000000-0000-4000-8000-000000000003',
   modelId: 'local-voice::apple-system-asr' as const,
   language: 'en-US'
+}
+const recording = {
+  sessionId: input.sessionId,
+  audio: new Uint8Array([1, 2]),
+  mimeType: 'audio/webm;codecs=opus'
 }
 
 async function expectValidationFailure(result: Promise<unknown>) {
@@ -85,6 +91,27 @@ describe('Voice handlers through real IpcRouter', () => {
     expect(boundary.abort).toHaveBeenNthCalledWith(2, owner, abort, 'transcription')
   })
 
+  it('dispatches a valid WebM/Opus recording with the managed owner and returns its FileEntry', async () => {
+    const webContents = { id: 10, isDestroyed: () => false }
+    const owner = { windowId: 'owner', webContents }
+    const entry: InternalFileEntry = {
+      id: '00000000-0000-4000-8000-000000000004',
+      name: 'voice-recording',
+      ext: 'webm',
+      origin: 'internal',
+      size: recording.audio.byteLength,
+      contentHash: null,
+      cleanupPolicy: 'delete_when_unreferenced',
+      createdAt: 1,
+      updatedAt: 1
+    }
+    boundary.window.mockReturnValue({ webContents })
+    boundary.createRecording.mockResolvedValue(entry)
+
+    await expect(router.dispatch('file.voice_recording.create', recording, { senderId: 'owner' })).resolves.toBe(entry)
+    expect(boundary.createRecording).toHaveBeenCalledWith(owner, recording)
+  })
+
   it.each([
     ['a physical path', { path: '/private/audio.webm' }],
     ['audio bytes', { audio: new Uint8Array([1]) }],
@@ -106,13 +133,9 @@ describe('Voice handlers through real IpcRouter', () => {
     ['the wrong MIME type', { mimeType: 'audio/wav' }],
     ['a physical path', { path: '/tmp/voice' }]
   ])('rejects recording input containing %s before invoking the handler', async (_label, invalid) => {
-    const recording = {
-      sessionId: input.sessionId,
-      audio: new Uint8Array([1, 2]),
-      mimeType: 'audio/webm;codecs=opus',
-      ...invalid
-    }
-    await expectValidationFailure(router.dispatch('file.voice_recording.create', recording, { senderId: 'owner' }))
+    await expectValidationFailure(
+      router.dispatch('file.voice_recording.create', { ...recording, ...invalid }, { senderId: 'owner' })
+    )
     expect(boundary.createRecording).not.toHaveBeenCalled()
   })
 
