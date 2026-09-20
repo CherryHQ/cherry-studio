@@ -264,6 +264,7 @@ describe('AgentChatContextProvider', () => {
           emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         },
+        modelId: 'anthropic::claude-sonnet',
         reasoningEffort: 'default',
         serviceTier: 'standard'
       }
@@ -314,6 +315,7 @@ describe('AgentChatContextProvider', () => {
           emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
         },
+        modelId: 'anthropic::claude-sonnet',
         reasoningEffort: 'default',
         serviceTier: 'standard'
       }
@@ -473,6 +475,24 @@ describe('AgentChatContextProvider', () => {
 
     expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')
     expect(mocks.getModelNames).not.toHaveBeenCalled()
+  })
+
+  it('forwards the session override model when a busy dispatch enqueues a follow-up', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ role: 'user' }),
+      expect.objectContaining({ modelId: 'openai::gpt-4o' })
+    )
   })
 
   it('rejects a turn when neither the session nor the agent has a model', async () => {

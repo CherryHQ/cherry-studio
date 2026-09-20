@@ -334,6 +334,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         headless: validated.headless,
         trustedNotifyChannels: validated.trustedNotifyChannels,
         messageSnapshot: validated.messageSnapshot,
+        modelId: validated.uniqueModelId,
         reasoningEffort: validated.reasoningEffort,
         serviceTier: validated.serviceTier,
         fastMode: validated.fastMode

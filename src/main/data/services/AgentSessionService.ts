@@ -636,8 +636,10 @@ export class AgentSessionService {
             this.advanceLastActivityAtTx(tx, reusable.session.id, now)
             // A reused placeholder is a fresh start: drop any override a
             // previous empty session left behind so it inherits again.
+            let clearedModelOverride = false
             if (reusable.session.modelId) {
               tx.update(sessionsTable).set({ modelId: null }).where(eq(sessionsTable.id, reusable.session.id)).run()
+              clearedModelOverride = true
             }
             const updatedSession = tx
               .select({ session: sessionsTable, workspace: agentWorkspaceTable })
@@ -654,6 +656,7 @@ export class AgentSessionService {
             return {
               session: rowToSession(updatedSession[0]),
               created: false,
+              clearedModelOverride,
               deletedDuplicateSessionIds: duplicateDeletion.deletedIds,
               taskScheduleIds: duplicateDeletion.taskScheduleIds,
               deliveryResults: duplicateDeletion.deliveryResults
@@ -677,6 +680,7 @@ export class AgentSessionService {
           return {
             session: rowToSession(created),
             created: true,
+            clearedModelOverride: false,
             deletedDuplicateSessionIds: [],
             taskScheduleIds: [],
             deliveryResults: []
@@ -693,6 +697,9 @@ export class AgentSessionService {
       [...(result.created ? [result.session.id] : []), ...result.deletedDuplicateSessionIds],
       'membership'
     )
+    // A reused placeholder keeps its id, so a cleared override needs its own
+    // projection event or other windows keep showing the stale model.
+    if (result.clearedModelOverride) this.notifyReadModelChange([result.session.id], 'projection')
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     if (result.deletedDuplicateSessionIds.length > 0) pinService.notifyPurged()
     return {

@@ -635,6 +635,54 @@ describe('AgentSessionService', () => {
       expect(new Date(result.session.lastActivityAt).getTime()).toBeGreaterThanOrEqual(Date.now() - 1000)
     })
 
+    it('clears a reused placeholder model override and publishes a projection change', async () => {
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'reuse-model-provider',
+        name: 'Reuse Model Provider',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+      await dbh.db.insert(userModelTable).values({
+        id: 'reuse-model-provider::reuse-model',
+        providerId: 'reuse-model-provider',
+        modelId: 'reuse-model',
+        name: 'Reuse Model',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+      const userWorkspace = await createWorkspace('reuse-override')
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'reuse-override-session',
+        agentId: 'agent-session-test',
+        name: '',
+        modelId: 'reuse-model-provider::reuse-model',
+        workspaceId: userWorkspace.id,
+        orderKey: 'a0',
+        updatedAt: 100
+      })
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = agentSessionService.reuseOrCreatePlaceholderWithImpact({
+        agentId: 'agent-session-test',
+        workspace: { type: 'user', workspaceId: userWorkspace.id }
+      })
+
+      expect(result.created).toBe(false)
+      expect(result.session.id).toBe('reuse-override-session')
+      expect(result.session.modelId).toBeNull()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['reuse-override-session'] },
+        {
+          endpoint: '/agent-sessions',
+          kind: 'order',
+          dimension: 'lastActivityAt',
+          entityIds: ['reuse-override-session']
+        },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: ['reuse-override-session'] },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+    })
+
     it('publishes pin membership after deleting a pinned system placeholder duplicate', async () => {
       const retained = agentSessionService.create({
         agentId: 'agent-session-test',
@@ -1960,9 +2008,7 @@ describe('AgentSessionService', () => {
     it('reports a missing model instead of a missing session for bogus overrides', async () => {
       const session = await createSession('Bogus override')
 
-      const error = captureError(() =>
-        agentSessionService.update(session.id, { modelId: 'missing::model' })
-      )
+      const error = captureError(() => agentSessionService.update(session.id, { modelId: 'missing::model' }))
       expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
       expect(String((error as Error).message)).toMatch(/Model/)
     })
