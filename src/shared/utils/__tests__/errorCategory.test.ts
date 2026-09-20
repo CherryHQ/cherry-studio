@@ -72,12 +72,9 @@ describe('classifyErrorCategory server failures', () => {
     'service unavailable',
     'Service temporarily unavailable',
     'Upstream service temporarily unavailable'
-  ])(
-    'maps "%s" to server',
-    (text) => {
-      expect(classifyErrorCategory({ text })).toBe('server')
-    }
-  )
+  ])('maps "%s" to server', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('server')
+  })
 
   it('does not treat a bare temporarily unavailable phrase as an upstream server error', () => {
     expect(classifyErrorCategory({ text: 'temporarily unavailable' })).not.toBe('server')
