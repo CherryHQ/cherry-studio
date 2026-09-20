@@ -98,6 +98,7 @@ export class VoiceService {
   private readonly commandListeners = new Set<(event: VoiceCommandEvent) => void>()
   private readonly reservations = new Map<string, SessionReservation>()
   private readonly tombstones = new Map<string, symbol>()
+  private readonly pendingMaterializations = new Map<string, symbol>()
   private readonly pendingAdmissions = new Map<string, PendingAdmission>()
   private readonly speechSequences = new Map<string, SpeechSequence>()
   private snapshot: VoiceSessionState = { phase: 'idle', revision: 0 }
@@ -178,7 +179,6 @@ export class VoiceService {
       result: this.invoke(() =>
         this.ipc.request('ai.transcription.asset.install', { sessionId, requestId, ...payload })
       ).finally(() => {
-        this.releaseTombstone(sessionId, reservation.token)
         this.releaseReservation(sessionId, reservation.token)
       })
     }
@@ -201,8 +201,7 @@ export class VoiceService {
     ).then(
       async (state) => {
         if (!this.isReservationCurrent(sessionId, admission)) {
-          await this.discardMaterialized(sessionId)
-          this.releaseTombstone(sessionId, admission.token)
+          await this.discardMaterialized(sessionId, admission.token)
           throw new VoiceDomainError('aborted')
         }
         this.applyState(state)
@@ -214,7 +213,7 @@ export class VoiceService {
       },
       (error: unknown) => {
         if (admission.generation !== this.lifecycleGeneration) {
-          this.releaseTombstone(sessionId, admission.token)
+          this.releasePendingMaterialization(sessionId, admission.token)
           throw new VoiceDomainError('aborted')
         }
         this.releasePendingAdmission(sessionId, admission.token)
@@ -259,8 +258,7 @@ export class VoiceService {
       result: this.invoke(() => this.ipc.request('ai.speech.generate', { sessionId, requestId, ...payload })).then(
         async (result) => {
           if (!this.isReservationCurrent(sessionId, reservation)) {
-            await this.discardMaterialized(sessionId)
-            this.releaseTombstone(sessionId, reservation.token)
+            await this.discardMaterialized(sessionId, reservation.token)
             throw new VoiceDomainError('aborted')
           }
           sequence.activeSpeechToken = undefined
@@ -274,7 +272,7 @@ export class VoiceService {
         (error: unknown) => {
           if (sequence.activeSpeechToken === speechToken) sequence.activeSpeechToken = undefined
           if (reservation.generation !== this.lifecycleGeneration) {
-            this.releaseTombstone(sessionId, reservation.token)
+            this.releasePendingMaterialization(sessionId, reservation.token)
             throw new VoiceDomainError('aborted')
           }
           if (admission) this.releasePendingAdmission(sessionId, admission.token)
@@ -311,7 +309,6 @@ export class VoiceService {
     return this.invoke(() => this.ipc.request('ai.voice.output.release', input)).then(
       () => {
         if (reservation.generation !== this.lifecycleGeneration) {
-          this.releaseTombstone(input.sessionId, reservation.token)
           throw new VoiceDomainError('aborted')
         }
         if (this.isReservationCurrent(input.sessionId, reservation) && sequence.activeReleaseToken === releaseToken) {
@@ -323,7 +320,6 @@ export class VoiceService {
       (error: unknown) => {
         if (sequence.activeReleaseToken === releaseToken) sequence.activeReleaseToken = undefined
         if (reservation.generation !== this.lifecycleGeneration) {
-          this.releaseTombstone(input.sessionId, reservation.token)
           throw new VoiceDomainError('aborted')
         }
         throw error
@@ -352,9 +348,9 @@ export class VoiceService {
   }
 
   async teardown(): Promise<void> {
-    const sessionIds = this.beginTeardown()
+    const tombstones = this.beginTeardown()
     const results = await Promise.allSettled(
-      sessionIds.map((sessionId) => this.invoke(() => this.ipc.request('ai.voice.session.discard', { sessionId })))
+      tombstones.map(([sessionId, token]) => this.discardTombstone(sessionId, token))
     )
     const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
     if (failure) throw failure.reason
@@ -372,10 +368,10 @@ export class VoiceService {
   }
 
   private readonly handleBeforeUnload = (): void => {
-    const sessionIds = this.beginTeardown()
-    void Promise.all(
-      sessionIds.map((sessionId) => this.invoke(() => this.ipc.request('ai.voice.session.discard', { sessionId })))
-    ).catch(() => undefined)
+    const tombstones = this.beginTeardown()
+    void Promise.all(tombstones.map(([sessionId, token]) => this.discardTombstone(sessionId, token))).catch(
+      () => undefined
+    )
   }
 
   private applyState(state: VoiceSessionState | VoiceStateEvent): boolean {
@@ -456,6 +452,10 @@ export class VoiceService {
     if (this.tombstones.get(sessionId) === token) this.tombstones.delete(sessionId)
   }
 
+  private releasePendingMaterialization(sessionId: string, token: symbol): void {
+    if (this.pendingMaterializations.get(sessionId) === token) this.pendingMaterializations.delete(sessionId)
+  }
+
   private isReservationCurrent(sessionId: string, reservation: SessionReservation): boolean {
     return (
       reservation.generation === this.lifecycleGeneration &&
@@ -482,29 +482,24 @@ export class VoiceService {
     }
   }
 
-  private beginTeardown(): string[] {
+  private beginTeardown(): Array<[string, symbol]> {
     this.detach()
     this.lifecycleGeneration += 1
     this.initialization = undefined
     this.stateListeners.clear()
     this.commandListeners.clear()
-    const sessionIds = [...this.reservations.keys()]
     this.reservations.forEach((reservation, sessionId) => {
       const sequence = this.speechSequences.get(sessionId)
-      if (
-        reservation.kind === 'install' ||
-        this.pendingAdmissions.get(sessionId)?.token === reservation.token ||
-        sequence?.activeSpeechToken ||
-        sequence?.activeReleaseToken
-      ) {
-        this.tombstones.set(sessionId, reservation.token)
+      if (this.pendingAdmissions.get(sessionId)?.token === reservation.token || sequence?.activeSpeechToken) {
+        this.pendingMaterializations.set(sessionId, reservation.token)
       }
+      this.tombstones.set(sessionId, reservation.token)
     })
     this.pendingAdmissions.clear()
     this.reservations.clear()
     this.speechSequences.clear()
     this.currentOwnedSessionId = undefined
-    return sessionIds
+    return [...this.tombstones.entries()]
   }
 
   private prepareSpeech(
@@ -556,8 +551,15 @@ export class VoiceService {
     return { admission, reservation, sequence, speechToken }
   }
 
-  private async discardMaterialized(sessionId: string): Promise<void> {
-    await this.invoke(() => this.ipc.request('ai.voice.session.discard', { sessionId })).catch(() => undefined)
+  private async discardMaterialized(sessionId: string, token: symbol): Promise<void> {
+    this.releasePendingMaterialization(sessionId, token)
+    this.tombstones.set(sessionId, token)
+    await this.discardTombstone(sessionId, token)
+  }
+
+  private async discardTombstone(sessionId: string, token: symbol): Promise<void> {
+    await this.invoke(() => this.ipc.request('ai.voice.session.discard', { sessionId }))
+    if (this.pendingMaterializations.get(sessionId) !== token) this.releaseTombstone(sessionId, token)
   }
 
   private rejectedOperation<T>(sessionId: string, requestId: string, reason: VoiceErrorReason): VoiceOperation<T> {

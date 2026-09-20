@@ -253,6 +253,74 @@ describe('VoiceService state ownership', () => {
     expect(discardAfterMaterialize).toEqual([false, true])
   })
 
+  it('retries a failed teardown discard before allowing a materialized session id to be reused', async () => {
+    let discardAttempts = 0
+    let startAttempts = 0
+    request.mockImplementation((route: string, input: any) => {
+      if (route === 'ai.voice.session.state') return Promise.resolve({ revision: 1, phase: 'idle' })
+      if (route === 'ai.voice.recording.start') {
+        startAttempts += 1
+        return Promise.resolve({ revision: startAttempts + 1, phase: 'recording', sessionId: input.sessionId })
+      }
+      if (route === 'ai.voice.session.discard' && ++discardAttempts === 1) {
+        return Promise.reject(new IpcError('VOICE_OPERATION_FAILED', 'cleanup failed'))
+      }
+      return Promise.resolve(undefined)
+    })
+    const service = createService()
+    await service.initialize()
+    const sessionId = ids[0]
+    const recording = service.startRecording({ sessionId, requestId: ids[1], source: 'dictation' })
+    await recording.result
+
+    await expect(service.teardown()).rejects.toMatchObject({ reason: 'operation_failed' })
+    const collision = service.startRecording({ sessionId, requestId: ids[2], source: 'dictation' })
+    await expect(collision.result).rejects.toMatchObject({ reason: 'busy' })
+
+    await service.teardown()
+    expect(discardAttempts).toBe(2)
+    const reused = service.startRecording({ sessionId, requestId: ids[3], source: 'dictation' })
+    await expect(reused.result).resolves.toMatchObject({ sessionId })
+  })
+
+  it('retains a tombstone when late-materialization cleanup fails and retries it on teardown', async () => {
+    let resolveFirst!: (state: unknown) => void
+    let startAttempts = 0
+    let discardAttempts = 0
+    request.mockImplementation((route: string, input: any) => {
+      if (route === 'ai.voice.session.state') return Promise.resolve({ revision: 1, phase: 'idle' })
+      if (route === 'ai.voice.recording.start' && ++startAttempts === 1) {
+        return new Promise((resolve) => (resolveFirst = resolve))
+      }
+      if (route === 'ai.voice.recording.start') {
+        return Promise.resolve({ revision: 2, phase: 'recording', sessionId: input.sessionId })
+      }
+      if (route === 'ai.voice.session.discard') {
+        discardAttempts += 1
+        if (discardAttempts === 2) {
+          return Promise.reject(new IpcError('VOICE_OPERATION_FAILED', 'late cleanup failed'))
+        }
+      }
+      return Promise.resolve(undefined)
+    })
+    const service = createService()
+    await service.initialize()
+    const sessionId = ids[0]
+    const recording = service.startRecording({ sessionId, requestId: ids[1], source: 'dictation' })
+    await Promise.resolve()
+    await service.teardown()
+
+    resolveFirst({ revision: 2, phase: 'recording', sessionId })
+    await expect(recording.result).rejects.toMatchObject({ reason: 'operation_failed' })
+    const collision = service.startRecording({ sessionId, requestId: ids[2], source: 'dictation' })
+    await expect(collision.result).rejects.toMatchObject({ reason: 'busy' })
+
+    await service.teardown()
+    expect(discardAttempts).toBe(3)
+    const reused = service.startRecording({ sessionId, requestId: ids[3], source: 'dictation' })
+    await expect(reused.result).resolves.toMatchObject({ sessionId })
+  })
+
   it('does not let a rejected stale initialization detach a newer generation', async () => {
     let rejectFirst!: (error: unknown) => void
     request
