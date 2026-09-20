@@ -123,6 +123,32 @@ describe('same-dialect lossless pass-through', () => {
     })
   })
 
+  it('projects a native effort outside the model vocabulary instead of passing it through (#20287)', () => {
+    const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+
+    expect(
+      mapAnthropicThinkingToProviderOptions(
+        target,
+        anthropicBudgetModel,
+        { type: 'enabled', budget_tokens: 4096 },
+        'minimal'
+      )
+    ).toEqual({ anthropic: { thinking: { type: 'enabled', budgetTokens: 4096 }, effort: 'low' } })
+    expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, { type: 'disabled' }, 'ultra')).toEqual({
+      anthropic: { thinking: { type: 'disabled' }, effort: 'high' }
+    })
+  })
+
+  it('omits a native effort the model cannot express instead of sending it literally (#20287)', () => {
+    const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+
+    expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, undefined, 'default')).toBeUndefined()
+    expect(
+      mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, { type: 'disabled' }, 'default')
+    ).toEqual({ anthropic: { thinking: { type: 'disabled' } } })
+    expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, undefined, 'auto')).toBeUndefined()
+  })
+
   it.each([
     [{ thinkingBudget: -1 }, { thinkingBudget: -1 }],
     [{ thinkingBudget: 0 }, { thinkingBudget: 0 }],

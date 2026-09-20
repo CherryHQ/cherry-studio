@@ -18,7 +18,7 @@ import {
   resolveEndpointProviderOptionsKey
 } from '@main/ai/provider/endpoint'
 import { buildResolvedReasoningProviderOptions } from '@main/ai/utils/options'
-import { resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
+import { resolveReasoningInvocation, resolveSelection } from '@main/ai/utils/reasoningSerializers'
 import { nearestEffortForBudget } from '@shared/ai/reasoning'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -70,7 +70,21 @@ function buildProviderOptions(
   }) as ProviderOptions
 }
 
-/** Keep Anthropic-native thinking and effort fields byte-for-byte equivalent. */
+/** Project a native effort onto the resolved model vocabulary so an unsupported persisted value never reaches the wire. */
+function resolveNativeAnthropicEffort(
+  provider: Provider,
+  model: Model,
+  resolvedEndpoint: ReturnType<typeof resolveEffectiveEndpoint>,
+  effort: GatewayReasoningEffort | null | undefined
+): GatewayReasoningEffort | undefined {
+  if (effort == null || effort === 'default') return undefined
+  const context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+  if (effort === 'auto' && !context.invocationModel.reasoning?.selectableEfforts?.includes('auto')) return undefined
+  const projected = resolveSelection(effort, context.invocationModel)
+  return !projected || projected === 'default' ? undefined : projected
+}
+
+/** Keep Anthropic-native thinking envelopes byte-for-byte equivalent; effort arrives pre-projected. */
 function passThroughAnthropicReasoning(
   config: AnthropicThinkingConfig | undefined,
   effort: GatewayReasoningEffort | null | undefined
@@ -113,7 +127,10 @@ export function mapAnthropicThinkingToProviderOptions(
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
   const { endpointType } = resolvedEndpoint
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
-    return passThroughAnthropicReasoning(config, effort)
+    return passThroughAnthropicReasoning(
+      config,
+      resolveNativeAnthropicEffort(provider, model, resolvedEndpoint, effort)
+    )
   }
   // Ollama's ChatHandler 400s when `think` is true for a model that lacks
   // thinking capability. The SDK default ({type:'adaptive'}) would map to
