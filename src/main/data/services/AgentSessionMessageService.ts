@@ -1186,7 +1186,9 @@ export class AgentSessionMessageService {
 
   saveMessages(
     params: CreateAgentSessionMessagesDto,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
+    expectedAgent?:
+      | string
+      | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
   ): AgentSessionMessageEntity[] {
     const { entities: saved, activityTimestamp } = application
       .get('DbService')
@@ -1205,7 +1207,9 @@ export class AgentSessionMessageService {
   saveMessagesTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
+    expectedAgent?:
+      | string
+      | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
   ): AgentSessionMessageEntity[] {
     return this.saveMessagesWithActivityTx(tx, params, expectedAgent).entities
   }
@@ -1213,7 +1217,9 @@ export class AgentSessionMessageService {
   private saveMessagesWithActivityTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
+    expectedAgent?:
+      | string
+      | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
   ): { entities: AgentSessionMessageEntity[]; activityTimestamp: number | null } {
     const { sessionId, runtimeResumeToken, messages } = params
     this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
@@ -1980,7 +1986,10 @@ export class AgentSessionMessageService {
   private assertExpectedAgentTx(
     db: DbOrTx,
     sessionId: string,
-    expectedAgent: string | { id: string; updatedAt: string; model: string | null; type: string } | undefined
+    expectedAgent:
+      | string
+      | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
+      | undefined
   ): void {
     if (!expectedAgent) return
     const expectedAgentId = typeof expectedAgent === 'string' ? expectedAgent : expectedAgent.id
@@ -1989,7 +1998,8 @@ export class AgentSessionMessageService {
         agentId: sessionTable.agentId,
         agentUpdatedAt: agentTable.updatedAt,
         agentModel: agentTable.model,
-        agentType: agentTable.type
+        agentType: agentTable.type,
+        sessionModelId: sessionTable.modelId
       })
       .from(sessionTable)
       .leftJoin(agentTable, eq(sessionTable.agentId, agentTable.id))
@@ -2007,6 +2017,14 @@ export class AgentSessionMessageService {
         (session.agentType === 'cherry-claw' ? 'claude-code' : session.agentType) !== expectedAgent.type)
     ) {
       throw DataApiErrorFactory.concurrentModification('Agent', expectedAgent.id)
+    }
+    // The override can change (or be cleared by model deletion) while validation awaits.
+    if (
+      typeof expectedAgent !== 'string' &&
+      expectedAgent.sessionModelId !== undefined &&
+      session.sessionModelId !== expectedAgent.sessionModelId
+    ) {
+      throw DataApiErrorFactory.concurrentModification('Session', sessionId)
     }
   }
 

@@ -479,6 +479,21 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'openai::gpt-4o' }))
   })
 
+  it('snapshots the session override for post-validation ownership checks', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+
+    const validated = await provider.validateDispatch(openReq())
+
+    expect(validated.sessionModelId).toBe('openai::gpt-4o')
+    expect(validated.agentModel).toBe('anthropic::claude-sonnet')
+  })
+
   it('falls back to the agent model when the session has no override', async () => {
     mocks.getSession.mockReturnValue({
       id: 'session-1',
