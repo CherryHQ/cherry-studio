@@ -26,6 +26,10 @@ const FILE_PROCESSING_FEATURE_SECTIONS: readonly {
   {
     feature: 'document_to_markdown',
     processors: ['local-document', 'mineru', 'paddleocr', 'doc2x', 'mistral', 'open-mineru']
+  },
+  {
+    feature: 'audio_to_text',
+    processors: ['openai-transcription', 'provider-media']
   }
 ] as const
 
@@ -85,6 +89,16 @@ const PROCESSOR_DISPLAY_META: Record<FileProcessorId, ProcessorDisplayMeta> = {
     nameKey: 'settings.tool.file_processing.processors.open_mineru.name',
     descriptionKey: 'settings.tool.file_processing.processors.open_mineru.description',
     apiKeyWebsite: 'https://github.com/opendatalab/MinerU/'
+  },
+  'openai-transcription': {
+    nameKey: 'settings.tool.file_processing.processors.openai_transcription.name',
+    descriptionKey: 'settings.tool.file_processing.processors.openai_transcription.description',
+    apiKeyWebsite: 'https://platform.openai.com/api-keys'
+  },
+  'provider-media': {
+    nameKey: 'settings.tool.file_processing.processors.provider_media.name',
+    descriptionKey: 'settings.tool.file_processing.processors.provider_media.description',
+    apiKeyWebsite: null
   }
 } as const satisfies Record<FileProcessorId, ProcessorDisplayMeta>
 

@@ -4,13 +4,17 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { getByIdMock, ocrMock } = vi.hoisted(() => ({
+const { getByIdMock, ocrMock, transcribeMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
-  ocrMock: vi.fn<() => Promise<string>>()
+  ocrMock: vi.fn<() => Promise<string>>(),
+  transcribeMock: vi.fn<() => Promise<string>>()
 }))
 vi.mock('@application', () => ({
   application: {
-    get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
+    get: (name: string) =>
+      name === 'FileProcessingService'
+        ? { ocrImage: ocrMock, analyzeMediaFull: transcribeMock, transcribeMedia: transcribeMock }
+        : { getById: getByIdMock }
   }
 }))
 
@@ -69,11 +73,12 @@ describe('readFile — text-only', () => {
     expect(r).toEqual({ text: 'ocr text', totalChars: 8 })
   })
 
-  it('returns a note for audio/video (no text form)', async () => {
+  it('transcribes audio/video', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'mp3' })
+    transcribeMock.mockResolvedValueOnce('spoken words')
     const r = await readFile(input({ filename: 'a.mp3' }), ctx([att('a.mp3')]))
-    expect(r).toMatchObject({ text: 'Cannot read audio file "a.mp3" as text.' })
-    expect(extractMock).not.toHaveBeenCalled()
+    expect(transcribeMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+    expect(r).toEqual({ text: 'spoken words', totalChars: 12 })
   })
 
   it('returns a note for unsupported binary types (no garbage decode)', async () => {

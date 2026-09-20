@@ -1,5 +1,6 @@
 export { type CanonicalFilePath, CanonicalFilePathSchema, canonicalizeFilePath } from './canonicalize'
 export {
+  ambiguousAvExts,
   archiveExts,
   audioExts,
   codeLangExts,

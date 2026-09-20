@@ -388,7 +388,7 @@ export const FILE_PROCESSOR_TYPES = ['api', 'builtin'] as const
 
 export type FileProcessorType = (typeof FILE_PROCESSOR_TYPES)[number]
 
-export const FILE_PROCESSOR_FEATURES = ['image_to_text', 'document_to_markdown'] as const
+export const FILE_PROCESSOR_FEATURES = ['image_to_text', 'document_to_markdown', 'audio_to_text'] as const
 
 export type FileProcessorFeature = (typeof FILE_PROCESSOR_FEATURES)[number]
 
@@ -402,7 +402,9 @@ export const FILE_PROCESSOR_IDS = [
   'mineru',
   'doc2x',
   'mistral',
-  'open-mineru'
+  'open-mineru',
+  'openai-transcription',
+  'provider-media'
 ] as const
 
 export type FileProcessorId = (typeof FILE_PROCESSOR_IDS)[number]

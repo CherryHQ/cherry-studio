@@ -54,9 +54,21 @@ export const DocumentToMarkdownCapabilitySchema = z
   .strict()
 export type DocumentToMarkdownCapability = z.infer<typeof DocumentToMarkdownCapabilitySchema>
 
+export const AudioToTextCapabilitySchema = z
+  .object({
+    feature: z.literal('audio_to_text'),
+    inputs: z.array(FileTypeSchema.extract([FILE_TYPE.AUDIO, FILE_TYPE.VIDEO])).min(1),
+    output: z.literal('text'),
+    apiHost: z.string().optional(),
+    modelId: z.string().min(1).optional()
+  })
+  .strict()
+export type AudioToTextCapability = z.infer<typeof AudioToTextCapabilitySchema>
+
 export const FileProcessorFeatureCapabilitySchema = z.discriminatedUnion('feature', [
   ImageToTextCapabilitySchema,
-  DocumentToMarkdownCapabilitySchema
+  DocumentToMarkdownCapabilitySchema,
+  AudioToTextCapabilitySchema
 ])
 export type FileProcessorFeatureCapability = z.infer<typeof FileProcessorFeatureCapabilitySchema>
 
@@ -136,7 +148,8 @@ export const FileProcessorCapabilityOverrideSchema: z.ZodType<FileProcessorCapab
 export const FileProcessorCapabilityOverridesSchema: z.ZodType<FileProcessorCapabilityOverrides> = z
   .object({
     document_to_markdown: FileProcessorCapabilityOverrideSchema.optional(),
-    image_to_text: FileProcessorCapabilityOverrideSchema.optional()
+    image_to_text: FileProcessorCapabilityOverrideSchema.optional(),
+    audio_to_text: FileProcessorCapabilityOverrideSchema.optional()
   })
   .strict()
 
@@ -282,6 +295,30 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         output: 'markdown',
         apiHost: 'http://127.0.0.1:8000',
         maxInputBytes: 200 * MB
+      }
+    ]
+  },
+  'openai-transcription': {
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'audio_to_text',
+        inputs: ['audio'],
+        output: 'text',
+        apiHost: 'https://api.openai.com',
+        modelId: 'whisper-1'
+      }
+    ]
+  },
+  'provider-media': {
+    type: 'builtin',
+    capabilities: [
+      {
+        // Audio only — video is demuxed to 16 kHz mono by MediaPreprocessingService
+        // before ASR. Do not feed raw video containers through this processor.
+        feature: 'audio_to_text',
+        inputs: ['audio'],
+        output: 'text'
       }
     ]
   }

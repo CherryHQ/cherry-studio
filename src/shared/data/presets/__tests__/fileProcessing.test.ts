@@ -43,6 +43,26 @@ describe('FileProcessorFeatureCapabilitySchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('accepts audio_to_text with audio and video inputs', () => {
+    const result = FileProcessorFeatureCapabilitySchema.safeParse({
+      feature: 'audio_to_text',
+      inputs: [FILE_TYPE.AUDIO, FILE_TYPE.VIDEO],
+      output: FILE_TYPE.TEXT
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects image inputs for audio_to_text capabilities', () => {
+    const result = FileProcessorFeatureCapabilitySchema.safeParse({
+      feature: 'audio_to_text',
+      inputs: [FILE_TYPE.AUDIO, FILE_TYPE.IMAGE],
+      output: FILE_TYPE.TEXT
+    })
+
+    expect(result.success).toBe(false)
+  })
+
   it.each([0, -1, 1.5])('rejects maxInputPages=%s for document_to_markdown capabilities', (maxInputPages) => {
     const result = DocumentToMarkdownCapabilitySchema.safeParse({
       feature: 'document_to_markdown',

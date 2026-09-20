@@ -26,6 +26,7 @@ import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-gateway'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
+import { Route as SettingsAudioProcessingRouteImport } from './routes/settings/audio-processing'
 import { Route as SettingsBrowserRouteImport } from './routes/settings/browser'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
 import { Route as SettingsCodeExecutionRouteImport } from './routes/settings/code-execution'
@@ -149,6 +150,11 @@ const SettingsApiGatewayRoute = SettingsApiGatewayRouteImport.update({
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsAudioProcessingRoute = SettingsAudioProcessingRouteImport.update({
+  id: '/audio-processing',
+  path: '/audio-processing',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsBrowserRoute = SettingsBrowserRouteImport.update({
@@ -369,6 +375,7 @@ export interface FileRoutesByFullPath {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/audio-processing': typeof SettingsAudioProcessingRoute
   '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
@@ -426,6 +433,7 @@ export interface FileRoutesByTo {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/audio-processing': typeof SettingsAudioProcessingRoute
   '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
@@ -483,6 +491,7 @@ export interface FileRoutesById {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/audio-processing': typeof SettingsAudioProcessingRoute
   '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
@@ -543,6 +552,7 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/audio-processing'
     | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
@@ -600,6 +610,7 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/audio-processing'
     | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
@@ -656,6 +667,7 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/audio-processing'
     | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
@@ -822,6 +834,13 @@ declare module '@tanstack/react-router' {
       path: '/appearance'
       fullPath: '/settings/appearance'
       preLoaderRoute: typeof SettingsAppearanceRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/audio-processing': {
+      id: '/settings/audio-processing'
+      path: '/audio-processing'
+      fullPath: '/settings/audio-processing'
+      preLoaderRoute: typeof SettingsAudioProcessingRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/browser': {
@@ -1184,6 +1203,7 @@ interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsApiGatewayRoute: typeof SettingsApiGatewayRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsAudioProcessingRoute: typeof SettingsAudioProcessingRoute
   SettingsBrowserRoute: typeof SettingsBrowserRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsCodeExecutionRoute: typeof SettingsCodeExecutionRoute
@@ -1216,6 +1236,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsApiGatewayRoute: SettingsApiGatewayRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsAudioProcessingRoute: SettingsAudioProcessingRoute,
   SettingsBrowserRoute: SettingsBrowserRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsCodeExecutionRoute: SettingsCodeExecutionRoute,

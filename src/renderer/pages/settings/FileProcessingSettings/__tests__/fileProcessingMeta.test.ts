@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as RendererConstantModule from '@renderer/utils/platform'
 
-import { shouldShowLanguageOptions, supportsLanguageConfig } from '../utils/fileProcessingMeta'
+import { getProcessorNameKey, shouldShowLanguageOptions, supportsLanguageConfig } from '../utils/fileProcessingMeta'
 
 const platformMock = vi.hoisted(() => ({
   isWin: false
@@ -40,5 +40,14 @@ describe('fileProcessingMeta language options', () => {
 
     platformMock.isWin = false
     expect(shouldShowLanguageOptions('system')).toBe(false)
+  })
+})
+
+describe('fileProcessingMeta audio processors', () => {
+  it('exposes display copy for audio processors', () => {
+    expect(getProcessorNameKey('openai-transcription')).toBe(
+      'settings.tool.file_processing.processors.openai_transcription.name'
+    )
+    expect(getProcessorNameKey('provider-media')).toBe('settings.tool.file_processing.processors.provider_media.name')
   })
 })

@@ -22,9 +22,17 @@ export type DocumentToMarkdownHandlerOutput =
       response: Response
     }
 
+export type AudioToTextHandlerOutput = {
+  kind: 'text'
+  text: string
+  /** Optional provider timestamps; callers add chunk offsets when stitching. */
+  segments?: { startMs: number; endMs: number; text: string }[]
+}
+
 export type FileProcessingHandlerOutputByFeature = {
   image_to_text: ImageToTextHandlerOutput
   document_to_markdown: DocumentToMarkdownHandlerOutput
+  audio_to_text: AudioToTextHandlerOutput
 }
 
 export type FileProcessingHandlerOutput<Feature extends FileProcessorFeature = FileProcessorFeature> =

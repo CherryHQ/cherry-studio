@@ -92,6 +92,16 @@ const validRegistry = {
     runtime: 'remote',
     isSupported: () => true,
     capabilities: {}
+  },
+  'openai-transcription': {
+    runtime: 'remote',
+    isSupported: () => true,
+    capabilities: {}
+  },
+  'provider-media': {
+    runtime: 'remote',
+    isSupported: () => true,
+    capabilities: {}
   }
 } satisfies FileProcessingProcessorRegistry
 
@@ -103,6 +113,11 @@ const validImageToTextOutput: FileProcessingHandlerOutput<'image_to_text'> = {
 const validDocumentToMarkdownOutput: FileProcessingHandlerOutput<'document_to_markdown'> = {
   kind: 'markdown',
   markdownContent: '# done'
+}
+
+const validAudioToTextOutput: FileProcessingHandlerOutput<'audio_to_text'> = {
+  kind: 'text',
+  text: 'spoken words'
 }
 
 type TypedRemoteContext = {
@@ -167,5 +182,6 @@ void validRegistry
 void validTypedRemoteContextRegistry
 void validImageToTextOutput
 void validDocumentToMarkdownOutput
+void validAudioToTextOutput
 void invalidImageToTextOutput
 void invalidDocumentToMarkdownOutput

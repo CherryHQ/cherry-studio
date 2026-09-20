@@ -104,6 +104,20 @@
       "description": "Window height (from complex mapping) - Example, not active"
     },
     {
+      "targetKey": "feature.file_processing.default_audio_to_text",
+      "type": "PreferenceTypes.FileProcessorId",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "Default audio-to-text processor for Chat and Agent attachment preprocessing (audio files and extracted video audio)"
+    },
+    {
+      "targetKey": "feature.file_processing.default_video_vision_model",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Default video vision model UniqueModelId (provider::modelId) for AV hybrid frame summaries; image-capable models only; persisted separately from chat.default_model_id"
+    },
+    {
       "targetKey": "feature.file_processing.overrides",
       "type": "PreferenceTypes.FileProcessorOverrides",
       "defaultValue": "VALUE: {}",
@@ -150,7 +164,7 @@
       "type": "PreferenceTypes.WebSearchCompressionMethod",
       "defaultValue": "cutoff",
       "status": "classified",
-      "description": "Web search compression method (from complex migration; default cutoff caps raw source content per finding #7 — new installs only, migrated profiles keep their explicit value)"
+      "description": "Web search compression method (from complex migration; default cutoff caps raw source content per finding #7 \u2014 new installs only, migrated profiles keep their explicit value)"
     },
     {
       "targetKey": "feature.code_cli.configs",
@@ -205,11 +219,26 @@
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavoriteItem[]",
       "defaultValue": [
-        { "id": "agents", "type": "app" },
-        { "id": "assistants", "type": "app" },
-        { "id": "translate", "type": "app" },
-        { "id": "paintings", "type": "app" },
-        { "id": "knowledge", "type": "app" }
+        {
+          "id": "agents",
+          "type": "app"
+        },
+        {
+          "id": "assistants",
+          "type": "app"
+        },
+        {
+          "id": "translate",
+          "type": "app"
+        },
+        {
+          "id": "paintings",
+          "type": "app"
+        },
+        {
+          "id": "knowledge",
+          "type": "app"
+        }
       ],
       "status": "classified",
       "description": "Legacy sidebar favorites, preserved as the source for shortcut migration"
@@ -220,27 +249,57 @@
       "defaultValue": [
         {
           "id": "sidebar-shortcut:core.app:agents",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "agents" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "agents"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:assistants",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "assistants" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "assistants"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:translate",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "translate" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "translate"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:paintings",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "paintings" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "paintings"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:knowledge",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "knowledge" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "knowledge"
+            }
+          },
           "type": "shortcut"
         }
       ],
@@ -273,28 +332,28 @@
       "type": "boolean",
       "defaultValue": false,
       "status": "classified",
-      "description": "Enable model call retry/fallback (v2 新增，非迁移)"
+      "description": "Enable model call retry/fallback (v2 \u65b0\u589e\uff0c\u975e\u8fc1\u79fb)"
     },
     {
       "targetKey": "chat.retry.fallback_model_ids",
       "type": "PreferenceTypes.RetryFallbackModelId[]",
       "defaultValue": [],
       "status": "classified",
-      "description": "Fallback model UniqueModelIds tried in order on failure (v2 新增，非迁移)"
+      "description": "Fallback model UniqueModelIds tried in order on failure (v2 \u65b0\u589e\uff0c\u975e\u8fc1\u79fb)"
     },
     {
       "targetKey": "chat.retry.max_attempts",
       "type": "number",
       "defaultValue": 3,
       "status": "classified",
-      "description": "Max same-model retry attempts for transient errors (v2 新增，非迁移)"
+      "description": "Max same-model retry attempts for transient errors (v2 \u65b0\u589e\uff0c\u975e\u8fc1\u79fb)"
     },
     {
       "targetKey": "chat.retry.backoff_enabled",
       "type": "boolean",
       "defaultValue": true,
       "status": "classified",
-      "description": "Exponential backoff between retry attempts (v2 新增，非迁移)"
+      "description": "Exponential backoff between retry attempts (v2 \u65b0\u589e\uff0c\u975e\u8fc1\u79fb)"
     },
     {
       "targetKey": "chat.context_settings.enabled",
@@ -336,7 +395,7 @@
       "type": "number",
       "defaultValue": 80,
       "status": "classified",
-      "description": "Percent of the model input room at which history is compacted (v2 新增，非迁移)"
+      "description": "Percent of the model input room at which history is compacted (v2 \u65b0\u589e\uff0c\u975e\u8fc1\u79fb)"
     },
     {
       "targetKey": "topic.tab.display_mode",
@@ -584,7 +643,10 @@
       "targetKey": "shortcut.chat.input.focus",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
-        "binding": ["CommandOrControl", "I"],
+        "binding": [
+          "CommandOrControl",
+          "I"
+        ],
         "enabled": true
       },
       "status": "classified",

@@ -8,7 +8,7 @@
  * pages of a long file. Natively-consumable files (image on a vision model,
  * PDF on a native provider, …) are sent inline as the real file and never
  * routed here, so `read_file` is text-only: documents/text are extracted,
- * images are OCR'd, audio/video/binary have no text form.
+ * images are OCR'd, audio/video are transcribed, other binary has no text form.
  *
  * Never throws on a read failure (returns `{ error }`, sanitized) so the
  * agentic loop keeps running; a cancellation rethrows so it propagates as the
@@ -99,9 +99,6 @@ export async function readFile(
     const bareExt = ext?.toLowerCase() ?? ''
     const fileType = getFileTypeByExt(bareExt)
 
-    if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
-      return textResult(`Cannot read ${fileType} file "${entry.handle}" as text.`)
-    }
     if (fileType === FILE_TYPE.OTHER && bareExt) {
       // Binary / unsupported — don't auto-decode it into mojibake.
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
@@ -110,7 +107,9 @@ export async function readFile(
     const text =
       fileType === FILE_TYPE.IMAGE
         ? await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
-        : await extractDocumentText(entryId, { signal })
+        : fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO
+          ? await application.get('FileProcessingService').analyzeMediaFull({ kind: 'entry', entryId }, signal)
+          : await extractDocumentText(entryId, { signal })
 
     if (text === null) {
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)

@@ -58,6 +58,7 @@ const KNOWN_NAVIGATION_ROUTES = [
   '/settings/api-gateway',
   '/settings/file-processing',
   '/settings/ocr',
+  '/settings/audio-processing',
   '/settings/shortcut',
   '/settings/quick-assistant',
   '/settings/selection-assistant',
