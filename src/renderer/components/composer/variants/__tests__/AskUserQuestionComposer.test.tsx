@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import AskUserQuestionComposer, { type AskUserQuestionComposerRequest } from '../AskUserQuestionComposer'
@@ -214,6 +215,20 @@ describe('AskUserQuestionComposer', () => {
 
     expect(screen.getByRole('heading', { name: 'Choose logger' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('keeps the cached answers when the response fails and restores them on the next mount', async () => {
+    const onRespond = vi.fn().mockRejectedValue(new Error('transport down'))
+    const view = render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('agent.toolPermission.error.sendFailed'))
+
+    view.unmount()
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn().mockResolvedValue(undefined)} />)
+
+    expect(screen.getByRole('button', { name: /Bunyan/ })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('disables controls while the final response is submitting', async () => {
