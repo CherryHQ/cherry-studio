@@ -10,6 +10,9 @@
  * those make sense as chat targets).
  */
 
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   type CherryCloudFreeQuotaStatus,
   useCherryCloudModelAvailability,
@@ -20,8 +23,6 @@ import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 
