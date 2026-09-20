@@ -2,7 +2,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Checkbox, Input } from '@cherrystudio/ui'
+import { Button, Checkbox, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
@@ -314,25 +314,26 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           })}
         </div>
 
-        <div className="mt-2 flex items-center gap-2 border-border-subtle border-t pt-2">
-          <div className="relative min-w-0 flex-1">
-            <Pencil className="-translate-y-1/2 absolute top-1/2 left-3 size-3.5 text-muted-foreground" />
-            <Input
+        <div className="mt-2 flex items-end gap-2 border-border-subtle border-t pt-2">
+          <div className="flex min-w-0 flex-1 items-start gap-2 rounded-[12px] bg-muted/70 px-3 py-2">
+            <Pencil className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+            <Textarea.Input
               value={currentCustomAnswer}
               disabled={isSubmitting}
+              rows={1}
               placeholder={t('agent.askUserQuestion.customPlaceholder')}
-              className="h-9 rounded-full border-transparent bg-muted/70 pl-9 text-sm shadow-none focus-visible:border-transparent"
-              onChange={(event) =>
+              aria-label={t('agent.askUserQuestion.customPlaceholder')}
+              className="max-h-32 min-h-5 resize-none border-transparent bg-transparent p-0 text-sm leading-5 shadow-none focus-visible:border-transparent"
+              onValueChange={(value) =>
                 setCustomAnswers((prev) => ({
                   ...prev,
-                  [currentIndex]: event.target.value
+                  [currentIndex]: value
                 }))
               }
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-                  event.preventDefault()
-                  void handleCustomAction()
-                }
+                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+                event.preventDefault()
+                void handleCustomAction()
               }}
             />
           </div>
