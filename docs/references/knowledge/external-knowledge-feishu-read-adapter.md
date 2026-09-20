@@ -12,9 +12,11 @@ sources:
 
 The Feishu read adapter is a stateless, main-process boundary owned by the
 existing `KnowledgeService` and `ExternalKnowledgeRuntime`. It resolves a
-selected Feishu scope, previews visible metadata, and reads supported Docx
-Markdown. It does not create or update a Source, Document, KnowledgeItem, Job,
-snapshot, embedding, or synchronization summary.
+selected Feishu scope, previews visible metadata, scans a persisted scope, and
+reads supported Docx Markdown. The adapter itself does not create or update a
+Source, Document, KnowledgeItem, Job, snapshot, embedding, or synchronization
+summary; the Layer 4 workflow consumes its provider-neutral results and owns
+those durable effects.
 
 ## Trust and IPC boundary
 
@@ -67,8 +69,39 @@ The provider-neutral descriptor retains stable remote object identity, node and
 parent identity, relative breadcrumb, title, safe original URL, remote revision,
 document kind, and support state. Main-only validated Feishu data retains the
 space id, node token, object token and type, node type, and shortcut origin ids.
-This is enough for a synchronizer to choose a canonical reference later; the
-read adapter does not perform durable deduplication or reconciliation.
+The scan operation chooses one deterministic canonical reference for each
+supported remote object before returning. It still performs no durable
+deduplication or reconciliation: the Layer 4 synchronization workflow compares
+the scan with persisted Documents and publishes the resulting changes.
+
+## Source creation and manual synchronization
+
+`knowledge.external_source.create` accepts only a base id, connection id, raw
+URL, and name. Main re-runs trusted scope resolution rather than accepting a
+preview result as authority. Source creation, the initial durable Job enqueue,
+and the `activeJobId` fence commit in one SQLite transaction. A failure in any
+step leaves no Source or Job intent behind.
+
+`knowledge.external_source.sync` accepts only a Source id. It re-reads the
+Source, rejects paused Sources and failed bases, and enqueues the same
+`knowledge.sync-external-source` Job used by initial synchronization. The
+per-Source idempotency key coalesces repeated requests while a Job remains
+non-terminal.
+
+One Job owns the full scan → per-document read/prepare/publication → missing
+document reconciliation run. Provider reads and embedding preparation happen
+outside the per-base mutation lock. Publication uses Source revision plus
+active Job id fences; staged versioned snapshots and vectors become visible
+only with their Document/KnowledgeItem ownership transaction. A complete scan
+reconciles absence in one fenced batch, while a fatal or cancelled run never
+interprets unseen documents as deleted.
+
+The Job output and metadata contain only validated counts, stable error/warning
+codes, and remote object ids. Credentials, account details, raw provider
+payloads, and provider error messages are not written to Job rows or Source
+summaries. Job settlement updates the Source only while its revision and
+`activeJobId` still match, and DataApi read-model notifications are emitted
+only after the owning transaction commits.
 
 ## Docx Markdown
 

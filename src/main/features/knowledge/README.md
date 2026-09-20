@@ -31,7 +31,7 @@ orchestration, and it lives in `ingestion/` and `tasks/`.
 | `KnowledgeService.ts` | Lifecycle facade: registers job handlers, runs boot recovery, delegates every public method, and creates the shared per-base mutation lock (`KeyedMutex`). No domain logic. |
 | `base/` | Per-base domain: lifecycle admin (`KnowledgeBaseAdminService` — create with rollback, delete, restore), failed-base guard (`baseGuards.ts`). |
 | `ingestion/` | Write-side orchestration: admission checks, item creation, add-conflict resolution, job enqueueing, subtree purge (`subtreePurge.ts`), boot recovery, the reusable publication-free `prepareKnowledgeMaterial` kernel, and the existing `indexKnowledgeItem` Job composition that publishes material and lifecycle state. |
-| `external/` | External Knowledge connection and read boundary: main-only encrypted credentials, Feishu user authorization, credential-scoped admission, trusted URL resolution, metadata traversal, and normalized Docx Markdown reads. Source synchronization and persistence remain outside this adapter. |
+| `external/` | External Knowledge connection, read, and synchronization boundary: main-only encrypted credentials, Feishu user authorization, credential-scoped admission, trusted URL resolution, metadata traversal, normalized Docx Markdown reads, Source creation/manual-sync admission, incremental publication, and reconciliation. The provider adapter itself remains persistence-free. |
 | `pipeline/sources/` | Input stage: directory expansion, url fetch (Jina reader), and URL/note snapshot capture with Cherry OKF frontmatter. External snapshots are already-pinned provider-normalized Markdown and do not use Cherry frontmatter. |
 | `pipeline/readers/` | Preprocess stage: file → markdown/text `Document[]` readers (pdf/docx/epub/…). |
 | `pipeline/indexing/` | Index stage: offset-preserving splitter + chunker, `AiService` embedding/rerank wrappers. |
@@ -52,6 +52,7 @@ All jobs run on the per-base queue `base.{baseId}`; idempotency keys prevent dou
 | `knowledge.check-file-processing-result` | Poll a FileProcessingService job (5s delay per round); on success enqueue indexing. | `ingestion` (files needing conversion) |
 | `knowledge.delete-subtree` | Cancel active jobs → delete vectors → delete files → delete rows. | `ingestion` (delete), boot recovery |
 | `knowledge.reindex-subtree` | Verify source → re-acquire it → delete vectors → reset statuses → re-enqueue indexing. | `ingestion` (reindex) |
+| `knowledge.sync-external-source` | Scan one persisted Source, incrementally publish supported documents, reconcile missing/denied documents, and settle the Source summary. | External Source creation and manual synchronization |
 
 Indexing jobs and `knowledge.reindex-subtree` declare `recovery: 'abandon'` — an app restart never
 silently resumes them (that would auto-spend the paid embedding API); boot recovery parks
@@ -66,10 +67,18 @@ an explicit item descriptor and returns the store rebuild input without opening
 or publishing a store, changing rows or statuses, or moving a snapshot. The
 operation still reads files, performs embedding calls, and reports progress;
 "publication-free" means it has no persistent publication side effect. The
-current `indexKnowledgeItem` composition remains the publication owner for Job
-indexing. A future external synchronizer must stage provider Markdown at a
-distinct versioned path/item id and provide that descriptor to preparation;
-Layer 2 does not implement that synchronizer or its visibility commit.
+current `indexKnowledgeItem` composition remains the publication owner for ordinary Job
+indexing. External synchronization instead stages provider Markdown at a distinct versioned
+path/item id, passes that descriptor to preparation, and swaps document ownership under the
+same per-base mutation lock. Slow scan/read/embed work stays outside the lock; the Source
+revision and active Job id fence every publication and final summary write.
+
+Creating a Source re-resolves the user-entered URL in main and atomically persists the Source,
+enqueues its initial `knowledge.sync-external-source` Job, and binds `activeJobId`. Manual sync
+uses the same Job type, per-base queue, and per-Source idempotency key, so repeated requests
+coalesce onto the active Job without replacing its original trigger or start time. The Job
+payload contains only Source/Base identity, revision, and trigger; credentials and provider
+payloads remain in the main-only runtime boundary.
 
 URL/note snapshot files contain Cherry OKF frontmatter, which their reader
 removes before chunking. External snapshots contain provider-normalized

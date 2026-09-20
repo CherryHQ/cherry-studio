@@ -474,7 +474,8 @@ describe('KnowledgeService', () => {
       'knowledge.index-documents',
       'knowledge.check-file-processing-result',
       'knowledge.delete-subtree',
-      'knowledge.reindex-subtree'
+      'knowledge.reindex-subtree',
+      'knowledge.sync-external-source'
     ])
   })
 
@@ -700,7 +701,8 @@ describe('KnowledgeService', () => {
         'knowledge.index-documents',
         'knowledge.check-file-processing-result',
         'knowledge.delete-subtree',
-        'knowledge.reindex-subtree'
+        'knowledge.reindex-subtree',
+        'knowledge.sync-external-source'
       ],
       limit: 5000
     })

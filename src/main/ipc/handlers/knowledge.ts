@@ -88,6 +88,20 @@ async function externalKnowledgeCommand<T>(
   }
 }
 
+async function externalKnowledgeAdmissionCommand<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (error instanceof ExternalKnowledgeRuntimeError) {
+      throw mapExternalKnowledgeError(error, {
+        code: knowledgeErrorCodes.FEISHU_INVALID_PROVIDER_RESPONSE,
+        message: 'Feishu scope resolution failed'
+      })
+    }
+    throw error
+  }
+}
+
 /**
  * Thin adapters for the knowledge request routes: each one translates a parsed route
  * call into a `KnowledgeService` method (business logic + resource lifecycle stay in
@@ -98,6 +112,10 @@ async function externalKnowledgeCommand<T>(
  * route's `z.void()` output (see selection.ts hide_toolbar).
  */
 export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> = {
+  'knowledge.external_source.create': async (input) =>
+    externalKnowledgeAdmissionCommand(() => application.get('KnowledgeService').createExternalKnowledgeSource(input)),
+  'knowledge.external_source.sync': async (input) =>
+    application.get('KnowledgeService').requestExternalKnowledgeSourceSync(input),
   'knowledge.feishu.registration.begin': async () =>
     externalKnowledgeCommand(() => application.get('KnowledgeService').beginFeishuAppRegistration(), {
       code: knowledgeErrorCodes.FEISHU_REGISTRATION_FAILED,

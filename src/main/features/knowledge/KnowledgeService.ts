@@ -2,6 +2,7 @@ import { application } from '@application'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { ExternalKnowledgeSource } from '@shared/data/types/externalKnowledge'
 import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 import type {
   ExternalKnowledgeScopePreview,
@@ -29,6 +30,12 @@ import {
   type BeginUserAuthorizationInput,
   ExternalKnowledgeRuntime
 } from './external/ExternalKnowledgeRuntime'
+import {
+  type CreateExternalKnowledgeSourceCommand,
+  ExternalKnowledgeSyncAdmission,
+  type RequestExternalKnowledgeSourceSyncCommand
+} from './external/ExternalKnowledgeSyncAdmission'
+import { ExternalKnowledgeSyncService } from './external/ExternalKnowledgeSyncService'
 import { createIndexKnowledgeItem } from './ingestion/indexKnowledgeItem'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
@@ -44,6 +51,7 @@ import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
+import { createSyncExternalSourceJobHandler } from './tasks/syncExternalSourceJobHandler'
 import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from './types'
 
 /**
@@ -57,12 +65,17 @@ import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from '
 @DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService', 'WebSearchService'])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KeyedMutex()
+  private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime()
+  private readonly externalKnowledgeSyncService = new ExternalKnowledgeSyncService(
+    this.externalKnowledgeRuntime,
+    this.knowledgeLockManager
+  )
+  private readonly externalKnowledgeSyncAdmission = new ExternalKnowledgeSyncAdmission(this.externalKnowledgeRuntime)
   private readonly indexKnowledgeItem = createIndexKnowledgeItem(this.knowledgeLockManager)
   private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)
   private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
   private readonly queryService = new KnowledgeQueryService()
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
-  private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime()
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
@@ -79,6 +92,10 @@ export class KnowledgeService extends BaseService {
     jobManager.registerHandler(
       'knowledge.reindex-subtree',
       createReindexSubtreeJobHandler(this.knowledgeLockManager, this.ingestionService)
+    )
+    jobManager.registerHandler(
+      'knowledge.sync-external-source',
+      createSyncExternalSourceJobHandler(this.externalKnowledgeSyncService)
     )
   }
 
@@ -132,6 +149,16 @@ export class KnowledgeService extends BaseService {
 
   async previewFeishuScope(connectionId: string, url: string): Promise<ExternalKnowledgeScopePreview> {
     return await this.externalKnowledgeRuntime.previewFeishuScope(connectionId, url)
+  }
+
+  async createExternalKnowledgeSource(input: CreateExternalKnowledgeSourceCommand): Promise<ExternalKnowledgeSource> {
+    return await this.externalKnowledgeSyncAdmission.create(input)
+  }
+
+  async requestExternalKnowledgeSourceSync(
+    input: RequestExternalKnowledgeSourceSyncCommand
+  ): Promise<ExternalKnowledgeSource> {
+    return await this.externalKnowledgeSyncAdmission.requestSync(input)
   }
 
   async removeExternalKnowledgeConnection(connectionId: string): Promise<void> {

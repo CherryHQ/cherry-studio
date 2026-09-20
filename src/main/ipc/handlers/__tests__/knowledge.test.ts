@@ -24,6 +24,8 @@ const knowledgeService = {
   removeExternalKnowledgeConnection: vi.fn(),
   resolveFeishuScope: vi.fn(),
   previewFeishuScope: vi.fn(),
+  createExternalKnowledgeSource: vi.fn(),
+  requestExternalKnowledgeSourceSync: vi.fn(),
   createBase: vi.fn(),
   restoreBase: vi.fn(),
   deleteBase: vi.fn(),
@@ -51,6 +53,113 @@ const ctx = { senderId: 'w1' }
 type In<R extends keyof typeof knowledgeHandlers> = Parameters<(typeof knowledgeHandlers)[R]>[0]
 
 describe('knowledgeHandlers', () => {
+  const externalSource = {
+    id: '01960000-0000-7000-8000-000000000010',
+    baseId: '11111111-1111-4111-8111-111111111111',
+    connectionId: '01960000-0000-7000-8000-000000000001',
+    provider: 'feishu' as const,
+    tenantId: 'tenant-1',
+    spaceId: 'space-1',
+    scope: { kind: 'space' as const },
+    name: 'Engineering Wiki',
+    state: 'active' as const,
+    scheduleId: null,
+    revision: 0,
+    activeJobId: '01960000-0000-7000-8000-000000000011',
+    lastTrigger: 'initial' as const,
+    lastStartedAt: '2026-09-20T00:00:00.000Z',
+    lastFinishedAt: null,
+    lastOutcome: null,
+    lastScannedCount: null,
+    lastIndexedCount: null,
+    lastUnchangedCount: null,
+    lastSkippedCount: null,
+    lastWarningCount: null,
+    lastErrorSummary: null,
+    lastSuccessfulSyncAt: null,
+    createdAt: '2026-09-20T00:00:00.000Z',
+    updatedAt: '2026-09-20T00:00:00.000Z'
+  }
+
+  it('strictly parses source creation and manual sync commands and returns safe source DTOs', async () => {
+    knowledgeService.createExternalKnowledgeSource.mockResolvedValue(externalSource)
+    knowledgeService.requestExternalKnowledgeSourceSync.mockResolvedValue({
+      ...externalSource,
+      lastTrigger: 'manual'
+    })
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+    const createInput = {
+      baseId: externalSource.baseId,
+      connectionId: externalSource.connectionId,
+      url: 'https://acme.feishu.cn/wiki/root',
+      name: 'Engineering Wiki'
+    }
+
+    await expect(router.dispatch('knowledge.external_source.create', createInput, ctx)).resolves.toEqual(externalSource)
+    await expect(
+      router.dispatch('knowledge.external_source.sync', { sourceId: externalSource.id }, ctx)
+    ).resolves.toMatchObject({ id: externalSource.id, lastTrigger: 'manual' })
+    expect(knowledgeService.createExternalKnowledgeSource).toHaveBeenCalledWith(createInput)
+    expect(knowledgeService.requestExternalKnowledgeSourceSync).toHaveBeenCalledWith({ sourceId: externalSource.id })
+  })
+
+  it('rejects renderer credentials, preview data, and provider payloads from source commands', async () => {
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+    const createInput = {
+      baseId: externalSource.baseId,
+      connectionId: externalSource.connectionId,
+      url: 'https://acme.feishu.cn/wiki/root',
+      name: 'Engineering Wiki'
+    }
+
+    await expect(
+      router.dispatch(
+        'knowledge.external_source.create',
+        { ...createInput, credentials: { accessToken: 'secret' }, providerData: { token: 'secret' }, preview: {} },
+        ctx
+      )
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+    await expect(
+      router.dispatch(
+        'knowledge.external_source.sync',
+        { sourceId: externalSource.id, accessToken: 'secret', providerData: {} },
+        ctx
+      )
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+    expect(knowledgeService.createExternalKnowledgeSource).not.toHaveBeenCalled()
+    expect(knowledgeService.requestExternalKnowledgeSourceSync).not.toHaveBeenCalled()
+  })
+
+  it('maps create-time provider failures but preserves data admission conflicts', async () => {
+    knowledgeService.createExternalKnowledgeSource.mockRejectedValueOnce(
+      new ExternalKnowledgeRuntimeError('resource-permission-denied')
+    )
+
+    await expect(
+      knowledgeHandlers['knowledge.external_source.create'](
+        {
+          baseId: externalSource.baseId,
+          connectionId: externalSource.connectionId,
+          url: 'https://acme.feishu.cn/wiki/root',
+          name: 'Engineering Wiki'
+        },
+        ctx
+      )
+    ).rejects.toMatchObject({ code: knowledgeErrorCodes.FEISHU_RESOURCE_PERMISSION_DENIED })
+
+    const conflict = DataApiErrorFactory.conflict('Source already exists', 'ExternalKnowledgeSource')
+    knowledgeService.createExternalKnowledgeSource.mockRejectedValueOnce(conflict)
+    const error = await knowledgeHandlers['knowledge.external_source.create'](
+      {
+        baseId: externalSource.baseId,
+        connectionId: externalSource.connectionId,
+        url: 'https://acme.feishu.cn/wiki/root',
+        name: 'Engineering Wiki'
+      },
+      ctx
+    ).catch((cause) => cause)
+    expect(error).toBe(conflict)
+  })
   it('routes both Feishu application credential entries through the same user authorization command', async () => {
     const started = { authorizationSessionId: 'session-1' }
     knowledgeService.beginFeishuUserAuthorization.mockResolvedValue(started)
