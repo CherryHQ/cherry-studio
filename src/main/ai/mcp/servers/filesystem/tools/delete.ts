@@ -4,7 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { resolveMutationLockKey, withPathMutationLock } from '../mutationLock'
+import { withMutationLockForRequest } from '../mutationLock'
 import { logger, validatePath } from '../types'
 
 // Schema definition
@@ -37,61 +37,66 @@ export async function handleDeleteTool(
 
   // Hold the mutation lock across validation and mutation so concurrent mutations queue in
   // call order even when file existence flips the lock key mid-operation (e.g. creates).
-  return withPathMutationLock(resolveMutationLockKey(targetPath, baseDir), async () => {
-    const validPath = await validatePath(targetPath, baseDir)
-    // Check if path exists and get stats
-    let stats
-    try {
-      stats = await fs.stat(validPath)
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        throw new Error(`Path not found: ${targetPath}`)
+  return withMutationLockForRequest(
+    targetPath,
+    baseDir,
+    async () => {
+      const validPath = await validatePath(targetPath, baseDir)
+      // Check if path exists and get stats
+      let stats
+      try {
+        stats = await fs.stat(validPath)
+      } catch (error: any) {
+        if (error.code === 'ENOENT') {
+          throw new Error(`Path not found: ${targetPath}`)
+        }
+        throw error
       }
-      throw error
-    }
 
-    const isDirectory = stats.isDirectory()
-    const relativePath = path.relative(baseDir, validPath)
+      const isDirectory = stats.isDirectory()
+      const relativePath = path.relative(baseDir, validPath)
 
-    // Perform deletion
-    try {
-      if (isDirectory) {
-        if (recursive) {
-          // Delete directory recursively
-          await fs.rm(validPath, { recursive: true, force: true })
+      // Perform deletion
+      try {
+        if (isDirectory) {
+          if (recursive) {
+            // Delete directory recursively
+            await fs.rm(validPath, { recursive: true, force: true })
+          } else {
+            // Try to delete empty directory
+            await fs.rmdir(validPath)
+          }
         } else {
-          // Try to delete empty directory
-          await fs.rmdir(validPath)
+          // Delete file
+          await fs.unlink(validPath)
         }
-      } else {
-        // Delete file
-        await fs.unlink(validPath)
-      }
-    } catch (error: any) {
-      if (error.code === 'ENOTEMPTY') {
-        throw new Error(`Directory not empty: ${targetPath}. Use recursive=true to delete non-empty directories.`)
-      }
-      throw new Error(`Failed to delete: ${error.message}`)
-    }
-
-    // Log the operation
-    logger.info('Path deleted', {
-      path: validPath,
-      type: isDirectory ? 'directory' : 'file',
-      recursive: isDirectory ? recursive : undefined
-    })
-
-    // Format output
-    const itemType = isDirectory ? 'Directory' : 'File'
-    const recursiveNote = isDirectory && recursive ? ' (recursive)' : ''
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `${itemType} deleted${recursiveNote}: ${relativePath}`
+      } catch (error: any) {
+        if (error.code === 'ENOTEMPTY') {
+          throw new Error(`Directory not empty: ${targetPath}. Use recursive=true to delete non-empty directories.`)
         }
-      ]
-    }
-  })
+        throw new Error(`Failed to delete: ${error.message}`)
+      }
+
+      // Log the operation
+      logger.info('Path deleted', {
+        path: validPath,
+        type: isDirectory ? 'directory' : 'file',
+        recursive: isDirectory ? recursive : undefined
+      })
+
+      // Format output
+      const itemType = isDirectory ? 'Directory' : 'File'
+      const recursiveNote = isDirectory && recursive ? ' (recursive)' : ''
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `${itemType} deleted${recursiveNote}: ${relativePath}`
+          }
+        ]
+      }
+    },
+    { subtreeRoot: true }
+  )
 }
