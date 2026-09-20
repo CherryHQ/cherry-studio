@@ -11,8 +11,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // All mock fns live in vi.hoisted so the (hoisted) vi.mock factories can close
 // over them without a TDZ error.
-const { mockGetModels, mockIsInternalRequestToken, mockPreferenceGet, mockProcessMessage } = vi.hoisted(() => ({
+const {
+  mockGetModels,
+  mockEstimateAnthropicRequestTokens,
+  mockIsInternalAgentRequest,
+  mockIsInternalRequestToken,
+  mockPreferenceGet,
+  mockProcessMessage
+} = vi.hoisted(() => ({
   mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
+  mockEstimateAnthropicRequestTokens: vi.fn(async () => 42),
+  mockIsInternalAgentRequest: vi.fn((headers: Headers) => headers.get('x-test-internal-agent') === 'true'),
   mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token'),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
@@ -26,7 +35,10 @@ vi.mock('@application', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
     PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
-    ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken }
+    ApiGatewayService: {
+      isInternalAgentRequest: mockIsInternalAgentRequest,
+      isInternalRequestToken: mockIsInternalRequestToken
+    }
   }
   return mockApplicationFactory(overrides)
 })
@@ -58,6 +70,10 @@ vi.mock('../../proxyStream', () => ({
 
 vi.mock('../../utils/models', () => ({
   getModels: mockGetModels
+}))
+
+vi.mock('../../tokens/estimateAnthropicRequestTokens', () => ({
+  estimateAnthropicRequestTokens: mockEstimateAnthropicRequestTokens
 }))
 
 // Knowledge routes use the v2 KB service (pulled in by buildApp); stubbed so
@@ -231,6 +247,25 @@ describe('API gateway routes (integration)', () => {
     it('rejects a /v1 request with an invalid Bearer token (403)', async () => {
       const { status } = await read(await get(app, '/v1/models', { authorization: 'Bearer wrong-key' }))
       expect(status).toBe(403)
+    })
+  })
+
+  describe('Anthropic token counting', () => {
+    it('preserves the internal Work identity for Cherry Cloud model resolution', async () => {
+      const response = await post(
+        app,
+        '/v1/messages/count_tokens',
+        { model: 'cherryai-subscription:claude', messages: [{ role: 'user', content: 'hello' }] },
+        { ...AUTH, 'x-test-internal-agent': 'true' }
+      )
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ input_tokens: 42 })
+      expect(mockEstimateAnthropicRequestTokens).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'cherryai-subscription:claude' }),
+        expect.any(AbortSignal),
+        true
+      )
     })
   })
 
