@@ -448,6 +448,33 @@ describe('filesystem MCP security', () => {
       await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('c')
     })
 
+    it('preserves call order for three dependent edits across hard-link aliases', async () => {
+      const workspaceRoot = await createTempDir('edit-hardlink-three-op-root-')
+      const filePath = path.join(workspaceRoot, 'original.txt')
+      await fs.writeFile(filePath, 'a')
+      await fs.link(filePath, path.join(workspaceRoot, 'alias.txt'))
+
+      const originalRealpath = fs.realpath.bind(fs)
+      let delayedFirstValidation = false
+      vi.spyOn(fs, 'realpath').mockImplementation(async (...args: Parameters<typeof fs.realpath>) => {
+        if (!delayedFirstValidation) {
+          delayedFirstValidation = true
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        }
+        return (
+          originalRealpath as (...realpathArgs: Parameters<typeof fs.realpath>) => ReturnType<typeof fs.realpath>
+        )(...args)
+      })
+
+      await Promise.all([
+        handleEditTool({ file_path: 'original.txt', old_string: 'a', new_string: 'b' }, workspaceRoot),
+        handleEditTool({ file_path: 'original.txt', old_string: 'b', new_string: 'c' }, workspaceRoot),
+        handleEditTool({ file_path: 'alias.txt', old_string: 'c', new_string: 'd' }, workspaceRoot)
+      ])
+
+      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('d')
+    })
+
     it('serializes delete with an in-flight edit on the same path', async () => {
       const workspaceRoot = await createTempDir('delete-serialization-root-')
       const filePath = path.join(workspaceRoot, 'target.txt')
