@@ -53,13 +53,14 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
       throw new Error(`dsh agent session ${session.id} has no agent`)
     }
     const agent = agentService.getAgent(session.agentId)
-    if (!agent?.model) {
+    const effectiveModel = session.model ?? agent?.model
+    if (!effectiveModel) {
       throw new Error(`dsh agent ${session.agentId} has no model configured`)
     }
     await prepareAgentSessionWorkspaceDirectory(session)
     // Side-effect free: dispatch validation must not consume API-key rotation;
     // the concrete key is selected only when the runtime connection starts.
-    await assertDshProviderUsable(agent.model)
+    await assertDshProviderUsable(effectiveModel)
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {

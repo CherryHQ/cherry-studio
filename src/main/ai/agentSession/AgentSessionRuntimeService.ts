@@ -818,8 +818,10 @@ export class AgentSessionRuntimeService extends BaseService {
     for (const entry of this.entries.values()) {
       if (entry.agentId !== agentId) continue
 
-      // A cleared model (`PATCH { model: null }`) is unroutable, not stale — fully invalidate.
-      if (modelEdited && !agent.model) {
+      // A cleared model (`PATCH { model: null }`) is unroutable only when no
+      // session override remains — a session with its own model stays routable.
+      const effectiveModel = this.readSessionModelOverride(entry.sessionId) ?? agent.model ?? null
+      if (modelEdited && !effectiveModel) {
         this.invalidateModelClearedEntry(entry)
         continue
       }
@@ -827,7 +829,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // Bookkeeping: fresh turns are stamped with (and steers gated on) the entry's latest model. A
       // live turn keeps its captured `turn.modelId` regardless. A per-session override wins over
       // the agent default so an agent edit can't clobber a session that pinned its own model.
-      if (agent.model) entry.modelId = this.readSessionModelOverride(entry.sessionId) ?? agent.model
+      if (effectiveModel) entry.modelId = effectiveModel
       reconciles.push(this.reconcileEntryConnection(entry, agent))
     }
     await Promise.all(reconciles)
@@ -972,6 +974,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const fastMode = opts.fastMode === true
 
     const turn = this.currentTurn(entry)
+    // A session model switch has no agent-updated push, so the entry's cached
+    // model can still target the old model while streaming. Refresh it before
+    // the redirect gate — otherwise the next message folds into the running
+    // turn's old model instead of queueing for the new one.
+    const latestEffectiveModel =
+      this.readSessionModelOverride(sessionId) ?? agentService.getAgent(entry.agentId)?.model ?? entry.modelId
+    if (latestEffectiveModel !== entry.modelId) entry.modelId = latestEffectiveModel
     // Open normal turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
     // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
     // ends before it's injected, the connection emits `steer-undelivered` and we queue it below.

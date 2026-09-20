@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   runtimeIsSessionBusy: vi.fn(),
   runtimeAssertWritable: vi.fn(),
   runtimeValidateSession: vi.fn(),
-  getModelNames: vi.fn((_tx, _ids) => new Map())
+  getModelNames: vi.fn(() => new Map())
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
