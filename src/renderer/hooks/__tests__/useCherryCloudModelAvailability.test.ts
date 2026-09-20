@@ -1,8 +1,9 @@
-import type { Model } from '@shared/data/types/model'
 import { renderHook, waitFor } from '@testing-library/react'
 import { createElement, type PropsWithChildren } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
 
 import { useCherryCloudModelAvailability, useCherryCloudModelFilter } from '../useCherryCloudModelAvailability'
 
@@ -24,7 +25,7 @@ function model(providerId: string, modelId: string): Model {
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 function wrapper() {

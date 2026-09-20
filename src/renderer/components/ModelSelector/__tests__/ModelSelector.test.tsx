@@ -377,7 +377,7 @@ describe('ModelSelector', () => {
   })
 
   it('keeps the active descendant mounted after page navigation', async () => {
-    const items = Array.from({ length: 20 }, (_, index) => makeModelItem(`openai::model-${index}` as UniqueModelId))
+    const items = Array.from({ length: 20 }, (_, index) => makeModelItem(`openai::model-${index}`))
     mocks.virtualize = true
     mocks.useModelSelectorData.mockReturnValue(
       makeData({
