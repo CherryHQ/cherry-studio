@@ -622,25 +622,26 @@ export function findPromptTarget(
     'seed' in node.inputs || 'noise_seed' in node.inputs || 'latent_image' in node.inputs
   const ordered = [...withPositive.filter(isSampler), ...withPositive.filter((entry) => !isSampler(entry))]
 
+  /** All nodes reachable through reference inputs from a starting id. */
+  const reachableFrom = (start: Reference): Set<string> => {
+    const reached = new Set<string>()
+    const queue = [start[0]]
+    while (queue.length > 0) {
+      const nodeId = queue.shift()!
+      if (reached.has(nodeId)) continue
+      reached.add(nodeId)
+      const node = prompt[nodeId]
+      if (!node) continue
+      for (const value of Object.values(node.inputs)) {
+        if (isReference(value)) queue.push(value[0])
+      }
+    }
+    return reached
+  }
+
   for (const [samplerId, node] of ordered) {
     const positive = node.inputs.positive
     if (!isReference(positive)) continue
-    /** All nodes reachable through reference inputs from a starting id. */
-    const reachableFrom = (start: Reference): Set<string> => {
-      const reached = new Set<string>()
-      const queue = [start[0]]
-      while (queue.length > 0) {
-        const nodeId = queue.shift()!
-        if (reached.has(nodeId)) continue
-        reached.add(nodeId)
-        const node = prompt[nodeId]
-        if (!node) continue
-        for (const value of Object.values(node.inputs)) {
-          if (isReference(value)) queue.push(value[0])
-        }
-      }
-      return reached
-    }
     // Only the negative-exclusive part of the graph is out of bounds: the
     // classic zero-out chain hangs a ConditioningZeroOut off the negative
     // encode, and crossing into it would replace the negative prompt. Nodes

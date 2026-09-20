@@ -151,9 +151,6 @@ async function requestJson<T>(
   return (await response.json()) as T
 }
 
-const fetchJson = <T>(url: string, signal?: AbortSignal, options: ComfyuiRequestOptions = {}): Promise<T> =>
-  requestJson<T>(url, t('paintings.comfyui.request_failed'), signal, options)
-
 /**
  * Turn ComfyUI's validation payload into something a user can act on. The
  * server's messages are kept verbatim — they name the offending node and input —
@@ -206,12 +203,18 @@ class ComfyuiTransport implements ImageGenerationTransport {
       // `/userdata/{file}` matches a single path segment, so the separator has to be
       // percent-encoded — `/userdata/workflows/x.json` is a 404, `%2F` is not. The
       // ComfyUI frontend encodes the same parameter.
-      fetchJson<Parameters<typeof convertUiWorkflowToPrompt>[0]>(
+      requestJson<Parameters<typeof convertUiWorkflowToPrompt>[0]>(
         `${this.baseURL}/userdata/${encodeURIComponent(workflowPath)}`,
+        t('paintings.comfyui.request_failed'),
         input.signal,
         requestOptions
       ),
-      fetchJson<ObjectInfo>(`${this.baseURL}/object_info`, input.signal, requestOptions)
+      requestJson<ObjectInfo>(
+        `${this.baseURL}/object_info`,
+        t('paintings.comfyui.request_failed'),
+        input.signal,
+        requestOptions
+      )
     ])
 
     const { prompt: graph, warnings } = convertUiWorkflowToPrompt(workflow, objectInfo)
@@ -223,7 +226,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
         message: t('paintings.comfyui.no_prompt_node', { workflow: input.modelId })
       })
     }
-    applyPrompt(graph, target.nodeId, target.input, input.prompt ?? '')
+    graph[target.nodeId].inputs[target.input] = input.prompt ?? ''
     applySeed(graph, input.seed, target.samplerId)
 
     const response = await this.doFetch(`${this.baseURL}/prompt`, {
@@ -457,23 +460,13 @@ class ComfyuiTransport implements ImageGenerationTransport {
    * untouched so user cancellation is never confused with a timeout.
    */
   private async readWithTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
-    return new Promise<T>((_resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })),
-        timeoutMs
-      )
-      promise.then(
-        (value) => {
-          clearTimeout(timer)
-          _resolve(value)
-        },
-        (error) => {
-          clearTimeout(timer)
-          if (error instanceof Error && error.name === 'AbortError') throw error
-          throw error
-        }
-      )
-    })
+    let timer: ReturnType<typeof setTimeout>
+    return Promise.race([
+      promise.finally(() => clearTimeout(timer)),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })), timeoutMs)
+      })
+    ])
   }
 
   /**
@@ -547,11 +540,6 @@ class ComfyuiTransport implements ImageGenerationTransport {
     const contentType = response.headers.get('content-type') || 'image/png'
     return `data:${contentType};base64,${buffer.toString('base64')}`
   }
-}
-
-/** Write the prompt into the graph, keeping the node's other inputs untouched. */
-export function applyPrompt(graph: Record<string, ApiPromptNode>, nodeId: string, input: string, prompt: string): void {
-  graph[nodeId].inputs[input] = prompt
 }
 
 /**
