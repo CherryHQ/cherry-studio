@@ -40,7 +40,7 @@ describe('useProviderDelete', () => {
   it('clears the coordinated endpoint snapshot so a recreated provider starts clean', async () => {
     setLastWrittenEndpointConfigs(providerId, {
       'openai-chat-completions': { baseUrl: 'https://old-host/v1' }
-    } as never)
+    })
     const { result } = renderHook(() => useProviderDelete())
 
     await act(async () => {
