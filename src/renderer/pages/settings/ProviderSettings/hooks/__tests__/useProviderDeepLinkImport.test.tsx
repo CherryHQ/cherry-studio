@@ -335,4 +335,55 @@ describe('useProviderDeepLinkImport', () => {
       }
     })
   })
+
+  it('prefers the shared snapshot over a stale truthy refetch', async () => {
+    const onSelectProvider = vi.fn()
+    const CHAT = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    providersFixture = [
+      {
+        id: 'custom-vllm',
+        endpointConfigs: { [CHAT]: { baseUrl: 'https://old-host/v1' } }
+      }
+    ]
+    // The refetch resolves but hasn't observed the coordinated write yet.
+    refetchProvidersMock.mockResolvedValue(providersFixture)
+    setLastWrittenEndpointConfigs('custom-vllm', {
+      [CHAT]: { baseUrl: 'https://old-host/v1', reasoningFormat: { type: 'self-hosted' } }
+    } as never)
+
+    popupShowMock.mockResolvedValue({
+      updatedProvider: {
+        id: 'custom-vllm',
+        name: 'Custom vLLM',
+        type: 'openai',
+        apiKey: 'sk-custom',
+        apiHost: 'https://new-host/v1'
+      },
+      isNew: false,
+      displayName: 'Custom vLLM'
+    })
+
+    renderHook(() =>
+      useProviderDeepLinkImport(
+        JSON.stringify({
+          id: 'custom-vllm',
+          apiKey: 'sk-custom',
+          baseUrl: 'https://new-host/v1',
+          type: 'openai',
+          name: 'Custom vLLM'
+        }),
+        onSelectProvider
+      )
+    )
+
+    await waitFor(() => expect(updateProviderByIdMock).toHaveBeenCalledTimes(1))
+
+    expect(updateProviderByIdMock).toHaveBeenCalledWith('custom-vllm', {
+      name: 'Custom vLLM',
+      defaultChatEndpoint: CHAT,
+      endpointConfigs: {
+        [CHAT]: { baseUrl: 'https://new-host/v1', reasoningFormat: { type: 'self-hosted' } }
+      }
+    })
+  })
 })

@@ -13,6 +13,7 @@ import type { Provider } from '@shared/data/types/provider'
 
 import UrlSchemaInfoPopup from '../UrlSchemaInfoPopup'
 import {
+  clearLastWrittenEndpointConfigs,
   getLastWrittenEndpointConfigs,
   serializeEndpointConfigsWrite,
   setLastWrittenEndpointConfigs
@@ -100,6 +101,9 @@ export function useProviderDeepLinkImport(
           : undefined
 
         if (isNew) {
+          // A deleted provider recreated under the same ID must not inherit
+          // its coordinator snapshot.
+          clearLastWrittenEndpointConfigs(providerId)
           await createProvider({
             providerId,
             name: updatedProvider.name || providerData.id,
@@ -123,9 +127,11 @@ export function useProviderDeepLinkImport(
             let baseConfigs = providersRef.current.find((p) => p.id === providerId)?.endpointConfigs
             try {
               const fresh = (await refetchProviders()) as Provider[] | undefined
+              // The coordinated snapshot is newer than a stale truthy refetch
+              // that hasn't observed the last committed write yet.
               baseConfigs =
-                fresh?.find((p) => p.id === providerId)?.endpointConfigs ??
                 getLastWrittenEndpointConfigs(providerId) ??
+                fresh?.find((p) => p.id === providerId)?.endpointConfigs ??
                 baseConfigs
             } catch {
               baseConfigs = getLastWrittenEndpointConfigs(providerId) ?? baseConfigs

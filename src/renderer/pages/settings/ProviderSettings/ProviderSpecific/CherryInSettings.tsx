@@ -65,11 +65,9 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
           let baseConfigs = staleConfigs
           try {
             const fresh = (await refetch()) as { endpointConfigs?: typeof baseConfigs } | undefined
-            if (fresh?.endpointConfigs) {
-              baseConfigs = fresh.endpointConfigs
-            } else {
-              baseConfigs = getLastWrittenEndpointConfigs(providerId) ?? staleConfigs
-            }
+            // The coordinated snapshot is newer than a stale truthy refetch
+            // that hasn't observed the last committed write yet.
+            baseConfigs = getLastWrittenEndpointConfigs(providerId) ?? fresh?.endpointConfigs ?? staleConfigs
           } catch {
             baseConfigs = getLastWrittenEndpointConfigs(providerId) ?? staleConfigs
           }

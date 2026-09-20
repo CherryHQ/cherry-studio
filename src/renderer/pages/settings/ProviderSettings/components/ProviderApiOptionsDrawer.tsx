@@ -177,11 +177,9 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
         let baseConfigs = staleConfigs
         try {
           const fresh = (await refetch()) as { endpointConfigs?: typeof baseConfigs } | undefined
-          if (fresh?.endpointConfigs) {
-            baseConfigs = fresh.endpointConfigs
-          } else {
-            baseConfigs = getLastWrittenEndpointConfigs(providerIdForWrite) ?? staleConfigs
-          }
+          // The coordinated snapshot is newer than a stale truthy refetch
+          // that hasn't observed the last committed write yet.
+          baseConfigs = getLastWrittenEndpointConfigs(providerIdForWrite) ?? fresh?.endpointConfigs ?? staleConfigs
         } catch {
           baseConfigs = getLastWrittenEndpointConfigs(providerIdForWrite) ?? staleConfigs
         }
