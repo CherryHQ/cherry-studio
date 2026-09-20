@@ -464,7 +464,10 @@ class ComfyuiTransport implements ImageGenerationTransport {
     return Promise.race([
       promise.finally(() => clearTimeout(timer)),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })), timeoutMs)
+        timer = setTimeout(
+          () => reject(createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })),
+          timeoutMs
+        )
       })
     ])
   }
