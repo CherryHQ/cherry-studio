@@ -453,4 +453,49 @@ describe('useAgentChatRuntimeState', () => {
       currentIndex: 0
     })
   })
+
+  it('evicts the AskUserQuestion draft cache from persisted parts after a remount or session change', async () => {
+    // The settlement happened in a previous mount/session, so this mount never
+    // dispatched the approval and holds no optimistic ids to sweep from.
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: {},
+      liveAssistants: [],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    mocks.useAgentSessionParts.mockReturnValue({
+      messages: [
+        {
+          ...assistantMessage,
+          parts: [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+        }
+      ],
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: mocks.refresh,
+      seedReservedMessages: mocks.seedReservedMessages,
+      deleteMessage: mocks.deleteSessionMessage
+    })
+    writeAskUserQuestionDraftCache('approval-ask', {
+      selectedAnswers: { 0: ['Winston'] },
+      customAnswers: {},
+      currentIndex: 0
+    })
+
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+    expect(readAskUserQuestionDraftCache('approval-ask')).toEqual({
+      selectedAnswers: {},
+      customAnswers: {},
+      currentIndex: 0
+    })
+  })
 })

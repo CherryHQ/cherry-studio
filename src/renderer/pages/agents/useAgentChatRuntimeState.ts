@@ -105,6 +105,21 @@ function findAskUserQuestionPartByCallId(
   return undefined
 }
 
+/** Persisted parts only — the optimistic overlay never lands here. */
+function getSettledAskUserQuestionApprovalIds(partsByMessageId: Record<string, CherryMessagePart[]>): string[] {
+  const approvalIds: string[] = []
+  for (const parts of Object.values(partsByMessageId)) {
+    for (const part of parts) {
+      if (!isToolUIPart(part)) continue
+      const toolPart = part as AskUserQuestionApprovalPart
+      if (!isAskUserQuestionToolName(getToolNameFromPart(toolPart))) continue
+      if (!hasAskUserQuestionAnswers(toolPart)) continue
+      if (toolPart.approval?.id) approvalIds.push(toolPart.approval.id)
+    }
+  }
+  return approvalIds
+}
+
 export interface AgentChatRuntimeState {
   sessionId: string
   uiMessages: CherryUIMessage[]
@@ -243,6 +258,12 @@ export function useAgentChatRuntimeState({
       }
       return changed ? next : current
     })
+    // A session switch or remount drops the optimistic ids above, so the sweep
+    // over persisted parts is what still evicts drafts once their settlement
+    // shows up here (e.g. on returning to the session).
+    for (const approvalId of getSettledAskUserQuestionApprovalIds(partsByMessageId)) {
+      clearAskUserQuestionDraftCache(approvalId)
+    }
   }, [partsByMessageId])
 
   const removeOptimisticAskUserQuestionInput = useCallback((toolCallId: string) => {
