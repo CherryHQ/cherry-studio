@@ -103,6 +103,27 @@ describe('cherryTopicFormat', () => {
       const duplicated = { ...file, messages: [...file.messages, file.messages[0]] }
       expect(validateCherryTopicFileContent(JSON.stringify(duplicated))).toBe(false)
     })
+
+    it('rejects parent cycles and self-parents that would fail persist after validation', () => {
+      const file = buildCherryTopicFile(branchedInput())
+      const byId = new Map(file.messages.map((message) => [message.sourceId, message]))
+      const cyclic = {
+        ...file,
+        messages: file.messages.map((message) =>
+          message.sourceId === 'u1' ? { ...message, parentSourceId: 'a1' } : message
+        )
+      }
+      expect(byId.get('a1')?.parentSourceId).toBe('u1')
+      expect(validateCherryTopicFileContent(JSON.stringify(cyclic))).toBe(false)
+      expect(() => parseCherryTopicFile(JSON.stringify(cyclic))).toThrow()
+      const selfParented = {
+        ...file,
+        messages: file.messages.map((message, index) =>
+          index === 0 ? { ...message, parentSourceId: message.sourceId } : message
+        )
+      }
+      expect(validateCherryTopicFileContent(JSON.stringify(selfParented))).toBe(false)
+    })
   })
 
   describe('build', () => {
@@ -186,6 +207,90 @@ describe('cherryTopicFormat', () => {
     it('throws on invalid input instead of returning a partial file', () => {
       expect(() => parseCherryTopicFile('not json {')).toThrow()
       expect(() => parseCherryTopicFile(JSON.stringify({ kind: CHERRY_TOPIC_FILE_KIND }))).toThrow()
+    })
+
+    it('drops file parts pointing at destination-local files instead of persisting them', () => {
+      const localPart = (url: string) => ({ type: 'file' as const, url, filename: 'a.png', mediaType: 'image/png' })
+      const file = buildCherryTopicFile({
+        ...branchedInput(),
+        messages: [
+          makeMessage({
+            id: 'u1',
+            role: 'user',
+            parentId: 'root-1',
+            data: {
+              parts: [
+                { type: 'text', text: 'see these' },
+                localPart('file:///etc/passwd'),
+                localPart('C:\\Users\\victim\\secret.txt'),
+                localPart('blob:https://app/uuid'),
+                { type: 'file', url: 'data:image/png;base64,aGVsbG8=', filename: 'ok.png', mediaType: 'image/png' },
+                {
+                  type: 'file',
+                  url: 'https://example.com/a.png',
+                  filename: 'remote.png',
+                  mediaType: 'image/png'
+                }
+              ]
+            },
+            createdAt: '2026-01-01T00:00:01.000Z'
+          })
+        ],
+        activeNodeId: 'u1'
+      })
+      expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
+
+      const conversation = toImportConversation(parseCherryTopicFile(JSON.stringify(file)), 'Untitled Topic')
+      expect(conversation.messages[0]?.parts).toEqual([
+        { type: 'text', text: 'see these' },
+        { type: 'file', url: 'data:image/png;base64,aGVsbG8=', filename: 'ok.png', mediaType: 'image/png' },
+        { type: 'file', url: 'https://example.com/a.png', filename: 'remote.png', mediaType: 'image/png' }
+      ])
+    })
+
+    it('strips source-install file references from surviving parts', () => {
+      const file = buildCherryTopicFile({
+        ...branchedInput(),
+        messages: [
+          makeMessage({
+            id: 'u1',
+            role: 'user',
+            parentId: 'root-1',
+            data: {
+              parts: [
+                {
+                  type: 'file',
+                  url: 'data:image/png;base64,aGVsbG8=',
+                  filename: 'ok.png',
+                  mediaType: 'image/png',
+                  providerMetadata: { cherry: { fileEntryId: 'entry-1', fileTokenSourceId: 'tok-1' } }
+                },
+                {
+                  type: 'file',
+                  url: 'https://example.com/a.png',
+                  filename: 'remote.png',
+                  mediaType: 'image/png',
+                  providerMetadata: { cherry: { fileEntryId: 'entry-2', source: 'composer' }, other: { keep: true } }
+                }
+              ]
+            },
+            createdAt: '2026-01-01T00:00:01.000Z'
+          })
+        ],
+        activeNodeId: 'u1'
+      })
+
+      const conversation = toImportConversation(parseCherryTopicFile(JSON.stringify(file)), 'Untitled Topic')
+      expect(conversation.messages[0]?.parts).toEqual([
+        { type: 'file', url: 'data:image/png;base64,aGVsbG8=', filename: 'ok.png', mediaType: 'image/png' },
+        {
+          type: 'file',
+          url: 'https://example.com/a.png',
+          filename: 'remote.png',
+          mediaType: 'image/png',
+          providerMetadata: { cherry: { source: 'composer' }, other: { keep: true } }
+        }
+      ])
     })
   })
 })

@@ -912,6 +912,7 @@
   "chat.topics.export.title_naming_success": "Titel erfolgreich generiert",
   "chat.topics.export.topic_file": "Topic-Datei exportieren",
   "chat.topics.export.topic_file_saved": "Topic-Datei erfolgreich gespeichert",
+  "chat.topics.export.topic_file_skipped_attachments": "{{count}} Anhang/Anhänge übersprungen (über 10 MiB oder nicht lesbar)",
   "chat.topics.export.wait_for_title_naming": "Titel wird generiert...",
   "chat.topics.export.word": "Als Word exportieren",
   "chat.topics.export.yuque": "Nach Yuque exportieren",

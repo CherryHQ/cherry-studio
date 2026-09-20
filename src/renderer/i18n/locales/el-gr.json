@@ -912,6 +912,7 @@
   "chat.topics.export.title_naming_success": "Ο τίτλος δημιουργήθηκε επιτυχώς",
   "chat.topics.export.topic_file": "Εξαγωγή αρχείου θέματος",
   "chat.topics.export.topic_file_saved": "Το αρχείο θέματος αποθηκεύτηκε με επιτυχία",
+  "chat.topics.export.topic_file_skipped_attachments": "Παραλείφθηκαν {{count}} συνημμένα (πάνω από 10 MiB ή μη αναγνώσιμα)",
   "chat.topics.export.wait_for_title_naming": "Γενικευμένος τίτλος...",
   "chat.topics.export.word": "Εξαγωγή ως Word",
   "chat.topics.export.yuque": "Εξαγωγή στο Yuque",

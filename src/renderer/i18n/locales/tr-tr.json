@@ -912,6 +912,7 @@
   "chat.topics.export.title_naming_success": "Başlık başarıyla oluşturuldu",
   "chat.topics.export.topic_file": "Konu dosyasını dışa aktar",
   "chat.topics.export.topic_file_saved": "Konu dosyası başarıyla kaydedildi",
+  "chat.topics.export.topic_file_skipped_attachments": "{{count}} ek atlandı (10 MiB üzeri veya okunamıyor)",
   "chat.topics.export.wait_for_title_naming": "Başlık oluşturuluyor...",
   "chat.topics.export.word": "Word Olarak Dışa Aktar",
   "chat.topics.export.yuque": "Yuque'ye Aktar",

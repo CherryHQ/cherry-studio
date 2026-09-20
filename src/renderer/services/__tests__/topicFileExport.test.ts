@@ -11,6 +11,9 @@ vi.mock('@renderer/i18n/resolver', () => ({
   }
 }))
 
+const ipcRequest = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest } }))
+
 const { collectTopicFileData, exportTopicAsFile } = await import('../topicFileExport')
 
 function makeMessage(overrides: Partial<Message> & Pick<Message, 'id' | 'role'>): Message {
@@ -181,5 +184,109 @@ describe('topicFileExport', () => {
 
     expect(saveMock).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledOnce()
+  })
+
+  describe('managed attachments', () => {
+    const fileMessage = (parts: NonNullable<Message['data']['parts']>) =>
+      makeMessage({
+        id: 'u1',
+        role: 'user',
+        parentId: 'root-1',
+        data: { parts },
+        createdAt: '2026-01-01T00:00:01.000Z'
+      })
+
+    function withU1Parts(parts: NonNullable<Message['data']['parts']>) {
+      const original = messagesById.u1
+      messagesById.u1 = fileMessage(parts)
+      return () => {
+        messagesById.u1 = original
+      }
+    }
+
+    beforeEach(() => {
+      ipcRequest.mockReset()
+    })
+
+    it('inlines managed file bytes as data urls so the file is self-contained', async () => {
+      ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.get_metadata') return { kind: 'file', size: 3 }
+        return { content: new Uint8Array([1, 2, 3]), mime: 'image/png' }
+      })
+      const restore = withU1Parts([
+        { type: 'text', text: 'look' },
+        {
+          type: 'file',
+          url: 'file:///tmp/photo.png',
+          filename: 'photo.png',
+          mediaType: 'image/png',
+          providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+        }
+      ])
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        expect(ipcRequest).toHaveBeenCalledWith('file.read', {
+          handle: { kind: 'path', path: '/tmp/photo.png' },
+          options: { mode: 'full', encoding: 'binary' }
+        })
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
+        expect(parts).toEqual([
+          { type: 'text', text: 'look' },
+          {
+            type: 'file',
+            url: 'data:image/png;base64,AQID',
+            filename: 'photo.png',
+            mediaType: 'image/png',
+            providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+          }
+        ])
+        expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
+        expect(toast.warning).not.toHaveBeenCalled()
+      } finally {
+        restore()
+      }
+    })
+
+    it('drops unreadable attachments and warns instead of losing them silently', async () => {
+      ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.get_metadata') return { kind: 'file', size: 3 }
+        throw new Error('gone')
+      })
+      const restore = withU1Parts([
+        { type: 'file', url: 'file:///tmp/photo.png', filename: 'photo.png', mediaType: 'image/png' }
+      ])
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts
+        expect(parts).toEqual([])
+        expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
+        // The i18n test double returns the key; interpolation is covered by i18n:check.
+        expect(toast.warning).toHaveBeenCalledWith('chat.topics.export.topic_file_skipped_attachments')
+      } finally {
+        restore()
+      }
+    })
+
+    it('skips over-limit attachments without reading them', async () => {
+      ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.get_metadata') return { kind: 'file', size: 11 * 1024 * 1024 }
+        throw new Error('file.read must not be called for over-limit attachments')
+      })
+      const restore = withU1Parts([
+        { type: 'file', url: 'file:///tmp/huge.mp4', filename: 'huge.mp4', mediaType: 'video/mp4' }
+      ])
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        expect(ipcRequest).not.toHaveBeenCalledWith('file.read', expect.anything())
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts
+        expect(parts).toEqual([])
+        expect(toast.warning).toHaveBeenCalledWith('chat.topics.export.topic_file_skipped_attachments')
+      } finally {
+        restore()
+      }
+    })
   })
 })

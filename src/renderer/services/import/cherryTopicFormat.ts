@@ -57,12 +57,22 @@ export const CherryTopicFileSchema = z.strictObject({
 export type CherryTopicFile = z.infer<typeof CherryTopicFileSchema>
 
 function hasResolvableTree(file: CherryTopicFile): boolean {
-  const sourceIds = new Set(file.messages.map((message) => message.sourceId))
-  if (sourceIds.size !== file.messages.length) return false
-  if (!file.messages.every((message) => !message.parentSourceId || sourceIds.has(message.parentSourceId))) {
-    return false
+  const bySourceId = new Map(file.messages.map((message) => [message.sourceId, message]))
+  if (bySourceId.size !== file.messages.length) return false
+  // Every message must reach a root by following parents. Dangling parents,
+  // self-parents and parent cycles all fail this walk, so a validated file can
+  // always be persisted top-down without leaving partial data behind.
+  for (const message of file.messages) {
+    const seen = new Set<string>()
+    let current: CherryTopicFile['messages'][number] | undefined = message
+    while (current?.parentSourceId) {
+      if (seen.has(current.sourceId)) return false
+      seen.add(current.sourceId)
+      current = bySourceId.get(current.parentSourceId)
+    }
+    if (!current) return false
   }
-  return !file.activeSourceId || sourceIds.has(file.activeSourceId)
+  return !file.activeSourceId || bySourceId.has(file.activeSourceId)
 }
 
 export function validateCherryTopicFileContent(fileContent: string): boolean {
@@ -89,6 +99,45 @@ export function parseCherryTopicFile(fileContent: string): CherryTopicFile {
   return result.data
 }
 
+// Imported parts are untrusted: send-time inlining resolves any `file://` part
+// url against destination-local disk, so only self-contained (`data:`) and
+// remote (`http(s):`) file urls survive. Everything else local (`file:`,
+// `cherry-media:`, `blob:`, bare paths) is dropped.
+function isPortableFileUrl(url: unknown): boolean {
+  return typeof url === 'string' && (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://'))
+}
+
+// FileManager entry and composer-token references are source-install-local, so
+// they are stripped from surviving parts — the destination has no such rows
+// and must never resolve imported ids against its own store.
+function stripSourceFileKeys(part: Record<string, unknown>): Record<string, unknown> {
+  const metadata = part.providerMetadata
+  if (typeof metadata !== 'object' || metadata === null) return part
+  const cherry = (metadata as Record<string, unknown>).cherry
+  if (typeof cherry !== 'object' || cherry === null) return part
+  const nextCherry: Record<string, unknown> = { ...(cherry as Record<string, unknown>) }
+  delete nextCherry.fileEntryId
+  delete nextCherry.fileTokenSourceId
+  const nextMetadata: Record<string, unknown> = { ...(metadata as Record<string, unknown>), cherry: nextCherry }
+  if (Object.keys(nextCherry).length === 0) delete nextMetadata.cherry
+  const next: Record<string, unknown> = { ...part, providerMetadata: nextMetadata }
+  if (Object.keys(nextMetadata).length === 0) delete next.providerMetadata
+  return next
+}
+
+function sanitizeImportedParts(parts: unknown[]): ImportMessageNode['parts'] {
+  const sanitized: unknown[] = []
+  for (const part of parts) {
+    if (typeof part !== 'object' || part === null || (part as { type?: unknown }).type !== 'file') {
+      sanitized.push(part)
+      continue
+    }
+    if (!isPortableFileUrl((part as { url?: unknown }).url)) continue
+    sanitized.push(stripSourceFileKeys(part as Record<string, unknown>))
+  }
+  return sanitized as ImportMessageNode['parts']
+}
+
 export function toImportConversation(file: CherryTopicFile, untitledName: string): ImportConversation {
   return {
     name: file.topic.name.trim() || untitledName,
@@ -97,7 +146,7 @@ export function toImportConversation(file: CherryTopicFile, untitledName: string
       sourceId: message.sourceId,
       ...(message.parentSourceId ? { parentSourceId: message.parentSourceId } : {}),
       role: message.role,
-      parts: message.parts as ImportMessageNode['parts'],
+      parts: sanitizeImportedParts(message.parts),
       ...(message.status ? { status: message.status } : {}),
       ...(message.siblingsGroupId !== undefined ? { siblingsGroupId: message.siblingsGroupId } : {}),
       ...(message.messageSnapshot ? { messageSnapshot: message.messageSnapshot } : {}),

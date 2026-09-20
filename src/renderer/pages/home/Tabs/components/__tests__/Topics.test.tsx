@@ -1886,11 +1886,18 @@ describe('Topics', () => {
       await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
     })
 
-    const input = within(await screen.findByRole('dialog')).getByLabelText('Name')
+    const dialog = await screen.findByRole('dialog')
+    const input = within(dialog).getByLabelText('Name')
+    // The dialog hydrates its input after opening; clearing beforehand is a
+    // no-op and the initial name plus the typed text end up concatenated.
     await vi.waitFor(() => expect(input).toHaveValue('Alpha topic'))
-    await user.clear(input)
+    await act(async () => {
+      await user.clear(input)
+    })
     expect(input).toHaveValue('')
-    await user.type(input, 'Renamed topic')
+    await act(async () => {
+      await user.type(input, 'Renamed topic')
+    })
     expect(input).toHaveValue('Renamed topic')
     await act(async () => {
       await user.keyboard('{Enter}')

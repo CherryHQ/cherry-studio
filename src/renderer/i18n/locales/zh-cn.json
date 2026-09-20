@@ -912,6 +912,7 @@
   "chat.topics.export.title_naming_success": "标题生成成功",
   "chat.topics.export.topic_file": "导出话题文件",
   "chat.topics.export.topic_file_saved": "话题文件保存成功",
+  "chat.topics.export.topic_file_skipped_attachments": "已跳过 {{count}} 个附件（超过 10 MiB 或无法读取）",
   "chat.topics.export.wait_for_title_naming": "正在生成标题...",
   "chat.topics.export.word": "导出为 Word",
   "chat.topics.export.yuque": "导出到语雀",

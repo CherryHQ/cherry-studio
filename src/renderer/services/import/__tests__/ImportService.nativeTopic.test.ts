@@ -161,4 +161,24 @@ describe('importService.importNativeTopic', () => {
     expect(postSpy).not.toHaveBeenCalled()
     expect(putSpy).not.toHaveBeenCalled()
   })
+
+  it.each([undefined, 'cherry', 'Cherry'])(
+    'routes native files through the assistant-free path (importerName: %s)',
+    async (importerName) => {
+      const posts: { path: string }[] = []
+      vi.mocked(dataApiService.post).mockImplementation(async (path: string) => {
+        posts.push({ path })
+        return { id: path === '/topics' ? 'new-topic' : `msg_${path}` }
+      })
+      vi.mocked(dataApiService.put).mockResolvedValue({ activeNodeId: 'x' })
+      vi.mocked(dataApiService.patch).mockResolvedValue({})
+
+      const response = await importService.importConversations(nativeFileContent(), importerName)
+
+      expect(response).toMatchObject({ success: true, topicsCount: 1, messagesCount: 5 })
+      expect(response.assistant).toBeUndefined()
+      expect(posts.some((call) => call.path === '/assistants')).toBe(false)
+      expect(posts.some((call) => call.path === '/topics')).toBe(true)
+    }
+  )
 })

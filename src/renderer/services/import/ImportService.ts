@@ -100,6 +100,12 @@ class ImportService {
         }
       }
 
+      // Native topic files carry no assistant: route them to the native import
+      // so a generic entry point never mints a throwaway assistant for them.
+      if (importer instanceof CherryTopicImporter) {
+        return this.importNativeTopic(fileContent, onProgress)
+      }
+
       // Validate format
       if (!importer.validate(fileContent)) {
         return {
