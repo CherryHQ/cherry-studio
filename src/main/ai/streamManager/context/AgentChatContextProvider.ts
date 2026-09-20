@@ -56,6 +56,8 @@ export type ValidatedAgentDispatch = {
   agentType: string
   agentName: string
   uniqueModelId: UniqueModelId
+  /** The agent default at validation time: the ownership check compares this, not the override. */
+  agentModel: UniqueModelId | null
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   fastMode?: boolean
@@ -159,6 +161,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentType: agent.type,
       agentName: agent.name,
       uniqueModelId,
+      agentModel: agent.model ?? null,
       reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
@@ -183,7 +186,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   persistDispatchTx(
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
   ): PersistedAgentDispatch {
     const assistantMessageId = uuidv7()
     const savedMessages = agentSessionMessageService.saveMessagesTx(

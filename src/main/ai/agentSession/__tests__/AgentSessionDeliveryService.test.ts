@@ -244,7 +244,8 @@ describe('AgentSessionDeliveryService', () => {
       agentId: 'agent-1',
       agentUpdatedAt: now,
       agentType: 'claude-code',
-      uniqueModelId: 'provider::model'
+      uniqueModelId: 'provider::model',
+      agentModel: 'provider::model'
     })
     mocks.persistDispatchTx.mockReturnValue({
       assistantMessageId: assistant.id,
@@ -633,6 +634,35 @@ describe('AgentSessionDeliveryService', () => {
 
     expect(mocks.validateDispatch).toHaveBeenCalledTimes(2)
     expect(mocks.claim).toHaveBeenCalledOnce()
+    expect(mocks.send).toHaveBeenCalledOnce()
+  })
+
+  it('checks target ownership against the agent default, not the session override', async () => {
+    // A session override makes uniqueModelId differ from the agent row's model. The claim
+    // transaction compares expectedAgent against the agent row, so passing the effective
+    // model there raises a phantom concurrent-modification and the accepted delivery stalls.
+    mocks.validateDispatch.mockResolvedValue({
+      sessionId: 'target',
+      agentId: 'agent-1',
+      agentUpdatedAt: now,
+      agentType: 'claude-code',
+      uniqueModelId: 'provider::override-model',
+      agentModel: 'provider::agent-model'
+    })
+    mocks.listAccepted.mockReturnValueOnce([accepted]).mockReturnValue([])
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    service.kick('target')
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.persistDispatchTx).toHaveBeenCalledOnce()
+    expect(mocks.persistDispatchTx.mock.calls[0][2]).toEqual({
+      id: 'agent-1',
+      updatedAt: now,
+      model: 'provider::agent-model',
+      type: 'claude-code'
+    })
     expect(mocks.send).toHaveBeenCalledOnce()
   })
 
