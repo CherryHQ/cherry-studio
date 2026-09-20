@@ -794,6 +794,24 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
   })
 
+  it('drops the CLI synthetic turn-closer instead of rendering it as a reply', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        model: '<synthetic>',
+        content: [{ type: 'text', text: 'No response requested.' }]
+      }
+    } as any)
+
+    expect(parts).toEqual([])
+    expect(adapter.hasTurnActivity).toBe(false)
+  })
+
   it('maps streamed MCP tool use and result blocks', () => {
     const { adapter, parts } = createAdapter()
 

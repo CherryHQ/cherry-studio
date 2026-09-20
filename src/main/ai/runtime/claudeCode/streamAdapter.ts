@@ -86,6 +86,9 @@ function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResul
 
 const MIN_TRUNCATION_LENGTH = 512
 const UNKNOWN_TOOL_NAME = 'unknown-tool'
+// The CLI closes an interrupted turn with a non-model placeholder (`model: "<synthetic>"`,
+// e.g. "No response requested."). It is a turn-closer, never a reply.
+const SYNTHETIC_MODEL = '<synthetic>'
 const MAX_TOOL_INPUT_SIZE = 1_048_576
 const MAX_TOOL_INPUT_WARN = 102_400
 const MAX_DELTA_CALC_SIZE = 10_000
@@ -378,6 +381,10 @@ function createEmptyUsage(): LanguageModelV3Usage {
     outputTokens: { total: 0, text: undefined, reasoning: undefined },
     raw: undefined
   }
+}
+
+export function isSyntheticClaudeCodeModel(model: unknown): boolean {
+  return model === SYNTHETIC_MODEL
 }
 
 export function convertClaudeCodeUsage(usage: BetaUsage): LanguageModelV3Usage {
@@ -1022,6 +1029,8 @@ export class ClaudeCodeStreamAdapter {
       ctx.sawAbortedMessage = true
       logger.warn('Assistant message was truncated by an interrupt')
     }
+
+    if (isSyntheticClaudeCodeModel(message.message?.model)) return
 
     if (!message.message?.content) return
 
