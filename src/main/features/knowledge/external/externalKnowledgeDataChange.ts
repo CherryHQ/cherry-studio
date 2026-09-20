@@ -23,6 +23,8 @@ export function notifyExternalKnowledgeSyncContentChange(baseId: string, sourceI
       kind: 'membership',
       routeParams: { id: sourceId }
     },
-    { endpoint: '/knowledge-bases/:id/items', kind: 'membership', routeParams: { id: baseId } }
+    { endpoint: '/external-knowledge-documents/:id' },
+    { endpoint: '/knowledge-bases/:id/items', kind: 'membership', routeParams: { id: baseId } },
+    { endpoint: '/knowledge-items/:id' }
   ])
 }

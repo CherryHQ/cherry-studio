@@ -98,7 +98,9 @@ describe('sync-external-source job handler', () => {
         kind: 'membership',
         routeParams: { id: SOURCE_ID }
       },
-      { endpoint: '/knowledge-bases/:id/items', kind: 'membership', routeParams: { id: BASE_ID } }
+      { endpoint: '/external-knowledge-documents/:id' },
+      { endpoint: '/knowledge-bases/:id/items', kind: 'membership', routeParams: { id: BASE_ID } },
+      { endpoint: '/knowledge-items/:id' }
     ])
     expect(JSON.stringify(jobRun)).not.toContain('secret-provider-payload')
     expect(handler).toMatchObject({
@@ -113,6 +115,34 @@ describe('sync-external-source job handler', () => {
       defaultTimeoutMs: 30 * 60 * 1000
     })
     expect(handler.defaultQueue?.(payload)).toBe(`base.${BASE_ID}`)
+  })
+
+  it('publishes content read models only after synchronization finishes', async () => {
+    let finishSync: ((value: ExternalKnowledgeSourceSyncSummary) => void) | undefined
+    const syncSource = vi.fn().mockImplementation(
+      () =>
+        new Promise<ExternalKnowledgeSourceSyncSummary>((resolve) => {
+          finishSync = resolve
+        })
+    )
+    const handler = createSyncExternalSourceJobHandler({ syncSource }, { now: () => 123 })
+
+    const execution = handler.execute(createJobRun())
+    await vi.waitFor(() => expect(syncSource).toHaveBeenCalledOnce())
+
+    expect(notifyDataChangeMock).not.toHaveBeenCalled()
+    finishSync?.(summary())
+    await execution
+    expect(notifyDataChangeMock).toHaveBeenCalledWith([
+      {
+        endpoint: '/external-knowledge-sources/:id/documents',
+        kind: 'membership',
+        routeParams: { id: SOURCE_ID }
+      },
+      { endpoint: '/external-knowledge-documents/:id' },
+      { endpoint: '/knowledge-bases/:id/items', kind: 'membership', routeParams: { id: BASE_ID } },
+      { endpoint: '/knowledge-items/:id' }
+    ])
   })
 
   it('rejects an invalid success result before provider payload can reach job output', async () => {
