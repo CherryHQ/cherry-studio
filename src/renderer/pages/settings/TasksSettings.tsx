@@ -372,7 +372,8 @@ function getTaskStatusLabel(status: string, t: TFunction) {
   const labels: Record<string, string> = {
     active: t('agent.tasks.status.active'),
     paused: t('agent.tasks.status.paused'),
-    completed: t('agent.tasks.status.completed')
+    completed: t('agent.tasks.status.completed'),
+    missed: t('agent.tasks.status.missed')
   }
   return labels[status] ?? status
 }
@@ -385,6 +386,7 @@ function getTaskScheduleStatusIconPresentation(status: ScheduledTaskEntity['stat
         wrapperClassName: 'bg-info-subtle text-info-subtle-foreground',
         iconClassName: 'text-info-subtle-foreground'
       }
+    case 'missed':
     case 'paused':
       return {
         Icon: CalendarFold,
@@ -1050,7 +1052,8 @@ const TaskDetail: FC<{
               <ArrowLeft size={16} />
             </Button>
             <span className="min-w-0 break-words">{task.name}</span>
-            {!isCompleted && (
+            {task.status === 'missed' && <Badge variant="secondary">{t('agent.tasks.status.missed')}</Badge>}
+            {!isCompleted && task.status !== 'missed' && (
               <Switch
                 className="ml-1 shrink-0"
                 size="sm"
@@ -1105,11 +1108,11 @@ const TaskDetail: FC<{
             <TabsTrigger value="general">{t('settings.general.title')}</TabsTrigger>
             <TabsTrigger value="history">{t('agent.tasks.logs.label')}</TabsTrigger>
           </TabsList>
-          <TabsContent value="prompt">
+          <TabsContent value="prompt" className="min-w-0">
             <SettingDivider />
-            <Item variant="muted">
-              <ItemContent>
-                <ItemDescription className="line-clamp-none whitespace-pre-wrap break-words">
+            <Item variant="muted" className="min-w-0 max-w-full">
+              <ItemContent className="min-w-0">
+                <ItemDescription className="wrap-anywhere line-clamp-none min-w-0 max-w-full whitespace-pre-wrap">
                   {task.prompt}
                 </ItemDescription>
               </ItemContent>
@@ -1688,6 +1691,7 @@ const TasksSettings: FC = () => {
                       <SelectItem value="active">{t('agent.tasks.status.active')}</SelectItem>
                       <SelectItem value="paused">{t('agent.tasks.status.paused')}</SelectItem>
                       <SelectItem value="completed">{t('agent.tasks.status.completed')}</SelectItem>
+                      <SelectItem value="missed">{t('agent.tasks.status.missed')}</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>

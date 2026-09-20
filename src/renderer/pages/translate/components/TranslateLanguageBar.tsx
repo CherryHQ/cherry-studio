@@ -24,8 +24,6 @@ type Props = {
   isBidirectional: boolean
   showSourceControls: boolean
   bidirectionalPair: TranslateBidirectionalPair
-  couldExchange: boolean
-  onExchange: () => void
 }
 
 const AUTO_EMOJI = '🌐'
@@ -48,9 +46,7 @@ const TranslateLanguageBar: FC<Props> = ({
   detectedLanguage,
   isBidirectional,
   showSourceControls,
-  bidirectionalPair,
-  couldExchange,
-  onExchange
+  bidirectionalPair
 }) => {
   const { t } = useTranslation()
   const { languages, getLabel, getLanguage } = useLanguages()
@@ -173,44 +169,38 @@ const TranslateLanguageBar: FC<Props> = ({
               )
             }}
           />
-
-          <Tooltip content={t('translate.exchange.label')} placement="bottom">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onExchange}
-              disabled={!couldExchange}
-              aria-label={t('translate.exchange.label')}
-              className="h-8 w-8 shrink-0 rounded-full text-muted-foreground shadow-none transition-all hover:bg-accent hover:text-foreground active:scale-90">
-              <ArrowLeftRight size={14} />
-            </Button>
-          </Tooltip>
         </>
       )}
 
       {isBidirectional ? (
-        <Button
-          variant="outline"
-          size="default"
-          type="button"
-          disabled
-          aria-label={`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}
-          className="h-8 max-w-70 justify-start gap-2 bg-background-subtle px-3 text-sm text-foreground shadow-none disabled:opacity-100">
-          <span className="sr-only">{`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}</span>
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="text-sm leading-none">{bidirectionalSource.emoji}</span>
-            <span className="truncate">{bidirectionalSource.label}</span>
+        <Tooltip content={t('translate.bidirectional_hint')} placement="bottom" asChild>
+          <span
+            tabIndex={0}
+            className="inline-flex rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
+            <Button
+              variant="outline"
+              size="default"
+              type="button"
+              disabled
+              aria-label={`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}
+              className="h-8 max-w-70 justify-start gap-2 bg-background-subtle px-3 text-sm text-foreground shadow-none disabled:opacity-100">
+              <span className="sr-only">{`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}</span>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="text-sm leading-none">{bidirectionalSource.emoji}</span>
+                <span className="truncate">{bidirectionalSource.label}</span>
+              </span>
+              <ArrowLeftRight size={14} className="text-foreground-tertiary shrink-0" />
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="text-sm leading-none">{bidirectionalTarget.emoji}</span>
+                <span className="truncate">{bidirectionalTarget.label}</span>
+              </span>
+            </Button>
           </span>
-          <ArrowLeftRight size={14} className="shrink-0 text-foreground-tertiary" />
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="text-sm leading-none">{bidirectionalTarget.emoji}</span>
-            <span className="truncate">{bidirectionalTarget.label}</span>
-          </span>
-        </Button>
+        </Tooltip>
       ) : (
         <>
           {!showSourceControls && (
-            <span aria-hidden="true" className="shrink-0 text-muted-foreground text-sm">
+            <span aria-hidden="true" className="text-muted-foreground shrink-0 text-sm">
               {t('translate.translate_to')}
             </span>
           )}

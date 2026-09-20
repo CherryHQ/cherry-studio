@@ -18,6 +18,7 @@ import {
   TabsContent,
   Textarea
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
@@ -41,7 +42,9 @@ import {
   diffAgentSaveIntent,
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
+import { MAX_HEARTBEAT_INTERVAL_MINUTES, MIN_HEARTBEAT_INTERVAL_MINUTES } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
+import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import {
   CLAUDE_KNOWLEDGE_TOOL_NAMES,
   CLAUDE_TOOL_CATEGORIES,
@@ -74,6 +77,7 @@ import {
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
   resource: AgentDetail | null
@@ -529,6 +533,11 @@ function AgentEditDialogContent({
             onSettingsNavigate={closeBeforeAction}
             caps={caps}
             agentType={resource.type}
+            agentId={resource.id}
+            beforeHeartbeatOpen={async () => {
+              await flush()
+              return failedSaveKeyRef.current === null
+            }}
           />
         </TabsContent>
         <TabsContent
@@ -579,7 +588,9 @@ function AgentBasicFields({
   setEmojiPickerOpen,
   onSettingsNavigate,
   caps,
-  agentType
+  agentType,
+  agentId,
+  beforeHeartbeatOpen
 }: {
   form: UseFormReturn<AgentEditFormValues>
   modelFilter?: ModelSelectorFilter
@@ -593,9 +604,12 @@ function AgentBasicFields({
   onSettingsNavigate?: (navigate: () => void) => void
   caps: AgentRuntimeCapabilities
   agentType: AgentType
+  agentId: string
+  beforeHeartbeatOpen: () => Promise<boolean>
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
+  const [heartbeatOpen, setHeartbeatOpen] = useState(false)
 
   return (
     <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
@@ -635,6 +649,7 @@ function AgentBasicFields({
             name="planModelId"
             includeAgentOnlyModels
             label={t('library.config.agent.field.plan_model.label')}
+            emptyLabel={t('library.config.agent.field.plan_model.empty')}
             allowClear
             filter={modelFilter}
             isModelDisabled={isModelDisabled}
@@ -651,6 +666,7 @@ function AgentBasicFields({
             name="smallModelId"
             includeAgentOnlyModels
             label={t('library.config.agent.field.small_model.label')}
+            emptyLabel={t('library.config.agent.field.small_model.empty')}
             allowClear
             filter={modelFilter}
             isModelDisabled={isModelDisabled}
@@ -671,11 +687,27 @@ function AgentBasicFields({
         permissionModeCards={getPermissionModeCards(agentType)}
       />
       {caps.heartbeat ? (
-        <HeartbeatSettingsField
-          form={form}
-          enabled={heartbeatEnabled}
-          onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
-        />
+        <div>
+          <HeartbeatSettingsField
+            form={form}
+            enabled={heartbeatEnabled}
+            onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
+          />
+          <div className="flex justify-end pb-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                if (await beforeHeartbeatOpen()) setHeartbeatOpen(true)
+              }}>
+              {t('agent.heartbeat.edit')}
+            </Button>
+          </div>
+          {heartbeatOpen ? (
+            <HeartbeatEditorDialog agentId={agentId} enabled={heartbeatEnabled} onOpenChange={setHeartbeatOpen} />
+          ) : null}
+        </div>
       ) : null}
     </div>
   )
@@ -834,8 +866,8 @@ function HeartbeatSettingsField({
               </FormLabel>
               <FormControl>
                 <InputNumber
-                  min={1}
-                  max={1440}
+                  min={MIN_HEARTBEAT_INTERVAL_MINUTES}
+                  max={MAX_HEARTBEAT_INTERVAL_MINUTES}
                   step={1}
                   className="h-9 w-full"
                   value={field.value || null}
@@ -943,6 +975,7 @@ function AgentToolsFields({
   const knowledgeBaseIds = form.watch('knowledgeBaseIds')
   const skillIds = form.watch('skillIds')
   const canManageSkills = Boolean(agent.id)
+  const [browserEnabled] = usePreference('app.browser.agent_control.enabled')
 
   // Built-in catalog: registry user-facing tools grouped into category sections.
   // The toggle is a real enable/disable that writes the opt-out `disabledTools` set
@@ -991,6 +1024,31 @@ function AgentToolsFields({
     <div className="grid gap-4">
       {activeToolTab === 'tools.builtin' ? (
         <div className="grid gap-5">
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-muted-foreground text-xs">{t('settings.browser.title')}</span>
+              <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/browser')}>
+                {t('settings.title')}
+              </Button>
+            </div>
+            <CatalogToggleGrid
+              items={[
+                {
+                  id: BROWSER_TOOL_GROUP,
+                  name: t('settings.browser.control'),
+                  description: t('settings.browser.controlHelp'),
+                  pickable: browserEnabled,
+                  inactiveBadge: browserEnabled ? undefined : t('library.config.tools.inactive_badge')
+                }
+              ]}
+              enabledIds={
+                browserEnabled && !disabledSet.has(BROWSER_TOOL_GROUP) ? new Set([BROWSER_TOOL_GROUP]) : new Set()
+              }
+              onToggle={setToolEnabled}
+              emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
+              portalContainer={portalContainer}
+            />
+          </div>
           {builtinSections.map((section) => (
             <div key={section.category} className="grid gap-2">
               <div className="font-medium text-muted-foreground text-xs">{section.label}</div>

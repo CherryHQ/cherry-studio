@@ -8,7 +8,9 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
+import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -192,6 +194,7 @@ export interface AgentSessionInteractionState {
 }
 
 type AgentSessionTurn = {
+  forkAnchor?: RuntimeForkAnchor
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
   systemReminder?: boolean
@@ -334,6 +337,21 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
 @DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
+  private readonly forks = new AgentSessionForkOperations()
+
+  forkSession(sourceSessionId: string, messageId: string): Promise<string> {
+    if (this.isShuttingDown || this.isWriteQuiesced) return Promise.reject(new Error('Session writes are paused'))
+    return this.forks.fork(sourceSessionId, messageId)
+  }
+
+  cancelSessionForks(sourceSessionId: string): Promise<void> {
+    return this.forks.cancel(sourceSessionId)
+  }
+
+  recoverSessionForks(): Promise<void> {
+    return this.forks.recover()
+  }
+
   private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
   public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
   private readonly _onTurnTerminal = new Emitter<AgentSessionTurnTerminalEvent>()
@@ -373,6 +391,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
     // any agent session runs) instead of relying on an import-time side effect.
     registerRuntimeDrivers()
+    await this.forks.recover()
 
     // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
     // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
@@ -412,6 +431,11 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       logger.error('Failed to reconcile stale pending agent-session messages', { error })
     }
+  }
+
+  getLiveAssistantMessageId(sessionId: string): string | undefined {
+    const entry = this.entries.get(sessionId)
+    return entry ? this.liveTurn(entry)?.assistantMessageId : undefined
   }
 
   private currentTurn(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
@@ -700,18 +724,18 @@ export class AgentSessionRuntimeService extends BaseService {
       // Bookkeeping: fresh turns are stamped with (and steers gated on) the entry's latest model. A
       // live turn keeps its captured `turn.modelId` regardless.
       if (agent.model) entry.modelId = agent.model
-      reconciles.push(this.reconcileEntryConnection(entry))
+      reconciles.push(this.reconcileEntryConnection(entry, agent))
     }
     await Promise.all(reconciles)
   }
 
-  private async reconcileEntryConnection(entry: AgentSessionRuntimeEntry): Promise<void> {
+  private async reconcileEntryConnection(entry: AgentSessionRuntimeEntry, agent?: AgentEntity): Promise<void> {
     const connection = this.currentConnection(entry)
     if (!connection) return
 
     let verdict: AgentRuntimeReconcileResult
     try {
-      verdict = await connection.reconcile(this.connectionTarget(entry))
+      verdict = await connection.reconcile(this.connectionTarget(entry, agent))
     } catch (error) {
       logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
       this.closeFailedPolicyUpdateConnection(entry, connection)
@@ -1129,6 +1153,17 @@ export class AgentSessionRuntimeService extends BaseService {
     return false
   }
 
+  listClaimedResumeTokens(): ReadonlySet<string> {
+    const claimedResumeTokens = new Set<string>()
+    for (const entry of this.entries.values()) {
+      if (entry.lastResumeToken) claimedResumeTokens.add(entry.lastResumeToken)
+    }
+    for (const closing of this.closingSessions.values()) {
+      if (closing.resumeToken) claimedResumeTokens.add(closing.resumeToken)
+    }
+    return claimedResumeTokens
+  }
+
   /**
    * Whether the agent runtime will open another turn for this topic once the current one ends — a
    * queued steer/follow-up, or a next-turn drain already in progress. `AiStreamManager.onExecutionDone`
@@ -1224,6 +1259,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const seen = new WeakSet<Promise<unknown>>()
     const pending = new Map<Promise<unknown>, string>()
     const collect = (): void => {
+      for (const fork of this.forks.pending.values()) {
+        if (seen.has(fork.promise)) continue
+        seen.add(fork.promise)
+        pending.set(fork.promise, fork.sourceSessionId)
+        const remove = () => pending.delete(fork.promise)
+        fork.promise.then(remove, remove)
+      }
       for (const [sessionId, launch] of this.inFlightTurnStarts) {
         if (seen.has(launch)) continue
         seen.add(launch)
@@ -1285,6 +1327,9 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     for (const sessionId of this.closingSessions.keys()) {
       if (!activeSessionIds.has(sessionId)) work.push({ id: sessionId, summary: 'closing=true' })
+    }
+    for (const operation of this.forks.pending.values()) {
+      work.push({ id: operation.sourceSessionId, summary: 'forking=true' })
     }
     return work
   }
@@ -1381,6 +1426,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
+    await this.forks.cancel()
     this.disposeWarmLeases()
     const streamManager = application.get('AiStreamManager')
     for (const entry of this.entries.values()) {
@@ -1395,6 +1441,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
+    await this.forks.cancel()
     this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
     await this.closeAll()
@@ -1420,19 +1467,28 @@ export class AgentSessionRuntimeService extends BaseService {
    * same SDK query keeps streaming the post-steer response on A1a's captured model — retargeting in
    * that gap (e.g. a re-prime re-entering `ensureConnection`) would close the connection and drop the
    * continuation. Mirrors the live-turn test in `applyAgentModelUpdate`. Without a live turn or roll
-   * the connection follows the agent's latest model with the default reasoning selection.
+   * the connection follows the agent's latest model and its configured reasoning effort — the same
+   * fallback a fresh turn takes (`AgentChatContextProvider`), so an idle reconcile finds no drift.
    *
    * The turn's Fast and knowledge selections are frozen for exactly the same reason and on the same schedule.
    * Note the idle branch's `knowledgeBaseIds: []` means "no per-turn composer selection", NOT "no
    * knowledge": it is fed through `resolveKnowledgeBaseScope` against the agent's binding below, so a
    * statically bound agent still serves its full binding while idle. Idle deliberately converges on
-   * the default config — same as `reasoningEffort: 'default'` — so any turn that carried a composer
-   * selection (an unbound agent's whole scope, or a bound agent's narrowing) costs one rebuild once
-   * it goes idle. That is intentional: the next turn's selection is unknowable, and prewarm builds
-   * binding-only scope too, so pinning the last turn's selection would only move the rebuild onto the
-   * next turn that does not repeat it.
+   * the agent's own configuration, so any turn that carried a composer selection (an unbound agent's
+   * whole scope, or a bound agent's narrowing) costs one rebuild once it goes idle. That is
+   * intentional: the next turn's *selection* is unknowable, and prewarm builds binding-only scope
+   * too, so pinning the last turn's selection would only move the rebuild onto the next turn that
+   * does not repeat it. A configured reasoning effort is not a selection — it is what the next turn
+   * uses absent an override — so reading it here is what keeps idle free of permanent drift.
    */
-  private connectionTarget(entry: AgentSessionRuntimeEntry): AgentSessionConnectionTarget {
+  private connectionTarget(
+    entry: AgentSessionRuntimeEntry,
+    // `agentService.getAgent` is four queries (the row, its MCPs, its knowledge bases, the model
+    // name) and is not cached, so a caller that already holds the agent hands it over rather than
+    // paying for it again. The push reconcile is the one that matters: it walks every session of
+    // one agent and already has the updated entity.
+    agent: AgentEntity | null = agentService.getAgent(entry.agentId)
+  ): AgentSessionConnectionTarget {
     const turn =
       this.currentTurn(entry) ??
       (entry.runtimeState.execution.kind === 'autonomous-turn' ? entry.runtimeState.execution.contextTurn : undefined)
@@ -1452,7 +1508,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       : {
           modelId: entry.modelId,
-          reasoningEffort: 'default',
+          reasoningEffort: agent?.configuration?.reasoning_effort ?? 'default',
           serviceTier: 'standard',
           knowledgeBaseIds: [],
           fastMode: false,
@@ -1461,8 +1517,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private connectionTargetEquals(entry: AgentSessionRuntimeEntry, target: AgentSessionConnectionTarget): boolean {
-    const current = this.connectionTarget(entry)
-    const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
+    const agent = agentService.getAgent(entry.agentId)
+    const current = this.connectionTarget(entry, agent)
+    const configuredKnowledgeBaseIds = agent?.knowledgeBaseIds
     return (
       current.modelId === target.modelId &&
       current.reasoningEffort === target.reasoningEffort &&
@@ -1652,9 +1709,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
-    if (entry.lastResumeToken) return
     const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
-    if (runtimeResumeToken) entry.lastResumeToken = runtimeResumeToken
+    if (runtimeResumeToken && !entry.lastResumeToken) entry.lastResumeToken = runtimeResumeToken
   }
 
   private async runConnectionLoop(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): Promise<void> {
@@ -1783,6 +1839,13 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       }
       case 'turn-complete':
+        {
+          const turn = this.currentTurn(entry)
+          if (turn)
+            turn.forkAnchor = event.forkAnchor
+              ? { ...event.forkAnchor, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
+              : undefined
+        }
         this.clearApiRetry(entry)
         if (entry.runtimeState.execution.kind === 'turn') {
           this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
@@ -2419,7 +2482,9 @@ export class AgentSessionRuntimeService extends BaseService {
     // A fresh request starts clean — drop any retry status left over from the previous turn.
     this.clearApiRetry(entry)
     await this.refreshTurnTraceContext(entry, turn)
-    await this.currentConnection(entry)?.send({
+    const connection = this.currentConnection(entry)
+    if (!connection) throw new Error('Agent runtime connection unavailable')
+    await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true
     })
@@ -2785,7 +2850,12 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
     const { origin } = entry.runtimeState.execution
-    const { modelId, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } = this.connectionTarget(entry)
+    // Every facet of a receive-only turn is whatever the connection is currently targeted at:
+    // reading `reasoningEffort` from anywhere else would make an autonomous wake disagree with
+    // the connection it is already streaming on, and a reconcile racing that wake would report
+    // drift and close a valid warm connection.
+    const { modelId, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } =
+      this.connectionTarget(entry)
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
@@ -2822,7 +2892,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessageId,
       userMessage: syntheticMessage,
       modelId,
-      reasoningEffort: 'default',
+      reasoningEffort,
       serviceTier,
       knowledgeBaseIds,
       fastMode,
@@ -2861,7 +2931,7 @@ export class AgentSessionRuntimeService extends BaseService {
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
-        reasoningEffort: 'default',
+        reasoningEffort,
         serviceTier,
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
@@ -3097,6 +3167,7 @@ export class AgentSessionRuntimeService extends BaseService {
         assistantMessageId,
         modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
+        forkAnchor: () => currentTurn.forkAnchor,
         afterPersist
       }),
       onPersistFailed: (error) =>

@@ -3536,13 +3536,24 @@
       "reason": "CherryIN free endpoint accepts text and image_url parts only"
     },
     {
-      "apiModelId": "qwen/qwen3.5-9b(free)",
+      "apiModelId": "qwen/qwen3.5-9b",
       "capabilities": {
         "remove": ["audio-recognition", "video-recognition"]
       },
       "inputModalities": ["text", "image"],
       "modelId": "qwen3-5-9b",
+      "providerId": "cherryin",
+      "reason": "CherryIN rejects native audio and video for the Qwen3.5 9B endpoint"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-9b(free)",
+      "capabilities": {
+        "remove": ["audio-recognition", "video-recognition"]
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen3-5-9b-free",
       "modelVariants": ["9b", "free"],
+      "name": "Qwen3.5 9B (Free)",
       "providerId": "cherryin",
       "reason": "CherryIN free endpoint accepts text and image_url parts only"
     },
@@ -8832,6 +8843,9 @@
     },
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
+      "limits": {
+        "maxOutputTokens": 384000
+      },
       "modelId": "deepseek-v4-flash",
       "pricing": {
         "cacheRead": {
@@ -9094,6 +9108,9 @@
     },
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
+      "limits": {
+        "maxOutputTokens": 384000
+      },
       "modelId": "deepseek-v4-pro",
       "pricing": {
         "cacheRead": {
@@ -18658,6 +18675,202 @@
         }
       },
       "providerId": "moonshot",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "kimi-k2.5",
+      "modelId": "kimi-k2-5",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot-global"
+    },
+    {
+      "apiModelId": "kimi-k2.6",
+      "modelId": "kimi-k2-6",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot-global",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "kimi-k2.7-code",
+      "modelId": "kimi-k2-7-code",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot-global"
+    },
+    {
+      "apiModelId": "kimi-k2.7-code-highspeed",
+      "modelId": "kimi-k2-7-code-highspeed",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot-global"
+    },
+    {
+      "modelId": "kimi-k3",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot-global",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "kimi-k3-fast",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot-global",
       "reasoningContracts": {
         "openai-chat-completions": {
           "wire": {
@@ -40032,5 +40245,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "6dc84a57c36a718a"
+  "version": "847610188cc2b23d"
 }

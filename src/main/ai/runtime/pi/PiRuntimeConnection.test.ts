@@ -3,12 +3,14 @@ import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
+import { forkPiSession } from './piFork'
 
 const PI_ROOT = '/cherry/Data/Agents/.pi'
 const PI_SESSIONS = '/cherry/Data/Agents/.pi/sessions'
@@ -46,7 +48,6 @@ const mocks = vi.hoisted(() => ({
   usesPiGateway: vi.fn(),
   getPath: vi.fn(),
   getInteractionState: vi.fn(),
-  preferenceGet: vi.fn(),
   loadPiSdk: vi.fn(),
   loadPiAiCompat: vi.fn(),
   unregisterApiProviders: vi.fn(),
@@ -56,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   startSpan: vi.fn(),
   spans: [] as FakeSpan[],
   readdirSync: vi.fn(),
+  readFileSync: vi.fn(),
   // agent MCP collaborators
   findChannelBySessionId: vi.fn(),
   buildPromptParts: vi.fn(),
@@ -101,7 +103,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('node:fs', async (importOriginal) => ({
   ...(await importOriginal<typeof NodeFs>()),
-  readdirSync: mocks.readdirSync
+  readdirSync: mocks.readdirSync,
+  readFileSync: mocks.readFileSync
 }))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
@@ -110,17 +113,20 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', async (importOriginal) => (
   ...(await importOriginal<typeof UserDataSqliteGuard>()),
   evaluateUserDataSqliteGuard: vi.fn(async () => undefined)
 }))
-vi.mock('@application', () => ({
-  application: {
-    getPath: mocks.getPath,
-    get: (name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState: mocks.getInteractionState }
-      if (name === 'PreferenceService') return { get: mocks.preferenceGet }
-      if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
-      return {}
+vi.mock('@application', async () => {
+  const { createMockApplication } = await import('@test-mocks/main/application')
+  const application = createMockApplication({ IpcApiService: { broadcast: mocks.broadcast } })
+  return {
+    application: {
+      ...application,
+      getPath: mocks.getPath,
+      get: (name: string) => {
+        if (name === 'AgentSessionRuntimeService') return { getInteractionState: mocks.getInteractionState }
+        return application.get(name)
+      }
     }
   }
-}))
+})
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/AgentChannelService', () => ({
@@ -296,6 +302,7 @@ async function nextEventWithin(events: AsyncIterable<AgentRuntimeEvent>): Promis
 
 beforeEach(() => {
   vi.clearAllMocks()
+
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
   mocks.createOpts = undefined
@@ -319,7 +326,7 @@ beforeEach(() => {
   mocks.findChannelBySessionId.mockReturnValue(null)
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'native' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
-  mocks.preferenceGet.mockReturnValue(null)
+  MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', null)
   mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   mocks.provisionBuiltinAgent.mockResolvedValue(undefined)
   mocks.replacePromptVariables.mockImplementation(async (prompt: string) => prompt)
@@ -439,6 +446,20 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
+it('rejects a Pi checkpoint with a missing native leaf before looking for history', async () => {
+  await expect(
+    forkPiSession({
+      sourceSessionId: 'source',
+      targetSessionId: 'child',
+      targetCwd: '/child',
+      artifactDirectory: '/owned',
+      checkpoint: { runtime: 'pi', runtimeSessionId: 'native' },
+      checkpoints: [],
+      signal: new AbortController().signal
+    })
+  ).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+})
+
 describe('PiRuntimeConnection', () => {
   it('prompts the current Agent session when its gateway route is disabled', async () => {
     mocks.resolveInjection.mockRejectedValueOnce(new ApiGatewayNotRunningError())
@@ -552,7 +573,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('injects global agent language when agent.language is set', async () => {
-    mocks.preferenceGet.mockReturnValue('English')
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
 
     await new PiRuntimeConnection(input).start()
 
@@ -560,7 +581,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('per-agent language overrides the global default', async () => {
-    mocks.preferenceGet.mockReturnValue('English')
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'p::m',
@@ -575,7 +596,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('per-agent language set to null suppresses the global language', async () => {
-    mocks.preferenceGet.mockReturnValue('English')
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'p::m',
@@ -827,10 +848,21 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.unregisterApiProviders).toHaveBeenCalledOnce()
   })
 
-  it('reopens the session file by scanning for the resume session id', async () => {
+  it('reopens the native session file by resume id', async () => {
     mocks.readdirSync.mockReturnValue(['2026-07-06T00-00-00-000Z_sess-1.jsonl'])
+    mocks.readFileSync.mockReturnValue(
+      [
+        JSON.stringify({ type: 'session', id: SESSION_ID }),
+        JSON.stringify({ type: 'message', id: 'leaf', message: { role: 'assistant', content: [] } }),
+        ''
+      ].join('\n')
+    )
+    mocks.sessionOpen.mockReturnValue({ getSessionId: () => SESSION_ID, getLeafId: () => 'leaf' })
 
-    await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
+    await new PiRuntimeConnection({
+      ...input,
+      resumeToken: SESSION_ID
+    }).start()
     expect(mocks.sessionOpen).toHaveBeenCalledWith(
       path.join(PI_SESSIONS, '2026-07-06T00-00-00-000Z_sess-1.jsonl'),
       PI_SESSIONS,
@@ -867,14 +899,14 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.createAgentSession).not.toHaveBeenCalled()
   })
 
-  it('falls back to a fresh session with the same id when a valid token has no file on disk', async () => {
+  it('initializes an allocated session id whose lazy history has not been written', async () => {
     // pi flushes the JSONL lazily, so a token can point at a session that never persisted. That must
     // degrade to a new empty session (same id) instead of bricking every future turn.
     mocks.readdirSync.mockReturnValue([])
 
     await new PiRuntimeConnection({ ...input, resumeToken: 'missing-id' }).start()
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
-    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: SESSION_ID })
+    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: 'missing-id' })
   })
 
   it('emits turn-complete only on agent_end, not per turn_end, plus a resume token', async () => {
@@ -941,10 +973,107 @@ describe('PiRuntimeConnection', () => {
             noCacheTokens: 10,
             cacheReadTokens: 3,
             cacheWriteTokens: 2
-          }
+          },
+          // The default mock stream has no push(), so no first-token sample exists.
+          metrics: { timeCompletionMs: expect.any(Number) }
         }
       }
     ])
+  })
+
+  it('captures first-token and completion timing from provider stream events', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.providerResult = {
+      role: 'assistant',
+      responseId: 'response-timing',
+      model: 'm',
+      stopReason: 'stop',
+      timestamp: 123,
+      usage: { input: 10, output: 4, cacheRead: 0, cacheWrite: 0, totalTokens: 14 }
+    }
+    let emitted = false
+    mocks.providerStreamSimple.mockImplementationOnce(() => {
+      let resolveResult!: (value: unknown) => void
+      const resultPromise = new Promise((resolve) => {
+        resolveResult = resolve
+      })
+      const stream = {
+        push: (event: { type?: string; [key: string]: unknown }) => {
+          if (event.type === 'done') resolveResult(mocks.providerResult)
+        },
+        result: () => resultPromise
+      }
+      // Emit in a macrotask so the capture layer's push() wrapper is already installed.
+      setTimeout(() => {
+        emitted = true
+        const partial = mocks.providerResult
+        stream.push({ type: 'start', partial })
+        stream.push({ type: 'text_start', contentIndex: 0, partial })
+        stream.push({ type: 'text_delta', contentIndex: 0, delta: 'hi', partial })
+        stream.push({ type: 'done', reason: 'stop', message: mocks.providerResult })
+      }, 15)
+      return stream
+    })
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+    providerConfig.streamSimple({}, {})
+    // The mocked stream self-emits asynchronously; wait for it so the usage event
+    // (queued from the capture callback) lands before the terminal turn-complete.
+    await vi.waitFor(() => expect(emitted).toBe(true))
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const usageEvents = events.filter((event) => event.type === 'usage')
+    expect(usageEvents).toHaveLength(1)
+    const invocation = usageEvents[0].invocation
+    expect(invocation.metrics?.timeFirstTokenMs).toEqual(expect.any(Number))
+    expect(invocation.metrics?.timeCompletionMs).toEqual(expect.any(Number))
+    expect(invocation.metrics?.timeCompletionMs ?? 0).toBeGreaterThanOrEqual(invocation.metrics?.timeFirstTokenMs ?? 0)
+  })
+
+  it('treats toolcall events as first semantic output for tool-only responses', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.providerResult = {
+      role: 'assistant',
+      responseId: 'response-toolcall-timing',
+      model: 'm',
+      stopReason: 'toolUse',
+      timestamp: 123,
+      usage: { input: 10, output: 4, cacheRead: 0, cacheWrite: 0, totalTokens: 14 }
+    }
+    let emitted = false
+    mocks.providerStreamSimple.mockImplementationOnce(() => {
+      let resolveResult!: (value: unknown) => void
+      const resultPromise = new Promise((resolve) => {
+        resolveResult = resolve
+      })
+      const stream = {
+        push: (event: { type?: string; [key: string]: unknown }) => {
+          if (event.type === 'done') resolveResult(mocks.providerResult)
+        },
+        result: () => resultPromise
+      }
+      // Pure tool-use stream: no text_* or thinking_* events ever arrive.
+      setTimeout(() => {
+        emitted = true
+        const partial = mocks.providerResult
+        stream.push({ type: 'start', partial })
+        stream.push({ type: 'toolcall_start', contentIndex: 0, partial })
+        stream.push({ type: 'toolcall_delta', contentIndex: 0, delta: '{}', partial })
+        stream.push({ type: 'done', reason: 'toolUse', message: mocks.providerResult })
+      }, 15)
+      return stream
+    })
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+    providerConfig.streamSimple({}, {})
+    await vi.waitFor(() => expect(emitted).toBe(true))
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const usageEvents = events.filter((event) => event.type === 'usage')
+    expect(usageEvents).toHaveLength(1)
+    const toolInvocation = usageEvents[0].invocation
+    expect(toolInvocation.metrics?.timeFirstTokenMs).toEqual(expect.any(Number))
+    expect(toolInvocation.metrics?.timeCompletionMs).toEqual(expect.any(Number))
   })
 
   it('does not emit invocation usage for failed assistant responses', async () => {
@@ -1640,7 +1769,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
+        new Set(['cherry-tools', 'agent-memory', 'browser', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1739,7 +1868,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
+        new Set(['cherry-tools', 'agent-memory', 'browser', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,

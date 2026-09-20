@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
+import { exportService, getMessageTitle } from '@renderer/services/ExportService'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
@@ -109,6 +110,10 @@ vi.mock('@renderer/components/command', async () => {
 })
 
 vi.mock('@renderer/services/ExportService', () => ({
+  exportService: {
+    captureScrollableAsBlob: vi.fn(),
+    captureScrollableAsDataUrl: vi.fn()
+  },
   getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))
@@ -185,6 +190,32 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
 }
 
 describe('messageMenuBarActions', () => {
+  it('uses the injected fork label and availability without owning session policy', async () => {
+    const forkSession = vi.fn()
+    const availability = vi.fn(() => ({ visible: true, enabled: true, reason: undefined as string | undefined }))
+    const context = createActionContext({
+      actions: { forkSession: { label: 'Fork this conversation', availability, run: forkSession } },
+      isProcessing: true,
+      isLastMessage: false
+    })
+    const forkAction = () => resolveMessageMenuBarMenuActions(context).find((action) => action.id === 'fork-session')!
+    expect(forkAction().availability.enabled).toBe(true)
+    expect(forkAction().label).toBe('Fork this conversation')
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    forkSession.mockClear()
+    availability.mockReturnValue({ visible: true, enabled: false, reason: 'Wait for the turn to finish' })
+    expect(forkAction().availability.enabled).toBe(false)
+    expect(forkAction().availability.reason).toBe('Wait for the turn to finish')
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).not.toHaveBeenCalled()
+    availability.mockReturnValue({ visible: true, enabled: true, reason: undefined })
+    expect(forkAction().availability.enabled).toBe(true)
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'new-branch')).toBe(false)
+  })
+
   it('keeps write actions hidden when capabilities are absent', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({
@@ -943,6 +974,110 @@ describe('messageMenuBarActions', () => {
     await executeMessageMenuBarAction('save.file', context)
 
     expect(saveTextFile).toHaveBeenCalledWith(expect.stringMatching(/\.md$/), 'hello')
+  })
+
+  it('keeps copy-as-image source ownership through a queued capture', async () => {
+    const currentElement = document.createElement('div')
+    const imageBlob = new Blob(['image'], { type: 'image/png' })
+    const copyImage = vi.fn()
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const captureRef = {
+      get current() {
+        return currentElement
+      }
+    }
+    const captureScrollableAsBlobMock = vi.mocked(exportService.captureScrollableAsBlob)
+    captureScrollableAsBlobMock.mockImplementation(async (ref, callback) => {
+      expect(ref.current).toBe(currentElement)
+      callback(imageBlob)
+    })
+
+    const context = createActionContext({
+      actions: { copyImage },
+      messageContainerRef: captureRef,
+      acquireMessageCaptureLease: acquireLease,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await expect(executeMessageMenuBarAction('export.copy-image', context)).resolves.toBe(true)
+
+    expect(acquireLease).toHaveBeenCalledWith(context.message.id)
+    expect(copyImage).toHaveBeenCalledWith(imageBlob)
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a queued copy-as-image failure when a topic switch removes its source', async () => {
+    const currentElement = document.createElement('div')
+    let renderedElement: HTMLElement | null = currentElement
+    const copyImage = vi.fn()
+    const notifyError = vi.fn()
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const getRenderedMessageElement = vi.fn(() => renderedElement)
+    let captureQueued!: () => void
+    let startQueuedCapture!: () => void
+    const captureQueuedPromise = new Promise<void>((resolve) => {
+      captureQueued = resolve
+    })
+    const startQueuedCapturePromise = new Promise<void>((resolve) => {
+      startQueuedCapture = resolve
+    })
+    const captureScrollableAsBlobMock = vi.mocked(exportService.captureScrollableAsBlob)
+    captureScrollableAsBlobMock.mockImplementation(async (ref) => {
+      captureQueued()
+      await startQueuedCapturePromise
+      void ref.current
+    })
+
+    const context = createActionContext({
+      actions: { copyImage, notifyError },
+      acquireMessageCaptureLease: acquireLease,
+      getRenderedMessageElement,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    const actionPromise = executeMessageMenuBarAction('export.copy-image', context)
+    await captureQueuedPromise
+
+    renderedElement = null
+    startQueuedCapture()
+
+    await expect(actionPromise).resolves.toBe(false)
+
+    expect(getRenderedMessageElement).toHaveBeenCalledWith(context.message.id)
+    expect(copyImage).not.toHaveBeenCalled()
+    expect(notifyError).toHaveBeenCalledWith(expect.stringContaining('Message is no longer available'))
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps save-as-image source ownership through capture failure cleanup', async () => {
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const notifyError = vi.fn()
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
+    captureScrollableAsDataUrlMock.mockRejectedValue(new Error('capture failed'))
+
+    const context = createActionContext({
+      actions: { notifyError, saveImage: vi.fn() },
+      acquireMessageCaptureLease: acquireLease,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await expect(executeMessageMenuBarAction('export.image', context)).resolves.toBe(false)
+
+    expect(acquireLease).toHaveBeenCalledWith(context.message.id)
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+    expect(getMessageTitle).not.toHaveBeenCalled()
   })
 
   it('copies user composer tokens through rich clipboard when available', async () => {

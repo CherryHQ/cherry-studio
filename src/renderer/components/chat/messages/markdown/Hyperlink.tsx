@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from 'react'
+import React, { memo, useMemo, useRef, useState } from 'react'
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { OgCard } from '@renderer/components/OgCard'
@@ -13,6 +13,11 @@ const HYPERLINK_CARD_CLOSE_DELAY = 100
 
 const Hyperlink: React.FC<HyperLinkProps> = ({ children, href }) => {
   const [open, setOpen] = useState(false)
+  const contextMenuRequested = useRef(false)
+  const dismissPreview = () => {
+    contextMenuRequested.current = true
+    setOpen(false)
+  }
 
   const link = useMemo(() => {
     try {
@@ -25,9 +30,26 @@ const Hyperlink: React.FC<HyperLinkProps> = ({ children, href }) => {
   if (!href) return children
 
   return (
-    <HoverCard openDelay={HYPERLINK_CARD_OPEN_DELAY} closeDelay={HYPERLINK_CARD_CLOSE_DELAY} onOpenChange={setOpen}>
+    <HoverCard
+      open={open}
+      openDelay={HYPERLINK_CARD_OPEN_DELAY}
+      closeDelay={HYPERLINK_CARD_CLOSE_DELAY}
+      onOpenChange={(nextOpen) => setOpen(nextOpen && !contextMenuRequested.current)}>
       <HoverCardTrigger asChild>
-        <span className="inline">{children}</span>
+        <span
+          className="inline"
+          onPointerEnter={() => {
+            contextMenuRequested.current = false
+          }}
+          onPointerDown={(event) => {
+            if (event.button === 2) dismissPreview()
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Tab') contextMenuRequested.current = false
+          }}
+          onContextMenu={dismissPreview}>
+          {children}
+        </span>
       </HoverCardTrigger>
       <HoverCardContent className="w-auto max-w-none overflow-hidden rounded-lg p-0" sideOffset={0}>
         <OgCard link={link} show={open} />

@@ -1,5 +1,8 @@
 import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
@@ -410,6 +413,104 @@ describe('DeepSeekHarnessService', () => {
       expect(result.message).not.toContain('sk-direct')
     }
     expect(mocks.rollbackConfig).toHaveBeenCalledOnce()
+  })
+
+  it('records the dsh version with scrubbed env when launch fails', async () => {
+    process.env.CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY = 'probe-secret'
+    try {
+      mocks.execFile.mockImplementationOnce(
+        (
+          _file: string,
+          _args: string[],
+          _options: object,
+          callback: (error: Error | null, stdout: string, stderr: string) => void
+        ) => callback(null, '0.1.5-rc.1\n', '')
+      )
+      spawnChild((child) => {
+        child.stderr.write('boom\n')
+        child.close(1, null)
+      })
+      const result = await new DeepSeekHarnessService().start(startInput)
+
+      expect(result.success).toBe(false)
+      expect(mocks.execFile).toHaveBeenCalledWith(
+        '/usr/local/bin/dsh',
+        ['--version'],
+        expect.objectContaining({ timeout: 3000, windowsHide: true }),
+        expect.any(Function)
+      )
+      const probeEnv = mocks.execFile.mock.calls[0][2] as { env: NodeJS.ProcessEnv }
+      expect(probeEnv.env).not.toHaveProperty('CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY')
+      expect(mocks.loggerWarn).toHaveBeenCalledWith('DeepSeek Harness failed to start', {
+        dshVersion: '0.1.5-rc.1'
+      })
+    } finally {
+      delete process.env.CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY
+    }
+  })
+
+  it('still reports the launch failure when the version probe fails', async () => {
+    mocks.execFile.mockImplementationOnce(
+      (
+        _file: string,
+        _args: string[],
+        _options: object,
+        callback: (error: Error | null, stdout: string, stderr: string) => void
+      ) => callback(new Error('spawn ENOENT'), '', '')
+    )
+    vi.mocked(fetch).mockResolvedValueOnce({
+      status: 401,
+      body: { cancel: vi.fn(async () => undefined) }
+    } as unknown as Response)
+    spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+
+    const result = await new DeepSeekHarnessService().start(startInput)
+
+    expect(result).toEqual({
+      success: false,
+      message: expect.stringContaining('Web UI returned HTTP 401')
+    })
+    expect(mocks.loggerWarn).toHaveBeenCalledWith('DeepSeek Harness failed to start', {})
+  })
+
+  it('does not block launch for a populated home holding only archived sessions (#20395)', async () => {
+    // Guards the #20443 revert: empty sessionIds alongside archivedSessionIds is a
+    // valid archive-only home to the dsh runtime, so launch must proceed. A future
+    // storage-shape gate reading either home key would block here and fail this test.
+    const home = await mkdtemp(path.join(tmpdir(), 'dsh-home-'))
+    try {
+      await mkdir(path.join(home, 'storages'), { recursive: true })
+      await writeFile(
+        path.join(home, 'storages', 'workspace.json'),
+        JSON.stringify({
+          unit: { name: 'workspace', version: 2 },
+          global: { initialized: true, workspaceIds: ['w1'], archivedSessionIds: ['s1', 's2', 's3', 's4'] },
+          tables: { workspaces: { w1: { path: '/tmp/w1', title: 'w1', sessionIds: [] } } }
+        })
+      )
+      await writeFile(
+        path.join(home, 'storages', 'session_projcache.json'),
+        JSON.stringify({ version: 3, compatibleVersions: [3, 4, 5, 6] })
+      )
+      mocks.appGetPath.mockImplementation((key: string) => {
+        if (key === 'external.deepseek_harness.config') return home
+        if (key === 'external.deepseek_harness.storages') return path.join(home, 'storages')
+        if (key === 'feature.deepseek_harness.workspace') return '/mock/userData/Data/DeepSeekHarness/Workspace'
+        throw new Error(`Unexpected application.getPath(${key})`)
+      })
+      spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+      const service = new DeepSeekHarnessService()
+
+      await expect(service.start(startInput)).resolves.toEqual({
+        success: true,
+        url: 'http://127.0.0.1:43123'
+      })
+      expect(mocks.spawn).toHaveBeenCalledOnce()
+      expect(mocks.execFile).not.toHaveBeenCalled()
+      await service.stop()
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
   })
 
   it('times out a silent child, terminates only its own process group, and rolls back config', async () => {

@@ -704,7 +704,7 @@ vi.mock('@cherrystudio/ui', async () => {
       ),
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
-    Scrollbar: ({ children, ...props }) =>
+    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
       React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Dropzone: ({
       children,
@@ -985,7 +985,7 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'info-tooltip' }, children),
-    Scrollbar: ({ children, ...props }) =>
+    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
       React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
@@ -994,14 +994,15 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement('div', { ...props, 'data-testid': 'avatar-fallback' }, children),
     EmojiAvatar: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'emoji-avatar' }, children),
-    EmojiIcon: ({ emoji, className, fluid, fontSize }) =>
+    EmojiIcon: ({ emoji, className, fluid, fontSize, size }) =>
       React.createElement(
         'div',
         {
           className,
           'data-testid': 'emoji-icon',
           ...(fluid !== undefined ? { 'data-fluid': String(fluid) } : {}),
-          ...(fontSize !== undefined ? { 'data-font-size': String(fontSize) } : {})
+          ...(fontSize !== undefined ? { 'data-font-size': String(fontSize) } : {}),
+          ...(size !== undefined ? { 'data-size': String(size) } : {})
         },
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji

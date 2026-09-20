@@ -18,6 +18,8 @@ import { loggerService } from '@logger'
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
+import { clampImageForModel } from '@main/utils/image'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
@@ -137,6 +139,30 @@ function getServerLogger(server: McpServer, extra?: Record<string, any>) {
 }
 
 /**
+ * Shrink tool-result images to the model-bound edge cap before any consumer (Cherry chat, pi,
+ * dsh, claude bridge) sees them. An unusable image degrades to a text block: the result lands
+ * in durable session history, so failing the call would strand the turn over one screenshot.
+ */
+async function clampToolResultImages(
+  response: McpCallToolResponse,
+  serverLogger: ReturnType<typeof getServerLogger>
+): Promise<McpCallToolResponse> {
+  const content = await Promise.all(
+    response.content.map(async (part) => {
+      if (part.type !== 'image' || !part.data) return part
+      try {
+        const clamped = await clampImageForModel(Buffer.from(part.data, 'base64'))
+        return clamped ? { ...part, data: Buffer.from(clamped).toString('base64') } : part
+      } catch (error) {
+        serverLogger.warn('Dropping unprocessable tool-result image', { mimeType: part.mimeType, error })
+        return { type: 'text' as const, text: `[image (${part.mimeType ?? 'unknown'}) could not be processed]` }
+      }
+    })
+  )
+  return { ...response, content }
+}
+
+/**
  * Higher-order function to add caching capability to any async function
  * @param fn The original function to be wrapped with caching
  * @param getCacheKey Function to generate a cache key from the function arguments
@@ -176,7 +202,7 @@ function withCache<T extends unknown[], R>(
 
 @Injectable('McpRuntimeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'McpPackageService'])
+@DependsOn(['WindowManager', 'McpPackageService', 'BrowserSessionService'])
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
@@ -554,74 +580,96 @@ export class McpRuntimeService extends BaseService {
     // transport exactly once.
     const candidates = getTransportCandidates(server)
     const transportTypes: (McpServerType | undefined)[] = candidates ?? [undefined]
-    let lastError: unknown
 
-    for (let i = 0; i < transportTypes.length; i++) {
-      const candidateType = transportTypes[i]
-      const transport = await createServerTransport(candidateType)
+    let callbackServer: CallBackServer | undefined
+    authProvider.prepareAuthorization = async () => {
+      callbackServer ??= new CallBackServer({
+        port: authProvider.config.callbackPort,
+        path: authProvider.config.callbackPath,
+        events: new EventEmitter()
+      })
       try {
-        await client.connect(transport, connectOptions)
-        return
-      } catch (error: any) {
-        if (
-          error instanceof Error &&
-          isMcpOAuthEnabled(server) &&
-          (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
-        ) {
-          logger.debug(`Authentication required for server: ${server.name}`)
-          await this.finishOAuth({
-            client,
-            server,
-            transport: transport as SSEClientTransport | StreamableHTTPClientTransport,
-            authProvider,
-            createServerTransport,
-            typeOverride: candidateType
-          })
-          return
-        }
-        lastError = error
-        // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
-        // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
-        if (i === transportTypes.length - 1 || !candidates || !isTransportFallbackError(error, sdk)) {
-          break
-        }
-        getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${candidates[i + 1]}'`, {
-          error: redactDeep(error)
-        })
-        // Close the whole client (not just the transport) so the SDK resets its internal
-        // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
-        // re-auth path, which relies on client.close() clearing _transport first.
-        await client.close().catch(() => undefined)
+        await callbackServer.getServer
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException)?.code
+        throw new Error(
+          t('settings.mcp.oauth.callback.listen_error', {
+            port: authProvider.config.callbackPort,
+            reason: code ?? (error instanceof Error ? error.message : String(error))
+          }),
+          { cause: error }
+        )
       }
     }
 
-    // Release the last (failed) transport/connection so it isn't leaked until GC.
-    await client.close().catch(() => undefined)
-    throw lastError ?? new Error('Failed to connect to MCP server')
+    try {
+      let lastError: unknown
+
+      for (let i = 0; i < transportTypes.length; i++) {
+        const candidateType = transportTypes[i]
+        const transport = await createServerTransport(candidateType)
+        try {
+          await client.connect(transport, connectOptions)
+          return
+        } catch (error: any) {
+          if (
+            error instanceof Error &&
+            isMcpOAuthEnabled(server) &&
+            callbackServer &&
+            (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
+          ) {
+            logger.debug(`Authentication required for server: ${server.name}`)
+            await this.finishOAuth({
+              client,
+              server,
+              transport: transport as SSEClientTransport | StreamableHTTPClientTransport,
+              createServerTransport,
+              typeOverride: candidateType,
+              callbackServer
+            })
+            return
+          }
+          lastError = error
+          // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
+          // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
+          if (i === transportTypes.length - 1 || !candidates || !isTransportFallbackError(error, sdk)) {
+            break
+          }
+          getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${candidates[i + 1]}'`, {
+            error: redactDeep(error)
+          })
+          // Close the whole client (not just the transport) so the SDK resets its internal
+          // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
+          // re-auth path, which relies on client.close() clearing _transport first.
+          await client.close().catch(() => undefined)
+        }
+      }
+
+      // Release the last (failed) transport/connection so it isn't leaked until GC.
+      await client.close().catch(() => undefined)
+      throw lastError ?? new Error('Failed to connect to MCP server')
+    } finally {
+      authProvider.prepareAuthorization = undefined
+      await callbackServer?.close()
+    }
   }
 
   private async finishOAuth({
     client,
     server,
     transport,
-    authProvider,
     createServerTransport,
-    typeOverride
+    typeOverride,
+    callbackServer
   }: {
     client: Client
     server: McpServer
     transport: SSEClientTransport | StreamableHTTPClientTransport
-    authProvider: McpOAuthClientProvider
     createServerTransport: (typeOverride?: McpServerType) => Promise<McpTransport>
     typeOverride?: McpServerType
+    callbackServer: CallBackServer
   }): Promise<void> {
     getServerLogger(server).debug(`Starting OAuth flow`)
-    const events = new EventEmitter()
-    const callbackServer = new CallBackServer({
-      port: authProvider.config.callbackPort,
-      path: authProvider.config.callbackPath || '/oauth/callback',
-      events
-    })
 
     const timeoutId = setTimeout(() => {
       getServerLogger(server).warn(`OAuth flow timed out`)
@@ -647,7 +695,6 @@ export class McpRuntimeService extends BaseService {
       )
     } finally {
       clearTimeout(timeoutId)
-      void callbackServer.close()
     }
   }
 
@@ -1094,7 +1141,10 @@ export class McpRuntimeService extends BaseService {
           // resetTimeoutOnProgress needs server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           signal: effectiveSignal
         })
-        return result as McpCallToolResponse
+        const response = result as McpCallToolResponse
+        // Error results never carry model-bound media, so leave their payload untouched.
+        if (response.isError) return response
+        return clampToolResultImages(response, getServerLogger(server, { tool: name, callId: toolCallId }))
       } catch (error) {
         if (isMcpCancellation(error, effectiveSignal)) {
           // Expected cancellation (user stop / stream abort) — keep it out of error logs.

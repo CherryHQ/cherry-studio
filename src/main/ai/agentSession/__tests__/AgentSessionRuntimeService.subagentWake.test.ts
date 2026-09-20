@@ -227,4 +227,62 @@ describe('subagent settlement wake (incident replay)', () => {
 
     void service.closeSession('session-1')
   })
+
+  /**
+   * A receive-only turn streams on a connection that already exists, so every facet it records has
+   * to be the one that connection is targeted at. `reasoningEffort` used to be pinned to the literal
+   * `'default'` while `modelId`, `serviceTier`, knowledge scope and Fast all came from
+   * `connectionTarget`. For an agent configured with a non-default effort that made an autonomous
+   * wake disagree with its own connection, and an agent write racing the wake reported drift and
+   * closed a warm connection that was serving correctly.
+   */
+  it('gives a wake turn the effort its connection is targeted at, and survives a racing agent write', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service = new AgentSessionRuntimeService()
+    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
+
+    // `AgentChatContextProvider` is the only production caller of `beginTurn`, and it passes
+    // `req.reasoningEffort ?? agent.configuration.reasoning_effort ?? 'default'`, so a turn for this
+    // agent arrives already resolved to 'high'.
+    service.beginTurn({ ...baseTurnInput, reasoningEffort: 'high' } as any)
+    const entry = getEntry(service)
+    const connection = {
+      send: vi.fn(),
+      close: vi.fn(),
+      events: [],
+      reconcile: vi.fn(async (target: any) => (target.reasoningEffort === 'high' ? 'current' : 'rebuild')),
+      refreshTraceContext: vi.fn()
+    }
+    entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} }
+
+    handleRuntimeEvent({ type: 'turn-complete' })
+    service.markTurnTerminal('session-1', 'success')
+
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-start', id: 'w1' } })
+
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+    expect(currentTurn(entry).reasoningEffort).toBe('high')
+    expect(mocks.startRuntimeTurn.mock.calls[0][0].request.reasoningEffort).toBe('high')
+
+    // An unrelated agent write lands while the wake is streaming: nothing it serves changed, so the
+    // connection must stay open.
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { name: 'Renamed' },
+      { id: 'agent-1', name: 'Renamed', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'high' } }
+    )
+    expect(connection.close).not.toHaveBeenCalled()
+
+    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-end', id: 'w1' } })
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'finished' })
+    handleRuntimeEvent({ type: 'turn-complete' })
+    void service.closeSession('session-1')
+  })
 })

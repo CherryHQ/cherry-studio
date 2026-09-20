@@ -8,7 +8,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('../CliIcon', () => ({
+vi.mock('@renderer/components/icons/CliIcon', () => ({
   CliIcon: ({ id }: { id: string }) => <span data-testid={`cli-icon-${id}`} />
 }))
 

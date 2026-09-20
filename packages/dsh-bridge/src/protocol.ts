@@ -13,7 +13,7 @@
 
 // Wire-safe by design (dsh keeps this subpath free of cordis imports), and pinned to
 // the same rc at both ends — safe to put on the wire, unlike the wider ContentBlock.
-import type { CallId } from '@deepseek-ai/dsh-llm'
+import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions/types'
 
@@ -96,6 +96,10 @@ export interface BridgeCommandResult {
 
 /** Host→plugin request methods with their param and result shapes. */
 export interface BridgeHostRequestMap {
+  'session/fork-snapshot': {
+    params: { sessionId: string; boundary: number }
+    result: { events: unknown[] }
+  }
   'session/open': {
     params: {
       sessionId: string
@@ -134,14 +138,17 @@ export interface BridgePluginRequestMap {
   ready: { params: { pid: number; token: string }; result: Record<string, never> }
   'guard/check': {
     params: { sessionId: string; toolName: string; args: unknown; cwd: string }
-    result: { kind: 'allow' } | { kind: 'deny'; ruleId: 'user-data-sqlite-write'; reason: string }
+    result:
+      | { kind: 'allow' }
+      | { kind: 'ask'; reason: string }
+      | { kind: 'deny'; ruleId: 'user-data-sqlite-write' | 'browser-tool-disabled'; reason: string }
   }
   'approval/ask': {
     params: {
       sessionId: string
       sessionEventSeq: SessionEvent['seq']
       toolName: string
-      callId?: CallId
+      callId?: ToolCallId
       args?: unknown
       reason?: string
     }
@@ -158,7 +165,7 @@ export interface BridgePluginRequestMap {
       sessionId: string
       sessionEventSeq: SessionEvent['seq']
       /** Exact `exit_plan_mode` call correlated from the plugin's authoritative session log. */
-      callId: CallId
+      callId: ToolCallId
       questions: AskUserQuestionItem[]
     }
     result: AskUserQuestionAnswer
