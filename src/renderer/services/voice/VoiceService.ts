@@ -211,9 +211,10 @@ export class VoiceService {
         }
         return state
       },
-      (error: unknown) => {
+      async (error: unknown) => {
         if (admission.generation !== this.lifecycleGeneration) {
           this.releasePendingMaterialization(sessionId, admission.token)
+          await this.discardTombstone(sessionId, admission.token)
           throw new VoiceDomainError('aborted')
         }
         this.releasePendingAdmission(sessionId, admission.token)
@@ -269,10 +270,11 @@ export class VoiceService {
           }
           return result
         },
-        (error: unknown) => {
+        async (error: unknown) => {
           if (sequence.activeSpeechToken === speechToken) sequence.activeSpeechToken = undefined
           if (reservation.generation !== this.lifecycleGeneration) {
             this.releasePendingMaterialization(sessionId, reservation.token)
+            await this.discardTombstone(sessionId, reservation.token)
             throw new VoiceDomainError('aborted')
           }
           if (admission) this.releasePendingAdmission(sessionId, admission.token)

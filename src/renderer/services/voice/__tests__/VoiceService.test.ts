@@ -395,6 +395,34 @@ describe('VoiceService state ownership', () => {
     expect(startCalls).toBe(2)
   })
 
+  it('releases a torn-down pending session id after its late admission rejects', async () => {
+    let rejectFirst!: (error: unknown) => void
+    let startCalls = 0
+    request.mockImplementation((route: string, input: any) => {
+      if (route === 'ai.voice.session.state') return Promise.resolve({ revision: 1, phase: 'idle' })
+      if (route === 'ai.voice.recording.start' && ++startCalls === 1) {
+        return new Promise((_resolve, reject) => (rejectFirst = reject))
+      }
+      if (route === 'ai.voice.recording.start') {
+        return Promise.resolve({ revision: 2, phase: 'recording', sessionId: input.sessionId })
+      }
+      return Promise.resolve(undefined)
+    })
+    const service = createService()
+    await service.initialize()
+    const sessionId = ids[0]
+    const first = service.startRecording({ sessionId, requestId: ids[1], source: 'dictation' })
+    await Promise.resolve()
+    await service.teardown()
+
+    rejectFirst(new IpcError('VOICE_OPERATION_FAILED', 'admission rejected'))
+    await expect(first.result).rejects.toMatchObject({ reason: 'aborted' })
+    const afterSettlement = service.startRecording({ sessionId, requestId: ids[2], source: 'dictation' })
+
+    await expect(afterSettlement.result).resolves.toMatchObject({ sessionId })
+    expect(startCalls).toBe(2)
+  })
+
   it('does not replace lease command ownership with an asset installation session', async () => {
     let resolveInstall!: () => void
     request.mockImplementation((route: string, input: any) => {
