@@ -496,5 +496,104 @@ describe('filesystem MCP security', () => {
       await Promise.all([editPromise, deletePromise])
       await expect(fs.stat(filePath)).rejects.toMatchObject({ code: 'ENOENT' })
     })
+
+    it('serializes recursive directory delete with a descendant edit', async () => {
+      const workspaceRoot = await createTempDir('delete-recursive-serialization-root-')
+      const dirPath = path.join(workspaceRoot, 'dir')
+      await fs.mkdir(dirPath, { recursive: true })
+      const filePath = path.join(dirPath, 'child.txt')
+      await fs.writeFile(filePath, 'original')
+
+      let releaseEditWrite!: () => void
+      const editWriteGate = new Promise<void>((resolve) => {
+        releaseEditWrite = resolve
+      })
+      let editWriteStarted!: () => void
+      const editWriteStartedGate = new Promise<void>((resolve) => {
+        editWriteStarted = resolve
+      })
+      const originalWriteFile = fs.writeFile.bind(fs)
+      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+        const [targetPath] = args
+        if (typeof targetPath === 'string' && targetPath === filePath) {
+          editWriteStarted()
+          await editWriteGate
+        }
+        return (
+          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
+        )(...args)
+      })
+
+      const editPromise = handleEditTool(
+        { file_path: 'dir/child.txt', old_string: 'original', new_string: 'edited' },
+        workspaceRoot
+      )
+      await editWriteStartedGate
+
+      let deleteFinished = false
+      const deletePromise = handleDeleteTool({ path: 'dir', recursive: true }, workspaceRoot).then((result) => {
+        deleteFinished = true
+        return result
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      expect(deleteFinished).toBe(false)
+
+      releaseEditWrite()
+      await Promise.all([editPromise, deletePromise])
+      await expect(fs.stat(dirPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it('serializes a descendant edit that arrives during a recursive delete', async () => {
+      const workspaceRoot = await createTempDir('delete-recursive-descendant-root-')
+      const dirPath = path.join(workspaceRoot, 'dir')
+      await fs.mkdir(dirPath, { recursive: true })
+      const filePath = path.join(dirPath, 'child.txt')
+      await fs.writeFile(filePath, 'original')
+
+      let releaseDelete!: () => void
+      const deleteGate = new Promise<void>((resolve) => {
+        releaseDelete = resolve
+      })
+      let deleteStarted!: () => void
+      const deleteStartedGate = new Promise<void>((resolve) => {
+        deleteStarted = resolve
+      })
+      const originalRm = fs.rm.bind(fs)
+      vi.spyOn(fs, 'rm').mockImplementation(async (...args: Parameters<typeof fs.rm>) => {
+        const [targetPath] = args
+        if (typeof targetPath === 'string' && targetPath === dirPath) {
+          deleteStarted()
+          await deleteGate
+        }
+        return originalRm(...args)
+      })
+
+      const deletePromise = handleDeleteTool({ path: 'dir', recursive: true }, workspaceRoot)
+      await deleteStartedGate
+
+      let editSettled = false
+      const editPromise = handleEditTool(
+        { file_path: 'dir/child.txt', old_string: 'original', new_string: 'edited' },
+        workspaceRoot
+      ).then(
+        (result) => {
+          editSettled = true
+          return result
+        },
+        (error) => {
+          editSettled = true
+          throw error
+        }
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      expect(editSettled).toBe(false)
+
+      releaseDelete()
+      await deletePromise
+      await expect(editPromise).rejects.toThrow('File not found')
+      await expect(fs.stat(dirPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    })
   })
 })

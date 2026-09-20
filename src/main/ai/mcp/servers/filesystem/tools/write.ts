@@ -3,7 +3,7 @@ import path from 'path'
 
 import * as z from 'zod'
 
-import { resolveMutationLockKey, withPathMutationLock } from '../mutationLock'
+import { withMutationLockForRequest } from '../mutationLock'
 import { logger, validatePath, verifyWrittenContent } from '../types'
 
 // Schema definition
@@ -36,7 +36,7 @@ export async function handleWriteTool(args: unknown, baseDir: string) {
   const filePath = parsed.data.file_path
   // Hold the mutation lock across validation and mutation so concurrent calls queue in
   // call order even when file existence flips the lock key mid-operation (e.g. creates).
-  return withPathMutationLock(resolveMutationLockKey(filePath, baseDir), async () => {
+  return withMutationLockForRequest(filePath, baseDir, async () => {
     const validPath = await validatePath(filePath, baseDir)
     // Create parent directory if it doesn't exist
     const parentDir = path.dirname(validPath)
