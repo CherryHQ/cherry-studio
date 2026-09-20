@@ -3,6 +3,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/aiUsageRecords'
 import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
@@ -20,7 +21,7 @@ function requestsSince(from: number): Map<string, number> {
     metric: 'requests',
     from,
     to: Date.now(),
-    limit: 100
+    limit: AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT
   })
   const counts = new Map<string, number>()
   for (const bucket of stats.buckets) {

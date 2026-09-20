@@ -5,6 +5,7 @@ import { useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
+import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/aiUsageRecords'
 import { dueQuotaNotices, type QuotaNoticeInput, usageStatsFrom } from '@shared/utils/apiKeyLimit'
 
 /** The smallest declared period is daily, so this only needs to catch a midnight rollover while
@@ -51,7 +52,7 @@ export function useQuotaNotifications(): void {
             metric: 'requests' as const,
             from: usageStatsFrom([]),
             to: Date.now(),
-            limit: 100
+            limit: AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT
           }
         }
       : { enabled: false }

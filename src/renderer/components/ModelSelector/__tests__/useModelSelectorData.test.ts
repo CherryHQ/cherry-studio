@@ -1,9 +1,9 @@
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AiUsageRecordStatsMetrics } from '@shared/data/api/schemas/aiUsageRecords'
+import { type AiUsageRecordStatsMetrics, AiUsageRecordStatsQuerySchema } from '@shared/data/api/schemas/aiUsageRecords'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -537,5 +537,27 @@ describe('useModelSelectorData', () => {
 
     expect(item?.remainingQuota).toBe(3)
     expect(item?.passiveReason).toBeUndefined()
+  })
+  // The endpoint validates this query with `.parse`, so an out-of-range field does not degrade
+  // -- it throws in the handler and every quota column sharing the query renders blank. That is
+  // exactly what shipped: `limit: 100` against an aggregate cap of 50, so the picker badges, the
+  // quota table, the routing hint and the notifications were all silently empty.
+  it('sends a stats query the endpoint will actually accept', () => {
+    const model = makeModel('gpt-4o', 'openai')
+    wireDeps({
+      providers: [makeProvider('openai', { apiKeys: [{ id: 'k1', isEnabled: true }] })],
+      models: [model]
+    })
+    MockUsePreferenceUtils.setPreferenceValue('chat.routing.api_key_limits', {
+      [apiKeyModelLimitId('openai', 'k1', model.id)]: { limit: 5, period: 'daily' }
+    })
+
+    renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    const call = mockUseQuery.mock.calls.findLast(([path]) => path === '/ai-usage-records/stats')
+    expect(call).toBeDefined()
+    const query = (call?.[1] as { query?: unknown })?.query
+    expect(query).toBeDefined()
+    expect(() => AiUsageRecordStatsQuerySchema.parse(query)).not.toThrow()
   })
 })

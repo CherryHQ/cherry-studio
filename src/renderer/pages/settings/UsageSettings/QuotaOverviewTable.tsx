@@ -6,6 +6,7 @@ import { Button, EmptyState, Table, TableBody, TableCell, TableHead, TableHeader
 import { useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/aiUsageRecords'
 import type { ApiKeyLimitPeriod, ServiceUsageMap } from '@shared/data/preference/preferenceTypes'
 import type { RuntimeApiKey } from '@shared/data/types/provider'
 import {
@@ -133,7 +134,7 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
         metric: 'requests' as const,
         from: minFrom,
         to: Date.now(),
-        limit: 100
+        limit: AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT
       }
     }
   }, [periods, periodStarts])

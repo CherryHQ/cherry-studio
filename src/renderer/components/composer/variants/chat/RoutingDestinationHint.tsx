@@ -9,6 +9,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getProviderDisplayName, getRemainingQuota } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
+import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { EMPTY_DERIVED_ROUTING_TABLE } from '@shared/data/types/routing'
@@ -82,7 +83,7 @@ export function RoutingDestinationHint({ promptText, fallbackModel, hasMentioned
         metric: 'requests' as const,
         from: usageStatsFrom(periods.map((period) => periodStartOf(period))),
         to: Date.now(),
-        limit: 100
+        limit: AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT
       }
     }
   }, [destinationModel, apiKeyLimits])

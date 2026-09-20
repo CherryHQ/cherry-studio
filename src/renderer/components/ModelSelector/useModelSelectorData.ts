@@ -10,6 +10,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
+import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/aiUsageRecords'
 import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -146,7 +147,7 @@ export function useModelSelectorData({
         metric: 'requests' as const,
         from: minFrom,
         to: Date.now(),
-        limit: 100
+        limit: AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT
       }
     }
   }, [quotaPeriods])
