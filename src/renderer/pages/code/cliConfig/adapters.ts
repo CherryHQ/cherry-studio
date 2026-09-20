@@ -239,7 +239,7 @@ function minimaxManagedApi(document: Document, providerKey: string): MinimaxApi 
   return api === 'openai-completions' || api === 'openai-responses' ? api : 'anthropic-messages'
 }
 
-/** Delete every Cherry-managed `custom_provider` entry (and the mapping when it empties); returns the deleted keys. */
+/** Delete every Cherry-managed `custom_provider` entry; returns the deleted keys. */
 function deleteMinimaxManagedProviders(document: Document): string[] {
   const deletedKeys: string[] = []
   let providerKey = minimaxManagedProviderKey(document)
@@ -248,8 +248,6 @@ function deleteMinimaxManagedProviders(document: Document): string[] {
     deletedKeys.push(providerKey)
     providerKey = minimaxManagedProviderKey(document)
   }
-  const nextProviders = document.getIn(['custom_provider'])
-  if (isMap(nextProviders) && nextProviders.items.length === 0) document.delete('custom_provider')
   return deletedKeys
 }
 
@@ -257,14 +255,10 @@ function writeMinimaxConfig(
   document: Document,
   resolved: { api: MinimaxApi; apiKey: string; baseUrl: string; model: string; providerKey: string }
 ): string {
-  // Drop stale Cherry-managed entries but keep the `custom_provider` mapping itself:
-  // deleting and recreating the top-level key would move it below user keys and
-  // orphan the comment anchored above it.
-  let stale = minimaxManagedProviderKey(document)
-  while (stale && stale !== resolved.providerKey) {
-    document.deleteIn(['custom_provider', stale])
-    stale = minimaxManagedProviderKey(document)
-  }
+  // Drop every stale Cherry-managed entry, not just keys ahead of the incoming
+  // one — the mapping node itself survives, so its position and leading comment
+  // stay intact.
+  deleteMinimaxManagedProviders(document)
   document.setIn(
     ['custom_provider', resolved.providerKey],
     document.createNode({
@@ -282,6 +276,8 @@ function clearMinimaxConfig(content: string): string | null {
   const document = parseYamlDocumentOrThrow(content)
   const deletedKeys = deleteMinimaxManagedProviders(document)
   if (deletedKeys.length === 0) return null
+  const nextProviders = document.getIn(['custom_provider'])
+  if (isMap(nextProviders) && nextProviders.items.length === 0) document.delete('custom_provider')
   const defaultModel = document.get('defaultModel')
   if (
     typeof defaultModel === 'string' &&

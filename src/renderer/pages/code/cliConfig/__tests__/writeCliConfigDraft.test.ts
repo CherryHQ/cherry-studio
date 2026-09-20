@@ -331,6 +331,32 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.custom_provider['cherry-DeepSeek'].options.baseURL).toBe('https://api.deepseek.com/v1')
     })
 
+    it('strips every stale Cherry provider on write, whatever its position', async () => {
+      existing[minimaxConfigPath] = [
+        'custom_provider:',
+        '  cherry-old:',
+        '    options: { apiKey: stale, baseURL: https://old.example }',
+        '  cherry-deepseek:',
+        '    options: { apiKey: stale2, baseURL: https://stale.example }',
+        '  user-relay:',
+        '    options: { apiKey: user-key, baseURL: https://relay.example }',
+        ''
+      ].join('\n')
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.MINIMAX_CODE, modelId: 'deepseek::deepseek-chat' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const config = files[0]
+      if (!config || typeof config.content !== 'string') throw new Error('Expected MiniMax config file')
+      const parsed = parseYaml(config.content)
+      expect(Object.keys(parsed.custom_provider)).toEqual(['user-relay', 'cherry-DeepSeek'])
+    })
+
     it('round-trips the connection through extract and update without drift', async () => {
       mockGet({
         '/providers/deepseek': () => openaiCompatProvider,

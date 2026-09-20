@@ -15,12 +15,12 @@ description: Runs MiniMax Code headlessly for repository analysis and coding tas
 mcode exec "<prompt>"
 ```
 
-Pass the prompt as one quoted argument. Treat a nonzero exit as failure, and treat the final answer text as the result. Never start the interactive TUI or login flow from the agent task.
+Pass the prompt as one quoted argument. For analysis-only tasks pass `--permission smart` explicitly; never pass `--permission full`. Treat a nonzero exit as failure, and treat the final answer text as the result. Never start the interactive TUI or login flow from the agent task.
 
 ## Authentication And Permissions
 
 If MiniMax Code reports missing login, API key, model, or provider configuration, stop and ask the user to configure MiniMax Code in Code Mate. Never request, read, print, or copy credentials.
 
-Use the default permission mode for analysis. Only allow modification tools when the user explicitly requests workspace changes, and prefer read-only instructions in the prompt otherwise. Never pass a flag or setting that relaxes the permission mode.
+Only allow modification tools when the user explicitly requests workspace changes, and prefer read-only instructions in the prompt otherwise. Never pass a flag or setting that relaxes the permission mode.
 
 Example: ask MiniMax Code to explain the cause of a failing test without editing, run the command above, then summarize the result within the chosen timeout.
