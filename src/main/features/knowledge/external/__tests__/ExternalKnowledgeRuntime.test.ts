@@ -1714,6 +1714,95 @@ describe('ExternalKnowledgeRuntime', () => {
     expect(signal.aborted).toBe(true)
   })
 
+  it('expires an abandoned PersonalAgent registration at the protocol deadline', async () => {
+    vi.useFakeTimers()
+    const controllerObserved = deferred<AbortSignal>()
+    const runtime = new ExternalKnowledgeRuntime({
+      connections: new MemoryConnections(),
+      credentials: new MemoryCredentials(),
+      provider: createProvider(),
+      registration: {
+        begin: vi.fn(async () => ({
+          deviceCode: 'registration-code',
+          verificationUri: 'https://accounts.feishu.cn/registration',
+          interval: 5,
+          expiresIn: 600
+        })),
+        poll: vi.fn((_domain, _code, options) => {
+          controllerObserved.resolve(options.signal)
+          return new Promise<never>((_resolve, reject) => {
+            options.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), {
+              once: true
+            })
+          })
+        })
+      }
+    })
+
+    try {
+      await runtime.start()
+      const begun = await runtime.beginAppRegistration()
+      const signal = await controllerObserved.promise
+
+      await vi.advanceTimersByTimeAsync(600_000)
+
+      expect(signal.aborted).toBe(true)
+      await expect(
+        runtime.beginUserAuthorization({
+          kind: 'personal-agent',
+          registrationSessionId: begun.registrationSessionId
+        })
+      ).rejects.toMatchObject({ code: 'session-not-found' })
+    } finally {
+      await runtime.stop()
+      vi.useRealTimers()
+    }
+  })
+
+  it('expires an abandoned user authorization and removes its pending connection', async () => {
+    vi.useFakeTimers()
+    const connections = new MemoryConnections()
+    const authorizationSignal = deferred<AbortSignal>()
+    const runtime = new ExternalKnowledgeRuntime({
+      connections,
+      credentials: new MemoryCredentials(),
+      provider: createProvider({
+        beginDeviceAuthorization: vi.fn(async (_credentials, signal) => {
+          authorizationSignal.resolve(signal)
+          return {
+            deviceCode: 'device-code',
+            userCode: 'ABCD-EFGH',
+            verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify?user_code=ABCD-EFGH',
+            expiresIn: 600,
+            interval: 5
+          }
+        })
+      })
+    })
+
+    try {
+      await runtime.start()
+      const begun = await runtime.beginUserAuthorization({
+        kind: 'custom-app',
+        appId: 'cli_manual',
+        appSecret: 'app-secret'
+      })
+      const signal = await authorizationSignal.promise
+
+      await vi.advanceTimersByTimeAsync(600_000)
+      await Promise.resolve()
+
+      expect(signal.aborted).toBe(true)
+      await expect(runtime.completeUserAuthorization(begun.authorizationSessionId)).rejects.toMatchObject({
+        code: 'session-not-found'
+      })
+      expect(connections.values.has(begun.connection.id)).toBe(false)
+    } finally {
+      await runtime.stop()
+      vi.useRealTimers()
+    }
+  })
+
   it('allows only one consumer to claim a PersonalAgent registration session', async () => {
     const registrationResult = deferred<{ appId: string; appSecret: string }>()
     const provider = createProvider({
