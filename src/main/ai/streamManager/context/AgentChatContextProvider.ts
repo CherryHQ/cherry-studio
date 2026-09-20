@@ -147,7 +147,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!driver) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
     }
-    await driver.validateSession(session)
+    await driver.validateSession(session, { headless: isHeadless })
 
     const deliveryMessage = req.agentDeliveryMessage
     if (

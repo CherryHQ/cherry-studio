@@ -55,6 +55,49 @@ describe('PiRuntimeDriver.validateSession', () => {
       mocks.assertProviderUsable.mock.invocationCallOrder[0]
     )
   })
+
+  it('prefers the session model override for interactive turns', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'other::model-x',
+      workspace: { path: '/tmp' }
+    } as unknown as AgentSessionEntity
+    mocks.getAgent.mockReturnValue({ model: 'provider::model' })
+
+    await new PiRuntimeDriver().validateSession(session)
+
+    expect(mocks.assertProviderUsable).toHaveBeenCalledWith('other::model-x')
+  })
+
+  it('validates the agent default for headless runs even when an override is set', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'other::model-x',
+      workspace: { path: '/tmp' }
+    } as unknown as AgentSessionEntity
+    mocks.getAgent.mockReturnValue({ model: 'provider::model' })
+
+    await new PiRuntimeDriver().validateSession(session, { headless: true })
+
+    expect(mocks.assertProviderUsable).toHaveBeenCalledWith('provider::model')
+  })
+
+  it('rejects headless runs when the agent default is cleared even when an override is set', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'other::model-x',
+      workspace: { path: '/tmp' }
+    } as unknown as AgentSessionEntity
+    mocks.getAgent.mockReturnValue({ model: null })
+
+    await expect(new PiRuntimeDriver().validateSession(session, { headless: true })).rejects.toThrow(
+      'has no model configured'
+    )
+    expect(mocks.assertProviderUsable).not.toHaveBeenCalled()
+  })
 })
 
 describe('PiRuntimeDriver.listAvailableTools', () => {

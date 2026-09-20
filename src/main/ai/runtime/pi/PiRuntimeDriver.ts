@@ -25,7 +25,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly capabilities = ['agent-session'] as const
   readonly fork = forkPiSession
 
-  async validateSession(session: AgentSessionEntity): Promise<void> {
+  async validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): Promise<void> {
     const cwd = session.workspace?.path
     if (!cwd) {
       throw new Error(`pi agent session ${session.id} has no workspace configured`)
@@ -34,7 +34,9 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
       throw new Error(`pi agent session ${session.id} has no agent`)
     }
     const agent = agentService.getAgent(session.agentId)
-    const effectiveModel = session.model ?? agent?.model
+    // Headless runs execute the agent default, so a stale session override
+    // must not fail (or pass) preflight for them.
+    const effectiveModel = opts?.headless ? agent?.model : (session.model ?? agent?.model)
     if (!effectiveModel) {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
