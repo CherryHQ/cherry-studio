@@ -21,6 +21,6 @@ Pass the prompt as one quoted argument. Treat a nonzero exit as failure, and tre
 
 If MiniMax Code reports missing login, API key, model, or provider configuration, stop and ask the user to configure MiniMax Code in Code Mate. Never request, read, print, or copy credentials.
 
-Use the default permission mode for analysis. Only allow modification tools when the user explicitly requests workspace changes, and prefer read-only instructions in the prompt otherwise.
+Use the default permission mode for analysis. Only allow modification tools when the user explicitly requests workspace changes, and prefer read-only instructions in the prompt otherwise. Never pass a flag or setting that relaxes the permission mode.
 
 Example: ask MiniMax Code to explain the cause of a failing test without editing, run the command above, then summarize the result within the chosen timeout.

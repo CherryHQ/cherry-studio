@@ -239,15 +239,18 @@ function minimaxManagedApi(document: Document, providerKey: string): MinimaxApi 
   return api === 'openai-completions' || api === 'openai-responses' ? api : 'anthropic-messages'
 }
 
-/** Delete every Cherry-managed `custom_provider` entry (and the mapping when it empties). */
-function deleteMinimaxManagedProviders(document: Document): void {
+/** Delete every Cherry-managed `custom_provider` entry (and the mapping when it empties); returns the deleted keys. */
+function deleteMinimaxManagedProviders(document: Document): string[] {
+  const deletedKeys: string[] = []
   let providerKey = minimaxManagedProviderKey(document)
   while (providerKey) {
     document.deleteIn(['custom_provider', providerKey])
+    deletedKeys.push(providerKey)
     providerKey = minimaxManagedProviderKey(document)
   }
   const nextProviders = document.getIn(['custom_provider'])
   if (isMap(nextProviders) && nextProviders.items.length === 0) document.delete('custom_provider')
+  return deletedKeys
 }
 
 function writeMinimaxConfig(
@@ -277,11 +280,13 @@ function writeMinimaxConfig(
 
 function clearMinimaxConfig(content: string): string | null {
   const document = parseYamlDocumentOrThrow(content)
-  const providerKey = minimaxManagedProviderKey(document)
-  if (!providerKey) return null
-  deleteMinimaxManagedProviders(document)
+  const deletedKeys = deleteMinimaxManagedProviders(document)
+  if (deletedKeys.length === 0) return null
   const defaultModel = document.get('defaultModel')
-  if (typeof defaultModel === 'string' && defaultModel.startsWith(`custom_provider:${providerKey}/`)) {
+  if (
+    typeof defaultModel === 'string' &&
+    deletedKeys.some((key) => defaultModel.startsWith(`custom_provider:${key}/`))
+  ) {
     document.delete('defaultModel')
   }
   return document.toString()

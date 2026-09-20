@@ -481,6 +481,26 @@ describe('writeCliConfigDraft', () => {
       expect(written).not.toBeNull()
     })
 
+    it('accepts a keyless Ollama provider and injects the placeholder token', async () => {
+      mockGet({
+        '/providers/ollama': () => ollamaProvider,
+        '/providers/ollama/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.MINIMAX_CODE, modelId: 'ollama::llama3' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const config = files[0]
+      if (!config || typeof config.content !== 'string') throw new Error('Expected MiniMax config file')
+      const parsed = parseYaml(config.content)
+      expect(parsed.custom_provider['cherry-Ollama']).toMatchObject({
+        api: 'anthropic-messages',
+        options: { apiKey: 'ollama', baseURL: 'http://localhost:11434' }
+      })
+      expect(parsed.defaultModel).toBe('custom_provider:cherry-Ollama/llama3')
+    })
+
     it('omits ANTHROPIC_MODEL for detailed Claude model config', async () => {
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({
         env: {

@@ -381,6 +381,22 @@ describe('clearCliConfig', () => {
     expect(writes[minimaxConfigPath]).toContain('permissionMode: default # keep inline comment')
   })
 
+  it('minimax: strips every Cherry-managed provider and a defaultModel aimed at any of them', async () => {
+    existing[minimaxConfigPath] = [
+      'custom_provider:',
+      '  cherry-a:',
+      '    options: { apiKey: key-a, baseURL: https://a.example }',
+      '  cherry-b:',
+      '    options: { apiKey: key-b, baseURL: https://b.example }',
+      'defaultModel: custom_provider:cherry-b/model-b',
+      ''
+    ].join('\n')
+
+    await clearCliConfig({ cliTool: CodeCli.MINIMAX_CODE })
+
+    expect(parseYaml(writes[minimaxConfigPath])).toEqual({})
+  })
+
   it('minimax: missing config is already clear and sends no rewrite', async () => {
     await clearCliConfig({ cliTool: CodeCli.MINIMAX_CODE })
     expect(writes[minimaxConfigPath]).toBeUndefined()
