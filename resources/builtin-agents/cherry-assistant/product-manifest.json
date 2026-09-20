@@ -465,8 +465,8 @@
     }
   ],
   "providers": {
-    "version": "2435ad1032e8114c",
-    "count": 64,
+    "version": "9db4d62f4a27171c",
+    "count": 65,
     "entries": [
       {
         "id": "cherryin",
@@ -547,6 +547,10 @@
       {
         "id": "radeon-cloud",
         "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "anonrouter",
+        "name": "AnonRouter"
       },
       {
         "id": "tokendance",

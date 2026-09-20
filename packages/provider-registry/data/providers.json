@@ -706,6 +706,29 @@
       "name": "AMD GPU Cloud"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "AnonRouter - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.anonrouter.ai/v1"
+        }
+      },
+      "id": "anonrouter",
+      "metadata": {
+        "website": {
+          "apiKey": "https://anonrouter.ai/home/api-keys",
+          "docs": "https://docs.anonrouter.ai/compatibility",
+          "models": "https://anonrouter.ai/models",
+          "official": "https://anonrouter.ai"
+        }
+      },
+      "name": "AnonRouter",
+      "reportedCostCurrency": "USD",
+      "reportsActualCost": true
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenDance - AI model provider",
@@ -2633,5 +2656,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "2435ad1032e8114c"
+  "version": "9db4d62f4a27171c"
 }

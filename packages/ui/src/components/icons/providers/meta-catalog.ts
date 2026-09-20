@@ -16,6 +16,7 @@ import { meta as aihubmixMeta } from './aihubmix/meta'
 import { meta as aionlabsMeta } from './aionlabs/meta'
 import { meta as alayanewMeta } from './alayanew/meta'
 import { meta as allenaiMeta } from './allenai/meta'
+import { meta as anonrouterMeta } from './anonrouter/meta'
 import { meta as anthropicMeta } from './anthropic/meta'
 import { meta as applicationMeta } from './application/meta'
 import { meta as arceeAiMeta } from './arcee-ai/meta'
@@ -180,6 +181,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   aionlabs: aionlabsMeta,
   alayanew: alayanewMeta,
   allenai: allenaiMeta,
+  anonrouter: anonrouterMeta,
   anthropic: anthropicMeta,
   application: applicationMeta,
   'arcee-ai': arceeAiMeta,

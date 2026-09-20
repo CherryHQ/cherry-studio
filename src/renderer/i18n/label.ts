@@ -23,6 +23,7 @@ const providerKeyMap = {
   '302ai': 'provider.302ai',
   aihubmix: 'provider.aihubmix',
   alayanew: 'provider.alayanew',
+  anonrouter: 'provider.anonrouter',
   anthropic: 'provider.anthropic',
   'aws-bedrock': 'provider.aws-bedrock',
   'azure-openai': 'provider.azure-openai',
