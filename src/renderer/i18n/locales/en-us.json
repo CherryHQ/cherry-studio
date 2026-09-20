@@ -5414,7 +5414,7 @@
   "settings.subscription.sign_in_required": "Sign in to view your subscription and quota.",
   "settings.subscription.subscribe": "Subscribe",
   "settings.subscription.subscribe_hint": "Subscribe to a paid plan to view quota usage.",
-  "settings.subscription.title": "Subscription Quota",
+  "settings.subscription.title": "Subscription & Usage",
   "settings.subscription.usage": "Usage",
   "settings.system.title": "System",
   "settings.theme.color_primary": "Primary Color",
