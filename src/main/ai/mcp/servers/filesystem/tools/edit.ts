@@ -4,7 +4,7 @@ import path from 'path'
 import * as z from 'zod'
 
 import { resolveMutationLockKey, withPathMutationLock } from '../mutationLock'
-import { logger, replaceWithFuzzyMatch, validatePath } from '../types'
+import { logger, replaceWithFuzzyMatch, validatePath, verifyWrittenContent } from '../types'
 
 // Schema definition
 export const EditToolSchema = z.object({
@@ -40,12 +40,10 @@ export async function handleEditTool(args: unknown, baseDir: string) {
 
   const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = parsed.data
 
-  // Register in the lock chain before validating so concurrent calls queue in call order.
-  // The canonical lock below additionally serializes alias spellings of the same file.
-  const validPath = await withPathMutationLock(resolveMutationLockKey(filePath, baseDir), () =>
-    validatePath(filePath, baseDir)
-  )
-  return withPathMutationLock(validPath, async () => {
+  // Hold the mutation lock across validation and mutation so concurrent calls queue in
+  // call order even when file existence flips the lock key mid-operation (e.g. creates).
+  return withPathMutationLock(resolveMutationLockKey(filePath, baseDir), async () => {
+    const validPath = await validatePath(filePath, baseDir)
     // Check if file exists
     try {
       const stats = await fs.stat(validPath)
@@ -62,10 +60,7 @@ export async function handleEditTool(args: unknown, baseDir: string) {
 
           // Write the new content
           await fs.writeFile(validPath, newString, 'utf-8')
-          const writtenContent = await fs.readFile(validPath, 'utf-8')
-          if (writtenContent !== newString) {
-            throw new Error('Post-write verification failed: file content did not match requested content')
-          }
+          await verifyWrittenContent(validPath, newString)
 
           logger.info('File created', { path: validPath })
 
@@ -90,10 +85,7 @@ export async function handleEditTool(args: unknown, baseDir: string) {
     // Handle special case: old_string is empty (create file with content)
     if (oldString === '') {
       await fs.writeFile(validPath, newString, 'utf-8')
-      const writtenContent = await fs.readFile(validPath, 'utf-8')
-      if (writtenContent !== newString) {
-        throw new Error('Post-write verification failed: file content did not match requested content')
-      }
+      await verifyWrittenContent(validPath, newString)
 
       logger.info('File overwritten', { path: validPath })
 
@@ -113,10 +105,7 @@ export async function handleEditTool(args: unknown, baseDir: string) {
 
     // Write the modified content
     await fs.writeFile(validPath, newContent, 'utf-8')
-    const writtenContent = await fs.readFile(validPath, 'utf-8')
-    if (writtenContent !== newContent) {
-      throw new Error('Post-write verification failed: file content did not match requested content')
-    }
+    await verifyWrittenContent(validPath, newContent)
 
     logger.info('File edited', {
       path: validPath,

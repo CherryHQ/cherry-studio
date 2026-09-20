@@ -392,6 +392,36 @@ describe('filesystem MCP security', () => {
       await expect(fs.readFile(path.join(realDir, 'created.txt'), 'utf-8')).resolves.toBe('second')
     })
 
+    it('serializes a create that arrives while another create is still verifying', async () => {
+      const workspaceRoot = await createTempDir('create-race-root-')
+      const filePath = path.join(workspaceRoot, 'race.txt')
+
+      let signalWriteLanded!: () => void
+      const writeLandedGate = new Promise<void>((resolve) => {
+        signalWriteLanded = resolve
+      })
+      const originalWriteFile = fs.writeFile.bind(fs)
+      let firstWrite = true
+      vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+        const result = await (
+          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
+        )(...args)
+        if (firstWrite) {
+          firstWrite = false
+          signalWriteLanded()
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        }
+        return result
+      })
+
+      const firstCreate = handleWriteTool({ file_path: 'race.txt', content: 'first' }, workspaceRoot)
+      await writeLandedGate
+      await handleWriteTool({ file_path: 'race.txt', content: 'second' }, workspaceRoot)
+      await firstCreate
+
+      await expect(fs.readFile(filePath, 'utf-8')).resolves.toBe('second')
+    })
+
     it('preserves call order for dependent edits via hard-link aliases', async () => {
       const workspaceRoot = await createTempDir('edit-hardlink-ordering-root-')
       const filePath = path.join(workspaceRoot, 'original.txt')

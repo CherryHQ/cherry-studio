@@ -37,12 +37,10 @@ export async function handleDeleteTool(args: unknown, baseDir: string) {
   const targetPath = parsed.data.path
   const recursive = parsed.data.recursive || false
 
-  // Register in the lock chain before validating so concurrent mutations queue in call order.
-  // The canonical lock below additionally serializes alias spellings of the same path.
-  const validPath = await withPathMutationLock(resolveMutationLockKey(targetPath, baseDir), () =>
-    validatePath(targetPath, baseDir)
-  )
-  return withPathMutationLock(validPath, async () => {
+  // Hold the mutation lock across validation and mutation so concurrent mutations queue in
+  // call order even when file existence flips the lock key mid-operation (e.g. creates).
+  return withPathMutationLock(resolveMutationLockKey(targetPath, baseDir), async () => {
+    const validPath = await validatePath(targetPath, baseDir)
     // Check if path exists and get stats
     let stats
     try {
