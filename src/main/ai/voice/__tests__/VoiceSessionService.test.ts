@@ -45,6 +45,26 @@ function owner(): VoiceOwner {
     }) as unknown as VoiceOwner['webContents']
   }
 }
+function ownerDestroyedWhileReattaching(): VoiceOwner {
+  const events = new EventEmitter()
+  let destroyed = false
+  let destroyedRegistrations = 0
+  const originalOnce = events.once.bind(events)
+  events.once = ((event: string | symbol, listener: (...args: unknown[]) => void) => {
+    if (event === 'destroyed' && ++destroyedRegistrations === 2) {
+      destroyed = true
+      events.emit('destroyed')
+    }
+    return originalOnce(event, listener)
+  }) as typeof events.once
+  return {
+    windowId: randomUUID(),
+    webContents: Object.assign(events, {
+      id: Math.random(),
+      isDestroyed: () => destroyed
+    }) as unknown as VoiceOwner['webContents']
+  }
+}
 const webm = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4])
 function wav() {
   const data = Buffer.alloc(46)
@@ -310,6 +330,22 @@ describe('VoiceSessionService file and admission contract', () => {
     })
   })
 
+  it('escalates cleanup when the owner is destroyed while its listener is reattached', async () => {
+    a = ownerDestroyedWhileReattaching()
+    const input = await recording()
+    makeCleanupEligible(input.fileEntryId)
+    vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockRejectedValue(
+      Object.assign(new Error('denied'), { code: 'EPERM' })
+    )
+
+    await expect(service.discard(a, input.sessionId)).rejects.toMatchObject({ code: 'EPERM' })
+    expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    await vi.waitFor(async () => {
+      await files.runEntryCleanup()
+      expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+    })
+  })
+
   it('keeps failed temporary deletion tracked so session cleanup can retry', async () => {
     const input = await recording()
     const physicalPath = files.getPhysicalPath(input.fileEntryId)
@@ -440,6 +476,23 @@ describe('VoiceSessionService file and admission contract', () => {
     const speech = { sessionId: randomUUID(), requestId: randomUUID(), text: 'private-text', voice: 'exact' }
     native.speech.mockRejectedValueOnce(new Error('private-text private-transcript ' + root))
     await expect(service.speech(a, speech)).rejects.toMatchObject({ reason: 'operation_failed' })
+    mockMainLoggerService.warn.mockClear()
+    const terminal = await recording()
+    vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockRejectedValueOnce(
+      Object.assign(new Error('private-text private-transcript ' + root), { code: 'EPERM', path: root, content: webm })
+    )
+    ;(a.webContents as unknown as EventEmitter).emit('destroyed')
+    await vi.waitFor(() =>
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Voice terminal file cleanup failed',
+        expect.objectContaining({ sessionId: terminal.sessionId, category: 'operation_failed', code: 'EPERM' })
+      )
+    )
+    const terminalPayloads = mockMainLoggerService.warn.mock.calls
+      .filter(([message]) => message === 'Voice terminal file cleanup failed')
+      .map(([, payload]) => payload as Record<string, unknown>)
+    expect(terminalPayloads).toHaveLength(1)
+    expect(Object.keys(terminalPayloads[0]).sort()).toEqual(['category', 'code', 'sessionId'])
     const logs = JSON.stringify(
       ['debug', 'info', 'warn', 'error', 'verbose', 'silly'].map(
         (level) => mockMainLoggerService[level as 'info'].mock.calls

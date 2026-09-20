@@ -374,7 +374,6 @@ export class VoiceSessionService extends BaseService {
             if (!terminal) throw error
             logger.warn('Voice terminal file cleanup failed', {
               sessionId: session.id,
-              fileEntryId: id,
               category: 'operation_failed',
               code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
             })
@@ -384,12 +383,12 @@ export class VoiceSessionService extends BaseService {
       } catch (error) {
         session.cleanup = undefined
         if (!terminal) {
+          session.attach()
           if (session.owner.webContents.isDestroyed()) {
+            session.detach()
             void this.closeSession(session, true).catch(() =>
               logger.warn('Voice cleanup failed', { sessionId: session.id, category: 'operation_failed' })
             )
-          } else {
-            session.attach()
           }
         }
         throw error
