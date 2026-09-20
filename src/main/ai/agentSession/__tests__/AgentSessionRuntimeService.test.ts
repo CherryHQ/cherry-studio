@@ -2057,6 +2057,32 @@ describe('AgentSessionRuntimeService', () => {
     }
   })
 
+  it('keeps a session override model when an agent update touches no model field', async () => {
+    const service: any = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.modelId = switchedModelId
+    entry.runtimeState.execution = { kind: 'idle' }
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    entry.connection = connection
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
+
+    await service.handleAgentUpdated(
+      'agent-1',
+      { name: 'Renamed' },
+      { id: 'agent-1', name: 'Renamed', model: baseTurnInput.modelId }
+    )
+
+    expect(entry.modelId).toBe(switchedModelId)
+    expect(connection.reconcile).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
+    mocks.getSessionById.mockReset()
+  })
+
   it('reads the agent once per session on a push reconcile, not twice', async () => {
     // `agentService.getAgent` is four uncached queries. `handleAgentUpdated` already holds the
     // updated entity, so walking every session of that agent must not re-read it per session.
