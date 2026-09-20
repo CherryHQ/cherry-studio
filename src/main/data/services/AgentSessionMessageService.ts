@@ -1,5 +1,5 @@
 import { isToolUIPart } from 'ai'
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
@@ -89,7 +89,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
-    'data', json(${sessionMessagesTable.data}),
+    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor'),
     'searchableText', ${sessionMessagesTable.searchableText},
     'status', ${sessionMessagesTable.status},
     'modelId', ${sessionMessagesTable.modelId},
@@ -145,6 +145,7 @@ type ListSessionMessagesOptions = {
 
 type SaveAgentSessionMessageParams = {
   sessionId: string
+  runtimeAnchor?: unknown
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
   message: CreateAgentSessionMessageDto & {
@@ -282,7 +283,75 @@ function terminalResultData(
   return { parts: [{ type: 'text', text }] }
 }
 
+function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessageEntity['data'] {
+  const result = { ...data }
+  delete result.runtimeAnchor
+  return result
+}
+
 export class AgentSessionMessageService {
+  /** Main-only native fork read. API callers must never receive these raw rows. */
+  readForkPrefixTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    excludedIds: readonly string[] = []
+  ): SessionMessageRow[] | undefined {
+    const rows = tx
+      .select()
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+      .all()
+    const end = rows.findIndex((row) => row.id === messageId)
+    if (end < 0) return undefined
+    const excluded = new Set(excludedIds)
+    return rows.slice(0, end + 1).filter((row) => !excluded.has(row.id))
+  }
+
+  /** Inserts historical facts only, never delivery, billing, queue or approval ownership. */
+  insertForkMessagesTx(tx: DbOrTx, sessionId: string, rows: readonly SessionMessageRow[]): void {
+    for (const row of rows) {
+      tx.insert(sessionMessagesTable)
+        .values({
+          id: row.id,
+          sessionId,
+          role: row.role,
+          data: row.data,
+          status: row.status,
+          modelId: row.modelId,
+          messageSnapshot: row.messageSnapshot,
+          runtimeResumeToken: row.runtimeResumeToken,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt
+        })
+        .run()
+      replaceAgentSessionMessageFileRefsTx(tx, row.id, row.data)
+    }
+  }
+
+  private invalidateForkPrefixTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+    const row = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (!row) return
+    tx.update(sessionMessagesTable)
+      .set({
+        data: sql`json_remove(${sessionMessagesTable.data}, '$.runtimeAnchor')`,
+        updatedAt: Date.now()
+      })
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          // Match readForkPrefixTx's inclusive (createdAt, id) boundary.
+          or(
+            gt(sessionMessagesTable.createdAt, row.createdAt),
+            and(eq(sessionMessagesTable.createdAt, row.createdAt), gte(sessionMessagesTable.id, row.id))
+          ),
+          sql`json_type(${sessionMessagesTable.data}, '$.runtimeAnchor') is not null`
+        )
+      )
+      .run()
+  }
+
   search(query: SessionMessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
@@ -310,7 +379,7 @@ export class AgentSessionMessageService {
           JOIN agent_session_message_fts fts ON sm.fts_rowid = fts.rowid
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
-          WHERE sm.searchable_text != ''
+          WHERE s.type = 'conversation' AND sm.searchable_text != ''
             AND s.deleted_at IS NULL
             AND ${messageSessionCondition}
             AND ${createdAtCondition}
@@ -367,8 +436,8 @@ export class AgentSessionMessageService {
         JOIN agent_session_message sm ON sm.fts_rowid = agent_session_message_fts.rowid
         JOIN agent_session s ON s.id = sm.session_id
         LEFT JOIN agent a ON a.id = s.agent_id
-        WHERE agent_session_message_fts MATCH ${matchQuery}
-          AND s.deleted_at IS NULL
+        WHERE s.type = 'conversation' AND agent_session_message_fts MATCH ${matchQuery}
+            AND s.deleted_at IS NULL
           AND ${agentCondition}
           AND ${addressableCondition}
           ${shortTermConditions.length > 0 ? sql`AND ${sql.join(shortTermConditions, sql` AND `)}` : sql``}
@@ -419,8 +488,8 @@ export class AgentSessionMessageService {
           FROM agent_session_message sm
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
-          WHERE s.deleted_at IS NULL
-            AND ${agentCondition}
+          WHERE s.type = 'conversation' AND ${agentCondition}
+            AND s.deleted_at IS NULL
             AND ${addressableCondition}
             AND ${sql.join(conditions, sql` AND `)}
           ORDER BY length(sm.searchable_text), sm.created_at DESC, sm.id DESC
@@ -511,7 +580,10 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const tail = pageRows[pageRows.length - 1]
     return {
-      items: pageRows.map((row) => ({ ...row, createdAt: timestampToISO(row.createdAt) })),
+      items: pageRows.map((row) => ({
+        ...row,
+        createdAt: timestampToISO(row.createdAt)
+      })),
       nextCursor: hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
     }
   }
@@ -596,12 +668,15 @@ export class AgentSessionMessageService {
     }
 
     const result = withSqliteErrors(
-      () => this.deleteSessionMessageTx(database, sessionId, messageId),
+      () => application.get('DbService').withWriteTx((tx) => this.deleteSessionMessageTx(tx, sessionId, messageId)),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } }
+    ])
   }
 
   getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
@@ -617,7 +692,7 @@ export class AgentSessionMessageService {
     messageId: string,
     dto: UpdateAgentSessionMessageDto
   ): AgentSessionMessageEntity {
-    return application.get('DbService').withWriteTx((tx) => {
+    const message = application.get('DbService').withWriteTx((tx) => {
       this.assertActiveSession(tx, sessionId)
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
@@ -625,7 +700,8 @@ export class AgentSessionMessageService {
       const updatedAt = Date.now()
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
-      const mergedData = { ...existing.data, ...dto.data }
+      const mergedData = publicMessageData({ ...existing.data, ...dto.data })
+      this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
         .set({ data: mergedData, updatedAt })
@@ -636,9 +712,14 @@ export class AgentSessionMessageService {
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+    ])
+    return message
   }
 
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
+    this.invalidateForkPrefixTx(tx, sessionId, messageId)
     const result = tx
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
@@ -733,7 +814,7 @@ export class AgentSessionMessageService {
       id: row.id,
       sessionId: row.sessionId,
       role: row.role as AgentSessionMessageEntity['role'],
-      data: row.data,
+      data: publicMessageData(row.data),
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
       modelId: row.modelId,
@@ -837,6 +918,8 @@ export class AgentSessionMessageService {
     }
 
     const existingRow = this.findExistingMessageRow(db, sessionId, messageId)
+    const data: SessionMessageRow['data'] = publicMessageData(message.data)
+    if (params.runtimeAnchor) data.runtimeAnchor = params.runtimeAnchor
 
     if (existingRow) {
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
@@ -870,7 +953,7 @@ export class AgentSessionMessageService {
             .set({
               role: message.role,
               status,
-              data: message.data,
+              data,
               modelId,
               messageSnapshot,
               stats,
@@ -893,7 +976,7 @@ export class AgentSessionMessageService {
           ...existingRow,
           role: message.role,
           status,
-          data: message.data,
+          data,
           searchableText: existingRow.searchableText,
           modelId,
           messageSnapshot,
@@ -916,7 +999,7 @@ export class AgentSessionMessageService {
       sessionId,
       role: message.role,
       status,
-      data: message.data,
+      data,
       modelId: message.modelId,
       messageSnapshot: message.messageSnapshot,
       stats: mergeMessageRuntimeStats(undefined, runtimeStats) ?? null,

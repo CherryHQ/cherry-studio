@@ -35,6 +35,8 @@ import {
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
 
+import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from '../../ai/agents/agentTaskDefaults'
+
 const AGENT_TASK_TYPE = 'agent.task' as const
 
 /**
@@ -63,7 +65,8 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
   return {
     agentId: template.agentId,
     prompt: template.prompt,
-    timeoutMinutes: typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : 2,
+    timeoutMinutes:
+      typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
     workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' }
   }
 }
@@ -82,10 +85,25 @@ export type TaskSessionReuse = {
 }
 
 const TASK_REUSE_METADATA_KEY = 'reuse'
+const CIRCUIT_BREAKER_PAUSED_KEY = 'circuitBreakerPaused'
 
 /** A JSON column can legally hold an array or a primitive; both would spread into garbage. */
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Set by the agent-task circuit breaker (consecutive failed terminal runs) so
+ * config-driven convergence (heartbeat sync) can tell "paused by the breaker"
+ * apart from plain drift and must not silently re-arm it.
+ */
+export function isCircuitBreakerPaused(metadata: unknown): boolean {
+  return isPlainRecord(metadata) && metadata[CIRCUIT_BREAKER_PAUSED_KEY] === true
+}
+
+/** Same merge discipline as writeTaskSessionReuse — the column replaces wholesale. */
+export function writeCircuitBreakerPaused(metadata: unknown, paused: boolean): Record<string, unknown> {
+  return { ...(isPlainRecord(metadata) ? metadata : {}), [CIRCUIT_BREAKER_PAUSED_KEY]: paused }
 }
 
 function referencesWorkspace(value: unknown, workspaceId: string): value is Record<string, unknown> {
@@ -165,6 +183,23 @@ function taskReadModelEffects(
 }
 
 export class AgentTaskService {
+  getHeartbeatSchedule(agentId: string): JobScheduleSnapshot | null {
+    return (
+      jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).find((schedule) => {
+        const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
+        return template?.agentId === agentId && template.prompt === HEARTBEAT_PROMPT_SENTINEL
+      }) ?? null
+    )
+  }
+
+  getHeartbeatStatus(agentId: string) {
+    const schedule = this.getHeartbeatSchedule(agentId)
+    return {
+      scheduleEnabled: schedule?.enabled ?? false,
+      latestRun: schedule ? (jobService.list({ scheduleId: schedule.id, limit: 1 })[0] ?? null) : null
+    }
+  }
+
   completeMissedRunTx(tx: DbOrTx, taskId: string, jobId: string, finishedAt: number): boolean {
     const schedule = jobScheduleService.getByIdTx(tx, taskId)
     if (
@@ -324,6 +359,7 @@ export class AgentTaskService {
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
     const template = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
     if (!template || !this.getActiveAgentIds([template.agentId]).has(template.agentId)) return null
+    if (template.prompt === HEARTBEAT_PROMPT_SENTINEL) return null
     return this.toScheduledTaskEntity(snapshot, agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null)
   }
 

@@ -4,10 +4,12 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
+import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
+import { AgentSessionForkError, type RuntimeForkInput } from '../fork'
 import { listEntries, reclaimStale } from '../orphanSessionReclaim'
 import type {
   AgentRuntimeConnectInput,
@@ -16,10 +18,30 @@ import type {
   OrphanSessionReclaimOptions
 } from '../types'
 import { buildDshCherryToolName, DSH_AUTO_APPROVED_BRIDGED_TOOLS } from './DshCherryToolBridge'
+import { forkDshSession } from './dshFork'
 import { DshRuntimeConnection } from './DshRuntimeConnection'
+import { parseDshForkCheckpoint } from './forkCheckpoint'
 import { assertDshProviderUsable } from './modelInjection'
 
 export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
+  private readonly forkSources = new Map<string, DshRuntimeConnection>()
+
+  async fork(input: RuntimeForkInput) {
+    input.signal.throwIfAborted()
+    const checkpoint = parseDshForkCheckpoint(input.checkpoint)
+    let events: unknown[] | undefined
+    try {
+      events = await this.forkSources.get(input.sourceSessionId)?.snapshotForFork(checkpoint.boundary, input.signal)
+    } catch (error) {
+      input.signal.throwIfAborted()
+      if (error instanceof AgentSessionForkError) throw error
+      const reason =
+        error instanceof Error && isAgentSessionForkFailureReason(error.message) ? error.message : 'operation_failed'
+      throw new AgentSessionForkError(reason, error instanceof Error ? error.message : reason)
+    }
+    input.signal.throwIfAborted()
+    return forkDshSession(input, events)
+  }
   readonly type = 'dsh'
   readonly capabilities = ['agent-session'] as const
 
@@ -69,7 +91,17 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    return new DshRuntimeConnection(input).start()
+    const connection = new DshRuntimeConnection(input, () => {
+      if (this.forkSources.get(input.sessionId) === connection) this.forkSources.delete(input.sessionId)
+    })
+    this.forkSources.set(input.sessionId, connection)
+    try {
+      await connection.start()
+      return connection
+    } catch (error) {
+      if (this.forkSources.get(input.sessionId) === connection) this.forkSources.delete(input.sessionId)
+      throw error
+    }
   }
 
   /**

@@ -17,6 +17,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
@@ -29,6 +30,8 @@ import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import type { AgentTaskForm } from '@shared/ipc/schemas/ai'
+
+import type * as HeartbeatScheduleModule from '../heartbeatSchedule'
 
 // Registering a second schedule type exercises the type guard; the dummy
 // entry is compile-time only and never enters production code.
@@ -45,6 +48,23 @@ vi.mock('@application', async () => {
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
+// The heartbeat sync is observed, not executed: these tests are about which
+// service events reach it. Everything else in the module stays real so the
+// deletion sweep under test is the production one.
+const { syncHeartbeatScheduleMock, repairHeartbeatSchedulesMock } = vi.hoisted(() => ({
+  // Both are awaited/chained by the service, so they must return promises.
+  syncHeartbeatScheduleMock: vi.fn(async () => undefined),
+  repairHeartbeatSchedulesMock: vi.fn(async () => undefined)
+}))
+vi.mock('../heartbeatSchedule', async (importOriginal) => {
+  const actual = await importOriginal<typeof HeartbeatScheduleModule>()
+  return {
+    ...actual,
+    syncHeartbeatSchedule: syncHeartbeatScheduleMock,
+    repairHeartbeatSchedules: repairHeartbeatSchedulesMock
+  }
+})
 
 // The real handler pulls in the whole runAgentTask execution chain; the
 // service under test only needs SOME registered handler for 'agent.task'.
@@ -140,7 +160,12 @@ describe('AgentJobsService', () => {
             abortAndDrain: async () => {}
           }
         case 'AgentSessionRuntimeService':
-          return { isSessionBusy: () => false, closeSession: async () => {} }
+          return {
+            isSessionBusy: () => false,
+            closeSession: async () => {},
+            cancelSessionForks: async () => {},
+            recoverSessionForks: async () => {}
+          }
         case 'AgentSessionDeliveryService':
           return { kick: () => {}, drainSessionQueues: async () => {}, pause: () => ({ dispose() {} }) }
         case 'ChannelManager':
@@ -167,6 +192,8 @@ describe('AgentJobsService', () => {
   })
 
   afterAll(async () => {
+    // The service owns the in-flight drain and the agent-event subscriptions;
+    // stopping only JobManager/SchedulerService would leave both behind.
     await service._doStop()
     await jobManager._doStop()
     await scheduler._doStop()
@@ -175,6 +202,7 @@ describe('AgentJobsService', () => {
 
   beforeEach(() => {
     clearScheduleDisposables()
+    syncHeartbeatScheduleMock.mockClear()
     seedAgent(AGENT_ID)
   })
 
@@ -294,6 +322,27 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
     })
 
+    it('refuses a trashed Agent before any write', () => {
+      // Registering first would arm the schedule and only then fail the
+      // post-commit read, stranding an enabled row behind the error.
+      dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
+
+      expect(() => service.createTask(AGENT_ID, form)).toThrow('Agent not found')
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    })
+
+    it('rejects a prompt that only trims to the heartbeat sentinel', () => {
+      // The sweep's tolerant identity reads a padded sentinel as a heartbeat
+      // row, so an ordinary task carrying one would lose its workspace.
+      expect(() => service.createTask(AGENT_ID, { ...form, prompt: '  __heartbeat__  ' })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      const task = service.createTask(AGENT_ID, form)
+      expect(() => service.updateTask(AGENT_ID, task.id, { prompt: ' __heartbeat__ ' })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+    })
+
     it('rejects a foreign channel before any write', () => {
       seedAgent(OTHER_AGENT_ID)
       seedChannel('foreign-channel', OTHER_AGENT_ID)
@@ -326,6 +375,27 @@ describe('AgentJobsService', () => {
         'reserved for the agent heartbeat'
       )
       expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    })
+
+    it('refuses the reserved heartbeat schedule name — nothing is written', () => {
+      expect(() => service.createTask(AGENT_ID, { ...form, name: `heartbeat_${AGENT_ID}` })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    })
+
+    it("refuses another agent's reserved heartbeat schedule name — the UNIQUE index is per type, not per agent", () => {
+      seedAgent(OTHER_AGENT_ID)
+      expect(() => service.createTask(AGENT_ID, { ...form, name: `heartbeat_${OTHER_AGENT_ID}` })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    })
+
+    it('allows a heartbeat_-prefixed name that is not a live agent’s reserved name', () => {
+      const task = service.createTask(AGENT_ID, { ...form, name: 'heartbeat_daily' })
+
+      expect(task.name).toBe('heartbeat_daily')
     })
 
     it('rejects an invalid cron trigger up front — no row, no subscriptions, no timer', () => {
@@ -374,6 +444,15 @@ describe('AgentJobsService', () => {
         'reserved for the agent heartbeat'
       )
       expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ prompt: form.prompt })
+    })
+
+    it('refuses to rename an existing task onto the reserved heartbeat name', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      expect(() => service.updateTask(AGENT_ID, task.id, { name: `heartbeat_${AGENT_ID}` })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      expect(jobScheduleService.getById(task.id)?.name).toBe(form.name)
     })
 
     it('drops a semantically-equal trigger from the patch — the interval phase is not reset', () => {
@@ -733,6 +812,371 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${own.id}`)).toBe(false)
       expect(scheduler.has(`schedule:${second.id}`)).toBe(false)
       expect(scheduler.has(`schedule:${foreign.id}`)).toBe(true)
+    })
+
+    it('sweep removes a malformed-template row whose raw agentId still claims ownership', async () => {
+      // Ownership is the raw template agentId — the same contract the startup
+      // reaper reads. Requiring the full template parse here would strand a
+      // bad-workspace row armed on a deleted agent until the next restart.
+      seedAgent(OTHER_AGENT_ID)
+      const own = service.createTask(AGENT_ID, form)
+      const malformed = jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: 'task_malformed_template',
+        trigger: intervalTrigger,
+        // Deliberately violates the agent.task contract: no workspace/timeout/reuseRevision.
+        jobInputTemplate: { agentId: AGENT_ID, prompt: 'orphan me' } as never,
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(2)
+
+      expect(jobScheduleService.getById(own.id)).toBeNull()
+      expect(jobScheduleService.getById(malformed.id)).toBeNull()
+    })
+
+    it('continues the sweep when one schedule fails to unregister (transient failure)', async () => {
+      // A transient unregister failure (SQLITE_BUSY, timer teardown) must not
+      // abort the whole pass: the remaining schedules and the heartbeat
+      // workspace cleanup are independent of the failed row.
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-busy',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-busy',
+          type: 'user',
+          orderKey: 'ws-hb-busy'
+        })
+        .run()
+      const first = service.createTask(AGENT_ID, form)
+      const second = service.createTask(AGENT_ID, { ...form, name: 'hourly-rollup' })
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-busy' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      const spy = vi.spyOn(jobManager, 'unregisterJobScheduleById')
+      spy.mockImplementationOnce(async () => {
+        throw new Error('SQLITE_BUSY')
+      })
+      try {
+        expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(2)
+      } finally {
+        spy.mockRestore()
+      }
+
+      // The failed row survives but is paused, so it cannot sit armed (and be
+      // re-armed after every restart) firing for a dead agent.
+      const survived = jobScheduleService.getById(first.id)
+      expect(survived).not.toBeNull()
+      expect(survived?.enabled).toBe(false)
+      expect(jobScheduleService.getById(second.id)).toBeNull()
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual([])
+    })
+
+    it('deleting an agent also removes the heartbeat workspace row its schedule referenced', async () => {
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-1',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-agent-1',
+          type: 'user',
+          orderKey: 'ws-hb-1'
+        })
+        .run()
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: 'ws-user-1', name: 'My workspace', path: '/tmp/user-ws', type: 'user', orderKey: 'ws-user-1' })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-1' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      // Only the heartbeat workspace goes; an unrelated user workspace stays.
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['ws-user-1'])
+    })
+
+    it('also removes the heartbeat workspace of a whitespace-corrupted sentinel row (deletion identity matches repair)', async () => {
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-corr',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-corr',
+          type: 'user',
+          orderKey: 'ws-hb-corr'
+        })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}__disambig0a`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '  __heartbeat__  ',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-corr' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+    })
+
+    it('also removes the workspace of a heartbeat row the v1 migration renamed (exact sentinel, non-reserved name)', async () => {
+      // #19568 renames all but the first v1 `heartbeat` to `task_<v1Id>`, and
+      // sync repairs such a row in place under its migrated name — the reserved
+      // name shapes alone would strand its workspace on agent deletion.
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-v1renamed',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-v1renamed',
+          type: 'user',
+          orderKey: 'ws-hb-v1renamed'
+        })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: 'task_v1-7',
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-v1renamed' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+    })
+
+    it('keeps the workspace of an ordinary task whose padded-sentinel prompt sits outside the reserved names', async () => {
+      // createTask blocks new padded-sentinel prompts; a row from before that
+      // guard (or a manual write) must not have its user workspace swept.
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-task-padded',
+          name: 'My task workspace',
+          path: '/tmp/task-ws-padded',
+          type: 'user',
+          orderKey: 'ws-task-padded'
+        })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: 'daily-report',
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '  __heartbeat__  ',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-task-padded' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['ws-task-padded'])
+    })
+
+    it('keeps a heartbeat workspace row that still has a session bound (no cascade)', async () => {
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-shared',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-shared',
+          type: 'user',
+          orderKey: 'ws-hb-shared'
+        })
+        .run()
+      // A session bound to the row — deleting the workspace would cascade it
+      // away (agent_session.workspaceId is ON DELETE CASCADE).
+      dbh.db
+        .insert(agentSessionTable)
+        .values({ id: 'sess-1', name: 'kept session', workspaceId: 'ws-hb-shared', orderKey: 'sess-1' })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-shared' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      // The schedule goes, but the referenced workspace row AND its session stay.
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['ws-hb-shared'])
+      expect(
+        dbh.db
+          .select()
+          .from(agentSessionTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['sess-1'])
+    })
+
+    it("keeps a heartbeat workspace row referenced by another agent's task schedule", async () => {
+      seedAgent(OTHER_AGENT_ID)
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-shared',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-shared',
+          type: 'user',
+          orderKey: 'ws-hb-shared'
+        })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-shared' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      // Another agent's task pointing at the same row: deleting the row would
+      // leave this template's workspaceId dangling.
+      const foreign = service.createTask(OTHER_AGENT_ID, {
+        ...form,
+        name: 'foreign-on-shared-ws',
+        workspace: { type: 'user', workspaceId: 'ws-hb-shared' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['ws-hb-shared'])
+      expect(jobScheduleService.getById(foreign.id)).not.toBeNull()
+    })
+
+    it('keeps a heartbeat workspace row referenced by a channel', async () => {
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-shared',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-shared',
+          type: 'user',
+          orderKey: 'ws-hb-shared'
+        })
+        .run()
+      dbh.db
+        .insert(agentChannelTable)
+        .values({
+          id: CHANNEL_ID,
+          type: 'telegram',
+          name: 'ch on shared ws',
+          agentId: AGENT_ID,
+          workspace: { type: 'user', workspaceId: 'ws-hb-shared' },
+          config: {}
+        })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-shared' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['ws-hb-shared'])
+      // The channel's workspace reference is untouched.
+      expect(dbh.db.select().from(agentChannelTable).all()[0]?.workspace).toEqual({
+        type: 'user',
+        workspaceId: 'ws-hb-shared'
+      })
     })
 
     it('reconciles trashed, restored, and missing Agent schedules without deleting retained tasks', async () => {

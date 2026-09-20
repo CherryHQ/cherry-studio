@@ -233,6 +233,19 @@ describe('AgentTaskService (read side)', () => {
       expect(agentTaskService.getTask(AGENT_ID, TASK_ID)).toBeNull()
     })
 
+    it('hides a heartbeat row from the by-id lookups, including the v1-migrated shape', () => {
+      // The list side excludes heartbeat rows; a known schedule id must not
+      // let ordinary task commands reach the row the heartbeat sync owns.
+      vi.mocked(jobScheduleService.getById).mockReturnValue(makeHeartbeatSnapshot())
+
+      try {
+        expect(agentTaskService.getTaskById(TASK_ID)).toBeNull()
+        expect(agentTaskService.getTask(AGENT_ID, TASK_ID)).toBeNull()
+      } finally {
+        vi.mocked(jobScheduleService.getById).mockReset()
+      }
+    })
+
     it('derives status=paused when the schedule is disabled', () => {
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot({ enabled: false }))
 

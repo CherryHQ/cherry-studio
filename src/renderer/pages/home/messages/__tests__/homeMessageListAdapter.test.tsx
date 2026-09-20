@@ -4,6 +4,7 @@ import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
+import type * as MessageListItemUtils from '@renderer/components/chat/messages/utils/messageListItem'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
@@ -105,8 +106,8 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => (
   resolvePartFromParts: vi.fn(() => undefined)
 }))
 
-vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
-  getMessageListItemModel: vi.fn(() => undefined),
+vi.mock('@renderer/components/chat/messages/utils/messageListItem', async (importOriginal) => ({
+  ...(await importOriginal<typeof MessageListItemUtils>()),
   toMessageListItem: vi.fn((message) => message)
 }))
 
@@ -262,6 +263,7 @@ vi.mock('react-i18next', () => ({
 
 import { dataApiService } from '@data/DataApiService'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -423,34 +425,24 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(openRouteMock).toHaveBeenCalledWith('/app/paintings', { source: 'assistant' })
   })
 
-  it('injects Home-message diagnosis persistence into the shared error UI', async () => {
-    vi.mocked(dataApiService.get).mockResolvedValue({
-      data: { parts: [{ type: 'data-error', data: { name: 'ProviderError', message: 'failed' } }] }
-    })
-
+  it('diagnoses the message model without falling back to the current selection', () => {
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
-
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
-      diagnosticReport: { location: string }
-      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+      getDoctorSubject: (message: MessageListItem) => unknown
     }
-    expect(options.diagnosticReport).toEqual({ location: 'error.diagnostic_report.locations.home' })
-    await options.persistDiagnosis('message-1-part-0', { summary: 'Provider failed' })
-
-    expect(dataApiService.get).toHaveBeenCalledWith('/messages/message-1')
-    expect(dataApiService.patch).toHaveBeenCalledWith('/messages/message-1', {
-      body: {
-        data: {
-          parts: [
-            expect.objectContaining({
-              providerMetadata: expect.objectContaining({
-                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Provider failed' }) })
-              })
-            })
-          ]
-        }
-      }
-    })
+    expect(
+      options.getDoctorSubject({
+        id: 'm1',
+        role: 'assistant',
+        topicId: 'topic-a',
+        createdAt: '',
+        status: 'error',
+        modelId: 'openai::historical-model'
+      })
+    ).toEqual({ kind: 'chat', providerId: 'openai', modelId: 'historical-model' })
+    expect(
+      options.getDoctorSubject({ id: 'm2', role: 'assistant', topicId: 'topic-a', createdAt: '', status: 'error' })
+    ).toBeUndefined()
   })
 
   it('rejects pending requests for its topic when unmounted before runtime binding', async () => {

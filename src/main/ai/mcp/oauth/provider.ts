@@ -1,4 +1,8 @@
-import type { OAuthClientProvider, OAuthDiscoveryState } from '@modelcontextprotocol/sdk/client/auth'
+import {
+  type OAuthClientProvider,
+  type OAuthDiscoveryState,
+  UnauthorizedError
+} from '@modelcontextprotocol/sdk/client/auth'
 import type {
   OAuthClientInformation,
   OAuthClientInformationMixed,
@@ -19,6 +23,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   private storage: JsonFileStorage
   private lastDiscoveredAuthServerUrl?: string
   public readonly config: Required<OAuthProviderOptions>
+  public prepareAuthorization?: () => Promise<void>
 
   constructor(options: OAuthProviderOptions) {
     const configDir = application.getPath('feature.mcp.oauth')
@@ -99,6 +104,11 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
+    // Only an active connection attempt can consume the callback and finish authorization.
+    const prepareAuthorization = this.prepareAuthorization
+    if (!prepareAuthorization) throw new UnauthorizedError()
+    await prepareAuthorization()
+    if (this.prepareAuthorization !== prepareAuthorization) throw new UnauthorizedError()
     try {
       // Open the browser to the authorization URL
       await open(sanitizeUrl(authorizationUrl.toString()))

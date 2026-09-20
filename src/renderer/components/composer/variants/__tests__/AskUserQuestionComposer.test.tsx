@@ -187,4 +187,72 @@ describe('AskUserQuestionComposer', () => {
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(screen.getByRole('button', { name: /Bunyan/ })).toBeDisabled())
   })
+
+  it('sends a selected option and the typed note together instead of dropping the option', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'Use JSON logs' } })
+    // A typed note on a non-final question only advances — the label must not promise a submit.
+    // Matched by text: the pagination control also carries a "Next" aria-label.
+    expect(screen.getByText('Next')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Next'))
+    expect(screen.getByText('Add context')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: true,
+      updatedInput: {
+        questions,
+        answers: {
+          'Choose logger': 'Winston',
+          'Add context': 'Bunyan'
+        },
+        annotations: {
+          'Choose logger': { notes: 'Use JSON logs' }
+        }
+      }
+    })
+  })
+
+  it('keeps typed text as the answer for a question without a selection', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByText('Skip'))
+    fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'Use JSON logs' } })
+    fireEvent.click(screen.getByText('Submit'))
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: true,
+      updatedInput: {
+        questions,
+        answers: {
+          'Add context': 'Use JSON logs'
+        }
+      }
+    })
+  })
+
+  it('lets a single-select option be toggled off so the typed text can replace it', () => {
+    const onRespond = vi.fn()
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
+
+    expect(screen.getByRole('heading', { name: 'Choose logger' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'false')
+    expect(onRespond).not.toHaveBeenCalled()
+  })
 })

@@ -32,11 +32,12 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/components/command', async () => {
   const React = await import('react')
+  const emptyItems: readonly ExtraItem[] = []
 
   return {
     CommandContextMenu: ({
       children,
-      extraItems = [],
+      extraItems = emptyItems,
       getExtraItems,
       onOpenChange
     }: {
