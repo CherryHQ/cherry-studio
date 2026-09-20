@@ -127,6 +127,15 @@ function toolbarAvailability(
   }
 }
 
+function canStartEditing({
+  actions,
+  message,
+  isTranslating,
+  startEditingMessage
+}: MessageMenuBarActionContext): boolean {
+  return !isTranslating && !!startEditingMessage && (actions.canEditMessage?.(message) ?? !!actions.editMessage)
+}
+
 function notifyCommandError(id: string, context: MessageMenuBarActionContext, error: unknown) {
   logger.error(`Message menu action failed: ${id}`, error as Error)
   context.actions.notifyError?.(formatErrorMessageWithPrefix(error, context.t('message.error.unknown')))
@@ -332,10 +341,7 @@ registerToolbarAction({
   commandId: 'message.edit',
   label: ({ t, actions }) => actions.editLabel ?? t('common.edit'),
   icon: <EditIcon size={15} />,
-  availability: toolbarAvailability(
-    'user-edit',
-    ({ isTranslating, isUserMessage, startEditingMessage }) => !isTranslating && isUserMessage && !!startEditingMessage
-  )
+  availability: toolbarAvailability('user-edit', (context) => context.isUserMessage && canStartEditing(context))
 })
 
 registerToolbarAction({
@@ -461,8 +467,8 @@ registerAction({
   group: 'write',
   order: 10,
   surface: 'menu',
-  availability: ({ isAssistantMessage, isEditable, isTranslating, isUserMessage, startEditingMessage }) =>
-    !isTranslating && isEditable && !!startEditingMessage && (isUserMessage || isAssistantMessage)
+  availability: (context) =>
+    context.isEditable && (context.isUserMessage || context.isAssistantMessage) && canStartEditing(context)
 })
 
 registerAction({
