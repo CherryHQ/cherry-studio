@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "昨天",
   "agent.session.list.title": "任务",
   "agent.session.model_switch_confirm.confirm": "切换模型",
-  "agent.session.model_switch_confirm.description": "不同模型理解和处理上下文的方式可能不同。切换后，后续回复的连贯性或效果可能受到影响。是否继续切换？",
+  "agent.session.model_switch_confirm.description": "不同模型理解和处理上下文的方式可能不同。切换后，后续回复的连贯性或效果可能受到影响。此更改仅适用于当前会话，不会影响同一智能体的其他会话。是否继续切换？",
   "agent.session.model_switch_confirm.skip_for_app_run": "退出应用前不再提示",
   "agent.session.model_switch_confirm.title": "切换到「{{model}}」？",
   "agent.session.new": "新任务",

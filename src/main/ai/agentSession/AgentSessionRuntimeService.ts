@@ -9,6 +9,7 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
+import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
@@ -54,6 +55,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,
+  isUniqueModelId,
   parseUniqueModelId,
   type ServiceTierSelection,
   type UniqueModelId
@@ -715,6 +717,20 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
+   * Best-effort read of a session's model override for runtime bookkeeping.
+   * Returns null when the session is gone (callers keep prior behavior) and
+   * never throws: entry bookkeeping must not fail on a stale entry.
+   */
+  private readSessionModelOverride(sessionId: string): UniqueModelId | null {
+    try {
+      const model = agentSessionService.getById(sessionId).model ?? null
+      return model && isUniqueModelId(model) ? model : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
    * Open the session's runtime connection ahead of the first turn (on session open) so the driver's
    * slash-command catalog (`query.supportedCommands()`) is read into the shared cache before the user
    * types — the SDK warm-query handle can't expose commands without a live connection. Best-effort and
@@ -740,7 +756,10 @@ export class AgentSessionRuntimeService extends BaseService {
       const session = agentSessionService.getById(sessionId)
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
-      if (!agent?.model) return
+      if (!agent) return
+      // Prime on the effective model so a session override doesn't force a rebuild on first turn.
+      const effectiveModel = session.model ?? agent.model
+      if (!effectiveModel) return
       if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
 
       // Resolve the session's container trace id up front so the primed connection carries the same
@@ -762,7 +781,7 @@ export class AgentSessionRuntimeService extends BaseService {
         sessionTraceId,
         agentId: session.agentId,
         agentType: agent.type,
-        modelId: agent.model,
+        modelId: effectiveModel,
         runtimeState: createAgentSessionRuntimeState()
       }
       this.entries.set(sessionId, entry)
@@ -806,8 +825,9 @@ export class AgentSessionRuntimeService extends BaseService {
       }
 
       // Bookkeeping: fresh turns are stamped with (and steers gated on) the entry's latest model. A
-      // live turn keeps its captured `turn.modelId` regardless.
-      if (agent.model) entry.modelId = agent.model
+      // live turn keeps its captured `turn.modelId` regardless. A per-session override wins over
+      // the agent default so an agent edit can't clobber a session that pinned its own model.
+      if (agent.model) entry.modelId = this.readSessionModelOverride(entry.sessionId) ?? agent.model
       reconciles.push(this.reconcileEntryConnection(entry, agent))
     }
     await Promise.all(reconciles)
@@ -2774,7 +2794,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // terminal lifecycle — a bare error broadcast would leave that stream in `activeStreams` with its status
     // cache stuck `streaming` and still re-attachable, so it must be terminalized/evicted here.
     const liveAgent = agentService.getAgent(entry.agentId)
-    if (!liveAgent?.model) {
+    if (!liveAgent) {
       application
         .get('AiStreamManager')
         .terminateHeldTopicStream(
@@ -2787,6 +2807,26 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
 
+    // A queued follow-up can outlive a session override change: resolve the model the same way
+    // fresh turns do (session override wins for interactive turns) instead of trusting the
+    // entry's cached agent default.
+    const queuedHeadless = pendingTurn.headless === true
+    const sessionOverride = queuedHeadless ? null : this.readSessionModelOverride(entry.sessionId)
+    const effectiveModel = sessionOverride ?? liveAgent.model ?? null
+    if (!effectiveModel) {
+      application
+        .get('AiStreamManager')
+        .terminateHeldTopicStream(
+          entry.topicId,
+          entry.modelId,
+          serializeError(new Error(`Agent ${entry.agentId} has no model configured`))
+        )
+      this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
+      this.markTurnTerminal(entry.sessionId, 'error')
+      return
+    }
+    if (effectiveModel !== entry.modelId) entry.modelId = effectiveModel
+
     const rootSpan = this.startRuntimeRootSpan(entry)
     // Use the snapshot frozen when THIS follow-up was submitted (not the entry's, which the last beginTurn
     // set) so a mid-session agent change can't stamp the queued reply with a stale author. The queue drains
@@ -2794,7 +2834,13 @@ export class AgentSessionRuntimeService extends BaseService {
     // actually runs — otherwise a mid-queue model switch leaves `messageSnapshot.model` disagreeing with the
     // row's `modelId`, and the header/exports (which prefer the snapshot model) would show the wrong model.
     const frozenSnapshot = pendingTurn.messageSnapshot ?? entry.messageSnapshot
-    const messageSnapshot = reconcileSnapshotModel(frozenSnapshot, entry.modelId, liveAgent.modelName)
+    const effectiveModelName =
+      sessionOverride && sessionOverride !== liveAgent.model
+        ? (modelService
+            .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [sessionOverride])
+            .get(sessionOverride) ?? parseUniqueModelId(sessionOverride).modelId)
+        : (liveAgent.modelName ?? parseUniqueModelId(entry.modelId).modelId)
+    const messageSnapshot = reconcileSnapshotModel(frozenSnapshot, entry.modelId, effectiveModelName)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = agentSessionMessageService.saveMessage({

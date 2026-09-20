@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "Gestern",
   "agent.session.list.title": "Aufgaben",
   "agent.session.model_switch_confirm.confirm": "Modell wechseln",
-  "agent.session.model_switch_confirm.description": "Verschiedene Modelle können den Kontext unterschiedlich verstehen und verarbeiten. Ein Wechsel kann die Kontinuität oder Qualität nachfolgender Antworten beeinträchtigen. Möchten Sie fortfahren?",
+  "agent.session.model_switch_confirm.description": "Verschiedene Modelle können den Kontext unterschiedlich verstehen und verarbeiten. Ein Wechsel kann die Kontinuität oder Qualität nachfolgender Antworten beeinträchtigen. Diese Änderung gilt nur für diese Sitzung und betrifft keine anderen Sitzungen desselben Agenten. Möchten Sie fortfahren?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Nicht erneut fragen, bis ich die App beende",
   "agent.session.model_switch_confirm.title": "Zu „{{model}}“ wechseln?",
   "agent.session.new": "Neue Aufgabe",

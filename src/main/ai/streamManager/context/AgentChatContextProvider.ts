@@ -14,6 +14,7 @@ import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -119,8 +120,27 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!agent) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent not found for Session ${sessionId}`)
     }
-    if (!agent.model) {
-      throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent ${agent.id} has no model configured`)
+
+    const isHeadless = req.headless === true
+    // Interactive turns prefer the per-session override; headless runs keep the
+    // agent default so background tasks stay independent of sibling sessions.
+    const candidate = !isHeadless && session.model ? session.model : agent.model
+    let uniqueModelId: UniqueModelId | null = null
+    if (candidate) {
+      try {
+        parseUniqueModelId(candidate)
+        uniqueModelId = candidate
+      } catch {
+        uniqueModelId = null
+      }
+    }
+    if (!uniqueModelId) {
+      throw new AgentSessionDeliveryRoutingError(
+        'TARGET_UNAVAILABLE',
+        isHeadless && session.model
+          ? `Agent ${agent.id} has no model configured (scheduled runs use the agent default)`
+          : `Agent ${agent.id} has no model configured`
+      )
     }
 
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
@@ -137,8 +157,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new Error('Invalid durable agent delivery message')
     }
 
-    const uniqueModelId = agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+    const modelName =
+      uniqueModelId === agent.model
+        ? (agent.modelName ?? rawModelId)
+        : (modelService
+            .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [uniqueModelId])
+            .get(uniqueModelId) ?? rawModelId)
     const shouldAutoNameInitialTurn = deliveryMessage
       ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
       : !agentSessionMessageService.hasSessionMessages(sessionId)
@@ -153,7 +178,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
-      headless: req.headless === true,
+      headless: isHeadless,
       ...(authority.trustedNotifyChannels !== undefined
         ? { trustedNotifyChannels: authority.trustedNotifyChannels }
         : {}),
@@ -162,7 +187,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         name: agent.name,
         // Normalized effective avatar (mirrors renderer `getAgentAvatar`).
         emoji: agent.configuration?.avatar?.trim() || '🤖',
-        model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+        model: { id: rawModelId, name: modelName, provider: providerId }
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],

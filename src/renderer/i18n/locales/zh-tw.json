@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "昨天",
   "agent.session.list.title": "任務",
   "agent.session.model_switch_confirm.confirm": "切換模型",
-  "agent.session.model_switch_confirm.description": "不同的模型可能會以不同的方式理解和處理上下文。切換模型可能會影響後續回應的連續性或品質。您確定要繼續嗎？",
+  "agent.session.model_switch_confirm.description": "不同的模型可能會以不同的方式理解和處理上下文。切換模型可能會影響後續回應的連續性或品質。此變更僅適用於目前的工作階段，不會影響同一代理的其他工作階段。您確定要繼續嗎？",
   "agent.session.model_switch_confirm.skip_for_app_run": "在我退出應用程式之前不要再詢問",
   "agent.session.model_switch_confirm.title": "切換至「{{model}}」？",
   "agent.session.new": "新任務",

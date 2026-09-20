@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "Вчера",
   "agent.session.list.title": "Задачи",
   "agent.session.model_switch_confirm.confirm": "Переключить модель",
-  "agent.session.model_switch_confirm.description": "Разные модели могут по-разному понимать и обрабатывать контекст. Переключение может повлиять на непрерывность или качество последующих ответов. Вы хотите продолжить?",
+  "agent.session.model_switch_confirm.description": "Разные модели могут по-разному понимать и обрабатывать контекст. Переключение может повлиять на непрерывность или качество последующих ответов. Это изменение применяется только к текущей сессии и не затрагивает другие сессии того же агента. Вы хотите продолжить?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Не спрашивайте снова, пока я не закрою приложение",
   "agent.session.model_switch_confirm.title": "Переключиться на «{{model}}»?",
   "agent.session.new": "Новое задание",

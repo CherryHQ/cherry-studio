@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "Hier",
   "agent.session.list.title": "Tâches",
   "agent.session.model_switch_confirm.confirm": "Changer de modèle",
-  "agent.session.model_switch_confirm.description": "Les différents modèles peuvent comprendre et traiter le contexte différemment. Changer de modèle peut affecter la continuité ou la qualité des réponses suivantes. Voulez-vous continuer ?",
+  "agent.session.model_switch_confirm.description": "Les différents modèles peuvent comprendre et traiter le contexte différemment. Changer de modèle peut affecter la continuité ou la qualité des réponses suivantes. Ce changement s’applique uniquement à cette session et n’affecte pas les autres sessions du même agent. Voulez-vous continuer ?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Ne me demande plus jusqu'à ce que je quitte l'application.",
   "agent.session.model_switch_confirm.title": "Passer à « {{model}} » ?",
   "agent.session.new": "Nouvelle tâche",

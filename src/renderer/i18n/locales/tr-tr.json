@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "Dün",
   "agent.session.list.title": "Görevler",
   "agent.session.model_switch_confirm.confirm": "Modeli değiştir",
-  "agent.session.model_switch_confirm.description": "Farklı modeller bağlamı farklı şekillerde anlayıp işleyebilir. Modeli değiştirmek, sonraki yanıtların sürekliliğini veya kalitesini etkileyebilir. Devam edilsin mi?",
+  "agent.session.model_switch_confirm.description": "Farklı modeller bağlamı farklı şekillerde anlayıp işleyebilir. Modeli değiştirmek, sonraki yanıtların sürekliliğini veya kalitesini etkileyebilir. Bu değişiklik yalnızca bu oturuma uygulanır ve aynı aracının diğer oturumlarını etkilemez. Devam edilsin mi?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Uygulamadan çıkana kadar bir daha sorma",
   "agent.session.model_switch_confirm.title": "\"{{model}}\" modeline geçilsin mi?",
   "agent.session.new": "Yeni görev",

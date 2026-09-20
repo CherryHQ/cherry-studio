@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "Ayer",
   "agent.session.list.title": "Tareas",
   "agent.session.model_switch_confirm.confirm": "Cambiar modelo",
-  "agent.session.model_switch_confirm.description": "Diferentes modelos pueden entender y procesar el contexto de manera diferente. Cambiar puede afectar la continuidad o la calidad de las respuestas posteriores. ¿Desea continuar?",
+  "agent.session.model_switch_confirm.description": "Diferentes modelos pueden entender y procesar el contexto de manera diferente. Cambiar puede afectar la continuidad o la calidad de las respuestas posteriores. Este cambio se aplica solo a esta sesión y no afecta a otras sesiones del mismo agente. ¿Desea continuar?",
   "agent.session.model_switch_confirm.skip_for_app_run": "No preguntar de nuevo hasta que cierre la aplicación",
   "agent.session.model_switch_confirm.title": "¿Cambiar a \"{{model}}\"?",
   "agent.session.new": "Nueva tarea",

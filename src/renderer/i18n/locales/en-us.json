@@ -234,7 +234,7 @@
   "agent.session.group.yesterday": "Yesterday",
   "agent.session.list.title": "Tasks",
   "agent.session.model_switch_confirm.confirm": "Switch model",
-  "agent.session.model_switch_confirm.description": "Different models may understand and process context differently. Switching may affect the continuity or quality of subsequent responses. Do you want to continue?",
+  "agent.session.model_switch_confirm.description": "Different models may understand and process context differently. Switching may affect the continuity or quality of subsequent responses. This change applies only to this session and does not affect other sessions of the same agent. Do you want to continue?",
   "agent.session.model_switch_confirm.skip_for_app_run": "Don't ask again until I quit the app",
   "agent.session.model_switch_confirm.title": "Switch to \"{{model}}\"?",
   "agent.session.new": "New task",

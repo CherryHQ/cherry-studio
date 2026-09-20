@@ -19,7 +19,8 @@ const mocks = vi.hoisted(() => ({
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
   runtimeAssertWritable: vi.fn(),
-  runtimeValidateSession: vi.fn()
+  runtimeValidateSession: vi.fn(),
+  getModelNames: vi.fn((_tx, _ids) => new Map())
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -51,6 +52,10 @@ vi.mock('@main/services/TopicNamingService', () => ({
     maybeRenameAgentSessionFromFirstUserMessage: mocks.maybeRenameAgentSessionFromFirstUserMessage,
     maybeRenameAgentSession: mocks.maybeRenameAgentSession
   }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getNamesByUniqueIdsTx: (tx, ids) => mocks.getModelNames(tx, ids) }
 }))
 
 vi.mock('@application', () => ({
@@ -144,7 +149,7 @@ describe('AgentChatContextProvider', () => {
           assertSessionWritable: mocks.runtimeAssertWritable
         }
       }
-      if (name === 'DbService') return { withWriteTx: (fn: (tx: object) => unknown) => fn({}) }
+      if (name === 'DbService') return { getDb: () => ({}), withWriteTx: (fn) => fn({}) }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.runtimeBeginTurn.mockReturnValue({
@@ -153,6 +158,9 @@ describe('AgentChatContextProvider', () => {
     })
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
+    // clearAllMocks preserves return values: re-seed the name map so override
+    // tests can't leak state into later cases.
+    mocks.getModelNames.mockReturnValue(new Map())
   })
 
   it.each(['busy', 'close_failed'] as const)(
@@ -430,6 +438,37 @@ describe('AgentChatContextProvider', () => {
 
     expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
     expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ shouldAutoName: false }))
+  })
+
+  it('prefers a per-session model override for interactive turns', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'anthropic::claude-opus',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['anthropic::claude-opus', 'Claude Opus']]))
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(prepared.models[0].modelId).toBe('anthropic::claude-opus')
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'anthropic::claude-opus' }))
+  })
+
+  it('keeps headless scheduled runs on the agent default model', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'anthropic::claude-opus',
+      workspace: { path: '/tmp' }
+    })
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq({ headless: true }))
+
+    expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ modelId: 'anthropic::claude-sonnet' })
+    )
   })
 
   it('rejects agent sessions without a registered runtime driver', async () => {
