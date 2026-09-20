@@ -130,7 +130,8 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
-  // Per-topic composer draft. Renderer memory only; app restart discards it.
+  // Per-topic composer draft, renderer memory only; see chat.composer_draft_snapshot (persist
+  // tier, below) for the crash/restart-recovery fallback consulted when this is empty.
   'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
@@ -407,6 +408,9 @@ export type RendererPersistCacheSchema = {
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
+  // Crash/restart-recovery mirror of chat.composer_draft.*, keyed by topic id; entries are
+  // removed once a topic's draft empties, so it only holds genuinely in-flight drafts.
+  'chat.composer_draft_snapshot': Record<string, CacheValueTypes.CacheChatComposerDraft>
   // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
   // default; booleans preserve an explicit user choice across page re-entry.
   'ui.chat.right_pane_open_override': boolean | null
@@ -469,6 +473,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
+  'chat.composer_draft_snapshot': {},
   'ui.chat.right_pane_open_override': null,
   'ui.assistant.entity_rail.expansion': [],
   'ui.topic.expansion.time': [],
