@@ -25,6 +25,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
@@ -103,7 +104,7 @@ const ApiGatewaySettings: FC = () => {
     if (apiGatewayRunning) {
       // The ElysiaJS `@elysia/openapi` plugin serves the docs UI at `/openapi`
       // (the Express `/api-docs` path was removed in the gateway migration).
-      window.open(`${serverUrl}/openapi`, '_blank')
+      void ipcApi.request('system.shell.open_external_website', `${serverUrl}/openapi`)
     }
   }
 

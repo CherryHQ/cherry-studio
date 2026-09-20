@@ -98,7 +98,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
   const openGitHubIssue = async () => {
     try {
-      await ipcApi.request('system.shell.open_website', FEEDBACK_GITHUB_URL)
+      await ipcApi.request('system.shell.open_external_website', FEEDBACK_GITHUB_URL)
     } catch (error) {
       logger.error('Failed to open GitHub issue chooser', error as Error)
       toast.error(t('settings.about.feedback.github.error'))

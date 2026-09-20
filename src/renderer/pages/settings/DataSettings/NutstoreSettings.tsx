@@ -22,6 +22,7 @@ import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import {
   backupToNutstore,
   checkConnection,
@@ -62,7 +63,7 @@ const NutstoreSettings: FC = () => {
 
   const handleClickNutstoreSSO = useCallback(async () => {
     const ssoUrl = await window.api.nutstore.getSSOUrl()
-    window.open(ssoUrl, '_blank')
+    void ipcApi.request('system.shell.open_external_website', ssoUrl)
     const nutstoreToken = await nutstoreSsoHandler()
 
     if (!nutstoreToken) {

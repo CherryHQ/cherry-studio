@@ -43,7 +43,7 @@ const SiyuanSettings: FC = () => {
   }
 
   const handleSiyuanHelpClick = () => {
-    void ipcApi.request('system.shell.open_website', 'https://docs.cherry-ai.com/advanced-basic/siyuan')
+    void ipcApi.request('system.shell.open_external_website', 'https://docs.cherry-ai.com/advanced-basic/siyuan')
   }
 
   const handleCheckConnection = async () => {

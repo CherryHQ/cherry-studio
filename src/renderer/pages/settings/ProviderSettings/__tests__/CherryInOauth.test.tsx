@@ -309,7 +309,6 @@ describe('CherryInOauth', () => {
       addApiKey: vi.fn(),
       deleteApiKey: vi.fn()
     })
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
 
     render(<CherryInOauth providerId="cherryin" />)
     await screen.findByText('$128.50')
@@ -326,7 +325,11 @@ describe('CherryInOauth', () => {
 
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: /充值|Top Up/i }))
-    expect(openSpy).toHaveBeenCalledWith('https://open.cherryin.ai/console/topup', '_blank')
+    expect(ipcApiRequestMock).toHaveBeenCalledWith(
+      'system.shell.open_external_website',
+      'https://open.cherryin.ai/console/topup'
+    )
+    ipcApiRequestMock.mockClear()
 
     fireEvent.focus(window)
     await screen.findByText('$256.00')

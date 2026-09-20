@@ -86,7 +86,7 @@ const YuqueSettings: FC = () => {
   }
 
   const handleYuqueHelpClick = () => {
-    void ipcApi.request('system.shell.open_website', 'https://www.yuque.com/settings/tokens')
+    void ipcApi.request('system.shell.open_external_website', 'https://www.yuque.com/settings/tokens')
   }
 
   return (

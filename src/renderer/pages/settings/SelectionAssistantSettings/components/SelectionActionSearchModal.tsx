@@ -200,7 +200,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
     const customUrl = form.getValues('customUrl')
     if (customUrl) {
       const testUrl = customUrl.replace('{{queryString}}', 'cherry studio')
-      void ipcApi.request('system.shell.open_website', testUrl)
+      void ipcApi.request('system.shell.open_external_website', testUrl)
     }
   }
 

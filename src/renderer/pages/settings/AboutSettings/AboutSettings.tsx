@@ -106,7 +106,7 @@ const AboutSettings: FC = () => {
   )
 
   const onOpenWebsite = (url: string) => {
-    void ipcApi.request('system.shell.open_website', url)
+    void ipcApi.request('system.shell.open_external_website', url)
   }
 
   const mailto = async () => {
@@ -196,7 +196,7 @@ const AboutSettings: FC = () => {
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
     void ipcApi.request(
-      'system.shell.open_website',
+      'system.shell.open_external_website',
       isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us'
     )
   }

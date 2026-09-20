@@ -75,7 +75,7 @@ const JoplinSettings: FC = () => {
   }
 
   const handleJoplinHelpClick = () => {
-    void ipcApi.request('system.shell.open_website', 'https://joplinapp.org/help/apps/clipper')
+    void ipcApi.request('system.shell.open_external_website', 'https://joplinapp.org/help/apps/clipper')
   }
 
   return (

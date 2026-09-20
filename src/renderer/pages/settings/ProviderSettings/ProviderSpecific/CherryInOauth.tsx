@@ -96,7 +96,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     }
   }, [oauthTokenOverride, remoteHasOAuthToken])
 
-  // Top-up happens in the system browser (see WindowManager.setWindowOpenHandler),
+  // Top-up happens in the system browser,
   // so the balance refresh must wait for the user to come back.
   useEffect(() => {
     const handleWindowFocus = () => {
@@ -199,7 +199,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   const handleTopup = useCallback(() => {
     topupInProgressRef.current = true
-    window.open(CHERRYIN_TOPUP_URL, '_blank')
+    void ipcApi.request('system.shell.open_external_website', CHERRYIN_TOPUP_URL)
   }, [])
 
   if (!provider) {

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Input, Slider, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 
@@ -173,7 +174,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
 
   const handleOpenVerificationPage = useCallback(() => {
     if (verificationUri) {
-      window.open(verificationUri, '_blank')
+      void ipcApi.request('system.shell.open_external_website', verificationUri)
       setVerificationPageOpened(true)
       setCurrentStep(2)
     }

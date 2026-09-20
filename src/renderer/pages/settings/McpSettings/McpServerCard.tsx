@@ -135,7 +135,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       event.stopPropagation()
 
       if (server.providerUrl) {
-        window.open(server.providerUrl, '_blank')
+        void ipcApi.request('system.shell.open_external_website', server.providerUrl)
       }
     },
     [server.providerUrl]

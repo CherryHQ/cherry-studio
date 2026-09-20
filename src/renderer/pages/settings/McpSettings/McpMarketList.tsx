@@ -15,6 +15,7 @@ import {
   Zhipu
 } from '@cherrystudio/ui/icons/providers'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 
 const mcpMarkets = [
@@ -94,7 +95,9 @@ const McpMarketList: FC = () => {
       <SettingTitle style={{ marginBottom: 10 }}>{t('settings.mcp.findMore')}</SettingTitle>
       <MarketGrid>
         {mcpMarkets.map((resource) => (
-          <MarketCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>
+          <MarketCard
+            key={resource.name}
+            onClick={() => void ipcApi.request('system.shell.open_external_website', resource.url)}>
             <MarketIconWrap>
               {typeof resource.logo !== 'string' ? (
                 <resource.logo.Avatar size={22} shape="rounded" />

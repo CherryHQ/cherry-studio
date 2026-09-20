@@ -279,7 +279,7 @@ export function useDoctorController({
         case 'open_external':
           await performAction(
             { actionKind: action.kind, checkId },
-            () => ipcApi.request('system.shell.open_website', action.url),
+            () => ipcApi.request('system.shell.open_external_website', action.url),
             'Failed to open a system diagnostics link'
           )
           return

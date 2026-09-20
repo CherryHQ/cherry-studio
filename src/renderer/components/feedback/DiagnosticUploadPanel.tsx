@@ -121,7 +121,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   const openManualForm = async () => {
     try {
-      await ipcApi.request('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
+      await ipcApi.request('system.shell.open_external_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
     } catch (error) {
       logger.error('Failed to open the diagnostic feedback form', error as Error)
       toast.error(t('settings.about.diagnostics.upload.errors.open_form_failed'))

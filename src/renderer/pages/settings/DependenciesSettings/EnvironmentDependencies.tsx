@@ -658,7 +658,7 @@ const BinaryToolPresetCard: FC<{
         <button
           type="button"
           className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-          onClick={() => void ipcApi.request('system.shell.open_website', tool.repoUrl)}>
+          onClick={() => void ipcApi.request('system.shell.open_external_website', tool.repoUrl)}>
           <ExternalLink className="size-3 shrink-0" />
           <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
         </button>
@@ -666,7 +666,7 @@ const BinaryToolPresetCard: FC<{
           <button
             type="button"
             className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-            onClick={() => void ipcApi.request('system.shell.open_website', tool.homepage!)}>
+            onClick={() => void ipcApi.request('system.shell.open_external_website', tool.homepage!)}>
             <ExternalLink className="size-3 shrink-0" />
             <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>

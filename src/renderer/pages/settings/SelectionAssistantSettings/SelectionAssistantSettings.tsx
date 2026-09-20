@@ -103,7 +103,10 @@ const SelectionAssistantSettings: FC = () => {
               type="button"
               className="cursor-pointer border-0 bg-transparent p-0 text-xs font-normal text-link hover:underline"
               onClick={() =>
-                ipcApi.request('system.shell.open_website', 'https://github.com/CherryHQ/cherry-studio/issues/6505')
+                ipcApi.request(
+                  'system.shell.open_external_website',
+                  'https://github.com/CherryHQ/cherry-studio/issues/6505'
+                )
               }>
               {'FAQ & ' + t('settings.about.feedback.button')}
             </button>
