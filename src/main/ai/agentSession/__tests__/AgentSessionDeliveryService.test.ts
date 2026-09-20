@@ -647,7 +647,8 @@ describe('AgentSessionDeliveryService', () => {
       agentUpdatedAt: now,
       agentType: 'claude-code',
       uniqueModelId: 'provider::override-model',
-      agentModel: 'provider::agent-model'
+      agentModel: 'provider::agent-model',
+      sessionModelId: 'provider::override-model'
     })
     mocks.listAccepted.mockReturnValueOnce([accepted]).mockReturnValue([])
     const service = new AgentSessionDeliveryService()
@@ -661,7 +662,8 @@ describe('AgentSessionDeliveryService', () => {
       id: 'agent-1',
       updatedAt: now,
       model: 'provider::agent-model',
-      type: 'claude-code'
+      type: 'claude-code',
+      sessionModelId: 'provider::override-model'
     })
     expect(mocks.send).toHaveBeenCalledOnce()
   })

@@ -304,7 +304,8 @@ export class AgentSessionDeliveryService extends BaseService {
             updatedAt: validated.agentUpdatedAt,
             // The ownership check compares the agent default, not the session override.
             model: validated.agentModel,
-            type: validated.agentType
+            type: validated.agentType,
+            sessionModelId: validated.sessionModelId
           })
           const claimed = agentSessionMessageService.claimSessionDeliveryTx(
             tx,
