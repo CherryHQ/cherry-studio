@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { NativeRequest } from '../src/contracts'
 import { SystemSpeechNativeClient } from '../src/SystemSpeechNativeClient'
 
 const directories: string[] = []
@@ -26,6 +27,26 @@ function response(value: unknown): string {
 }
 
 describe('SystemSpeechNativeClient', () => {
+  it('writes the exact speech speed only to the helper stdin protocol', async () => {
+    const setup = await helper('')
+    const capture = join(setup.directory, 'stdin.json')
+    await writeFile(
+      setup.helperPath,
+      `#!${process.execPath}\nconst fs=require('node:fs');let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>{fs.writeFileSync(${JSON.stringify(capture)},input);const request=JSON.parse(input);process.stdout.write(JSON.stringify({ok:true,value:{operation:'synthesize',result:{outputPath:request.outputPath,voiceId:request.voiceId,sampleRate:16000,channels:1,frameCount:16000}}}))})\n`
+    )
+    const request = {
+      operation: 'synthesize',
+      voiceId: 'voice.exact',
+      text: 'private-stdin-canary',
+      outputPath: '/private/output-canary.wav',
+      speed: 1.25
+    } as const satisfies NativeRequest
+
+    await new SystemSpeechNativeClient(setup).request(request)
+
+    expect(JSON.parse(await readFile(capture, 'utf8'))).toEqual(request)
+  })
+
   it('returns the transcript through the protocol without logging diagnostics', async () => {
     const setup = await helper(
       response({

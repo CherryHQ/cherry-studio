@@ -9,7 +9,13 @@ import type { SpeechOptions, TranscriptionOptions } from '@cherrystudio/ai-core'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { SystemSpeechNativeClient } from '@cherrystudio/system-speech/native'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import {
+  APPLE_ASR_MODEL_ID,
+  APPLE_TTS_MODEL_ID,
+  DEFAULT_SPEECH_SPEED,
+  MAX_SPEECH_SPEED,
+  MIN_SPEECH_SPEED
+} from '@shared/ai/localVoice'
 
 import type { LocalVoiceStatus } from '../localAdapters'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
@@ -144,8 +150,11 @@ export function createAppleSpeechModel(options: SpeechOptions): SpeechModelV3 {
     provider: 'local-voice',
     modelId: APPLE_TTS_MODEL_ID,
     async doGenerate(input) {
+      const speed = options.speed ?? DEFAULT_SPEECH_SPEED
       if (
-        (options.speed !== undefined && options.speed !== 1) ||
+        !Number.isFinite(speed) ||
+        speed < MIN_SPEECH_SPEED ||
+        speed > MAX_SPEECH_SPEED ||
         (input.outputFormat !== undefined && input.outputFormat !== 'wav')
       )
         throw new VoiceRuntimeError('invalid_request')
@@ -153,7 +162,7 @@ export function createAppleSpeechModel(options: SpeechOptions): SpeechModelV3 {
       return withScratch(async (directory) => {
         const outputPath = join(directory, 'output.wav')
         await nativeClient().request(
-          { operation: 'synthesize', voiceId: options.voice, text: input.text, outputPath },
+          { operation: 'synthesize', voiceId: options.voice, text: input.text, outputPath, speed },
           { signal: input.abortSignal }
         )
         checkAbort(input.abortSignal)

@@ -15,13 +15,14 @@ struct NativeRequest: Decodable, Sendable {
     let voiceId: String?
     let text: String?
     let outputPath: String?
+    let speed: Double?
 }
 
 enum ValidatedCommand: Sendable {
     case capabilities(locale: String)
     case installAsrAssets(locale: String)
     case transcribe(locale: String, inputPath: String)
-    case synthesize(voiceId: String, text: String, outputPath: String)
+    case synthesize(voiceId: String, text: String, outputPath: String, speed: Double)
 }
 
 extension NativeRequest {
@@ -35,10 +36,14 @@ extension NativeRequest {
         case .transcribe:
             return .transcribe(locale: try required(locale), inputPath: try required(inputPath))
         case .synthesize:
+            guard let speed, speed.isFinite, (0.5 ... 2.0).contains(speed) else {
+                throw HelperError(code: .invalidRequest)
+            }
             return .synthesize(
                 voiceId: try required(voiceId),
                 text: try required(text),
-                outputPath: try required(outputPath)
+                outputPath: try required(outputPath),
+                speed: speed
             )
         }
     }

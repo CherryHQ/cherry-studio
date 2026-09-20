@@ -94,6 +94,34 @@ describe('local Apple adapters', () => {
     expect(result.response.body).toBeUndefined()
   })
 
+  it.each([
+    { requestedSpeed: undefined, expectedSpeed: 1 },
+    { requestedSpeed: 0.5, expectedSpeed: 0.5 },
+    { requestedSpeed: 1, expectedSpeed: 1 },
+    { requestedSpeed: 1.25, expectedSpeed: 1.25 },
+    { requestedSpeed: 2, expectedSpeed: 2 }
+  ])('passes $expectedSpeed× speed to the native helper', async ({ requestedSpeed, expectedSpeed }) => {
+    await createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'voice.exact', speed: requestedSpeed }).doGenerate({
+      text: 'private speed canary'
+    })
+
+    expect(mocks.nativeRequest.mock.calls.find(([request]) => request.operation === 'synthesize')?.[0]).toMatchObject({
+      operation: 'synthesize',
+      voiceId: 'voice.exact',
+      speed: expectedSpeed
+    })
+  })
+
+  it.each([0.49, 2.01, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'rejects unsupported speech speed %s before native work',
+    async (speed) => {
+      await expect(
+        createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'voice.exact', speed }).doGenerate({ text: 'private' })
+      ).rejects.toMatchObject({ reason: 'invalid_request' })
+      expect(mocks.nativeRequest).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects a missing exact voice without creating output', async () => {
     await expect(
       createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'missing' }).doGenerate({ text: 'private' })

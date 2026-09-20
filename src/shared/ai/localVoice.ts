@@ -4,6 +4,16 @@ export const APPLE_ASR_MODEL_ID = 'local-voice::apple-system-asr' as const
 export const APPLE_TTS_MODEL_ID = 'local-voice::apple-system-tts' as const
 export const FUNASR_MODEL_ID = 'local-voice::funasr-nano' as const
 
+export const MIN_SPEECH_SPEED = 0.5
+export const MAX_SPEECH_SPEED = 2
+export const DEFAULT_SPEECH_SPEED = 1
+
+export const VOICE_SESSION_SOURCES = ['settings', 'dictation', 'playback', 'automation'] as const
+export type VoiceSessionSource = (typeof VOICE_SESSION_SOURCES)[number]
+
+export const VOICE_SESSION_TRIGGERS = ['manual', 'auto_read'] as const
+export type VoiceSessionTrigger = (typeof VOICE_SESSION_TRIGGERS)[number]
+
 export const LOCAL_VOICE_MODEL_IDS = [APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID] as const
 export type LocalVoiceModelId = (typeof LOCAL_VOICE_MODEL_IDS)[number]
 export type LocalSpeechModelId = typeof APPLE_TTS_MODEL_ID

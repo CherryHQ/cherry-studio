@@ -6,6 +6,7 @@ import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhas
 import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
+  DEFAULT_SPEECH_SPEED,
   LOCAL_VOICE_MODELS,
   type LocalVoiceModelId,
   resolveDefaultAsrModel
@@ -146,7 +147,7 @@ export class VoiceSessionService extends BaseService {
         .generateSpeech(
           modelId,
           input.text.normalize('NFC').trim(),
-          { voice: input.voice, language: input.language },
+          { voice: input.voice, language: input.language, speed: input.speed ?? DEFAULT_SPEECH_SPEED },
           signal
         )
       signal.throwIfAborted()

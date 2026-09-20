@@ -382,6 +382,28 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(fileEntryService.findById(result.fileEntry.id)).toBeNull()
   })
 
+  it.each([
+    { requestedSpeed: undefined, expectedSpeed: 1 },
+    { requestedSpeed: 1.25, expectedSpeed: 1.25 }
+  ])('passes $expectedSpeed× speech speed through AiService', async ({ requestedSpeed, expectedSpeed }) => {
+    const input = {
+      sessionId: randomUUID(),
+      requestId: randomUUID(),
+      text: 'private-speed-canary',
+      voice: 'exact',
+      language: 'en-US',
+      speed: requestedSpeed
+    }
+
+    await service.speech(a, input)
+
+    expect(native.speech.mock.calls[0]?.slice(0, 3)).toEqual([
+      APPLE_TTS_MODEL_ID,
+      'private-speed-canary',
+      { voice: 'exact', language: 'en-US', speed: expectedSpeed }
+    ])
+  })
+
   it('treats abort as a no-op after speech completes and leaves cleanup to discard', async () => {
     const input = {
       sessionId: randomUUID(),

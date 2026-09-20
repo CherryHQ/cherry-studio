@@ -3,13 +3,19 @@ import * as z from 'zod'
 import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
+  MAX_SPEECH_SPEED,
+  MIN_SPEECH_SPEED,
   FUNASR_MODEL_ID,
   LOCAL_VOICE_MODEL_IDS,
   type LocalVoiceModelFacts,
-  type LocalTranscriptionModelId
+  type LocalTranscriptionModelId,
+  VOICE_SESSION_SOURCES,
+  type VoiceSessionSource,
+  VOICE_SESSION_TRIGGERS,
+  type VoiceSessionTrigger
 } from '@shared/ai/localVoice'
 import { FileEntryIdSchema, InternalEntrySchema } from '@shared/data/types/file'
-import { voiceErrorCodes } from '@shared/ipc/errors/voice'
+import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
 
 import { defineRoute } from '../define'
 
@@ -22,11 +28,66 @@ const language = z
 const session = z.strictObject({ sessionId: z.uuid() })
 const request = session.extend({
   requestId: z.uuid(),
-  source: z.enum(['settings', 'dictation', 'playback', 'automation']).optional()
+  source: z.enum(VOICE_SESSION_SOURCES).optional()
 })
 const abort = session.extend({ requestId: z.uuid() })
 const modelId = z.enum(LOCAL_VOICE_MODEL_IDS)
 const asrModelId = z.enum([APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID])
+const speechInput = request
+  .extend({
+    modelId: z.literal(APPLE_TTS_MODEL_ID).optional(),
+    text: z.string().trim().min(1).max(10_000),
+    voice: z.string().min(1).max(256),
+    language,
+    trigger: z.enum(VOICE_SESSION_TRIGGERS).optional(),
+    chunkIndex: z.number().int().nonnegative().optional(),
+    chunkCount: z.number().int().positive().optional(),
+    speed: z.number().finite().min(MIN_SPEECH_SPEED).max(MAX_SPEECH_SPEED).optional()
+  })
+  .refine(
+    ({ chunkIndex, chunkCount }) =>
+      (chunkIndex === undefined && chunkCount === undefined) ||
+      (chunkIndex !== undefined && chunkCount !== undefined && chunkIndex < chunkCount),
+    { message: 'Speech chunk metadata must be a complete zero-based range' }
+  )
+
+export const VOICE_SESSION_PHASES = [
+  'idle',
+  'recording',
+  'recognizing',
+  'generating',
+  'playing',
+  'paused',
+  'completed',
+  'failed',
+  'aborted'
+] as const
+export type VoiceSessionPhase = (typeof VOICE_SESSION_PHASES)[number]
+
+export const VOICE_SESSION_COMMANDS = ['pause', 'resume', 'stop'] as const
+export type VoiceSessionCommand = (typeof VOICE_SESSION_COMMANDS)[number]
+
+export type VoiceSessionState = {
+  sessionId: string
+  revision: number
+  phase: VoiceSessionPhase
+  source?: VoiceSessionSource
+  trigger?: VoiceSessionTrigger
+  reason?: VoiceErrorReason
+}
+
+export type VoiceSessionEvent =
+  | ({ type: 'state' } & VoiceSessionState)
+  | {
+      type: 'command'
+      sessionId: string
+      revision: number
+      command: VoiceSessionCommand
+    }
+
+export type VoiceEventSchemas = {
+  'ai.voice.session_event': VoiceSessionEvent
+}
 
 export const voiceRequestSchemas = {
   'file.voice_recording.create': defineRoute({
@@ -37,12 +98,7 @@ export const voiceRequestSchemas = {
     output: InternalEntrySchema
   }),
   'ai.speech.generate': defineRoute({
-    input: request.extend({
-      modelId: z.literal(APPLE_TTS_MODEL_ID).optional(),
-      text: z.string().trim().min(1).max(10_000),
-      voice: z.string().min(1).max(256),
-      language
-    }),
+    input: speechInput,
     output: z.strictObject({
       sessionId: z.uuid(),
       requestId: z.uuid(),

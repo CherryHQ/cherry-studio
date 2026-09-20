@@ -15,7 +15,22 @@ enum AppleTts {
             .sorted { $0.id < $1.id }
     }
 
-    static func synthesize(voiceId: String, text: String, outputPath: String) async throws -> SynthesizeResult {
+    static func rate(forMultiplier multiplier: Double) throws -> Float {
+        guard multiplier.isFinite, (0.5 ... 2.0).contains(multiplier) else {
+            throw HelperError(code: .invalidRequest)
+        }
+        return min(
+            max(AVSpeechUtteranceDefaultSpeechRate * Float(multiplier), AVSpeechUtteranceMinimumSpeechRate),
+            AVSpeechUtteranceMaximumSpeechRate
+        )
+    }
+
+    static func synthesize(
+        voiceId: String,
+        text: String,
+        outputPath: String,
+        speed: Double
+    ) async throws -> SynthesizeResult {
         guard let voice = AVSpeechSynthesisVoice(identifier: voiceId) else {
             throw HelperError(code: .voiceUnavailable)
         }
@@ -24,7 +39,7 @@ enum AppleTts {
         try? FileManager.default.removeItem(at: url)
 
         do {
-            try await write(voice: voice, text: text, to: url)
+            try await write(voice: voice, text: text, rate: try rate(forMultiplier: speed), to: url)
             let metadata = try WavInspection.inspectFile(at: outputPath)
             return SynthesizeResult(
                 voiceId: voiceId,
@@ -41,9 +56,10 @@ enum AppleTts {
         }
     }
 
-    private static func write(voice: AVSpeechSynthesisVoice, text: String, to url: URL) async throws {
+    private static func write(voice: AVSpeechSynthesisVoice, text: String, rate: Float, to url: URL) async throws {
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = voice
+        utterance.rate = rate
         let synthesizer = AVSpeechSynthesizer()
 
         try await withCheckedThrowingContinuation { continuation in
