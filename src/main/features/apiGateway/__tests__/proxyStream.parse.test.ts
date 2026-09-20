@@ -290,6 +290,25 @@ describe('processMessage model-id parsing', () => {
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
   })
 
+  it('preserves Cherry Cloud permission refresh failures as retryable server errors', async () => {
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockSyncEntitledModelsIfStale.mockRejectedValueOnce(new Error('control service unavailable'))
+
+    await expect(
+      processMessage({
+        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
+        inputFormat: 'anthropic',
+        outputFormat: 'anthropic',
+        requestHeaders: new Headers()
+      })
+    ).rejects.toMatchObject({
+      status: 503,
+      message: 'Cherry Cloud model permissions are temporarily unavailable'
+    })
+    expect(mockStreamPrompt).not.toHaveBeenCalled()
+  })
+
   it('rejects an address that does not match an enabled gateway model', async () => {
     mockStreamPrompt.mockImplementationOnce((opts) => {
       captured.opts = opts
