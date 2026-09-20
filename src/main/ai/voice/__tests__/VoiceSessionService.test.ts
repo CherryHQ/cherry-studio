@@ -439,6 +439,65 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(service.getState(a)).toMatchObject({ phase: 'ready', sessionId })
   })
 
+  it('continues an auto-read session after releasing the previous chunk', async () => {
+    const sessionId = randomUUID()
+    const first = await speech(a, { sessionId, trigger: 'auto_read', chunkIndex: 0, chunkCount: 2 })
+    await service.releaseOutput(a, { sessionId, fileEntryId: first.result.fileEntry.id })
+
+    await expect(
+      service.speech(a, {
+        sessionId,
+        requestId: randomUUID(),
+        text: 'private-second-chunk',
+        voice: 'exact',
+        source: 'playback',
+        trigger: 'auto_read',
+        chunkIndex: 1,
+        chunkCount: 2
+      })
+    ).resolves.toMatchObject({ sessionId })
+  })
+
+  it('rejects sequential chunks that change the session source or trigger', async () => {
+    const sourceSessionId = randomUUID()
+    const sourceFirst = await speech(a, { sessionId: sourceSessionId, chunkIndex: 0, chunkCount: 2 })
+    await service.releaseOutput(a, { sessionId: sourceSessionId, fileEntryId: sourceFirst.result.fileEntry.id })
+    await expect(
+      service.speech(a, {
+        sessionId: sourceSessionId,
+        requestId: randomUUID(),
+        text: 'private-second-chunk',
+        voice: 'exact',
+        source: 'settings',
+        trigger: 'manual',
+        chunkIndex: 1,
+        chunkCount: 2
+      })
+    ).rejects.toMatchObject({ reason: 'invalid_request' })
+
+    await service.discard(a, sourceSessionId)
+    const triggerSessionId = randomUUID()
+    const triggerFirst = await speech(a, {
+      sessionId: triggerSessionId,
+      trigger: 'auto_read',
+      chunkIndex: 0,
+      chunkCount: 2
+    })
+    await service.releaseOutput(a, { sessionId: triggerSessionId, fileEntryId: triggerFirst.result.fileEntry.id })
+    await expect(
+      service.speech(a, {
+        sessionId: triggerSessionId,
+        requestId: randomUUID(),
+        text: 'private-second-chunk',
+        voice: 'exact',
+        source: 'playback',
+        trigger: 'manual',
+        chunkIndex: 1,
+        chunkCount: 2
+      })
+    ).rejects.toMatchObject({ reason: 'invalid_request' })
+  })
+
   it('accepts owner playback updates and lets another managed main window control it', async () => {
     const playback = await speech(a)
     const controller = owner()

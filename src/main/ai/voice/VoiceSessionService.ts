@@ -404,18 +404,19 @@ export class VoiceSessionService extends BaseService {
     this.requireAdmission()
     this.requireOwner(owner)
     if (this.inspections.size) throw new VoiceRuntimeError('busy')
+    if (this.lease?.kind === 'playback' && this.lease.id === input.sessionId && !this.active) {
+      const session = this.lease
+      this.assertOwner(session, owner)
+      if (session.files.size || session.pending.size || session.outputId) throw new VoiceRuntimeError('busy')
+      this.validateNextChunk(session, input, trigger)
+      return session
+    }
     if (trigger === 'auto_read' && (this.lease || this.active)) throw new VoiceRuntimeError('busy')
 
     while (this.lease || this.active) {
       const occupied = this.lease ?? this.active!.session
       if (trigger !== 'manual' || occupied.kind !== 'playback' || this.lease !== occupied) {
         throw new VoiceRuntimeError('busy')
-      }
-      if (!this.active && occupied.id === input.sessionId) {
-        this.assertOwner(occupied, owner)
-        if (occupied.files.size || occupied.pending.size || occupied.outputId) throw new VoiceRuntimeError('busy')
-        this.validateNextChunk(occupied, input)
-        return occupied
       }
       if (!occupied.closed) this.sendCommand(occupied, 'stop')
       await this.closeSession(occupied, true)
@@ -429,11 +430,20 @@ export class VoiceSessionService extends BaseService {
     return session
   }
 
-  private validateNextChunk(session: Session, input: InputFor<'ai.speech.generate'>): void {
+  private validateNextChunk(
+    session: Session,
+    input: InputFor<'ai.speech.generate'>,
+    trigger: VoiceSessionTrigger
+  ): void {
     if (session.generatedUnchunked || input.chunkIndex === undefined || input.chunkCount === undefined) {
       throw new VoiceRuntimeError('invalid_request')
     }
-    if (session.chunkCount !== input.chunkCount || session.nextChunkIndex !== input.chunkIndex) {
+    if (
+      session.chunkCount !== input.chunkCount ||
+      session.nextChunkIndex !== input.chunkIndex ||
+      session.source !== input.source ||
+      session.trigger !== trigger
+    ) {
       throw new VoiceRuntimeError('invalid_request')
     }
   }
