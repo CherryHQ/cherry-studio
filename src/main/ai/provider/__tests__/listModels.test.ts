@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
+import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 
@@ -218,6 +219,121 @@ describe('listModels — TokenDance protocol routing', () => {
   })
 })
 
+describe('listModels — LM Studio', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(async () => {
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    fetchMock.mockReset()
+    aiSdkGetFromApiMock.mockImplementation((options) => actual.getFromApi({ ...options, fetch: fetchMock }))
+  })
+
+  function makeLmStudioProvider(baseUrl = 'http://lmstudio.test:1234') {
+    return makeProvider({
+      id: 'lmstudio',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl }
+      }
+    })
+  }
+
+  it('imports unloaded chat and embedding models from the native v1 response', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(lmStudioModels))
+
+    const models = await listModels(makeLmStudioProvider(), undefined, { throwOnError: true })
+
+    expect(models).toHaveLength(2)
+    expect(models[0]).toMatchObject({
+      apiModelId: 'qwen2.5-0.5b-instruct',
+      name: 'Qwen2.5 0.5B Instruct',
+      ownedBy: 'lmstudio-community',
+      contextWindow: 32768,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    expect(models[1]).toMatchObject({
+      apiModelId: 'text-embedding-nomic-embed-text-v1.5',
+      name: 'Nomic Embed Text v1.5',
+      contextWindow: 2048,
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
+    expect(fetchMock.mock.calls[0][0]).toBe('http://lmstudio.test:1234/api/v1/models')
+  })
+
+  it('keeps native vision capability and tolerates absent optional metadata', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        models: [
+          { key: 'qwen2-vl-7b-instruct', type: 'llm', capabilities: { vision: true } },
+          {
+            key: 'custom-model',
+            display_name: null,
+            type: null,
+            publisher: null,
+            max_context_length: null,
+            capabilities: null
+          }
+        ]
+      })
+    )
+
+    const models = await listModels(makeLmStudioProvider(), undefined, { throwOnError: true })
+
+    expect(models).toHaveLength(2)
+    expect(models[0]).toMatchObject({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
+    expect(models[0].endpointTypes).toBeUndefined()
+    expect(models[1]).toMatchObject({ apiModelId: 'custom-model', name: 'custom-model', capabilities: [] })
+  })
+
+  it('maps trained_for_tool_use to the function-call capability, keeping embeddings excluded', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        models: [
+          { key: 'tool-model', type: 'llm', capabilities: { trained_for_tool_use: true } },
+          {
+            key: 'vision-tool-model',
+            type: 'llm',
+            capabilities: { vision: true, trained_for_tool_use: true }
+          },
+          { key: 'plain-model', type: 'llm', capabilities: { trained_for_tool_use: false } },
+          { key: 'embed-model', type: 'embedding' }
+        ]
+      })
+    )
+
+    const models = await listModels(makeLmStudioProvider(), undefined, { throwOnError: true })
+
+    expect(models).toHaveLength(4)
+    expect(models[0]).toMatchObject({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+    expect(models[1]).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    })
+    expect(models[2]).toMatchObject({ capabilities: [] })
+    expect(models[3].capabilities).not.toContain(MODEL_CAPABILITY.FUNCTION_CALL)
+  })
+
+  it.each([
+    'http://lmstudio.test:1234',
+    'http://lmstudio.test:1234/api/v0',
+    'http://lmstudio.test:1234/api/v1/',
+    'http://lmstudio.test:1234/v1/',
+    'http://lmstudio.test:1234#'
+  ])('imports from the legacy endpoint when native v1 is unavailable at %s', async (baseUrl) => {
+    fetchMock.mockResolvedValueOnce(Response.json({ error: { message: 'Not Found' } }, { status: 404 }))
+    fetchMock.mockResolvedValueOnce(Response.json({ data: [{ id: 'granite-3.0-2b-instruct' }] }))
+
+    const models = await listModels(makeLmStudioProvider(baseUrl), undefined, { throwOnError: true })
+
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({ apiModelId: 'granite-3.0-2b-instruct' })
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'http://lmstudio.test:1234/api/v1/models',
+      'http://lmstudio.test:1234/v1/models'
+    ])
+  })
+})
+
 describe('listModels — Ollama capabilities', () => {
   function makeOllamaProvider() {
     return makeProvider({
@@ -251,7 +367,7 @@ describe('listModels — Ollama capabilities', () => {
 
     expect(models[0]).toMatchObject({
       apiModelId: 'qwen3:32b-q4_K_M',
-      capabilities: [MODEL_CAPABILITY.REASONING]
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
     })
     expect(models[0].reasoning).toBeUndefined()
     expect(models[1]).toMatchObject({ capabilities: [] })
@@ -259,6 +375,22 @@ describe('listModels — Ollama capabilities', () => {
     expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
       url: 'http://ollama.test:11434/api/tags'
     })
+  })
+
+  it('maps the tools flag to the function-call capability without thinking', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: {
+        models: [
+          { name: 'llama3.1:8b', capabilities: ['completion', 'tools'] },
+          { name: 'mistral:7b', capabilities: ['completion'] }
+        ]
+      }
+    })
+
+    const models = await listModels(makeOllamaProvider())
+
+    expect(models[0]).toMatchObject({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+    expect(models[1]).toMatchObject({ capabilities: [] })
   })
 
   it('reads the trained context window from /api/show so num_ctx is not left at Ollama default', async () => {

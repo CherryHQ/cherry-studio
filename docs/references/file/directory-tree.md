@@ -165,9 +165,9 @@ presentation layer.
 
 ### 4.3 Ownership
 
-The request handler resolves the caller's managed `WebContents`. Follow-up operations verify that
-the calling window owns the `treeId`; the ID alone is not treated as authority. Mutation events are
-sent only to the owning WebContents, not broadcast to all windows.
+The request handler resolves the caller's managed window: its `WindowId` and its `WebContents`.
+Follow-up operations verify that the calling window owns the `treeId`; the ID alone is not treated
+as authority. Mutation events are sent only to the owning WebContents, not broadcast to all windows.
 
 ### 4.4 Explicit Rename
 
@@ -188,8 +188,10 @@ dedupe key, and concurrent creates share the same in-flight build.
 
 ## 6. Resource Lifecycle
 
-Destroying a WebContents releases all of its tree IDs. Service shutdown disposes every consumer and
-awaits watcher closure. The last-consumer grace window is described in §3.2.
+When WindowManager destroys the owning managed window (`onWindowDestroyed`), all of its tree IDs
+are released; pool release and singleton hide keep the window alive and release nothing. Service
+shutdown disposes every consumer and awaits watcher closure. The last-consumer grace window is
+described in §3.2.
 
 ## 7. Failure Behavior
 

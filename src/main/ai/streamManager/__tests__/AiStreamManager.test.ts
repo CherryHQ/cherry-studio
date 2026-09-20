@@ -1,3 +1,4 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -437,6 +438,7 @@ describe('AiStreamManager', () => {
         isMultiModel: false,
         listenerIds: ['l:a']
       })
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
       // One streamText call per execution — 1 for single-model.
       // Passing signal propagation is verified indirectly by abort-path tests
       // (e.g. `abort > sets status and triggers AbortController signal`).
@@ -1428,11 +1430,13 @@ describe('AiStreamManager', () => {
       expect(renderer.doneResults).toHaveLength(0)
       expect(mgr.hasLiveStream('a')).toBe(false)
       expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(true)
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
 
       releasePersistence()
       await terminal
       expect(renderer.doneResults).toHaveLength(1)
       expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(false)
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(false)
     })
 
     it('keeps the terminal dispatch in flight until every cleanup listener settles', async () => {
@@ -1464,11 +1468,13 @@ describe('AiStreamManager', () => {
       await vi.advanceTimersByTimeAsync(0)
       expect(b.doneResults).toHaveLength(1)
       expect(settled).toBe(false)
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
       expect(conversationCompletedEvents).toEqual([])
 
       releaseB()
       await settledPromise
       await terminal
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(false)
       expect(conversationCompletedEvents).toEqual([
         { topicId: 'a', turnId: expect.stringMatching(/^\d+:\d+$/), completedAt: expect.any(Number) }
       ])
@@ -3079,6 +3085,51 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')!.status).toBe('error')
     })
 
+    it('extracts a safe message from a structured provider stream rejection', async () => {
+      vi.useRealTimers()
+
+      mockStreamText.mockResolvedValueOnce(
+        new ReadableStream({
+          start(controller) {
+            controller.error({
+              type: 'error',
+              sequence_number: 2,
+              error: {
+                code: 'credit_balance_exhausted',
+                message: 'You have no credits remaining.'
+              },
+              apiKey: 'object-secret',
+              prompt: 'private prompt'
+            })
+          }
+        })
+      )
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+      expect(listener.errorResults[0].error).toEqual({
+        name: null,
+        message: 'You have no credits remaining.',
+        stack: null
+      })
+      expect(JSON.stringify(listener.errorResults[0].error)).not.toMatch(/object-secret|private prompt/)
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith('Execution loop error', {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        err: { errorMessage: 'You have no credits remaining.' }
+      })
+      expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
+      expect(mgr.inspect('a')!.status).toBe('error')
+    })
+
     it('routes a terminal error chunk through onExecutionError with the translated stream error', async () => {
       // readUIMessageStream's accumulator needs real microtask / timer
       // scheduling; fake timers starve its reader loop (see live finalMessage
@@ -3601,6 +3652,7 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'awaiting-approval'])
       expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
+      expect(mgr.hasUnsettledTopicWork('t')).toBe(true)
       expect(conversationCompletedEvents).toEqual([])
     })
 

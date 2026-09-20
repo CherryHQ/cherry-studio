@@ -1,17 +1,47 @@
+import path from 'node:path'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
+import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
+import { AgentSessionForkError, type RuntimeForkInput } from '../fork'
+import { listEntries, reclaimStale } from '../orphanSessionReclaim'
+import type {
+  AgentRuntimeConnectInput,
+  AgentRuntimeConnection,
+  AgentSessionRuntimeDriver,
+  OrphanSessionReclaimOptions
+} from '../types'
 import { buildDshCherryToolName, DSH_AUTO_APPROVED_BRIDGED_TOOLS } from './DshCherryToolBridge'
+import { forkDshSession } from './dshFork'
 import { DshRuntimeConnection } from './DshRuntimeConnection'
+import { parseDshForkCheckpoint } from './forkCheckpoint'
 import { assertDshProviderUsable } from './modelInjection'
 
 export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
+  private readonly forkSources = new Map<string, DshRuntimeConnection>()
+
+  async fork(input: RuntimeForkInput) {
+    input.signal.throwIfAborted()
+    const checkpoint = parseDshForkCheckpoint(input.checkpoint)
+    let events: unknown[] | undefined
+    try {
+      events = await this.forkSources.get(input.sourceSessionId)?.snapshotForFork(checkpoint.boundary, input.signal)
+    } catch (error) {
+      input.signal.throwIfAborted()
+      if (error instanceof AgentSessionForkError) throw error
+      const reason =
+        error instanceof Error && isAgentSessionForkFailureReason(error.message) ? error.message : 'operation_failed'
+      throw new AgentSessionForkError(reason, error instanceof Error ? error.message : reason)
+    }
+    input.signal.throwIfAborted()
+    return forkDshSession(input, events)
+  }
   readonly type = 'dsh'
   readonly capabilities = ['agent-session'] as const
 
@@ -61,6 +91,47 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    return new DshRuntimeConnection(input).start()
+    const connection = new DshRuntimeConnection(input, () => {
+      if (this.forkSources.get(input.sessionId) === connection) this.forkSources.delete(input.sessionId)
+    })
+    this.forkSources.set(input.sessionId, connection)
+    try {
+      await connection.start()
+      return connection
+    } catch (error) {
+      if (this.forkSources.get(input.sessionId) === connection) this.forkSources.delete(input.sessionId)
+      throw error
+    }
+  }
+
+  /**
+   * dsh lays sessions out as `{root}/{projectKey(cwd)}/{sessionId}/session.jsonl`.
+   * `assertValidDshResumeToken` restricts Cherry's tokens to the charset the
+   * backend's `encodeSegment` leaves literal, so the session directory name is
+   * the token verbatim.
+   *
+   * Reclaim whole project directories, never individual sessions: subagent runs
+   * get their own session directories under ids Cherry never records, and they
+   * share the parent's cwd — so "no claimed session in this project" is the only
+   * safe signal that the whole group is dead. (Reading each session's own header
+   * is not an option: the backend defaults to zstd-compressed logs.)
+   */
+  async reclaimOrphanSessions(
+    keptResumeTokens: ReadonlySet<string>,
+    options: OrphanSessionReclaimOptions
+  ): Promise<{ removed: string[] }> {
+    const sessionsRoot = application.getPath('feature.agents.dsh.sessions')
+    const removed: string[] = []
+
+    for (const projectEntry of await listEntries(sessionsRoot)) {
+      if (!projectEntry.isDirectory()) continue
+      const projectDir = path.resolve(sessionsRoot, projectEntry.name)
+      const sessionDirs = (await listEntries(projectDir)).filter((entry) => entry.isDirectory())
+      if (sessionDirs.length === 0) continue
+      if (sessionDirs.some((entry) => keptResumeTokens.has(entry.name))) continue
+      if (await reclaimStale(projectDir, options)) removed.push(projectDir)
+    }
+
+    return { removed }
   }
 }

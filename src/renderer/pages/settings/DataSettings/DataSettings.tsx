@@ -1,5 +1,5 @@
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
+import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { type FC, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,6 +34,7 @@ const NutstoreSettings = lazy(() => import('./NutstoreSettings'))
 const ObsidianSettings = lazy(() => import('./ObsidianSettings'))
 const S3Settings = lazy(() => import('./S3Settings'))
 const SiyuanSettings = lazy(() => import('./SiyuanSettings'))
+const TrashSettings = lazy(() => import('./TrashSettings/TrashSettings'))
 const WebDavSettings = lazy(() => import('./WebDavSettings'))
 const YuqueSettings = lazy(() => import('./YuqueSettings'))
 const ImportMenuOptions = lazy(() => import('./ImportMenuSettings'))
@@ -56,6 +57,7 @@ const DataSettings: FC = () => {
 
   const menuItems: DataMenuItem[] = [
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
+    { key: 'trash', title: t('settings.data.trash.title'), icon: <Trash2 size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'local_backup', title: t('settings.data.local.title'), icon: <FolderCog size={16} /> },
     { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudUpload size={16} /> },
@@ -119,6 +121,7 @@ const DataSettings: FC = () => {
           <BasicDataSettings />
         ) : (
           <Suspense fallback={null}>
+            {menu === 'trash' && <TrashSettings />}
             {menu === 'webdav' && <WebDavSettings />}
             {menu === 'nutstore' && <NutstoreSettings />}
             {menu === 's3' && <S3Settings />}

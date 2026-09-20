@@ -9,7 +9,8 @@ import MiniApp from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 // Column count follows the pane width: a detached mini app window can be
@@ -44,7 +45,7 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
     hideMiniApp,
     removeCustomMiniApp
   } = useMiniApps()
-  const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
+  const { shortcuts, setPinned } = useSidebarShortcuts()
   const { openMiniAppInSplit } = useMiniAppPopup()
   const openMiniAppInSplitRef = useRef(openMiniAppInSplit)
   openMiniAppInSplitRef.current = openMiniAppInSplit
@@ -55,7 +56,29 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
     if (app) openMiniAppInSplitRef.current(app)
   }, [])
   const openedIds = useMemo(() => new Set(openedKeepAliveMiniApps.map((app) => app.appId)), [openedKeepAliveMiniApps])
-  const sidebarFavoriteIds = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
+  const sidebarFavoriteIds = useMemo(
+    () =>
+      new Set(
+        shortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [shortcuts]
+  )
+  const toggleMiniApp = useCallback(
+    (appId: string) => {
+      const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
+      const fallbackLabel = app ? (app.nameKey ? t(app.nameKey) : app.name) : undefined
+      setPinned(
+        createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId),
+        !sidebarFavoriteIds.has(appId),
+        fallbackLabel
+      )
+    },
+    [t, setPinned, sidebarFavoriteIds]
+  )
 
   const renderMiniApp = (app: MiniAppType) => {
     const isOccupied = app.appId === occupiedAppId

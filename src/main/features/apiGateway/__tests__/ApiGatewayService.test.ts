@@ -11,23 +11,50 @@ import { BaseService } from '@main/core/lifecycle'
  * preference-change handler is captured so the toggle can be driven directly.
  */
 
-const { mockStart, mockStop, mockSetShared, mockGetActiveUsageContext, mockPreferenceSet, captured } = vi.hoisted(
-  () => ({
-    mockStart: vi.fn(),
-    mockStop: vi.fn(),
-    mockSetShared: vi.fn(),
-    mockGetActiveUsageContext: vi.fn(),
-    mockPreferenceSet: vi.fn(async () => {}),
-    captured: {
-      prefHandler: undefined as ((enabled: boolean) => void) | undefined,
-      enabledPreference: false
-    }
-  })
-)
+const {
+  mockStart,
+  mockStop,
+  mockLanStart,
+  mockLanStop,
+  mockSetShared,
+  mockGetActiveUsageContext,
+  mockPreferenceSet,
+  mockPreferenceSetMultiple,
+  captured
+} = vi.hoisted(() => ({
+  mockStart: vi.fn(),
+  mockStop: vi.fn(),
+  mockLanStart: vi.fn(),
+  mockLanStop: vi.fn(),
+  mockSetShared: vi.fn(),
+  mockGetActiveUsageContext: vi.fn(),
+  mockPreferenceSet: vi.fn<(key: string, value: boolean | string) => Promise<void>>(),
+  mockPreferenceSetMultiple: vi.fn<(updates: Record<string, unknown>) => Promise<void>>(),
+  captured: {
+    prefHandler: undefined as ((enabled: boolean) => void) | undefined,
+    enabledPreference: false,
+    hostPreference: '127.0.0.1',
+    portPreference: 23333
+  }
+}))
 
 vi.mock('../server', () => ({
-  ApiGateway: vi.fn(function ApiGatewayMock() {
+  ApiGateway: vi.fn(function ApiGatewayMock(endpoint: { host: string; port: number }) {
+    if (endpoint.host === '0.0.0.0') {
+      return { start: mockLanStart, stop: mockLanStop, isRunning: () => true, getPort: () => 34444 }
+    }
     return { start: mockStart, stop: mockStop, isRunning: () => true }
+  })
+}))
+
+vi.mock('@data/services/ApiGatewayPairedDeviceService', () => ({
+  apiGatewayPairedDeviceService: { create: vi.fn() }
+}))
+
+vi.mock('node:os', () => ({
+  hostname: () => 'desktop',
+  networkInterfaces: () => ({
+    en0: [{ address: '192.168.1.8', family: 'IPv4', internal: false }]
   })
 }))
 
@@ -42,11 +69,12 @@ vi.mock('@application', async () => {
       get: vi.fn((key: string) => (key.endsWith('api_key') ? 'existing-key' : false)),
       getMultiple: vi.fn(() => ({
         enabled: captured.enabledPreference,
-        host: '127.0.0.1',
-        port: 23333,
+        host: captured.hostPreference,
+        port: captured.portPreference,
         apiKey: 'existing-key'
       })),
-      set: mockPreferenceSet
+      set: mockPreferenceSet,
+      setMultiple: mockPreferenceSetMultiple
     },
     CacheService: { setShared: mockSetShared },
     AgentSessionRuntimeService: { getActiveUsageContext: mockGetActiveUsageContext }
@@ -54,6 +82,7 @@ vi.mock('@application', async () => {
 })
 
 import { ApiGatewayService } from '../ApiGatewayService'
+import { ApiGateway } from '../server'
 
 let startResolvers: Array<() => void>
 let rejectStart: boolean
@@ -62,12 +91,26 @@ beforeEach(() => {
   BaseService.resetInstances()
   captured.prefHandler = undefined
   captured.enabledPreference = false
+  captured.hostPreference = '127.0.0.1'
+  captured.portPreference = 23333
   mockPreferenceSet.mockReset()
-  mockPreferenceSet.mockResolvedValue(undefined)
+  mockPreferenceSet.mockImplementation(async (key, value) => {
+    if (key === 'feature.api_gateway.enabled') captured.enabledPreference = value as boolean
+    if (key === 'feature.api_gateway.host') captured.hostPreference = value as string
+  })
+  mockPreferenceSetMultiple.mockReset()
+  mockPreferenceSetMultiple.mockImplementation(async (updates) => {
+    const host = updates['feature.api_gateway.host']
+    const enabled = updates['feature.api_gateway.enabled']
+    if (typeof host === 'string') captured.hostPreference = host
+    if (typeof enabled === 'boolean') captured.enabledPreference = enabled
+  })
   startResolvers = []
   rejectStart = false
   mockStart.mockReset()
   mockStop.mockReset()
+  mockLanStart.mockReset().mockResolvedValue(undefined)
+  mockLanStop.mockReset().mockResolvedValue(undefined)
   mockSetShared.mockClear()
   mockGetActiveUsageContext.mockReset()
   mockGetActiveUsageContext.mockReturnValue({
@@ -162,6 +205,25 @@ describe('ApiGatewayService reconcile', () => {
     expect(service.isActivated).toBe(true)
   })
 
+  it('builds pairing offers from the endpoint snapshot that actually started', async () => {
+    captured.enabledPreference = true
+    captured.hostPreference = '0.0.0.0'
+    captured.portPreference = 24444
+    const service = new ApiGatewayService()
+
+    const ready = service._doInit()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await ready
+
+    captured.portPreference = 25555
+    expect(service.createPairingOffer()).toMatchObject({
+      hostname: 'desktop',
+      port: 34444,
+      addresses: ['192.168.1.8']
+    })
+  })
+
   // The command and the persisted intent must land together: a stop whose preference write never
   // happened comes back on the next launch, which is the whole of #18521.
   it('persists the intent before converging, and reports a failed persist instead of stopping', async () => {
@@ -186,7 +248,8 @@ describe('ApiGatewayService reconcile', () => {
     startResolvers[0]()
     await started
 
-    expect(mockPreferenceSet).toHaveBeenCalledWith('feature.api_gateway.enabled', true)
+    expect(service.getCurrentConfig().enabled).toBe(true)
+    expect(service.isActivated).toBe(true)
   })
 
   // A re-bind must not resurrect a gateway another window disabled while the restart was queued:
@@ -274,6 +337,145 @@ describe('ApiGatewayService reconcile', () => {
     await startSettled
 
     expect(service.isActivated).toBe(false) // converged to desiredEnabled === false
+  })
+})
+
+describe('ApiGatewayService LAN shutdown', () => {
+  beforeEach(() => {
+    captured.enabledPreference = true
+    captured.hostPreference = '0.0.0.0'
+    mockStart.mockResolvedValue(undefined)
+  })
+
+  it('keeps an ordinary gateway start on loopback after stopping a LAN-enabled gateway', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    await expect(service.stop()).resolves.toBe('stopped')
+    expect(service.getCurrentConfig()).toMatchObject({ enabled: false, host: '127.0.0.1' })
+
+    await service.start()
+
+    expect(service.isActivated).toBe(true)
+    expect(ApiGateway).toHaveBeenLastCalledWith({ host: '127.0.0.1', port: 23333 })
+    expect(() => service.createPairingOffer()).toThrow('LAN access is disabled')
+  })
+
+  it('revokes LAN configuration and pairing while a local task defers shutdown', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    const offer = service.createPairingOffer()
+    await service.acquireLease()
+
+    await expect(service.stop()).resolves.toBe('deferred')
+
+    expect(service.isActivated).toBe(true)
+    expect(service.getCurrentConfig()).toMatchObject({ enabled: false, host: '127.0.0.1' })
+    expect(() => service.createPairingOffer()).toThrow('LAN access is disabled')
+    expect(service.pairDevice(offer.code, { name: 'Phone', platform: 'android' })).toBeNull()
+
+    service.releaseLease()
+    await vi.waitFor(() => expect(service.isActivated).toBe(false))
+    await service.start()
+    expect(ApiGateway).toHaveBeenLastCalledWith({ host: '127.0.0.1', port: 23333 })
+  })
+
+  it('preserves the running LAN service when its stop preferences cannot be saved', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    mockPreferenceSetMultiple.mockRejectedValueOnce(new Error('disk full'))
+
+    await expect(service.stop()).rejects.toThrow('disk full')
+
+    expect(service.isActivated).toBe(true)
+    expect(service.getCurrentConfig()).toMatchObject({ enabled: true, host: '0.0.0.0' })
+    expect(service.createPairingOffer().addresses).toEqual(['192.168.1.8'])
+  })
+
+  it('retains LAN configuration for an explicit restart', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    await service.restart()
+
+    expect(service.isActivated).toBe(true)
+    expect(service.getCurrentConfig()).toMatchObject({ enabled: true, host: '0.0.0.0' })
+    expect(ApiGateway).toHaveBeenLastCalledWith({ host: '0.0.0.0', port: 0 })
+    expect(service.createPairingOffer().addresses).toEqual(['192.168.1.8'])
+  })
+})
+
+describe('ApiGatewayService independent LAN access', () => {
+  beforeEach(() => {
+    captured.enabledPreference = true
+    mockStart.mockResolvedValue(undefined)
+  })
+
+  it('enables and disables LAN without changing the local gateway or its enabled intent', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    await service.acquireLease()
+
+    await service.setLanEnabled(true)
+    const offer = service.createPairingOffer()
+    expect(offer.port).toBe(34444)
+    expect(service.getCurrentConfig()).toMatchObject({ enabled: true, host: '0.0.0.0', port: 23333 })
+
+    await service.setLanEnabled(false)
+
+    expect(service.isActivated).toBe(true)
+    expect(service.getCurrentConfig()).toMatchObject({ enabled: true, host: '127.0.0.1' })
+    expect(() => service.createPairingOffer()).toThrow('LAN access is disabled')
+    expect(service.pairDevice(offer.code, { name: 'Phone', platform: 'android' })).toBeNull()
+    expect(mockStop).not.toHaveBeenCalled()
+    service.releaseLease()
+  })
+
+  it.each(['listen', 'persist'])('keeps LAN disabled when its %s step fails', async (failure) => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    if (failure === 'listen') mockLanStart.mockRejectedValueOnce(new Error('bind failed'))
+    else mockPreferenceSet.mockRejectedValueOnce(new Error('disk full'))
+
+    await expect(service.setLanEnabled(true)).rejects.toThrow()
+
+    expect(service.getCurrentConfig()).toMatchObject({ enabled: true, host: '127.0.0.1' })
+    expect(service.isActivated).toBe(true)
+    expect(() => service.createPairingOffer()).toThrow('LAN access is disabled')
+    expect(mockStop).not.toHaveBeenCalled()
+  })
+
+  it('requires the user to enable the gateway instead of starting it from LAN settings', async () => {
+    captured.enabledPreference = false
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    await expect(service.setLanEnabled(true)).rejects.toThrow('Start the API Gateway')
+
+    expect(service.getCurrentConfig()).toMatchObject({ enabled: false, host: '127.0.0.1' })
+    expect(service.isActivated).toBe(false)
+  })
+
+  it('does not restore LAN intent if the user stops the gateway during LAN startup', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    let finishListening!: () => void
+    mockLanStart.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishListening = resolve
+        })
+    )
+    const enabling = service.setLanEnabled(true).catch((error) => error)
+    await vi.waitFor(() => expect(finishListening).toBeDefined())
+    const stopping = service.stop()
+    await vi.waitFor(() => expect(service.getCurrentConfig().enabled).toBe(false))
+    finishListening()
+
+    expect(await enabling).toBeInstanceOf(Error)
+    await stopping
+    expect(service.getCurrentConfig()).toMatchObject({ enabled: false, host: '127.0.0.1' })
+    expect(service.isActivated).toBe(false)
   })
 })
 

@@ -103,7 +103,7 @@ export function buildUserModelLookupExpr(sourceColumn: string): string {
  * handled by `AgentsMigrator.migrateScheduledTasksTs` in TypeScript — the
  * v1 `(scheduleType, scheduleValue)` columns cannot be encoded into a
  * `Trigger` JSON blob with pure SQL expressions cleanly, and v1 run logs
- * are discarded (see breaking-changes/2026-05-19).
+ * are discarded.
  *
  * Do not reorder entries without updating the child `whereClause`s.
  */

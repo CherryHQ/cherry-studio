@@ -651,3 +651,19 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     })
   })
 })
+
+describe('Browser control permission', () => {
+  it.each(['default', 'bypassPermissions'] as const)(
+    'rechecks the persistent browser grant in %s mode',
+    async (mode) => {
+      const pref = application.get('PreferenceService')
+      await pref.set('app.browser.agent_control.enabled', true)
+      const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+      const call = () => handler(toolEvent('mcp__browser__click', {}), extCtx)
+      await expect(call()).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+      await pref.set('app.browser.agent_control.enabled', false)
+      await expect(call()).resolves.toMatchObject({ block: true })
+    }
+  )
+})

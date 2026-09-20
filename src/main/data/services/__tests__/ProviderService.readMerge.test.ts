@@ -237,6 +237,35 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     expect(provider.availableInEditions).toEqual(['global', 'cn'])
   })
 
+  it('resolves transaction reasoning contexts without decoding unrelated provider fields', () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'cherryin',
+        presetProviderId: 'cherryin',
+        name: 'CherryIN',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.sqlite.prepare("UPDATE user_provider SET api_keys = 'invalid-json' WHERE provider_id = ?").run('cherryin')
+
+    const context = dbh.db.transaction((tx) =>
+      providerService.getReasoningContextsByProviderIdsTx(tx, ['cherryin']).get('cherryin')
+    )
+
+    expect(context).toMatchObject({
+      id: 'cherryin',
+      presetProviderId: 'cherryin',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+    expect(context?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).toEqual({
+      adapterFamily: 'cherryin',
+      baseUrl: 'https://open.cherryin.net',
+      modelsApiUrls: { default: 'https://open.cherryin.net/v1/models' }
+    })
+  })
+
   it('keeps providers absent from the current registry edition-neutral', async () => {
     await dbh.db.insert(userProviderTable).values([
       {

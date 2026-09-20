@@ -6,6 +6,27 @@
   },
   "definitions": [
     {
+      "targetKey": "agent.commit_attribution.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Let the Claude Code runtime append its own attribution to git commits and PR bodies (Co-Authored-By trailer, Generated-with footer). Disable to omit that attribution (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.browser.agent_control.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Allow agents to control their visible browser pane (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.browser.open_links_in_browser",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Open website links in shared built-in browser tabs"
+    },
+    {
       "targetKey": "app.fetch.allow_private_network",
       "type": "boolean",
       "defaultValue": true,
@@ -191,7 +212,40 @@
         { "id": "knowledge", "type": "app" }
       ],
       "status": "classified",
-      "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
+      "description": "Legacy sidebar favorites, preserved as the source for shortcut migration"
+    },
+    {
+      "targetKey": "ui.sidebar_shortcut",
+      "type": "PreferenceTypes.SidebarShortcutItem[]",
+      "defaultValue": [
+        {
+          "id": "sidebar-shortcut:core.app:agents",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "agents" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:assistants",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "assistants" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:translate",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "translate" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:paintings",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "paintings" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:knowledge",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "knowledge" } },
+          "type": "shortcut"
+        }
+      ],
+      "status": "classified",
+      "description": "Left sidebar shortcuts, an ordered list of generic resource targets with provider-owned activation"
     },
     {
       "targetKey": "ui.launchpad.app_order",
@@ -771,6 +825,13 @@
       },
       "status": "classified",
       "description": "Command shortcut: screenshot.capture (unified command system)"
+    },
+    {
+      "targetKey": "data.trash.retention_days",
+      "type": "number",
+      "defaultValue": 30,
+      "status": "classified",
+      "description": "Trash retention in days before automatic purge; 0 = never auto-purge (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "agent.language",

@@ -31,8 +31,10 @@ import { randomUUID } from 'node:crypto'
 
 import type { WebContents } from 'electron'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file'
 import { DirectoryTreeOptionsSchema } from '@shared/utils/file'
@@ -68,7 +70,7 @@ const DISPOSE_GRACE_MS = 500
  *
  * A conforming renderer activates within a single round-trip and buffers a handful;
  * a hung or non-conforming one can create a tree and then never activate, while a
- * high-churn workspace keeps appending full payloads. `destroyed` does not help
+ * high-churn workspace keeps appending full payloads. Window teardown does not help
  * while the window is alive, so the queue is the only bound. Overflow disposes the
  * consumer, so a late `activate` returns false; consumers treat that as recoverable
  * and retake the handshake with a fresh snapshot (see `MAX_ACTIVATION_ATTEMPTS` in
@@ -102,8 +104,20 @@ type SharedBuilder =
   | (SharedBuilderBase & { readonly state: 'active' })
   | (SharedBuilderBase & { readonly state: 'draining'; readonly disposeTimer: ReturnType<typeof setTimeout> })
 
+/**
+ * The managed window that owns a tree. Both fields must describe the same window:
+ * `windowId` keys teardown on `WindowManager.onWindowDestroyed`, `webContents` receives
+ * the mutation stream and anchors ownership checks.
+ */
+export interface TreeOwner {
+  readonly windowId: WindowId
+  readonly webContents: WebContents
+}
+
 interface Consumer {
   readonly treeId: string
+  /** Owning managed window; key into `byWindow`. */
+  readonly windowId: WindowId
   readonly webContentsId: number
   readonly sender: WebContents
   /** Subscription returned by `builder.onMutation()` — disposed when this consumer leaves. */
@@ -168,6 +182,7 @@ function canonicalizeOptions(options: DirectoryTreeOptions | undefined): string 
 
 @Injectable('DirectoryTreeManager')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['WindowManager'])
 export class DirectoryTreeManager extends BaseService {
   /** treeId → consumer. One row per `file.tree.create` call still alive. */
   private readonly consumers = new Map<string, Consumer>()
@@ -176,19 +191,24 @@ export class DirectoryTreeManager extends BaseService {
   /** `(rootPath, options)` → in-flight create promise, so concurrent
    *  `file.tree.create` calls dedupe at builder-creation time. */
   private readonly inflight = new Map<string, Promise<SharedBuilder>>()
-  /** webContentsId → set of treeIds, so we can drop them on contents-destroyed. */
-  private readonly byWebContents = new Map<number, Set<string>>()
+  /** windowId → set of treeIds, so we can drop them when the owning window is destroyed. */
+  private readonly byWindow = new Map<WindowId, Set<string>>()
   /**
    * Set by `onStop()` (and the `disposeAll()` test seam) to short-circuit
    * any builder that finishes its asynchronous `createDirectoryTree` call
    * after teardown.
    *
    * We keep this hand-rolled bit rather than gating on `this.state` because
-   * tests instantiate the manager directly without going through the
-   * lifecycle (`state` stays at `Created`), so an `isReady`-based check
-   * would treat the service as "shut down" before its first use.
+   * tests tear down through the `disposeAll()` seam without `_doStop()`, so
+   * `state` would still read `Ready` after teardown.
    */
   private disposed = false
+
+  protected override onInit(): void {
+    this.registerDisposable(
+      application.get('WindowManager').onWindowDestroyed(({ id }) => this.disposeAllForWindow(id))
+    )
+  }
 
   protected override async onStop(): Promise<void> {
     await this.disposeAll()
@@ -240,16 +260,17 @@ export class DirectoryTreeManager extends BaseService {
   }
 
   /**
-   * Create a tree for the given `sender` WebContents. Reuses an existing
-   * shared builder when `(rootPath, options)` matches another live consumer
-   * (or one inside the dispose grace window). The returned consumer remains
-   * pending until `activate` acknowledges the snapshot revision.
+   * Create a tree owned by the managed window `owner`; its WebContents receives
+   * the mutation stream. Reuses an existing shared builder when `(rootPath, options)`
+   * matches another live consumer (or one inside the dispose grace window). The
+   * returned consumer remains pending until `activate` acknowledges the snapshot revision.
    */
   async create(
-    sender: WebContents,
+    owner: TreeOwner,
     rootPath: string,
     options: DirectoryTreeOptions | undefined
   ): Promise<CreateTreeIpcResult> {
+    const { windowId, webContents: sender } = owner
     const key = builderKey(rootPath, options)
     await this.acquireBuilder(key, rootPath, options)
     // Re-read the canonical record rather than trusting the awaited one. Every create
@@ -270,6 +291,7 @@ export class DirectoryTreeManager extends BaseService {
     const snapshotRevision = 0
     const consumer: Consumer = {
       treeId,
+      windowId,
       webContentsId: sender.id,
       sender,
       forwardSubscription: null,
@@ -300,30 +322,20 @@ export class DirectoryTreeManager extends BaseService {
     this.consumers.set(treeId, consumer)
 
     // `acquireBuilder` awaits a ripgrep scan + watcher install. If the owner window
-    // closed during it, `destroyed` has already fired and the `once` below would
-    // never replay it — the consumer (and an otherwise-idle builder) would survive
-    // until app shutdown. Reconcile against the current state instead. Registering
-    // first and disposing lets the normal refcount + grace-window path release the
-    // builder rather than stranding a freshly-created one with zero consumers.
+    // closed during it, `onWindowDestroyed` has already fired with nothing of ours to
+    // drop — the consumer (and an otherwise-idle builder) would survive until app
+    // shutdown. Reconcile against the current state instead. Registering first and
+    // disposing lets the normal refcount + grace-window path release the builder
+    // rather than stranding a freshly-created one with zero consumers.
     if (sender.isDestroyed()) {
       this.dispose(treeId)
       throw new Error(`Directory tree owner (webContents ${consumer.webContentsId}) was destroyed during creation`)
     }
 
-    let bucket = this.byWebContents.get(sender.id)
+    let bucket = this.byWindow.get(windowId)
     if (!bucket) {
       bucket = new Set()
-      this.byWebContents.set(sender.id, bucket)
-      // Track the listener so onStop's _cleanupDisposables can `.off` it
-      // even when the renderer never gets destroyed. Without this the
-      // closure holds `this` alive through the EventEmitter slot for the
-      // lifetime of the webContents, which can outlast the manager.
-      const handler = (): void => this.disposeAllForWebContents(sender.id)
-      sender.once('destroyed', handler)
-      this.registerDisposable(() => {
-        if (sender.isDestroyed()) return
-        sender.off('destroyed', handler)
-      })
+      this.byWindow.set(windowId, bucket)
     }
     bucket.add(treeId)
 
@@ -334,7 +346,7 @@ export class DirectoryTreeManager extends BaseService {
    * @param ownerWebContentsId When given, the call is refused unless it matches the
    *   consumer's owner. IPC handlers MUST pass it — a `treeId` is an identifier, not
    *   a capability, and every renderer shares one request channel. Internal callers
-   *   (webContents teardown, overflow, `onStop`) are already authorized and omit it.
+   *   (window teardown, overflow, `onStop`) are already authorized and omit it.
    */
   dispose(treeId: string, ownerWebContentsId?: number): boolean {
     const consumer =
@@ -346,9 +358,9 @@ export class DirectoryTreeManager extends BaseService {
     if (!shared) return true
     shared.consumers.delete(treeId)
 
-    const bucket = this.byWebContents.get(consumer.webContentsId)
+    const bucket = this.byWindow.get(consumer.windowId)
     bucket?.delete(treeId)
-    if (bucket && bucket.size === 0) this.byWebContents.delete(consumer.webContentsId)
+    if (bucket && bucket.size === 0) this.byWindow.delete(consumer.windowId)
 
     if (shared.consumers.size === 0 && shared.state === 'active') {
       this.transitionToDraining(shared)
@@ -356,15 +368,15 @@ export class DirectoryTreeManager extends BaseService {
     return true
   }
 
-  disposeAllForWebContents(webContentsId: number): void {
-    const bucket = this.byWebContents.get(webContentsId)
+  disposeAllForWindow(windowId: WindowId): void {
+    const bucket = this.byWindow.get(windowId)
     if (!bucket) return
     const ids = Array.from(bucket)
     for (const id of ids) {
       try {
         this.dispose(id)
       } catch (err) {
-        logger.error(`Failed to dispose tree ${id} during webContents teardown`, err as Error)
+        logger.error(`Failed to dispose tree ${id} during window teardown`, err as Error)
       }
     }
   }
@@ -464,14 +476,10 @@ export class DirectoryTreeManager extends BaseService {
    * at every other call site.
    */
   private transitionToDraining(shared: SharedBuilder & { state: 'active' }): void {
-    // Hand the timer to BaseService so onStop's _cleanupDisposables clears
-    // it even if we never reach `tearDownIfIdle` naturally. clearTimeout is
-    // idempotent so the disposable surviving past natural fire is fine.
     // `.unref()` so a pending grace timer doesn't keep the process alive
     // past app exit — the watcher cleanup is best-effort at shutdown.
     const handle = setTimeout(() => this.tearDownIfIdle(shared.key), DISPOSE_GRACE_MS)
     handle.unref()
-    this.registerDisposable(() => clearTimeout(handle))
     const next: SharedBuilder = {
       key: shared.key,
       builder: shared.builder,

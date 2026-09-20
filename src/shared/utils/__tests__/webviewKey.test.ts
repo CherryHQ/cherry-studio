@@ -33,6 +33,9 @@ describe('isForwardableGuestKey', () => {
   it('forwards the find overlay’s Enter navigation', () => {
     expect(isForwardableGuestKey(key({ key: 'Enter' }))).toBe(true)
     expect(isForwardableGuestKey(key({ key: 'Enter', shiftKey: true }))).toBe(true)
+    // Keypad Enter binds as `numenter`, but its bare press is the same
+    // component-driven next-match navigation.
+    expect(isForwardableGuestKey(key({ key: 'Enter', code: 'NumpadEnter' }))).toBe(true)
   })
 
   it('leaves bare keys that cannot carry a binding with the guest', () => {
