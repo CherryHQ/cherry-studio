@@ -15,6 +15,7 @@ const PREFERENCE_OPTIONS = { optimistic: false } as const
 const AUTO_SAVE_DELAY_MS = 400
 // Remounts must wait for saves that outlive the previous editor.
 let saveQueue = Promise.resolve()
+let pendingEdit: { hooks: AgentHook[]; failed: boolean } | null = null
 
 export function HooksSettings() {
   const { t } = useTranslation()
@@ -73,10 +74,10 @@ export function HooksSettings() {
 function GlobalHooksEditor() {
   const { t } = useTranslation()
   const [storedHooks, setStoredHooks] = usePreference('agent.hooks', PREFERENCE_OPTIONS)
-  const [draft, setDraft] = useState<AgentHook[] | null>(null)
-  const [saveFailed, setSaveFailed] = useState(false)
-  const draftRef = useRef<AgentHook[] | null>(null)
-  const revisionRef = useRef(0)
+  const [draft, setDraft] = useState<AgentHook[] | null>(pendingEdit?.hooks ?? null)
+  const [saveFailed, setSaveFailed] = useState(pendingEdit?.failed ?? false)
+  const draftRef = useRef(draft)
+  const revisionRef = useRef(draft ? 1 : 0)
   const lastSavedRevisionRef = useRef(0)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mountedRef = useRef(true)
@@ -99,12 +100,14 @@ function GlobalHooksEditor() {
         await setStoredHooks(validated.data)
         lastSavedRevisionRef.current = snapshotRevision
         if (revisionRef.current === snapshotRevision) {
+          pendingEdit = null
           draftRef.current = null
           if (mountedRef.current) setDraft(null)
         }
         if (mountedRef.current) setSaveFailed(false)
       } catch (error) {
         logger.error('Failed to auto-save global Hooks', error as Error)
+        if (pendingEdit) pendingEdit.failed = true
         if (mountedRef.current) setSaveFailed(true)
       }
     })
@@ -122,6 +125,7 @@ function GlobalHooksEditor() {
 
   const updateHooks = (next: AgentHook[], options?: { immediate?: boolean }) => {
     revisionRef.current += 1
+    pendingEdit = { hooks: next, failed: false }
     draftRef.current = next
     setDraft(next)
     setSaveFailed(false)

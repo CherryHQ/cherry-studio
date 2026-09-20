@@ -357,16 +357,23 @@ describe('Global Hooks settings', () => {
     )
   })
 
-  it('keeps a failed auto-save editable and retries without losing the draft', async () => {
+  it.each(['mounted', 'unmounted', 'remounted'])('recovers a failed auto-save while %s', async (phase) => {
     persisted = [rule]
-    preferenceBridge.set.mockRejectedValueOnce(new Error('Disk full'))
+    const save = Promise.withResolvers<void>()
+    preferenceBridge.set.mockReturnValueOnce(save.promise)
     const user = userEvent.setup()
-    render(<HooksSettings />)
+    const view = render(<HooksSettings />)
     await user.click(await screen.findByRole('button', { name: /saved hook/ }))
-    const command = await screen.findByLabelText(zhCN['agent_hooks.command'])
-    await user.type(command, '; exit 2')
+    await user.type(screen.getByLabelText(zhCN['agent_hooks.command']), '; exit 2')
+    if (phase !== 'mounted') view.unmount()
+    if (phase === 'remounted') render(<HooksSettings />)
+    await waitFor(() => expect(preferenceBridge.set).toHaveBeenCalledTimes(1))
+    await act(async () => save.reject(new Error('Disk full')))
+    if (phase === 'unmounted') render(<HooksSettings />)
+
     expect(await screen.findByText(zhCN['settings.hooks.save_failed'])).toBeInTheDocument()
-    expect(command).toHaveValue('exit 0; exit 2')
+    if (phase !== 'mounted') await user.click(screen.getByRole('button', { name: /saved hook/ }))
+    expect(screen.getByLabelText(zhCN['agent_hooks.command'])).toHaveValue('exit 0; exit 2')
     expect(persisted[0].command).toBe('exit 0')
     await user.click(screen.getByRole('button', { name: zhCN['common.retry'] }))
     await waitFor(() => expect(persisted[0]).toMatchObject({ command: 'exit 0; exit 2', enabled: false }))
