@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   runtimeIsSessionBusy: vi.fn(),
   runtimeAssertWritable: vi.fn(),
   runtimeValidateSession: vi.fn(),
-  getModelNames: vi.fn(() => new Map())
+  getModelNames: vi.fn(() => new Map<string, string>())
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -55,7 +55,7 @@ vi.mock('@main/services/TopicNamingService', () => ({
 }))
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getNamesByUniqueIdsTx: (tx, ids) => mocks.getModelNames(tx, ids) }
+  modelService: { getNamesByUniqueIdsTx: () => mocks.getModelNames() }
 }))
 
 vi.mock('@application', () => ({
