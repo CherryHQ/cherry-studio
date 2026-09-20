@@ -773,7 +773,7 @@ function isDollarDisplayMath(node: InlineMath, source: string): boolean {
   if (getLatexMathKind(node) !== undefined) return false
   if (!DISPLAY_COMMAND_PATTERN.test(node.value)) return false
   // A bare $ inside single-line $$ is prose or unbalanced input, not a display formula.
-  if (node.value.includes('$')) return false
+  if (node.value.replace(/\\./g, '').includes('$')) return false
   const start = node.position?.start.offset
   const end = node.position?.end.offset
   if (start === undefined || end === undefined) return false

@@ -441,6 +441,7 @@ describe('remarkLatexMath', () => {
     expect(mathNodes('$$\\tag{1} x=1$$')).toMatchObject([{ type: 'math', meta: null, value: '\\tag{1} x=1' }])
     expect(mathNodes('$$x=1 \\tag{1}$$')).toMatchObject([{ type: 'math', value: 'x=1 \\tag{1}' }])
     expect(mathNodes('$$price $5 \\tag{1}$$')).toMatchObject([{ type: 'inlineMath' }])
+    expect(mathNodes('$$price \\$5 \\tag{1}$$')).toMatchObject([{ type: 'math', value: 'price \\$5 \\tag{1}' }])
     expect(parse('$$\\tag{1} x=1$$').children.map((child) => child.type)).toEqual(['math'])
 
     const { container } = render(
