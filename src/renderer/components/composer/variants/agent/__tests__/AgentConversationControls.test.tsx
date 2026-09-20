@@ -1,8 +1,9 @@
-import type { ModelSelectorProps } from '@renderer/components/ModelSelector'
-import type { Model } from '@shared/data/types/model'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { ModelSelectorProps } from '@renderer/components/ModelSelector'
+import type { Model } from '@shared/data/types/model'
 
 import { AgentConversationControls } from '../AgentConversationControls'
 

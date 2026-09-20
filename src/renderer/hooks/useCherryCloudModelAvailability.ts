@@ -1,10 +1,11 @@
+import { useCallback, useMemo } from 'react'
+import useSWR from 'swr'
+
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryCloudModelFeature, CherryCloudModelSyncResult } from '@shared/ipc/schemas/cherryCloud'
-import { useCallback, useMemo } from 'react'
-import useSWR from 'swr'
 
 const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
 const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
