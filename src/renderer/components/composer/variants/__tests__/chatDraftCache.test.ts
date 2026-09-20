@@ -57,7 +57,8 @@ const emptyDraft: ChatComposerDraftCache = {
   modelMultiSelectMode: false
 }
 
-type DraftSnapshot = Record<string, ChatComposerDraftCache>
+type DraftSnapshot = Record<string, { draft: ChatComposerDraftCache; savedAt: number }>
+const DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 
 describe('chatDraftCache', () => {
   beforeEach(() => {
@@ -128,17 +129,29 @@ describe('chatDraftCache', () => {
   it('restores a draft from the persisted snapshot when the renderer memory cache is empty (e.g. after a restart)', () => {
     vi.mocked(cacheService.get).mockReturnValue(undefined)
     vi.mocked(cacheService.getPersist).mockReturnValue({
-      'topic-a': { ...emptyDraft, text: 'recovered after restart' }
+      'topic-a': { draft: { ...emptyDraft, text: 'recovered after restart' }, savedAt: Date.now() }
     } satisfies DraftSnapshot)
 
     expect(readChatDraftCache('topic-a').text).toBe('recovered after restart')
     expect(cacheService.getPersist).toHaveBeenCalledWith('chat.composer_draft_snapshot')
   })
 
+  // The memory tier expires a draft after 24h. The persisted mirror has no expiry of its
+  // own, so without this check a draft the app had already dropped would come back on the
+  // next restart and keep coming back forever.
+  it('does not resurrect a snapshot older than the memory tier TTL', () => {
+    vi.mocked(cacheService.get).mockReturnValue(undefined)
+    vi.mocked(cacheService.getPersist).mockReturnValue({
+      'topic-a': { draft: { ...emptyDraft, text: 'expired' }, savedAt: Date.now() - DRAFT_TTL_MS - 1 }
+    } satisfies DraftSnapshot)
+
+    expect(readChatDraftCache('topic-a').text).toBe('')
+  })
+
   it('prefers the live renderer memory cache over the persisted snapshot once the topic has a value this session', () => {
     vi.mocked(cacheService.get).mockReturnValue({ ...emptyDraft, text: 'live draft' })
     vi.mocked(cacheService.getPersist).mockReturnValue({
-      'topic-a': { ...emptyDraft, text: 'stale snapshot' }
+      'topic-a': { draft: { ...emptyDraft, text: 'stale snapshot' }, savedAt: Date.now() }
     } satisfies DraftSnapshot)
 
     expect(readChatDraftCache('topic-a').text).toBe('live draft')
@@ -151,20 +164,36 @@ describe('chatDraftCache', () => {
 
     const [key, updater] = vi.mocked(cacheService.setPersist).mock.calls[0]
     expect(key).toBe('chat.composer_draft_snapshot')
-    const otherTopicDraft = { ...emptyDraft, text: 'other topic' }
-    const next = (updater as (prev: DraftSnapshot) => DraftSnapshot)({ 'topic-b': otherTopicDraft })
-    expect(next).toEqual({ 'topic-b': otherTopicDraft, 'topic-a': draft })
+    const otherTopic = { draft: { ...emptyDraft, text: 'other topic' }, savedAt: Date.now() }
+    const next = (updater as (prev: DraftSnapshot) => DraftSnapshot)({ 'topic-b': otherTopic })
+    expect(next['topic-b']).toEqual(otherTopic)
+    expect(next['topic-a'].draft).toEqual(draft)
+  })
+
+  // Nothing else prunes this record: deleting a topic does not clear its draft, so without
+  // the sweep every abandoned draft would stay in storage for good.
+  it('sweeps snapshots past the TTL on write, including drafts whose topic is long gone', () => {
+    writeChatDraftCache('topic-a', { ...emptyDraft, text: 'fresh' })
+
+    const [, updater] = vi.mocked(cacheService.setPersist).mock.calls[0]
+    const next = (updater as (prev: DraftSnapshot) => DraftSnapshot)({
+      'deleted-topic': { draft: { ...emptyDraft, text: 'abandoned' }, savedAt: Date.now() - DRAFT_TTL_MS - 1 },
+      'topic-b': { draft: { ...emptyDraft, text: 'still recent' }, savedAt: Date.now() }
+    })
+
+    expect(Object.keys(next).sort()).toEqual(['topic-a', 'topic-b'])
   })
 
   it('removes the topic from the persisted snapshot once its draft empties', () => {
     writeChatDraftCache('topic-a', emptyDraft)
 
     const [, updater] = vi.mocked(cacheService.setPersist).mock.calls[0]
+    const keepMe = { draft: { ...emptyDraft, text: 'keep me' }, savedAt: Date.now() }
     const prev: DraftSnapshot = {
-      'topic-a': { ...emptyDraft, text: 'leftover' },
-      'topic-b': { ...emptyDraft, text: 'keep me' }
+      'topic-a': { draft: { ...emptyDraft, text: 'leftover' }, savedAt: Date.now() },
+      'topic-b': keepMe
     }
     const next = (updater as (prev: DraftSnapshot) => DraftSnapshot)(prev)
-    expect(next).toEqual({ 'topic-b': { ...emptyDraft, text: 'keep me' } })
+    expect(next).toEqual({ 'topic-b': keepMe })
   })
 })

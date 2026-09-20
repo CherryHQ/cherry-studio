@@ -408,9 +408,10 @@ export type RendererPersistCacheSchema = {
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
-  // Crash/restart-recovery mirror of chat.composer_draft.*, keyed by topic id; entries are
-  // removed once a topic's draft empties, so it only holds genuinely in-flight drafts.
-  'chat.composer_draft_snapshot': Record<string, CacheValueTypes.CacheChatComposerDraft>
+  // Crash/restart-recovery mirror of chat.composer_draft.*, keyed by topic id. An entry is
+  // removed once a topic's draft empties, and `savedAt` carries the memory tier's TTL across
+  // a restart so a stale draft is neither resurrected nor kept forever.
+  'chat.composer_draft_snapshot': Record<string, { draft: CacheValueTypes.CacheChatComposerDraft; savedAt: number }>
   // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
   // default; booleans preserve an explicit user choice across page re-entry.
   'ui.chat.right_pane_open_override': boolean | null

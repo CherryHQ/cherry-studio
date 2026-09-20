@@ -38,11 +38,15 @@ function normalizeDraftCache(cached: unknown): ChatComposerDraftCache {
 }
 
 // Renderer memory is empty for this topic right after an app restart; fall back to the
-// persisted crash-recovery snapshot written by writeChatDraftCache.
+// persisted crash-recovery snapshot written by writeChatDraftCache. The snapshot honours
+// the same TTL, so an expired draft stays expired instead of being resurrected here.
 export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
   const cached = cacheService.get(getChatDraftCacheKey(topicId))
   if (cached !== undefined) return normalizeDraftCache(cached)
-  return normalizeDraftCache(cacheService.getPersist(DRAFT_SNAPSHOT_KEY)[topicId])
+
+  const snapshot = cacheService.getPersist(DRAFT_SNAPSHOT_KEY)[topicId]
+  if (!snapshot || Date.now() - snapshot.savedAt > DRAFT_CACHE_TTL) return EMPTY_DRAFT_CACHE
+  return normalizeDraftCache(snapshot.draft)
 }
 
 export function hasChatDraftContent(draft: ChatComposerDraftCache): boolean {
@@ -64,7 +68,9 @@ export function subscribeChatDraftCache(topicId: string, listener: () => void): 
 }
 
 // Mirrors the draft into a persisted snapshot keyed by topic id so unsent text survives an
-// app restart; the entry is dropped once the draft empties (sent or cleared).
+// app restart; the entry is dropped once the draft empties (sent or cleared). Every write
+// also sweeps expired entries — nothing else prunes this record, so a draft left behind by
+// a deleted topic would otherwise sit in storage forever.
 export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCache) {
   const normalized: ChatComposerDraftCache = {
     text: draft.text,
@@ -76,12 +82,13 @@ export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCac
   }
   cacheService.set(getChatDraftCacheKey(topicId), normalized, DRAFT_CACHE_TTL)
   cacheService.setPersist(DRAFT_SNAPSHOT_KEY, (prev) => {
-    if (!hasChatDraftContent(draft)) {
-      if (!(topicId in prev)) return prev
-      const next = { ...prev }
-      delete next[topicId]
-      return next
-    }
-    return { ...prev, [topicId]: normalized }
+    const now = Date.now()
+    const kept = Object.entries(prev).filter(([id, entry]) => id !== topicId && now - entry.savedAt <= DRAFT_CACHE_TTL)
+    const hasContent = hasChatDraftContent(draft)
+    if (!hasContent && kept.length === Object.keys(prev).length) return prev
+
+    const next = Object.fromEntries(kept)
+    if (hasContent) next[topicId] = { draft: normalized, savedAt: now }
+    return next
   })
 }
