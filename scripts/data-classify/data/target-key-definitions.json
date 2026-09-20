@@ -104,6 +104,13 @@
       "description": "Window height (from complex mapping) - Example, not active"
     },
     {
+      "targetKey": "feature.api_gateway.lan_port",
+      "type": "number",
+      "defaultValue": 0,
+      "status": "classified",
+      "description": "Last assigned LAN listener port for the mobile pairing gateway; 0 assigns an ephemeral port on next start (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "feature.file_processing.overrides",
       "type": "PreferenceTypes.FileProcessorOverrides",
       "defaultValue": "VALUE: {}",
