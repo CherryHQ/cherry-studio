@@ -13,9 +13,9 @@
       "require": "./dist/contracts.cjs"
     },
     "./native": {
-      "types": "./dist/nativeClient.d.mts",
-      "import": "./dist/nativeClient.mjs",
-      "require": "./dist/nativeClient.cjs"
+      "types": "./dist/SystemSpeechNativeClient.d.mts",
+      "import": "./dist/SystemSpeechNativeClient.mjs",
+      "require": "./dist/SystemSpeechNativeClient.cjs"
     }
   },
   "scripts": {

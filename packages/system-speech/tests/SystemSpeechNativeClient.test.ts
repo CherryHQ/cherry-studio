@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { SystemSpeechNativeClient } from '../src/nativeClient'
+import { SystemSpeechNativeClient } from '../src/SystemSpeechNativeClient'
 
 const directories: string[] = []
 

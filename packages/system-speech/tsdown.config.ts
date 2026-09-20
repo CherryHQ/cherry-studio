@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/contracts.ts', 'src/nativeClient.ts'],
+  entry: ['src/contracts.ts', 'src/SystemSpeechNativeClient.ts'],
   clean: false,
   dts: true,
   deps: {
