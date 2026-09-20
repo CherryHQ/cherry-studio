@@ -1332,12 +1332,25 @@ const AgentComposerInner = ({
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const toolsSession = sessionData
+  // Reasoning effort is stored on the agent default, so while a session
+  // override model is active the pick stays composer-local: persisting it
+  // would renormalize it against (and clobber) the unrelated default.
+  const isSessionModelOverride = model?.id != null && model.id !== agent?.model
   const handleReasoningEffortChange = useCallback(
     (option: ThinkingOption) => {
       if (!agent) return
 
-      const canonicalAtMutationStart = canonicalReasoningEffort
       const version = ++reasoningMutationVersionRef.current
+      if (isSessionModelOverride) {
+        setReasoningOverride({
+          agentId: agent.id,
+          value: option,
+          version
+        })
+        return
+      }
+
+      const canonicalAtMutationStart = canonicalReasoningEffort
       pendingReasoningEditRef.current = { agentId: agent.id, version, effort: option }
       setReasoningOverride({
         agentId: agent.id,
@@ -1371,7 +1384,7 @@ const AgentComposerInner = ({
         )
       })
     },
-    [agent, canonicalReasoningEffort, updateAgent]
+    [agent, canonicalReasoningEffort, isSessionModelOverride, updateAgent]
   )
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {

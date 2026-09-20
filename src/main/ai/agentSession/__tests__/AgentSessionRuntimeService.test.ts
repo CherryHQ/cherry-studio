@@ -5171,6 +5171,41 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
+    it('queues a steer submitted under a switched session model instead of folding it into the old turn', async () => {
+      const events = createAsyncQueue<any>()
+      const redirect = vi.fn().mockReturnValue(true)
+      const connection = { events: events.iterable, send: vi.fn(), redirect, close: vi.fn() }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+      // The session model switched mid-turn, so the steer carries the new
+      // model: it must queue as the next turn, not redirect into the old one.
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { modelId: switchedModelId })
+
+      expect(redirect).not.toHaveBeenCalled()
+      expect(getEntry(service).pendingTurns).toEqual([
+        expect.objectContaining({ message: expect.objectContaining({ id: 'user-2' }), steer: true })
+      ])
+      void service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    })
+
     it('rebuilds the connection for a queued turn with a different knowledge scope', async () => {
       const firstEvents = createAsyncQueue<any>()
       const secondEvents = createAsyncQueue<any>()
@@ -5966,6 +6001,7 @@ describe('AgentSessionRuntimeService', () => {
       { model: switchedModelId },
       { id: 'agent-1', model: switchedModelId }
     )
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: switchedModelId })
     await (service as any).startNextTurn(entry)
 
     expect(mocks.saveMessage).toHaveBeenCalledWith({
@@ -6086,6 +6122,36 @@ describe('AgentSessionRuntimeService', () => {
         .at(-1)
       expect(assistantSave?.modelId).toBe(switchedModelId)
       expect(getEntry(service).modelId).toBe(switchedModelId)
+      expect(mocks.startRuntimeTurn).toHaveBeenCalled()
+      expect(mocks.terminateHeldTopicStream).not.toHaveBeenCalled()
+    } finally {
+      mocks.getSessionById.mockReset()
+    }
+  })
+
+  it('drains a queued turn on the live agent default after the session override is cleared', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, modelId: switchedModelId })
+    const entry = getEntry(service)
+    service.markTurnTerminal('session-1', 'success')
+    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default', fastMode: false })
+
+    // The override was cleared while user-2 sat queued: the entry still caches
+    // the old override, but the drain must run the live agent default.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: null })
+    mocks.saveMessage.mockClear()
+    mocks.startRuntimeTurn.mockClear()
+    mocks.terminateHeldTopicStream.mockClear()
+
+    try {
+      await (service as any).startNextTurn(entry)
+
+      const assistantSave = mocks.saveMessage.mock.calls
+        .map((call) => call[0].message)
+        .filter((m: any) => m.role === 'assistant')
+        .at(-1)
+      expect(assistantSave?.modelId).toBe(baseTurnInput.modelId)
+      expect(getEntry(service).modelId).toBe(baseTurnInput.modelId)
       expect(mocks.startRuntimeTurn).toHaveBeenCalled()
       expect(mocks.terminateHeldTopicStream).not.toHaveBeenCalled()
     } finally {
