@@ -195,7 +195,10 @@ describe('AskUserQuestionComposer', () => {
     fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
     fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'Use JSON logs' } })
-    fireEvent.click(screen.getByText('Submit'))
+    // A typed note on a non-final question only advances — the label must not promise a submit.
+    // Matched by text: the pagination control also carries a "Next" aria-label.
+    expect(screen.getByText('Next')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Next'))
     expect(screen.getByText('Add context')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))

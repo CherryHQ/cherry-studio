@@ -343,8 +343,10 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
             loading={customActionSubmitsAll && isSubmitting}
             disabled={isSubmitting}
             onClick={handleCustomAction}>
-            {currentCustomAnswerText || customActionSubmitsAll
-              ? t('agent.askUserQuestion.submit')
+            {customActionSubmitsAll || currentCustomAnswerText
+              ? isLastQuestion
+                ? t('agent.askUserQuestion.submit')
+                : t('agent.askUserQuestion.next')
               : t('agent.askUserQuestion.skip')}
           </Button>
         </div>
