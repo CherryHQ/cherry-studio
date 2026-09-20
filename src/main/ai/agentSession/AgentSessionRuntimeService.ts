@@ -941,6 +941,7 @@ export class AgentSessionRuntimeService extends BaseService {
       headless?: boolean
       trustedNotifyChannels?: readonly NotifyChannel[]
       messageSnapshot?: MessageSnapshot
+      modelId?: UniqueModelId
       reasoningEffort?: ReasoningEffortOption
       serviceTier?: ServiceTierSelection
       fastMode?: boolean
@@ -968,8 +969,11 @@ export class AgentSessionRuntimeService extends BaseService {
     // message: a changed effective connection scope must queue as the NEXT turn instead of being
     // folded into a query already running with different tools.
     const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
+    // Gate on the submit-time model: a session model switch mid-turn queues
+    // as the next turn instead of folding into the old-model turn.
+    const incomingModelId = opts.modelId ?? entry.modelId
     const canRedirectOnCurrentConfig =
-      turn?.modelId === entry.modelId &&
+      turn?.modelId === incomingModelId &&
       turn.reasoningEffort === reasoningEffort &&
       turn.serviceTier === serviceTier &&
       turn.fastMode === fastMode &&
@@ -2808,7 +2812,9 @@ export class AgentSessionRuntimeService extends BaseService {
       this.markTurnTerminal(entry.sessionId, 'error')
       return
     }
-    const effectiveModelId = sessionOverride ?? entry.modelId
+    // A cleared override (or a deleted override model, nulled by cleanup)
+    // leaves the entry cache stale — fall back to the live default.
+    const effectiveModelId = sessionOverride ?? liveAgent.model ?? entry.modelId
 
     const rootSpan = this.startRuntimeRootSpan(entry)
     // Use the snapshot frozen when THIS follow-up was submitted (not the entry's, which the last beginTurn
