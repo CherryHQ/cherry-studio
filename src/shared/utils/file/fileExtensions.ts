@@ -6,6 +6,10 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
  * `fileExtensions.test.ts` enforces both that grounding and cross-catalog
  * uniqueness. Curate for formats users actually hold — not every registered
  * type. To extend: verify the extension in mime-db, add it here, run the tests.
+ *
+ * `.ts`/`.mts` are deliberately absent despite mime-db's video/mp2t entry:
+ * TypeScript owns them here, and the shared classifier already resolves both
+ * as text.
  */
 export const imageExts = [
   '.apng',
@@ -45,10 +49,8 @@ export const videoExts = [
   '.mp4',
   '.mpeg',
   '.mpg',
-  '.mts',
   '.ogv',
   '.qt',
-  '.ts',
   '.webm',
   '.wmv'
 ]

@@ -62,7 +62,7 @@ describe('knowledge file-extension source-of-truth invariants', () => {
 describe('media catalogs are grounded in mime-db', () => {
   const extensionsByType = (prefix: string): Set<string> => {
     const exts = new Set<string>()
-    for (const [mime, def] of Object.entries(mimeDb)) {
+    for (const [mime, def] of Object.entries(mimeDb as Record<string, { extensions?: string[] }>)) {
       if (!mime.startsWith(`${prefix}/`) || !def.extensions) continue
       for (const ext of def.extensions) exts.add(ext)
     }
@@ -104,6 +104,6 @@ describe('media catalogs are grounded in mime-db', () => {
   it('covers the common formats users actually produce', () => {
     expect(audioExts).toEqual(expect.arrayContaining(['.m4a', '.opus', '.wma', '.aiff', '.caf', '.mid']))
     expect(imageExts).toEqual(expect.arrayContaining(['.heic', '.heif', '.avif', '.svg', '.tiff', '.psd', '.dng']))
-    expect(videoExts).toEqual(expect.arrayContaining(['.webm', '.m4v', '.mov', '.ts', '.3gp']))
+    expect(videoExts).toEqual(expect.arrayContaining(['.webm', '.m4v', '.mov', '.3gp']))
   })
 })
