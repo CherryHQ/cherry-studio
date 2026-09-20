@@ -304,7 +304,9 @@ export async function deriveConnectionConfig(
   if (!session?.agentId) return unroutable
   const agent = agentService.getAgent(session.agentId)
   if (!agent) return unroutable
-  const effectiveModel = session.modelId ?? connectionModelId ?? agent.model
+  // A live turn's captured model wins over a session override edited after the
+  // turn was created; the override wins over the agent default for turn-less builds.
+  const effectiveModel = connectionModelId ?? session.modelId ?? agent.model
   if (!effectiveModel) return unroutable
   try {
     return {
@@ -482,7 +484,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   const agent = agentService.getAgent(session.agentId)
   if (!agent) return undefined
-  const effectiveModel = session.modelId ?? connectionModelId ?? agent.model
+  // A live turn's captured model wins over a session override edited after the
+  // turn was created; the override wins over the agent default for turn-less builds.
+  const effectiveModel = connectionModelId ?? session.modelId ?? agent.model
   if (!effectiveModel) return undefined
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
