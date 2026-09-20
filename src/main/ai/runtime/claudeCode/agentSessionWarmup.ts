@@ -369,8 +369,10 @@ async function deriveConnectionConfigFromSnapshot(
   let routeFacts = materialized?.route
   if (!routeFacts) {
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-    // Same pinning semantics as the query-request builder (see its comment).
-    const pinSubModelsToPrimary = uniqueModelId !== agent.model
+    // Same pinning semantics as the query-request builder (see its comment): a
+    // stable session override keeps the configured sub-models — only a captured
+    // primary matching neither the override nor the default is stale.
+    const pinSubModelsToPrimary = uniqueModelId !== (session.modelId ?? agent.model)
     routeFacts = deriveRouteFacts(
       provider,
       model,
@@ -506,12 +508,12 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
   // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
-  // capture (the effective model differs from the latest `agent.model`), pin plan/small to it too rather
-  // than read the possibly-edited-ahead latest sub-models — otherwise the captured turn would launch with
-  // the old ANTHROPIC_MODEL but new sonnet/haiku defaults, or be forced onto the gateway by a sub-model
-  // that now points at another provider. With no edit (or a turn-less connection) the latest sub-models
-  // still apply.
-  const pinSubModelsToPrimary = uniqueModelId !== agent.model
+  // capture (the effective model matches neither the session override nor the latest `agent.model`),
+  // pin plan/small to it too rather than read the possibly-edited-ahead latest sub-models — otherwise
+  // the captured turn would launch with the old ANTHROPIC_MODEL but new sonnet/haiku defaults, or be
+  // forced onto the gateway by a sub-model that now points at another provider. A stable session
+  // override still uses the latest sub-models.
+  const pinSubModelsToPrimary = uniqueModelId !== (session.modelId ?? agent.model)
   const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
   const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
   const route = await resolveClaudeCodeRuntimeRoute(
@@ -670,9 +672,9 @@ function deriveRouteFacts(
 
   // ToolSearch is gated on the *primary* model only: it is the only one that can emit ToolSearch
   // calls, and every dynamically-loaded tool declaration lands in the shared conversation the
-  // primary model must parse. Sub-models are pinned to the primary whenever they differ from
-  // `agent.model` (see `pinSubModelsToPrimary`), so keying on the primary never misses a
-  // per-turn model override.
+  // primary model must parse. Sub-models are pinned to the primary whenever it matches neither
+  // the agent default nor the session override (see `pinSubModelsToPrimary`), so keying on the
+  // primary never misses a per-turn model override.
   const toolSearchCompatible = supportsDynamicallyLoadedTools(primaryRef.apiModelId)
 
   // External-cli (e.g. claude-code) authenticates only through the SDK's
