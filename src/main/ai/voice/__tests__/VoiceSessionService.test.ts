@@ -8,9 +8,11 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { fileEntryTable } from '@data/db/schemas/file'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { BaseService } from '@main/core/lifecycle'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID } from '@shared/ai/localVoice'
@@ -95,6 +97,13 @@ describe('VoiceSessionService file and admission contract', () => {
     const sessionId = randomUUID()
     const entry = await service.createRecording(a, { sessionId, audio: webm, mimeType: 'audio/webm;codecs=opus' })
     return { sessionId, requestId: randomUUID(), fileEntryId: entry.id, modelId: APPLE_ASR_MODEL_ID, language: 'en-US' }
+  }
+  function makeCleanupEligible(id: string) {
+    db.db
+      .update(fileEntryTable)
+      .set({ createdAt: Date.now() - 7_200_000 })
+      .where(eq(fileEntryTable.id, id))
+      .run()
   }
 
   it('invalid recordings cannot exhaust session admission or attach owner listeners', async () => {
@@ -223,6 +232,30 @@ describe('VoiceSessionService file and admission contract', () => {
     ;(a.webContents as unknown as EventEmitter).emit('destroyed')
     await vi.waitFor(() => expect(fileEntryService.findById(input.fileEntryId)).toBeNull())
     expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+  })
+
+  it('owner destruction releases failed deletion ownership for FileManager recovery', async () => {
+    const input = await recording()
+    makeCleanupEligible(input.fileEntryId)
+    const deletion = vi
+      .spyOn(files, 'deleteRetainedTemporaryEntry')
+      .mockRejectedValueOnce(Object.assign(new Error('denied'), { code: 'EPERM' }))
+
+    ;(a.webContents as unknown as EventEmitter).emit('destroyed')
+    await vi.waitFor(() => expect(deletion).toHaveBeenCalledWith(input.fileEntryId))
+    await vi.waitFor(async () => {
+      await files.runEntryCleanup()
+      expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+    })
+
+    const replacementOwner = owner()
+    const replacement = await service.createRecording(replacementOwner, {
+      sessionId: input.sessionId,
+      audio: webm,
+      mimeType: 'audio/webm;codecs=opus'
+    })
+    await service.discard(replacementOwner, input.sessionId)
+    expect(fileEntryService.findById(replacement.id)).toBeNull()
   })
 
   it('keeps failed temporary deletion tracked so session cleanup can retry', async () => {
@@ -417,5 +450,27 @@ describe('VoiceSessionService file and admission contract', () => {
     await expect(recording()).rejects.toMatchObject({ reason: 'stopped' })
     await service._doInit()
     expect((await recording()).fileEntryId).toBeTruthy()
+  })
+
+  it('stop releases failed deletion ownership before restart', async () => {
+    const input = await recording()
+    makeCleanupEligible(input.fileEntryId)
+    vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockRejectedValueOnce(
+      Object.assign(new Error('denied'), { code: 'EPERM' })
+    )
+
+    await service._doStop()
+    await files.runEntryCleanup()
+    expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+
+    await service._doInit()
+    const replacementOwner = owner()
+    const replacement = await service.createRecording(replacementOwner, {
+      sessionId: input.sessionId,
+      audio: webm,
+      mimeType: 'audio/webm;codecs=opus'
+    })
+    await service.discard(replacementOwner, input.sessionId)
+    expect(fileEntryService.findById(replacement.id)).toBeNull()
   })
 })

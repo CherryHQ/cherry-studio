@@ -62,7 +62,7 @@ export class VoiceSessionService extends BaseService {
   protected override async onStop(): Promise<void> {
     this.accepting = false
     for (const controller of this.inspections.values()) controller.abort(new VoiceRuntimeError('aborted'))
-    const cleanup = [...this.sessions.values()].map((session) => this.closeSession(session))
+    const cleanup = [...this.sessions.values()].map((session) => this.closeSession(session, true))
     await Promise.allSettled([...cleanup, ...this.inspections.keys()])
   }
 
@@ -228,7 +228,7 @@ export class VoiceSessionService extends BaseService {
     if (!create) throw new VoiceRuntimeError('forbidden_owner')
     if (this.sessions.size >= 16) throw new VoiceRuntimeError('busy')
     const destroyed = () => {
-      void this.closeSession(session).catch(() =>
+      void this.closeSession(session, true).catch(() =>
         logger.warn('Voice cleanup failed', { sessionId: id, category: 'operation_failed' })
       )
     }
@@ -337,23 +337,44 @@ export class VoiceSessionService extends BaseService {
     return entry
   }
 
-  private async deleteFile(session: Session, id: FileEntryId): Promise<void> {
+  private async deleteFile(session: Session, id: FileEntryId, releaseOnFailure = false): Promise<void> {
     const file = session.files.get(id)
     if (!file) return
-    await application.get('FileManager').deleteRetainedTemporaryEntry(id)
-    file.reference.dispose()
-    session.files.delete(id)
+    let deleted = false
+    try {
+      await application.get('FileManager').deleteRetainedTemporaryEntry(id)
+      deleted = true
+    } finally {
+      if (deleted || releaseOnFailure) {
+        file.reference.dispose()
+        session.files.delete(id)
+      }
+    }
   }
 
-  private closeSession(session: Session): Promise<void> {
-    if (session.cleanup) return session.cleanup
+  private closeSession(session: Session, terminal = false): Promise<void> {
+    if (session.cleanup) {
+      return terminal ? session.cleanup.catch(() => this.closeSession(session, true)) : session.cleanup
+    }
     session.closed = true
     session.detach()
     if (this.active?.session === session) this.active.controller.abort(new VoiceRuntimeError('aborted'))
     const cleanup = (async () => {
       try {
         await Promise.allSettled(session.pending)
-        for (const id of session.files.keys()) await this.deleteFile(session, id)
+        for (const id of session.files.keys()) {
+          try {
+            await this.deleteFile(session, id, terminal)
+          } catch (error) {
+            if (!terminal) throw error
+            logger.warn('Voice terminal file cleanup failed', {
+              sessionId: session.id,
+              fileEntryId: id,
+              category: 'operation_failed',
+              code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+            })
+          }
+        }
         this.sessions.delete(session.id)
       } catch (error) {
         session.cleanup = undefined
