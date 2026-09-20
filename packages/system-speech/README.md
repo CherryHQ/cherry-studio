@@ -33,5 +33,7 @@ nested application code. End users need no Swift, Xcode, Rust or ffmpeg.
 
 The JavaScript build preserves the independently compiled native output. Production
 packaging must verify executable permissions, the nested helper's strict signature,
-the app's deep strict signature, and a capabilities round trip. A packaged helper
-smoke does not replace VoiceSessionService/IpcApi integration verification.
+the absence of helper entitlements, matching helper/app Mach-O architectures, the
+app's deep strict signature, and a capabilities round trip. The helper is signed with
+its dedicated empty entitlement policy rather than Electron's inherited relaxations.
+A packaged helper smoke does not replace VoiceSessionService/IpcApi integration verification.

@@ -519,6 +519,9 @@ importers:
       '@electron/notarize':
         specifier: ^2.5.0
         version: 2.5.0(supports-color@8.1.1)
+      '@electron/osx-sign':
+        specifier: 1.3.3
+        version: 1.3.3(supports-color@8.1.1)
       '@electron/rebuild':
         specifier: ^4.0.4
         version: 4.0.4(supports-color@8.1.1)
@@ -4104,6 +4107,7 @@ packages:
   '@electron/osx-sign@1.3.3':
     resolution: {integrity: sha512-KZ8mhXvWv2rIEgMbWZ4y33bDHyUKMXnx4M0sTyPNK/vcB81ImdeY9Ggdqy0SWbMDgmbqyQ+phgejh6V3R2QuSg==}
     engines: {node: '>=12.0.0'}
+    hasBin: true
 
   '@electron/rebuild@4.0.4':
     resolution: {integrity: sha512-Rzc39XPdk/+/wBG8MfwAHohXflep0ITUfulb6Rgz3R0NeSB1noE+E9/M/cb8ftCAiyDD9PPhLuuWgE1GaInbKg==}

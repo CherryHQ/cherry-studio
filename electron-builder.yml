@@ -146,6 +146,7 @@ mac:
     - from: packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech
       to: system-speech/cherry-system-speech
   entitlementsInherit: build/entitlements.mac.plist
+  sign: scripts/mac-sign.js
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
   extendInfo:
