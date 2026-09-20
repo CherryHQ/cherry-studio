@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { DictationService } from '../DictationService'
+import type { VoiceCommandEvent } from '../VoiceService'
 import { VoiceTargetManager } from '../VoiceTargetManager'
 
 const WEBM_HEADER = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])
@@ -59,6 +60,8 @@ function createHarness(
 ) {
   let sessionNumber = 0
   let requestNumber = 0
+  const events: string[] = []
+  const commandListeners = new Set<(event: VoiceCommandEvent) => void>()
   const chunks = options.chunks ?? [new Blob([WEBM_HEADER]), new Blob([new Uint8Array([0x42, 0x82])])]
   const tracks = [{ stop: vi.fn() }, { stop: vi.fn() }]
   const stream = { getTracks: () => tracks } as unknown as MediaStream
@@ -72,7 +75,16 @@ function createHarness(
     }
   )
   const voice = {
+    initialize: vi.fn(async () => {
+      events.push('initialize')
+    }),
+    subscribeCommands: vi.fn((listener: (event: VoiceCommandEvent) => void) => {
+      events.push('subscribe')
+      commandListeners.add(listener)
+      return () => commandListeners.delete(listener)
+    }),
     startRecording: vi.fn(() => {
+      events.push('start-recording')
       sessionNumber += 1
       requestNumber += 1
       return operation(
@@ -130,6 +142,10 @@ function createHarness(
   return {
     clipboard,
     createMediaRecorder,
+    emitCommand: (sessionId: string, command: VoiceCommandEvent['command'] = 'stop') => {
+      commandListeners.forEach((listener) => listener({ type: 'command', revision: 1, sessionId, command }))
+    },
+    events,
     getUserMedia,
     owner,
     recorders,
@@ -262,6 +278,50 @@ describe('DictationService recording lifecycle', () => {
     expect(secondTrack.stop).toHaveBeenCalledOnce()
     expect(harness.voice.discardSession.mock.calls.at(-1)?.[0]).toBe('session-2')
   })
+
+  it('subscribes before admission and stops a late permission stream after a matching Main stop', async () => {
+    const permission = deferred<MediaStream>()
+    const lateTracks = [{ stop: vi.fn() }, { stop: vi.fn() }]
+    const lateStream = { getTracks: () => lateTracks } as unknown as MediaStream
+    const getUserMedia = vi.fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>(() => permission.promise)
+    const harness = createHarness({ getUserMedia })
+
+    await harness.service.initialize()
+    await harness.service.initialize()
+    expect(harness.voice.initialize).toHaveBeenCalledOnce()
+    expect(harness.voice.subscribeCommands).toHaveBeenCalledOnce()
+    const starting = harness.service.start()
+    await vi.waitFor(() => expect(harness.getUserMedia).toHaveBeenCalledWith({ audio: true }))
+    expect(harness.events.slice(0, 3)).toEqual(['subscribe', 'initialize', 'start-recording'])
+
+    harness.emitCommand('another-session')
+    expect(harness.voice.discardSession).not.toHaveBeenCalled()
+    harness.emitCommand('session-1')
+    await vi.waitFor(() => expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1'))
+
+    permission.resolve(lateStream)
+    await starting
+
+    lateTracks.forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
+    expect(harness.createMediaRecorder).not.toHaveBeenCalled()
+    expect(harness.service.getSnapshot().phase).toBe('idle')
+  })
+
+  it('immediately stops the recorder, every track, and buffered chunks on a matching Main stop', async () => {
+    const harness = createHarness()
+    await harness.service.start()
+    const active = (harness.service as unknown as { active?: { chunks: Blob[] } }).active
+
+    harness.emitCommand('another-session')
+    expect(harness.recorders[0].stop).not.toHaveBeenCalled()
+    harness.emitCommand('session-1')
+
+    expect(harness.recorders[0].stop).toHaveBeenCalledOnce()
+    harness.tracks.forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
+    expect(active?.chunks).toEqual([])
+    await vi.waitFor(() => expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1'))
+    await vi.waitFor(() => expect(harness.service.getSnapshot().phase).toBe('idle'))
+  })
 })
 
 describe('DictationService failure and retry', () => {
@@ -283,19 +343,19 @@ describe('DictationService failure and retry', () => {
   })
 
   it('retains the same FileEntry after ASR failure and retries it with a new request', async () => {
-    const harness = createHarness()
-    harness.voice.transcribe.mockImplementationOnce(() =>
-      operation('session-1', 'request-asr-1', Promise.reject({ reason: 'operation_failed' }))
-    )
-    harness.voice.retryTranscription.mockReturnValueOnce(
-      operation(
-        'session-1',
-        'request-asr-2',
-        Promise.resolve({ sessionId: 'session-1', requestId: 'request-asr-2', text: 'recovered text' })
-      )
-    )
+    const transcription = deferred<{ sessionId: string; requestId: string; text: string }>()
+    const retry = deferred<{ sessionId: string; requestId: string; text: string }>()
+    const audioCanary = new Blob([WEBM_HEADER, 'PRIVATE_AUDIO_CANARY'])
+    const harness = createHarness({ chunks: [audioCanary] })
+    harness.voice.transcribe.mockReturnValueOnce(operation('session-1', 'request-asr-1', transcription.promise))
+    harness.voice.retryTranscription.mockReturnValueOnce(operation('session-1', 'request-asr-2', retry.promise))
 
-    await startAndStop(harness.service)
+    await harness.service.start()
+    const stopping = harness.service.stop()
+    await vi.waitFor(() => expect(harness.voice.transcribe).toHaveBeenCalledOnce())
+    expect((harness.service as unknown as { active?: { chunks: Blob[] } }).active?.chunks).toEqual([])
+    transcription.reject({ reason: 'operation_failed' })
+    await stopping
 
     expect(harness.service.getSnapshot()).toMatchObject({
       phase: 'failed',
@@ -305,7 +365,11 @@ describe('DictationService failure and retry', () => {
     expect(harness.voice.discardSession).not.toHaveBeenCalled()
     expect(harness.replaceRange).not.toHaveBeenCalled()
 
-    await harness.service.retry()
+    const retrying = harness.service.retry()
+    await vi.waitFor(() => expect(harness.voice.retryTranscription).toHaveBeenCalledOnce())
+    expect((harness.service as unknown as { active?: { chunks: Blob[] } }).active?.chunks).toEqual([])
+    retry.resolve({ sessionId: 'session-1', requestId: 'request-asr-2', text: 'recovered text' })
+    await retrying
 
     expect(harness.voice.retryTranscription).toHaveBeenCalledWith({
       sessionId: 'session-1',
@@ -314,6 +378,39 @@ describe('DictationService failure and retry', () => {
     expect(harness.replaceRange).toHaveBeenCalledWith({ from: 2, to: 5 }, 'recovered text')
     expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')
     expect(harness.service.getSnapshot().phase).toBe('idle')
+  })
+
+  it('preserves cleanup failure over microphone permission failure', async () => {
+    const getUserMedia = vi.fn().mockRejectedValue(new DOMException('denied', 'NotAllowedError'))
+    const harness = createHarness({ getUserMedia })
+    harness.voice.discardSession.mockRejectedValueOnce({ reason: 'operation_failed' })
+
+    await harness.service.start()
+
+    expect(harness.service.getSnapshot()).toEqual({
+      phase: 'failed',
+      elapsedMs: 0,
+      recoveryAvailable: false,
+      error: 'operation_failed'
+    })
+  })
+
+  it('preserves cleanup failure over recorder setup failure', async () => {
+    const harness = createHarness()
+    harness.createMediaRecorder.mockImplementationOnce(() => {
+      throw new Error('recorder setup failed')
+    })
+    harness.voice.discardSession.mockRejectedValueOnce({ reason: 'operation_failed' })
+
+    await harness.service.start()
+
+    harness.tracks.forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
+    expect(harness.service.getSnapshot()).toEqual({
+      phase: 'failed',
+      elapsedMs: 0,
+      recoveryAvailable: false,
+      error: 'operation_failed'
+    })
   })
 })
 
@@ -368,5 +465,34 @@ describe('DictationService private recovery', () => {
     await second.service.discard()
     expect(second.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
     expect(second.service.insertRecovery()).toBe('unavailable')
+  })
+
+  it('keeps successful ASR as recovery when captured insertion and post-ASR cleanup fail', async () => {
+    const cleanup = deferred<void>()
+    const harness = createHarness()
+    harness.replaceRange.mockImplementationOnce(() => {
+      throw new Error('target unmounted during insertion')
+    })
+    harness.voice.discardSession.mockReturnValueOnce(cleanup.promise)
+
+    await harness.service.start()
+    const stopping = harness.service.stop()
+    await vi.waitFor(() => expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1'))
+
+    const active = (harness.service as unknown as { active?: { fileEntryId?: string } }).active
+    expect(active?.fileEntryId).toBeUndefined()
+    cleanup.reject({ reason: 'operation_failed' })
+    await stopping
+    expect(harness.service.getSnapshot()).toEqual({
+      phase: 'recovery',
+      elapsedMs: 0,
+      recoveryAvailable: true,
+      error: 'operation_failed'
+    })
+
+    await harness.service.retry()
+    expect(harness.voice.retryTranscription).not.toHaveBeenCalled()
+    await expect(harness.service.copyRecovery()).resolves.toBe(true)
+    expect(harness.clipboard.writeText).toHaveBeenCalledWith('hello world')
   })
 })

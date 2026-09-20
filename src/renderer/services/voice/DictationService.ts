@@ -5,6 +5,7 @@ import {
   type CreateRecordingInput,
   type StartRecordingInput,
   type TranscriptionInput,
+  type VoiceCommandEvent,
   type VoiceOperation
 } from './VoiceService'
 import { voiceTargetManager, type CapturedVoiceTarget, type VoiceTargetInsertResult } from './VoiceTargetManager'
@@ -40,6 +41,8 @@ interface TranscriptionResult {
 }
 
 interface DictationVoiceService {
+  initialize(): Promise<void>
+  subscribeCommands(listener: (event: VoiceCommandEvent) => void): () => void
   startRecording(input: StartRecordingInput): VoiceOperation<unknown>
   createRecording(input: CreateRecordingInput): Promise<RecordingEntry>
   transcribe(input: TranscriptionInput): VoiceOperation<TranscriptionResult>
@@ -123,6 +126,9 @@ export class DictationService {
   private recoveryText?: string
   private elapsedTimer?: ReturnType<typeof setInterval>
   private maximumTimer?: ReturnType<typeof setTimeout>
+  private initialization?: { generation: number; promise: Promise<void> }
+  private unsubscribeCommands?: () => void
+  private lifecycleGeneration = 0
   private generation = 0
 
   constructor(options: DictationServiceOptions = {}) {
@@ -147,13 +153,42 @@ export class DictationService {
 
   getSnapshot = (): DictationSnapshot => this.snapshot
 
+  initialize(): Promise<void> {
+    if (this.initialization) return this.initialization.promise
+    const generation = this.lifecycleGeneration
+    try {
+      this.unsubscribeCommands = this.voice.subscribeCommands((event) => this.handleCommand(generation, event))
+    } catch (error) {
+      return Promise.reject(error)
+    }
+    const promise = this.voice.initialize().catch((error: unknown) => {
+      if (this.initialization?.generation === generation) {
+        this.detachCommands()
+        this.initialization = undefined
+      }
+      throw error
+    })
+    this.initialization = { generation, promise }
+    return promise
+  }
+
   async start(options: DictationStartOptions = {}): Promise<void> {
     const target = this.targets.captureCurrent()
     const generation = ++this.generation
     this.recoveryText = undefined
-    if (!(await this.cleanupActive())) return
+    if (await this.cleanupActive()) return
     if (generation !== this.generation) return
     this.publish('starting')
+
+    try {
+      await this.initialize()
+    } catch (error) {
+      if (generation === this.generation) {
+        this.publish('failed', 0, false, errorCategory(error, 'operation_failed'))
+      }
+      return
+    }
+    if (generation !== this.generation) return
 
     const admission = this.voice.startRecording({ source: 'dictation' })
     const active: ActiveDictation = {
@@ -182,7 +217,8 @@ export class DictationService {
     try {
       stream = await this.mediaDevices.getUserMedia({ audio: true })
     } catch (error) {
-      await this.cleanupSession(active)
+      const cleanupError = await this.cleanupSession(active)
+      if (cleanupError) return
       if (generation === this.generation) {
         this.publish(
           'failed',
@@ -214,7 +250,8 @@ export class DictationService {
       this.startTimers(active)
       this.publish('recording')
     } catch (error) {
-      await this.cleanupSession(active)
+      const cleanupError = await this.cleanupSession(active)
+      if (cleanupError) return
       if (generation === this.generation) this.publish('failed', 0, false, errorCategory(error, 'recording_failed'))
     }
   }
@@ -230,8 +267,8 @@ export class DictationService {
   async cancel(): Promise<void> {
     this.generation += 1
     this.recoveryText = undefined
-    const cleaned = await this.cleanupActive()
-    if (cleaned) this.publish('idle')
+    const cleanupError = await this.cleanupActive()
+    if (!cleanupError) this.publish('idle')
   }
 
   async retry(): Promise<void> {
@@ -271,6 +308,9 @@ export class DictationService {
   }
 
   async teardown(): Promise<void> {
+    this.detachCommands()
+    this.lifecycleGeneration += 1
+    this.initialization = undefined
     await this.cancel()
     this.listeners.clear()
   }
@@ -285,14 +325,14 @@ export class DictationService {
     if (!this.isCurrent(active)) return
 
     try {
-      const audio = new Uint8Array(await new Blob(active.chunks, { type: RECORDING_MIME_TYPE }).arrayBuffer())
-      const fileEntry = await this.voice.createRecording({ sessionId: active.sessionId, audio, durationMs: elapsedMs })
+      const fileEntry = await this.createRecording(active, elapsedMs)
       if (!this.isCurrent(active)) return
       active.fileEntryId = fileEntry.id
       await this.transcribe(active, false)
     } catch (error) {
       if (!this.isCurrent(active)) return
-      await this.cleanupSession(active)
+      const cleanupError = await this.cleanupSession(active)
+      if (cleanupError) return
       this.publish('failed', 0, false, errorCategory(error, 'recording_failed'))
     }
   }
@@ -311,6 +351,7 @@ export class DictationService {
       const result = await transcription.result
       if (!this.isCurrent(active)) return
       active.transcription = undefined
+      active.fileEntryId = undefined
       await this.complete(active, result.text)
     } catch (error) {
       if (!this.isCurrent(active)) return
@@ -320,25 +361,40 @@ export class DictationService {
   }
 
   private async complete(active: ActiveDictation, text: string): Promise<void> {
-    const inserted = active.target ? this.targets.insert(active.target, text) : 'unavailable'
+    let inserted: VoiceTargetInsertResult = 'unavailable'
+    try {
+      if (active.target) inserted = this.targets.insert(active.target, text)
+    } catch {
+      inserted = 'unavailable'
+    }
     if (inserted === 'unavailable') this.recoveryText = text
-    if (!(await this.cleanupSession(active))) return
-    this.publish(this.recoveryText ? 'recovery' : 'idle', 0, Boolean(this.recoveryText))
+    const cleanupError = await this.cleanupSession(active, false)
+    if (this.recoveryText) {
+      this.publish('recovery', 0, true, cleanupError)
+    } else if (cleanupError) {
+      this.publish('failed', 0, false, cleanupError)
+    } else {
+      this.publish('idle')
+    }
   }
 
-  private async cleanupActive(): Promise<boolean> {
+  private async cleanupActive(): Promise<DictationErrorCategory | undefined> {
     const active = this.active
     if (!active) {
       this.clearTimers()
-      return true
+      return undefined
     }
     return this.cleanupSession(active)
   }
 
-  private async cleanupSession(active: ActiveDictation): Promise<boolean> {
+  private async cleanupSession(
+    active: ActiveDictation,
+    publishFailure = true
+  ): Promise<DictationErrorCategory | undefined> {
     this.clearTimers()
     this.stopRecorder(active)
     this.stopActiveTracks(active)
+    this.clearRecordingData(active)
     if (active.transcription) {
       await this.voice.abortTranscription(active.transcription).catch(() => undefined)
       active.transcription = undefined
@@ -346,12 +402,23 @@ export class DictationService {
     try {
       await this.discardSession(active)
     } catch (error) {
-      if (this.active === active) this.publish('failed', 0, false, errorCategory(error, 'operation_failed'))
-      return false
+      const category = errorCategory(error, 'operation_failed')
+      if (publishFailure && this.active === active) this.publish('failed', 0, false, category)
+      return category
     }
     if (this.active === active) this.active = undefined
     active.fileEntryId = undefined
-    return true
+    return undefined
+  }
+
+  private async createRecording(active: ActiveDictation, durationMs: number): Promise<RecordingEntry> {
+    try {
+      const blob = new Blob(active.chunks, { type: RECORDING_MIME_TYPE })
+      const audio = new Uint8Array(await blob.arrayBuffer())
+      return await this.voice.createRecording({ sessionId: active.sessionId, audio, durationMs })
+    } finally {
+      this.clearRecordingData(active)
+    }
   }
 
   private discardSession(active: ActiveDictation): Promise<void> {
@@ -401,6 +468,29 @@ export class DictationService {
 
   private stopTracks(stream: MediaStream): void {
     stream.getTracks().forEach((track) => track.stop())
+  }
+
+  private clearRecordingData(active: ActiveDictation): void {
+    active.chunks.length = 0
+    if (active.recorder) active.recorder.ondataavailable = null
+  }
+
+  private handleCommand(generation: number, event: VoiceCommandEvent): void {
+    const active = this.active
+    if (
+      generation !== this.lifecycleGeneration ||
+      event.command !== 'stop' ||
+      !active ||
+      event.sessionId !== active.sessionId
+    ) {
+      return
+    }
+    void this.cancel()
+  }
+
+  private detachCommands(): void {
+    this.unsubscribeCommands?.()
+    this.unsubscribeCommands = undefined
   }
 
   private isCurrent(active: ActiveDictation): boolean {
