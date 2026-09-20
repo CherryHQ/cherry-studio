@@ -803,8 +803,9 @@ export class AgentSessionRuntimeService extends BaseService {
       if (entry.agentId !== agentId) continue
 
       // Override sessions ignore the agent default: a cleared or changed
-      // default neither invalidates nor restamps them.
-      const hasSessionOverride = modelEdited && agentSessionService.getSessionModelId(entry.sessionId) !== null
+      // default neither invalidates nor restamps them. The override stands
+      // regardless of which field the agent update touched.
+      const hasSessionOverride = agentSessionService.getSessionModelId(entry.sessionId) !== null
       // A cleared model (`PATCH { model: null }`) is unroutable, not stale — fully invalidate.
       if (modelEdited && !agent.model && !hasSessionOverride) {
         this.invalidateModelClearedEntry(entry)
