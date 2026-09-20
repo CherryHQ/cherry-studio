@@ -5210,6 +5210,8 @@
   "settings.usage.table.tpsValue": "{{value}} tok/s",
   "settings.usage.table.ttft": "TTFT",
   "settings.usage.title": "Análisis de Uso",
+  "settings.usage.today.empty": "Ninguna solicitud registrada hoy",
+  "settings.usage.today.title": "Dónde fueron las solicitudes de hoy",
   "settings.usage.tooltip.cost": "Costo {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} solicitud",
   "settings.usage.tooltip.requests_other": "{{count}} solicitudes",

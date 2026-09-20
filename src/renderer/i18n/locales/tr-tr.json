@@ -5210,6 +5210,8 @@
   "settings.usage.table.tpsValue": "{{value}} tok/s",
   "settings.usage.table.ttft": "TTFT",
   "settings.usage.title": "Kullanım Analizi",
+  "settings.usage.today.empty": "Bugün henüz hiçbir istek kaydedilmedi",
+  "settings.usage.today.title": "Bugünün istekleri nereye gitti",
   "settings.usage.tooltip.cost": "Maliyet {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} istek",
   "settings.usage.tooltip.requests_other": "{{count}} istek",

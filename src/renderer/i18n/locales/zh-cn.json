@@ -5210,6 +5210,8 @@
   "settings.usage.table.tpsValue": "{{value}} tok/s",
   "settings.usage.table.ttft": "TTFT",
   "settings.usage.title": "用量统计",
+  "settings.usage.today.empty": "今天暂无请求记录",
+  "settings.usage.today.title": "今天的请求去向",
   "settings.usage.tooltip.cost": "成本 {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} 个请求",
   "settings.usage.tooltip.requests_other": "{{count}} 个请求",

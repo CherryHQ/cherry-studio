@@ -5210,6 +5210,8 @@
   "settings.usage.table.tpsValue": "{{value}} Ñ‚Ğ¾Ğº/Ñ",
   "settings.usage.table.ttft": "TTFT",
   "settings.usage.title": "ĞĞ½Ğ°Ğ»Ğ¸Ñ‚Ğ¸ĞºĞ° Ğ¸ÑĞ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ğ½Ğ¸Ñ",
+  "settings.usage.today.empty": "Сегодня пока нет записанных запросов",
+  "settings.usage.today.title": "Куда пошли запросы сегодня",
   "settings.usage.tooltip.cost": "Ğ¡Ñ‚Ğ¾Ğ¸Ğ¼Ğ¾ÑÑ‚ÑŒ {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} Ğ·Ğ°Ğ¿Ñ€Ğ¾Ñ",
   "settings.usage.tooltip.requests_other": "{{count}} Ğ·Ğ°Ğ¿Ñ€Ğ¾ÑĞ°",

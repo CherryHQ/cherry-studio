@@ -5210,6 +5210,8 @@
   "settings.usage.table.tpsValue": "{{value}} tok/s",
   "settings.usage.table.ttft": "TTFT",
   "settings.usage.title": "Î‘Î½Î±Î»Ï…Ï„Î¹ÎºÎ¬ Î£Ï„Î¿Î¹Ï‡ÎµÎ¯Î± Î§ÏÎ®ÏƒÎ·Ï‚",
+  "settings.usage.today.empty": "Δεν καταγράφηκαν αιτήματα σήμερα",
+  "settings.usage.today.title": "Διανομή σημερινών αιτημάτων",
   "settings.usage.tooltip.cost": "ÎšÏŒÏƒÏ„Î¿Ï‚ {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} Î±Î¯Ï„Î·Î¼Î±",
   "settings.usage.tooltip.requests_other": "{{count}} Î±Î¹Ï„Î®Î¼Î±Ï„Î±",

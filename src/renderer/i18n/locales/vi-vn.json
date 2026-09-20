@@ -5210,6 +5210,8 @@
   "settings.usage.table.tpsValue": "{{value}} tok/s",
   "settings.usage.table.ttft": "TTFT",
   "settings.usage.title": "Phân tích sử dụng",
+  "settings.usage.today.empty": "Chưa ghi nhận yêu cầu nào hôm nay",
+  "settings.usage.today.title": "Yêu cầu hôm nay đã đi đâu",
   "settings.usage.tooltip.cost": "Chi phí {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} yêu cầu",
   "settings.usage.tooltip.requests_other": "{{count}} yêu cầu",

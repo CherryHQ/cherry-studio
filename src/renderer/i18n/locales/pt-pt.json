@@ -5210,6 +5210,8 @@
   "settings.usage.table.tpsValue": "{{value}} tok/s",
   "settings.usage.table.ttft": "TTFT",
   "settings.usage.title": "Análise de Uso",
+  "settings.usage.today.empty": "Nenhum pedido registado hoje",
+  "settings.usage.today.title": "Para onde foram os pedidos de hoje",
   "settings.usage.tooltip.cost": "Custo {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} pedido",
   "settings.usage.tooltip.requests_other": "{{count}} pedidos",

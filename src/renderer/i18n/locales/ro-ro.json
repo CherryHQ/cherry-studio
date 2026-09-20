@@ -5210,6 +5210,8 @@
   "settings.usage.table.tpsValue": "{{value}} tok/s",
   "settings.usage.table.ttft": "TTFT",
   "settings.usage.title": "Analiza utilizării",
+  "settings.usage.today.empty": "Nu au fost înregistrate cereri astazi",
+  "settings.usage.today.title": "Unde au mers cererile astazi",
   "settings.usage.tooltip.cost": "Cost {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} cerere",
   "settings.usage.tooltip.requests_other": "{{count}} cereri",

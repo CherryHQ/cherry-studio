@@ -5210,6 +5210,8 @@
   "settings.usage.table.tpsValue": "{{value}} トークン/秒",
   "settings.usage.table.ttft": "TTFT",
   "settings.usage.title": "使用分析",
+  "settings.usage.today.empty": "本日はまだリクエストが記録されていません",
+  "settings.usage.today.title": "本日のリクエストの行き先",
   "settings.usage.tooltip.cost": "コスト {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} リクエスト",
   "settings.usage.tooltip.requests_other": "{{count}} 件のリクエスト",
