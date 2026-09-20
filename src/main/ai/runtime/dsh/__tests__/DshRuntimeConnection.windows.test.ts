@@ -17,7 +17,8 @@ vi.mock('@main/core/platform', () => ({
 
 const mocks = vi.hoisted(() => ({
   harnessOptions: undefined as Record<string, any> | undefined,
-  getShellEnv: vi.fn()
+  getShellEnv: vi.fn(),
+  resolveBun: vi.fn()
 }))
 
 vi.mock('node:fs/promises', () => ({
@@ -57,6 +58,7 @@ vi.mock('../compositionBuilder', () => ({
   buildDshCompositionYaml: vi.fn(() => 'plugins: []'),
   resolveDshRuntimeBinPath: vi.fn(() => 'C:\\dsh\\bin')
 }))
+vi.mock('../bunRuntime', () => ({ resolveDshBunRuntime: mocks.resolveBun }))
 vi.mock('../DshBridgeServer', () => ({
   DshBridgeServer: vi.fn(function DshBridgeServerMock() {
     return {
@@ -121,6 +123,7 @@ const connectInput = {
 
 beforeEach(() => {
   mocks.harnessOptions = undefined
+  mocks.resolveBun.mockReset().mockResolvedValue('C:\\resources\\binaries\\win32-x64\\bun.exe')
   mocks.getShellEnv.mockReset().mockResolvedValue({
     Path: 'C:\\Users\\tester\\bin;C:\\Windows\\system32',
     SystemRoot: 'C:\\Windows',
