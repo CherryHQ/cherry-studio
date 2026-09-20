@@ -136,13 +136,18 @@ export function createSyncExternalSourceJobHandler(
         return summary.data
       } catch (error) {
         if (error instanceof ExternalKnowledgeSourceSyncError) {
+          const cancellationMismatch = error.code === 'cancelled' && !ctx.signal.aborted
+          const code = cancellationMismatch ? 'unexpected' : error.code
           await ctx.patchMetadata({
-            externalKnowledgeSync: { code: error.code, summary: parseSummary(error.summary) }
+            externalKnowledgeSync: { code, summary: parseSummary(error.summary) }
           })
-          if (error.code === 'cancelled') {
+          if (error.code === 'cancelled' && ctx.signal.aborted) {
             ctx.signal.throwIfAborted()
           }
-          throw new Error(`External knowledge source synchronization failed: ${error.code}`)
+          if (cancellationMismatch) {
+            ctx.logger.warn('External knowledge synchronization reported cancellation without an aborted job signal')
+          }
+          throw new Error(`External knowledge source synchronization failed: ${code}`)
         }
 
         await ctx.patchMetadata({

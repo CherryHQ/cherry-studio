@@ -166,6 +166,31 @@ describe('sync-external-source job handler', () => {
     expect(JSON.stringify([error, (jobRun.patchMetadata as ReturnType<typeof vi.fn>).mock.calls])).not.toContain(
       'secret-provider-payload'
     )
+    expect(jobRun.logger.warn).toHaveBeenCalledWith(
+      'External knowledge synchronization failed with an unexpected error'
+    )
+    expect(JSON.stringify((jobRun.logger.warn as ReturnType<typeof vi.fn>).mock.calls)).not.toContain(
+      'secret-provider-payload'
+    )
+  })
+
+  it('treats a cancelled service error as unexpected while the job signal remains active', async () => {
+    const syncSource = vi
+      .fn()
+      .mockRejectedValue(new ExternalKnowledgeSourceSyncError('cancelled', summary({ indexedCount: 0 })))
+    const handler = createSyncExternalSourceJobHandler({ syncSource }, { now: () => 123 })
+    const jobRun = createJobRun()
+
+    const error = await handler.execute(jobRun).catch((cause) => cause)
+
+    expect(jobRun.signal.aborted).toBe(false)
+    expect(jobRun.patchMetadata).toHaveBeenCalledWith({
+      externalKnowledgeSync: { code: 'unexpected', summary: summary({ indexedCount: 0 }) }
+    })
+    expect(error).toMatchObject({ message: 'External knowledge source synchronization failed: unexpected' })
+    expect(jobRun.logger.warn).toHaveBeenCalledWith(
+      'External knowledge synchronization reported cancellation without an aborted job signal'
+    )
   })
 
   it('rethrows the original cancellation reason after persisting safe partial progress', async () => {

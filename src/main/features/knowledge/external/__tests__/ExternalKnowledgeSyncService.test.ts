@@ -930,7 +930,7 @@ describe('ExternalKnowledgeSyncService', () => {
       'resource-permission-denied'
     ],
     ['unknown provider failure', new Error('private provider payload'), 'scan-failed'],
-    ['DOM cancellation', new DOMException('private cancellation detail', 'AbortError'), 'cancelled']
+    ['dependency AbortError', new DOMException('private dependency detail', 'AbortError'), 'scan-failed']
   ])('does not reconcile absence after a %s scan failure', async (_name, failure, expectedCode) => {
     seedActiveDocument()
     const service = createService('unused', {}, undefined, async () => {
@@ -954,6 +954,39 @@ describe('ExternalKnowledgeSyncService', () => {
       expect.objectContaining({ availability: 'active', knowledgeItemId: OLD_ITEM_ID })
     ])
     expect(materials.has(OLD_ITEM_ID)).toBe(true)
+  })
+
+  it('retains a document and records a warning when a read dependency throws AbortError without caller cancellation', async () => {
+    seedActiveDocument({ remoteRevision: 'revision-0' })
+    const service = createService('unused', {}, async () => {
+      throw new DOMException('private dependency detail', 'AbortError')
+    })
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result).toMatchObject({
+      indexedCount: 0,
+      skippedCount: 1,
+      warnings: [{ code: 'document-sync-failed', remoteObjectId: 'doc-1' }]
+    })
+    expect(JSON.stringify(result)).not.toContain('private dependency detail')
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ availability: 'active', knowledgeItemId: OLD_ITEM_ID })
+    ])
+  })
+
+  it('classifies a reconciliation dependency AbortError as failure while the caller signal remains active', async () => {
+    const lockManager = {
+      runExclusive: async () => {
+        throw new DOMException('private reconciliation detail', 'AbortError')
+      }
+    } as unknown as KeyedMutex
+    const service = createService('unused', {}, undefined, async () => scanResult([]), lockManager)
+
+    const error = await captureSourceError(service.syncSource(sourceSyncInput()))
+
+    expect(error.code).toBe('reconciliation-failed')
+    expect(JSON.stringify(error)).not.toContain('private reconciliation detail')
   })
 
   it('classifies caller cancellation without reconciling absence', async () => {

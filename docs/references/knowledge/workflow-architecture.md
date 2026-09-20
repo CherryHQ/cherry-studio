@@ -3,6 +3,7 @@ description: 'Knowledge workflow architecture: scheduling model, durable JobMana
 sources:
   - src/main/features/knowledge/ingestion
   - src/main/features/knowledge/ingestion/indexKnowledgeItem.ts
+  - src/main/features/knowledge/external
   - src/main/features/knowledge/tasks
   - src/main/features/knowledge/KnowledgeService.ts
 ---
@@ -39,6 +40,10 @@ Helpers may own source planning, lifecycle writes, knowledge-owned raw files, an
 - `addItems` resolves after root rows are created and first Knowledge jobs are queued.
 - `deleteItems` resolves after top-level target subtrees are atomically confirmed not to contain active document-owned external items, marked `deleting`, and queued for `knowledge.delete-subtree`.
 - `reindexItems` resolves after each top-level target subtree is confirmed terminal (`completed` or `failed`) and `knowledge.reindex-subtree` is queued.
+- External Source creation resolves after trusted URL resolution and one
+  transaction creates the Source, enqueues `knowledge.sync-external-source`,
+  and binds its active Job fence. Manual synchronization resolves after that
+  same per-Source Job is enqueued or coalesced.
 
 Default item list, search, and RAG hydration exclude `deleting` items. `deleting` is a durable cleanup marker, not a tombstone or terminal success state.
 
@@ -101,15 +106,14 @@ this operation and retains the job's existing retry, timeout, recovery, and
 settled semantics. External items use their already-pinned local snapshot; this
 layer does not perform provider I/O.
 
-A future external synchronizer may reuse `prepareKnowledgeMaterial` by passing
-an explicit descriptor for a staged snapshot. It must not reuse
-`indexKnowledgeItem` as a publication operation: preparation alone neither
-opens the store nor changes row visibility.
+`ExternalKnowledgeSyncService` reuses `prepareKnowledgeMaterial` with an
+explicit descriptor for a staged snapshot. It does not reuse
+`indexKnowledgeItem` as a publication operation: the external workflow owns
+its Source/Document fences, index-store publication, and row visibility.
 
-### Future External Publication Constraint
+### External Publication Protocol
 
-Layer 2 does not implement the external synchronizer or its writer. That future
-writer must preserve this visibility protocol:
+The implemented external writer preserves this visibility protocol:
 
 1. Stage the provider-normalized snapshot and run slow preparation outside the
    base mutation lock, using a distinct versioned snapshot path and new item id.
@@ -124,8 +128,15 @@ writer must preserve this visibility protocol:
    not leave the old item visible as ownerless static content.
 5. After commit, remove the old snapshot and vector material best-effort. If the
    main-DB transaction fails, compensate by removing the unpublished new
-   artifacts; startup reconciliation must collect residue from either cleanup
-   direction.
+   artifacts and report stable cleanup warning codes when compensation cannot
+   finish.
+
+One `knowledge.sync-external-source` Job owns the complete scan, incremental
+document synchronization, and missing-document reconciliation. Reconciliation
+runs only after a complete scan; fatal and cancelled runs retain documents not
+observed by that run. Only the Job's `AbortSignal` is cancellation authority—a
+dependency `AbortError` while that signal remains active follows the stable
+scan/document/reconciliation failure policy.
 
 The main database and per-base index store cannot participate in one distributed
 transaction. Cross-store consistency therefore depends on invisibility before
@@ -140,8 +151,11 @@ Registered job types:
 - `knowledge.index-documents`: call `indexKnowledgeItem` to read/chunk/embed/rebuild a concrete document source. Empty reader results or zero chunks fail the item without replacing the existing material.
 - `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, delete base-directory files, then delete resolved item ids with `deleteItemsByIds`. The create/index path does not register FileManager refs, so there is no separate file-ref detach step; any historical `FileEntry` rows are left to the file module's no-reference policy.
 - `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf roots keep their source files on disk and are repaired by `index-documents` from `knowledge_item.data`.
-
 - `knowledge.check-file-processing-result`: poll or inspect the FileProcessing job, record the converted markdown's location on the item (via `updateIndexedRelativePath`) on success, then schedule indexing.
+- `knowledge.sync-external-source`: scan one persisted Source, publish supported
+  documents incrementally, reconcile missing or permission-denied documents,
+  and settle the Source through revision plus active-Job fences. Initial and
+  manual requests share this handler and a per-Source idempotency key.
 
 `knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result`, records the converted markdown's location on the item via `updateIndexedRelativePath` (the `indexedRelativePath` leaf field, not a separate file-ref artifact row), then indexes that markdown.
 

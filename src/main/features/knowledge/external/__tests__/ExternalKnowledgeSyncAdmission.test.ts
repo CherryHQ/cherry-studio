@@ -1,4 +1,5 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
@@ -26,6 +27,7 @@ const { ExternalKnowledgeSyncAdmission } = await import('../ExternalKnowledgeSyn
 const BASE_ID = '11111111-1111-4111-8111-111111111111'
 const FAILED_BASE_ID = '22222222-2222-4222-8222-222222222222'
 const CONNECTION_ID = '0198f3f2-7d10-7abc-8def-123456789abc'
+const SOURCE_ID = '0198f3f2-7d11-7abc-8def-123456789abc'
 const JOB_ID = '0198f3f2-7d12-7abc-8def-123456789abc'
 
 const resolution = {
@@ -81,9 +83,24 @@ describe('ExternalKnowledgeSyncAdmission', () => {
       .run()
 
   const seedSource = (state: 'active' | 'paused' = 'active', activeJobId: string | null = null) => {
+    if (activeJobId) {
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id: activeJobId,
+          type: 'knowledge.sync-external-source',
+          status: 'pending',
+          queue: `base.${BASE_ID}`,
+          idempotencyKey: `knowledge:${BASE_ID}:external-source:${SOURCE_ID}:sync`,
+          scheduledAt: 100,
+          input: { baseId: BASE_ID, sourceId: SOURCE_ID, sourceRevision: 3, trigger: 'initial' }
+        })
+        .run()
+    }
     const [source] = dbh.db
       .insert(externalKnowledgeSourceTable)
       .values({
+        id: activeJobId ? SOURCE_ID : undefined,
         baseId: BASE_ID,
         connectionId: CONNECTION_ID,
         provider: 'feishu',
@@ -106,7 +123,28 @@ describe('ExternalKnowledgeSyncAdmission', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resolveFeishuScope.mockResolvedValue(resolution)
-    enqueueTxMock.mockReturnValue({ id: JOB_ID, snapshot: {}, finished: Promise.resolve({}) })
+    enqueueTxMock.mockImplementation(
+      (tx: DbOrTx, type: string, input: unknown, options: { queue: string; idempotencyKey?: string }) => {
+        const existing = options.idempotencyKey
+          ? tx.select().from(jobTable).where(eq(jobTable.idempotencyKey, options.idempotencyKey)).limit(1).get()
+          : undefined
+        if (!existing) {
+          tx.insert(jobTable)
+            .values({
+              id: JOB_ID,
+              type,
+              status: 'pending',
+              queue: options.queue,
+              idempotencyKey: options.idempotencyKey,
+              scheduledAt: 123,
+              input,
+              metadata: {}
+            })
+            .run()
+        }
+        return { id: existing?.id ?? JOB_ID, snapshot: {}, finished: Promise.resolve({}) }
+      }
+    )
     seedBase(BASE_ID)
     seedBase(FAILED_BASE_ID, 'failed')
     seedConnection()
@@ -156,20 +194,6 @@ describe('ExternalKnowledgeSyncAdmission', () => {
   })
 
   it('rolls back both the source and enqueued job when binding activeJobId fails', async () => {
-    enqueueTxMock.mockImplementation((tx: DbOrTx) => {
-      tx.insert(jobTable)
-        .values({
-          id: JOB_ID,
-          type: 'knowledge.sync-external-source',
-          status: 'pending',
-          queue: `base.${BASE_ID}`,
-          idempotencyKey: `knowledge:${BASE_ID}:external-source:pending:sync`,
-          scheduledAt: 123,
-          input: { safe: true }
-        })
-        .run()
-      return { id: JOB_ID, snapshot: {}, finished: Promise.resolve({}) }
-    })
     const admission = new ExternalKnowledgeSyncAdmission(
       { resolveFeishuScope },
       {
@@ -213,6 +237,12 @@ describe('ExternalKnowledgeSyncAdmission', () => {
         idempotencyKey: `knowledge:${BASE_ID}:external-source:${seeded.id}:sync`
       }
     )
+    expect(dbh.db.select().from(jobTable).where(eq(jobTable.id, JOB_ID)).get()?.input).toEqual({
+      baseId: BASE_ID,
+      sourceId: seeded.id,
+      sourceRevision: 3,
+      trigger: 'initial'
+    })
     expect(notifyDataChangeMock).not.toHaveBeenCalled()
   })
 
@@ -267,7 +297,7 @@ describe('ExternalKnowledgeSyncAdmission', () => {
     expect(enqueueTxMock).not.toHaveBeenCalled()
   })
 
-  it('persists and enqueues no account, selected descriptor, provider payload, or secret', async () => {
+  it('persists a minimal job row without URL, preview data, provider payload, credentials, or secrets', async () => {
     const secret = 'secret-provider-payload'
     resolveFeishuScope.mockResolvedValue({ ...resolution, providerPayload: { secret } })
     const admission = new ExternalKnowledgeSyncAdmission({ resolveFeishuScope }, { now: () => 123 })
@@ -280,8 +310,18 @@ describe('ExternalKnowledgeSyncAdmission', () => {
     })
 
     const persisted = externalKnowledgeSourceService.getById(source.id)
-    expect(JSON.stringify([persisted, enqueueTxMock.mock.calls])).not.toContain(secret)
-    expect(JSON.stringify(enqueueTxMock.mock.calls)).not.toContain('providerPayload')
-    expect(JSON.stringify(enqueueTxMock.mock.calls)).not.toContain('user-private')
+    const persistedJob = dbh.db.select().from(jobTable).where(eq(jobTable.id, JOB_ID)).get()
+    expect(persistedJob).toMatchObject({
+      type: 'knowledge.sync-external-source',
+      input: { baseId: BASE_ID, sourceId: source.id, sourceRevision: 0, trigger: 'initial' },
+      metadata: {}
+    })
+    expect(JSON.stringify([persisted, persistedJob])).not.toContain(secret)
+    expect(JSON.stringify(persistedJob)).not.toContain('https://acme.feishu.cn')
+    expect(JSON.stringify(persistedJob)).not.toContain('preview')
+    expect(JSON.stringify(persistedJob)).not.toContain('providerPayload')
+    expect(JSON.stringify(persistedJob)).not.toContain('selected')
+    expect(JSON.stringify(persistedJob)).not.toContain('credentials')
+    expect(JSON.stringify(persistedJob)).not.toContain('user-private')
   })
 })

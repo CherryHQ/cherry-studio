@@ -139,10 +139,7 @@ class ExternalKnowledgeDocumentReadError extends Error {
 }
 
 class ExternalKnowledgeDocumentSyncFailure extends Error {
-  constructor(
-    readonly cleanupWarnings: ExternalKnowledgeArtifactCleanupWarning[],
-    readonly cancelled: boolean
-  ) {
+  constructor(readonly cleanupWarnings: ExternalKnowledgeArtifactCleanupWarning[]) {
     super('External knowledge document synchronization failed')
     this.name = 'ExternalKnowledgeDocumentSyncFailure'
   }
@@ -244,10 +241,6 @@ function syncWarningMetadata(
   }
 }
 
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
-}
-
 function finalizedSummary(summary: ExternalKnowledgeSourceSyncSummary): ExternalKnowledgeSourceSyncSummary {
   return { ...summary, warningCount: summary.warnings.length, warnings: [...summary.warnings] }
 }
@@ -324,11 +317,7 @@ export class ExternalKnowledgeSyncService {
             summary.warnings.push({ code, remoteObjectId: reference.descriptor.remoteObjectId })
           }
         }
-        if (
-          input.signal.aborted ||
-          isAbortError(error) ||
-          (error instanceof ExternalKnowledgeDocumentSyncFailure && error.cancelled)
-        ) {
+        if (input.signal.aborted) {
           appendCleanupWarnings()
           throw new ExternalKnowledgeSourceSyncError('cancelled', finalizedSummary(summary))
         }
@@ -571,7 +560,7 @@ export class ExternalKnowledgeSyncService {
         return { outcome: 'skipped', warnings: ['stale-publication', ...warnings] }
       }
       if (warnings.length > 0) {
-        throw new ExternalKnowledgeDocumentSyncFailure(warnings, input.signal.aborted || isAbortError(error))
+        throw new ExternalKnowledgeDocumentSyncFailure(warnings)
       }
       throw error
     }
@@ -626,12 +615,12 @@ export class ExternalKnowledgeSyncService {
     signal: AbortSignal,
     fallback: ExternalKnowledgeSourceSyncErrorCode
   ): ExternalKnowledgeSourceSyncErrorCode {
-    if (signal.aborted || isAbortError(error)) return 'cancelled'
+    if (signal.aborted) return 'cancelled'
     return error instanceof ExternalKnowledgeRuntimeError ? error.code : fallback
   }
 
   private reconciliationErrorCode(error: unknown, signal: AbortSignal): ExternalKnowledgeSourceSyncErrorCode {
-    if (signal.aborted || isAbortError(error)) return 'cancelled'
+    if (signal.aborted) return 'cancelled'
     if (
       error instanceof StaleExternalKnowledgePublicationError ||
       error instanceof ExternalKnowledgeDocumentOwnershipChangedError

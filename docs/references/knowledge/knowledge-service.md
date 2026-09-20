@@ -46,18 +46,23 @@ The current implementation is split into four responsibility areas:
      `canDelete` onto knowledge item list rows.
    - Do not perform vector-store mutations.
 3. `KnowledgeService`
-   - Thin lifecycle facade: registers Knowledge JobManager handlers, runs boot recovery, and delegates every public method to `base/`, `ingestion/`, and `query/`.
+   - Thin lifecycle facade: registers Knowledge JobManager handlers, runs boot recovery, and delegates every public method to `base/`, `ingestion/`, `query/`, or `external/`.
    - `base/` (`KnowledgeBaseAdminService`) creates/deletes/restores bases through data services and vector store services. The per-base mutation lock (a core `KeyedMutex`) is created by the `KnowledgeService` facade and shared with `base/`, `ingestion/`, and the job handlers.
    - `ingestion/` (`KnowledgeIngestionService`) collapses delete/reindex item inputs to top-level roots, enforces runtime guards, and schedules the next workflow step.
    - `query/` (`KnowledgeQueryService` / `KnowledgeConceptService`) serves
-     search, source preview, document read/grep, tree browsing, and Concept
-     ID-addressed delete/reindex.
+     search, document read/grep, tree browsing, and Concept ID-addressed
+     delete/reindex.
+   - `external/` owns connection authorization and scope preview/resolution,
+     admits Source creation/manual sync, and performs fenced incremental
+     publication and reconciliation.
 4. Knowledge job handlers
    - Execute durable workflow stages through JobManager.
    - Use `KnowledgeIngestionService` for next-step scheduling.
    - Use the per-base mutation lock (`KeyedMutex.runExclusive`) for same-base mutations and vector cleanup.
    - Adapt `knowledge.index-documents` to the feature-local
      `indexKnowledgeItem({ baseId, itemId, signal, reportProgress })` operation.
+   - Adapt `knowledge.sync-external-source` to one complete Source scan,
+     incremental publication, reconciliation, and fenced settlement.
 
 ```text
 caller
@@ -75,6 +80,15 @@ caller
               -> KeyedMutex.runExclusive
                  -> KnowledgeBaseService / KnowledgeItemService
                  -> KnowledgeVectorStoreService
+
+caller
+  -> preload external-source IPC
+     -> KnowledgeService
+        -> ExternalKnowledgeSyncAdmission
+           -> Source + initial/manual Job transaction
+        -> knowledge.sync-external-source
+           -> ExternalKnowledgeSyncService
+              -> fenced Document / KnowledgeItem publication
 ```
 
 There is no current `KnowledgeRuntimeService` and no in-memory Knowledge queue. Durable work is owned by `JobManager`.
@@ -103,8 +117,9 @@ are Markdown with Cherry OKF frontmatter, which readers strip before indexing.
 An external item points at provider-normalized Markdown in a pinned local
 snapshot below `raw/`. Its reader decodes the file as UTF-8 text and supplies it
 verbatim to the chunker, including any provider-authored leading frontmatter;
-the document `contentHash` must describe that exact text. Layer 2 indexing never
-fetches a provider.
+the document `contentHash` must describe that exact text. Ordinary item indexing
+never fetches a provider; the external synchronization workflow pins provider
+content before invoking the shared preparation kernel.
 
 The per-base index is a rebuildable seven-table SQLite projection (`meta`,
 `material`, `content`, `search_unit`, `search_text`, `embedding`, and
@@ -113,7 +128,7 @@ lifecycle; index rows are never the renderer's business-data source.
 
 ## External Knowledge Domain
 
-Layer 2 establishes this persisted ownership chain:
+The persisted external ownership chain is:
 
 ```text
 ExternalKnowledgeConnection
@@ -147,11 +162,12 @@ Knowledge status.
 The schema enforces one document per `(sourceId, remoteObjectId)` and at most
 one document owner per knowledge item. Sources belong to one base and one
 connection; deleting a base cascades through the complete ownership graph,
-while deleting an independently owned item is rejected. Layer 2 does not add a
-sync-run entity, provider traversal, synchronization jobs, scheduling, or UI.
-Public `KnowledgeAddItemInput` also remains limited to user-owned source types;
-only trusted internal domain paths may create an external item after its local
-snapshot is pinned.
+while deleting an independently owned item is rejected. Synchronization uses
+durable JobManager rows rather than a separate sync-run entity; automatic
+synchronization scheduling and UI remain out of scope. Public
+`KnowledgeAddItemInput` also remains limited to user-owned source types; only
+the trusted external synchronization path may create an external item after
+its local snapshot is pinned.
 
 Connection removal has a durable-delete-first contract. The runtime first runs
 a no-side-effect Source-reference preflight, closes admission for that
@@ -162,13 +178,15 @@ the runtime best-effort revoke the provider token and remove the credential;
 startup reconciliation retires credential residue. The reference checks do not
 filter on Source state, so both active and paused Sources block removal.
 
-Layer 2 does not implement a Document publication writer. A future writer that
-binds or replaces `ExternalKnowledgeDocument.knowledgeItemId` must, in the same
-owner transaction, verify that the candidate item belongs to the Source's base,
-has type `external`, and is `completed` rather than deleting or otherwise
-active. It must also publish the content hash and remote revision that match the
-prepared snapshot. These are deferred writer requirements, not current Layer 2
-behavior.
+The external synchronization writer stages provider-normalized Markdown and
+prepares its material outside the per-base mutation lock. Under the lock it
+rechecks the Source revision, active Job id, and current Document owner before
+one owner transaction creates the completed external item, publishes the
+content hash and remote revision, switches
+`ExternalKnowledgeDocument.knowledgeItemId`, and removes the old item row.
+Missing documents and explicit read-permission denials use the same fences to
+withdraw ownership before best-effort artifact cleanup. A failed or cancelled
+scan never treats unseen documents as deleted.
 
 ## Caller Contract
 
@@ -189,10 +207,10 @@ The projection is false for an active document-owned external item and for a
 listed directory whose subtree contains one. It is advisory only; the workflow
 service remains the enforcement boundary.
 
-Base lifecycle, item workflow, source preview, chunk inspection, and direct
-search operations go through `KnowledgeService` IPC. Agent read/list/manage
-operations call the same service from the AI tool layer rather than adding a
-second renderer IPC surface.
+Base lifecycle, item workflow, source preview, external Source creation/manual
+synchronization, chunk inspection, and direct search operations go through
+`KnowledgeService` IPC. Agent read/list/manage operations call the same service
+from the AI tool layer rather than adding a second renderer IPC surface.
 
 The caller-facing add model is payload-based:
 
@@ -248,8 +266,16 @@ reindex-items(baseId, itemIds)
 - `knowledge.search`
 - `knowledge.get_file_path`
 - `knowledge.list_item_chunks`
+- `knowledge.external_source.create`
+- `knowledge.external_source.sync`
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. Chunks are derived index rows and are replaced wholesale by reindexing; there is no chunk-delete mutation.
+
+External Source creation accepts only a base id, connection id, URL, and name.
+Main resolves the URL again, then atomically creates the Source, enqueues its
+initial synchronization Job, and binds `activeJobId`. Manual synchronization
+accepts only a Source id and coalesces on the same per-Source idempotency key;
+neither route accepts credentials, preview DTOs, or provider payloads.
 
 The chunk IPC entrypoint is a runtime inspection helper:
 
@@ -266,6 +292,7 @@ Knowledge runtime work is persisted in JobManager. `KnowledgeService.onInit` reg
 - `knowledge.check-file-processing-result`
 - `knowledge.delete-subtree`
 - `knowledge.reindex-subtree`
+- `knowledge.sync-external-source`
 
 Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispatch, retry, cancellation, timeout, and startup recovery. Knowledge code uses the per-base mutation lock (`KeyedMutex.runExclusive`) to serialize same-base vector and item mutations inside the current process.
 
@@ -303,10 +330,11 @@ but does not open/publish the store or mutate item rows. The feature-local
 URL/note snapshot capture, status transitions, preparation, the base-locked
 live-row recheck, atomic material rebuild, and completion. The durable indexing
 job remains a thin adapter preserving recovery, retry, timeout, queue, and
-settled-failure behavior. Layer 2 introduces no synchronizer or alternate
-publication path. Missing, deleting, and already-completed items are safe
-no-ops; an indexable item that produces no chunks fails instead of replacing an
-existing material with an empty one.
+settled-failure behavior. External synchronization composes the same
+preparation kernel with its fenced publication path; it does not reuse
+`indexKnowledgeItem`. Missing, deleting, and already-completed ordinary items
+are safe no-ops; an indexable item that produces no chunks fails instead of
+replacing existing material with an empty one.
 
 Current persisted `knowledge_base` columns include:
 
