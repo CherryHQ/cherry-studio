@@ -313,6 +313,12 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
 }))
 
+// Own data-fetching accessory, unrelated to what this suite exercises — stubbed like
+// ModelSpeedControl above so its `useModels` call doesn't join `mocks.modelHookArgs`.
+vi.mock('../chat/RoutingDestinationHint', () => ({
+  RoutingDestinationHint: () => null
+}))
+
 vi.mock('../SelectedModelsTrigger', () => ({
   SelectedModelsTrigger: ({
     models,

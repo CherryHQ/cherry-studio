@@ -81,6 +81,7 @@ import { AutoSwitchToggle } from './chat/AutoSwitchToggle'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
+import { RoutingDestinationHint } from './chat/RoutingDestinationHint'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
 import {
   chatComposerTokenId,
@@ -1858,6 +1859,12 @@ const ChatComposerInner = ({
         />
       ) : null}
       <AutoSwitchToggle />
+      <RoutingDestinationHint
+        promptText={text}
+        fallbackModel={runtimeModel}
+        hasMentionedModels={mentionedModels.length > 0}
+        providers={providers}
+      />
       <ChatComposerContextUsage usage={contextUsage} />
     </>
   )
