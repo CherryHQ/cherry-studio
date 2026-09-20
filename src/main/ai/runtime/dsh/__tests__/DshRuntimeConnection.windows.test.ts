@@ -135,9 +135,9 @@ beforeEach(() => {
 
 describe('DshRuntimeConnection on Windows', () => {
   it('spawns the runtime with the Windows system baseline', async () => {
-    // Without it the child - process.execPath under ELECTRON_RUN_AS_NODE - cannot
-    // resolve the system DLLs and exits with a Windows exception code seconds after
-    // spawn, which is the crash in #19753.
+    // HarnessClient is mocked above, so this pins only the env object handed to it:
+    // the baseline is passed explicitly rather than left to libuv's partial backfill
+    // (which covers SystemRoot/SystemDrive/windir/TEMP/USERPROFILE, not ComSpec/PATHEXT/TMP).
     const connection = await new DshRuntimeConnection(connectInput).start()
     const env = mocks.harnessOptions?.env as NodeJS.ProcessEnv
 

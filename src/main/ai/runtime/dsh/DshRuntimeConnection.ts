@@ -396,9 +396,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         cwd: workspacePath,
         env: {
           ...binaryExecutionEnv,
-          // ...plus the platform's own baseline, which the scoping above must not
-          // withhold: on Windows the runtime process cannot start without it and
-          // exits with a Windows exception code seconds after spawn (#19753).
+          // ...plus the platform's system baseline (SystemRoot, ComSpec, PATHEXT,
+          // TEMP, ...), so the scoped env still gives a Windows child the same
+          // footing Cherry's other subprocesses get (#19753).
           ...pickSystemEnvironment(loginShellEnv),
           ...(loginShellEnv.HOME !== undefined
             ? { HOME: loginShellEnv.HOME }

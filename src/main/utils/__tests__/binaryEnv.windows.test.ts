@@ -122,9 +122,9 @@ describe('pickSystemEnvironment (Windows)', () => {
     USERPROFILE: 'C:\\Users\\tester'
   }
 
-  it('carries the whole baseline a replacement child env cannot start without', () => {
-    // A child spawned without SystemRoot cannot resolve the system DLLs and dies
-    // with a Windows exception exit code before running any of its own code.
+  it('carries the whole Windows baseline into a replacement child env', () => {
+    // Explicit and complete: the child must not depend on libuv backfilling some of
+    // these (it adds SystemRoot/SystemDrive/windir/TEMP/USERPROFILE, not ComSpec/PATHEXT/TMP).
     expect(pickSystemEnvironment(hostEnv)).toEqual(hostEnv)
   })
 

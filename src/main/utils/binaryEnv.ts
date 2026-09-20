@@ -131,17 +131,21 @@ export function getBinaryIsolatedHomeEnv(): Record<string, string> {
 }
 
 /**
- * The Windows variables a child process cannot start without, plus the two that
- * decide where it reads and writes:
+ * The Windows system variables a replacement child env should carry:
  * - `SystemRoot`, `windir`, `SystemDrive`, `ComSpec`, `PATHEXT` — the system baseline
  *   `utilityProcess/host/environment.ts` already forwards to its children;
  *   `BinaryManager`'s `MISE_PASSTHROUGH_ENV` forwards all of them but `SystemDrive`.
- *   Without `SystemRoot` a Windows process cannot resolve the system DLLs at all.
  * - `TEMP`, `TMP` — a writable scratch dir. The utility-process host substitutes a
  *   Cherry-scoped one instead of forwarding these; here there is none to substitute.
  * - `USERPROFILE` — Windows' `HOME`, which neither list carries because neither
  *   child needs a home. Callers here hand the child `HOME` on posix, so this is the
  *   same value under the name Windows uses for it.
+ *
+ * Node's `child_process.spawn` (libuv `required_vars`) copies `SystemRoot`,
+ * `SystemDrive`, `windir`, `TEMP` and `USERPROFILE` from the parent into a
+ * replacement env on its own; `ComSpec`, `PATHEXT` and `TMP` it does not. Listing
+ * the whole set here makes the child's baseline explicit and complete instead of
+ * relying on that backfill, and matches what Cherry's other Windows children get.
  *
  * None of them is a credential or a user-configured setting, so forwarding them
  * does not widen what a deliberately scoped child env exposes.
@@ -158,13 +162,12 @@ const WIN32_SYSTEM_ENV_KEYS = [
 ]
 
 /**
- * The platform's mandatory system variables, read out of `source`.
+ * The platform's system variables, read out of `source`.
  *
  * Callers that hand a child a *replacement* env — one that does not start from the
- * host environment — must fold this in. On Windows an env without it kills the
- * child before it runs any of its own code: a process spawned without `SystemRoot`
- * cannot resolve the system DLLs, and dies with a Windows exception exit code and
- * no crash report. Posix has no comparable baseline, so this is empty there.
+ * host environment — fold this in so the child sees the same Windows baseline as
+ * Cherry's other subprocesses rather than only what libuv backfills. Posix has no
+ * comparable baseline, so this is empty there.
  */
 export function pickSystemEnvironment(source: Record<string, string | undefined>): Record<string, string> {
   if (!isWin) return {}
