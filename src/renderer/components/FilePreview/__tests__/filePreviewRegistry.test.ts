@@ -1,12 +1,15 @@
 import type { ComponentType } from 'react'
 import { describe, expect, it } from 'vitest'
 
+import { imageExts } from '@shared/utils/file'
+
 import {
   canProduceSelectionReference,
   createFilePreviewRegistry,
   filePreviewRegistry,
   resolveExtensionPlugin
 } from '../filePreviewRegistry'
+import { imageFilePreviewPlugin } from '../plugins/image/imageFilePreviewPlugin'
 import { textFilePreviewPlugin } from '../plugins/text/textFilePreviewPlugin'
 import type { FilePreviewPlugin, FilePreviewPluginProps } from '../types'
 
@@ -125,6 +128,10 @@ describe('file preview registry', () => {
 
   it('keeps the text plugin extension whitelist explicit', () => {
     expect(textFilePreviewPlugin.extensions).toEqual(TEXT_PREVIEW_EXTENSIONS)
+  })
+
+  it('declares the image plugin extensions as exactly the shared image catalog', () => {
+    expect(imageFilePreviewPlugin.extensions).toEqual(imageExts.map((extension) => extension.slice(1)))
   })
 
   it('does not route an unknown extension through the registry', () => {
