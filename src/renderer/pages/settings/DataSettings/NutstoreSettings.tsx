@@ -22,7 +22,6 @@ import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { ipcApi } from '@renderer/ipc'
 import {
   backupToNutstore,
   checkConnection,
@@ -31,6 +30,7 @@ import {
 } from '@renderer/services/NutstoreService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
 import NutstorePathPopup from './NutstorePathPopup'
@@ -63,7 +63,7 @@ const NutstoreSettings: FC = () => {
 
   const handleClickNutstoreSSO = useCallback(async () => {
     const ssoUrl = await window.api.nutstore.getSSOUrl()
-    void ipcApi.request('system.shell.open_external_website', ssoUrl)
+    void openExternalWebsite(ssoUrl)
     const nutstoreToken = await nutstoreSsoHandler()
 
     if (!nutstoreToken) {

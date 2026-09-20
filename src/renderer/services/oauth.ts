@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import i18n, { getLanguageCode } from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 
 const logger = loggerService.withContext('oauth')
 
@@ -70,7 +71,7 @@ export const oauthWithPPIO = async (setKey) => {
   const redirectUri = 'cherrystudio://'
   const authUrl = `https://ppio.com/oauth/authorize?invited_by=JYT9GD&client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`
 
-  void ipcApi.request('system.shell.open_external_website', authUrl)
+  void openExternalWebsite(authUrl)
 
   if (!setKey) {
     logger.debug('[PPIO OAuth] No setKey callback provided, returning early')
@@ -235,7 +236,7 @@ export const providerCharge = async (provider: string) => {
 
   const { url } = chargeUrlMap[provider]
 
-  await ipcApi.request('system.shell.open_external_website', url)
+  await openExternalWebsite(url)
 }
 
 export const providerBills = async (provider: string) => {
@@ -263,5 +264,5 @@ export const providerBills = async (provider: string) => {
 
   const { url } = billsUrlMap[provider]
 
-  await ipcApi.request('system.shell.open_external_website', url)
+  await openExternalWebsite(url)
 }

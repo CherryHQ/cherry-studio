@@ -8,7 +8,6 @@ import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { settingsMenu } from '@renderer/components/settingsMenu'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { ipcApi } from '@renderer/ipc'
 import SettingsFocusScroll from '@renderer/pages/settings/settingsSearch/SettingsFocusScroll'
 import SettingsFocusUrl from '@renderer/pages/settings/settingsSearch/SettingsFocusUrl'
 import SettingsSearchBox from '@renderer/pages/settings/settingsSearch/SettingsSearchBox'
@@ -20,6 +19,7 @@ import {
   settingsSubmenuListClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
+import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
 
 const SettingsPage: FC = () => {
@@ -46,7 +46,7 @@ const SettingsPage: FC = () => {
     if (!anchor || !/^https?:\/\//i.test(anchor.getAttribute('href') ?? '')) return
     event.preventDefault()
     event.stopPropagation()
-    void ipcApi.request('system.shell.open_external_website', anchor.href)
+    void openExternalWebsite(anchor.href)
   }
 
   return (
