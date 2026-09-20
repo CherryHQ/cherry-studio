@@ -355,7 +355,11 @@ already-consumed QR code in every settings window.
 
 Migrated from v1 `redux/settings/apiServer.{enabled,host,port,apiKey}` via the
 v2 preference migrators. Edit `classification.json` (not the generated schemas)
-to change these — see the v2 data-classify toolchain.
+to change these — see the v2 data-classify toolchain. `lan_port` is the one
+exception: it has no v1 origin, so it is defined in
+`target-key-definitions.json` (the source for v2-only keys), not
+`classification.json` — defining it there would fabricate a phantom v1 redux
+mapping.
 
 ### Renderer
 
