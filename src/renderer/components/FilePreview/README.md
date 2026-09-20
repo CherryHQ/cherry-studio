@@ -3,7 +3,7 @@
 `FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown, text and video remain local plugins.
 
 
-The built-in plugins currently support HTML, images (every extension in the mime-db–curated `imageExts` catalog — `.jpg`, `.png`, `.webp`, `.heic`, `.psd`, and so on; see `src/shared/utils/file/fileExtensions.ts`. SVG renders via `<img>`, which never executes embedded scripts), PDF, Word (`.docx`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
+The built-in plugins currently support HTML, images (every extension in the mime-db–curated `imageExts` catalog — `.jpg`, `.png`, `.webp`, `.heic`, `.psd`, and so on; see `src/shared/utils/file/fileExtensions.ts` — plus `.svg`/`.svgz`, which the image plugin carries as preview-only literals so text-only agents keep reading SVG sources. SVG renders via `<img>`, which never executes embedded scripts), PDF, Word (`.docx`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
 
 ## Path Contract
 
