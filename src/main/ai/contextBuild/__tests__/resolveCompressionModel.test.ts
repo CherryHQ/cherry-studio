@@ -6,24 +6,29 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import { resolveCompressionModel } from '../resolveCompressionModel'
 
-const { providerLookup, modelLookup, providerConfig } = vi.hoisted(() => ({
+const { providerLookup, modelLookup, providerConfig, credential, recordInvocation } = vi.hoisted(() => ({
   providerLookup: vi.fn(),
   modelLookup: vi.fn(),
-  providerConfig: vi.fn()
+  providerConfig: vi.fn(),
+  credential: { current: { attribution: 'unknown' } as Record<string, unknown> },
+  recordInvocation: vi.fn()
 }))
 vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: providerLookup } }))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: modelLookup } }))
 vi.mock('@main/ai/provider/config', () => ({
   resolveProviderAiSdkConfig: async (...args: unknown[]) => ({
     config: await providerConfig(...args),
-    credentialReceipt: { attribution: 'unknown' }
+    credentialReceipt: credential.current
   })
 }))
+vi.mock('@data/services/AiUsageRecordService', () => ({ aiUsageRecordService: { recordInvocation } }))
 
 const CONVERSATION = { id: 'conversation-1', topicId: 'topic-1' }
 
 describe('resolveCompressionModel', () => {
   beforeEach(() => {
+    recordInvocation.mockClear()
+    credential.current = { attribution: 'unknown' }
     providerLookup.mockReturnValue(makeProvider({ id: 'opencode' }))
     modelLookup.mockReturnValue(
       makeModel({ id: 'opencode::small', providerId: 'opencode', apiModelId: 'small', contextWindow: 8_000 })
@@ -134,4 +139,39 @@ describe('resolveCompressionModel', () => {
       expect(outgoing[0].get('x-opencode-session')).toBe(explicitSession ?? CONVERSATION.id)
     }
   )
+  // A compaction call bills the same key as a chat turn. It used to reach the
+  // provider through a bare LanguageModel with no usage middleware, so it wrote
+  // no aiUsageRecord row — the key's quota count then ran under its real
+  // consumption and routing kept serving a key that was already exhausted.
+  it('records the summary call against the serving key so quota counts it', async () => {
+    credential.current = { attribution: 'matched', id: 'key-7', masked: 'sk-***7' }
+    providerConfig.mockResolvedValue({
+      providerId: 'openai-compatible',
+      providerSettings: {
+        name: 'opencode',
+        baseURL: 'https://provider.test/v1',
+        fetch: async () =>
+          Response.json({
+            id: 'summary-1',
+            created: 0,
+            model: 'small',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'SUMMARY' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150 }
+          })
+      }
+    })
+
+    const descriptor = await resolveCompressionModel('opencode::small', CONVERSATION)
+    await generateText({ model: descriptor!.languageModel, prompt: 'Summarize.' })
+
+    expect(recordInvocation).toHaveBeenCalledTimes(1)
+    const recorded = recordInvocation.mock.calls[0][0]
+    expect(recorded.context.credentialReceipt).toMatchObject({ id: 'key-7' })
+    expect(recorded.context.providerId).toBe('opencode')
+    expect(recorded.modality).toBe('language')
+    expect(recorded.usage).toMatchObject({ inputTokens: 120, outputTokens: 30 })
+    // Nothing here knows which assistant owns the conversation, so the row is
+    // deliberately unattributed rather than guessed at.
+    expect(recorded.context.source).toBeNull()
+  })
 })

@@ -12,8 +12,10 @@ import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
 
 import { createExecutor } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import { createLanguageUsageMiddleware } from '@main/ai/hooks/billingHook'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -66,22 +68,45 @@ export async function resolveCompressionModel(
   }
 
   try {
-    const { sdkConfig } = await resolveSdkConfig(provider, model, resolveEffectiveEndpoint(provider, model))
+    const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
+      provider,
+      model,
+      resolveEffectiveEndpoint(provider, model)
+    )
     // App provider extensions are registered beyond the executor's built-in type union.
     const executor = await createExecutor(
       sdkConfig.providerId as Parameters<typeof createExecutor>[0],
       sdkConfig.providerSettings as Parameters<typeof createExecutor>[1]
     )
     const languageModel = await executor.languageModel(sdkConfig.modelId)
+    // Compaction bills the same key as a chat turn, so it must land in
+    // aiUsageRecord too — otherwise the key's quota count runs under its real
+    // consumption and routing keeps serving an exhausted key. `source` stays
+    // null: this layer knows the conversation, not which assistant owns it.
+    const usageMiddleware = createLanguageUsageMiddleware(
+      createAiUsageCaptureContext({
+        providerId: provider.id,
+        providerName: provider.name,
+        modelId: sdkConfig.modelId,
+        modelName: model.name,
+        pricing: model.pricing,
+        trustProviderReportedCost: provider.reportsActualCost,
+        reportedCostCurrency: provider.reportedCostCurrency,
+        credentialReceipt
+      })
+    )
     return {
-      languageModel: sdkConfig.conversationHeader
-        ? wrapLanguageModel({
-            model: languageModel,
-            middleware: defaultSettingsMiddleware({
-              settings: { headers: { [sdkConfig.conversationHeader]: conversation.id } }
-            })
-          })
-        : languageModel,
+      languageModel: wrapLanguageModel({
+        model: languageModel,
+        middleware: sdkConfig.conversationHeader
+          ? [
+              usageMiddleware,
+              defaultSettingsMiddleware({
+                settings: { headers: { [sdkConfig.conversationHeader]: conversation.id } }
+              })
+            ]
+          : usageMiddleware
+      }),
       contextWindow: resolveContextWindow(model.contextWindow)
     }
   } catch (error) {
