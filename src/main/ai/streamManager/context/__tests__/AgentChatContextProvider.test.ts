@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
+  getModelNames: vi.fn(),
+  getDb: vi.fn(),
   saveMessage: vi.fn(),
   saveMessagesTx: vi.fn(),
   hasSessionMessages: vi.fn(),
@@ -28,6 +30,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getNamesByUniqueIdsTx: mocks.getModelNames }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -144,7 +150,7 @@ describe('AgentChatContextProvider', () => {
           assertSessionWritable: mocks.runtimeAssertWritable
         }
       }
-      if (name === 'DbService') return { withWriteTx: (fn: (tx: object) => unknown) => fn({}) }
+      if (name === 'DbService') return { withWriteTx: (fn: (tx: object) => unknown) => fn({}), getDb: mocks.getDb }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.runtimeBeginTurn.mockReturnValue({
@@ -439,6 +445,65 @@ describe('AgentChatContextProvider', () => {
     await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toThrow(
       'Unsupported agent runtime type: custom-runtime'
     )
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+  })
+
+  it('resolves the turn model from the session override instead of the agent default', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      name: 'My Agent',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet'
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
+    expect(prepared.reservedMessages?.find((message) => message.role === 'assistant')?.metadata).toMatchObject({
+      modelId: 'openai::gpt-4o',
+      messageSnapshot: {
+        model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
+      }
+    })
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'openai::gpt-4o' }))
+  })
+
+  it('falls back to the agent model when the session has no override', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: null,
+      workspace: { path: '/tmp' }
+    })
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')
+    expect(mocks.getModelNames).not.toHaveBeenCalled()
+  })
+
+  it('rejects a turn when neither the session nor the agent has a model', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: null,
+      workspace: { path: '/tmp' }
+    })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', name: 'My Agent', type: 'claude-code', model: null })
+
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toMatchObject({
+      code: 'TARGET_UNAVAILABLE'
+    })
+
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
   })

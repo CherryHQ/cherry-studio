@@ -303,14 +303,16 @@ export async function deriveConnectionConfig(
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return unroutable
   const agent = agentService.getAgent(session.agentId)
-  if (!agent?.model) return unroutable
+  if (!agent) return unroutable
+  const effectiveModel = session.modelId ?? connectionModelId ?? agent.model
+  if (!effectiveModel) return unroutable
   try {
     return {
       ok: true,
       config: await deriveConnectionConfigFromSnapshot(
         session,
         agent,
-        connectionModelId ?? agent.model,
+        effectiveModel,
         reasoningEffort,
         fastMode,
         selectedKnowledgeBaseIds,
@@ -479,12 +481,14 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   if (!session?.agentId) return undefined
 
   const agent = agentService.getAgent(session.agentId)
-  if (!agent?.model) return undefined
+  if (!agent) return undefined
+  const effectiveModel = session.modelId ?? connectionModelId ?? agent.model
+  if (!effectiveModel) return undefined
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
-  const uniqueModelId = connectionModelId ?? agent.model
+  const uniqueModelId = effectiveModel
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)

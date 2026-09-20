@@ -18,6 +18,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { pinService } from '@data/services/PinService'
 import {
   createCustomModel,
@@ -1144,9 +1145,12 @@ class ModelService {
     const dbService = application.get('DbService')
     const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
     const deletedIds: string[] = []
+    const clearedSessionIds: string[] = []
     const rows = withSqliteErrors(
       () =>
         dbService.withWriteTx((tx) => {
+          // Sessions inheriting via override fall back to their agent default.
+          clearedSessionIds.push(...agentSessionService.clearModelOverrideForModelsTx(tx, payload.toRemove))
           for (let i = 0; i < payload.toRemove.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = payload.toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
             const deletedRows = tx
@@ -1184,6 +1188,7 @@ class ModelService {
     )
 
     if (deletedIds.length > 0) pinService.notifyPurged()
+    if (clearedSessionIds.length > 0) agentSessionService.notifyReadModelChange(clearedSessionIds, 'projection')
     return { models: this.enrichRowsFromRegistryTx(dbService.getDb(), rows), deletedIds }
   }
 
@@ -1197,9 +1202,11 @@ class ModelService {
     const uniqueModelId = createUniqueModelId(providerId, modelId)
     assertModelNotUsedAsDefaultModel(uniqueModelId, `delete model ${uniqueModelId}`)
 
+    const clearedSessionIds: string[] = []
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          clearedSessionIds.push(...agentSessionService.clearModelOverrideForModelsTx(tx, [uniqueModelId]))
           const rows = tx
             .delete(userModelTable)
             .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
@@ -1214,6 +1221,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
     )
+    if (clearedSessionIds.length > 0) agentSessionService.notifyReadModelChange(clearedSessionIds, 'projection')
     pinService.notifyPurged()
 
     logger.info('Deleted model', { providerId, modelId })
@@ -1243,6 +1251,7 @@ class ModelService {
 
     const ids = [...uniqueItems.keys()]
 
+    const clearedSessionIds: string[] = []
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -1261,6 +1270,8 @@ class ModelService {
           if (missingId) {
             throw DataApiErrorFactory.notFound('Model', missingId)
           }
+
+          clearedSessionIds.push(...agentSessionService.clearModelOverrideForModelsTx(tx, ids))
 
           for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
@@ -1281,6 +1292,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(ids.length === 1 ? ids[0] : `batch(${ids.length} items)`)
     )
+    if (clearedSessionIds.length > 0) agentSessionService.notifyReadModelChange(clearedSessionIds, 'projection')
     pinService.notifyPurged()
 
     logger.info('Bulk deleted models', {

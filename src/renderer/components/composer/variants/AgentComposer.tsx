@@ -764,7 +764,7 @@ const AgentComposerInner = ({
   deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
-  const { updateAgent, updateModel } = useUpdateAgent()
+  const { updateAgent } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -1264,10 +1264,9 @@ const AgentComposerInner = ({
     async (nextModel?: Model) => {
       if (!agent || !canChangeModel || !nextModel || nextModel.id === model?.id) return
 
+      // Session-scoped pick: persist the per-session override so sibling
+      // sessions keep independent selections; the agent default is untouched.
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default'
-      const pendingReasoningEdit =
-        pendingReasoningEditRef.current?.agentId === agent.id ? pendingReasoningEditRef.current : null
-      const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
       const previousReasoningOverride = activeReasoningOverride
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -1276,11 +1275,11 @@ const AgentComposerInner = ({
         version
       })
 
-      const updatedAgent = await updateModel(
-        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
+      const updatedSession = await updateSession(
+        { id: sessionId, modelId: nextModel.id === agent.model ? null : nextModel.id },
         { showSuccessToast: false }
       )
-      if (!updatedAgent) {
+      if (!updatedSession) {
         setReasoningOverride((current) => {
           if (current?.agentId !== agent.id || current.version !== version) return current
           if (!previousReasoningOverride) return null
@@ -1294,16 +1293,18 @@ const AgentComposerInner = ({
         })
         return
       }
-      if (
-        pendingReasoningEdit &&
-        pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
-        pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
-      ) {
-        pendingReasoningEditRef.current = null
-      }
       setReasoningOverride((current) => (current?.agentId === agent.id && current.version === version ? null : current))
     },
-    [activeReasoningOverride, agent, canChangeModel, canonicalReasoningEffort, model?.id, reasoningEffort, updateModel]
+    [
+      activeReasoningOverride,
+      agent,
+      canChangeModel,
+      canonicalReasoningEffort,
+      model?.id,
+      reasoningEffort,
+      sessionId,
+      updateSession
+    ]
   )
 
   const handleCreateEmptySession = useCallback(() => {

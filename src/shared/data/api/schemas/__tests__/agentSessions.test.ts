@@ -78,4 +78,24 @@ describe('AgentSession schemas', () => {
     ).toBe(false)
     expect(UpdateAgentSessionSchema.safeParse({ name: overflowName }).success).toBe(false)
   })
+
+  it('accepts a per-session model override on create and update, including clearing it', () => {
+    expect(
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: '',
+        modelId: 'openai::gpt-4o',
+        workspace: { type: 'system' }
+      }).success
+    ).toBe(true)
+    expect(UpdateAgentSessionSchema.parse({ modelId: 'openai::gpt-4o' })).toEqual({
+      modelId: 'openai::gpt-4o'
+    })
+    expect(UpdateAgentSessionSchema.parse({ modelId: null })).toEqual({ modelId: null })
+  })
+
+  it('rejects malformed model overrides', () => {
+    expect(UpdateAgentSessionSchema.safeParse({ modelId: 'gpt-4o' }).success).toBe(false)
+    expect(UpdateAgentSessionSchema.safeParse({ modelId: '' }).success).toBe(false)
+  })
 })
