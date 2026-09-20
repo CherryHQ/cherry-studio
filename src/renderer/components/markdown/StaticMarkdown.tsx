@@ -5,9 +5,9 @@ import type { Components } from 'streamdown'
 
 import { Markdown, withFullMarkdown } from '@cherrystudio/ui'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
+import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
 import { useMarkdownComponents } from './MarkdownRenderers'
-import { remarkLatexMath } from './remarkLatexMath'
 import { useMarkdownHost } from './useMarkdownHost'
 
 interface Props {

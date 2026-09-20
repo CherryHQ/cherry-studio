@@ -26,7 +26,7 @@ import {
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
-import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
+import { parseMessagePartId } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import {
   bindCaptureMessageImageRuntime,
   flushPendingMessageImageActions,
@@ -50,7 +50,6 @@ import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
-import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { loadMessageBranch } from '@renderer/utils/message/loadMessageBranch'
@@ -59,6 +58,7 @@ import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel } from '@shared/utils/model'
 
 import {
@@ -269,19 +269,14 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
-  const persistDiagnosis = useCallback(async (partId: string, diagnosis: DiagnosisResult) => {
-    const parsed = parseMessagePartId(partId)
-    if (!parsed) return
-
-    const persistedMessage = await dataApiService.get(`/messages/${parsed.messageId}`)
-    const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
-    if (!updatedParts) return
-
-    await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
+  const getDoctorSubject = useCallback((message: MessageListItem): DoctorSubjectRef | undefined => {
+    const model = getMessageListItemModel(message)
+    return model ? { kind: 'chat', providerId: model.provider, modelId: model.id } : undefined
   }, [])
+
   const diagnosticReport = useMemo(
-    () => (normalInteractionsEnabled ? { location: t('error.diagnostic_report.locations.home') } : undefined),
-    [normalInteractionsEnabled, t]
+    () => (normalInteractionsEnabled ? { location: 'home' } : undefined),
+    [normalInteractionsEnabled]
   )
 
   const {
@@ -304,7 +299,7 @@ export function useHomeMessageListProviderValue({
     streamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     diagnosticReport,
-    persistDiagnosis,
+    getDoctorSubject,
     selectAllPagination
   })
 
@@ -493,8 +488,8 @@ export function useHomeMessageListProviderValue({
   }, [canStartNewContext, requireChatWrite, t, topic.id])
 
   const saveCodeBlock = useCallback(
-    async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
-      const { msgBlockId, codeBlockId, newContent } = data
+    async (data: { msgBlockId: string; originalContent: string; newContent: string }) => {
+      const { msgBlockId, originalContent, newContent } = data
 
       try {
         const messageId = parseMessagePartId(msgBlockId)?.messageId
@@ -504,7 +499,12 @@ export function useHomeMessageListProviderValue({
         if (resolved && resolved.part.type === 'text') {
           const textPart = resolved.part as { text?: string }
           const { updateCodeBlock } = await import('@renderer/utils/markdown')
-          const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
+          const updatedText = updateCodeBlock(textPart.text || '', originalContent, newContent)
+          if (updatedText === null) {
+            logger.warn(`Failed to save code block to message block ${msgBlockId}: no unique matching code block`)
+            toast.error(t('code_block.edit.save.failed.label'))
+            return
+          }
           const allParts = [...sourceParts!]
           allParts[resolved.index] = {
             ...resolved.part,
@@ -515,12 +515,10 @@ export function useHomeMessageListProviderValue({
           return
         }
 
-        logger.error(
-          `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: unable to resolve part`
-        )
+        logger.error(`Failed to save code block content to message block ${msgBlockId}: unable to resolve part`)
         toast.error(t('code_block.edit.save.failed.label'))
       } catch (error) {
-        logger.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error as Error)
+        logger.error(`Failed to save code block content to message block ${msgBlockId}:`, error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },

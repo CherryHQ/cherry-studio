@@ -2,6 +2,7 @@ import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { UIMessageChunk } from 'ai'
 
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -16,6 +17,8 @@ import type { MessageSnapshot } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+
+import type { RuntimeForkInput, RuntimeForkResult } from './fork'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
 
@@ -130,7 +133,7 @@ export type AgentRuntimeEvent =
       }
     }
   | { type: 'resume-token'; token: string }
-  | { type: 'turn-complete' }
+  | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
   | { type: 'steer-undelivered'; inputs: AgentRuntimeUserInput[] }
@@ -234,6 +237,7 @@ export interface AgentRuntimeConnection {
 }
 
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
+  fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
   /**
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call
@@ -249,4 +253,23 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    * query) without the host reaching into driver internals. Optional.
    */
   onSessionIdle?(sessionId: string): void
+  /**
+   * Reclaim on-disk session state that no surviving session row claims, keyed by
+   * the resume tokens the driver itself hands out. The keep-set covers trashed
+   * sessions too — their rows and tokens remain until purge so Restore stays
+   * lossless, and only a purge drops them. Called by the trash purge's agent
+   * orphan sweep after every DB transaction has committed, so it is authoritative. Must be idempotent, must no-op when its root
+   * does not exist, and must leave anything younger than `freshnessGateMs`
+   * alone — an in-flight session may not have persisted its token yet.
+   */
+  reclaimOrphanSessions?(
+    keptResumeTokens: ReadonlySet<string>,
+    options: OrphanSessionReclaimOptions
+  ): Promise<{ removed: string[] }>
+}
+
+export interface OrphanSessionReclaimOptions {
+  /** Artifacts modified within this window are presumed in-flight and skipped. */
+  freshnessGateMs: number
+  now: number
 }

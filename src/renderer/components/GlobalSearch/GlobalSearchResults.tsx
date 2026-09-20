@@ -11,7 +11,7 @@ import {
 import { type MouseEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import { EmojiIcon } from '@cherrystudio/ui'
 import HighlightText from '@renderer/components/HighlightText'
 import { getSettingsSectionTitleKey } from '@renderer/components/settingsMenu'
 import { cn } from '@renderer/utils/style'
@@ -210,7 +210,7 @@ export function GlobalSearchRow({
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
       {emoji ? (
-        <EmojiIcon emoji={emoji} size={32} fontSize={15} className="mr-0 bg-muted/50" />
+        <EmojiIcon emoji={emoji} size={32} className="bg-muted/50" />
       ) : (
         <span className="text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-full bg-muted/50">
           <Icon className="size-4" />

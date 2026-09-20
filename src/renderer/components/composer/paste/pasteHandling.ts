@@ -82,6 +82,8 @@ export const handlePaste = async (
           }
           setFiles((prevFiles) => [...prevFiles, toComposerAttachment(pastedTextFile)])
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
+        } else if (t) {
+          toast.info(t('chat.input.file_not_supported'))
         }
         return true
       }
@@ -118,6 +120,8 @@ export const handlePaste = async (
               }
             } else if (result.value.kind === 'attachment') {
               attachments.push(result.value.attachment)
+            } else if (t) {
+              toast.info(t('chat.input.file_not_supported'))
             }
           }
 
@@ -148,7 +152,8 @@ export const handlePaste = async (
                     origin_name: removeFileExtension(file.name)
                   })
                 ])
-                break
+              } else if (t) {
+                toast.info(t('chat.input.file_not_supported'))
               }
             } else {
               if (t) {
@@ -162,6 +167,8 @@ export const handlePaste = async (
           if (result.kind === 'attachment') {
             setFiles((prevFiles) => [...prevFiles, result.attachment])
           } else if (result.kind === 'unsupported' && t) {
+            toast.info(t('chat.input.file_not_supported'))
+          } else if (result.kind === 'empty' && t) {
             toast.info(t('chat.input.file_not_supported'))
           }
         }

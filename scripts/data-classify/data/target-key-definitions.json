@@ -212,7 +212,40 @@
         { "id": "knowledge", "type": "app" }
       ],
       "status": "classified",
-      "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
+      "description": "Legacy sidebar favorites, preserved as the source for shortcut migration"
+    },
+    {
+      "targetKey": "ui.sidebar_shortcut",
+      "type": "PreferenceTypes.SidebarShortcutItem[]",
+      "defaultValue": [
+        {
+          "id": "sidebar-shortcut:core.app:agents",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "agents" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:assistants",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "assistants" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:translate",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "translate" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:paintings",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "paintings" } },
+          "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:knowledge",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "knowledge" } },
+          "type": "shortcut"
+        }
+      ],
+      "status": "classified",
+      "description": "Left sidebar shortcuts, an ordered list of generic resource targets with provider-owned activation"
     },
     {
       "targetKey": "ui.launchpad.app_order",
@@ -792,6 +825,13 @@
       },
       "status": "classified",
       "description": "Command shortcut: screenshot.capture (unified command system)"
+    },
+    {
+      "targetKey": "data.trash.retention_days",
+      "type": "number",
+      "defaultValue": 30,
+      "status": "classified",
+      "description": "Trash retention in days before automatic purge; 0 = never auto-purge (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "agent.language",
