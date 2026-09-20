@@ -115,6 +115,7 @@
   "openclaw.errors.preflight_failed": "Το Cherry Studio δεν μπόρεσε να επικυρώσει τη διαμόρφωση του OpenClaw.",
   "paintings.comfyui.image_download_timeout": "Η λήψη μιας ολοκληρωμένης εικόνας έληξε μετά από {{seconds}}s",
   "paintings.comfyui.image_fetch_failed": "Το ComfyUI δεν μπόρεσε να επιστρέψει μια ολοκληρωμένη εικόνα",
+  "paintings.comfyui.image_fetch_timeout": "Η ανάγνωση ολοκληρωμένης εικόνας έληξε μετά από {{seconds}} δευτ.",
   "paintings.comfyui.list_failed": "Δεν ήταν δυνατή η ανάγνωση της λίστας ροών εργασίας ComfyUI",
   "paintings.comfyui.no_image": "Το ComfyUI ολοκληρώθηκε χωρίς να παράξει εικόνα",
   "paintings.comfyui.no_prompt_id": "Το ComfyUI δέχτηκε τη ροή εργασίας αλλά δεν επέστρεψε αναγνωριστικό prompt",

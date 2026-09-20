@@ -115,6 +115,7 @@
   "openclaw.errors.preflight_failed": "Cherry Studio 無法驗證 OpenClaw 設定。",
   "paintings.comfyui.image_download_timeout": "下載已完成影像逾時（{{seconds}} 秒）",
   "paintings.comfyui.image_fetch_failed": "ComfyUI 無法回傳已產生的影像",
+  "paintings.comfyui.image_fetch_timeout": "讀取已完成的圖片逾時（{{seconds}} 秒）",
   "paintings.comfyui.list_failed": "無法列出 ComfyUI 工作流程",
   "paintings.comfyui.no_image": "ComfyUI 已完成但未產生影像",
   "paintings.comfyui.no_prompt_id": "ComfyUI 已接受工作流程但未回傳提示詞 ID",

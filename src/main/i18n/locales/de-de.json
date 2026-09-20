@@ -115,6 +115,7 @@
   "openclaw.errors.preflight_failed": "Cherry Studio konnte die OpenClaw-Konfiguration nicht validieren.",
   "paintings.comfyui.image_download_timeout": "Der Download eines fertigen Bildes ist nach {{seconds}}s abgelaufen",
   "paintings.comfyui.image_fetch_failed": "ComfyUI konnte ein fertiges Bild nicht zurückgeben",
+  "paintings.comfyui.image_fetch_timeout": "Das Lesen des fertigen Bildes hat {{seconds}}s gedauert",
   "paintings.comfyui.list_failed": "ComfyUI-Workflows konnten nicht aufgelistet werden",
   "paintings.comfyui.no_image": "ComfyUI ist fertig, hat aber kein Bild erzeugt",
   "paintings.comfyui.no_prompt_id": "ComfyUI hat den Workflow akzeptiert, aber keine Prompt-ID zurückgegeben",

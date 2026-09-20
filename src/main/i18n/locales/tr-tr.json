@@ -115,6 +115,7 @@
   "openclaw.errors.preflight_failed": "Cherry Studio, OpenClaw yapılandırmasını doğrulayamadı.",
   "paintings.comfyui.image_download_timeout": "Tamamlanan bir görüntünün indirilmesi {{seconds}} sn sonra zaman aşımına uğradı",
   "paintings.comfyui.image_fetch_failed": "ComfyUI tamamlanmış bir görüntüyü döndüremedi",
+  "paintings.comfyui.image_fetch_timeout": "Tamamlanan görüntünün okunması {{seconds}} sn sonra zaman aşımına uğradı",
   "paintings.comfyui.list_failed": "ComfyUI iş akışları listelenemedi",
   "paintings.comfyui.no_image": "ComfyUI görüntü üretmeden tamamlandı",
   "paintings.comfyui.no_prompt_id": "ComfyUI iş akışını kabul etti ama istem kimliği döndürmedi",

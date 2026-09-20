@@ -115,6 +115,7 @@
   "openclaw.errors.preflight_failed": "Cherry Studio không thể xác thực cấu hình OpenClaw.",
   "paintings.comfyui.image_download_timeout": "Tải xuống ảnh đã hoàn thành hết thời gian chờ sau {{seconds}}s",
   "paintings.comfyui.image_fetch_failed": "ComfyUI không thể trả về ảnh đã hoàn thành",
+  "paintings.comfyui.image_fetch_timeout": "Đọc ảnh hoàn thành hết thời gian chờ sau {{seconds}}s",
   "paintings.comfyui.list_failed": "Không thể liệt kê các quy trình làm việc ComfyUI",
   "paintings.comfyui.no_image": "ComfyUI đã hoàn thành mà không tạo ra ảnh",
   "paintings.comfyui.no_prompt_id": "ComfyUI đã chấp nhận quy trình nhưng không trả về ID prompt",
