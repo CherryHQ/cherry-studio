@@ -30,6 +30,7 @@ vi.mock('react-i18next', () => ({
 import {
   findInvalidSecondaryEndpointUrl,
   mergeEndpointConfigs,
+  overlaySharedReasoningFormats,
   resolveEndpointTypes
 } from '../ProviderCustomHeaderDrawer'
 
@@ -116,6 +117,67 @@ describe('mergeEndpointConfigs', () => {
       snapshot
     )
     expect(out[PRIMARY]).toEqual({ baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } })
+  })
+})
+
+describe('overlaySharedReasoningFormats', () => {
+  it('overlays a coordinated format when the base still matches the snapshot', () => {
+    const snapshot = { [PRIMARY]: { baseUrl: 'https://old' } }
+    const out = overlaySharedReasoningFormats(
+      { [PRIMARY]: { baseUrl: 'https://old' } },
+      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } } },
+      { [PRIMARY]: { baseUrl: 'https://old' } },
+      snapshot
+    )
+    expect(out?.[PRIMARY]).toEqual({ baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } })
+  })
+
+  it('overlays a coordinated clear when the base still matches the snapshot', () => {
+    const snapshot = {
+      [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } }
+    }
+    const out = overlaySharedReasoningFormats(
+      {
+        [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } }
+      },
+      { [PRIMARY]: { baseUrl: 'https://old' } },
+      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } } },
+      snapshot
+    )
+    expect(out?.[PRIMARY]).toEqual({ baseUrl: 'https://old' })
+  })
+
+  it('keeps the base when it already observed a newer value than the snapshot', () => {
+    const snapshot = {
+      [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } }
+    }
+    const out = overlaySharedReasoningFormats(
+      { [PRIMARY]: { baseUrl: 'https://old' } },
+      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } } },
+      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } } },
+      snapshot
+    )
+    expect(out?.[PRIMARY]).toEqual({ baseUrl: 'https://old' })
+  })
+
+  it('leaves explicitly changed drafts alone', () => {
+    const snapshot = { [PRIMARY]: { baseUrl: 'https://old' } }
+    const base = { [PRIMARY]: { baseUrl: 'https://old' } }
+    const out = overlaySharedReasoningFormats(
+      base,
+      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } } },
+      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } } },
+      snapshot
+    )
+    expect(out?.[PRIMARY]).toEqual({ baseUrl: 'https://old' })
+  })
+
+  it('returns the base untouched when no coordinated write landed', () => {
+    const snapshot = { [PRIMARY]: { baseUrl: 'https://old' } }
+    const base = { [PRIMARY]: { baseUrl: 'https://old' } }
+    expect(overlaySharedReasoningFormats(base, undefined, { [PRIMARY]: { baseUrl: 'https://old' } }, snapshot)).toBe(
+      base
+    )
   })
 })
 

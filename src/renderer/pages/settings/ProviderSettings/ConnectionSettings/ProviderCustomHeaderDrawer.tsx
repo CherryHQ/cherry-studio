@@ -33,6 +33,7 @@ import { getProviderHostTopology } from '@shared/utils/providerTopology'
 
 import { ProviderImageEndpointFields } from '../components/ProviderImageEndpointFields'
 import {
+  getLastWrittenEndpointConfigs,
   serializeEndpointConfigsWrite,
   setLastWrittenEndpointConfigs
 } from '../hooks/providerSetting/endpointConfigsWriteCoordinator'
@@ -220,6 +221,61 @@ export function mergeEndpointConfigs(
 }
 
 /**
+ * Reconcile reasoning formats from the coordinated shared snapshot onto a
+ * refetched base before merging drafts.
+ *
+ * A refetch that still matches the drawer-open snapshot has not observed the
+ * coordinated write recorded in `shared` yet (stale SWR cache, or a payload
+ * without endpointConfigs that fell back to the open-time provider). Merging
+ * onto it would erase the landed format, so the shared value wins for drafts
+ * the user never touched. When the base already differs from the snapshot it
+ * observed something newer — an out-of-band set or clear — and stays
+ * authoritative, so a stale snapshot cannot resurrect it. Drafts the user
+ * explicitly changed always win in `mergeEndpointConfigs` and are left alone.
+ */
+export function overlaySharedReasoningFormats(
+  base: Partial<Record<EndpointType, EndpointConfig>> | undefined,
+  shared: Partial<Record<EndpointType, { reasoningFormat?: { type: string } }>> | undefined,
+  drafts: Record<string, EndpointDraft>,
+  snapshot: Partial<Record<EndpointType, EndpointConfig>> | undefined
+): Partial<Record<EndpointType, EndpointConfig>> | undefined {
+  if (!shared) {
+    return base
+  }
+  const out: Partial<Record<EndpointType, EndpointConfig>> = { ...base }
+  for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
+    if (!REASONING_FORMAT_ENDPOINT_TYPES.has(type)) {
+      continue
+    }
+    // The drawer only models the self-hosted override; anything else reads as
+    // `default` — the same lens `mergeEndpointConfigs` reconciles with.
+    const optionOf = (config?: { reasoningFormat?: { type: string } }) =>
+      config?.reasoningFormat?.type === 'self-hosted' ? 'self-hosted' : undefined
+    if (draft.reasoningFormat?.type !== optionOf(snapshot?.[type])) {
+      continue
+    }
+    if (
+      optionOf(base?.[type]) !== optionOf(snapshot?.[type]) ||
+      optionOf(shared[type]) === optionOf(snapshot?.[type])
+    ) {
+      continue
+    }
+    const next: EndpointConfig = { ...out[type] }
+    if (optionOf(shared[type]) === 'self-hosted') {
+      next.reasoningFormat = { type: 'self-hosted' }
+    } else {
+      delete next.reasoningFormat
+    }
+    if (!isEmpty(next)) {
+      out[type] = next
+    } else {
+      delete out[type]
+    }
+  }
+  return out
+}
+
+/**
  * First non-empty secondary-endpoint draft that fails URL validation, or
  * `null` if all secondaries are empty or valid. The primary slot is
  * validated separately (it has its own required-ness rules).
@@ -377,7 +433,15 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       } catch {
         // Fall back to the cached provider on refetch failure.
       }
-      const textEndpointConfigs = mergeEndpointConfigs(existingConfigs, endpointDrafts, openEndpointConfigsRef.current)
+      // The refetch above can still resolve pre-commit (or incomplete) data;
+      // reconcile landed coordinated formats before merging drafts.
+      const liveConfigs = overlaySharedReasoningFormats(
+        existingConfigs,
+        getLastWrittenEndpointConfigs(provider.id),
+        endpointDrafts,
+        openEndpointConfigsRef.current
+      )
+      const textEndpointConfigs = mergeEndpointConfigs(liveConfigs, endpointDrafts, openEndpointConfigsRef.current)
       const merged = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
       try {
         await updateProvider({

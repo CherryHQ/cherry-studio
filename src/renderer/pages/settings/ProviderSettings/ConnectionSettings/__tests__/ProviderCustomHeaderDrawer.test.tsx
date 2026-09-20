@@ -349,4 +349,83 @@ describe('ProviderCustomHeaderDrawer', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
     clearLastWrittenEndpointConfigs(raceProvider.id)
   })
+
+  it('keeps a coordinated reasoning format when refetch resolves stale data', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const staleProvider = { ...provider, id: 'stale-refetch-provider' }
+    const landedConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://openai.example.com',
+        reasoningFormat: { type: 'self-hosted' }
+      }
+    }
+    // An ApiHost reasoning commit landed through the coordinator, but the
+    // drawer's refetch still resolves the pre-commit snapshot.
+    setLastWrittenEndpointConfigs(staleProvider.id, landedConfigs as any)
+    refetchMock.mockResolvedValue({ endpointConfigs: staleProvider.endpointConfigs })
+    useProviderMock.mockReturnValue({
+      provider: staleProvider,
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={staleProvider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpointConfigs: expect.objectContaining({
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: expect.objectContaining({
+              reasoningFormat: { type: 'self-hosted' }
+            })
+          })
+        })
+      )
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    clearLastWrittenEndpointConfigs(staleProvider.id)
+  })
+
+  it('keeps a coordinated reasoning format when refetch resolves without endpoint configs', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const partialProvider = { ...provider, id: 'incomplete-refetch-provider' }
+    const landedConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://openai.example.com',
+        reasoningFormat: { type: 'self-hosted' }
+      }
+    }
+    // The coordinated commit landed, but refetch resolves a provider payload
+    // without endpointConfigs — the save must build on the shared snapshot,
+    // not the stale open-time provider.
+    setLastWrittenEndpointConfigs(partialProvider.id, landedConfigs as any)
+    refetchMock.mockResolvedValue({ id: partialProvider.id })
+    useProviderMock.mockReturnValue({
+      provider: partialProvider,
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={partialProvider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpointConfigs: expect.objectContaining({
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: expect.objectContaining({
+              reasoningFormat: { type: 'self-hosted' }
+            })
+          })
+        })
+      )
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    clearLastWrittenEndpointConfigs(partialProvider.id)
+  })
 })
