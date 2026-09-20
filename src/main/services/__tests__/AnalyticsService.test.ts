@@ -143,6 +143,7 @@ describe('AnalyticsService data collection preference', () => {
     expect(mockTrackTokenUsage).not.toHaveBeenCalled()
     expect(mockTrackAppUpdate).not.toHaveBeenCalled()
 
+    expect(mockDestroy).toHaveBeenCalledWith({ flush: false })
     destroyResolvers[0]()
     await vi.waitFor(() => expect(service.isActivated).toBe(false))
     expect(MockAnalyticsClient).toHaveBeenCalledTimes(1)
@@ -175,6 +176,7 @@ describe('AnalyticsService data collection preference', () => {
 
     changePreference('app.privacy.data_collection.enabled', false)
     await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    expect(mockDestroy).toHaveBeenCalledWith({ flush: false })
     destroyResolvers[0]()
     await vi.waitFor(() => expect(service.isActivated).toBe(false))
 
@@ -194,7 +196,7 @@ describe('AnalyticsService consent revocation', () => {
     )
   }
 
-  it('discards the pending queue on revoke: destroy still runs but the injected fetch sends nothing', async () => {
+  it('discards the pending queue without flushing on revoke', async () => {
     mockGetQueueSize.mockReturnValue(3)
     const service = new AnalyticsService()
     await service._doInit()
@@ -204,6 +206,7 @@ describe('AnalyticsService consent revocation', () => {
 
     changePreference('app.privacy.data_collection.enabled', false)
     await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    expect(mockDestroy).toHaveBeenCalledWith({ flush: false })
     destroyResolvers[0]()
     await vi.waitFor(() => expect(service.isActivated).toBe(false))
 
@@ -223,6 +226,7 @@ describe('AnalyticsService consent revocation', () => {
 
     changePreference('app.privacy.data_collection.enabled', false)
     await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    expect(mockDestroy).toHaveBeenCalledWith({ flush: false })
     destroyResolvers[0]()
     await vi.waitFor(() => expect(service.isActivated).toBe(false))
 
@@ -265,6 +269,7 @@ describe('AnalyticsService consent revocation', () => {
 
     changePreference('app.privacy.policy_version', '20200101')
     await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    expect(mockDestroy).toHaveBeenCalledWith({ flush: false })
     destroyResolvers[0]()
     await vi.waitFor(() => expect(service.isActivated).toBe(false))
 
@@ -287,6 +292,7 @@ describe('AnalyticsService consent revocation', () => {
 
     const stopPromise = service._doStop()
     await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    expect(mockDestroy).toHaveBeenCalledWith()
     destroyResolvers[0]?.()
     await stopPromise
     expect(mockGetQueueSize).not.toHaveBeenCalled()
