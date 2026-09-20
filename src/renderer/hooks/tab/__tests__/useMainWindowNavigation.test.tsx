@@ -150,7 +150,7 @@ describe('useMainWindowNavigation', () => {
   })
 
   it('opens a regular tab for non-settings navigation init data', () => {
-    mocks.initData = { kind: 'navigation', to: '/agents', requestId: 1 }
+    mocks.initData = { kind: 'navigation', to: '/app/agents', requestId: 1 }
     render(<MainWindowNavigationHarness />)
 
     expect(mocks.openRoute).toHaveBeenCalledWith('/app/agents')
@@ -179,7 +179,7 @@ describe('useMainWindowNavigation', () => {
   it('opens a regular tab when a non-settings open_route_requested event arrives', () => {
     render(<MainWindowNavigationHarness />)
 
-    mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: '/knowledge' })
+    mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: '/app/knowledge' })
 
     expect(mocks.openRoute).toHaveBeenCalledWith('/app/knowledge')
   })
@@ -237,7 +237,7 @@ describe('useMainWindowNavigation', () => {
     window.dispatchEvent(
       new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
         cancelable: true,
-        detail: { path: '/agents' }
+        detail: { path: '/app/agents' }
       })
     )
 
@@ -250,7 +250,7 @@ describe('useMainWindowNavigation', () => {
 
     const event = new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
       cancelable: true,
-      detail: { path: '/agents' }
+      detail: { path: '/app/agents' }
     })
     window.dispatchEvent(event)
 

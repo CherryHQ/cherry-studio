@@ -351,6 +351,9 @@ function WorkspaceControls() {
       <button type="button" onClick={() => openRoute('/app/chat')}>
         Open chat app
       </button>
+      <button type="button" onClick={() => openRoute('/app/chat?topicId=requested')}>
+        Open requested chat
+      </button>
       <button type="button" onClick={() => openRoute('/settings/appearance')}>
         Open settings
       </button>
@@ -1098,6 +1101,44 @@ describe('TabsProvider', () => {
     await waitFor(() => expect(screen.getByTestId('workspace-active')).toHaveTextContent('hidden-chat'))
     expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent('hidden-chat')
     expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/app/chat?topicId=preserved')
+    expect((screen.getByTestId('workspace-tabs').textContent ?? '').match(/app:assistants/g) ?? []).toHaveLength(1)
+  })
+
+  it('applies an explicit navigation target when revealing a hidden workspace', async () => {
+    navigationLayout = 'tabs'
+    pinnedTabsValue = []
+    normalTabsValue = [
+      {
+        id: 'hidden-chat',
+        type: 'route',
+        url: '/app/chat?topicId=preserved',
+        title: 'Chat',
+        workspaceKey: 'app:assistants',
+        isTabBarVisible: false,
+        isDormant: true
+      },
+      {
+        id: 'visible-notes',
+        type: 'route',
+        url: '/app/notes',
+        title: 'Notes',
+        workspaceKey: 'app:notes',
+        isTabBarVisible: true,
+        isDormant: false
+      }
+    ]
+    activeTabIdValue = 'visible-notes'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open requested chat' }))
+
+    await waitFor(() => expect(screen.getByTestId('workspace-active')).toHaveTextContent('hidden-chat'))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/app/chat?topicId=requested')
     expect((screen.getByTestId('workspace-tabs').textContent ?? '').match(/app:assistants/g) ?? []).toHaveLength(1)
   })
 

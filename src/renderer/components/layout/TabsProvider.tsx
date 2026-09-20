@@ -26,6 +26,7 @@ import {
   getWorkspaceShortcutTarget,
   isNavigationWorkspaceKey,
   isTabVisibleInTabBar,
+  isWorkspaceRootUrl,
   LAUNCHPAD_WORKSPACE_KEY,
   type NavigationWorkspaceKey,
   normalizeSidebarWorkspaceSession
@@ -786,6 +787,19 @@ export function TabsProvider({
                 (tab) => getTabWorkspaceKey(tab) === workspaceKey && !isTabVisibleInTabBar(tab)
               )
         if (hiddenWorkspaceTab) {
+          if (hiddenWorkspaceTab.url !== url && !isWorkspaceRootUrl(url, workspaceKey)) {
+            updateTab(hiddenWorkspaceTab.id, {
+              type: options.type ?? hiddenWorkspaceTab.type,
+              url,
+              title: options.title ?? getDefaultRouteTitle(url),
+              icon: options.icon,
+              workspaceKey,
+              metadata: { ...hiddenWorkspaceTab.metadata, ...options.metadata },
+              lastAccessTime: Date.now(),
+              isDormant: false,
+              isPinned: false
+            })
+          }
           setActiveTab(hiddenWorkspaceTab.id)
           return hiddenWorkspaceTab.id
         }

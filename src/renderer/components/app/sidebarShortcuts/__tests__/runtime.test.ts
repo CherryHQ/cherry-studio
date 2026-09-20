@@ -78,6 +78,28 @@ describe('sidebar conversation navigation', () => {
     expect(tabs.openTab).not.toHaveBeenCalled()
   })
 
+  it('reactivates an inactive Sidebar workspace without resetting its route', () => {
+    const tabs = tabContext([
+      { id: 'files', type: 'route', url: '/app/files', title: 'Files' },
+      { id: 'chat', type: 'route', url: '/app/chat?topicId=preserved', title: 'Chat' }
+    ])
+    tabs.navigationLayout = 'sidebar'
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+
+    act(() => {
+      result.current.openWorkspace({
+        url: '/app/chat',
+        title: 'Chat',
+        matchesCurrent: (url) => url.startsWith('/app/chat')
+      })
+    })
+
+    expect(tabs.setActiveTab).toHaveBeenCalledWith('chat')
+    expect(tabs.openRoute).not.toHaveBeenCalled()
+    expect(tabs.updateTab).not.toHaveBeenCalled()
+  })
+
   it('does not reset an already active app detail route', async () => {
     const tabs = tabContext([{ id: 'files', type: 'route', url: '/app/files?entryId=file-1', title: 'File' }])
     const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)

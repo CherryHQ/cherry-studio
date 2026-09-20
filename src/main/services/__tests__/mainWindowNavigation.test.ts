@@ -100,7 +100,7 @@ describe('mainWindowNavigation', () => {
     it('sends the open_route_requested event and focuses when the main window is alive', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
 
-      openRouteInMainWindow('/knowledge')
+      openRouteInMainWindow('/app/knowledge')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'navigation.open_route_requested', {
         to: '/app/knowledge'
@@ -109,7 +109,7 @@ describe('mainWindowNavigation', () => {
     })
 
     it('creates the main window with navigation init data when none exists', () => {
-      openRouteInMainWindow('/knowledge')
+      openRouteInMainWindow('/app/knowledge')
 
       expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
       expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith({
@@ -120,8 +120,8 @@ describe('mainWindowNavigation', () => {
     })
 
     it('uses a fresh request id for repeated cold-start navigations', () => {
-      openRouteInMainWindow('/knowledge')
-      openRouteInMainWindow('/agents')
+      openRouteInMainWindow('/app/knowledge')
+      openRouteInMainWindow('/app/agents')
 
       const firstRequest = mainWindowServiceMock.showMainWindow.mock.calls[0][0]
       const secondRequest = mainWindowServiceMock.showMainWindow.mock.calls[1][0]
@@ -292,9 +292,9 @@ describe('mainWindowNavigation', () => {
       expect(isAllowedRoute('/settings/provider?id=openai')).toBe(true)
     })
 
-    it('keeps the legacy protocol-deep-link prefixes allowlisted', () => {
-      expect(isAllowedRoute('/agents')).toBe(true)
-      expect(isAllowedRoute('/knowledge?x=1&y=2')).toBe(true)
+    it('rejects legacy app routes', () => {
+      expect(isAllowedRoute('/agents')).toBe(false)
+      expect(isAllowedRoute('/knowledge?x=1&y=2')).toBe(false)
     })
 
     it('rejects unknown routes', () => {

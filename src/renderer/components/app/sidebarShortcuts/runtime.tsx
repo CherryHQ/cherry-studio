@@ -275,15 +275,6 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
       if (!options?.inNewTab) {
         if (activeTab && destination.matchesCurrent?.(activeTab.url)) return
         if (activeTab && destination.conversation && findConversationTab([activeTab], destination.conversation)) return
-      }
-      if (navigationLayout === 'sidebar') {
-        openRoute(destination.url, {
-          title: destination.title,
-          icon: destination.icon
-        })
-        return
-      }
-      if (!options?.inNewTab) {
         const existing = destination.conversation
           ? findConversationTab(tabs, destination.conversation)
           : tabs.find(
@@ -293,6 +284,15 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
           setActiveTab(existing.id)
           return
         }
+      }
+      if (navigationLayout === 'sidebar') {
+        openRoute(destination.url, {
+          title: destination.title,
+          icon: destination.icon
+        })
+        return
+      }
+      if (!options?.inNewTab) {
         if (activeTab && !activeTab.isPinned) {
           if (miniAppIdFromTabUrl(activeTab.url)) {
             openTab(destination.url, {

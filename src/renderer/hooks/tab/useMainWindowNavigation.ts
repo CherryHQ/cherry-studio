@@ -6,7 +6,6 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
 import { isSettingsPath, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
-import { normalizeMainWindowRoute } from '@shared/utils/navigationRoute'
 
 import { useTabs } from './useTabs'
 
@@ -107,13 +106,12 @@ export function useMainWindowNavigation() {
 
   const handleRoute = useCallback(
     (to: string) => {
-      const targetPath = normalizeMainWindowRoute(to)
-      if (isSettingsPath(targetPath)) {
-        openSettingsRoute(targetPath)
+      if (isSettingsPath(to)) {
+        openSettingsRoute(to)
         return
       }
 
-      openRoute(targetPath)
+      openRoute(to)
     },
     [openRoute, openSettingsRoute]
   )

@@ -34,6 +34,23 @@ export function getWorkspaceKeyForUrl(url: string): NavigationWorkspaceKey | und
   return app ? `app:${app.id}` : undefined
 }
 
+export function isWorkspaceRootUrl(url: string, workspaceKey: NavigationWorkspaceKey): boolean {
+  const rootPath =
+    workspaceKey === LAUNCHPAD_WORKSPACE_KEY
+      ? '/app/launchpad'
+      : workspaceKey.startsWith('app:')
+        ? SIDEBAR_APPS.find((app) => app.id === workspaceKey.slice('app:'.length))?.routePrefix
+        : undefined
+  if (!rootPath) return false
+
+  try {
+    const parsed = new URL(url, 'app://cherry')
+    return parsed.pathname === rootPath && parsed.search === '' && parsed.hash === ''
+  } catch {
+    return false
+  }
+}
+
 export function getTabWorkspaceKey(tab: Tab): NavigationWorkspaceKey | undefined {
   return isNavigationWorkspaceKey(tab.workspaceKey) ? tab.workspaceKey : getWorkspaceKeyForUrl(tab.url)
 }
