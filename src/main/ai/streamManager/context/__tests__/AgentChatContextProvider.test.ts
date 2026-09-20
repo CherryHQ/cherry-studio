@@ -542,4 +542,43 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
   })
+
+  it('enforces the validation snapshot when an idle dispatch persists', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+    mocks.runtimeIsSessionBusy.mockReturnValue(false)
+
+    await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+    expect(mocks.saveMessagesTx.mock.calls[0][2]).toMatchObject({
+      id: 'agent-1',
+      sessionModelId: 'openai::gpt-4o'
+    })
+  })
+
+  it('rejects a busy follow-up when the session override changes during validation', async () => {
+    mocks.getSession
+      .mockReturnValueOnce({
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'openai::gpt-4o',
+        workspace: { path: '/tmp' }
+      })
+      .mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: null, workspace: { path: '/tmp' } })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toMatchObject({
+      code: 'CONCURRENT_MODIFICATION'
+    })
+
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
+  })
 })
