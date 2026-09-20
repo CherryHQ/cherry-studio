@@ -180,13 +180,20 @@ describe('cancel', () => {
     expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }])
   })
 
-  it('dequeues a pending prompt and does not interrupt the one that is running', async () => {
+  it('dequeues a pending prompt and also interrupts to cover the TOCTOU race', async () => {
     const doFetch = queueFetch([[1, 'other', {}, {}, []]], [[2, 'pid-1', {}, {}, []]])
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await transport.cancel('pid-1')
 
-    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+    // Queue-delete is sent (idempotent — safe even if the prompt already
+    // moved to running).  Interrupt is also sent because between the queue
+    // snapshot and the action the prompt could have started running; the
+    // prompt_id-scoped interrupt only touches our prompt.
+    expect(postWrites(doFetch)).toEqual([
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
+    ])
   })
 
   it('sends no write for an id that is neither running nor pending', async () => {
