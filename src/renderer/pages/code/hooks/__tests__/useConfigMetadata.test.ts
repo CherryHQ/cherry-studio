@@ -167,7 +167,7 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
     expect(result.current.gatewayModelsById.has(cloudModel.id)).toBe(false)
   })
 
-  // The picker shares isGatewayRoutableModel with the gateway's /v1/models listing, so every
+  // The picker shares isPublicGatewayRoutableModel with the gateway's /v1/models listing, so every
   // non-chat class is excluded — not just embedding/rerank/text-to-image (audio/video generation
   // and transcription models would reach the chat runtime and fail).
   it('excludes non-chat audio/video generation and transcription models', () => {

@@ -6,7 +6,7 @@ import { isManagedCherryAiDefaultModel, isManagedCherryCloudModel } from '@share
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isGatewayRoutableModel } from '@shared/utils/model'
+import { isGatewayRoutableModel, isPublicGatewayRoutableModel } from '@shared/utils/model'
 import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ApiGatewayModels')
@@ -121,19 +121,19 @@ export async function resolveGatewayModelAddress(
 
   let availableCloudAgentModelIds: Set<UniqueModelId> | undefined
   if (isManagedCherryCloudModel(providerId)) {
-    if (!allowInternalAgent) {
-      throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
-    }
-    try {
-      const availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
-      availableCloudAgentModelIds = new Set(availability.availableModelIdsByFeature.agent)
-    } catch (error) {
-      throw gatewayModelError('Cherry Cloud model permissions are temporarily unavailable', 503, error)
+    if (allowInternalAgent) {
+      try {
+        const availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
+        availableCloudAgentModelIds = new Set(availability.availableModelIdsByFeature.agent)
+      } catch (error) {
+        throw gatewayModelError('Cherry Cloud model permissions are temporarily unavailable', 503, error)
+      }
     }
   }
 
+  const isRoutableModel = allowInternalAgent ? isGatewayRoutableModel : isPublicGatewayRoutableModel
   const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
-    if (!isGatewayRoutableModel(candidate)) return false
+    if (!isRoutableModel(candidate)) return false
     const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
     return candidateApiModelId === apiModelId
   })
@@ -164,10 +164,7 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
       }
       // Same routable-model predicate as the renderer's gateway picker — the
       // listing must never advertise a model the proxy cannot route.
-      if (!isGatewayRoutableModel(model)) {
-        continue
-      }
-      if (isManagedCherryCloudModel(model.providerId)) {
+      if (!isPublicGatewayRoutableModel(model)) {
         continue
       }
 
