@@ -328,6 +328,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
+      // Validation crossed an async boundary; recheck the row so a changed
+      // override fails closed instead of persisting/enqueueing the stale model.
+      const current = agentSessionService.getById(validated.sessionId)
+      if (current.agentId !== validated.agentId || (current.modelId ?? null) !== validated.sessionModelId) {
+        throw DataApiErrorFactory.concurrentModification('Session', validated.sessionId)
+      }
       const savedUserMessage = agentSessionMessageService.saveMessage({
         sessionId: validated.sessionId,
         message: {
@@ -356,9 +362,21 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     }
 
-    const persisted = application
-      .get('DbService')
-      .withWriteTx((tx) => this.persistDispatchTx(tx, validated, ctx?.expectedAgentId))
+    const persisted = application.get('DbService').withWriteTx((tx) =>
+      this.persistDispatchTx(
+        tx,
+        validated,
+        // Without a caller-supplied requirement, enforce the validation snapshot
+        // so a mid-validation override change fails closed in-transaction.
+        ctx?.expectedAgentId ?? {
+          id: validated.agentId,
+          updatedAt: validated.agentUpdatedAt,
+          model: validated.agentModel,
+          type: validated.agentType,
+          sessionModelId: validated.sessionModelId
+        }
+      )
+    )
     return this.activateDispatch(persisted, subscriber)
   }
 }
