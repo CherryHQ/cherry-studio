@@ -42,7 +42,7 @@ describe('FileStorage', () => {
     })
 
     it('parents the save dialog to the caller window, keeping a Unicode file name', async () => {
-      const ownerWindow = {} as Electron.BrowserWindow
+      const ownerWindow = { isDestroyed: () => false } as Electron.BrowserWindow
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
 
       await expect(fileStorage.save(mockSenderWindow(ownerWindow), '测试-笔记-note.md', 'content')).resolves.toBeNull()
@@ -61,6 +61,19 @@ describe('FileStorage', () => {
       expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '测试-笔记-note.md' }))
     })
 
+    it('falls back to an unparented dialog when the sender window is destroyed', async () => {
+      const destroyedWindow = { isDestroyed: () => true } as Electron.BrowserWindow
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await expect(
+        fileStorage.save(mockSenderWindow(destroyedWindow), '测试-笔记-note.md', 'content')
+      ).resolves.toBeNull()
+
+      expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(dialog.showSaveDialog).mock.calls[0]).toHaveLength(1)
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '测试-笔记-note.md' }))
+    })
+
     // The native dialog itself is mocked, but the confirmed path runs the real
     // Win32 filesystem write — on a Windows host this round-trips a CJK file
     // name end to end through the save branch.
@@ -70,7 +83,11 @@ describe('FileStorage', () => {
 
       try {
         await expect(
-          fileStorage.save(mockSenderWindow({} as Electron.BrowserWindow), '测试-笔记.md', '你好世界')
+          fileStorage.save(
+            mockSenderWindow({ isDestroyed: () => false } as Electron.BrowserWindow),
+            '测试-笔记.md',
+            '你好世界'
+          )
         ).resolves.toBe(tmpFile)
         expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('你好世界')
       } finally {
@@ -233,7 +250,7 @@ describe('FileStorage', () => {
     })
 
     it('parents the image save dialog to the caller window, keeping a Unicode file name', async () => {
-      const ownerWindow = {} as Electron.BrowserWindow
+      const ownerWindow = { isDestroyed: () => false } as Electron.BrowserWindow
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
 
       await expect(

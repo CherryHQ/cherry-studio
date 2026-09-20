@@ -53,11 +53,10 @@ function normalizeTrashPath(filePath: string): string {
   return process.platform === 'win32' ? path.win32.normalize(filePath) : path.posix.normalize(filePath)
 }
 
-// Parent window for a caller-triggered save dialog, resolved through the
-// documented Electron API. Null when the sender is gone — callers fall back
-// to the unparented overload instead of throwing.
+// Missing or destroyed sender window falls back to the unparented overload.
 function resolveSaveDialogParent(event: Electron.IpcMainInvokeEvent): Electron.BrowserWindow | undefined {
-  return BrowserWindow.fromWebContents(event.sender) ?? undefined
+  const window = BrowserWindow.fromWebContents(event.sender)
+  return window && !window.isDestroyed() ? window : undefined
 }
 
 class FileStorage {
