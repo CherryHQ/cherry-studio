@@ -783,4 +783,16 @@ describe('DshRuntimeConnection tracing', () => {
     await expect(cancelled).resolves.toBe(true)
     await connection.close()
   })
+
+  it('reports success when a stop lands on a warm connection with no active turn', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+
+    // A re-dispatched user stop finds the turn already gone: there is nothing to cancel, and
+    // declining here would fall back to the teardown of a runtime a prior stop preserved.
+    runtimeMocks.bridgeRequest.mockClear()
+    await expect(connection.abortTurn()).resolves.toBe(true)
+    expect(runtimeMocks.bridgeRequest).not.toHaveBeenCalled()
+
+    await connection.close()
+  })
 })

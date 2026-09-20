@@ -4856,6 +4856,51 @@ describe('AgentSessionRuntimeService', () => {
     await stream.cancel().catch(() => undefined)
   })
 
+  it('ignores a stop re-dispatched without its turn after the stopped turn already left', async () => {
+    const events = createAsyncQueue<any>()
+    // The real driver declines a second interrupt: once the turn settled, abortTurn resolves false.
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      abortTurn: vi.fn().mockResolvedValueOnce(true).mockResolvedValue(false)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const controller = new AbortController()
+    const stream = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: controller.signal })
+      .getReader()
+
+    await expect(stream.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+    // One user stop dispatches twice: the turn stream's abort listener first, then the stream
+    // manager's stop-and-drain once the drained loops settle. The first lands gracefully...
+    controller.abort('user-requested')
+    await vi.waitFor(() => expect(connection.abortTurn).toHaveBeenCalledOnce())
+    await service.handleUserStop('session-1', handle.turnId)
+    expect(connection.close).not.toHaveBeenCalled()
+
+    // ...and the re-dispatch must not re-interrupt the idle runtime: the driver would decline,
+    // and the failed-stop fallback would close the session the first stop just preserved.
+    ;(service as any).handleRuntimeEvent((service as any).entries.get('session-1'), { type: 'turn-complete' })
+    await service.handleUserStop('session-1')
+
+    expect(connection.abortTurn).toHaveBeenCalledOnce()
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1' })
+    void service.closeSession('session-1')
+    await stream.cancel().catch(() => undefined)
+  })
+
   it('falls back to the session teardown when the graceful interrupt is declined', async () => {
     const events = createAsyncQueue<any>()
     const connection = {

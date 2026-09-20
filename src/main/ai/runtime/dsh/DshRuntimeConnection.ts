@@ -653,7 +653,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   /** Cancel only the main session's current turn; child sessions and the bridge remain live. */
   async abortTurn(): Promise<boolean> {
-    if (this.closed || !this.turnActive || !this.bridge) return false
+    if (this.closed || !this.bridge) return false
+    // A warm connection with no active turn has nothing to interrupt: report success so the
+    // stop keeps the preserved runtime instead of falling back to the teardown.
+    if (!this.turnActive) return true
     try {
       await this.bridge.request('session/cancel', { sessionId: this.input.sessionId }, { timeoutMs: 5_000 })
       // A graceful cancel keeps this connection (and its registrations) alive, so

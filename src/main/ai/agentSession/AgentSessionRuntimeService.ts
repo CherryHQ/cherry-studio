@@ -1010,6 +1010,9 @@ export class AgentSessionRuntimeService extends BaseService {
     // state, so without this binding a turn admitted after the stop extends its wait — and the
     // stop-and-drain dispatch lock behind it — onto the successor's activity.
     const stoppingTurnId = expectedTurnId ?? (entry ? this.liveTurn(entry)?.turnId : undefined)
+    // No live turn: the same Stop already settled through the turn stream's abort dispatch.
+    // Re-running it would hit an idle runtime, get declined, and tear down what it preserved.
+    if (!stoppingTurnId) return
     const connection = entry ? this.currentConnection(entry) : undefined
     const graceful = await this.raceAbortTurn(connection, sessionId, stoppingTurnId)
     if (graceful === true) return
