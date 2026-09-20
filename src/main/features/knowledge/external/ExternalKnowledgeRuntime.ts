@@ -97,6 +97,7 @@ type RegistrationSession = {
   controller: AbortController
   poll: Promise<{ appId: string; appSecret: string }>
   claimed: boolean
+  expiryTimer?: ReturnType<typeof setTimeout>
 }
 
 type ResolvedApplicationCredentials = {
@@ -121,6 +122,7 @@ type AuthorizationSession = {
   initial: boolean
   candidateCommitted: boolean
   completion?: Promise<ExternalKnowledgeConnection>
+  expiryTimer?: ReturnType<typeof setTimeout>
 }
 
 type CredentialRuntimeState = {
@@ -232,8 +234,14 @@ export class ExternalKnowledgeRuntime {
     this.accepting = false
     this.lifetime.abort()
     for (const state of this.credentialStates.values()) state.controller.abort()
-    for (const session of this.registrationSessions.values()) session.controller.abort()
-    for (const session of this.authorizationSessions.values()) session.controller.abort()
+    for (const session of this.registrationSessions.values()) {
+      this.clearSessionExpiry(session)
+      session.controller.abort()
+    }
+    for (const session of this.authorizationSessions.values()) {
+      this.clearSessionExpiry(session)
+      session.controller.abort()
+    }
     this.registrationSessions.clear()
     this.authorizationSessions.clear()
     await Promise.allSettled([...(startFlight ? [startFlight] : []), ...this.inFlight])
@@ -269,11 +277,18 @@ export class ExternalKnowledgeRuntime {
       })
     )
     void poll.catch(() => undefined)
-    this.registrationSessions.set(registrationSessionId, { controller, poll, claimed: false })
+    const expiresAt = this.now() + begun.expiresIn * 1000
+    const session: RegistrationSession = { controller, poll, claimed: false }
+    this.registrationSessions.set(registrationSessionId, session)
+    session.expiryTimer = this.scheduleSessionExpiry(expiresAt, () => {
+      if (this.registrationSessions.get(registrationSessionId) !== session) return
+      this.registrationSessions.delete(registrationSessionId)
+      session.controller.abort()
+    })
     return {
       registrationSessionId,
       verificationUri: begun.verificationUri,
-      expiresAt: new Date(this.now() + begun.expiresIn * 1000).toISOString()
+      expiresAt: new Date(expiresAt).toISOString()
     }
   }
 
@@ -281,6 +296,7 @@ export class ExternalKnowledgeRuntime {
     const session = this.registrationSessions.get(registrationSessionId)
     if (!session) return
     this.registrationSessions.delete(registrationSessionId)
+    this.clearSessionExpiry(session)
     session.controller.abort()
     await Promise.allSettled([session.poll])
   }
@@ -348,6 +364,7 @@ export class ExternalKnowledgeRuntime {
     const session = this.authorizationSessions.get(authorizationSessionId)
     if (!session) return
     this.authorizationSessions.delete(authorizationSessionId)
+    this.clearSessionExpiry(session)
     session.controller.abort()
     const state = this.credentialStates.get(session.stateCredentialReference)
     if (state && this.isCurrentCredentialGeneration(state, session.generation)) {
@@ -472,6 +489,7 @@ export class ExternalKnowledgeRuntime {
     for (const [sessionId, session] of this.authorizationSessions) {
       if (session.connectionId !== connectionId) continue
       this.authorizationSessions.delete(sessionId)
+      this.clearSessionExpiry(session)
       session.controller.abort()
       if (session.completion) authorizationCompletions.push(session.completion)
     }
@@ -546,7 +564,7 @@ export class ExternalKnowledgeRuntime {
 
       const authorizationSessionId = randomUUID()
       const expiresAt = this.now() + device.expiresIn * 1000
-      this.authorizationSessions.set(authorizationSessionId, {
+      const session: AuthorizationSession = {
         controller,
         signal,
         generation,
@@ -561,6 +579,11 @@ export class ExternalKnowledgeRuntime {
         expiresAt,
         initial: input.initial,
         candidateCommitted: false
+      }
+      this.authorizationSessions.set(authorizationSessionId, session)
+      session.expiryTimer = this.scheduleSessionExpiry(expiresAt, () => {
+        if (this.authorizationSessions.get(authorizationSessionId) !== session) return
+        void this.track(this.cancelAuthorization(authorizationSessionId)).catch(() => undefined)
       })
       return {
         authorizationSessionId,
@@ -672,7 +695,10 @@ export class ExternalKnowledgeRuntime {
       }
       throw error
     } finally {
-      this.authorizationSessions.delete(authorizationSessionId)
+      if (this.authorizationSessions.get(authorizationSessionId) === session) {
+        this.authorizationSessions.delete(authorizationSessionId)
+      }
+      this.clearSessionExpiry(session)
     }
   }
 
@@ -878,6 +904,7 @@ export class ExternalKnowledgeRuntime {
     } catch (error) {
       throw this.authorizationError(error)
     } finally {
+      this.clearSessionExpiry(registration)
       if (this.registrationSessions.get(input.registrationSessionId) === registration) {
         this.registrationSessions.delete(input.registrationSessionId)
       }
@@ -996,9 +1023,21 @@ export class ExternalKnowledgeRuntime {
     for (const [sessionId, session] of this.authorizationSessions) {
       if (session.stateCredentialReference !== credentialReference) continue
       this.authorizationSessions.delete(sessionId)
+      this.clearSessionExpiry(session)
       session.controller.abort()
     }
     return state.generation
+  }
+
+  private scheduleSessionExpiry(expiresAt: number, expire: () => void): ReturnType<typeof setTimeout> {
+    const timer = setTimeout(expire, Math.max(0, expiresAt - this.now()))
+    timer.unref()
+    return timer
+  }
+
+  private clearSessionExpiry(session: { expiryTimer?: ReturnType<typeof setTimeout> }): void {
+    if (session.expiryTimer) clearTimeout(session.expiryTimer)
+    session.expiryTimer = undefined
   }
 
   private isCurrentCredentialGeneration(state: CredentialRuntimeState, generation: number): boolean {
