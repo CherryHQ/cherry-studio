@@ -191,7 +191,7 @@ export interface ResolveMcpToolIdsOptions {
 }
 
 /**
- * Shared per-server tool-ID collection, used by the assistant-less fallback
+ * Shared per-server tool-ID collection used by the assistant-less fallback
  * (`resolveGlobalMcpToolIds`). Reads each server's cache-only catalog (which
  * kicks a non-blocking warm when cold), then applies the per-server
  * disable-policy filter (and optionally the force-prompt exclusion).
