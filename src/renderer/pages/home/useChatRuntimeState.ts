@@ -240,7 +240,10 @@ export function useChatRuntimeState({
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
     streamingLayers,
-    onRespond: respondToolApproval
+    onRespond: respondToolApproval,
+    // The home bridge's ack means Main has already applied and persisted the decision
+    // (the MCP approval path writes before resolving), so the draft can go on ack.
+    evictAskUserQuestionDraftOnApprovalAck: true
   })
   const composerContext = useMemo<ComposerContextValue>(
     () => ({ overrides: toolApprovalComposerOverrides }),

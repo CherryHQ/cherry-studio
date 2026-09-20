@@ -13,12 +13,15 @@ type ToolApprovalComposerOverridesOptions = {
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
+  /** Chat paths whose approval ack already means durable persistence may evict the draft on ack. */
+  evictAskUserQuestionDraftOnApprovalAck?: boolean
 }
 
 export function useToolApprovalComposerOverrides({
   partsByMessageId,
   streamingLayers,
-  onRespond
+  onRespond,
+  evictAskUserQuestionDraftOnApprovalAck
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   const settledHistoryParts = useMemo<Record<string, CherryMessagePart[]> | null>(() => {
     if (!streamingLayers) return null
@@ -63,7 +66,8 @@ export function useToolApprovalComposerOverrides({
       overrides.push(
         createAskUserQuestionComposerOverride({
           request: askUserQuestionRequest,
-          onRespond
+          onRespond,
+          evictDraftOnApprovalAck: evictAskUserQuestionDraftOnApprovalAck
         })
       )
     }
@@ -78,5 +82,5 @@ export function useToolApprovalComposerOverrides({
     }
 
     return overrides
-  }, [askUserQuestionRequest, onRespond, permissionRequest])
+  }, [askUserQuestionRequest, evictAskUserQuestionDraftOnApprovalAck, onRespond, permissionRequest])
 }
