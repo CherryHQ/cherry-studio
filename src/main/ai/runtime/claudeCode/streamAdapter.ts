@@ -1519,8 +1519,9 @@ export class ClaudeCodeStreamAdapter {
       return
     }
     if (message.compact_result === 'success') {
-      // Keep suppression open through compact_boundary / turn result: content between success and
-      // the boundary is still internal transfer output. Cleared on boundary, failure, or result.
+      // Success ends suppression: the SDK does not guarantee a boundary, so content after
+      // success is post-compaction output and must stay visible. A later boundary still wins.
+      this.runtimeCompactionActive = false
       this.statusSink.emit({ type: 'compaction-complete' })
     }
   }

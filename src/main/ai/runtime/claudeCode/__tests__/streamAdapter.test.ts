@@ -2044,10 +2044,8 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(ends).toHaveLength(1)
     })
 
-    it('keeps suppressing compaction prose between success and boundary', () => {
-      const { adapter, parts } = createAdapter()
-      const leakedBefore = 'summary before success'
-      const leakedBetween = 'summary between success and boundary'
+    it('preserves post-compaction replies after terminal success without a boundary', () => {
+      const { adapter, parts, statusEvents } = createAdapter()
 
       adapter.handleMessage({
         type: 'system',
@@ -2056,13 +2054,6 @@ describe('ClaudeCodeStreamAdapter', () => {
         uuid: crypto.randomUUID(),
         status: 'compacting'
       } as any)
-      adapter.handleMessage(
-        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
-      )
-      adapter.handleMessage(
-        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: leakedBefore } })
-      )
-      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
       adapter.handleMessage({
         type: 'system',
         subtype: 'status',
@@ -2075,30 +2066,24 @@ describe('ClaudeCodeStreamAdapter', () => {
         parent_tool_use_id: null,
         session_id: 'sdk-1',
         uuid: crypto.randomUUID(),
-        message: { role: 'assistant', content: [{ type: 'text', text: leakedBetween }] }
-      } as any)
-      adapter.handleMessage({
-        type: 'system',
-        subtype: 'compact_boundary',
-        session_id: 'sdk-1',
-        uuid: crypto.randomUUID(),
-        compact_metadata: { trigger: 'auto', pre_tokens: 50_000, post_tokens: 12_000 }
+        message: { role: 'assistant', content: [{ type: 'text', text: 'assistant reply' }] }
       } as any)
       adapter.handleMessage(
-        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
       )
       adapter.handleMessage(
-        streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'regular reply' } })
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'streamed reply' } })
       )
-      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(successResult())
 
       const text = parts
         .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
         .map((part) => part.delta)
         .join('')
-      expect(text).toContain('regular reply')
-      expect(text).not.toContain(leakedBefore)
-      expect(text).not.toContain(leakedBetween)
+      expect(text).toContain('assistant reply')
+      expect(text).toContain('streamed reply')
+      expect(statusEvents).toEqual([{ type: 'compaction-start' }, { type: 'compaction-complete' }])
     })
 
     it('settles a compaction that reports success without a boundary', () => {
