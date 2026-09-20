@@ -17,12 +17,13 @@ import { voiceErrorCodes } from '@shared/ipc/errors/voice'
 
 import { defineRoute } from '../define'
 
-const language = z
+const languageTag = z
   .string()
   .min(2)
   .max(64)
   .regex(/^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/)
-  .optional()
+  .refine((value) => value.toLowerCase() !== 'auto')
+const language = languageTag.optional()
 const session = z.strictObject({ sessionId: z.uuid() })
 const request = session.extend({
   requestId: z.uuid(),
@@ -179,11 +180,7 @@ export const voiceRequestSchemas = {
   }),
   'ai.transcription.asset.install': defineRoute({
     input: request.extend({
-      language: z
-        .string()
-        .min(2)
-        .max(64)
-        .regex(/^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/)
+      language: languageTag
     }),
     output: z.void()
   })

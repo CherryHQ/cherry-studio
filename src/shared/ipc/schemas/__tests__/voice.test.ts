@@ -48,6 +48,24 @@ describe('Voice IPC contract', () => {
     }
   )
 
+  it.each(['auto', 'AUTO', 'Auto'])('rejects the automatic-language sentinel %s at the IPC boundary', (language) => {
+    expect(speech.safeParse({ ...base, language }).success).toBe(false)
+    expect(
+      voiceRequestSchemas['ai.voice.model.status'].input.safeParse({
+        modelId: 'local-voice::apple-system-asr',
+        language
+      }).success
+    ).toBe(false)
+    expect(
+      voiceRequestSchemas['ai.transcription.asset.install'].input.safeParse({
+        sessionId: base.sessionId,
+        requestId: base.requestId,
+        source: 'settings',
+        language
+      }).success
+    ).toBe(false)
+  })
+
   it('preserves controlled source, trigger, and chunk metadata', () => {
     expect(
       speech.parse({
