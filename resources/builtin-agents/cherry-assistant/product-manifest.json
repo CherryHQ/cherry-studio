@@ -465,7 +465,7 @@
     }
   ],
   "providers": {
-    "version": "2435ad1032e8114c",
+    "version": "4cc9e1dfb5650906",
     "count": 64,
     "entries": [
       {
@@ -569,16 +569,16 @@
         "name": "Claude Code"
       },
       {
+        "id": "comfyui",
+        "name": "ComfyUI"
+      },
+      {
         "id": "openai-codex",
         "name": "OpenAI Codex"
       },
       {
         "id": "grok-cli",
         "name": "Grok CLI"
-      },
-      {
-        "id": "omlx",
-        "name": "oMLX"
       },
       {
         "id": "openai",
