@@ -1,4 +1,4 @@
-import { isEmpty, trim } from 'es-toolkit/compat'
+import { isEmpty, isEqual, trim } from 'es-toolkit/compat'
 import { Braces, List, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +33,7 @@ import { getProviderHostTopology } from '@shared/utils/providerTopology'
 
 import { ProviderImageEndpointFields } from '../components/ProviderImageEndpointFields'
 import {
+  getLastWrittenEndpointConfigs,
   serializeEndpointConfigsWrite,
   setLastWrittenEndpointConfigs
 } from '../hooks/providerSetting/endpointConfigsWriteCoordinator'
@@ -220,6 +221,50 @@ export function mergeEndpointConfigs(
 }
 
 /**
+ * Reconcile a refetched endpointConfigs snapshot with the last coordinated
+ * write before a drawer save builds on it.
+ *
+ * Either side can be newer: the shared snapshot wins where it differs from
+ * the drawer snapshot (it landed after open, so the refetch is stale there),
+ * otherwise the refetch wins (it carries out-of-band changes the shared
+ * snapshot predates). Only the reasoning format is contested — drafts carry
+ * everything else the drawer models.
+ */
+export function reconcileRefetchedEndpointConfigs(
+  fresh: Partial<Record<EndpointType, EndpointConfig>> | undefined,
+  shared: Partial<Record<EndpointType, EndpointConfig>> | undefined,
+  snapshot: Partial<Record<EndpointType, EndpointConfig>> | undefined
+): Partial<Record<EndpointType, EndpointConfig>> | undefined {
+  if (!fresh) {
+    return shared ?? undefined
+  }
+  if (!shared) {
+    return fresh
+  }
+  const out: Partial<Record<EndpointType, EndpointConfig>> = { ...fresh }
+  for (const type of REASONING_FORMAT_ENDPOINT_TYPES) {
+    if (isEqual(shared[type]?.reasoningFormat, snapshot?.[type]?.reasoningFormat)) {
+      continue
+    }
+    const sharedFormat = shared[type]?.reasoningFormat
+    if (sharedFormat === undefined) {
+      const next = { ...out[type] }
+      delete next.reasoningFormat
+      if (!isEmpty(next)) {
+        out[type] = next
+      } else {
+        delete out[type]
+      }
+    } else if (out[type]) {
+      out[type] = { ...out[type], reasoningFormat: sharedFormat }
+    } else {
+      out[type] = { ...shared[type] }
+    }
+  }
+  return out
+}
+
+/**
  * First non-empty secondary-endpoint draft that fails URL validation, or
  * `null` if all secondaries are empty or valid. The primary slot is
  * validated separately (it has its own required-ness rules).
@@ -364,18 +409,27 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       parsedHeaders = rowsToHeadersObject(rows)
     }
 
-    // A reasoning format committed elsewhere may still be in flight: wait for
-    // coordinated writes to finish, then refetch so untouched drafts preserve
-    // the landed value instead of writing a stale snapshot over it.
+    // A reasoning format committed elsewhere may still be in flight: the
+    // serialized write waits for it, then reconciles the refetch against the
+    // shared snapshot — either side can be newer, judged against the drawer
+    // snapshot, so neither a stale refetch nor an older write erases the
+    // landed format.
     const nextEndpointConfigs = await serializeEndpointConfigsWrite(provider.id, async () => {
-      let existingConfigs = provider?.endpointConfigs
+      const shared = getLastWrittenEndpointConfigs(provider.id)
+      const snapshot = openEndpointConfigsRef.current
+      let existingConfigs = shared ?? provider?.endpointConfigs
       try {
         const fresh = (await refetch()) as { endpointConfigs?: typeof existingConfigs } | undefined
         if (fresh?.endpointConfigs) {
-          existingConfigs = fresh.endpointConfigs
+          existingConfigs = reconcileRefetchedEndpointConfigs(fresh.endpointConfigs, shared, snapshot)
+        } else if (!shared) {
+          existingConfigs = provider?.endpointConfigs
         }
       } catch {
         // Fall back to the cached provider on refetch failure.
+        if (!shared) {
+          existingConfigs = provider?.endpointConfigs
+        }
       }
       const textEndpointConfigs = mergeEndpointConfigs(existingConfigs, endpointDrafts, openEndpointConfigsRef.current)
       const merged = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)

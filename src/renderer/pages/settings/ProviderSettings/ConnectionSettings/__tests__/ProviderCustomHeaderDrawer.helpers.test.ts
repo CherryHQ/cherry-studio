@@ -30,6 +30,7 @@ vi.mock('react-i18next', () => ({
 import {
   findInvalidSecondaryEndpointUrl,
   mergeEndpointConfigs,
+  reconcileRefetchedEndpointConfigs,
   resolveEndpointTypes
 } from '../ProviderCustomHeaderDrawer'
 
@@ -116,6 +117,47 @@ describe('mergeEndpointConfigs', () => {
       snapshot
     )
     expect(out[PRIMARY]).toEqual({ baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } })
+  })
+})
+
+describe('reconcileRefetchedEndpointConfigs', () => {
+  const SELF_HOSTED = { type: 'self-hosted' } as any
+  const snapshot = { [PRIMARY]: { baseUrl: 'https://old' } } as any
+
+  it('prefers a shared format committed after the snapshot over a stale refetch', () => {
+    const stale = { [PRIMARY]: { baseUrl: 'https://old' } } as any
+    const shared = { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: SELF_HOSTED } } as any
+    expect(reconcileRefetchedEndpointConfigs(stale, shared, snapshot)?.[PRIMARY]).toEqual({
+      baseUrl: 'https://old',
+      reasoningFormat: SELF_HOSTED
+    })
+  })
+
+  it('prefers a refetch carrying an out-of-band format over an older shared snapshot', () => {
+    const fresh = { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: SELF_HOSTED } } as any
+    expect(reconcileRefetchedEndpointConfigs(fresh, snapshot, snapshot)?.[PRIMARY]).toEqual({
+      baseUrl: 'https://old',
+      reasoningFormat: SELF_HOSTED
+    })
+  })
+
+  it('honors a coordinated clear over a stale refetch that still carries the format', () => {
+    const clearedSnapshot = { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: SELF_HOSTED } } as any
+    const stale = { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: SELF_HOSTED } } as any
+    const cleared = { [PRIMARY]: { baseUrl: 'https://old' } } as any
+    expect(reconcileRefetchedEndpointConfigs(stale, cleared, clearedSnapshot)?.[PRIMARY]).toEqual({
+      baseUrl: 'https://old'
+    })
+  })
+
+  it('returns the refetch untouched when nothing was committed after the snapshot', () => {
+    const fresh = { [PRIMARY]: { baseUrl: 'https://new' } } as any
+    expect(reconcileRefetchedEndpointConfigs(fresh, snapshot, snapshot)).toEqual(fresh)
+  })
+
+  it('falls back to the shared snapshot when the refetch is missing', () => {
+    const shared = { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: SELF_HOSTED } } as any
+    expect(reconcileRefetchedEndpointConfigs(undefined, shared, snapshot)).toBe(shared)
   })
 })
 

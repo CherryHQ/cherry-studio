@@ -349,4 +349,49 @@ describe('ProviderCustomHeaderDrawer', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
     clearLastWrittenEndpointConfigs(raceProvider.id)
   })
+
+  it('prefers the coordinated snapshot over a stale refetch when saving', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const staleProvider = {
+      ...provider,
+      id: 'stale-refetch-provider',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://openai.example.com' }
+      }
+    }
+    const landedConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://openai.example.com',
+        reasoningFormat: { type: 'self-hosted' }
+      }
+    }
+    useProviderMock.mockReturnValue({
+      provider: staleProvider,
+      updateProvider: updateProviderMock,
+      refetch: refetchMock
+    })
+    // The reasoning commit landed, but the query cache still serves the
+    // pre-commit snapshot: the save must reconcile toward the shared value.
+    setLastWrittenEndpointConfigs(staleProvider.id, landedConfigs as any)
+    refetchMock.mockResolvedValue({ endpointConfigs: staleProvider.endpointConfigs })
+
+    render(<ProviderCustomHeaderDrawer providerId={staleProvider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpointConfigs: expect.objectContaining({
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: expect.objectContaining({
+              reasoningFormat: { type: 'self-hosted' }
+            })
+          })
+        })
+      )
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    clearLastWrittenEndpointConfigs(staleProvider.id)
+  })
 })
