@@ -69,17 +69,19 @@ gateway/external file types keep their existing behavior.
 
 ## Supported extensions (upload allowlist)
 
-What the composer lets the user pick is the union of `imageExts`,
-`documentExts`, and `textExts` (`src/shared/utils/file/fileExtensions.ts`):
-images and documents always, plus every linguist-recognized code extension and
-the `customTextExts` additions (dotfiles, config, log, and domain formats such
-as `.conf`, `.config`, `.yaml`, `.toml`, `.ini`). That union covers C# (`.cs`),
+What the composer lets the user pick is `imageExts`, `documentExts`, and
+`textExts` (`src/shared/utils/file/fileExtensions.ts`) — images and documents
+always, plus every linguist-recognized code extension and the `customTextExts`
+additions (dotfiles, config, log, and domain formats such as `.conf`,
+`.config`, `.yaml`, `.toml`, `.ini`) — with `audioExts`/`videoExts` added only
+when the active model(s) support that modality. That union covers C# (`.cs`),
 stylesheets (`.css`), shell scripts (`.sh`, `.bash`), and common configuration
 files. Unknown extensions are not rejected outright — `isSupportedFile`
 (`src/renderer/utils/file.ts`) falls back to a content sniff that accepts text
 content — while recognized binary extensions (executables, archives) stay
-rejected, with a per-file notice in the composer and a short unsupported-type
-note to the model.
+rejected with an aggregate "N files are not supported" toast in the composer.
+Files that attach but cannot be decoded inline reach the model as a short
+unsupported-type note instead (see the routing matrix above).
 
 ## The cap (the only context guard)
 
