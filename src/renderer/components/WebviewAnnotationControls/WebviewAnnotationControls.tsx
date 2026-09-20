@@ -1,4 +1,5 @@
 import { EditorContent } from '@tiptap/react'
+import Color from 'color'
 import type { WebviewTag } from 'electron'
 import { Copy, Loader2, SquareDashedMousePointer, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
@@ -12,7 +13,9 @@ import { createComposerDraftContent, serializeComposerDocument } from '@renderer
 import { createComposerEditorPreset } from '@renderer/components/composer/composerPreset'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import { useTheme } from '@renderer/hooks/useTheme'
+import useUserTheme from '@renderer/hooks/useUserTheme'
 import { toast } from '@renderer/services/toast'
+import { getForegroundColor } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import {
   WEBVIEW_ANNOTATION_LIMITS,
@@ -52,6 +55,14 @@ export function WebviewAnnotationControls({
     [t]
   )
   useEffect(() => setClearConfirmTargetId(null), [target.id])
+  const { userTheme } = useUserTheme()
+  // Same transform useUserTheme applies to `--cs-theme-primary`, so the guest gets an identical literal colour.
+  const accent = useMemo(() => Color(userTheme.colorPrimary).toString(), [userTheme.colorPrimary])
+  // Same transform useUserTheme applies to `--cs-theme-primary-foreground`, so pin digits stay readable on the accent.
+  const accentForeground = useMemo(
+    () => getForegroundColor(Color(userTheme.colorPrimary).hex()),
+    [userTheme.colorPrimary]
+  )
   const {
     enabled,
     count,
@@ -72,6 +83,8 @@ export function WebviewAnnotationControls({
     target,
     locale,
     theme: theme === ThemeMode.dark ? 'dark' : 'light',
+    accent,
+    accentForeground,
     onAnnotationSaved
   })
 
