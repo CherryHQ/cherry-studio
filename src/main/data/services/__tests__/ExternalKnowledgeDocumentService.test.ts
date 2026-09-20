@@ -148,6 +148,14 @@ describe('ExternalKnowledgeDocumentService', () => {
     expect(secondPage.nextCursor).toBeUndefined()
   })
 
+  it('reads every source document synchronously without paging', () => {
+    seedOwnership()
+
+    expect(
+      externalKnowledgeDocumentService.listBySourceIdTx(dbh.db, SOURCE_ID).map((document) => document.remoteObjectId)
+    ).toEqual(['doc-1', 'doc-2'])
+  })
+
   it('returns only active ownership in one batch and ignores ownerless items', () => {
     seedOwnership()
 
@@ -343,6 +351,119 @@ describe('ExternalKnowledgeDocumentService', () => {
       )
     ).toBeNull()
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toHaveLength(beforeCount)
+  })
+
+  it('updates a current warning without advancing the published revision or content owner', () => {
+    seedOwnership()
+    const documentId = '0198f3f2-7d1a-7abc-8def-123456789ab5'
+    const expected = {
+      knowledgeItemId: FIRST_ITEM_ID,
+      contentHash: 'hash-1',
+      remoteRevision: '1'
+    }
+
+    expect(
+      externalKnowledgeDocumentService.updateSyncWarningTx(dbh.db, syncFence, documentId, expected, {
+        canonicalNodeId: 'node-1-moved',
+        parentNodeId: 'parent-1',
+        relativeBreadcrumb: ['Moved', 'Document 1'],
+        title: 'Document 1 moved',
+        originalUrl: 'https://example.feishu.cn/wiki/node-1-moved',
+        lastSeenAt: 300,
+        currentWarning: 'transient'
+      })
+    ).toMatchObject({
+      canonicalNodeId: 'node-1-moved',
+      title: 'Document 1 moved',
+      remoteRevision: '1',
+      contentHash: 'hash-1',
+      knowledgeItemId: FIRST_ITEM_ID,
+      currentWarning: 'transient'
+    })
+  })
+
+  it('projects warning metadata at runtime when a wider object includes publication fields', () => {
+    seedOwnership()
+    const documentId = '0198f3f2-7d1a-7abc-8def-123456789ab5'
+    const widerMetadata = {
+      canonicalNodeId: 'node-1-moved',
+      parentNodeId: 'parent-1',
+      relativeBreadcrumb: ['Moved', 'Document 1'],
+      title: 'Document 1 moved',
+      originalUrl: 'https://example.feishu.cn/wiki/node-1-moved',
+      lastSeenAt: 300,
+      currentWarning: 'transient',
+      remoteRevision: 'revision-that-must-not-publish',
+      contentHash: 'hash-that-must-not-publish',
+      knowledgeItemId: SECOND_ITEM_ID
+    }
+
+    externalKnowledgeDocumentService.updateSyncWarningTx(
+      dbh.db,
+      syncFence,
+      documentId,
+      { knowledgeItemId: FIRST_ITEM_ID, contentHash: 'hash-1', remoteRevision: '1' },
+      widerMetadata
+    )
+
+    expect(externalKnowledgeDocumentService.getById(documentId)).toMatchObject({
+      canonicalNodeId: 'node-1-moved',
+      currentWarning: 'transient',
+      remoteRevision: '1',
+      contentHash: 'hash-1',
+      knowledgeItemId: FIRST_ITEM_ID
+    })
+  })
+
+  it('rolls back every unavailable mark when one ownership compare-and-swap fails', () => {
+    seedOwnership()
+    const firstDocumentId = '0198f3f2-7d1a-7abc-8def-123456789ab5'
+    const secondDocumentId = '0198f3f2-7d1a-7abc-8def-123456789ab6'
+    dbh.db
+      .update(externalKnowledgeDocumentTable)
+      .set({
+        availability: 'active',
+        knowledgeItemId: SECOND_ITEM_ID,
+        contentHash: 'hash-2',
+        currentWarning: null
+      })
+      .where(eq(externalKnowledgeDocumentTable.id, secondDocumentId))
+      .run()
+
+    expect(() =>
+      dbh.db.transaction((tx) => {
+        externalKnowledgeDocumentService.markUnavailableBatchTx(
+          tx,
+          syncFence,
+          [
+            {
+              documentId: firstDocumentId,
+              expected: { knowledgeItemId: FIRST_ITEM_ID, contentHash: 'hash-1', remoteRevision: '1' }
+            },
+            {
+              documentId: secondDocumentId,
+              expected: { knowledgeItemId: SECOND_ITEM_ID, contentHash: 'stale-hash', remoteRevision: '2' }
+            }
+          ],
+          'source-document-missing'
+        )
+      })
+    ).toThrow('External knowledge document ownership changed during reconciliation')
+
+    expect(externalKnowledgeDocumentService.getById(firstDocumentId)).toMatchObject({
+      availability: 'active',
+      knowledgeItemId: FIRST_ITEM_ID,
+      contentHash: 'hash-1'
+    })
+    expect(externalKnowledgeDocumentService.getById(secondDocumentId)).toMatchObject({
+      availability: 'active',
+      knowledgeItemId: SECOND_ITEM_ID,
+      contentHash: 'hash-2'
+    })
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
+      expect.objectContaining({ id: FIRST_ITEM_ID }),
+      expect.objectContaining({ id: SECOND_ITEM_ID })
+    ])
   })
 
   it('requires every nullable sync metadata field to be explicit', () => {

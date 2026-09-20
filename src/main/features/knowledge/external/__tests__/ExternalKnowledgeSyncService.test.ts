@@ -11,12 +11,14 @@ import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
 
 import type { IndexableKnowledgeItem } from '../../items'
+import { ExternalKnowledgeRuntimeError } from '../ExternalKnowledgeRuntime'
 import {
   type ExternalKnowledgeSyncDependencies,
+  ExternalKnowledgeSourceSyncError,
   ExternalKnowledgeSyncService,
   type SyncExternalKnowledgeDocumentInput
 } from '../ExternalKnowledgeSyncService'
-import type { FeishuKnowledgeReference } from '../feishuKnowledgeReadAdapter'
+import type { FeishuKnowledgeReference, FeishuKnowledgeSourceScanResult } from '../feishuKnowledgeReadAdapter'
 
 const BASE_ID = '11111111-1111-4111-8111-111111111111'
 const CONNECTION_ID = '0198f3f2-7d10-7abc-8def-123456789abc'
@@ -27,6 +29,8 @@ const JOB_ID = '0198f3f2-7d12-7abc-8def-123456789abc'
 const STAGED_ITEM_ID = '0198f3f2-7d13-7abc-8def-123456789abc'
 const OLD_ITEM_ID = '0198f3f2-7d14-7abc-8def-123456789abc'
 const OLD_DOCUMENT_ID = '0198f3f2-7d15-7abc-8def-123456789abc'
+const SECOND_OLD_ITEM_ID = '0198f3f2-7d20-7abc-8def-123456789abc'
+const SECOND_OLD_DOCUMENT_ID = '0198f3f2-7d21-7abc-8def-123456789abc'
 const OBSERVED_AT = 1_800_000_000_000
 const OLD_CONTENT_HASH = '2e599d46723a6e7f099e12d2bd8f8b8d77a2e043fde6f9a9c8149b204360b2b2'
 
@@ -64,6 +68,12 @@ const preparedMaterial = (item: IndexableKnowledgeItem, text: string) => ({
     embeddings: []
   }
 })
+
+const scanResult = (
+  canonicalReferences: FeishuKnowledgeReference[],
+  visibleNodeCount = canonicalReferences.length,
+  unsupportedOrSkippedCount = 0
+): FeishuKnowledgeSourceScanResult => ({ canonicalReferences, visibleNodeCount, unsupportedOrSkippedCount })
 
 describe('ExternalKnowledgeSyncService', () => {
   const dbh = setupTestDatabase()
@@ -128,15 +138,20 @@ describe('ExternalKnowledgeSyncService', () => {
   const createService = (
     content: string,
     dependencyOverrides: Partial<ExternalKnowledgeSyncDependencies> = {},
-    readOverride?: (connectionId: string) => Promise<string>
+    readOverride?: (connectionId: string, reference: FeishuKnowledgeReference) => Promise<string>,
+    scanOverride?: (connectionId: string) => Promise<FeishuKnowledgeSourceScanResult>,
+    lockManager = new KeyedMutex()
   ): ExternalKnowledgeSyncService => {
     const runtime = {
+      scanFeishuSource: vi.fn(async (connectionId) =>
+        scanOverride ? await scanOverride(connectionId) : scanResult([reference()])
+      ),
       readFeishuDocument: vi.fn(async (connectionId, item) => {
         if (readOverride) {
           return {
             descriptor: item.descriptor,
             contentType: 'markdown' as const,
-            content: await readOverride(connectionId)
+            content: await readOverride(connectionId, item)
           }
         }
         return {
@@ -167,9 +182,10 @@ describe('ExternalKnowledgeSyncService', () => {
         rebuildMaterial: (itemId, input) => materials.set(itemId, input),
         deleteMaterials: async (itemIds) => itemIds.forEach((itemId) => materials.delete(itemId))
       }),
+      now: () => OBSERVED_AT,
       ...dependencyOverrides
     }
-    return new ExternalKnowledgeSyncService(runtime, new KeyedMutex(), dependencies)
+    return new ExternalKnowledgeSyncService(runtime, lockManager, dependencies)
   }
 
   const seedActiveDocument = (overrides: Partial<typeof externalKnowledgeDocumentTable.$inferInsert> = {}) => {
@@ -240,6 +256,22 @@ describe('ExternalKnowledgeSyncService', () => {
     signal: new AbortController().signal,
     reportProgress: vi.fn()
   })
+
+  const sourceSyncInput = (signal = new AbortController().signal) => ({
+    fence: { baseId: BASE_ID, sourceId: SOURCE_ID, expectedSourceRevision: 3, activeJobId: JOB_ID },
+    signal,
+    reportProgress: vi.fn()
+  })
+
+  const captureSourceError = async (promise: Promise<unknown>): Promise<ExternalKnowledgeSourceSyncError> => {
+    try {
+      await promise
+      throw new Error('Expected source synchronization to fail')
+    } catch (error) {
+      expect(error).toBeInstanceOf(ExternalKnowledgeSourceSyncError)
+      return error as ExternalKnowledgeSourceSyncError
+    }
+  }
 
   it('exposes the source fence as the only source authority', () => {
     type HasIndependentSource = 'source' extends keyof SyncExternalKnowledgeDocumentInput ? true : false
@@ -855,5 +887,671 @@ describe('ExternalKnowledgeSyncService', () => {
     expect(snapshots.has(`${BASE_ID}:${newRelativePath}`)).toBe(true)
     expect(materials.has(OLD_ITEM_ID)).toBe(true)
     expect(materials.has(STAGED_ITEM_ID)).toBe(true)
+  })
+
+  it('marks a missing active document unavailable before cleaning its searchable artifacts', async () => {
+    const oldRelativePath = seedActiveDocument()
+    const service = createService('unused', {}, undefined, async () => scanResult([]))
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result).toEqual({
+      scannedCount: 0,
+      indexedCount: 0,
+      unchangedCount: 0,
+      skippedCount: 0,
+      warningCount: 0,
+      warnings: []
+    })
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({
+        id: OLD_DOCUMENT_ID,
+        availability: 'unavailable',
+        knowledgeItemId: null,
+        contentHash: null,
+        remoteRevision: 'revision-1',
+        currentWarning: 'source-document-missing'
+      })
+    ])
+    expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(false)
+    expect(materials.has(OLD_ITEM_ID)).toBe(false)
+  })
+
+  it.each([
+    ['pagination/transient', new ExternalKnowledgeRuntimeError('transient'), 'transient'],
+    ['connection', new ExternalKnowledgeRuntimeError('not-found'), 'not-found'],
+    ['credential', new ExternalKnowledgeRuntimeError('credential-unavailable'), 'credential-unavailable'],
+    ['scope', new ExternalKnowledgeRuntimeError('scope-missing'), 'scope-missing'],
+    ['authentication', new ExternalKnowledgeRuntimeError('reauthorization-required'), 'reauthorization-required'],
+    [
+      'scope resource permission',
+      new ExternalKnowledgeRuntimeError('resource-permission-denied'),
+      'resource-permission-denied'
+    ],
+    ['unknown provider failure', new Error('private provider payload'), 'scan-failed'],
+    ['DOM cancellation', new DOMException('private cancellation detail', 'AbortError'), 'cancelled']
+  ])('does not reconcile absence after a %s scan failure', async (_name, failure, expectedCode) => {
+    seedActiveDocument()
+    const service = createService('unused', {}, undefined, async () => {
+      throw failure
+    })
+
+    const error = await captureSourceError(service.syncSource(sourceSyncInput()))
+
+    expect(error.code).toBe(expectedCode)
+    expect(JSON.stringify(error.summary)).not.toContain('private')
+    expect(error.summary).toEqual({
+      scannedCount: 0,
+      indexedCount: 0,
+      unchangedCount: 0,
+      skippedCount: 0,
+      warningCount: 0,
+      warnings: []
+    })
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ availability: 'active', knowledgeItemId: OLD_ITEM_ID })
+    ])
+    expect(materials.has(OLD_ITEM_ID)).toBe(true)
+  })
+
+  it('classifies caller cancellation without reconciling absence', async () => {
+    seedActiveDocument()
+    const controller = new AbortController()
+    controller.abort(new DOMException('caller detail', 'AbortError'))
+    const service = createService('unused', {}, undefined, async () => scanResult([]))
+
+    const error = await captureSourceError(service.syncSource(sourceSyncInput(controller.signal)))
+
+    expect(error.code).toBe('cancelled')
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ availability: 'active', knowledgeItemId: OLD_ITEM_ID })
+    ])
+  })
+
+  it.each([
+    ['connection', 'not-found'],
+    ['credential', 'credential-unavailable'],
+    ['scope', 'scope-missing'],
+    ['authentication', 'reauthorization-required']
+  ] as const)('does not reconcile absence after a document read %s failure', async (_name, code) => {
+    seedActiveDocument()
+    const scannedReference = reference({ remoteObjectId: 'doc-fatal', nodeId: 'node-fatal' })
+    const service = createService(
+      'unused',
+      {},
+      async () => {
+        throw new ExternalKnowledgeRuntimeError(code)
+      },
+      async () => scanResult([scannedReference])
+    )
+
+    const error = await captureSourceError(service.syncSource(sourceSyncInput()))
+
+    expect(error.code).toBe(code)
+    expect(error.summary).toEqual({
+      scannedCount: 1,
+      indexedCount: 0,
+      unchangedCount: 0,
+      skippedCount: 0,
+      warningCount: 0,
+      warnings: []
+    })
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ availability: 'active', knowledgeItemId: OLD_ITEM_ID })
+    ])
+    expect(materials.has(OLD_ITEM_ID)).toBe(true)
+  })
+
+  it('classifies a custom-reason cancellation while waiting for the warning mutation lock', async () => {
+    seedActiveDocument({ remoteRevision: 'revision-0' })
+    const lockManager = new KeyedMutex()
+    let releaseLock!: () => void
+    let reportLockHeld!: () => void
+    let reportRead!: () => void
+    const lockStarted = new Promise<void>((resolve) => {
+      reportLockHeld = resolve
+    })
+    const readStarted = new Promise<void>((resolve) => {
+      reportRead = resolve
+    })
+    const lockHeld = lockManager.runExclusive(BASE_ID, async () => {
+      reportLockHeld()
+      await new Promise<void>((resolve) => {
+        releaseLock = resolve
+      })
+    })
+    await lockStarted
+    const controller = new AbortController()
+    const service = createService(
+      'unused',
+      {},
+      async () => {
+        reportRead()
+        throw new ExternalKnowledgeRuntimeError('transient')
+      },
+      undefined,
+      lockManager
+    )
+    const syncError = captureSourceError(service.syncSource(sourceSyncInput(controller.signal)))
+    await readStarted
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    controller.abort(new Error('private cancellation detail'))
+    releaseLock()
+    await lockHeld
+
+    const error = await syncError
+
+    expect(error.code).toBe('cancelled')
+    expect(JSON.stringify(error.summary)).not.toContain('private cancellation detail')
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ availability: 'active', knowledgeItemId: OLD_ITEM_ID, currentWarning: null })
+    ])
+  })
+
+  it.each([
+    ['source revision', { revision: 4 }],
+    ['active job', { activeJobId: '0198f3f2-7d16-7abc-8def-123456789abc' }]
+  ])('does not reconcile absence with a stale %s fence', async (_name, mutation) => {
+    seedActiveDocument()
+    dbh.db
+      .update(externalKnowledgeSourceTable)
+      .set(mutation)
+      .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
+      .run()
+    const service = createService('unused', {}, undefined, async () => scanResult([]))
+
+    const error = await captureSourceError(service.syncSource(sourceSyncInput()))
+
+    expect(error.code).toBe('stale-publication')
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ availability: 'active', knowledgeItemId: OLD_ITEM_ID })
+    ])
+  })
+
+  it.each([
+    ['source revision', { revision: 4 }],
+    ['active job', { activeJobId: '0198f3f2-7d16-7abc-8def-123456789abc' }]
+  ])('rolls back zero missing documents when the %s fence changes after scanning', async (_name, mutation) => {
+    seedActiveDocument()
+    const service = createService('unused', {}, undefined, async () => {
+      dbh.db
+        .update(externalKnowledgeSourceTable)
+        .set(mutation)
+        .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
+        .run()
+      return scanResult([], 4, 1)
+    })
+
+    const error = await captureSourceError(service.syncSource(sourceSyncInput()))
+
+    expect(error.code).toBe('stale-publication')
+    expect(error.summary).toMatchObject({ scannedCount: 4, skippedCount: 1 })
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ availability: 'active', knowledgeItemId: OLD_ITEM_ID })
+    ])
+  })
+
+  it('retains an existing searchable publication and old revision after a transient document read', async () => {
+    const oldRelativePath = seedActiveDocument()
+    const changedReference = reference({
+      nodeId: 'node-2',
+      title: 'Architecture renamed',
+      remoteRevision: 'revision-2'
+    })
+    const service = createService(
+      'unused',
+      {},
+      async () => {
+        throw new ExternalKnowledgeRuntimeError('transient')
+      },
+      async () => scanResult([changedReference])
+    )
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result).toEqual({
+      scannedCount: 1,
+      indexedCount: 0,
+      unchangedCount: 0,
+      skippedCount: 1,
+      warningCount: 1,
+      warnings: [{ code: 'transient', remoteObjectId: 'doc-1' }]
+    })
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
+      expect.objectContaining({
+        id: OLD_ITEM_ID,
+        data: expect.objectContaining({ title: 'Architecture renamed', relativePath: oldRelativePath })
+      })
+    ])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({
+        knowledgeItemId: OLD_ITEM_ID,
+        contentHash: OLD_CONTENT_HASH,
+        remoteRevision: 'revision-1',
+        canonicalNodeId: 'node-2',
+        currentWarning: 'transient'
+      })
+    ])
+    expect(snapshots.get(`${BASE_ID}:${oldRelativePath}`)).toBe('old body')
+    expect(materials.get(OLD_ITEM_ID)).toEqual({ content: 'old body' })
+  })
+
+  it('treats a changed document owner before warning publication as run-fatal stale state', async () => {
+    seedActiveDocument({ remoteRevision: 'revision-0' })
+    const lockManager = new KeyedMutex()
+    let releaseLock!: () => void
+    let reportLockHeld!: () => void
+    let reportRead!: () => void
+    const lockStarted = new Promise<void>((resolve) => {
+      reportLockHeld = resolve
+    })
+    const readStarted = new Promise<void>((resolve) => {
+      reportRead = resolve
+    })
+    const lockHeld = lockManager.runExclusive(BASE_ID, async () => {
+      reportLockHeld()
+      await new Promise<void>((resolve) => {
+        releaseLock = resolve
+      })
+    })
+    await lockStarted
+    const service = createService(
+      'unused',
+      {},
+      async () => {
+        reportRead()
+        throw new ExternalKnowledgeRuntimeError('transient')
+      },
+      undefined,
+      lockManager
+    )
+    const syncError = captureSourceError(service.syncSource(sourceSyncInput()))
+    await readStarted
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    dbh.db
+      .insert(knowledgeItemTable)
+      .values({
+        id: STAGED_ITEM_ID,
+        baseId: BASE_ID,
+        groupId: null,
+        type: 'external',
+        data: {
+          source: 'Engineering Wiki',
+          title: 'Concurrent owner',
+          relativePath: KnowledgeRelativePathSchema.parse('external/concurrent-owner.md')
+        },
+        status: 'completed',
+        error: null
+      })
+      .run()
+    dbh.db
+      .update(externalKnowledgeDocumentTable)
+      .set({ knowledgeItemId: STAGED_ITEM_ID, contentHash: 'concurrent-hash', remoteRevision: 'concurrent-revision' })
+      .where(eq(externalKnowledgeDocumentTable.id, OLD_DOCUMENT_ID))
+      .run()
+    releaseLock()
+    await lockHeld
+
+    const error = await syncError
+
+    expect(error.code).toBe('stale-publication')
+    expect(
+      dbh.db
+        .select()
+        .from(externalKnowledgeDocumentTable)
+        .where(eq(externalKnowledgeDocumentTable.id, OLD_DOCUMENT_ID))
+        .get()
+    ).toMatchObject({
+      knowledgeItemId: STAGED_ITEM_ID,
+      contentHash: 'concurrent-hash',
+      remoteRevision: 'concurrent-revision',
+      currentWarning: null
+    })
+  })
+
+  it('does not create rows for a new document with a transient body read failure', async () => {
+    const service = createService('unused', {}, async () => {
+      throw new ExternalKnowledgeRuntimeError('transient')
+    })
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result.skippedCount).toBe(1)
+    expect(result.warnings).toEqual([{ code: 'transient', remoteObjectId: 'doc-1' }])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
+    expect(snapshots.size).toBe(0)
+    expect(materials.size).toBe(0)
+  })
+
+  it('continues after a new document failure and publishes the next canonical document', async () => {
+    const failedReference = reference({ remoteObjectId: 'doc-failed', nodeId: 'node-failed', title: 'Failed' })
+    const healthyReference = reference({ remoteObjectId: 'doc-healthy', nodeId: 'node-healthy', title: 'Healthy' })
+    const service = createService(
+      'unused',
+      {},
+      async (_connectionId, scannedReference) => {
+        if (scannedReference.descriptor.remoteObjectId === 'doc-failed') {
+          throw new ExternalKnowledgeRuntimeError('transient')
+        }
+        return 'healthy body'
+      },
+      async () => scanResult([failedReference, healthyReference])
+    )
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result).toEqual({
+      scannedCount: 2,
+      indexedCount: 1,
+      unchangedCount: 0,
+      skippedCount: 1,
+      warningCount: 1,
+      warnings: [{ code: 'transient', remoteObjectId: 'doc-failed' }]
+    })
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toHaveLength(1)
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ remoteObjectId: 'doc-healthy', knowledgeItemId: STAGED_ITEM_ID })
+    ])
+  })
+
+  it('purges an existing publication only for an explicit document read permission denial', async () => {
+    const oldRelativePath = seedActiveDocument({ remoteRevision: 'revision-0' })
+    const service = createService('unused', {}, async () => {
+      throw new ExternalKnowledgeRuntimeError('resource-permission-denied')
+    })
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result.skippedCount).toBe(1)
+    expect(result.warnings).toEqual([{ code: 'resource-permission-denied', remoteObjectId: 'doc-1' }])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ availability: 'unavailable', knowledgeItemId: null, contentHash: null })
+    ])
+    expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(false)
+    expect(materials.has(OLD_ITEM_ID)).toBe(false)
+  })
+
+  it('does not create rows for a new document with a read permission denial', async () => {
+    const service = createService('unused', {}, async () => {
+      throw new ExternalKnowledgeRuntimeError('resource-permission-denied')
+    })
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result.skippedCount).toBe(1)
+    expect(result.warnings).toEqual([{ code: 'resource-permission-denied', remoteObjectId: 'doc-1' }])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
+  })
+
+  it('does not treat a permission-shaped preparation failure as a document read ACL denial', async () => {
+    seedActiveDocument({ remoteRevision: 'revision-0' })
+    const service = createService('changed body', {
+      prepareKnowledgeMaterial: async () => {
+        throw new ExternalKnowledgeRuntimeError('resource-permission-denied')
+      }
+    })
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result.warnings).toEqual([{ code: 'document-sync-failed', remoteObjectId: 'doc-1' }])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({
+        availability: 'active',
+        knowledgeItemId: OLD_ITEM_ID,
+        contentHash: OLD_CONTENT_HASH,
+        remoteRevision: 'revision-0',
+        currentWarning: 'document-sync-failed'
+      })
+    ])
+  })
+
+  it('retains an existing publication and records a safe warning when preparation fails', async () => {
+    const oldRelativePath = seedActiveDocument({ remoteRevision: 'revision-0' })
+    const service = createService('changed body', {
+      prepareKnowledgeMaterial: async () => {
+        throw new Error('private prepared body failure')
+      }
+    })
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result.skippedCount).toBe(1)
+    expect(result.warnings).toEqual([{ code: 'document-sync-failed', remoteObjectId: 'doc-1' }])
+    expect(JSON.stringify(result)).not.toContain('private prepared body failure')
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({
+        availability: 'active',
+        knowledgeItemId: OLD_ITEM_ID,
+        contentHash: OLD_CONTENT_HASH,
+        remoteRevision: 'revision-0',
+        currentWarning: 'document-sync-failed'
+      })
+    ])
+    expect(snapshots.get(`${BASE_ID}:${oldRelativePath}`)).toBe('old body')
+    expect(materials.get(OLD_ITEM_ID)).toEqual({ content: 'old body' })
+  })
+
+  it('does not leave rows or staged artifacts when first publication preparation fails', async () => {
+    const service = createService('new body', {
+      prepareKnowledgeMaterial: async () => {
+        throw new Error('private prepared body failure')
+      }
+    })
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result.skippedCount).toBe(1)
+    expect(result.warnings).toEqual([{ code: 'document-sync-failed', remoteObjectId: 'doc-1' }])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
+    expect(snapshots.size).toBe(0)
+    expect(materials.size).toBe(0)
+  })
+
+  it('reports staged artifact cleanup warnings after a tolerated document failure', async () => {
+    const service = createService('new body', {
+      prepareKnowledgeMaterial: async () => {
+        throw new Error('private prepared body failure')
+      },
+      deleteKnowledgeItemFiles: async () => {
+        throw new Error('private staged snapshot cleanup failure')
+      }
+    })
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result.warningCount).toBe(2)
+    expect(result.warnings).toEqual([
+      { code: 'document-sync-failed', remoteObjectId: 'doc-1' },
+      { code: 'staged-snapshot-cleanup-failed', remoteObjectId: 'doc-1' }
+    ])
+    expect(JSON.stringify(result)).not.toContain('private')
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
+  })
+
+  it('keeps reconciled rows invisible when missing-document artifact cleanup fails', async () => {
+    seedActiveDocument()
+    const service = createService(
+      'unused',
+      {
+        getIndexStore: () => ({
+          listExistingEmbeddingHashes: () => new Set(),
+          rebuildMaterial: (itemId, input) => materials.set(itemId, input),
+          deleteMaterials: async () => {
+            throw new Error('private vector cleanup failure')
+          }
+        }),
+        deleteKnowledgeItemFiles: async () => {
+          throw new Error('private snapshot cleanup failure')
+        }
+      },
+      undefined,
+      async () => scanResult([])
+    )
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result.warningCount).toBe(result.warnings.length)
+    expect(result.warnings).toEqual([
+      { code: 'missing-vector-cleanup-failed' },
+      { code: 'missing-snapshot-cleanup-failed' }
+    ])
+    expect(JSON.stringify(result)).not.toContain('private')
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ availability: 'unavailable', knowledgeItemId: null })
+    ])
+  })
+
+  it('continues snapshot cleanup and reports a warning when opening the missing-document index store fails', async () => {
+    const oldRelativePath = seedActiveDocument()
+    const service = createService(
+      'unused',
+      {
+        getIndexStore: () => {
+          throw new Error('private index open failure')
+        }
+      },
+      undefined,
+      async () => scanResult([])
+    )
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result.warnings).toEqual([{ code: 'missing-vector-cleanup-failed' }])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ availability: 'unavailable', knowledgeItemId: null })
+    ])
+    expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(false)
+  })
+
+  it('rolls back all missing document visibility and item deletes when one item CAS fails', async () => {
+    seedActiveDocument()
+    dbh.db
+      .insert(knowledgeItemTable)
+      .values({
+        id: SECOND_OLD_ITEM_ID,
+        baseId: BASE_ID,
+        groupId: null,
+        type: 'external',
+        data: {
+          source: 'Engineering Wiki',
+          title: 'Second document',
+          relativePath: KnowledgeRelativePathSchema.parse('external/second-old-document.md')
+        },
+        status: 'failed',
+        error: 'failed before reconciliation'
+      })
+      .run()
+    dbh.db
+      .insert(externalKnowledgeDocumentTable)
+      .values({
+        id: SECOND_OLD_DOCUMENT_ID,
+        sourceId: SOURCE_ID,
+        remoteObjectId: 'doc-2',
+        canonicalNodeId: 'node-2',
+        parentNodeId: null,
+        relativeBreadcrumb: ['Engineering', 'Second document'],
+        title: 'Second document',
+        originalUrl: 'https://example.feishu.cn/wiki/node-2',
+        remoteRevision: 'revision-1',
+        contentHash: 'second-content-hash',
+        lastSeenAt: 1,
+        availability: 'active',
+        knowledgeItemId: SECOND_OLD_ITEM_ID,
+        currentWarning: null
+      })
+      .run()
+    const service = createService('unused', {}, undefined, async () => scanResult([]))
+
+    const error = await captureSourceError(service.syncSource(sourceSyncInput()))
+
+    expect(error.code).toBe('stale-publication')
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
+      expect.objectContaining({ id: OLD_ITEM_ID, status: 'completed' }),
+      expect.objectContaining({ id: SECOND_OLD_ITEM_ID, status: 'failed' })
+    ])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ id: OLD_DOCUMENT_ID, availability: 'active', knowledgeItemId: OLD_ITEM_ID }),
+      expect.objectContaining({
+        id: SECOND_OLD_DOCUMENT_ID,
+        availability: 'active',
+        knowledgeItemId: SECOND_OLD_ITEM_ID
+      })
+    ])
+  })
+
+  it('uses scan units for summary counts and the canonical remote object for one publication', async () => {
+    const service = createService('canonical body', {}, undefined, async () => scanResult([reference()], 3, 2))
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result).toEqual({
+      scannedCount: 3,
+      indexedCount: 1,
+      unchangedCount: 0,
+      skippedCount: 2,
+      warningCount: 0,
+      warnings: []
+    })
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toHaveLength(1)
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ remoteObjectId: 'doc-1', knowledgeItemId: STAGED_ITEM_ID })
+    ])
+  })
+
+  it('counts matching published revisions as unchanged alongside unsupported scan references', async () => {
+    seedActiveDocument()
+    const service = createService('unused', {}, undefined, async () => scanResult([reference()], 3, 2))
+
+    const result = await service.syncSource(sourceSyncInput())
+
+    expect(result).toEqual({
+      scannedCount: 3,
+      indexedCount: 0,
+      unchangedCount: 1,
+      skippedCount: 2,
+      warningCount: 0,
+      warnings: []
+    })
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+  })
+
+  it('treats stale publication as run-fatal and skips absence reconciliation', async () => {
+    seedActiveDocument({ remoteObjectId: 'missing-doc' })
+    const service = createService('new body', {
+      prepareKnowledgeMaterial: async ({ item }) => {
+        dbh.db
+          .update(externalKnowledgeSourceTable)
+          .set({ revision: 4 })
+          .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
+          .run()
+        return preparedMaterial(item, 'new body')
+      }
+    })
+
+    const error = await captureSourceError(service.syncSource(sourceSyncInput()))
+
+    expect(error.code).toBe('stale-publication')
+    expect(error.summary.scannedCount).toBe(1)
+    expect(error.summary.skippedCount).toBe(0)
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ remoteObjectId: 'missing-doc', availability: 'active', knowledgeItemId: OLD_ITEM_ID })
+    ])
   })
 })

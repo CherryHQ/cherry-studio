@@ -4,8 +4,10 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import {
+  ExternalKnowledgeDocumentOwnershipChangedError,
   type ExternalKnowledgeDocumentSyncMetadata,
   type ExternalKnowledgeDocumentVersion,
+  type ExternalKnowledgeDocumentWarningMetadata,
   type ExternalKnowledgeSourceSyncFence,
   externalKnowledgeDocumentService
 } from '@data/services/ExternalKnowledgeDocumentService'
@@ -26,7 +28,8 @@ import {
 import { prepareKnowledgeMaterial } from '../ingestion/indexKnowledgeItem'
 import { deleteKnowledgeItemFiles, writeFileIntoKnowledgeBaseAt } from '../pathStorage'
 import type { RebuildMaterialInput } from '../pipeline/vectorstore/indexStore/model'
-import type { FeishuKnowledgeReference } from './feishuKnowledgeReadAdapter'
+import { ExternalKnowledgeRuntimeError, type ExternalKnowledgeRuntimeErrorCode } from './ExternalKnowledgeRuntime'
+import type { FeishuKnowledgeReference, FeishuKnowledgeSourceScanResult } from './feishuKnowledgeReadAdapter'
 
 const logger = loggerService.withContext('Knowledge:ExternalKnowledgeSync')
 
@@ -38,6 +41,7 @@ type ExternalKnowledgeIndexStore = {
 
 export type ExternalKnowledgeSyncDependencies = {
   createItemId(): string
+  now(): number
   writeFileIntoKnowledgeBaseAt: typeof writeFileIntoKnowledgeBaseAt
   deleteKnowledgeItemFiles: typeof deleteKnowledgeItemFiles
   prepareKnowledgeMaterial: typeof prepareKnowledgeMaterial
@@ -52,6 +56,11 @@ export type SyncExternalKnowledgeDocumentInput = {
   reportProgress: Parameters<typeof prepareKnowledgeMaterial>[0]['reportProgress']
 }
 
+export type SyncExternalKnowledgeSourceInput = Pick<
+  SyncExternalKnowledgeDocumentInput,
+  'fence' | 'signal' | 'reportProgress'
+>
+
 export type ExternalKnowledgeSyncWarning =
   | 'stale-publication'
   | 'staged-vector-cleanup-failed'
@@ -59,12 +68,60 @@ export type ExternalKnowledgeSyncWarning =
   | 'old-vector-cleanup-failed'
   | 'old-snapshot-cleanup-failed'
 
+type ExternalKnowledgeArtifactCleanupWarning = Exclude<ExternalKnowledgeSyncWarning, 'stale-publication'>
+
 export type ExternalKnowledgeDocumentSyncResult = {
   outcome: 'indexed' | 'unchanged' | 'skipped'
   warnings: ExternalKnowledgeSyncWarning[]
 }
 
+export type ExternalKnowledgeSourceSyncWarningCode =
+  | PerDocumentRuntimeWarningCode
+  | 'resource-permission-denied'
+  | Exclude<ExternalKnowledgeSyncWarning, 'stale-publication'>
+  | 'document-sync-failed'
+  | 'missing-vector-cleanup-failed'
+  | 'missing-snapshot-cleanup-failed'
+  | 'permission-vector-cleanup-failed'
+  | 'permission-snapshot-cleanup-failed'
+
+export type ExternalKnowledgeSourceSyncWarning = {
+  code: ExternalKnowledgeSourceSyncWarningCode
+  remoteObjectId?: string
+}
+
+export type ExternalKnowledgeSourceSyncSummary = {
+  scannedCount: number
+  indexedCount: number
+  unchangedCount: number
+  skippedCount: number
+  warningCount: number
+  warnings: ExternalKnowledgeSourceSyncWarning[]
+}
+
+export type ExternalKnowledgeSourceSyncErrorCode =
+  | ExternalKnowledgeRuntimeErrorCode
+  | 'cancelled'
+  | 'scan-failed'
+  | 'stale-publication'
+  | 'reconciliation-failed'
+
+export class ExternalKnowledgeSourceSyncError extends Error {
+  constructor(
+    readonly code: ExternalKnowledgeSourceSyncErrorCode,
+    readonly summary: ExternalKnowledgeSourceSyncSummary
+  ) {
+    super(`External knowledge source synchronization failed: ${code}`)
+    this.name = 'ExternalKnowledgeSourceSyncError'
+  }
+}
+
 type ExternalKnowledgeReadRuntime = {
+  scanFeishuSource(
+    connectionId: string,
+    input: { spaceId: string; scope: ExternalKnowledgeSource['scope'] },
+    signal?: AbortSignal
+  ): Promise<FeishuKnowledgeSourceScanResult>
   readFeishuDocument(
     connectionId: string,
     reference: FeishuKnowledgeReference,
@@ -74,12 +131,44 @@ type ExternalKnowledgeReadRuntime = {
 
 class StaleExternalKnowledgePublicationError extends Error {}
 
+class ExternalKnowledgeDocumentReadError extends Error {
+  constructor(readonly code: ExternalKnowledgeRuntimeErrorCode) {
+    super(`External knowledge document read failed: ${code}`)
+    this.name = 'ExternalKnowledgeDocumentReadError'
+  }
+}
+
+class ExternalKnowledgeDocumentSyncFailure extends Error {
+  constructor(
+    readonly cleanupWarnings: ExternalKnowledgeArtifactCleanupWarning[],
+    readonly cancelled: boolean
+  ) {
+    super('External knowledge document synchronization failed')
+    this.name = 'ExternalKnowledgeDocumentSyncFailure'
+  }
+}
+
 const defaultDependencies: ExternalKnowledgeSyncDependencies = {
   createItemId: uuidv7,
+  now: Date.now,
   writeFileIntoKnowledgeBaseAt,
   deleteKnowledgeItemFiles,
   prepareKnowledgeMaterial,
   getIndexStore: (base) => application.get('KnowledgeVectorStoreService').getIndexStore(base)
+}
+
+const PER_DOCUMENT_RUNTIME_WARNING_CODES = [
+  'transient',
+  'invalid-provider-response',
+  'unsupported-resource'
+] as const satisfies readonly ExternalKnowledgeRuntimeErrorCode[]
+
+type PerDocumentRuntimeWarningCode = (typeof PER_DOCUMENT_RUNTIME_WARNING_CODES)[number]
+
+function isPerDocumentRuntimeWarningCode(
+  code: ExternalKnowledgeRuntimeErrorCode
+): code is PerDocumentRuntimeWarningCode {
+  return (PER_DOCUMENT_RUNTIME_WARNING_CODES as readonly ExternalKnowledgeRuntimeErrorCode[]).includes(code)
 }
 
 function normalizeMarkdown(markdown: string): string {
@@ -140,6 +229,29 @@ function syncMetadata(
   }
 }
 
+function syncWarningMetadata(
+  input: Pick<SyncExternalKnowledgeDocumentInput, 'reference' | 'observedAt'>,
+  currentWarning: string
+): ExternalKnowledgeDocumentWarningMetadata {
+  return {
+    canonicalNodeId: input.reference.descriptor.nodeId,
+    parentNodeId: input.reference.descriptor.parentNodeId,
+    relativeBreadcrumb: input.reference.descriptor.relativeBreadcrumb,
+    title: input.reference.descriptor.title,
+    originalUrl: input.reference.descriptor.originalUrl,
+    lastSeenAt: input.observedAt,
+    currentWarning
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
+function finalizedSummary(summary: ExternalKnowledgeSourceSyncSummary): ExternalKnowledgeSourceSyncSummary {
+  return { ...summary, warningCount: summary.warnings.length, warnings: [...summary.warnings] }
+}
+
 export class ExternalKnowledgeSyncService {
   private readonly dependencies: ExternalKnowledgeSyncDependencies
 
@@ -149,6 +261,157 @@ export class ExternalKnowledgeSyncService {
     dependencies: Partial<ExternalKnowledgeSyncDependencies> = {}
   ) {
     this.dependencies = { ...defaultDependencies, ...dependencies }
+  }
+
+  async syncSource(input: SyncExternalKnowledgeSourceInput): Promise<ExternalKnowledgeSourceSyncSummary> {
+    const summary: ExternalKnowledgeSourceSyncSummary = {
+      scannedCount: 0,
+      indexedCount: 0,
+      unchangedCount: 0,
+      skippedCount: 0,
+      warningCount: 0,
+      warnings: []
+    }
+    const db = application.get('DbService').getDb()
+
+    try {
+      input.signal.throwIfAborted()
+    } catch {
+      throw new ExternalKnowledgeSourceSyncError('cancelled', finalizedSummary(summary))
+    }
+    const source = externalKnowledgeSourceService.getByIdTx(db, input.fence.sourceId)
+    if (!matchesSourceFence(source, input.fence)) {
+      throw new ExternalKnowledgeSourceSyncError('stale-publication', finalizedSummary(summary))
+    }
+
+    let scan: FeishuKnowledgeSourceScanResult
+    try {
+      scan = await this.runtime.scanFeishuSource(
+        source.connectionId,
+        { spaceId: source.spaceId, scope: source.scope },
+        input.signal
+      )
+    } catch (error) {
+      throw new ExternalKnowledgeSourceSyncError(
+        this.runFatalCode(error, input.signal, 'scan-failed'),
+        finalizedSummary(summary)
+      )
+    }
+    summary.scannedCount = scan.visibleNodeCount
+    summary.skippedCount = scan.unsupportedOrSkippedCount
+    const observedAt = this.dependencies.now()
+
+    for (const reference of scan.canonicalReferences) {
+      try {
+        input.signal.throwIfAborted()
+      } catch {
+        throw new ExternalKnowledgeSourceSyncError('cancelled', finalizedSummary(summary))
+      }
+
+      const expectedDocument = externalKnowledgeDocumentService.getByRemoteObjectIdTx(
+        db,
+        input.fence.baseId,
+        input.fence.sourceId,
+        reference.descriptor.remoteObjectId
+      )
+      let result: ExternalKnowledgeDocumentSyncResult
+      try {
+        result = await this.syncDocument({ ...input, reference, observedAt })
+      } catch (error) {
+        const cleanupWarnings = error instanceof ExternalKnowledgeDocumentSyncFailure ? error.cleanupWarnings : []
+        const appendCleanupWarnings = () => {
+          for (const code of cleanupWarnings) {
+            summary.warnings.push({ code, remoteObjectId: reference.descriptor.remoteObjectId })
+          }
+        }
+        if (
+          input.signal.aborted ||
+          isAbortError(error) ||
+          (error instanceof ExternalKnowledgeDocumentSyncFailure && error.cancelled)
+        ) {
+          appendCleanupWarnings()
+          throw new ExternalKnowledgeSourceSyncError('cancelled', finalizedSummary(summary))
+        }
+        if (error instanceof ExternalKnowledgeDocumentReadError) {
+          if (error.code === 'resource-permission-denied') {
+            let cleanupWarnings: ExternalKnowledgeSourceSyncWarning[]
+            try {
+              cleanupWarnings = await this.markDocumentUnavailable(
+                input,
+                reference,
+                expectedDocument,
+                'resource-permission-denied'
+              )
+            } catch (reconciliationError) {
+              throw new ExternalKnowledgeSourceSyncError(
+                this.reconciliationErrorCode(reconciliationError, input.signal),
+                finalizedSummary(summary)
+              )
+            }
+            summary.skippedCount += 1
+            summary.warnings.push({ code: error.code, remoteObjectId: reference.descriptor.remoteObjectId })
+            summary.warnings.push(...cleanupWarnings)
+            continue
+          }
+          if (!isPerDocumentRuntimeWarningCode(error.code)) {
+            throw new ExternalKnowledgeSourceSyncError(error.code, finalizedSummary(summary))
+          }
+          try {
+            await this.recordDocumentWarning(input, reference, expectedDocument, observedAt, error.code)
+          } catch (reconciliationError) {
+            throw new ExternalKnowledgeSourceSyncError(
+              this.reconciliationErrorCode(reconciliationError, input.signal),
+              finalizedSummary(summary)
+            )
+          }
+          summary.skippedCount += 1
+          summary.warnings.push({ code: error.code, remoteObjectId: reference.descriptor.remoteObjectId })
+          continue
+        }
+
+        try {
+          await this.recordDocumentWarning(input, reference, expectedDocument, observedAt, 'document-sync-failed')
+        } catch (reconciliationError) {
+          appendCleanupWarnings()
+          throw new ExternalKnowledgeSourceSyncError(
+            this.reconciliationErrorCode(reconciliationError, input.signal),
+            finalizedSummary(summary)
+          )
+        }
+        summary.skippedCount += 1
+        summary.warnings.push({ code: 'document-sync-failed', remoteObjectId: reference.descriptor.remoteObjectId })
+        appendCleanupWarnings()
+        continue
+      }
+
+      const stale = result.warnings.includes('stale-publication')
+      for (const code of result.warnings) {
+        if (code !== 'stale-publication') {
+          summary.warnings.push({ code, remoteObjectId: reference.descriptor.remoteObjectId })
+        }
+      }
+      if (stale) {
+        throw new ExternalKnowledgeSourceSyncError('stale-publication', finalizedSummary(summary))
+      }
+      if (result.outcome === 'indexed') summary.indexedCount += 1
+      else if (result.outcome === 'unchanged') summary.unchangedCount += 1
+      else summary.skippedCount += 1
+    }
+
+    try {
+      summary.warnings.push(
+        ...(await this.reconcileMissingDocuments(
+          input,
+          new Set(scan.canonicalReferences.map((reference) => reference.descriptor.remoteObjectId))
+        ))
+      )
+    } catch (error) {
+      throw new ExternalKnowledgeSourceSyncError(
+        this.reconciliationErrorCode(error, input.signal),
+        finalizedSummary(summary)
+      )
+    }
+    return finalizedSummary(summary)
   }
 
   async syncDocument(input: SyncExternalKnowledgeDocumentInput): Promise<ExternalKnowledgeDocumentSyncResult> {
@@ -190,7 +453,15 @@ export class ExternalKnowledgeSyncService {
     }
 
     input.reportProgress(0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
-    const read = await this.runtime.readFeishuDocument(source.connectionId, input.reference, input.signal)
+    let read: { content: string }
+    try {
+      read = await this.runtime.readFeishuDocument(source.connectionId, input.reference, input.signal)
+    } catch (error) {
+      if (error instanceof ExternalKnowledgeRuntimeError) {
+        throw new ExternalKnowledgeDocumentReadError(error.code)
+      }
+      throw error
+    }
     const markdown = normalizeMarkdown(read.content)
     const contentHash = hashMarkdown(markdown)
     if (initialDocument?.availability === 'active' && initialDocument.contentHash === contentHash) {
@@ -299,6 +570,9 @@ export class ExternalKnowledgeSyncService {
       if (error instanceof StaleExternalKnowledgePublicationError) {
         return { outcome: 'skipped', warnings: ['stale-publication', ...warnings] }
       }
+      if (warnings.length > 0) {
+        throw new ExternalKnowledgeDocumentSyncFailure(warnings, input.signal.aborted || isAbortError(error))
+      }
       throw error
     }
   }
@@ -347,33 +621,242 @@ export class ExternalKnowledgeSyncService {
     })
   }
 
+  private runFatalCode(
+    error: unknown,
+    signal: AbortSignal,
+    fallback: ExternalKnowledgeSourceSyncErrorCode
+  ): ExternalKnowledgeSourceSyncErrorCode {
+    if (signal.aborted || isAbortError(error)) return 'cancelled'
+    return error instanceof ExternalKnowledgeRuntimeError ? error.code : fallback
+  }
+
+  private reconciliationErrorCode(error: unknown, signal: AbortSignal): ExternalKnowledgeSourceSyncErrorCode {
+    if (signal.aborted || isAbortError(error)) return 'cancelled'
+    if (
+      error instanceof StaleExternalKnowledgePublicationError ||
+      error instanceof ExternalKnowledgeDocumentOwnershipChangedError
+    ) {
+      return 'stale-publication'
+    }
+    return 'reconciliation-failed'
+  }
+
+  private async recordDocumentWarning(
+    input: SyncExternalKnowledgeSourceInput,
+    reference: FeishuKnowledgeReference,
+    expectedDocument: ReturnType<typeof externalKnowledgeDocumentService.getByRemoteObjectIdTx>,
+    observedAt: number,
+    warning: ExternalKnowledgeSourceSyncWarningCode
+  ): Promise<void> {
+    await this.knowledgeLockManager.runExclusive(input.fence.baseId, () => {
+      input.signal.throwIfAborted()
+      const dbService = application.get('DbService')
+      const db = dbService.getDb()
+      const source = externalKnowledgeSourceService.getByIdTx(db, input.fence.sourceId)
+      if (!matchesSourceFence(source, input.fence)) throw new StaleExternalKnowledgePublicationError()
+      const document = externalKnowledgeDocumentService.getByRemoteObjectIdTx(
+        db,
+        input.fence.baseId,
+        input.fence.sourceId,
+        reference.descriptor.remoteObjectId
+      )
+      if (
+        document?.id !== expectedDocument?.id ||
+        !sameDocumentVersion(documentVersion(document), documentVersion(expectedDocument))
+      ) {
+        throw new StaleExternalKnowledgePublicationError()
+      }
+      if (document?.availability !== 'active') return
+      const expected = documentVersion(expectedDocument)!
+
+      dbService.withWriteTx((tx) => {
+        const item = knowledgeItemService.updateCompletedExternalMetadataTx(tx, document.knowledgeItemId, {
+          baseId: input.fence.baseId,
+          source: source.name,
+          title: reference.descriptor.title
+        })
+        if (!item) throw new StaleExternalKnowledgePublicationError()
+        const updated = externalKnowledgeDocumentService.updateSyncWarningTx(
+          tx,
+          input.fence,
+          document.id,
+          expected,
+          syncWarningMetadata({ reference, observedAt }, warning)
+        )
+        if (!updated) throw new StaleExternalKnowledgePublicationError()
+      })
+    })
+  }
+
+  private async markDocumentUnavailable(
+    input: SyncExternalKnowledgeSourceInput,
+    reference: FeishuKnowledgeReference,
+    expectedDocument: ReturnType<typeof externalKnowledgeDocumentService.getByRemoteObjectIdTx>,
+    currentWarning: string
+  ): Promise<ExternalKnowledgeSourceSyncWarning[]> {
+    const base = knowledgeBaseService.getById(input.fence.baseId)
+    if (!isCompletedKnowledgeBase(base)) {
+      throw DataApiErrorFactory.invalidOperation(
+        'withdraw external knowledge document',
+        `Knowledge base '${base.id}' is not ready for external synchronization`
+      )
+    }
+
+    return await this.knowledgeLockManager.runExclusive(input.fence.baseId, async () => {
+      input.signal.throwIfAborted()
+      const dbService = application.get('DbService')
+      const db = dbService.getDb()
+      const source = externalKnowledgeSourceService.getByIdTx(db, input.fence.sourceId)
+      if (!matchesSourceFence(source, input.fence)) throw new StaleExternalKnowledgePublicationError()
+      const document = externalKnowledgeDocumentService.getByRemoteObjectIdTx(
+        db,
+        input.fence.baseId,
+        input.fence.sourceId,
+        reference.descriptor.remoteObjectId
+      )
+      if (
+        document?.id !== expectedDocument?.id ||
+        !sameDocumentVersion(documentVersion(document), documentVersion(expectedDocument))
+      ) {
+        throw new StaleExternalKnowledgePublicationError()
+      }
+      if (document?.availability !== 'active') return []
+      const item = knowledgeItemService.getById(document.knowledgeItemId)
+      if (item.type !== 'external') throw new StaleExternalKnowledgePublicationError()
+
+      dbService.withWriteTx((tx) => {
+        externalKnowledgeDocumentService.markUnavailableBatchTx(
+          tx,
+          input.fence,
+          [{ documentId: document.id, expected: documentVersion(expectedDocument)! }],
+          currentWarning
+        )
+        if (!knowledgeItemService.deleteCompletedExternalTx(tx, input.fence.baseId, item.id)) {
+          throw new StaleExternalKnowledgePublicationError()
+        }
+      })
+      return await this.cleanupUnavailableArtifacts(base, [item], {
+        vector: 'permission-vector-cleanup-failed',
+        snapshot: 'permission-snapshot-cleanup-failed'
+      })
+    })
+  }
+
+  private async reconcileMissingDocuments(
+    input: SyncExternalKnowledgeSourceInput,
+    seenRemoteObjectIds: ReadonlySet<string>
+  ): Promise<ExternalKnowledgeSourceSyncWarning[]> {
+    const base = knowledgeBaseService.getById(input.fence.baseId)
+    if (!isCompletedKnowledgeBase(base)) {
+      throw DataApiErrorFactory.invalidOperation(
+        'reconcile external knowledge documents',
+        `Knowledge base '${base.id}' is not ready for external synchronization`
+      )
+    }
+
+    return await this.knowledgeLockManager.runExclusive(input.fence.baseId, async () => {
+      input.signal.throwIfAborted()
+      const dbService = application.get('DbService')
+      const db = dbService.getDb()
+      const source = externalKnowledgeSourceService.getByIdTx(db, input.fence.sourceId)
+      if (!matchesSourceFence(source, input.fence)) throw new StaleExternalKnowledgePublicationError()
+      const missingDocuments = externalKnowledgeDocumentService
+        .listBySourceIdTx(db, input.fence.sourceId)
+        .filter((document) => document.availability === 'active' && !seenRemoteObjectIds.has(document.remoteObjectId))
+      const items = missingDocuments.map((document) => {
+        if (document.availability !== 'active') throw new StaleExternalKnowledgePublicationError()
+        const item = knowledgeItemService.getById(document.knowledgeItemId)
+        if (item.type !== 'external') throw new StaleExternalKnowledgePublicationError()
+        return item
+      })
+
+      dbService.withWriteTx((tx) => {
+        const currentSource = externalKnowledgeSourceService.getByIdTx(tx, input.fence.sourceId)
+        if (!matchesSourceFence(currentSource, input.fence)) throw new StaleExternalKnowledgePublicationError()
+        externalKnowledgeDocumentService.markUnavailableBatchTx(
+          tx,
+          input.fence,
+          missingDocuments.map((document) => ({ documentId: document.id, expected: documentVersion(document)! })),
+          'source-document-missing'
+        )
+        for (const item of items) {
+          if (!knowledgeItemService.deleteCompletedExternalTx(tx, input.fence.baseId, item.id)) {
+            throw new StaleExternalKnowledgePublicationError()
+          }
+        }
+      })
+
+      return await this.cleanupUnavailableArtifacts(base, items, {
+        vector: 'missing-vector-cleanup-failed',
+        snapshot: 'missing-snapshot-cleanup-failed'
+      })
+    })
+  }
+
+  private async cleanupUnavailableArtifacts(
+    base: Parameters<ExternalKnowledgeSyncDependencies['getIndexStore']>[0],
+    items: KnowledgeItemOf<'external'>[],
+    warningCodes: {
+      vector: ExternalKnowledgeSourceSyncWarningCode
+      snapshot: ExternalKnowledgeSourceSyncWarningCode
+    }
+  ): Promise<ExternalKnowledgeSourceSyncWarning[]> {
+    if (items.length === 0) return []
+    const warnings: ExternalKnowledgeSourceSyncWarning[] = []
+    const itemIds = items.map((item) => item.id)
+    try {
+      const store = this.dependencies.getIndexStore(base)
+      await store.deleteMaterials(itemIds)
+    } catch {
+      warnings.push({ code: warningCodes.vector })
+      logger.warn('Failed to clean unavailable external knowledge vector material', {
+        baseId: base.id,
+        itemCount: itemIds.length,
+        code: warningCodes.vector
+      })
+    }
+    try {
+      await this.dependencies.deleteKnowledgeItemFiles(base.id, items)
+    } catch {
+      warnings.push({ code: warningCodes.snapshot })
+      logger.warn('Failed to clean unavailable external knowledge snapshots', {
+        baseId: base.id,
+        itemCount: itemIds.length,
+        code: warningCodes.snapshot
+      })
+    }
+    return warnings
+  }
+
   private async cleanupStagedArtifacts(
     base: Parameters<ExternalKnowledgeSyncDependencies['getIndexStore']>[0],
     item: KnowledgeItemOf<'external'>,
     store: ExternalKnowledgeIndexStore,
     materialStaged: boolean,
     snapshotStaged: boolean
-  ): Promise<ExternalKnowledgeSyncWarning[]> {
-    const warnings: ExternalKnowledgeSyncWarning[] = []
+  ): Promise<ExternalKnowledgeArtifactCleanupWarning[]> {
+    const warnings: ExternalKnowledgeArtifactCleanupWarning[] = []
     if (materialStaged) {
       try {
         await this.knowledgeLockManager.runExclusive(base.id, () => store.deleteMaterials([item.id]))
-      } catch (error) {
+      } catch {
         warnings.push('staged-vector-cleanup-failed')
-        logger.warn('Failed to clean staged external knowledge vector material', error as Error, {
+        logger.warn('Failed to clean staged external knowledge vector material', {
           baseId: base.id,
-          itemId: item.id
+          itemId: item.id,
+          code: 'staged-vector-cleanup-failed'
         })
       }
     }
     if (snapshotStaged) {
       try {
         await this.dependencies.deleteKnowledgeItemFiles(base.id, [item])
-      } catch (error) {
+      } catch {
         warnings.push('staged-snapshot-cleanup-failed')
-        logger.warn('Failed to clean staged external knowledge snapshot', error as Error, {
+        logger.warn('Failed to clean staged external knowledge snapshot', {
           baseId: base.id,
-          itemId: item.id
+          itemId: item.id,
+          code: 'staged-snapshot-cleanup-failed'
         })
       }
     }
@@ -384,24 +867,26 @@ export class ExternalKnowledgeSyncService {
     base: Parameters<ExternalKnowledgeSyncDependencies['getIndexStore']>[0],
     item: KnowledgeItemOf<'external'>,
     store: ExternalKnowledgeIndexStore
-  ): Promise<ExternalKnowledgeSyncWarning[]> {
-    const warnings: ExternalKnowledgeSyncWarning[] = []
+  ): Promise<ExternalKnowledgeArtifactCleanupWarning[]> {
+    const warnings: ExternalKnowledgeArtifactCleanupWarning[] = []
     try {
       await store.deleteMaterials([item.id])
-    } catch (error) {
+    } catch {
       warnings.push('old-vector-cleanup-failed')
-      logger.warn('Failed to clean replaced external knowledge vector material', error as Error, {
+      logger.warn('Failed to clean replaced external knowledge vector material', {
         baseId: base.id,
-        itemId: item.id
+        itemId: item.id,
+        code: 'old-vector-cleanup-failed'
       })
     }
     try {
       await this.dependencies.deleteKnowledgeItemFiles(base.id, [item])
-    } catch (error) {
+    } catch {
       warnings.push('old-snapshot-cleanup-failed')
-      logger.warn('Failed to clean replaced external knowledge snapshot', error as Error, {
+      logger.warn('Failed to clean replaced external knowledge snapshot', {
         baseId: base.id,
-        itemId: item.id
+        itemId: item.id,
+        code: 'old-snapshot-cleanup-failed'
       })
     }
     return warnings

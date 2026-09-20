@@ -1,4 +1,4 @@
-import { and, eq, exists, inArray, isNull, sql, type SQL } from 'drizzle-orm'
+import { and, asc, eq, exists, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 
 import { application } from '@application'
 import {
@@ -46,6 +46,8 @@ export type ExternalKnowledgeDocumentSyncMetadata = Pick<
   | 'currentWarning'
 >
 
+export type ExternalKnowledgeDocumentWarningMetadata = Omit<ExternalKnowledgeDocumentSyncMetadata, 'remoteRevision'>
+
 export type CreateActiveExternalKnowledgeDocumentInput = ExternalKnowledgeDocumentSyncMetadata & {
   remoteObjectId: string
   contentHash: string
@@ -56,6 +58,13 @@ export type PublishExternalKnowledgeDocumentInput = {
   knowledgeItemId: string
   contentHash: string
   remoteRevision: string | null
+}
+
+export class ExternalKnowledgeDocumentOwnershipChangedError extends Error {
+  constructor() {
+    super('External knowledge document ownership changed during reconciliation')
+    this.name = 'ExternalKnowledgeDocumentOwnershipChangedError'
+  }
 }
 
 function rowToEntity(row: ExternalKnowledgeDocumentRow): ExternalKnowledgeDocument {
@@ -104,6 +113,16 @@ export class ExternalKnowledgeDocumentService {
           ? encodeCursor(pageRows[pageRows.length - 1].lastSeenAt, pageRows[pageRows.length - 1].id)
           : undefined
     }
+  }
+
+  listBySourceIdTx(tx: Pick<DbType, 'select'>, sourceId: string): ExternalKnowledgeDocument[] {
+    return tx
+      .select()
+      .from(externalKnowledgeDocumentTable)
+      .where(eq(externalKnowledgeDocumentTable.sourceId, sourceId))
+      .orderBy(asc(externalKnowledgeDocumentTable.id))
+      .all()
+      .map(rowToEntity)
   }
 
   getById(id: string): ExternalKnowledgeDocument | null {
@@ -180,6 +199,32 @@ export class ExternalKnowledgeDocumentService {
     return row ? rowToEntity(row) : null
   }
 
+  updateSyncWarningTx(
+    tx: Pick<DbType, 'select' | 'update'>,
+    fence: ExternalKnowledgeSourceSyncFence,
+    documentId: string,
+    expected: ExternalKnowledgeDocumentVersion,
+    metadata: ExternalKnowledgeDocumentWarningMetadata
+  ): ExternalKnowledgeDocument | null {
+    const { canonicalNodeId, parentNodeId, relativeBreadcrumb, title, originalUrl, lastSeenAt, currentWarning } =
+      metadata
+    const [row] = tx
+      .update(externalKnowledgeDocumentTable)
+      .set({
+        canonicalNodeId,
+        parentNodeId,
+        relativeBreadcrumb,
+        title,
+        originalUrl,
+        lastSeenAt,
+        currentWarning
+      })
+      .where(this.documentFence(tx, fence, documentId, expected))
+      .returning()
+      .all()
+    return row ? rowToEntity(row) : null
+  }
+
   publishTx(
     tx: Pick<DbType, 'select' | 'update'>,
     fence: ExternalKnowledgeSourceSyncFence,
@@ -212,6 +257,19 @@ export class ExternalKnowledgeDocumentService {
       .where(this.documentFence(tx, fence, documentId, expected))
       .run()
     return result.changes > 0
+  }
+
+  markUnavailableBatchTx(
+    tx: Pick<DbType, 'select' | 'update'>,
+    fence: ExternalKnowledgeSourceSyncFence,
+    documents: ReadonlyArray<{ documentId: string; expected: ExternalKnowledgeDocumentVersion }>,
+    currentWarning: string
+  ): void {
+    for (const document of documents) {
+      if (!this.markUnavailableTx(tx, fence, document.documentId, document.expected, currentWarning)) {
+        throw new ExternalKnowledgeDocumentOwnershipChangedError()
+      }
+    }
   }
 
   getActiveOwnedKnowledgeItemIds(itemIds: readonly string[], db: DbOrTx = this.db): Set<string> {
