@@ -58,7 +58,7 @@ export default function AgentChatMain({
   }
 
   return (
-    <div className="translate-z-0 relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+    <div className="relative flex min-h-0 w-full flex-1 translate-z-0 flex-col overflow-hidden">
       <div className="min-h-0 flex-1">
         <AgentSessionMessagesWithAgentRightPaneAction
           agentId={agentId}
@@ -83,12 +83,21 @@ export default function AgentChatMain({
 }
 
 const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<typeof AgentSessionMessages>) => {
-  const { canOpenAgentToolFlow, canOpenArtifactFile, openAgentToolFlow, openArtifactFile } = useAgentRightPaneActions()
+  const {
+    canOpenAgentToolFlow,
+    canOpenArtifactFile,
+    openAgentToolFlow,
+    openArtifactFile,
+    openBrowserUrl,
+    openExternalUrl
+  } = useAgentRightPaneActions()
   return (
     <AgentSessionMessages
       {...props}
       openAgentToolFlow={canOpenAgentToolFlow ? openAgentToolFlow : undefined}
       openArtifactFile={canOpenArtifactFile ? openArtifactFile : undefined}
+      openBrowserUrl={openBrowserUrl}
+      openExternalUrl={openExternalUrl}
     />
   )
 }

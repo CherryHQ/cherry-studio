@@ -109,4 +109,6 @@ export interface EntryCleanupSummary {
   readonly outcome: 'completed' | 'skipped' | 'failed'
   readonly candidates: number
   readonly deleted: number
+  /** True when a skipped, failed, or saturated pass requires another cleanup attempt. */
+  readonly hasPendingWork: boolean
 }

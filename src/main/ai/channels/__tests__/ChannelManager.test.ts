@@ -1,13 +1,27 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { BaseService, Injectable, ServiceContainer } from '@main/core/lifecycle'
 
 import { ChannelAdapter, type ChannelAdapterConfig } from '../ChannelAdapter'
-import { ChannelManager, registerAdapterFactory } from '../ChannelManager'
+import { loadChannelAdapter } from '../channelAdapterLoader'
+import { ChannelManager } from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 
-const channelManager = new ChannelManager()
+const mocks = vi.hoisted(() => ({
+  getLifecycleState: vi.fn()
+}))
+
+vi.mock('../channelAdapterLoader', () => ({ loadChannelAdapter: vi.fn() }))
+
+@Injectable('WindowManager')
+class TestWindowManager {
+  constructor() {
+    Object.assign(this, defaultServiceInstances.WindowManager)
+  }
+}
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -15,9 +29,9 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@main/services/MainWindowService', () => ({
-  windowService: {
-    getMainWindow: vi.fn().mockReturnValue(null)
+vi.mock('@data/services/AgentService', () => ({
+  agentService: {
+    getLifecycleState: mocks.getLifecycleState
   }
 }))
 
@@ -25,15 +39,20 @@ vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     listChannels: vi.fn().mockReturnValue([]),
     getChannel: vi.fn(),
-    updateChannel: vi.fn()
+    updateChannel: vi.fn(),
+    addActiveChatId: vi.fn()
   }
 }))
 
 vi.mock('../ChannelMessageHandler', () => ({
   channelMessageHandler: {
-    handleIncoming: vi.fn(),
-    handleCommand: vi.fn(),
-    clearSessionTracker: vi.fn()
+    isWriteQuiesced: false,
+    handleIncoming: vi.fn().mockResolvedValue(undefined),
+    handleCommand: vi.fn().mockResolvedValue(undefined),
+    clearSessionTracker: vi.fn(),
+    pause: vi.fn(),
+    drainInFlight: vi.fn(),
+    listActiveWork: vi.fn()
   }
 }))
 
@@ -51,209 +70,133 @@ class MockAdapter extends ChannelAdapter {
   }
 }
 
-// Track adapters created by the factory
-let createdAdapters: MockAdapter[] = []
-
 describe('ChannelManager', () => {
-  beforeEach(async () => {
-    // Defensively stop any leftover adapters from a previous failed test
-    await channelManager.stop()
+  let rows: any[]
+  let adapters: MockAdapter[]
+  let manager: ChannelManager
+  let qrOnConnect: string | undefined
+
+  const makeChannel = (overrides: Record<string, unknown> = {}) => ({
+    id: 'ch-1',
+    type: 'telegram' as const,
+    name: 'Test',
+    agentId: 'agent-1',
+    sessionId: null,
+    workspace: { type: 'system' as const },
+    config: { bot_token: 'token', allowed_chat_ids: [] },
+    isActive: true,
+    activeChatIds: [],
+    permissionMode: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides
+  })
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    ServiceContainer.reset()
     vi.clearAllMocks()
-    createdAdapters = []
-    // Re-register the mock factory (the map persists across tests since we don't resetModules)
-    registerAdapterFactory('telegram', (channel, agentId) => {
+    mocks.getLifecycleState.mockReturnValue('active')
+    rows = []
+    adapters = []
+    qrOnConnect = undefined
+    vi.mocked(channelService.listChannels).mockImplementation((filters) =>
+      filters?.agentId ? rows.filter((row) => row.agentId === filters.agentId) : rows
+    )
+    vi.mocked(channelService.getChannel).mockImplementation(
+      (channelId) => rows.find((row) => row.id === channelId) ?? null
+    )
+    vi.mocked(loadChannelAdapter).mockImplementation(async (channel, agentId) => {
       const adapter = new MockAdapter({
         channelId: channel.id,
         channelType: channel.type,
         agentId,
         channelConfig: channel.config
       })
-      createdAdapters.push(adapter)
+      adapter.connect.mockImplementation(async () => {
+        if (qrOnConnect) adapter.emit('qr', qrOnConnect)
+      })
+      adapters.push(adapter)
       return adapter
     })
+    const container = ServiceContainer.getInstance()
+    container.register(TestWindowManager)
+    container.register(ChannelManager)
+    manager = container.get(ChannelManager)
   })
 
   afterEach(async () => {
-    await channelManager.stop()
+    await manager._doStop()
+    BaseService.resetInstances()
+    ServiceContainer.reset()
   })
 
-  const makeChannelRow = (overrides: Record<string, unknown> = {}) =>
-    ({
-      id: 'ch-1',
-      type: 'telegram',
-      name: 'Test',
-      agentId: 'agent-1',
-      sessionId: null,
-      config: { bot_token: 'tok', allowed_chat_ids: [] },
-      isActive: true,
-      permissionMode: null,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      ...overrides
-    }) as any
+  it('connects only when both channel intent and Agent lifecycle are active', async () => {
+    rows = [makeChannel(), makeChannel({ id: 'ch-paused', isActive: false })]
+    mocks.getLifecycleState.mockImplementation((agentId) => (agentId === 'agent-1' ? 'active' : 'trashed'))
 
-  it('start() with no channels does not error', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([])
-    await expect(channelManager.start()).resolves.not.toThrow()
-    expect(createdAdapters).toHaveLength(0)
+    await manager.start()
+    await vi.waitFor(() => expect(adapters).toHaveLength(1))
+
+    expect(adapters[0].channelId).toBe('ch-1')
+    expect(adapters[0].connect).toHaveBeenCalledOnce()
   })
 
-  it('start() connects adapters for active channels', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+  it('treats archive and restore events as hints and preserves channel intent', async () => {
+    rows = [makeChannel()]
+    await manager._doInit()
+    await vi.waitFor(() => expect(adapters).toHaveLength(1))
 
-    await channelManager.start()
+    mocks.getLifecycleState.mockReturnValue('trashed')
+    manager.reconcileAgent('agent-1', true)
+    await vi.waitFor(() => expect(adapters[0].disconnect).toHaveBeenCalledOnce())
 
-    expect(createdAdapters).toHaveLength(1)
-    expect(createdAdapters[0].connect).toHaveBeenCalledTimes(1)
-  })
-
-  it('stop() disconnects all adapters', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([
-      makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok' } }),
-      makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
-    ])
-
-    await channelManager.start()
-    expect(createdAdapters).toHaveLength(2)
-    createdAdapters.forEach((a) => expect(a.connect).toHaveBeenCalledTimes(1))
-    MockMainCacheServiceExport.cacheService.setShared('channel.status.ch-1', {
-      channelId: 'ch-1',
-      connected: true
-    })
-    MockMainCacheServiceExport.cacheService.setShared('channel.status.ch-2', {
-      channelId: 'ch-2',
-      connected: true
-    })
-
-    await channelManager.stop()
-    createdAdapters.forEach((a) => expect(a.disconnect).toHaveBeenCalledTimes(1))
-    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toEqual({
-      channelId: 'ch-1',
-      connected: false
-    })
-    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-2')).toEqual({
-      channelId: 'ch-2',
-      connected: false
-    })
-  })
-
-  it('disconnectAgent disconnects all adapters for agent and clears session tracker', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([
-      makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),
-      makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
-    ])
-
-    await channelManager.start()
-    expect(createdAdapters).toHaveLength(2)
-    MockMainCacheServiceExport.cacheService.setShared('channel.status.ch-1', {
-      channelId: 'ch-1',
-      connected: true
-    })
-    MockMainCacheServiceExport.cacheService.setShared('channel.status.ch-2', {
-      channelId: 'ch-2',
-      connected: true
-    })
-
-    await channelManager.disconnectAgent('agent-1')
-
-    expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1)
-    expect(createdAdapters[1].disconnect).toHaveBeenCalledTimes(1)
-    expect(createdAdapters).toHaveLength(2) // no new adapters created
+    expect(rows[0].isActive).toBe(true)
+    expect(rows[0].agentId).toBe('agent-1')
+    expect(channelService.updateChannel).not.toHaveBeenCalled()
     expect(channelMessageHandler.clearSessionTracker).toHaveBeenCalledWith('agent-1')
-    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toEqual({
-      channelId: 'ch-1',
-      connected: false
-    })
-    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-2')).toEqual({
-      channelId: 'ch-2',
-      connected: false
-    })
+
+    mocks.getLifecycleState.mockReturnValue('active')
+    manager.reconcileAgent('agent-1')
+    await vi.waitFor(() => expect(adapters).toHaveLength(2))
+    expect(adapters[1].connect).toHaveBeenCalledOnce()
   })
 
-  it('disconnectAgent for unknown agent is a no-op', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+  it('disconnects after purge even though the Agent foreign key was already cleared', async () => {
+    rows = [makeChannel()]
+    await manager._doInit()
+    await vi.waitFor(() => expect(adapters).toHaveLength(1))
 
-    await channelManager.start()
-    expect(createdAdapters).toHaveLength(1)
+    rows[0] = makeChannel({ agentId: null })
+    manager.reconcileAgent('agent-1', true)
 
-    await channelManager.disconnectAgent('unknown-agent')
-
-    expect(createdAdapters[0].disconnect).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(adapters[0].disconnect).toHaveBeenCalledOnce())
+    expect(rows[0].isActive).toBe(true)
+    expect(adapters).toHaveLength(1)
   })
 
-  it('disconnectChannel only disconnects the target channel without reconnecting', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([
-      makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),
-      makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
-    ])
+  it('clears runtime state, status, logs, and adapters when the channel entity is deleted', async () => {
+    rows = [makeChannel()]
+    await manager.start()
+    await vi.waitFor(() => expect(adapters).toHaveLength(1))
+    adapters[0].emit('log', { timestamp: 1, level: 'info', message: 'connected', channelId: 'ch-1' })
+    adapters[0].emit('statusChange', { channelId: 'ch-1', connected: true })
+    expect(manager.getChannelLogs('ch-1')).toHaveLength(1)
 
-    await channelManager.start()
-    expect(createdAdapters).toHaveLength(2)
-    MockMainCacheServiceExport.cacheService.setShared('channel.status.ch-1', {
-      channelId: 'ch-1',
-      connected: true
-    })
+    rows = []
+    await manager.removeChannel('ch-1')
 
-    await channelManager.disconnectChannel('ch-1')
-
-    expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1)
-    expect(createdAdapters[1].disconnect).not.toHaveBeenCalled()
-    // No new adapter created — disconnect only
-    expect(createdAdapters).toHaveLength(2)
-    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toEqual({
-      channelId: 'ch-1',
-      connected: false
-    })
+    expect(manager.getAdapter('ch-1')).toBeUndefined()
+    expect(manager.getChannelLogs('ch-1')).toEqual([])
+    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toBeUndefined()
   })
 
-  it('syncChannel only disconnects the target channel, leaving others untouched', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([
-      makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),
-      makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
-    ])
+  it('installs the QR waiter before starting reconciliation', async () => {
+    rows = [makeChannel({ type: 'wechat', config: { token_path: '', allowed_chat_ids: [] } })]
+    await manager.start()
+    await vi.waitFor(() => expect(adapters).toHaveLength(1))
 
-    await channelManager.start()
-    expect(createdAdapters).toHaveLength(2)
-
-    // Toggle ch-1 inactive — syncChannel should only disconnect ch-1
-    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow({ id: 'ch-1', isActive: false }))
-
-    await channelManager.syncChannel('ch-1')
-
-    // ch-1 disconnected, ch-2 untouched
-    expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1)
-    expect(createdAdapters[1].disconnect).not.toHaveBeenCalled()
-    // No new adapter created since ch-1 is inactive
-    expect(createdAdapters).toHaveLength(2)
-  })
-
-  it('syncChannel reconnects the channel when toggled active', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([
-      makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),
-      makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
-    ])
-
-    await channelManager.start()
-    expect(createdAdapters).toHaveLength(2)
-
-    // Toggle ch-1 with updated config — syncChannel reconnects only ch-1
-    vi.mocked(channelService.getChannel).mockReturnValueOnce(
-      makeChannelRow({ id: 'ch-1', isActive: true, config: { bot_token: 'new-tok' } })
-    )
-
-    await channelManager.syncChannel('ch-1')
-
-    expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1)
-    expect(createdAdapters[1].disconnect).not.toHaveBeenCalled()
-    // New adapter created for ch-1
-    expect(createdAdapters).toHaveLength(3)
-    expect(createdAdapters[2].connect).toHaveBeenCalledTimes(1)
-  })
-
-  it('inactive channels are skipped', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow({ isActive: false })])
-
-    await channelManager.start()
-    expect(createdAdapters).toHaveLength(0)
+    qrOnConnect = 'https://example.com/qr'
+    await expect(manager.waitForQrAndReconcile('agent-1', 'ch-1')).resolves.toBe('https://example.com/qr')
   })
 })

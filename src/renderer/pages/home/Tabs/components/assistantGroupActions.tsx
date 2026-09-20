@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags, Trash2 } from 'lucide-react'
+import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags, Trash2 } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -9,6 +9,7 @@ import {
   buildResourceEntityMenuActionDescriptor,
   RESOURCE_ICON_TYPE_OPTIONS
 } from '@renderer/components/chat/resourceList/base'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 
 export interface AssistantGroupActionContext {
@@ -18,7 +19,7 @@ export interface AssistantGroupActionContext {
   deleteTopicsDisabled?: boolean
   disabled?: boolean
   isGroupGrouping: boolean
-  onDeleteAssistant: (assistantId: string) => void | Promise<void>
+  onDeleteAssistant: (assistantId: string, permanent?: boolean) => void | Promise<void>
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
   onEdit: (assistantId: string) => void
   onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
@@ -71,9 +72,15 @@ assistantGroupActionRegistry.registerCommand({
 })
 
 assistantGroupActionRegistry.registerCommand({
-  id: 'assistant-group.delete-assistant',
+  id: 'assistant-group.archive-assistant',
   availability: ({ deleteAssistantDisabled }) => ({ enabled: !deleteAssistantDisabled }),
   run: ({ assistantId, onDeleteAssistant }) => onDeleteAssistant(assistantId)
+})
+
+assistantGroupActionRegistry.registerCommand({
+  id: 'assistant-group.delete-assistant',
+  availability: ({ deleteAssistantDisabled }) => ({ enabled: !deleteAssistantDisabled }),
+  run: ({ assistantId, onDeleteAssistant }) => onDeleteAssistant(assistantId, true)
 })
 
 assistantGroupActionRegistry.registerAction(
@@ -102,7 +109,7 @@ assistantGroupActionRegistry.registerAction(
     commandId: 'assistant-group.toggle-sidebar',
     label: ({ sidebarPinned, t }) =>
       sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
-    icon: ({ sidebarPinned }) => (sidebarPinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
+    icon: ({ sidebarPinned }) => <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
     order: 22
   })
 )
@@ -140,12 +147,23 @@ assistantGroupActionRegistry.registerAction(
 
 assistantGroupActionRegistry.registerAction(
   buildResourceEntityMenuActionDescriptor({
+    id: 'assistant-group.archive-assistant',
+    commandId: 'assistant-group.archive-assistant',
+    label: ({ t }) => t('common.archive'),
+    icon: () => <Archive size={14} />,
+    group: 'danger',
+    order: 40
+  })
+)
+
+assistantGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
     id: 'assistant-group.delete-assistant',
     commandId: 'assistant-group.delete-assistant',
-    label: ({ t }) => t('assistants.delete.title'),
+    label: ({ t }) => t('common.delete_permanently'),
     icon: () => <Trash2 size={14} className="lucide-custom text-destructive" />,
     group: 'danger',
-    order: 40,
+    order: 50,
     danger: true
   })
 )

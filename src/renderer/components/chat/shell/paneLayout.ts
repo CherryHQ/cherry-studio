@@ -19,7 +19,6 @@ export const RESOURCE_LIST_PANE_CACHE_KEY = 'ui.chat.sidebar.width'
 export const ARTIFACT_RIGHT_PANE_MIN_WIDTH = 255
 export const ARTIFACT_RIGHT_PANE_CLOSE_DRAG_OVERSHOOT = 80
 export const ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH = 280
-export const ARTIFACT_RIGHT_PANE_MAX_WIDTH = 720
 export const ARTIFACT_RIGHT_PANE_CACHE_KEY = 'ui.chat.artifact_pane.width'
 
 /**
@@ -42,14 +41,14 @@ export type RightPaneWidthPreset = 'inspector' | 'navigation-list'
 export type RightPaneWidthPolicy = {
   cacheKey: typeof ARTIFACT_RIGHT_PANE_CACHE_KEY | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
   minWidth: number
-  maxWidth: number
+  maxWidth?: number
 }
 
 const RIGHT_PANE_WIDTH_PRESETS = {
   inspector: {
     cacheKey: ARTIFACT_RIGHT_PANE_CACHE_KEY,
     minWidth: ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-    maxWidth: ARTIFACT_RIGHT_PANE_MAX_WIDTH
+    maxWidth: undefined
   },
   'navigation-list': {
     cacheKey: RESOURCE_LIST_RIGHT_PANE_CACHE_KEY,

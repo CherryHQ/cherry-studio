@@ -2,9 +2,8 @@ import { Bot, Check, Filter, Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Alert, Button, EmojiIcon, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AssistantPresetIcon } from '@renderer/components/resourceCatalog/AssistantPresetIcon'
 import {
   getResourceCreateDefaultAvatar,
@@ -84,7 +83,7 @@ export function AssistantConversationPickerDialog({
         id: `assistant:${assistant.id}`,
         name: assistant.name,
         icon: assistant.emoji ? (
-          <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
+          <EmojiIcon emoji={assistant.emoji} size={24} />
         ) : (
           <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
             <Bot size={14} />
@@ -292,14 +291,7 @@ export function AssistantConversationPickerDialog({
                 row: (query) =>
                   query
                     ? {
-                        icon: (
-                          <EmojiIcon
-                            emoji={getResourceCreateDefaultAvatar('assistant')}
-                            size={24}
-                            fontSize={14}
-                            className="mr-0"
-                          />
-                        ),
+                        icon: <EmojiIcon emoji={getResourceCreateDefaultAvatar('assistant')} size={24} />,
                         title: query,
                         tag: t('selector.assistant.create_tag')
                       }
