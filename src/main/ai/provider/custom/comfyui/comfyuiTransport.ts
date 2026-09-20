@@ -374,27 +374,39 @@ class ComfyuiTransport implements ImageGenerationTransport {
     // it has since started).  This closes the race window without risking a
     // global kill on older servers, because the interrupt path is still gated
     // on `targetedInterrupt`.
+    //
+    // Both requests are fired in parallel so a stalled queue-delete cannot
+    // prevent the interrupt from reaching the server.
     if (action === 'running' || action === 'pending') {
+      const promises: Promise<unknown>[] = []
+
       // Dequeue (safe even if the prompt already moved to running).
       if (action === 'pending') {
-        await this.doFetch(`${this.baseURL}/queue`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ delete: [taskId] })
-        }).catch(() => undefined)
+        promises.push(
+          this.doFetch(`${this.baseURL}/queue`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ delete: [taskId] })
+          }).catch(() => undefined)
+        )
       }
+
       // Interrupt if the server supports prompt_id-scoped cancellation.
       const caps = await this.getCancelCapabilities()
       if (caps.targetedInterrupt) {
-        await this.doFetch(`${this.baseURL}/interrupt`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ prompt_id: taskId })
-        }).catch(() => undefined)
+        promises.push(
+          this.doFetch(`${this.baseURL}/interrupt`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ prompt_id: taskId })
+          }).catch(() => undefined)
+        )
       }
       // otherwise on a pre-0.3.57 server: intentionally no-op for the
       // interrupt path.  The queue-delete is still sent (it is id-scoped
       // and safe), but we must not issue a global /interrupt.
+
+      await Promise.all(promises)
     }
   }
 
@@ -501,23 +513,25 @@ class ComfyuiTransport implements ImageGenerationTransport {
       remainingMs,
       t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
     )
+    // Both the error path (readErrorMessage → response.text()) and the
+    // success path (response.json()) must be bounded by the remaining poll
+    // budget.  fetchWithDeadline only covers the HTTP exchange (headers);
+    // after the timer is cleared a stalled body can hang indefinitely.
+    // readWithTimeout reuses the remaining deadline for both paths.
+    const timeoutMsg = t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
     if (!response.ok) {
-      const message = await readErrorMessage(response, t('paintings.comfyui.request_failed'))
+      const message = await this.readWithTimeout(
+        readErrorMessage(response, t('paintings.comfyui.request_failed')),
+        remainingMs,
+        timeoutMsg
+      )
       if (isTerminalHttpStatus(response.status)) {
         throw createPaintingGenerateError('REMOTE_ERROR', { message })
       }
       // A plain error, not a structured one: the poll loop retries it.
       throw new Error(message)
     }
-    // The response body is also bounded: a stalled JSON parse or an
-    // uncompressed error body on a slow link should not outlive the poll
-    // budget.  readWithTimeout reuses the remaining deadline so the whole
-    // GET + body-read is capped at remainingMs.
-    return this.readWithTimeout(
-      response.json() as Promise<Record<string, HistoryEntry>>,
-      remainingMs,
-      t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
-    )
+    return this.readWithTimeout(response.json() as Promise<Record<string, HistoryEntry>>, remainingMs, timeoutMsg)
   }
 
   /** The AI SDK downloads returned URLs itself, so hand back inline data. */
