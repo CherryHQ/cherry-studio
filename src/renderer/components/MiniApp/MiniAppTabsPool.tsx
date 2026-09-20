@@ -72,17 +72,6 @@ const MiniAppTabsPool: React.FC = () => {
   // retaining every other mini-app in the pool.
   const [webviewEpochs, setWebviewEpochs] = useState<Record<string, number>>({})
 
-  useEffect(
-    () =>
-      webviewRecreationService.subscribe((appId) => {
-        setWebviewEpochs((current) => ({
-          ...current,
-          [appId]: (current[appId] ?? 0) + 1
-        }))
-      }),
-    []
-  )
-
   const tabMiniAppIds = useMemo(() => {
     const ids = new Set<string>()
     for (const tab of tabs) {
@@ -169,6 +158,23 @@ const MiniAppTabsPool: React.FC = () => {
     // reference, but URL edits to an opened app still reach WebviewContainer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMetadataSignature])
+
+  useEffect(() => {
+    const activeAppIds = new Set(apps.map((app) => app.appId))
+    setWebviewEpochs((current) => {
+      const entries = Object.entries(current)
+      const retainedEntries = entries.filter(([appId]) => activeAppIds.has(appId))
+      return retainedEntries.length === entries.length ? current : Object.fromEntries(retainedEntries)
+    })
+
+    return webviewRecreationService.subscribe((appId) => {
+      if (!activeAppIds.has(appId)) return
+      setWebviewEpochs((current) => ({
+        ...current,
+        [appId]: (current[appId] ?? 0) + 1
+      }))
+    })
+  }, [apps])
 
   // closeSplit's contract keeps split-opened apps pooled (the cap-LRU retires them), so remember
   // every app the split pane ever showed: orphan cleanup only evicts entries no tab references

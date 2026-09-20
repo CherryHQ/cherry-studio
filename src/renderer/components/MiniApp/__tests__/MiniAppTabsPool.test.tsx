@@ -233,6 +233,48 @@ describe('MiniAppTabsPool', () => {
     expect(getWebviewElement('alpha')).toBeNull()
   })
 
+  it('preserves another restarted guest when an app leaves and rejoins the pool', () => {
+    const alpha = stubApp('alpha')
+    const bravo = stubApp('bravo')
+    mocks.openedKeepAliveMiniApps = [alpha, bravo]
+    mocks.currentMiniAppId = 'bravo'
+    mocks.tabs = [
+      { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+      { id: 'bravo-tab', url: '/app/mini-app/bravo' }
+    ]
+    mocks.activeTabId = 'bravo-tab'
+    const { container, rerender } = render(<MiniAppTabsPool />)
+
+    act(() => {
+      webviewRecreationService.request('alpha')
+      webviewRecreationService.request('bravo')
+    })
+    const bravoBefore = webviewOf(container, 'bravo')
+
+    mocks.openedKeepAliveMiniApps = [bravo]
+    mocks.tabs = [{ id: 'bravo-tab', url: '/app/mini-app/bravo' }]
+    rerender(<MiniAppTabsPool />)
+    expect(screen.queryByTestId('webview-alpha')).not.toBeInTheDocument()
+    expect(webviewOf(container, 'bravo')).toBe(bravoBefore)
+
+    act(() => webviewRecreationService.request('alpha'))
+    expect(screen.queryByTestId('webview-alpha')).not.toBeInTheDocument()
+    expect(webviewOf(container, 'bravo')).toBe(bravoBefore)
+
+    mocks.openedKeepAliveMiniApps = [alpha, bravo]
+    mocks.tabs = [
+      { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+      { id: 'bravo-tab', url: '/app/mini-app/bravo' }
+    ]
+    rerender(<MiniAppTabsPool />)
+    const alphaReopened = webviewOf(container, 'alpha')
+    expect(webviewOf(container, 'bravo')).toBe(bravoBefore)
+
+    act(() => webviewRecreationService.request('alpha'))
+    expect(webviewOf(container, 'alpha')).not.toBe(alphaReopened)
+    expect(webviewOf(container, 'bravo')).toBe(bravoBefore)
+  })
+
   it('keeps webview.focused set when another pane mounts behind the focused one', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
     mocks.currentMiniAppId = 'alpha'
