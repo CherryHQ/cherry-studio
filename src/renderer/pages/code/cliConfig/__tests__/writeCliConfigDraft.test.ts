@@ -332,12 +332,15 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('strips every stale Cherry provider on write, whatever its position', async () => {
+      // `cherry-DeepSeek` sits BEFORE another stale key so an early-stopping
+      // sweep (one that halts at the incoming key) would leave `cherry-older`
+      // behind — the ordering bug this regression guards against.
       existing[minimaxConfigPath] = [
         'custom_provider:',
-        '  cherry-old:',
-        '    options: { apiKey: stale, baseURL: https://old.example }',
-        '  cherry-deepseek:',
-        '    options: { apiKey: stale2, baseURL: https://stale.example }',
+        '  cherry-DeepSeek:',
+        '    options: { apiKey: stale, baseURL: https://stale.example }',
+        '  cherry-older:',
+        '    options: { apiKey: stale2, baseURL: https://older.example }',
         '  user-relay:',
         '    options: { apiKey: user-key, baseURL: https://relay.example }',
         ''
