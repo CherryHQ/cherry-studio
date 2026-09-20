@@ -26,7 +26,7 @@ type McpPromptToolContext = ToolRenderContext<readonly [], readonly ['onTextChan
 export function restoreMcpPromptConsumedQuery(options?: QuickPanelCallBackOptions): boolean {
   const inputAdapter = options?.inputAdapter
   const triggerInfo = options?.context.triggerInfo
-  if (!inputAdapter || triggerInfo?.type !== 'input') return false
+  if (!inputAdapter || triggerInfo?.type !== 'input' || options?.context.searchInput) return false
 
   const trigger = triggerInfo.originalText?.slice(0, 1) ?? ''
   inputAdapter.insertText(`${trigger}${options.searchText ?? ''}`, { tokenizeVariables: false })
@@ -217,7 +217,6 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       order: 51,
       label: t('chat.input.mcp_prompts.title'),
       description: t('chat.input.mcp_prompts.description'),
-      searchInput: { placeholder: t('common.search'), ariaLabel: t('common.search') },
       icon: <McpLogo aria-hidden />,
       action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
         setDataRequested(true)

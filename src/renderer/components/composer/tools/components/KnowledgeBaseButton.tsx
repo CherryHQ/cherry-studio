@@ -220,7 +220,6 @@ const useKnowledgeBaseToolController = ({
           sources: ['popover', 'root-panel'],
           label: t('chat.input.knowledge_base'),
           description: resolvedDisabledReason ?? '',
-          searchInput: { placeholder: t('common.search'), ariaLabel: t('common.search') },
           searchAliases: getQuickPanelSearchAliases(t, 'chat.input.knowledge_base', ['knowledge base']),
           disabledReason: resolvedDisabledReason,
           active: isEnabled,

@@ -70,13 +70,13 @@ describe('flattenMcpPromptMessages', () => {
 })
 
 describe('restoreMcpPromptConsumedQuery', () => {
-  it('restores the input-trigger query when the argument dialog is cancelled', () => {
+  it.each(['/', '@'])('restores the %s input-trigger query when the argument dialog is cancelled', (trigger) => {
     const insertText = vi.fn()
     const focus = vi.fn()
 
     expect(
       restoreMcpPromptConsumedQuery({
-        context: { triggerInfo: { type: 'input', originalText: '/' } } as never,
+        context: { triggerInfo: { type: 'input', originalText: trigger } } as never,
         action: 'click',
         item: {} as never,
         searchText: 'review',
@@ -89,7 +89,7 @@ describe('restoreMcpPromptConsumedQuery', () => {
       })
     ).toBe(true)
 
-    expect(insertText).toHaveBeenCalledWith('/review', { tokenizeVariables: false })
+    expect(insertText).toHaveBeenCalledWith(`${trigger}review`, { tokenizeVariables: false })
     expect(focus).toHaveBeenCalledTimes(1)
   })
 
@@ -112,5 +112,31 @@ describe('restoreMcpPromptConsumedQuery', () => {
     ).toBe(false)
 
     expect(insertText).not.toHaveBeenCalled()
+  })
+
+  it('does not restore a panel-local query from an input-triggered resource panel', () => {
+    const insertText = vi.fn()
+    const focus = vi.fn()
+
+    expect(
+      restoreMcpPromptConsumedQuery({
+        context: {
+          triggerInfo: { type: 'input', originalText: '@' },
+          searchInput: { placeholder: 'Search prompts', ariaLabel: 'Search prompts' }
+        } as never,
+        action: 'click',
+        item: {} as never,
+        searchText: 'review',
+        inputAdapter: {
+          getText: vi.fn(),
+          insertText,
+          deleteTriggerRange: vi.fn(),
+          focus
+        }
+      })
+    ).toBe(false)
+
+    expect(insertText).not.toHaveBeenCalled()
+    expect(focus).not.toHaveBeenCalled()
   })
 })

@@ -279,7 +279,6 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
           sources: ['popover', 'root-panel'],
           label: t('settings.prompts.title'),
           description: '',
-          searchInput: { placeholder: t('common.search'), ariaLabel: t('common.search') },
           searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
           action: ({ parentPanel, queryAnchor }) => {
             setPromptsEnabled(true)

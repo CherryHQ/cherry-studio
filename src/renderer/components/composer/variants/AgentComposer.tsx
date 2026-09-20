@@ -1173,7 +1173,6 @@ const AgentComposerInner = ({
       order: 40,
       label: skillLabel,
       icon: <ToolCase />,
-      searchInput: { placeholder: t('common.search'), ariaLabel: t('common.search') },
       searchAliases: [skillLabel],
       panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
       rootSearchItems: skillItems.map((item) => ({ ...item, suffix: skillLabel })),

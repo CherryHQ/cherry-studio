@@ -6,7 +6,6 @@ import type {
   QuickPanelInputAdapter,
   QuickPanelListItem,
   QuickPanelOpenOptions,
-  QuickPanelSearchInputOptions,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
 
@@ -61,8 +60,6 @@ export interface ComposerToolLauncher {
    * control detect its own panel and toggle it closed on a second activation.
    */
   panelSymbol?: string
-  /** Search field shown when this launcher opens a list submenu. */
-  searchInput?: QuickPanelSearchInputOptions
   submenu?: ComposerToolLauncher[]
   /**
    * Actionable rows owned by a custom panel that should participate in root-panel search.
