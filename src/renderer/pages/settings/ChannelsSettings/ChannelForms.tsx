@@ -17,7 +17,7 @@ import {
   SelectValue,
   Switch
 } from '@cherrystudio/ui'
-import { PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
+import { FullAccessConfirmDialog, PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
@@ -63,16 +63,30 @@ type ChannelFieldsFormProps = ChannelFormProps & {
 const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
   const selectedCard = permissionModeCards.find((card) => card.mode === channel.permissionMode)
+  const [fullAccessPending, setFullAccessPending] = useState(false)
+
+  // A newer selection wins; confirming must never apply a stale dialog.
+  useEffect(() => {
+    if (channel.permissionMode === 'bypassPermissions') setFullAccessPending(false)
+  }, [channel.permissionMode])
+
   return (
     <div className="flex flex-col gap-1">
       <Label className="text-xs">{t('agent.channels.security.permissionMode')}</Label>
       <Select
         value={channel.permissionMode ?? INHERIT_PERMISSION_MODE_VALUE}
-        onValueChange={(value) =>
+        onValueChange={(value) => {
+          // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
+          if (!value) return
+          if (value === 'bypassPermissions') {
+            setFullAccessPending(true)
+            return
+          }
+          setFullAccessPending(false)
           onConfigChange({
             permissionMode: value === INHERIT_PERMISSION_MODE_VALUE ? null : value
           })
-        }>
+        }}>
         <SelectTrigger size="sm" className="w-full">
           {/* Own children so the trigger stays one line: the items below can be two. */}
           <SelectValue>
@@ -92,6 +106,14 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
           ))}
         </SelectContent>
       </Select>
+      <FullAccessConfirmDialog
+        open={fullAccessPending}
+        onOpenChange={setFullAccessPending}
+        onConfirm={() => onConfigChange({ permissionMode: 'bypassPermissions' })}
+        scopeName={channel.name.trim() || undefined}
+        scopeKind="channel"
+        t={t}
+      />
     </div>
   )
 }

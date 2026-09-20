@@ -1,8 +1,10 @@
 import type { TFunction } from 'i18next'
 import { CircleAlert, FolderPen, Hand, Route, ShieldAlert, ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
+  ConfirmDialog,
   FormControl,
   NormalTooltip,
   Select,
@@ -134,12 +136,71 @@ export function PermissionModeSelectItem({
   )
 }
 
+export type FullAccessScopeKind = 'agent' | 'channel'
+
+/** Confirm Full Access for the selected agent/channel scope before it applies. */
+export function FullAccessConfirmDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+  scopeName,
+  scopeKind = 'agent',
+  t
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => boolean | void
+  scopeName?: string
+  scopeKind?: FullAccessScopeKind
+  t: TFunction
+}) {
+  const scopeLabelKey =
+    scopeKind === 'channel'
+      ? 'agent.settings.tooling.permissionMode.fullAccessConfirm.channelLabel'
+      : 'agent.settings.tooling.permissionMode.fullAccessConfirm.agentLabel'
+  const scopeFallback = scopeKind === 'channel' ? 'Channel' : 'Agent'
+
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('agent.settings.tooling.permissionMode.fullAccessConfirm.title', 'Enable Full Access?')}
+      description={t(
+        'agent.settings.tooling.permissionMode.fullAccessConfirm.description',
+        'This applies to every folder and resource in the selected scope, including folders connected later. Most tools will run without asking first.'
+      )}
+      content={
+        <div className="flex flex-col gap-2">
+          {scopeName ? (
+            <p className="text-sm">
+              <span className="text-muted-foreground">{t(scopeLabelKey, scopeFallback)}: </span>
+              <span className="font-medium text-foreground">{scopeName}</span>
+            </p>
+          ) : null}
+          <p className="text-muted-foreground text-sm">
+            {t(
+              'agent.settings.tooling.permissionMode.fullAccessConfirm.protections',
+              'Explicit safety blocks still apply, and you can switch back to another mode at any time.'
+            )}
+          </p>
+        </div>
+      }
+      confirmText={t('agent.settings.tooling.permissionMode.fullAccessConfirm.confirm', 'Enable Full Access')}
+      cancelText={t('common.cancel', 'Cancel')}
+      destructive
+      onConfirm={onConfirm}
+    />
+  )
+}
+
 export function PermissionModeSelect({
   cards,
   value,
   onValueChange,
   portalContainer,
   ariaLabel,
+  scopeName,
+  scopeKind = 'agent',
   t
 }: {
   cards: PermissionModeCard[]
@@ -147,35 +208,59 @@ export function PermissionModeSelect({
   onValueChange: (value: PermissionMode) => void
   portalContainer: HTMLElement | null
   ariaLabel: string
+  scopeName?: string
+  scopeKind?: FullAccessScopeKind
   t: TFunction
 }) {
   const selectedCard = cards.find((card) => card.mode === value)
+  const [fullAccessPending, setFullAccessPending] = useState(false)
+
+  // A newer selection wins; confirming must never apply a stale dialog.
+  useEffect(() => {
+    if (value === 'bypassPermissions') setFullAccessPending(false)
+  }, [value])
 
   return (
-    <Select
-      value={value}
-      onValueChange={(next) => {
-        // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
-        if (next) onValueChange(next as PermissionMode)
-      }}>
-      <FormControl>
-        <SelectTrigger className="h-9 w-full rounded-md" aria-label={ariaLabel}>
-          <SelectValue>
-            {selectedCard ? (
-              <span className={cn('flex min-w-0 items-center gap-2', selectedCard.dangerous && 'text-destructive')}>
-                <PermissionModeIcon mode={selectedCard.mode} size={16} />
-                <span className="truncate">{t(selectedCard.titleKey, selectedCard.titleFallback)}</span>
-              </span>
-            ) : null}
-          </SelectValue>
-        </SelectTrigger>
-      </FormControl>
-      <SelectContent portalContainer={portalContainer} className="min-w-[360px]">
-        {cards.map((card) => (
-          <PermissionModeSelectItem key={card.mode} card={card} portalContainer={portalContainer} t={t} />
-        ))}
-      </SelectContent>
-    </Select>
+    <>
+      <Select
+        value={value}
+        onValueChange={(next) => {
+          // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
+          if (!next) return
+          if (next === 'bypassPermissions' && value !== 'bypassPermissions') {
+            setFullAccessPending(true)
+            return
+          }
+          setFullAccessPending(false)
+          onValueChange(next as PermissionMode)
+        }}>
+        <FormControl>
+          <SelectTrigger className="h-9 w-full rounded-md" aria-label={ariaLabel}>
+            <SelectValue>
+              {selectedCard ? (
+                <span className={cn('flex min-w-0 items-center gap-2', selectedCard.dangerous && 'text-destructive')}>
+                  <PermissionModeIcon mode={selectedCard.mode} size={16} />
+                  <span className="truncate">{t(selectedCard.titleKey, selectedCard.titleFallback)}</span>
+                </span>
+              ) : null}
+            </SelectValue>
+          </SelectTrigger>
+        </FormControl>
+        <SelectContent portalContainer={portalContainer} className="min-w-[360px]">
+          {cards.map((card) => (
+            <PermissionModeSelectItem key={card.mode} card={card} portalContainer={portalContainer} t={t} />
+          ))}
+        </SelectContent>
+      </Select>
+      <FullAccessConfirmDialog
+        open={fullAccessPending}
+        onOpenChange={setFullAccessPending}
+        onConfirm={() => onValueChange('bypassPermissions')}
+        scopeName={scopeName}
+        scopeKind={scopeKind}
+        t={t}
+      />
+    </>
   )
 }
 
