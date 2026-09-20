@@ -68,23 +68,28 @@ export function resolveScopedKeyLimit(
 }
 
 /** Keys still under their declared ceiling. Keys with no declared limit always count as available. */
-function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id'>>(
+function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id' | 'renewalAnchor' | 'renewalTimezone'>>(
   providerId: string,
   keys: readonly T[],
   modelId?: UniqueModelId
 ): T[] {
   const limits = application.get('PreferenceService').get('chat.routing.api_key_limits')
-  const countsByPeriod = new Map<ApiKeyLimitPeriod, KeyUsageCounts>()
+  // Keyed by the period start rather than the period: two keys can both be monthly and still
+  // renew on different days, so one cache slot per period would serve the wrong window.
+  const countsByStart = new Map<number, KeyUsageCounts>()
 
   return keys.filter((key) => {
     const resolved = resolveScopedKeyLimit(limits, providerId, key.id, modelId)
     if (!resolved) return true
     const { limit, scopedModelId } = resolved
 
-    let counts = countsByPeriod.get(limit.period)
+    // The key's own renewal day and timezone, the same ones the settings widget counts from —
+    // reading the calendar default here let the router reset on a day the screen never showed.
+    const from = periodStartOf(limit.period, key.renewalAnchor, key.renewalTimezone)
+    let counts = countsByStart.get(from)
     if (!counts) {
-      counts = requestsSince(periodStartOf(limit.period))
-      countsByPeriod.set(limit.period, counts)
+      counts = requestsSince(from)
+      countsByStart.set(from, counts)
     }
     // Unknown spend keeps the key: the provider rejecting a call beats withholding one.
     const spent = usageAgainstLimit(counts, key.id, scopedModelId)
@@ -119,7 +124,7 @@ export function filterKeysWithinQuota(
 export function isProviderQuotaExhausted(
   providerId: string,
   // Deliberately narrower than ApiKeyEntry: the runtime Provider carries keys without their secret.
-  keys: readonly Pick<ApiKeyEntry, 'id' | 'isEnabled'>[],
+  keys: readonly Pick<ApiKeyEntry, 'id' | 'isEnabled' | 'renewalAnchor' | 'renewalTimezone'>[],
   modelId?: UniqueModelId
 ): boolean {
   const usable = keys.filter((key) => key.isEnabled)

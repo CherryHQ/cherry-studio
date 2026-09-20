@@ -14,7 +14,8 @@ vi.mock('../AiUsageRecordService', () => ({
 
 const { apiKeyLimitId, apiKeyModelLimitId, filterKeysWithinQuota } = await import('../apiKeyQuota')
 
-const key = (id: string) => ({ id, key: `secret-${id}`, isEnabled: true }) as ApiKeyEntry
+const key = (id: string, renewal?: { renewalAnchor?: string; renewalTimezone?: string }) =>
+  ({ id, key: `secret-${id}`, isEnabled: true, ...renewal }) as ApiKeyEntry
 
 function withLimits(limits: Record<string, { limit: number; period: 'daily' | 'weekly' | 'monthly' | 'total' }>) {
   preferenceGet.mockReturnValue(limits)
@@ -164,5 +165,41 @@ describe('filterKeysWithinQuota', () => {
     withModelRequestCounts({ c: { [MODEL_A]: 99 } }, 5000)
 
     expect(filterKeysWithinQuota('groq', [key('a'), key('b')], MODEL_A)).toEqual([key('a'), key('b')])
+  })
+  // The renewal day is set per key in provider settings and the widget already counts from it.
+  // The router read the calendar default instead, so a ceiling the screen showed as renewing on
+  // the 15th kept resetting on the 1st — the same data answered two different ways.
+  it('counts a monthly ceiling from the key own renewal day, not the first of the month', () => {
+    withLimits({ [apiKeyLimitId('groq', 'a')]: { limit: 10, period: 'monthly' } })
+    withModelRequestCounts({ a: { [MODEL_A]: 1 } })
+
+    filterKeysWithinQuota(
+      'groq',
+      [key('a', { renewalAnchor: '2024-01-15', renewalTimezone: 'UTC' }), key('b')],
+      MODEL_A
+    )
+
+    const from = stats.mock.calls.at(-1)?.[0]?.from as number
+    expect(new Date(from).getUTCDate()).toBe(15)
+  })
+
+  it('gives two keys renewing on different days their own counting window', () => {
+    withLimits({
+      [apiKeyLimitId('groq', 'a')]: { limit: 10, period: 'monthly' },
+      [apiKeyLimitId('groq', 'b')]: { limit: 10, period: 'monthly' }
+    })
+    withModelRequestCounts({ a: { [MODEL_A]: 1 } })
+
+    filterKeysWithinQuota(
+      'groq',
+      [
+        key('a', { renewalAnchor: '2024-01-05', renewalTimezone: 'UTC' }),
+        key('b', { renewalAnchor: '2024-01-20', renewalTimezone: 'UTC' })
+      ],
+      MODEL_A
+    )
+
+    const days = stats.mock.calls.map(([q]) => new Date((q as { from: number }).from).getUTCDate())
+    expect(new Set(days)).toEqual(new Set([5, 20]))
   })
 })

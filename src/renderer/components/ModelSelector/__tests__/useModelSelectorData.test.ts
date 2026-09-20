@@ -489,9 +489,6 @@ describe('useModelSelectorData', () => {
           apiKeyId: 'k1',
           modelId: imageModel.id,
           apiKeyLabel: null,
-          apiKeyMasked: null,
-          apiKeyAttribution: 'explicit',
-          authMethod: null,
           ...metrics({ requestCount: 5 })
         }
       ],
@@ -524,9 +521,6 @@ describe('useModelSelectorData', () => {
           apiKeyId: 'k1',
           modelId: imageModel.id,
           apiKeyLabel: null,
-          apiKeyMasked: null,
-          apiKeyAttribution: 'explicit',
-          authMethod: null,
           ...metrics({ requestCount: 2 })
         }
       ],
