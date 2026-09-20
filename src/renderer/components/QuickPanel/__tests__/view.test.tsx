@@ -30,6 +30,25 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Kbd: ({ children }: { children?: ReactNode }) => <kbd>{children}</kbd>,
+  SearchInput: ({
+    value,
+    onChange,
+    onClear,
+    clearLabel,
+    ...props
+  }: React.InputHTMLAttributes<HTMLInputElement> & {
+    onClear?: () => void
+    clearLabel?: string
+  }) => (
+    <div>
+      <input {...props} value={value} onChange={onChange} />
+      {onClear && value ? (
+        <button type="button" aria-label={clearLabel} onClick={onClear}>
+          clear
+        </button>
+      ) : null}
+    </div>
+  ),
   NormalTooltip: ({ open = false, children }: { open?: boolean; children?: ReactNode }) => (
     <div data-open={String(open)}>{children}</div>
   )
@@ -138,6 +157,7 @@ function PanelHarness({
   triggerInfo,
   trackInputQuery,
   initialSearchText,
+  searchInput,
   queryAnchor,
   defaultIndex,
   openNonce = 0,
@@ -156,6 +176,7 @@ function PanelHarness({
   triggerInfo?: QuickPanelTriggerInfo
   trackInputQuery?: boolean
   initialSearchText?: string
+  searchInput?: QuickPanelOpenOptions['searchInput']
   queryAnchor?: number
   defaultIndex?: number
   /** Bumping re-calls open() with the same symbol, like a reopen inside the cleanup window. */
@@ -193,12 +214,14 @@ function PanelHarness({
       manageListExternally,
       trackInputQuery: trackInputQuery ?? Boolean(inputAdapter),
       initialSearchText,
+      searchInput,
       onClose
     })
   }, [
     footerActions,
     inputAdapter,
     initialSearchText,
+    searchInput,
     items,
     manageListExternally,
     multiple,
@@ -299,6 +322,48 @@ describe('QuickPanelView', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('filters a button panel through its own search input without changing the composer input', async () => {
+    const user = userEvent.setup()
+    const action = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => 'draft text',
+      getCursorOffset: () => 10,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'alpha', label: 'Alpha skill', icon: 'alpha', action },
+            { id: 'beta', label: 'Beta skill', icon: 'beta', action }
+          ]}
+          triggerInfo={{ type: 'button', position: 10 }}
+          searchInput={{ placeholder: 'Search skills', ariaLabel: 'Search skills' }}
+        />
+      </QuickPanelProvider>
+    )
+
+    const search = await screen.findByRole('textbox', { name: 'Search skills' })
+    expect(search).toHaveFocus()
+
+    await user.type(search, 'beta')
+    expect(screen.getByText('Beta skill')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha skill')).not.toBeInTheDocument()
+    expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
+
+    await user.clear(search)
+    expect(screen.getByText('Alpha skill')).toBeInTheDocument()
+
+    await user.type(search, 'missing')
+    expect(screen.getByText('No results')).toBeInTheDocument()
+    expect(search).toHaveValue('missing')
   })
 
   it('ignores stale close callbacks after the provider unmounts', () => {
@@ -583,6 +648,39 @@ describe('QuickPanelView', () => {
         searchText: ''
       })
     )
+  })
+
+  it('restores composer focus after Escape from a panel-owned search', async () => {
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => 'draft text',
+      getCursorOffset: () => 10,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'action', label: 'Action', icon: 'a' }]}
+          triggerInfo={{ type: 'button', position: 10 }}
+          searchInput={{ placeholder: 'Search actions', ariaLabel: 'Search actions' }}
+        />
+      </QuickPanelProvider>
+    )
+
+    const search = await screen.findByRole('textbox', { name: 'Search actions' })
+    expect(search).toHaveFocus()
+
+    const event = createKeyDownEvent('Escape')
+    act(() => {
+      window.dispatchEvent(event.event)
+    })
+
+    expect(inputAdapter.focus).toHaveBeenCalledOnce()
+    expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
   })
 
   it('does not delete existing composer text after a button-triggered cursor move', async () => {

@@ -217,6 +217,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       order: 51,
       label: t('chat.input.mcp_prompts.title'),
       description: t('chat.input.mcp_prompts.description'),
+      searchInput: { placeholder: t('common.search'), ariaLabel: t('common.search') },
       icon: <McpLogo aria-hidden />,
       action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
         setDataRequested(true)
@@ -226,7 +227,11 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
           symbol: ComposerPanelSymbol.McpPrompts,
           parentPanel,
           queryAnchor,
-          triggerInfo: triggerInfo ?? { type: 'button' }
+          triggerInfo: triggerInfo ?? { type: 'button' },
+          searchInput: {
+            placeholder: t('common.search'),
+            ariaLabel: t('common.search')
+          }
         })
       }
     }),

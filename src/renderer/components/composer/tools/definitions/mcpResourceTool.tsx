@@ -225,6 +225,7 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
       order: 52,
       label: t('chat.input.mcp_resources.title'),
       description: t('chat.input.mcp_resources.description'),
+      searchInput: { placeholder: t('common.search'), ariaLabel: t('common.search') },
       icon: <McpLogo aria-hidden />,
       action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
         setDataRequested(true)
@@ -234,7 +235,11 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
           symbol: ComposerPanelSymbol.McpResources,
           parentPanel,
           queryAnchor,
-          triggerInfo: triggerInfo ?? { type: 'button' }
+          triggerInfo: triggerInfo ?? { type: 'button' },
+          searchInput: {
+            placeholder: t('common.search'),
+            ariaLabel: t('common.search')
+          }
         })
       }
     }),

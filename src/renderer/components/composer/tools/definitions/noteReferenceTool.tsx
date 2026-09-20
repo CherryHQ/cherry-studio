@@ -155,7 +155,11 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         parentPanel,
         queryAnchor,
         triggerInfo: { type: 'button' },
-        trackInputQuery: true
+        trackInputQuery: true,
+        searchInput: {
+          placeholder: t('common.search'),
+          ariaLabel: t('common.search')
+        }
       })
     },
     [notesPath, panelItems, t]
@@ -171,6 +175,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
           order: 60,
           label: t('chat.input.note_reference.title'),
           description: t('chat.input.note_reference.description'),
+          searchInput: { placeholder: t('common.search'), ariaLabel: t('common.search') },
           icon: <NotebookPen />,
           panelSymbol: ComposerPanelSymbol.Notes,
           action: openNoteReferencePanel

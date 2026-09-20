@@ -78,6 +78,13 @@ export type QuickPanelFilterFn = (
  */
 export type QuickPanelSortFn = (items: QuickPanelListItem[], searchText: string) => QuickPanelListItem[]
 
+export type QuickPanelSearchInputOptions = {
+  /** Placeholder shown in the panel-owned search field. */
+  placeholder: string
+  /** Accessible name for the panel-owned search field. */
+  ariaLabel: string
+}
+
 export type QuickPanelOpenOptions = {
   /** Displayed at the bottom left, similar to a placeholder. */
   title?: string
@@ -104,6 +111,8 @@ export type QuickPanelOpenOptions = {
   queryAnchor?: number
   /** Whether this panel tracks and consumes an input trigger query such as `/foo` or `@file`. */
   trackInputQuery?: boolean
+  /** Render a panel-owned search field for button-opened panels. */
+  searchInput?: QuickPanelSearchInputOptions
   /** Initial tracked search text for panels opened from buttons without inserting query text into the input. */
   initialSearchText?: string
   beforeAction?: (options: QuickPanelCallBackOptions) => void
@@ -184,6 +193,7 @@ export interface QuickPanelContextType {
   readonly triggerInfo?: QuickPanelTriggerInfo
   readonly queryAnchor?: number
   readonly trackInputQuery?: boolean
+  readonly searchInput?: QuickPanelSearchInputOptions
   readonly initialSearchText?: string
   readonly parentPanel?: QuickPanelOpenOptions
   readonly manageListExternally?: boolean

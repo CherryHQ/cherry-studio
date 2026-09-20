@@ -378,7 +378,8 @@ function openUnifiedPanelSubmenu(
     queryAnchor: options.queryAnchor,
     // A submenu is opened by a selection, so its query starts empty and is typed, not triggered.
     triggerInfo: { type: 'button' },
-    trackInputQuery: true
+    trackInputQuery: true,
+    ...(launcher.searchInput ? { searchInput: launcher.searchInput } : {})
   })
 }
 

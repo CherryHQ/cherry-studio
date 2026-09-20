@@ -1173,6 +1173,7 @@ const AgentComposerInner = ({
       order: 40,
       label: skillLabel,
       icon: <ToolCase />,
+      searchInput: { placeholder: t('common.search'), ariaLabel: t('common.search') },
       searchAliases: [skillLabel],
       panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
       rootSearchItems: skillItems.map((item) => ({ ...item, suffix: skillLabel })),
@@ -1187,11 +1188,15 @@ const AgentComposerInner = ({
           parentPanel,
           queryAnchor,
           triggerInfo: { type: 'button' },
-          trackInputQuery: true
+          trackInputQuery: true,
+          searchInput: {
+            placeholder: t('common.search'),
+            ariaLabel: t('common.search')
+          }
         })
       }
     }
-  }, [refreshAvailableSkills, skillItems, skillLabel])
+  }, [refreshAvailableSkills, skillItems, skillLabel, t])
 
   useEffect(
     () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),

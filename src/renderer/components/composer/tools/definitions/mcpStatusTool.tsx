@@ -285,6 +285,7 @@ export function createMcpStatusLauncher(
     sources: ['root-panel'],
     order: 50,
     label: 'MCP',
+    searchInput: { placeholder: t('common.search'), ariaLabel: t('common.search') },
     // The panel stays reachable even when MCP is disabled — it surfaces the disabled state alongside
     // the "Configure MCP servers" footer, which is exactly the moment the user needs to open config.
     description:
@@ -303,6 +304,10 @@ export function createMcpStatusLauncher(
         queryAnchor,
         triggerInfo: { type: 'button' },
         trackInputQuery: true,
+        searchInput: {
+          placeholder: t('common.search'),
+          ariaLabel: t('common.search')
+        },
         readOnly: !editable
       })
     }

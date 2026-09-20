@@ -274,6 +274,15 @@ vi.mock('@cherrystudio/ui', async () => {
           .filter(Boolean)
           .join(' ')
       }),
+    SearchInput: ({ value, onChange, onClear, clearLabel, ...props }) =>
+      React.createElement(
+        'div',
+        null,
+        React.createElement('input', { ...props, value, onChange }),
+        value && onClear
+          ? React.createElement('button', { type: 'button', 'aria-label': clearLabel, onClick: onClear }, 'clear')
+          : null
+      ),
     Textarea: {
       Input: ({ hasError, 'aria-invalid': ariaInvalid, className, onValueChange, onChange, ...props }) =>
         React.createElement('textarea', {

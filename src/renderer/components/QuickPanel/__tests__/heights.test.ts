@@ -68,6 +68,18 @@ describe('getQuickPanelHeights', () => {
       ).toEqual({ panelMaxHeight: measuredChrome, listHeight: 0 })
     })
 
+    it('uses measured search chrome for a docked searchable panel', () => {
+      const measuredChrome = 132
+
+      expect(
+        getQuickPanelHeights({
+          ...base,
+          chromeHeight: measuredChrome,
+          hasSearchInput: true
+        }).panelMaxHeight
+      ).toBe(base.pageSize * ITEM + measuredChrome)
+    })
+
     it('includes the rendered empty state when search results collapse', () => {
       const measuredChrome = 82
       const emptyStateHeight = 48

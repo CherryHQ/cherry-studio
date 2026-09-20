@@ -1,6 +1,7 @@
 import { t } from 'i18next'
 import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
+import { SearchInput } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/utils/platform'
 import { classNames } from '@renderer/utils/style'
@@ -111,6 +112,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const bodyRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<DynamicVirtualListRef>(null)
   const footerRef = useRef<HTMLDivElement>(null)
+  const searchInputContainerRef = useRef<HTMLDivElement>(null)
   const readOnlyHeaderRef = useRef<HTMLDivElement>(null)
   const emptyStateRef = useRef<HTMLDivElement>(null)
   // Home placement only: the available height cap between the input and frame top.
@@ -119,15 +121,17 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const fill = ctx.fillToAvailableHeight
 
   const [inputSearchText, setInputSearchText] = useState('')
+  const [panelSearchText, setPanelSearchText] = useState('')
   const queryAnchorRef = useRef<number | undefined>(undefined)
   const inputTriggerConsumedRef = useRef(false)
   const inputQueryConsumedRef = useRef(false)
   const prevPanelGenerationRef = useRef<number | undefined>(undefined)
   const inputTriggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
+  const hasSearchInput = Boolean(ctx.searchInput)
   const isTrackedInputPanel = Boolean(
-    ctx.trackInputQuery && (ctx.triggerInfo?.type === 'input' || ctx.triggerInfo?.type === 'button')
+    !hasSearchInput && ctx.trackInputQuery && (ctx.triggerInfo?.type === 'input' || ctx.triggerInfo?.type === 'button')
   )
-  const activeSearchText = isTrackedInputPanel ? inputSearchText : ''
+  const activeSearchText = hasSearchInput ? panelSearchText : isTrackedInputPanel ? inputSearchText : ''
   const activeSearchQuery = getInputQueryText(activeSearchText, inputTriggerSymbol)
 
   // Cache pinyin text by item to avoid repeated conversion.
@@ -150,7 +154,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     const baseList = (ctx.list || []).filter((item) => !item.hidden)
 
-    if (ctx.manageListExternally || !isTrackedInputPanel) {
+    if (ctx.manageListExternally && !hasSearchInput) {
+      return baseList
+    }
+
+    if (!hasSearchInput && !isTrackedInputPanel) {
       return baseList
     }
 
@@ -180,6 +188,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     ctx.symbol,
     ctx.manageListExternally,
     ctx.list,
+    hasSearchInput,
     isTrackedInputPanel,
     activeSearchQuery,
     filterFn,
@@ -201,6 +210,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       prevPanelGenerationRef.current = undefined
       previousNavigationItemsRef.current = []
       setActiveIndex(-1)
+      setPanelSearchText('')
       setIsKeyboardNavigating(false)
       return
     }
@@ -228,6 +238,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     if (isPanelGenerationChanged) {
       listRef.current?.scrollToOffset?.(0, { align: 'start' })
       inputQueryConsumedRef.current = false
+      if (hasSearchInput) setPanelSearchText('')
       prevPanelGenerationRef.current = panelGeneration
     }
 
@@ -278,6 +289,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   }, [
     ctx.isVisible,
     ctx.defaultIndex,
+    hasSearchInput,
     ctx.manageListExternally,
     ctx.readOnly,
     ctx.symbol,
@@ -292,9 +304,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     (action?: QuickPanelCloseAction) => {
       const cleanSearchText = activeSearchQuery.trim()
       ctx.close(action, cleanSearchText)
+      if (hasSearchInput) inputAdapter?.focus()
       scrollTriggerRef.current = 'initial'
     },
-    [ctx, activeSearchQuery]
+    [activeSearchQuery, ctx, hasSearchInput, inputAdapter]
   )
 
   const getCurrentPanelOptions = useCallback(
@@ -311,6 +324,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       parentPanel: ctx.parentPanel,
       triggerInfo: ctx.triggerInfo,
       trackInputQuery: ctx.trackInputQuery,
+      searchInput: ctx.searchInput,
       initialSearchText: activeSearchQuery,
       beforeAction: ctx.beforeAction,
       afterAction: ctx.afterAction,
@@ -374,7 +388,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           inputAdapter
         }
 
-        consumeInputQueryOnce()
+        if (!hasSearchInput) consumeInputQueryOnce()
         ctx.beforeAction?.(quickPanelCallBackOptions)
         item?.action?.(quickPanelCallBackOptions)
         ctx.afterAction?.(quickPanelCallBackOptions)
@@ -394,15 +408,17 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       }
 
       if (item.isMenu) {
-        if (ctx.triggerInfo?.type === 'button' && ctx.trackInputQuery) {
-          consumeInputQueryOnce()
-        } else {
-          // Drop the whole trigger query so the submenu starts with an empty search.
-          inputTriggerConsumedRef.current = true
-          consumeInputQuery()
+        if (!hasSearchInput) {
+          if (ctx.triggerInfo?.type === 'button' && ctx.trackInputQuery) {
+            consumeInputQueryOnce()
+          } else {
+            // Drop the whole trigger query so the submenu starts with an empty search.
+            inputTriggerConsumedRef.current = true
+            consumeInputQuery()
+          }
         }
       } else {
-        consumeInputQuery()
+        if (!hasSearchInput) consumeInputQuery()
       }
       ctx.beforeAction?.(quickPanelCallBackOptions)
       item?.action?.(quickPanelCallBackOptions)
@@ -424,6 +440,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     [
       ctx,
       activeSearchQuery,
+      hasSearchInput,
       getCurrentPanelOptions,
       activeIndex,
       consumeInputQuery,
@@ -518,7 +535,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     queryAnchorRef.current = queryAnchor
     if (!isTrackedInputPanel) {
       setInputSearchText('')
-      inputAdapter.focus()
+      if (!hasSearchInput) inputAdapter.focus()
       return
     }
 
@@ -573,15 +590,22 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     closePanel,
     inputAdapter,
     inputTriggerSymbol,
+    hasSearchInput,
     isTrackedInputPanel,
     updateSearchFromInput
   ])
+
+  useEffect(() => {
+    if (!ctx.isVisible || !hasSearchInput) return
+    searchInputContainerRef.current?.querySelector<HTMLInputElement>('input')?.focus()
+  }, [ctx.isVisible, ctx.symbol, hasSearchInput])
 
   useEffect(() => {
     if (ctx.isVisible) return
 
     const timer = setTimeout(() => {
       setInputSearchText('')
+      setPanelSearchText('')
       queryAnchorRef.current = undefined
       inputTriggerConsumedRef.current = false
       inputQueryConsumedRef.current = false
@@ -852,7 +876,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       setMeasuredChromeHeight(null)
       return
     }
-    if (!footerRef.current || !bodyRef.current) {
+    if (!bodyRef.current) {
       setFooterWidth(0)
       setMeasuredChromeHeight(null)
       return
@@ -861,13 +885,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const footerElement = footerRef.current
     const bodyElement = bodyRef.current
     const updateFooterMetrics = () => {
-      setFooterWidth(footerElement.clientWidth)
-      const nextChromeHeight =
-        footerElement.clientHeight > 0
-          ? footerElement.clientHeight +
-            (readOnlyHeaderRef.current?.clientHeight ?? 0) +
-            getQuickPanelBodyVerticalSpace(getComputedStyle(bodyElement))
-          : null
+      setFooterWidth(footerElement?.clientWidth ?? 0)
+      const footerHeight = footerElement?.clientHeight ?? 0
+      const headerHeight = readOnlyHeaderRef.current?.clientHeight ?? 0
+      const searchHeight = searchInputContainerRef.current?.clientHeight ?? 0
+      const hasChrome = footerHeight > 0 || headerHeight > 0 || searchHeight > 0
+      const nextChromeHeight = hasChrome
+        ? footerHeight + headerHeight + searchHeight + getQuickPanelBodyVerticalSpace(getComputedStyle(bodyElement))
+        : null
       setMeasuredChromeHeight((prev) => (prev === nextChromeHeight ? prev : nextChromeHeight))
     }
 
@@ -875,12 +900,13 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     if (typeof ResizeObserver === 'undefined') return
 
     const resizeObserver = new ResizeObserver(updateFooterMetrics)
-    resizeObserver.observe(footerElement)
+    if (footerElement) resizeObserver.observe(footerElement)
     resizeObserver.observe(bodyElement)
     if (readOnlyHeaderRef.current) resizeObserver.observe(readOnlyHeaderRef.current)
+    if (searchInputContainerRef.current) resizeObserver.observe(searchInputContainerRef.current)
 
     return () => resizeObserver.disconnect()
-  }, [ctx.readOnly, footerActions.length, isPanelPresent])
+  }, [ctx.readOnly, ctx.searchInput, footerActions.length, isPanelPresent])
 
   // Fill (home placement) measures the available height above the input against the dock layer.
   // Docked composers keep the original fixed height and skip this cap.
@@ -956,6 +982,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     availableHeight,
     fill: fillEffective,
     chromeHeight: measuredChromeHeight ?? undefined,
+    hasSearchInput,
     emptyStateHeight: measuredEmptyStateHeight
   })
   const listContentHeight = Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
@@ -1035,6 +1062,20 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             title={ctx.title}
             onClose={() => handleClose('click')}
           />
+        ) : null}
+        {ctx.searchInput ? (
+          <div ref={searchInputContainerRef} className="shrink-0 px-2 pb-1" data-testid="quick-panel-search-input">
+            <SearchInput
+              aria-label={ctx.searchInput.ariaLabel ?? ctx.searchInput.placeholder ?? t('common.search', 'Search')}
+              placeholder={ctx.searchInput.placeholder ?? t('common.search', 'Search')}
+              size="sm"
+              value={panelSearchText}
+              onChange={(event) => setPanelSearchText(event.target.value)}
+              onClear={() => setPanelSearchText('')}
+              clearLabel={t('common.clear', 'Clear')}
+              className="h-7 text-[13px]"
+            />
+          </div>
         ) : null}
         {collapsed ? (
           <div ref={emptyStateRef} className="p-4 text-center text-[13px] text-muted-foreground">

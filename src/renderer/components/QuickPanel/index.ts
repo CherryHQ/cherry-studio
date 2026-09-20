@@ -25,6 +25,7 @@ export type {
   QuickPanelListItem,
   QuickPanelOpenOptions,
   QuickPanelScrollTrigger,
+  QuickPanelSearchInputOptions,
   QuickPanelSortFn,
   QuickPanelTriggerInfo
 } from './types'

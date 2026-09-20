@@ -29,8 +29,10 @@ export interface QuickPanelHeightOptions {
   availableHeight: number | null
   /** Home placement is capped by available height; other placements keep the fixed height. */
   fill?: boolean
-  /** Runtime-measured footer plus body chrome height for home/fill; docked/readOnly use defaults. */
+  /** Runtime-measured footer plus body chrome height for home/fill and searchable panels. */
   chromeHeight?: number
+  /** Searchable panels need their measured search-field chrome in docked mode too. */
+  hasSearchInput?: boolean
   /** Runtime-measured empty-state height when the searchable list has no matches. */
   emptyStateHeight?: number
 }
@@ -57,10 +59,12 @@ export function getQuickPanelHeights({
   availableHeight,
   fill = false,
   chromeHeight: measuredChromeHeight,
+  hasSearchInput = false,
   emptyStateHeight = 0
 }: QuickPanelHeightOptions): QuickPanelHeights {
   const defaultChromeHeight = readOnly ? READONLY_CHROME_HEIGHT : DEFAULT_CHROME_HEIGHT
-  const chromeHeight = (fill || readOnly) && measuredChromeHeight != null ? measuredChromeHeight : defaultChromeHeight
+  const chromeHeight =
+    (fill || readOnly || hasSearchInput) && measuredChromeHeight != null ? measuredChromeHeight : defaultChromeHeight
 
   if (!isVisible) return { panelMaxHeight: 0, listHeight: 0 }
   if (collapsed) return { panelMaxHeight: chromeHeight + emptyStateHeight, listHeight: 0 }
