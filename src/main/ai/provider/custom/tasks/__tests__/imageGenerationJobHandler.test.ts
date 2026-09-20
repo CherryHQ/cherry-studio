@@ -74,6 +74,7 @@ vi.mock('@main/ai/utils/usageCapture', () => ({
 vi.mock('@main/utils/downloadAsBase64', () => ({ downloadImageAsBase64: downloadMock }))
 
 const { imageGenerationJobHandler } = await import('../imageGenerationJobHandler')
+const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
 
 function createCtx(
   overrides: Partial<JobContext<ImageGenerationJobPayload>> = {}
@@ -126,7 +127,7 @@ beforeEach(() => {
   cancelMock.mockResolvedValue(undefined)
   permanentDeleteMock.mockResolvedValue(undefined)
   resolveImageTransportMock.mockReturnValue({ submit: submitMock, poll: pollMock, cancel: cancelMock })
-  downloadMock.mockResolvedValue({ data: 'AAAA', media_type: 'image/png' })
+  downloadMock.mockResolvedValue({ data: TINY_PNG_BASE64, media_type: 'image/png' })
   createInternalEntryMock.mockImplementation(async () => ({ id: 'file-1' }))
 })
 
@@ -302,7 +303,7 @@ describe('imageGenerationJobHandler.execute', () => {
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/neither imageUrls nor a taskId/i)
   })
 
-  it('fails when the remote returned URLs but every download fails (paid no-op guard)', async () => {
+  it('keeps remote download failures on the provider-error path', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'] })
     downloadMock.mockResolvedValue(null)
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/all downloads failed/i)
@@ -313,15 +314,37 @@ describe('imageGenerationJobHandler.execute', () => {
     )
   })
 
-  it('returns the subset (does not throw) when only some downloads fail', async () => {
+  it('reports mixed download and validation failures as structured validation', async () => {
+    submitMock.mockResolvedValue({
+      imageUrls: ['https://cdn.example.com/a.png', 'data:image/png;base64,YWJjMTIz']
+    })
+    downloadMock.mockResolvedValueOnce(null)
+
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({
+      files: [],
+      validation: {
+        receivedCount: 2,
+        rejected: [
+          { index: 0, reason: 'download_failed' },
+          { index: 1, reason: 'invalid_image_data' }
+        ]
+      }
+    })
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+  })
+
+  it('returns the valid subset when only some remote downloads fail', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'] })
     downloadMock.mockImplementation(async (url: string) =>
-      url.endsWith('a.png') ? { data: 'AAAA', media_type: 'image/png' } : null
+      url.endsWith('a.png') ? { data: TINY_PNG_BASE64, media_type: 'image/png' } : null
     )
     createInternalEntryMock.mockResolvedValueOnce({ id: 'file-a' })
 
     const result = (await imageGenerationJobHandler.execute(createCtx())) as { files: Array<{ id: string }> }
-    expect(result.files).toEqual([{ id: 'file-a' }])
+    expect(result).toEqual({
+      files: [{ id: 'file-a' }],
+      validation: { receivedCount: 2, rejected: [{ index: 1, reason: 'download_failed' }] }
+    })
     // Bills the generated URL count, not the persisted file count.
     expect(recordRequestMock).toHaveBeenCalledWith(
       expect.objectContaining({ requestId: 'custom-image:img-job-1', modality: 'image', imageCount: 2 })
@@ -329,7 +352,7 @@ describe('imageGenerationJobHandler.execute', () => {
   })
 
   it('persists inline data: URL results without downloading (b64_json-style sync responses)', async () => {
-    const inline = 'data:image/jpeg;base64,/9j/4AAQ'
+    const inline = `data:image/png;base64,${TINY_PNG_BASE64}`
     submitMock.mockResolvedValue({ imageUrls: [inline, 'https://cdn.example.com/b.png'] })
     createInternalEntryMock.mockResolvedValueOnce({ id: 'file-inline' }).mockResolvedValueOnce({ id: 'file-b' })
 
@@ -343,16 +366,64 @@ describe('imageGenerationJobHandler.execute', () => {
     )
   })
 
-  it('fails when submit returns an empty imageUrls array (paid no-op guard)', async () => {
+  it('accepts case-insensitive base64 markers with surrounding whitespace in inline data URLs', async () => {
+    const inline = `data:image/png; BASE64 ,${TINY_PNG_BASE64}`
+    submitMock.mockResolvedValue({ imageUrls: [inline] })
+    createInternalEntryMock.mockResolvedValueOnce({ id: 'file-inline' })
+
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({ files: [{ id: 'file-inline' }] })
+    expect(downloadMock).not.toHaveBeenCalled()
+    expect(createInternalEntryMock).toHaveBeenCalledWith({
+      source: 'base64',
+      data: `data:image/png;base64,${TINY_PNG_BASE64}`,
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+  })
+
+  it('accepts case-insensitive image media types from provider downloads', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png'] })
+    downloadMock.mockResolvedValueOnce({ data: TINY_PNG_BASE64, media_type: 'IMAGE/PNG' })
+
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({ files: [{ id: 'file-1' }] })
+  })
+
+  it('rejects invalid inline data instead of persisting it as an image', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['data:image/png;base64,YWJjMTIz'] })
+
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({
+      files: [],
+      validation: { receivedCount: 1, rejected: [{ index: 0, reason: 'invalid_image_data' }] }
+    })
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+  })
+
+  it('reports an empty output when submit returns no image URLs', async () => {
     submitMock.mockResolvedValue({ imageUrls: [] })
-    await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({
+      files: [],
+      validation: { receivedCount: 0, rejected: [] }
+    })
     expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ imageCount: 0 }))
   })
 
-  it('fails when poll returns an empty array (paid no-op guard)', async () => {
+  it('does not complete with empty validation when submit cancellation returns no image URLs', async () => {
+    const controller = new AbortController()
+    submitMock.mockImplementation(async () => {
+      controller.abort()
+      return { imageUrls: [] }
+    })
+
+    await expect(imageGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow(/abort/i)
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+  })
+
+  it('reports an empty output when poll returns no image URLs', async () => {
     submitMock.mockResolvedValue({ taskId: 'task-empty' })
     pollMock.mockResolvedValue([])
-    await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({
+      files: [],
+      validation: { receivedCount: 0, rejected: [] }
+    })
     expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ imageCount: 0 }))
   })
 
@@ -371,6 +442,48 @@ describe('imageGenerationJobHandler.execute', () => {
     await expect(imageGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow(/abort/i)
     expect(pollMock).toHaveBeenCalled()
     expect(cancelMock).toHaveBeenCalledWith('task-mid')
+  })
+
+  it('does not persist an image when cancellation happens during download', async () => {
+    const controller = new AbortController()
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png'] })
+    downloadMock.mockImplementation(async () => {
+      controller.abort()
+      return { data: TINY_PNG_BASE64, media_type: 'image/png' }
+    })
+
+    await expect(imageGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow(/abort/i)
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+  })
+
+  it('deletes persisted output and preserves the abort reason when cancellation wins after persistence', async () => {
+    const controller = new AbortController()
+    const abortReason = new DOMException('cancelled after persistence', 'AbortError')
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png'] })
+    createInternalEntryMock.mockImplementationOnce(async () => {
+      controller.abort(abortReason)
+      return { id: 'file-cancelled' }
+    })
+    permanentDeleteMock.mockRejectedValueOnce(new Error('cleanup failed'))
+
+    await expect(imageGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toBe(abortReason)
+    expect(permanentDeleteMock).toHaveBeenCalledWith('file-cancelled')
+  })
+
+  it('deletes earlier manual outputs and preserves the persistence error when a later write fails', async () => {
+    const persistenceError = new Error('second image persistence failed')
+    submitMock.mockResolvedValue({
+      imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png']
+    })
+    createInternalEntryMock.mockResolvedValueOnce({ id: 'file-created' }).mockRejectedValueOnce(persistenceError)
+    permanentDeleteMock.mockRejectedValueOnce(new Error('cleanup failed'))
+
+    const ctx = createCtx()
+    ctx.input.cleanupPolicy = 'manual'
+
+    await expect(imageGenerationJobHandler.execute(ctx)).rejects.toBe(persistenceError)
+    expect(permanentDeleteMock).toHaveBeenCalledTimes(1)
+    expect(permanentDeleteMock).toHaveBeenCalledWith('file-created')
   })
 
   it('throws when transport resolution yields nothing', async () => {
