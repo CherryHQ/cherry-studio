@@ -112,4 +112,37 @@ describe('useClassicLayoutRightPaneOpen', () => {
     expect(MockUseCacheUtils.getCacheValue(windowCacheKey)).toBe(true)
     expect(MockUseCacheUtils.getPersistCacheValue(persistCacheKey)).toBe(false)
   })
+
+  it.each([
+    {
+      surface: 'chat' as const,
+      persistCacheKey: 'ui.chat.right_pane_open_override' as const,
+      windowCacheKey: 'ui.window.chat.right_pane_open_override' as const
+    },
+    {
+      surface: 'agent' as const,
+      persistCacheKey: 'ui.agent.right_pane_open_override' as const,
+      windowCacheKey: 'ui.window.agent.right_pane_open_override' as const
+    }
+  ])(
+    'keeps a detached $surface pane independent of persisted changes once it holds its own value',
+    ({ surface, persistCacheKey, windowCacheKey }) => {
+      MockUseCacheUtils.setPersistCacheValue(persistCacheKey, true)
+      MockUseCacheUtils.setCacheValue(windowCacheKey, true)
+
+      const { result, rerender } = renderHook(
+        () => useClassicLayoutRightPaneOpen(surface, { enabled: true, defaultOpen: false }),
+        { wrapper: detachedWindowWrapper }
+      )
+      expect(result.current[0]).toBe(true)
+
+      // A main-window toggle reaches a detached renderer only through the persisted broadcast;
+      // once the detached pane holds its own value it must not follow that broadcast.
+      MockUseCacheUtils.setPersistCacheValue(persistCacheKey, false)
+      rerender()
+
+      expect(result.current[0]).toBe(true)
+      expect(MockUseCacheUtils.getPersistCacheValue(persistCacheKey)).toBe(false)
+    }
+  )
 })
