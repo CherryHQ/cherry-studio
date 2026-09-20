@@ -4,6 +4,7 @@
  * derives the auto-compact window and per-request output cap from the model catalog.
  */
 
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -41,6 +42,17 @@ export class LinuxSessionBusUnavailableError extends Error {
   constructor() {
     super(LINUX_SESSION_BUS_UNAVAILABLE_MESSAGE)
     this.name = 'LinuxSessionBusUnavailableError'
+  }
+}
+
+// zypak-helper (Flatpak's Electron wrapper) asserts without a session bus, while native
+// packages spawn the CLI directly — so only a Flatpak sandbox fails fast here.
+function isFlatpakSandbox(): boolean {
+  if (process.env.FLATPAK_ID) return true
+  try {
+    return existsSync('/.flatpak-info')
+  } catch {
+    return false
   }
 }
 
@@ -281,9 +293,9 @@ export async function buildEnvironment(
     }
   }
 
-  // Packaged Linux launches have been observed failing without the desktop session bus,
-  // so fail fast instead of spawning a child that dies as a generic closed transport.
-  if (isLinux && app.isPackaged && !env.DBUS_SESSION_BUS_ADDRESS?.trim()) {
+  // A missing bus kills Flatpak launches in zypak-helper startup, so fail fast instead of
+  // spawning a child that dies as a generic closed transport. Native packages need no bus.
+  if (isLinux && app.isPackaged && isFlatpakSandbox() && !env.DBUS_SESSION_BUS_ADDRESS?.trim()) {
     throw new LinuxSessionBusUnavailableError()
   }
 

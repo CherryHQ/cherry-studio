@@ -449,10 +449,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).not.toHaveProperty('DBUS_SESSION_BUS_ADDRESS')
   })
 
-  it('fails a packaged Linux launch without a session bus with an actionable error', async () => {
+  it('fails a Flatpak-packaged Linux launch without a session bus with an actionable error', async () => {
     mocks.platform.isLinux = true
     mocks.isPackaged = true
     mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('FLATPAK_ID', 'com.kangfenmao.CherryStudio')
     vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
 
     const build = buildClaudeCodeSessionSettings(
@@ -468,10 +469,29 @@ describe('buildClaudeCodeSessionSettings', () => {
     await expect(build).rejects.toMatchObject({ i18nKey: 'linux_session_bus_unavailable' })
   })
 
-  it('launches packaged Linux when the desktop session bus was propagated past the shell', async () => {
+  it('does not block a native packaged Linux launch without a session bus', async () => {
     mocks.platform.isLinux = true
     mocks.isPackaged = true
     mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).not.toHaveProperty('DBUS_SESSION_BUS_ADDRESS')
+  })
+
+  it('launches Flatpak-packaged Linux when the desktop session bus was propagated past the shell', async () => {
+    mocks.platform.isLinux = true
+    mocks.isPackaged = true
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('FLATPAK_ID', 'com.kangfenmao.CherryStudio')
     vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus')
 
     const settings = await buildClaudeCodeSessionSettings(
@@ -486,10 +506,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env!.DBUS_SESSION_BUS_ADDRESS).toBe('unix:path=/run/user/1000/bus')
   })
 
-  it('launches packaged Linux when the agent configuration supplies the session bus', async () => {
+  it('launches Flatpak-packaged Linux when the agent configuration supplies the session bus', async () => {
     mocks.platform.isLinux = true
     mocks.isPackaged = true
     mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('FLATPAK_ID', 'com.kangfenmao.CherryStudio')
     vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
