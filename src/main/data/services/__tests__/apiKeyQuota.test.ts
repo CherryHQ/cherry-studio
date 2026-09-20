@@ -20,13 +20,26 @@ function withLimits(limits: Record<string, { limit: number; period: 'daily' | 'w
   preferenceGet.mockReturnValue(limits)
 }
 
+const MODEL_A = 'groq::llama-70b' as const
+const MODEL_B = 'groq::whisper' as const
+
+/** Spend on a key across every model, the way a response with a single model per key folds. */
 function withRequestCounts(counts: Record<string, number>) {
+  withModelRequestCounts(Object.fromEntries(Object.entries(counts).map(([id, n]) => [id, { [MODEL_A]: n }])))
+}
+
+/** Spend per (key, model) — what the endpoint actually returns for `groupBy: 'apiKeyModel'`. */
+function withModelRequestCounts(counts: Record<string, Record<string, number>>, dropped = 0) {
   stats.mockReturnValue({
-    buckets: Object.entries(counts).map(([apiKeyId, requestCount]) => ({
-      groupBy: 'apiKey' as const,
-      apiKeyId,
-      requestCount
-    }))
+    buckets: Object.entries(counts).flatMap(([apiKeyId, byModel]) =>
+      Object.entries(byModel).map(([modelId, requestCount]) => ({
+        groupBy: 'apiKeyModel' as const,
+        apiKeyId,
+        modelId,
+        requestCount
+      }))
+    ),
+    other: { requestCount: dropped }
   })
 }
 
@@ -81,7 +94,7 @@ describe('filterKeysWithinQuota', () => {
       [apiKeyLimitId('deepseek', 'a')]: { limit: 100, period: 'daily' },
       [apiKeyModelLimitId('deepseek', 'a', 'deepseek::deepseek-v4-flash')]: { limit: 5, period: 'daily' }
     })
-    withRequestCounts({ a: 5 })
+    withModelRequestCounts({ a: { 'deepseek::deepseek-v4-flash': 5 } })
 
     expect(filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek::deepseek-v4-flash')).toEqual([key('b')])
   })
@@ -100,7 +113,10 @@ describe('filterKeysWithinQuota', () => {
       [apiKeyModelLimitId('deepseek', 'a', 'deepseek::deepseek-v4-flash')]: { limit: 20, period: 'daily' },
       [apiKeyModelLimitId('deepseek', 'b', 'deepseek::deepseek-v4-flash')]: { limit: 15, period: 'daily' }
     })
-    withRequestCounts({ a: 20, b: 10 })
+    withModelRequestCounts({
+      a: { 'deepseek::deepseek-v4-flash': 20 },
+      b: { 'deepseek::deepseek-v4-flash': 10 }
+    })
 
     const result = filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek::deepseek-v4-flash')
     expect(result).toEqual([key('b')])
@@ -112,5 +128,41 @@ describe('filterKeysWithinQuota', () => {
 
     expect(filterKeysWithinQuota('openrouter', [key('a'), key('b')])).toEqual([key('b')])
     expect(stats).toHaveBeenCalledWith(expect.objectContaining({ from: 0 }))
+  })
+  // A free tier meters each model separately, which is the only reason a model-scoped ceiling
+  // exists. Measuring it against the key's whole traffic let a busy model exhaust every other
+  // model that shares the key, and the router then skipped credentials that had room.
+  it('does not let another model on the same key spend a model-scoped ceiling', () => {
+    withLimits({ [apiKeyModelLimitId('groq', 'a', MODEL_A)]: { limit: 10, period: 'daily' } })
+    withModelRequestCounts({ a: { [MODEL_B]: 50 } })
+
+    expect(filterKeysWithinQuota('groq', [key('a'), key('b')], MODEL_A)).toEqual([key('a'), key('b')])
+  })
+
+  it('drops the key once that model itself reaches the model-scoped ceiling', () => {
+    withLimits({
+      [apiKeyLimitId('groq', 'a')]: { limit: 100, period: 'daily' },
+      [apiKeyModelLimitId('groq', 'a', MODEL_A)]: { limit: 10, period: 'daily' }
+    })
+    withModelRequestCounts({ a: { [MODEL_A]: 10, [MODEL_B]: 1 } })
+
+    expect(filterKeysWithinQuota('groq', [key('a'), key('b')], MODEL_A)).toEqual([key('b')])
+  })
+
+  it('spends a key-scoped ceiling with every model on that key', () => {
+    withLimits({ [apiKeyLimitId('groq', 'a')]: { limit: 10, period: 'daily' } })
+    withModelRequestCounts({ a: { [MODEL_A]: 6, [MODEL_B]: 4 } })
+
+    expect(filterKeysWithinQuota('groq', [key('a'), key('b')], MODEL_A)).toEqual([key('b')])
+  })
+
+  // Past its limit the endpoint returns the top buckets plus an "other" remainder, so a key with
+  // no bucket spent an unknown amount. Withholding it would refuse a request on a guess; the
+  // provider rejecting the call is the honest failure.
+  it('keeps a key whose spend the truncated response never reported', () => {
+    withLimits({ [apiKeyLimitId('groq', 'a')]: { limit: 10, period: 'daily' } })
+    withModelRequestCounts({ c: { [MODEL_A]: 99 } }, 5000)
+
+    expect(filterKeysWithinQuota('groq', [key('a'), key('b')], MODEL_A)).toEqual([key('a'), key('b')])
   })
 })

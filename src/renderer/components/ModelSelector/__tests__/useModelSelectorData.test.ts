@@ -483,10 +483,11 @@ describe('useModelSelectorData', () => {
     MockUseDataApiUtils.mockQueryData('/ai-usage-records/stats', {
       buckets: [
         {
-          groupBy: 'apiKey',
+          groupBy: 'apiKeyModel',
           providerId: 'openai',
           providerName: 'openai',
           apiKeyId: 'k1',
+          modelId: imageModel.id,
           apiKeyLabel: null,
           apiKeyMasked: null,
           apiKeyAttribution: 'explicit',
@@ -517,10 +518,11 @@ describe('useModelSelectorData', () => {
     MockUseDataApiUtils.mockQueryData('/ai-usage-records/stats', {
       buckets: [
         {
-          groupBy: 'apiKey',
+          groupBy: 'apiKeyModel',
           providerId: 'openai',
           providerName: 'openai',
           apiKeyId: 'k1',
+          modelId: imageModel.id,
           apiKeyLabel: null,
           apiKeyMasked: null,
           apiKeyAttribution: 'explicit',

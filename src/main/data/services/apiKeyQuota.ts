@@ -7,7 +7,14 @@ import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/ai
 import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { apiKeyLimitId, apiKeyModelLimitId, periodStartOf } from '@shared/utils/apiKeyLimit'
+import {
+  apiKeyLimitId,
+  apiKeyModelLimitId,
+  collectKeyUsage,
+  type KeyUsageCounts,
+  periodStartOf,
+  usageAgainstLimit
+} from '@shared/utils/apiKeyLimit'
 
 import { aiUsageRecordService } from './AiUsageRecordService'
 
@@ -15,19 +22,18 @@ const logger = loggerService.withContext('ApiKeyQuota')
 
 export { apiKeyLimitId, apiKeyModelLimitId }
 
-function requestsSince(from: number): Map<string, number> {
+// Grouped per (key, model) even though most ceilings are key-scoped: the per-key total is the sum
+// over its models, so one query answers both scopes, while an `apiKey` query cannot answer the
+// model-scoped one at all.
+function requestsSince(from: number): KeyUsageCounts {
   const stats = aiUsageRecordService.stats({
-    groupBy: 'apiKey',
+    groupBy: 'apiKeyModel',
     metric: 'requests',
     from,
     to: Date.now(),
     limit: AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT
   })
-  const counts = new Map<string, number>()
-  for (const bucket of stats.buckets) {
-    if (bucket.groupBy === 'apiKey' && bucket.apiKeyId) counts.set(bucket.apiKeyId, bucket.requestCount)
-  }
-  return counts
+  return collectKeyUsage(stats.buckets, stats.other)
 }
 
 /**
@@ -40,11 +46,25 @@ export function resolveKeyLimit(
   keyId: string,
   modelId?: UniqueModelId
 ) {
+  return resolveScopedKeyLimit(limits, providerId, keyId, modelId)?.limit
+}
+
+/**
+ * The same resolution, plus which scope won — the usage lookup has to match it. Counting a key's
+ * whole traffic against a ceiling declared for one model is what let other models spend it.
+ */
+export function resolveScopedKeyLimit(
+  limits: Record<string, { limit: number; period: ApiKeyLimitPeriod }>,
+  providerId: string,
+  keyId: string,
+  modelId?: UniqueModelId
+): { limit: { limit: number; period: ApiKeyLimitPeriod }; scopedModelId?: UniqueModelId } | undefined {
   if (modelId) {
     const modelLimit = limits[apiKeyModelLimitId(providerId, keyId, modelId)]
-    if (modelLimit) return modelLimit
+    if (modelLimit) return { limit: modelLimit, scopedModelId: modelId }
   }
-  return limits[apiKeyLimitId(providerId, keyId)]
+  const keyLimit = limits[apiKeyLimitId(providerId, keyId)]
+  return keyLimit ? { limit: keyLimit } : undefined
 }
 
 /** Keys still under their declared ceiling. Keys with no declared limit always count as available. */
@@ -54,18 +74,21 @@ function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id'>>(
   modelId?: UniqueModelId
 ): T[] {
   const limits = application.get('PreferenceService').get('chat.routing.api_key_limits')
-  const countsByPeriod = new Map<ApiKeyLimitPeriod, Map<string, number>>()
+  const countsByPeriod = new Map<ApiKeyLimitPeriod, KeyUsageCounts>()
 
   return keys.filter((key) => {
-    const limit = resolveKeyLimit(limits, providerId, key.id, modelId)
-    if (!limit) return true
+    const resolved = resolveScopedKeyLimit(limits, providerId, key.id, modelId)
+    if (!resolved) return true
+    const { limit, scopedModelId } = resolved
 
     let counts = countsByPeriod.get(limit.period)
     if (!counts) {
       counts = requestsSince(periodStartOf(limit.period))
       countsByPeriod.set(limit.period, counts)
     }
-    return (counts.get(key.id) ?? 0) < limit.limit
+    // Unknown spend keeps the key: the provider rejecting a call beats withholding one.
+    const spent = usageAgainstLimit(counts, key.id, scopedModelId)
+    return spent === undefined || spent < limit.limit
   })
 }
 

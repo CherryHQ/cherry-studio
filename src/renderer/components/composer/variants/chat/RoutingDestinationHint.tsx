@@ -13,7 +13,7 @@ import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/ai
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { EMPTY_DERIVED_ROUTING_TABLE } from '@shared/data/types/routing'
-import { periodStartOf, usageStatsFrom } from '@shared/utils/apiKeyLimit'
+import { collectKeyUsage, periodStartOf, usageStatsFrom } from '@shared/utils/apiKeyLimit'
 
 import { computeRoutingPreview } from './routingPreview'
 
@@ -79,7 +79,7 @@ export function RoutingDestinationHint({ promptText, fallbackModel, hasMentioned
     const periods = [...new Set(Object.values(apiKeyLimits).map((limit) => limit.period))]
     return {
       query: {
-        groupBy: 'apiKey' as const,
+        groupBy: 'apiKeyModel' as const,
         metric: 'requests' as const,
         from: usageStatsFrom(periods.map((period) => periodStartOf(period))),
         to: Date.now(),
@@ -91,11 +91,7 @@ export function RoutingDestinationHint({ promptText, fallbackModel, hasMentioned
 
   const quotaUsageCounts = useMemo(() => {
     if (!Array.isArray(quotaUsageData?.buckets)) return undefined
-    const counts = new Map<string, number>()
-    for (const bucket of quotaUsageData.buckets) {
-      if (bucket.groupBy === 'apiKey' && bucket.apiKeyId) counts.set(bucket.apiKeyId, bucket.requestCount)
-    }
-    return counts
+    return collectKeyUsage(quotaUsageData.buckets, quotaUsageData.other)
   }, [quotaUsageData])
 
   const remainingQuota =

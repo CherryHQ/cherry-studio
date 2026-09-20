@@ -1,7 +1,7 @@
 import type { ApiKeyLimitMap, ModelHealthMemory } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { apiKeyLimitId, apiKeyModelLimitId } from '@shared/utils/apiKeyLimit'
+import { apiKeyLimitId, apiKeyModelLimitId, type KeyUsageCounts, usageAgainstLimit } from '@shared/utils/apiKeyLimit'
 import { freshModelHealth } from '@shared/utils/modelHealth'
 import { isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
@@ -37,16 +37,18 @@ function remainingPerKey(
   provider: Provider,
   modelId: UniqueModelId,
   limits: ApiKeyLimitMap | null | undefined,
-  usageCounts: ReadonlyMap<string, number> | undefined
+  usageCounts: KeyUsageCounts | undefined
 ): Array<number | undefined> {
   if (!limits || !usageCounts) return []
   return provider.apiKeys
     .filter((key) => key.isEnabled)
     .map((key) => {
-      const limit =
-        limits[apiKeyModelLimitId(provider.id, key.id, modelId)] ?? limits[apiKeyLimitId(provider.id, key.id)]
+      const modelLimit = limits[apiKeyModelLimitId(provider.id, key.id, modelId)]
+      const limit = modelLimit ?? limits[apiKeyLimitId(provider.id, key.id)]
       if (!limit) return undefined
-      return Math.max(0, limit.limit - (usageCounts.get(key.id) ?? 0))
+      // A model-scoped ceiling is spent only by that model; a key-scoped one by all of them.
+      const spent = usageAgainstLimit(usageCounts, key.id, modelLimit ? modelId : undefined)
+      return spent === undefined ? undefined : Math.max(0, limit.limit - spent)
     })
 }
 
@@ -58,7 +60,7 @@ export function isQuotaExhausted(
   provider: Provider,
   modelId: UniqueModelId,
   limits: ApiKeyLimitMap | null | undefined,
-  usageCounts: ReadonlyMap<string, number> | undefined
+  usageCounts: KeyUsageCounts | undefined
 ): boolean {
   const remaining = remainingPerKey(provider, modelId, limits, usageCounts)
   if (remaining.length === 0) return false
@@ -78,7 +80,7 @@ export function getRemainingQuota(
   provider: Provider,
   modelId: UniqueModelId,
   limits: ApiKeyLimitMap | null | undefined,
-  usageCounts: ReadonlyMap<string, number> | undefined
+  usageCounts: KeyUsageCounts | undefined
 ): number | undefined {
   const known = remainingPerKey(provider, modelId, limits, usageCounts).filter(
     (left): left is number => left !== undefined

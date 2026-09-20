@@ -10,10 +10,18 @@ import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT } from '@shared/data/api/schemas/aiUsageRecords'
 import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyTier } from '@shared/data/types/provider'
-import { apiKeyLimitId, apiKeyModelLimitId, periodRenewsAt, periodStartOf } from '@shared/utils/apiKeyLimit'
+import {
+  apiKeyLimitId,
+  apiKeyModelLimitId,
+  collectKeyUsage,
+  periodRenewsAt,
+  periodStartOf,
+  usageAgainstLimit
+} from '@shared/utils/apiKeyLimit'
 
 const ALL_MODELS = 'all' as const
 
@@ -55,11 +63,13 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
       entry
         ? {
             query: {
-              groupBy: 'apiKey' as const,
+              // Grouped per (key, model) so a model-scoped ceiling is measured against that
+              // model's own traffic; the key-scoped total is the sum over its models.
+              groupBy: 'apiKeyModel' as const,
               metric: 'requests' as const,
               from: periodStartOf(entry.period, anchor, timezone),
               to: now,
-              limit: 50
+              limit: AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT
             }
           }
         : { enabled: false },
@@ -69,7 +79,9 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
   )
 
   const { data: usageData } = useQuery('/ai-usage-records/stats', statsParams)
-  const usedCount = usageData?.buckets?.find((b) => b.groupBy === 'apiKey' && b.apiKeyId === keyId)?.requestCount ?? 0
+  // Unknown spend (the response was truncated) reads as 0 here: this widget shows what was counted,
+  // and inventing a larger number would tell the user they have less room than anyone can prove.
+  const usedCount = usageAgainstLimit(collectKeyUsage(usageData?.buckets, usageData?.other), keyId, scopedModelId) ?? 0
 
   const renewsAt = useMemo(() => {
     if (!entry) return null

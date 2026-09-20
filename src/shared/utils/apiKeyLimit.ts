@@ -42,6 +42,72 @@ export function usageStatsFrom(periodStarts: readonly number[], now: number = Da
   return Math.max(earliest, floor)
 }
 
+/** Joins a stats bucket's key and model the way {@link collectKeyUsage} indexes them. */
+export const keyModelUsageId = (keyId: string, modelId: string) => `${keyId}::${modelId}`
+
+/**
+ * Requests spent, in the two shapes quota math needs: a model-scoped ceiling is spent by one
+ * `(key, model)` pair, a key-scoped one by every model on that key. Reading the key-wide total
+ * against a model-scoped ceiling is what made "50/day for one model" die to traffic on another.
+ */
+export interface KeyUsageCounts {
+  /** Requests on one `(key, model)` pair, indexed by {@link keyModelUsageId}. */
+  readonly perKeyModel: ReadonlyMap<string, number>
+  /** Requests on a key across every model. */
+  readonly perKey: ReadonlyMap<string, number>
+  /**
+   * The response dropped buckets past its limit, so an entry missing from these maps spent an
+   * *unknown* amount, not zero. Callers must read absence as unknown while this is set — counting
+   * it as zero would hand out room that may not exist.
+   */
+  readonly truncated: boolean
+}
+
+type UsageBucket = {
+  groupBy: string
+  apiKeyId?: string | null
+  modelId?: string | null
+  requestCount: number
+}
+
+/**
+ * Fold an `apiKeyModel`-grouped stats response into per-pair and per-key totals. Buckets of any
+ * other grouping are ignored, so a caller that asked for `apiKey` gets empty maps rather than
+ * counts silently attributed to the wrong dimension.
+ */
+export function collectKeyUsage(
+  buckets: readonly UsageBucket[] | undefined,
+  other?: { requestCount: number } | null
+): KeyUsageCounts {
+  const perKeyModel = new Map<string, number>()
+  const perKey = new Map<string, number>()
+
+  for (const bucket of buckets ?? []) {
+    if (bucket.groupBy !== 'apiKeyModel' || !bucket.apiKeyId) continue
+    if (bucket.modelId) {
+      perKeyModel.set(keyModelUsageId(bucket.apiKeyId, bucket.modelId), bucket.requestCount)
+    }
+    perKey.set(bucket.apiKeyId, (perKey.get(bucket.apiKeyId) ?? 0) + bucket.requestCount)
+  }
+
+  return { perKeyModel, perKey, truncated: (other?.requestCount ?? 0) > 0 }
+}
+
+/**
+ * Requests spent against one ceiling, or `undefined` when the answer is genuinely unknown because
+ * the response was truncated. `undefined` must stay permissive everywhere it lands — routing is an
+ * optimization, never a gate.
+ */
+export function usageAgainstLimit(
+  counts: KeyUsageCounts,
+  keyId: string,
+  modelId: UniqueModelId | undefined
+): number | undefined {
+  const spent = modelId ? counts.perKeyModel.get(keyModelUsageId(keyId, modelId)) : counts.perKey.get(keyId)
+  if (spent !== undefined) return spent
+  return counts.truncated ? undefined : 0
+}
+
 export function periodStartOf(period: ApiKeyLimitPeriod, anchor?: string, tz: string = 'UTC'): number {
   if (period === 'total') return 0
 

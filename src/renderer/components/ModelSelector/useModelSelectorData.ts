@@ -15,7 +15,7 @@ import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { periodStartOf, usageStatsFrom } from '@shared/utils/apiKeyLimit'
+import { collectKeyUsage, periodStartOf, usageStatsFrom } from '@shared/utils/apiKeyLimit'
 import { isAgentOnlyProvider } from '@shared/utils/provider'
 
 import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
@@ -143,7 +143,7 @@ export function useModelSelectorData({
     const minFrom = usageStatsFrom(quotaPeriods.map((p) => periodStartOf(p)))
     return {
       query: {
-        groupBy: 'apiKey' as const,
+        groupBy: 'apiKeyModel' as const,
         metric: 'requests' as const,
         from: minFrom,
         to: Date.now(),
@@ -158,13 +158,7 @@ export function useModelSelectorData({
     // Every ModelSelector in the app runs this, so a stats payload without buckets must degrade to
     // "usage unknown" rather than throw and take the whole picker down with it.
     if (!Array.isArray(quotaUsageData?.buckets)) return undefined
-    const counts = new Map<string, number>()
-    for (const bucket of quotaUsageData.buckets) {
-      if (bucket.groupBy === 'apiKey' && bucket.apiKeyId) {
-        counts.set(bucket.apiKeyId, bucket.requestCount)
-      }
-    }
-    return counts
+    return collectKeyUsage(quotaUsageData.buckets, quotaUsageData.other)
   }, [quotaUsageData])
 
   const quotaExhaustedModelIds = useMemo(() => {
