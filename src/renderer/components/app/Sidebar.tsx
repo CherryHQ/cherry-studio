@@ -15,7 +15,7 @@ import { useWorkspaceTaskStatuses, type WorkspaceTaskStatus } from '@renderer/ho
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { getTabWorkspaceKey } from '@renderer/utils/navigationWorkspace'
-import { canRemoveSidebarShortcut, SIDEBAR_SHORTCUT_PROVIDER_IDS, type SidebarAppId } from '@renderer/utils/sidebar'
+import { SIDEBAR_SHORTCUT_PROVIDER_IDS, type SidebarAppId } from '@renderer/utils/sidebar'
 import type { SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
@@ -208,23 +208,12 @@ export default function Sidebar({
               type: 'item' as const,
               id: `sidebar.remove.${shortcut.id}`,
               label: t('launchpad.unpin_from_sidebar'),
-              enabled: canRemoveSidebarShortcut(shortcuts, shortcut.target),
               onSelect: () => removeShortcut(shortcut.target)
             }
           ]
         }
       }),
-    [
-      activateShortcut,
-      navigation,
-      navigationLayout,
-      registry,
-      removeShortcut,
-      resolutions,
-      shortcuts,
-      t,
-      workspaceTaskStatuses
-    ]
+    [activateShortcut, navigation, navigationLayout, registry, removeShortcut, resolutions, t, workspaceTaskStatuses]
   )
   const [entries, setOptimisticEntryOrder] = useOptimistic(resolvedEntries, applyEntryOrder)
 

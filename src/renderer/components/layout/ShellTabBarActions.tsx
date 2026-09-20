@@ -1,10 +1,11 @@
-import { CircleArrowUp, Search, Settings } from 'lucide-react'
+import { CircleArrowUp, Search, Settings, Stethoscope } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { CommandTooltip } from '@renderer/components/command'
+import { DoctorPopup } from '@renderer/components/doctor'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { getSidebarLayout, type SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
@@ -28,6 +29,10 @@ export function ShellTabBarActions({ showSettings = false }: { showSettings?: bo
 
   const handleSettingsClick = () => {
     openSettingsTab()
+  }
+
+  const handleDiagnosticsClick = () => {
+    void DoctorPopup.show({ initialPanel: 'checks' })
   }
 
   const handleUpdateClick = () => {
@@ -56,6 +61,19 @@ export function ShellTabBarActions({ showSettings = false }: { showSettings?: bo
               onClick={handleUpdateClick}
               className="flex h-8 w-8 items-center justify-center rounded-[8px] transition-colors hover:bg-accent">
               <CircleArrowUp className="lucide-custom size-[18px] text-success" strokeWidth={1.8} />
+            </Button>
+          </Tooltip>
+        )}
+        {isSidebarHidden && (
+          <Tooltip content={t('settings.doctor.entry.title')} placement="bottom" delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t('settings.doctor.entry.title')}
+              onClick={handleDiagnosticsClick}
+              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
+              <Stethoscope size={16} strokeWidth={1.8} />
             </Button>
           </Tooltip>
         )}

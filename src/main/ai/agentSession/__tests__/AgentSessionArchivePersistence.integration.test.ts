@@ -25,6 +25,8 @@ vi.mock('@application', async () => {
       hasUnsettledTopicWork: mocks.hasUnsettledTopicWork
     },
     AgentSessionRuntimeService: {
+      cancelSessionForks: vi.fn().mockResolvedValue(undefined),
+      recoverSessionForks: vi.fn().mockResolvedValue(undefined),
       isSessionBusy: mocks.isSessionBusy,
       closeSession: mocks.closeSession
     }

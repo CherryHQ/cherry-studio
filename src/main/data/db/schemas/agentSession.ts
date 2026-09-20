@@ -9,6 +9,9 @@ export const agentSessionTable = sqliteTable(
   'agent_session',
   {
     id: uuidPrimaryKey(),
+    type: text({ enum: ['conversation', 'background'] })
+      .notNull()
+      .default('conversation'),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
     name: text().notNull(),
     // Whether the name was manually edited by user.
@@ -38,3 +41,4 @@ export const agentSessionTable = sqliteTable(
 
 export type AgentSessionRow = typeof agentSessionTable.$inferSelect
 export type InsertAgentSessionRow = typeof agentSessionTable.$inferInsert
+export type AgentSessionType = AgentSessionRow['type']

@@ -138,7 +138,7 @@ describe('app Sidebar shortcuts', () => {
     expect(mocks.remove).toHaveBeenCalledWith(missing.target)
   })
 
-  it('disables removing the last built-in app shortcut', () => {
+  it('allows removing the last built-in app shortcut', () => {
     const assistant = shortcut('core.app', 'assistants')
     mocks.shortcuts = [assistant]
     mocks.resolutions = [
@@ -146,34 +146,17 @@ describe('app Sidebar shortcuts', () => {
     ]
 
     render(<Sidebar />)
-
-    expect(screen.getByRole('button', { name: 'launchpad.unpin_from_sidebar' })).toBeDisabled()
-  })
-
-  it('allows removing the assistant when another built-in app remains', () => {
-    const assistant = shortcut('core.app', 'assistants')
-    const knowledge = shortcut('core.app', 'knowledge')
-    mocks.shortcuts = [assistant, knowledge]
-    mocks.resolutions = [
-      { status: 'resolved', shortcut: assistant, resource: { label: 'Chat', renderIcon: () => null } },
-      { status: 'resolved', shortcut: knowledge, resource: { label: 'Knowledge', renderIcon: () => null } }
-    ]
-
-    render(<Sidebar />)
-    const assistantItem = screen.getByRole('listitem', { name: 'Chat' })
-    fireEvent.click(within(assistantItem).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
     expect(mocks.remove).toHaveBeenCalledWith(assistant.target)
   })
 
   it('closes a Sidebar workspace before removing its built-in shortcut', () => {
     const assistant = shortcut('core.app', 'assistants')
-    const knowledge = shortcut('core.app', 'knowledge')
     mocks.navigationLayout = 'sidebar'
-    mocks.shortcuts = [assistant, knowledge]
+    mocks.shortcuts = [assistant]
     mocks.resolutions = [
-      { status: 'resolved', shortcut: assistant, resource: { label: 'Chat', renderIcon: () => null } },
-      { status: 'resolved', shortcut: knowledge, resource: { label: 'Knowledge', renderIcon: () => null } }
+      { status: 'resolved', shortcut: assistant, resource: { label: 'Chat', renderIcon: () => null } }
     ]
 
     render(<Sidebar />)

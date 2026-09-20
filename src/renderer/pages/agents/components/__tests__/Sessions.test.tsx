@@ -1,5 +1,6 @@
 import type * as DndKitUtilities from '@dnd-kit/utilities'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Activity, type ComponentProps, type ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1230,8 +1231,9 @@ describe('Sessions', () => {
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('shows fifty sessions in left-panel time groups and loads five more per expansion', () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'time')
+  it.each(['time', 'agent', 'workdir'])('expands all sessions in %s groups with one click', async (displayMode) => {
+    const user = userEvent.setup()
+    preferenceMocks.values.set('agent.session.display_mode', displayMode)
     setupSessions({
       sessions: [
         ...Array.from({ length: 56 }, (_, index) =>
@@ -1248,18 +1250,15 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.getByText('Session 50')).toBeInTheDocument()
-    expect(screen.queryByText('Session 51')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Expand display' }))
-
-    expect(screen.getByText('Session 55')).toBeInTheDocument()
+    expect(screen.getByText('Session 1')).toBeInTheDocument()
+    expect(screen.getByText(displayMode === 'time' ? 'Session 50' : 'Session 5')).toBeInTheDocument()
+    expect(screen.queryByText(displayMode === 'time' ? 'Session 51' : 'Session 6')).not.toBeInTheDocument()
     expect(screen.queryByText('Session 56')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expand display' }))
+    await user.click(screen.getByRole('button', { name: 'Expand display' }))
 
     expect(screen.getByText('Session 56')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Expand display' })).not.toBeInTheDocument()
   })
 
   it('creates a first-agent session from the header when there are agents but no sessions', async () => {

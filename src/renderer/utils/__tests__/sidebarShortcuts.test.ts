@@ -4,7 +4,6 @@ import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/
 
 import {
   addSidebarShortcut,
-  canRemoveSidebarShortcut,
   createSidebarShortcutTarget,
   getSidebarDefaultLandingUrl,
   getVisibleSidebarShortcutItems,
@@ -63,24 +62,15 @@ describe('sidebar shortcut storage transforms', () => {
     ).toEqual([agent])
   })
 
-  it('keeps the last built-in app and reorders only visible shortcut slots', () => {
+  it('removes the last built-in app and preserves other resource and future slots', () => {
     const assistant = shortcut('core.app', 'assistants')
     const agent = shortcut('core.agent', 'agent-1')
     const topic = shortcut('core.topic', 'topic-1')
     const future = { type: 'group', id: 'future' } as unknown as SidebarShortcutItem
     const stored = [agent, future, assistant, topic]
 
-    expect(removeSidebarShortcut(stored, assistant.target)).toEqual(stored)
+    expect(removeSidebarShortcut(stored, assistant.target)).toEqual([agent, future, topic])
     expect(reorderSidebarShortcuts(stored, [topic, assistant, agent])).toEqual([topic, future, assistant, agent])
-  })
-
-  it('allows removing an app when another built-in app remains', () => {
-    const assistant = shortcut('core.app', 'assistants')
-    const knowledge = shortcut('core.app', 'knowledge')
-    const stored = [assistant, shortcut('core.agent', 'agent-1'), knowledge]
-
-    expect(canRemoveSidebarShortcut(stored, assistant.target)).toBe(true)
-    expect(removeSidebarShortcut(stored, assistant.target)).toEqual([stored[1], knowledge])
   })
 
   it('uses the first built-in app shortcut as the startup destination', () => {

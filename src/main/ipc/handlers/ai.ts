@@ -1,24 +1,21 @@
 import { randomUUID } from 'node:crypto'
 
-import { isToolUIPart } from 'ai'
-
 import { application } from '@application'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { fileEntryService } from '@data/services/FileEntryService'
-import { messageService } from '@data/services/MessageService'
+import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
+import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
-import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
+import { PathStaleVersionError } from '@main/utils/file'
+import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
@@ -73,62 +70,6 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
 function senderWebContents(senderId: WindowId | null): Electron.WebContents | undefined {
   if (senderId == null) return undefined
   return application.get('WindowManager').getWindow(senderId)?.webContents
-}
-
-/** The persisted half of `ai.tool.get_result` — matches the same shape projection replaces. */
-async function findPersistedToolOutput(
-  topicId: string,
-  messageId: string,
-  toolCallId: string
-): Promise<AiToolResultResponse> {
-  try {
-    const parts = isAgentSessionTopic(topicId)
-      ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
-      : messageService.getById(messageId).data.parts
-    for (const part of parts ?? []) {
-      if (!isToolUIPart(part) || part.state !== 'output-available') continue
-      if (part.toolCallId !== toolCallId) continue
-      if (isPersistedToolOutput(part.output)) {
-        return { found: true, output: await resolvePersistedToolOutput(part.output) }
-      }
-      return { found: true, output: part.output }
-    }
-  } catch (e) {
-    logger.warn('ai.tool.get_result persisted lookup failed', { topicId, messageId, toolCallId, err: e })
-  }
-  return { found: false }
-}
-
-/**
- * Rebuild a `$persistedToolOutput` envelope into the original output by
- * reading the blobs back from FileManager. When an entry is gone (manual DB
- * surgery, restore of an older backup) or is not a blob the tool-output store
- * wrote (a forged / colliding envelope in arbitrary tool output — the
- * ownership gate against reading unrelated entries), that blob degrades to
- * its stored excerpt with an explanatory note rather than `found: false` —
- * the renderer treats a miss as a permanent error, and the excerpt is still
- * real content.
- */
-async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
-  const ref = output.$persistedToolOutput
-  const readBlob = async (blob: PersistedToolOutputBlobRef): Promise<string> => {
-    try {
-      const entry = fileEntryService.findById(blob.fileEntryId)
-      if (!entry || !isToolOutputBlobEntry(entry)) throw new Error('entry is not a persisted tool-output blob')
-      const { content } = await application.get('FileManager').read(blob.fileEntryId, { encoding: 'text' })
-      return content
-    } catch (e) {
-      logger.warn('persisted tool output unavailable, serving excerpt', { fileEntryId: blob.fileEntryId, err: e })
-      return `${blob.head}\n\n[persisted output no longer available — showing excerpt of ${blob.totalChars} chars]\n\n${blob.tail}`
-    }
-  }
-  if (ref.shape === 'entities') {
-    const texts = Object.fromEntries(
-      await Promise.all(ref.blobRefs.map(async (blob) => [blob.key, await readBlob(blob)] as const))
-    )
-    return inflateEntities(ref, texts)
-  }
-  return reconstructOutput(ref, await readBlob(blobRefsOf(ref)[0]))
 }
 
 /**
@@ -287,6 +228,21 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       application.get('AgentLifecycleService').deleteActiveSessionsPermanently(sessionIds)
     ),
   'ai.agent.session.reuse_or_create': (input) => application.get('AgentLifecycleService').reuseOrCreateSession(input),
+  'ai.agent.session.fork': async ({ sourceSessionId, messageId }) => {
+    try {
+      return {
+        sessionId: await application.get('AgentSessionRuntimeService').forkSession(sourceSessionId, messageId)
+      }
+    } catch (error) {
+      logger.warn('Agent session fork failed', { sourceSessionId, messageId, error })
+      const failure =
+        error instanceof AgentSessionForkError || error instanceof AgentSessionForkSourceError
+          ? error.reason
+          : undefined
+      const reason = isAgentSessionForkFailureReason(failure) ? failure : 'operation_failed'
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
+    }
+  },
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
 
@@ -298,6 +254,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
+  'ai.agent.heartbeat.read': ({ agentId }) => application.get('AgentJobsService').readHeartbeatDocument(agentId),
+  'ai.agent.heartbeat.write': async ({ agentId, ...document }) => {
+    try {
+      return await application.get('AgentJobsService').writeHeartbeatDocument(agentId, document)
+    } catch (error) {
+      if (error instanceof PathStaleVersionError) throw new IpcError(fileErrorCodes.STALE_VERSION, error.message)
+      throw error
+    }
+  },
+  'ai.agent.heartbeat.run': ({ agentId }) => application.get('AgentJobsService').runHeartbeat(agentId),
   'ai.agent.task.create': ({ agentId, ...form }) =>
     exposeAgentTaskError(() => application.get('AgentJobsService').createTask(agentId, form)),
   'ai.agent.task.update': ({ agentId, taskId, patch }) =>
