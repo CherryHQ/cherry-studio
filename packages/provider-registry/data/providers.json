@@ -2543,6 +2543,25 @@
       "name": "Cerebras AI"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "description": "ComfyUI - AI model provider",
+      "endpointConfigs": {
+        "openai-responses": {
+          "adapterFamily": "openai-responses",
+          "baseUrl": "http://localhost:8188"
+        }
+      },
+      "id": "comfyui",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/comfyanonymous/ComfyUI",
+          "official": "https://comfui.org"
+        }
+      },
+      "name": "ComfyUI"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Xiaomi MiMo - AI model provider",
@@ -2633,5 +2652,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "2435ad1032e8114c"
+  "version": "06b65d8c8c9df3fa"
 }

@@ -69,6 +69,15 @@ const TRANSPORTS: Record<string, TransportRegistration> = {
       const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
       return buildTokenhubTransport(settings as Parameters<typeof buildTokenhubTransport>[0])
     }
+  },
+  comfyui: {
+    supports: () => true,
+    poll: true,
+    cancel: true,
+    load: async (settings) => {
+      const { buildComfyuiTransport } = await import('./comfyui/comfyuiTransport')
+      return buildComfyuiTransport(settings as Parameters<typeof buildComfyuiTransport>[0])
+    }
   }
 }
 
