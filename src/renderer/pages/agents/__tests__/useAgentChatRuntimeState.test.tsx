@@ -169,13 +169,19 @@ describe('useAgentChatRuntimeState', () => {
     ]
     mocks.useAgentSessionParts.mockReturnValue({ ...mocks.useAgentSessionParts(), messages: history })
     mocks.editTarget.mockResolvedValue(draft)
+    mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: [] })
+    mocks.sendTurn.mockImplementation(async (input) => {
+      const { openStream, buildStreamRequest, ensureConversation } = mocks.controllerOptions.mock.lastCall![0]
+      await openStream(buildStreamRequest(input, ensureConversation()), input)
+      return true
+    })
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
     )
     await act(() => result.current.startEditing(draft.messageId))
     expect(result.current.editing).toMatchObject(draft)
-    const sending = Promise.withResolvers<boolean>()
-    mocks.sendTurn.mockReturnValueOnce(sending.promise)
+    const sending = Promise.withResolvers<unknown>()
+    mocks.editResend.mockReturnValueOnce(sending.promise)
     let resend: Promise<boolean>
     act(() => {
       resend = result.current.resendEditedMessage({ text: 'Replacement' })
@@ -190,20 +196,6 @@ describe('useAgentChatRuntimeState', () => {
     expect(result.current.editing).toMatchObject(draft)
     expect(mocks.toastError).toHaveBeenCalledWith('Rejected')
     await act(() => result.current.resendEditedMessage({ text: 'Replacement' }))
-    expect(mocks.sendTurn).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        text: 'Replacement',
-        editTarget: expect.objectContaining({ messageId: draft.messageId, version: draft.version })
-      })
-    )
-    const input = mocks.sendTurn.mock.lastCall![0]
-    mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: [] })
-    await act(() =>
-      mocks.controllerOptions.mock.lastCall![0].openStream(
-        { trigger: 'submit-message', userMessageParts: [{ type: 'text', text: input.text }] },
-        input
-      )
-    )
     expect(mocks.editResend).toHaveBeenLastCalledWith(
       expect.objectContaining({ target: { messageId: draft.messageId, version: draft.version } })
     )

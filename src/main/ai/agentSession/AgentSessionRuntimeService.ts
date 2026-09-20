@@ -342,25 +342,26 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
   private readonly failedClosures = new Map<string, AgentRuntimeConnection>()
-  private readonly runtimeClosures = new Map<AgentRuntimeConnection, { sessionId: string; promise: Promise<void> }>()
-  private readonly pendingEditInputs = new Map<number, Map<string, number>>()
-  private readonly inputCountSenders = new Map<Electron.WebContents, () => void>()
+  private readonly pendingEditInputs = new Map<
+    Electron.WebContents,
+    { counts: Map<string, number>; dispose: () => void }
+  >()
 
   setPendingInputCount(sender: Electron.WebContents, sessionId: string, count: number): void {
-    const windowId = sender.id
-    if (!this.inputCountSenders.has(sender)) {
-      const onDestroyed = () => {
-        this.pendingEditInputs.delete(windowId)
-        this.inputCountSenders.delete(sender)
-      }
+    let record = this.pendingEditInputs.get(sender)
+    if (!record) {
+      if (!count) return
+      const onDestroyed = () => this.pendingEditInputs.delete(sender)
       sender.once('destroyed', onDestroyed)
-      this.inputCountSenders.set(sender, () => sender.removeListener('destroyed', onDestroyed))
+      record = { counts: new Map(), dispose: () => sender.removeListener('destroyed', onDestroyed) }
+      this.pendingEditInputs.set(sender, record)
     }
-    const counts = this.pendingEditInputs.get(windowId) ?? new Map<string, number>()
-    if (count) counts.set(sessionId, count)
-    else counts.delete(sessionId)
-    if (counts.size) this.pendingEditInputs.set(windowId, counts)
-    else this.pendingEditInputs.delete(windowId)
+    if (count) record.counts.set(sessionId, count)
+    else record.counts.delete(sessionId)
+    if (!record.counts.size) {
+      record.dispose()
+      this.pendingEditInputs.delete(sender)
+    }
   }
 
   assertSessionWritable(sessionId: string): void {
@@ -369,16 +370,15 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   assertSessionEditable(sessionId: string, ownEdit = false): void {
-    if (!ownEdit) this.assertSessionWritable(sessionId)
+    if (!ownEdit || this.failedClosures.has(sessionId)) this.assertSessionWritable(sessionId)
     const entry = this.entries.get(sessionId)
     if (
       this.isShuttingDown ||
       this.isWriteQuiesced ||
       this.closingSessions.has(sessionId) ||
-      [...this.runtimeClosures.values()].some((closing) => closing.sessionId === sessionId) ||
       this.connectionAttempts.has(sessionId) ||
       toolApprovalRegistry.hasSession(sessionId) ||
-      [...this.pendingEditInputs.values()].some((counts) => counts.has(sessionId)) ||
+      [...this.pendingEditInputs.values()].some(({ counts }) => counts.has(sessionId)) ||
       [...this.inFlightBackgroundFlowFlushes.values()].includes(sessionId) ||
       (entry &&
         (isAgentSessionRuntimeBusy(entry.runtimeState) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)))
@@ -399,7 +399,7 @@ export class AgentSessionRuntimeService extends BaseService {
       async () => {
         this.assertSessionEditable(sessionId, true)
         const entry = this.entries.get(sessionId)
-        const connection = entry && this.currentConnection(entry)
+        const connection = entry && this.closeConnection(entry)
         await this.closeRuntimeConnection(connection, sessionId, true)
         await this.closeSession(sessionId)
       },
@@ -1058,20 +1058,23 @@ export class AgentSessionRuntimeService extends BaseService {
       if (connectionAttempt) fallbackClosings.push(connectionAttempt)
       closing = Promise.allSettled(fallbackClosings).then(() => undefined)
     }
-    const combinedClosing = Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(
-      () => undefined
-    )
-    const barrier = {
-      promise: combinedClosing.finally(() => {
-        if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
-      }),
-      resumeToken: entry.lastResumeToken ?? priorClosing?.resumeToken
-    }
-    this.closingSessions.set(sessionId, barrier)
+    const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken)
     if (this.entries.get(sessionId) === entry) {
       this.entries.delete(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
+    return barrier
+  }
+
+  private trackSessionClosing(sessionId: string, closing: Promise<void>, resumeToken?: string): Promise<void> {
+    const priorClosing = this.closingSessions.get(sessionId)
+    const barrier = {
+      promise: Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(() => {
+        if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
+      }),
+      resumeToken: resumeToken ?? priorClosing?.resumeToken
+    }
+    this.closingSessions.set(sessionId, barrier)
     return barrier.promise
   }
 
@@ -1186,8 +1189,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private disposeWarmLeases(): void {
-    for (const dispose of this.inputCountSenders.values()) dispose()
-    this.inputCountSenders.clear()
+    for (const record of this.pendingEditInputs.values()) record.dispose()
     this.pendingEditInputs.clear()
     for (const timer of this.pendingWarmTeardowns.values()) clearTimeout(timer)
     this.pendingWarmTeardowns.clear()
@@ -1220,7 +1222,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
   hasBusySessions(): boolean {
-    if (this.forks.edits.size || this.failedClosures.size || this.runtimeClosures.size) return true
+    if (this.forks.edits.size || this.failedClosures.size) return true
     if (this.closingSessions.size > 0) return true
     if (this.inFlightBackgroundFlowFlushes.size > 0) return true
     for (const sessionId of this.entries.keys()) {
@@ -1612,13 +1614,6 @@ export class AgentSessionRuntimeService extends BaseService {
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
       this.assertSessionWritable(entry.sessionId)
-      const runtimeClosings = [...this.runtimeClosures.values()].filter(
-        (closing) => closing.sessionId === entry.sessionId
-      )
-      if (runtimeClosings.length) {
-        await Promise.all(runtimeClosings.map((closing) => closing.promise))
-        continue
-      }
       const closing = this.closingSessions.get(entry.sessionId)
       if (closing) {
         await closing.promise
@@ -3366,14 +3361,8 @@ export class AgentSessionRuntimeService extends BaseService {
     strict = false
   ): Promise<void> {
     if (!connection) return
-    const existing = this.runtimeClosures.get(connection)
-    if (existing) {
-      await existing.promise
-      if (strict && this.failedClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
-      return
-    }
     const settled = Promise.withResolvers<void>()
-    this.runtimeClosures.set(connection, { sessionId, promise: settled.promise })
+    void this.trackSessionClosing(sessionId, settled.promise, this.entries.get(sessionId)?.lastResumeToken)
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()
@@ -3391,7 +3380,6 @@ export class AgentSessionRuntimeService extends BaseService {
       if (strict) throw new AgentSessionEditError('close_failed')
     } finally {
       clearTimeout(timer)
-      this.runtimeClosures.delete(connection)
       settled.resolve()
     }
   }

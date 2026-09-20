@@ -117,21 +117,16 @@ export class AgentSessionForkOperations {
           const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
           return parsed.success ? [parsed.data.checkpoint] : []
         })
-        const root = application.getPath('feature.agents.forks')
         resources = {
           version: 1,
           operationId,
           targetSessionId: sessionId,
           resumeToken: '',
           createdAt: Date.now(),
-          artifactDirectory: path.join(root, operationId),
+          artifactDirectory: path.join(application.getPath('feature.agents.forks'), operationId),
           published: []
         }
-        await mkdir(root, { recursive: true })
-        await writeForkResources(resources)
-        await mkdir(resources.artifactDirectory)
-        resources.artifactIdentity = await forkFileIdentity(resources.artifactDirectory)
-        await writeForkResources(resources)
+        await this.prepareResources(resources)
         const native = await driver.fork({
           sourceSessionId: sessionId,
           checkpoint: anchor.data.checkpoint,
@@ -145,16 +140,7 @@ export class AgentSessionForkOperations {
           throw new AgentSessionForkError('history_corrupt')
         resources.resumeToken = native.resumeToken
         await writeForkResources(resources)
-        let checkpointIndex = 0
-        for (const row of prefix) {
-          const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
-          if (parsed.success)
-            row.data.runtimeAnchor = RuntimeForkAnchorSchema.parse({
-              ...parsed.data,
-              checkpoint: native.checkpoints[checkpointIndex++]
-            })
-          row.runtimeResumeToken = row.role === 'assistant' ? native.resumeToken : null
-        }
+        remapNativeHistory(prefix, native.resumeToken, native.checkpoints)
         await this.publish(resources, native.publish, signal)
       }
       signal.throwIfAborted()
@@ -239,24 +225,17 @@ export class AgentSessionForkOperations {
       const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
       if (parsed.success) checkpoints.push(parsed.data.checkpoint)
     }
-    const root = application.getPath('feature.agents.forks')
     const resources: AgentSessionForkResources = {
       version: 1,
       operationId,
       targetSessionId: randomUUID(),
       createdAt: Date.now(),
-      artifactDirectory: path.join(root, operationId),
+      artifactDirectory: path.join(application.getPath('feature.agents.forks'), operationId),
       published: []
     }
-    await mkdir(root, { recursive: true })
     let targetCwd = source.workspace.path
-    // Record intent before creating anything. A crash before recording inode ownership
-    // leaves a recoverable record, never an untracked directory or permission to delete a collision.
-    await writeForkResources(resources)
     try {
-      await mkdir(resources.artifactDirectory, { recursive: false })
-      resources.artifactIdentity = await forkFileIdentity(resources.artifactDirectory)
-      await writeForkResources(resources)
+      await this.prepareResources(resources)
       if (source.workspace.type === 'system') {
         targetCwd = agentWorkspaceService.buildSystemWorkspacePath(
           application.getPath('feature.agents.system_workspaces'),
@@ -315,6 +294,15 @@ export class AgentSessionForkOperations {
     if (this.hasPublishedResources(resources)) return
     await this.cleanupOwned(resources)
     await removeForkResources(resources.operationId)
+  }
+
+  private async prepareResources(resources: AgentSessionForkResources): Promise<void> {
+    await mkdir(application.getPath('feature.agents.forks'), { recursive: true })
+    // Record intent before creation so recovery never deletes a directory without proven ownership.
+    await writeForkResources(resources)
+    await mkdir(resources.artifactDirectory)
+    resources.artifactIdentity = await forkFileIdentity(resources.artifactDirectory)
+    await writeForkResources(resources)
   }
 
   private async publish(
@@ -405,6 +393,25 @@ export class AgentSessionForkOperations {
   }
 }
 
+function remapNativeHistory(
+  rows: AgentSessionMessageRow[],
+  resumeToken: string,
+  checkpoints: RuntimeForkCheckpoint[]
+): void {
+  let checkpointIndex = 0
+  for (const row of rows) {
+    const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+    delete row.data.runtimeAnchor
+    if (anchor.success) {
+      row.data.runtimeAnchor = RuntimeForkAnchorSchema.parse({
+        ...anchor.data,
+        checkpoint: checkpoints[checkpointIndex++]
+      })
+    }
+    row.runtimeResumeToken = row.role === 'assistant' ? resumeToken : null
+  }
+}
+
 function cloneMessages(
   rows: readonly AgentSessionMessageRow[],
   targetSessionId: string,
@@ -414,17 +421,17 @@ function cloneMessages(
   // Preserve the existing (createdAt, id) order even when several source rows share a timestamp.
   const newIds = rows.map(() => randomUUID()).sort()
   const ids = new Map(rows.map((row, index) => [row.id, newIds[index]]))
-  let checkpointIndex = 0
-  return rows.map((row, index) => {
-    const data = structuredClone(row.data)
+  const messages = rows.map((row) => structuredClone(row))
+  remapNativeHistory(messages, resumeToken, checkpoints)
+  return messages.map((row, index) => {
+    const data = row.data
     delete data.nativeSessionId
     const anchor = RuntimeForkAnchorSchema.safeParse(data.runtimeAnchor)
-    delete data.runtimeAnchor
     if (anchor.success) {
-      data.runtimeAnchor = RuntimeForkAnchorSchema.parse({
-        checkpoint: checkpoints[checkpointIndex++],
+      data.runtimeAnchor = {
+        ...anchor.data,
         excludedMessageIds: anchor.data.excludedMessageIds?.flatMap((id) => (ids.has(id) ? [ids.get(id)!] : []))
-      })
+      }
     }
     // Task events are live execution registries, not conversation content.
     data.parts = data.parts
@@ -468,7 +475,6 @@ function cloneMessages(
       id: ids.get(row.id)!,
       sessionId: targetSessionId,
       data,
-      runtimeResumeToken: row.role === 'assistant' ? resumeToken : null,
       stats: null,
       ftsRowid: null,
       delivery: null,

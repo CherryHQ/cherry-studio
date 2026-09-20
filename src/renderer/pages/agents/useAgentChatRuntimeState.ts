@@ -171,17 +171,9 @@ export function useAgentChatRuntimeState({
           ? error.data.reason
           : undefined
       const editReason = agentSessionEditFailureReasons.find((candidate) => candidate === reason)
-      const messages = {
-        busy: t('agent.edit_resend.error.busy'),
-        history_changed: t('agent.edit_resend.error.history_changed'),
-        not_last_user: t('agent.edit_resend.error.not_last_user'),
-        input_unsupported: t('agent.edit_resend.error.input_unsupported'),
-        attachment_unavailable: t('agent.edit_resend.error.attachment_unavailable'),
-        close_failed: t('agent.edit_resend.error.close_failed')
-      }
       toast.error(
         editReason
-          ? messages[editReason]
+          ? t(`agent.edit_resend.error.${editReason}`)
           : forkReason
             ? agentSessionForkReasonLabel(t, forkReason)
             : formatErrorMessage(error)
