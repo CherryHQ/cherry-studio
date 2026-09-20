@@ -15,6 +15,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeItemDto,
+  type ExternalItemData,
   type KnowledgeItem,
   type KnowledgeItemData,
   KnowledgeItemSchema,
@@ -351,6 +352,85 @@ export class KnowledgeItemService {
 
     logger.info('Created active knowledge item', { baseId, id: row.id, type: row.type, status })
     return rowToKnowledgeItem(row)
+  }
+
+  createCompletedExternalTx(tx: Pick<DbType, 'insert'>, baseId: string, data: ExternalItemData): KnowledgeItem {
+    const [row] = withSqliteErrors(
+      () =>
+        tx
+          .insert(knowledgeItemTable)
+          .values({ baseId, groupId: null, type: 'external', data, status: 'completed', error: null })
+          .returning()
+          .all(),
+      {
+        foreignKey: () => DataApiErrorFactory.notFound('KnowledgeBase', baseId),
+        check: (constraintName) =>
+          DataApiErrorFactory.validation({
+            _root: [
+              constraintName
+                ? `Knowledge item failed CHECK constraint '${constraintName}'`
+                : 'Knowledge item failed a CHECK constraint'
+            ]
+          })
+      } satisfies SqliteErrorHandlers
+    )
+    if (!row) {
+      throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Completed external item create result missing')
+    }
+    return rowToKnowledgeItem(row)
+  }
+
+  updateCompletedExternalMetadataTx(
+    tx: Pick<DbType, 'select' | 'update'>,
+    id: string,
+    input: { baseId: string; source: string; title: string }
+  ): KnowledgeItem | null {
+    const row = tx
+      .select()
+      .from(knowledgeItemTable)
+      .where(
+        and(
+          eq(knowledgeItemTable.id, id),
+          eq(knowledgeItemTable.baseId, input.baseId),
+          eq(knowledgeItemTable.type, 'external'),
+          eq(knowledgeItemTable.status, 'completed')
+        )
+      )
+      .limit(1)
+      .get()
+    if (!row) return null
+
+    const item = rowToKnowledgeItem(row)
+    if (item.type !== 'external') return null
+    const [updatedRow] = tx
+      .update(knowledgeItemTable)
+      .set({ data: { ...item.data, source: input.source, title: input.title } })
+      .where(
+        and(
+          eq(knowledgeItemTable.id, id),
+          eq(knowledgeItemTable.baseId, input.baseId),
+          eq(knowledgeItemTable.type, 'external'),
+          eq(knowledgeItemTable.status, 'completed')
+        )
+      )
+      .returning()
+      .all()
+    return updatedRow ? rowToKnowledgeItem(updatedRow) : null
+  }
+
+  deleteCompletedExternalTx(tx: Pick<DbType, 'delete'>, baseId: string, id: string): boolean {
+    const result = tx
+      .delete(knowledgeItemTable)
+      .where(
+        and(
+          eq(knowledgeItemTable.id, id),
+          eq(knowledgeItemTable.baseId, baseId),
+          eq(knowledgeItemTable.type, 'external'),
+          eq(knowledgeItemTable.status, 'completed')
+        )
+      )
+      .run()
+    return result.changes > 0
   }
 
   private validateGroupOwnerTx(db: Pick<DbType, 'select'>, baseId: string, groupId: string | null | undefined): void {

@@ -686,6 +686,59 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  describe('external synchronization mutations', () => {
+    it('creates a completed external item and updates only its external metadata in the caller transaction', () => {
+      const relativePath = 'external/document-1.md' as PosixRelativeFilePath
+
+      const created = dbh.db.transaction((tx) =>
+        service.createCompletedExternalTx(tx, KNOWLEDGE_BASE_ID, {
+          source: 'Feishu Wiki',
+          title: 'Document 1',
+          relativePath
+        })
+      )
+
+      expect(created).toMatchObject({
+        baseId: KNOWLEDGE_BASE_ID,
+        groupId: null,
+        type: 'external',
+        status: 'completed',
+        error: null,
+        data: { source: 'Feishu Wiki', title: 'Document 1', relativePath }
+      })
+      expect(
+        service.updateCompletedExternalMetadataTx(dbh.db, created.id, {
+          baseId: KNOWLEDGE_BASE_ID,
+          source: 'Engineering Wiki',
+          title: 'Document 1 renamed'
+        })
+      ).toMatchObject({
+        data: { source: 'Engineering Wiki', title: 'Document 1 renamed', relativePath }
+      })
+    })
+
+    it('deletes only the expected completed external item through its owner transaction primitive', async () => {
+      const external = await seedItem({
+        id: EXTERNAL_CHILD_ID,
+        type: 'external',
+        status: 'completed',
+        data: {
+          source: 'Feishu Wiki',
+          title: 'External document',
+          relativePath: 'external/document.md' as PosixRelativeFilePath
+        }
+      })
+      const note = await seedItem({ id: NOTE_1_ID, status: 'completed' })
+
+      expect(service.deleteCompletedExternalTx(dbh.db, KNOWLEDGE_BASE_ID, note.id)).toBe(false)
+      expect(service.deleteCompletedExternalTx(dbh.db, KNOWLEDGE_BASE_ID, external.id)).toBe(true)
+      expect(
+        dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, external.id)).get()
+      ).toBeUndefined()
+      expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, note.id)).get()).toBeDefined()
+    })
+  })
+
   describe('getById', () => {
     it('returns a knowledge item by id', async () => {
       const seeded = await seedItem({ data: { source: 'stored note', content: 'stored note' } })
