@@ -1234,6 +1234,11 @@ export class AiStreamManager extends BaseService {
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
       const drainedLoops = new Set(loopPromises)
+      // Bind the stop to the turn being drained: terminal handling can admit a queued successor
+      // while this lock is held, and the driver cancel is identity-free.
+      const stoppedTurnId = isAgentSessionTopic(topicId)
+        ? application.get('AgentSessionRuntimeService').getLiveTurnId(extractAgentSessionId(topicId))
+        : undefined
 
       this.abort(topicId, reason)
       await Promise.allSettled(loopPromises)
@@ -1245,7 +1250,9 @@ export class AiStreamManager extends BaseService {
         // subprocess (background tasks, subagents) survives — falling back to the session teardown
         // when the driver cannot. Every other drain reason tears the session down outright.
         const runtimeClosing =
-          reason === USER_STOP_ABORT_REASON ? runtime.handleUserStop(sessionId) : runtime.closeSession(sessionId)
+          reason === USER_STOP_ABORT_REASON
+            ? runtime.handleUserStop(sessionId, stoppedTurnId)
+            : runtime.closeSession(sessionId)
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)

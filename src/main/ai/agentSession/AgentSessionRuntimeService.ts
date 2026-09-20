@@ -444,6 +444,11 @@ export class AgentSessionRuntimeService extends BaseService {
     return entry ? this.liveTurn(entry)?.assistantMessageId : undefined
   }
 
+  getLiveTurnId(sessionId: string): string | undefined {
+    const entry = this.entries.get(sessionId)
+    return entry ? this.liveTurn(entry)?.turnId : undefined
+  }
+
   private currentTurn(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
     return getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
   }

@@ -4901,6 +4901,57 @@ describe('AgentSessionRuntimeService', () => {
     await stream.cancel().catch(() => undefined)
   })
 
+  it('does not interrupt a successor turn when a stop arrives bound to the settled turn', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      abortTurn: vi.fn(async () => true)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const firstController = new AbortController()
+    const firstStream = service
+      .openTurnStream({ sessionId: 'session-1', turnId: first.turnId, signal: firstController.signal })
+      .getReader()
+    await expect(firstStream.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+    firstController.abort('test-session-reset')
+    await vi.waitFor(() => expect(service.inspect('session-1')).toBeUndefined())
+
+    // The stopped turn is long gone and a successor owns the session's runtime.
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2')
+    })
+    const secondStream = service
+      .openTurnStream({ sessionId: 'session-1', turnId: second.turnId, signal: new AbortController().signal })
+      .getReader()
+    await expect(secondStream.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(2))
+
+    // A stop still traveling for the settled turn must not land its identity-free
+    // driver cancel on the successor.
+    const closeCallsBefore = connection.close.mock.calls.length
+    await service.handleUserStop('session-1', first.turnId)
+
+    expect(connection.abortTurn).not.toHaveBeenCalled()
+    expect(connection.close.mock.calls.length).toBe(closeCallsBefore)
+    expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1' })
+    void service.closeSession('session-1')
+    await firstStream.cancel().catch(() => undefined)
+    await secondStream.cancel().catch(() => undefined)
+  })
+
   it('falls back to the session teardown when the graceful interrupt is declined', async () => {
     const events = createAsyncQueue<any>()
     const connection = {

@@ -144,7 +144,8 @@ const fakeCacheService = {
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
 const mockCloseSession = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
-const mockHandleUserStop = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
+const mockHandleUserStop = vi.fn<(sessionId: string, turnId?: string) => Promise<void>>(async () => undefined)
+const mockGetLiveTurnId = vi.fn<(sessionId: string) => string | undefined>(() => 'turn-drain-1')
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -161,6 +162,7 @@ vi.mock('@application', async () => {
       willContinueTopic: mockWillContinueTopic,
       abortPendingTurn: mockAbortPendingTurn,
       handleUserStop: mockHandleUserStop,
+      getLiveTurnId: mockGetLiveTurnId,
       closeSession: mockCloseSession
     }
   } as Parameters<typeof mockApplicationFactory>[0])
@@ -1891,7 +1893,7 @@ describe('AiStreamManager', () => {
       await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
 
       expect(continuationListener.pausedResults).toHaveLength(0)
-      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1')
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-drain-1')
     })
 
     it('routes a user Stop through the runtime graceful path and every other drain through closeSession', async () => {
@@ -1905,7 +1907,7 @@ describe('AiStreamManager', () => {
 
       mockHandleUserStop.mockImplementation(async () => undefined)
       await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
-      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1')
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-drain-1')
       expect(mockCloseSession).not.toHaveBeenCalled()
 
       mockHandleUserStop.mockImplementation((sessionId: string) => mockCloseSession(sessionId))

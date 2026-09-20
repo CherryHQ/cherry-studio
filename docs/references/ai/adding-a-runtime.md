@@ -106,10 +106,12 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        steers the turn ended before injecting.
      - `abortTurn()` — graceful interrupt of the current turn while the
        session stays alive (background tasks and subagents survive). Resolve
-       `true` when the turn was interrupted and the connection lives; resolve
-       `false` when the driver cannot gracefully stop (unsupported, no live
-       turn, or no timely answer) — the host then tears the session down.
-       Without it the host always tears the session down on a user Stop.
+       `true` when the turn was interrupted and the connection lives — a warm
+       connection whose turn already settled also resolves `true`, since a
+       re-dispatched stop has nothing to interrupt; resolve `false` when the
+       driver cannot gracefully stop (unsupported, or no timely answer) — the
+       host then tears the session down. Without it the host always tears the
+       session down on a user Stop.
      - `getContextUsage()` — live context-window stats; without it the UI
        simply has no usage meter.
      - `compaction-start` / `compaction-complete` / `compaction-error`
