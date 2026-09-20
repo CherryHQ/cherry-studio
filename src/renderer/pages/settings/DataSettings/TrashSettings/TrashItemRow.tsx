@@ -54,7 +54,13 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
   return (
     <Item
       size="sm"
-      className="flex-nowrap gap-3 rounded-none border-0 border-border-subtle border-b px-0 py-2 last:border-b-0">
+      className="flex-nowrap gap-3 rounded-none border-0 border-border-subtle border-b px-0 py-2 last:border-b-0 data-[selectable=true]:cursor-pointer"
+      data-selectable={showSelection && !isSectionBusy}
+      onClick={(event) => {
+        if (showSelection && !isSectionBusy && !(event.target as Element).closest('button')) {
+          onSelectedChange(!selected)
+        }
+      }}>
       {showSelection && (
         <Checkbox
           checked={selected}

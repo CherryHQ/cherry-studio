@@ -36,6 +36,7 @@ vi.mock('../TrashDomainSections', async () => {
     function SelectionSection(props: {
       retentionDays: number
       onRequestDelete: (request: unknown) => void
+      batchToolbarContainer?: HTMLDivElement | null
       isBatchMode: boolean
       onBatchAvailabilityChange?: (available: boolean) => void
       isPermanentDeleting: boolean
@@ -48,6 +49,7 @@ vi.mock('../TrashDomainSections', async () => {
         onRetry: vi.fn(),
         retentionDays: props.retentionDays,
         isBatchMode: props.isBatchMode,
+        batchToolbarContainer: props.batchToolbarContainer,
         pendingRestoreId: null,
         isPermanentDeleting: props.isPermanentDeleting,
         onRestore: vi.fn(),
@@ -250,7 +252,7 @@ describe('TrashSettings permanent-delete confirmation', () => {
     }
   )
 
-  it('reveals current-type selection on demand and preserves batch mode across categories', async () => {
+  it('replaces category navigation with batch controls until batch mode ends', async () => {
     const user = userEvent.setup()
     render(<TrashSettings />)
 
@@ -268,7 +270,15 @@ describe('TrashSettings permanent-delete confirmation', () => {
     expect(screen.getByRole('button', { name: 'Delete Permanently 1' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Clear selection' })).toBeEnabled()
 
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    const panel = screen.getByRole('tabpanel')
+    expect(panel).not.toContainElement(screen.getByRole('button', { name: 'Restore 1' }))
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.getByRole('tab', { name: 'Topics' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('button', { name: 'Restore 1' })).not.toBeInTheDocument()
     await chooseCategory(user, 'Sessions')
+    await user.click(screen.getByRole('button', { name: 'Batch manage' }))
 
     expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument()
     expect(screen.queryByText('1 selected')).not.toBeInTheDocument()

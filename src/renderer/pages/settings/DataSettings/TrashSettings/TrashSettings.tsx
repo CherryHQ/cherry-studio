@@ -98,6 +98,7 @@ const TrashSettings: FC = () => {
 
   const [category, setCategory] = useState<TrashCategory>('topics')
   const [isBatchMode, setIsBatchMode] = useState(false)
+  const [batchToolbarContainer, setBatchToolbarContainer] = useState<HTMLDivElement | null>(null)
   const [canBatchManage, setCanBatchManage] = useState(false)
   const ActiveSection = SECTION_BY_CATEGORY[category]
 
@@ -203,6 +204,7 @@ const TrashSettings: FC = () => {
     onBatchAvailabilityChange: setCanBatchManage,
     retentionDays,
     isBatchMode,
+    batchToolbarContainer,
     isPermanentDeleting: isDeleting,
     onRequestDelete: handleRequestDelete
   }
@@ -256,7 +258,9 @@ const TrashSettings: FC = () => {
             setCategory(value as TrashCategory)
           }}>
           <div className="flex items-center justify-between gap-4 border-border border-b">
-            <div className="-mb-px flex min-w-0 items-center overflow-x-auto">
+            <div
+              hidden={isBatchMode}
+              className={isBatchMode ? 'hidden' : '-mb-px flex min-w-0 items-center overflow-x-auto'}>
               <TabsList aria-label={t('settings.data.trash.title')}>
                 {CATEGORIES.map(({ id, labelKey }) => (
                   <TabsTrigger key={id} value={id} className="py-3">
@@ -265,6 +269,7 @@ const TrashSettings: FC = () => {
                 ))}
               </TabsList>
             </div>
+            <div ref={setBatchToolbarContainer} className={isBatchMode ? 'min-w-0 flex-1' : 'hidden'} />
             <Button
               variant="outline"
               size="sm"
