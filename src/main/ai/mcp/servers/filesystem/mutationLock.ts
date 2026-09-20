@@ -46,7 +46,16 @@ function toIdentityKey(filePath: string): string | undefined {
 }
 
 export function withPathMutationLock<T>(filePath: string, fn: () => Promise<T>): Promise<T> {
-  const lockKey = toIdentityKey(filePath) ?? toLockKey(filePath)
+  // Chain the path queue first, then the identity queue when the target exists. Both keys
+  // are derived synchronously at call time and held for the whole operation: the path key is
+  // stable across create/delete existence flips, the identity key unifies hard-link aliases.
+  return withRawMutationLock(toLockKey(filePath), () => {
+    const identityKey = toIdentityKey(filePath)
+    return identityKey ? withRawMutationLock(identityKey, fn) : fn()
+  })
+}
+
+function withRawMutationLock<T>(lockKey: string, fn: () => Promise<T>): Promise<T> {
   const previous = mutationChains.get(lockKey) ?? Promise.resolve()
   const next = previous.then(fn, fn)
   const tracked = next.catch(() => undefined)
