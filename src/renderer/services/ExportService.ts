@@ -1422,7 +1422,7 @@ export const exportMarkdownToJoplin = async (
  * @param title 笔记标题
  * @param content 笔记内容
  */
-export const exportMarkdownToSiyuan = async (title: string, content: string): Promise<void> => {
+export const exportMarkdownToSiyuan = async (title: string, content: string): Promise<boolean> => {
   const { siyuanApiUrl, siyuanToken, siyuanBoxId, siyuanRootPath } = await preferenceService.getMultiple({
     siyuanApiUrl: 'data.integration.siyuan.api_url',
     siyuanToken: 'data.integration.siyuan.token',
@@ -1432,12 +1432,12 @@ export const exportMarkdownToSiyuan = async (title: string, content: string): Pr
 
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
-    return
+    return false
   }
 
   if (!siyuanApiUrl || !siyuanToken || !siyuanBoxId) {
     toast.error(i18n.t('message.error.siyuan.no_config'))
-    return
+    return false
   }
 
   setExportingState(true)
@@ -1472,9 +1472,11 @@ export const exportMarkdownToSiyuan = async (title: string, content: string): Pr
     await createSiyuanDoc(siyuanApiUrl, siyuanToken, siyuanBoxId, docPath, content)
 
     toast.success(i18n.t('message.success.siyuan.export'))
+    return true
   } catch (error) {
     logger.error('Failed to export to Siyuan:', error as Error)
     toast.error(i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''))
+    return false
   } finally {
     setExportingState(false)
   }

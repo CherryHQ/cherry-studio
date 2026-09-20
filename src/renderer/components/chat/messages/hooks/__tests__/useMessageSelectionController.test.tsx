@@ -626,7 +626,8 @@ describe('useMessageSelectionController', () => {
       exportServiceMocks.exportMessagesToNotion.mockResolvedValue(true)
       exportServiceMocks.exportMarkdownToYuque.mockResolvedValue({ id: 'doc-1' })
       exportServiceMocks.exportMarkdownToJoplin.mockResolvedValue({ id: 'note-1' })
-      ipcRequestMock.mockResolvedValue(undefined)
+      exportServiceMocks.exportMarkdownToSiyuan.mockResolvedValue(true)
+      ipcRequestMock.mockResolvedValue(true)
       obsidianShowMock.mockResolvedValue(true)
     })
 
@@ -737,6 +738,46 @@ describe('useMessageSelectionController', () => {
       })
 
       expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('chat.topics.export.failed'))
+      expect(setCacheValue).not.toHaveBeenCalledWith('chat.multi_select_mode', false)
+    })
+
+    it('keeps multi-select open when the word save dialog is cancelled', async () => {
+      ipcRequestMock.mockResolvedValueOnce(false)
+      const { result } = renderExportController('Topic name')
+      setCacheValue.mockClear()
+
+      await act(async () => {
+        await result.current.actions.exportSelectedMessages?.(['a'], 'word')
+      })
+
+      expect(toast.error).not.toHaveBeenCalled()
+      expect(setCacheValue).not.toHaveBeenCalledWith('chat.multi_select_mode', false)
+    })
+
+    it('exports siyuan with the topic title and exits multi-select on success', async () => {
+      const { result } = renderExportController('Topic name')
+      setCacheValue.mockClear()
+
+      await act(async () => {
+        await result.current.actions.exportSelectedMessages?.(['a'], 'siyuan')
+      })
+
+      expect(exportServiceMocks.messagesToMarkdown).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ id: 'a' })])
+      )
+      expect(exportServiceMocks.exportMarkdownToSiyuan).toHaveBeenCalledWith('Topic name', 'combined-markdown')
+      expect(setCacheValue).toHaveBeenCalledWith('chat.multi_select_mode', false)
+    })
+
+    it('keeps multi-select open when the siyuan export reports failure', async () => {
+      exportServiceMocks.exportMarkdownToSiyuan.mockResolvedValueOnce(false)
+      const { result } = renderExportController('Topic name')
+      setCacheValue.mockClear()
+
+      await act(async () => {
+        await result.current.actions.exportSelectedMessages?.(['a'], 'siyuan')
+      })
+
       expect(setCacheValue).not.toHaveBeenCalledWith('chat.multi_select_mode', false)
     })
 

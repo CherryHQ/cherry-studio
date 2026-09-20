@@ -318,11 +318,10 @@ export function useMessageSelectionController({
             case 'word': {
               const { ipcApi } = await import('@renderer/ipc')
               const markdown = await messagesToMarkdown(exportViews)
-              await ipcApi.request('export.word.from_markdown', {
+              return await ipcApi.request('export.word.from_markdown', {
                 markdown,
                 fileName: removeSpecialCharactersForFileName(title)
               })
-              return true
             }
             case 'notion':
               return exportMessagesToNotion(title, exportViews)
@@ -342,8 +341,7 @@ export function useMessageSelectionController({
               return (await exportMarkdownToJoplin(title, exportViews)) != null
             case 'siyuan': {
               const markdown = await messagesToMarkdown(exportViews)
-              await exportMarkdownToSiyuan(title, markdown)
-              return true
+              return await exportMarkdownToSiyuan(title, markdown)
             }
             default: {
               const exhaustive: never = target
