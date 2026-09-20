@@ -144,12 +144,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const isInternalAgentRequest =
     config.requestHeaders !== undefined &&
     application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
-  let resolvedAddress: Awaited<ReturnType<typeof resolveGatewayModelAddress>>
-  try {
-    resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalAgentRequest)
-  } catch (error) {
-    throw asClientError(error)
-  }
+  const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalAgentRequest)
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)

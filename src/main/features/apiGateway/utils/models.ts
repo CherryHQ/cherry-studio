@@ -41,6 +41,13 @@ export interface ResolvedGatewayModelAddress {
   model: Model
 }
 
+function gatewayModelError(message: string, status: number, cause?: unknown): Error & { status: number } {
+  const error = new Error(message) as Error & { status: number; cause?: unknown }
+  error.status = status
+  if (cause !== undefined) error.cause = cause
+  return error
+}
+
 /** Enabled providers from the data layer (`ProviderService`, not Redux). */
 function getAvailableProviders(): Provider[] {
   try {
@@ -93,32 +100,36 @@ export async function resolveGatewayModelAddress(
 ): Promise<ResolvedGatewayModelAddress> {
   const sepIdx = modelAddress.indexOf(':')
   if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
-    throw new Error(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`)
+    throw gatewayModelError(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`, 400)
   }
 
   const providerId = modelAddress.slice(0, sepIdx)
   const apiModelId = modelAddress.slice(sepIdx + 1)
   if (isManagedCherryAiDefaultModel(providerId, apiModelId)) {
-    throw new Error('CherryAI managed default model is not available through the API gateway')
+    throw gatewayModelError('CherryAI managed default model is not available through the API gateway', 400)
   }
 
   let provider: Provider
   try {
     provider = providerService.getByProviderId(providerId)
   } catch {
-    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+    throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
   if (!provider.isEnabled || isExternalCliProvider(provider)) {
-    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+    throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
 
   let availableCloudAgentModelIds: Set<UniqueModelId> | undefined
   if (isManagedCherryCloudModel(providerId)) {
     if (!allowInternalAgent) {
-      throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+      throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
     }
-    const availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
-    availableCloudAgentModelIds = new Set(availability.availableModelIdsByFeature.agent)
+    try {
+      const availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
+      availableCloudAgentModelIds = new Set(availability.availableModelIdsByFeature.agent)
+    } catch (error) {
+      throw gatewayModelError('Cherry Cloud model permissions are temporarily unavailable', 503, error)
+    }
   }
 
   const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
@@ -127,7 +138,7 @@ export async function resolveGatewayModelAddress(
     return candidateApiModelId === apiModelId
   })
   if (!model || (availableCloudAgentModelIds && !availableCloudAgentModelIds.has(model.id))) {
-    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+    throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
 
   return { providerId, apiModelId, uniqueModelId: model.id, provider, model }
