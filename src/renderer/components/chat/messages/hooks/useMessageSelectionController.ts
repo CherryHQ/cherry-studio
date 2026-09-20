@@ -8,7 +8,8 @@ import type {
   MessageListItem,
   MessageListSelectAllPagination,
   MessageListSelectionState,
-  SelectAllState
+  SelectAllState,
+  SelectedMessagesExportTarget
 } from '@renderer/components/chat/messages/types'
 import {
   createSelectedMessageExportViews,
@@ -24,6 +25,7 @@ const logger = loggerService.withContext('useMessageSelectionController')
 
 interface UseMessageSelectionControllerParams {
   topicId: string
+  topicName?: string
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   deleteMessage?: MessageListActions['deleteMessage']
@@ -45,12 +47,14 @@ interface MessageSelectionController {
     | 'toggleMultiSelectMode'
     | 'copySelectedMessages'
     | 'saveSelectedMessages'
+    | 'exportSelectedMessages'
     | 'deleteSelectedMessages'
   >
 }
 
 export function useMessageSelectionController({
   topicId,
+  topicName,
   messages,
   partsByMessageId,
   deleteMessage,
@@ -277,6 +281,86 @@ export function useMessageSelectionController({
     [ensureSelection, saveTextFile, t, toggleMultiSelectMode]
   )
 
+  const exportSelectedMessages = useCallback(
+    async (messageIds: readonly string[] | undefined, target: SelectedMessagesExportTarget) => {
+      const ids = ensureSelection(messageIds)
+      if (!ids) return
+
+      const { messages: latestMessages, partsByMessageId: latestPartsByMessageId } = latestExportDataRef.current
+      const exportViews = createSelectedMessageExportViews(ids, latestMessages, latestPartsByMessageId)
+      if (exportViews.length === 0) {
+        toast.warning(t('chat.multiple.select.empty'))
+        return
+      }
+
+      try {
+        const {
+          exportMarkdownToJoplin,
+          exportMarkdownToSiyuan,
+          exportMarkdownToYuque,
+          exportMessagesAsMarkdown,
+          exportMessagesToNotion,
+          getMessageTitle,
+          messagesToMarkdown
+        } = await import('@renderer/services/ExportService')
+        const { removeSpecialCharactersForFileName } = await import('@renderer/utils/file')
+        const trimmedTopicName = topicName?.trim()
+        const title = trimmedTopicName ? trimmedTopicName : await getMessageTitle(exportViews[0])
+        // External destinations signal cancel/failure with falsy-normal
+        // returns, so only a true success may close multi-select.
+        const succeeded = await (async (): Promise<boolean> => {
+          switch (target) {
+            case 'markdown':
+            case 'markdown-reason': {
+              const { chooseImageExportMode } = await import('@renderer/services/imageExportModeChooser')
+              return exportMessagesAsMarkdown(exportViews, target === 'markdown-reason', title, chooseImageExportMode)
+            }
+            case 'word': {
+              const { ipcApi } = await import('@renderer/ipc')
+              const markdown = await messagesToMarkdown(exportViews)
+              await ipcApi.request('export.word.from_markdown', {
+                markdown,
+                fileName: removeSpecialCharactersForFileName(title)
+              })
+              return true
+            }
+            case 'notion':
+              return exportMessagesToNotion(title, exportViews)
+            case 'yuque': {
+              const markdown = await messagesToMarkdown(exportViews)
+              return (await exportMarkdownToYuque(title, markdown)) != null
+            }
+            case 'obsidian': {
+              const { default: ObsidianExportPopup } = await import('@renderer/components/ObsidianExportPopup')
+              return ObsidianExportPopup.show({
+                title: title.replace(/\\/g, '_'),
+                messages: exportViews,
+                processingMethod: '1'
+              })
+            }
+            case 'joplin':
+              return (await exportMarkdownToJoplin(title, exportViews)) != null
+            case 'siyuan': {
+              const markdown = await messagesToMarkdown(exportViews)
+              await exportMarkdownToSiyuan(title, markdown)
+              return true
+            }
+            default: {
+              const exhaustive: never = target
+              throw new Error(`Unsupported selected-messages export target: ${String(exhaustive)}`)
+            }
+          }
+        })()
+        if (!succeeded) return
+        toggleMultiSelectMode(false)
+      } catch (error) {
+        logger.error('Failed to export selected messages:', error as Error)
+        toast.error(formatErrorMessageWithPrefix(error, t('chat.topics.export.failed')))
+      }
+    },
+    [ensureSelection, t, toggleMultiSelectMode, topicName]
+  )
+
   const deleteSelectedMessages = useCallback(
     async (messageIds?: readonly string[]) => {
       const ids = ensureSelection(messageIds)
@@ -329,12 +413,14 @@ export function useMessageSelectionController({
       toggleMultiSelectMode,
       copySelectedMessages,
       saveSelectedMessages: saveTextFile ? saveSelectedMessages : undefined,
+      exportSelectedMessages,
       deleteSelectedMessages: deleteMessage ? deleteSelectedMessages : undefined
     }),
     [
       copySelectedMessages,
       deleteMessage,
       deleteSelectedMessages,
+      exportSelectedMessages,
       saveSelectedMessages,
       saveTextFile,
       selectMessage,

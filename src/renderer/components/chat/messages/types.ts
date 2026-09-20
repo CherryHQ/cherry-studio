@@ -138,6 +138,17 @@ export const defaultMessageMenuConfig: MessageMenuConfig = {
   exportMenuOptions: defaultMessageMenuExportOptions
 }
 
+/** Multi-select export destinations — the single-message Export menu items that generalize to N messages. */
+export type SelectedMessagesExportTarget =
+  | 'markdown'
+  | 'markdown-reason'
+  | 'word'
+  | 'notion'
+  | 'yuque'
+  | 'obsidian'
+  | 'joplin'
+  | 'siyuan'
+
 export interface MessageModelPickerRenderOptions {
   message: MessageListItem
   messageParts: CherryMessagePart[]
@@ -417,6 +428,10 @@ export interface MessageListActions {
   toggleMultiSelectMode?: (enabled: boolean) => void
   copySelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   saveSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
+  exportSelectedMessages?: (
+    messageIds: readonly string[] | undefined,
+    target: SelectedMessagesExportTarget
+  ) => void | Promise<void>
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void

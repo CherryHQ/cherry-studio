@@ -754,6 +754,67 @@ export const exportMessageAsMarkdown = async (
   }
 }
 
+export const exportMessagesAsMarkdown = async (
+  messages: ExportableMessage[],
+  exportReasoning?: boolean,
+  title?: string,
+  chooseImageMode?: ImageModeChooser,
+  excludeCitations?: boolean
+): Promise<boolean> => {
+  if (messages.length === 0) return false
+  if (getExportState()) {
+    toast.warning(i18n.t('message.warn.export.exporting'))
+    return false
+  }
+
+  // Resolve before taking the lock: title naming can reject (offline AI call)
+  // and must never leave the export mutex stuck.
+  const trimmedTitle = title?.trim()
+  const fileTitle = trimmedTitle ? trimmedTitle : await getMessageTitle(messages[0])
+  const buildWithOverrides = async (overrides?: Map<string, string>): Promise<string> =>
+    messagesToMarkdown(messages, exportReasoning, excludeCitations, overrides)
+
+  // Same save-dialog vs preconfigured-directory contract as the single-message
+  // path; the caller supplies the title (usually the topic name).
+  setExportingState(true)
+  try {
+    const markdownExportPath = await preferenceService.get('data.export.markdown.path')
+    if (!markdownExportPath) {
+      try {
+        const fileName = removeSpecialCharactersForFileName(fileTitle) + '.md'
+        const built = await buildMarkdownWithImages(messages, buildWithOverrides, chooseImageMode)
+        if (!built) return false
+        const result = await window.api.file.save(fileName, built.markdown)
+        if (!result) return false
+        await exportImageAssets(result, built.markdown, built.pendingWrites)
+        toast.success(i18n.t('message.success.markdown.export.specified'))
+        return true
+      } catch (error: any) {
+        toast.error(i18n.t('message.error.markdown.export.specified'))
+        logger.error('Failed to export messages as markdown:', error)
+        return false
+      }
+    }
+    try {
+      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
+      const fileName = removeSpecialCharactersForFileName(fileTitle) + ` ${timestamp}.md`
+      const built = await buildMarkdownWithImages(messages, buildWithOverrides, chooseImageMode)
+      if (!built) return false
+      const mdPath = markdownExportPath + '/' + fileName
+      await window.api.file.write(mdPath, built.markdown)
+      await exportImageAssets(mdPath, built.markdown, built.pendingWrites)
+      toast.success(i18n.t('message.success.markdown.export.preconf'))
+      return true
+    } catch (error: any) {
+      toast.error(i18n.t('message.error.markdown.export.preconf'))
+      logger.error('Failed to export messages as markdown:', error)
+      return false
+    }
+  } finally {
+    setExportingState(false)
+  }
+}
+
 // GitHub-style alert marker (e.g. "[!NOTE]") leading the first paragraph inside a quote
 const ALERT_MARKER_RE = /^\[!([A-Za-z][\w-]*)\]/
 

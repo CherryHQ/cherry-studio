@@ -945,6 +945,12 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         onCopy={
           actions.copySelectedMessages ? () => void actions.copySelectedMessages?.(selectedMessageIds) : undefined
         }
+        exportMenuOptions={messageUi.menuConfig?.exportMenuOptions}
+        onExport={
+          actions.exportSelectedMessages
+            ? (target) => void actions.exportSelectedMessages?.(selectedMessageIds, target)
+            : undefined
+        }
         onDelete={
           actions.deleteSelectedMessages ? () => void actions.deleteSelectedMessages?.(selectedMessageIds) : undefined
         }
