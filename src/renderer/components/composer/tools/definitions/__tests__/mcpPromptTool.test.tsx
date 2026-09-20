@@ -73,13 +73,19 @@ describe('restoreMcpPromptConsumedQuery', () => {
   it.each(['/', '@'])('restores the %s input-trigger query when the argument dialog is cancelled', (trigger) => {
     const insertText = vi.fn()
     const focus = vi.fn()
+    const parentPanel = {
+      list: [],
+      symbol: '/',
+      triggerInfo: { type: 'input' as const, originalText: trigger },
+      initialSearchText: 'review'
+    }
 
     expect(
       restoreMcpPromptConsumedQuery({
-        context: { triggerInfo: { type: 'input', originalText: trigger } } as never,
+        context: { parentPanel } as never,
         action: 'click',
         item: {} as never,
-        searchText: 'review',
+        searchText: 'foo',
         inputAdapter: {
           getText: vi.fn(),
           insertText,
@@ -114,19 +120,24 @@ describe('restoreMcpPromptConsumedQuery', () => {
     expect(insertText).not.toHaveBeenCalled()
   })
 
-  it('does not restore a panel-local query from an input-triggered resource panel', () => {
+  it('restores the composer query instead of the panel-local query', () => {
     const insertText = vi.fn()
     const focus = vi.fn()
 
     expect(
       restoreMcpPromptConsumedQuery({
         context: {
-          triggerInfo: { type: 'input', originalText: '@' },
-          searchInput: { placeholder: 'Search prompts', ariaLabel: 'Search prompts' }
+          searchInput: { placeholder: 'Search prompts', ariaLabel: 'Search prompts' },
+          parentPanel: {
+            list: [],
+            symbol: '/',
+            triggerInfo: { type: 'input', originalText: '@' },
+            initialSearchText: 'review'
+          }
         } as never,
         action: 'click',
         item: {} as never,
-        searchText: 'review',
+        searchText: 'foo',
         inputAdapter: {
           getText: vi.fn(),
           insertText,
@@ -134,9 +145,30 @@ describe('restoreMcpPromptConsumedQuery', () => {
           focus
         }
       })
+    ).toBe(true)
+
+    expect(insertText).toHaveBeenCalledWith('@review', { tokenizeVariables: false })
+    expect(focus).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not restore a query when no input-triggered ancestor exists', () => {
+    const insertText = vi.fn()
+
+    expect(
+      restoreMcpPromptConsumedQuery({
+        context: { searchInput: { placeholder: 'Search prompts', ariaLabel: 'Search prompts' } } as never,
+        action: 'click',
+        item: {} as never,
+        searchText: 'foo',
+        inputAdapter: {
+          getText: vi.fn(),
+          insertText,
+          deleteTriggerRange: vi.fn(),
+          focus: vi.fn()
+        }
+      })
     ).toBe(false)
 
     expect(insertText).not.toHaveBeenCalled()
-    expect(focus).not.toHaveBeenCalled()
   })
 })

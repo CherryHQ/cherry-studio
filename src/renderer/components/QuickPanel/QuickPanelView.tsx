@@ -126,8 +126,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const inputTriggerConsumedRef = useRef(false)
   const inputQueryConsumedRef = useRef(false)
   const prevPanelGenerationRef = useRef<number | undefined>(undefined)
-  const inputTriggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
   const hasSearchInput = Boolean(ctx.searchInput)
+  const inputTriggerSymbol = hasSearchInput ? undefined : ctx.triggerInfo?.originalText?.slice(0, 1)
   const isTrackedInputPanel = Boolean(
     !hasSearchInput && ctx.trackInputQuery && (ctx.triggerInfo?.type === 'input' || ctx.triggerInfo?.type === 'button')
   )
@@ -638,6 +638,19 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         ctx.readOnly && e.target instanceof HTMLButtonElement && footerRef.current?.contains(e.target)
       if (isReadOnlyFooterButton && e.key === 'Tab' && e.shiftKey) return false
 
+      if (
+        hasSearchInput &&
+        e.key === 'Tab' &&
+        e.target instanceof HTMLInputElement &&
+        panelSearchText.length > 0 &&
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        return false
+      }
+
       const assistivePressed = isMac ? e.metaKey : e.ctrlKey
 
       if (assistivePressed) {
@@ -799,7 +812,18 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
       return false
     },
-    [activeIndex, ctx, footerActions, list, navigationItems, handleItemAction, handleClose, activeSearchQuery]
+    [
+      activeIndex,
+      ctx,
+      footerActions,
+      list,
+      navigationItems,
+      handleItemAction,
+      handleClose,
+      activeSearchQuery,
+      hasSearchInput,
+      panelSearchText.length
+    ]
   )
 
   useLayoutEffect(() => {

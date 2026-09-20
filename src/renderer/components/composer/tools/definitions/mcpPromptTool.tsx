@@ -25,13 +25,21 @@ type McpPromptToolContext = ToolRenderContext<readonly [], readonly ['onTextChan
 
 export function restoreMcpPromptConsumedQuery(options?: QuickPanelCallBackOptions): boolean {
   const inputAdapter = options?.inputAdapter
-  const triggerInfo = options?.context.triggerInfo
-  if (!inputAdapter || triggerInfo?.type !== 'input' || options?.context.searchInput) return false
+  if (!inputAdapter) return false
 
-  const trigger = triggerInfo.originalText?.slice(0, 1) ?? ''
-  inputAdapter.insertText(`${trigger}${options.searchText ?? ''}`, { tokenizeVariables: false })
-  inputAdapter.focus()
-  return true
+  let parentPanel = options?.context.parentPanel
+  while (parentPanel) {
+    const triggerInfo = parentPanel.triggerInfo
+    if (triggerInfo?.type === 'input' && !parentPanel.searchInput) {
+      const trigger = triggerInfo.originalText?.slice(0, 1) ?? ''
+      inputAdapter.insertText(`${trigger}${parentPanel.initialSearchText ?? ''}`, { tokenizeVariables: false })
+      inputAdapter.focus()
+      return true
+    }
+    parentPanel = parentPanel.parentPanel
+  }
+
+  return false
 }
 
 /** Text parts of a `prompts/get` result, in order. Image / resource parts have no composer form. */

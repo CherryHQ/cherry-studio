@@ -366,6 +366,50 @@ describe('QuickPanelView', () => {
     expect(search).toHaveValue('missing')
   })
 
+  it('keeps the panel-local trigger symbol in search queries', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          items={[
+            { id: 'symbol', label: '@', icon: '@' },
+            { id: 'other', label: 'Other action', icon: 'o' }
+          ]}
+          triggerInfo={{ type: 'input', originalText: '@' }}
+          searchInput={{ placeholder: 'Search actions', ariaLabel: 'Search actions' }}
+        />
+      </QuickPanelProvider>
+    )
+
+    const search = await screen.findByRole('textbox', { name: 'Search actions' })
+    await user.type(search, '@')
+
+    expect(screen.getByTestId('quick-panel-virtual-list').querySelector('[data-id="symbol"]')).toBeInTheDocument()
+    expect(screen.queryByText('Other action')).not.toBeInTheDocument()
+  })
+
+  it('lets a non-empty panel search tab to its clear button', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          items={[{ id: 'action', label: 'Action', icon: 'a' }]}
+          searchInput={{ placeholder: 'Search actions', ariaLabel: 'Search actions' }}
+        />
+      </QuickPanelProvider>
+    )
+
+    const search = await screen.findByRole('textbox', { name: 'Search actions' })
+    await user.type(search, 'action')
+    await user.tab()
+
+    expect(screen.getByRole('button', { name: 'Clear' })).toHaveFocus()
+  })
+
   it('ignores stale close callbacks after the provider unmounts', () => {
     vi.useFakeTimers()
 
