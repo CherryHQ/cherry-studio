@@ -599,6 +599,35 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
   })
 
+  it('keeps the configured plan/small models for a stable session override', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    // The session runs on its own override, but nothing was edited mid-turn — the agent's
+    // configured sub-models still apply instead of being silently pinned to the override.
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' },
+      modelId: 'provider-1::model-2'
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::plan',
+      smallModel: 'provider-1::small'
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'plan-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'small-api'
+    })
+  })
+
   it('fingerprints the enabled key set, stable across rotation and sensitive to key-set edits', async () => {
     mocks.getApiKeys.mockReturnValue([
       { key: 'key-a', isEnabled: true },
