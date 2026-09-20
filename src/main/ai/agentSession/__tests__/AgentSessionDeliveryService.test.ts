@@ -122,6 +122,7 @@ vi.mock('@data/services/AgentTaskService', () => ({
 
 vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
   agentChatContextProvider: {
+    isPersistentConversation: true,
     validateDispatch: mocks.validateDispatch,
     persistDispatchTx: mocks.persistDispatchTx,
     activateDispatch: mocks.activateDispatch
@@ -336,7 +337,7 @@ describe('AgentSessionDeliveryService', () => {
     })
     expect(mocks.claim).toHaveBeenCalledWith({}, 'target', 'delivery-1', 'assistant-1')
     expect(mocks.publishDispatchChanges).toHaveBeenCalledWith('target', [accepted, assistant])
-    expect(mocks.send).toHaveBeenCalledOnce()
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ isPersistentConversation: true }))
   })
 
   it('reruns a coalesced kick that arrives before the blocked kick releases single-flight ownership', async () => {
