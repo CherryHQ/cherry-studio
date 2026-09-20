@@ -100,9 +100,11 @@ export interface ErrorCategoryInput {
   text?: string
   status?: number
   finishReason?: string
+  /** CLI-originated text may need stricter message-only server matching. */
+  source?: 'claude-code'
 }
 
-export function classifyErrorCategory({ text, status, finishReason }: ErrorCategoryInput): ErrorCategory {
+export function classifyErrorCategory({ text, status, finishReason, source }: ErrorCategoryInput): ErrorCategory {
   switch (finishReason?.toLowerCase()) {
     case 'content-filter':
     case 'content_filter':
@@ -204,6 +206,31 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'content'
   }
 
+  // Structured HTTP 5xx responses are upstream failures even when their message
+  // happens to look like a transport failure (for example, "fetch failed").
+  const isHttpServerError = status !== undefined && status >= 500 && status < 600
+  const isClaudeCodeSpawnFailure =
+    msg.includes('failed to spawn claude code process') ||
+    msg.includes('claude code process exited') ||
+    msg.includes('claude code process terminated')
+  const hasUpstreamUnavailableContext = /\b(?:api|gateway|http|provider|response|upstream)\b/.test(msg)
+  const isExplicitTemporaryUnavailable =
+    /\b(?:service|server)(?:\s+is)?\s+temporarily unavailable\b/.test(msg) &&
+    !isClaudeCodeSpawnFailure &&
+    (source !== 'claude-code' || hasUpstreamUnavailableContext)
+
+  // Server errors (5xx / overloaded)
+  if (
+    isHttpServerError ||
+    msg.includes('overloaded') ||
+    msg.includes('overload') ||
+    msg.includes('service unavailable') ||
+    msg.includes('internal server error') ||
+    isExplicitTemporaryUnavailable
+  ) {
+    return 'server'
+  }
+
   // Feature-specific timeouts must win over generic network classification.
   if (isMcpErrorMessage(msg)) {
     return 'mcp'
@@ -267,19 +294,6 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('unable_to_verify_leaf_signature')
   ) {
     return 'proxy'
-  }
-
-  // Server errors (5xx / overloaded)
-  if (
-    status === 529 ||
-    (status !== undefined && status >= 500) ||
-    msg.includes('overloaded') ||
-    msg.includes('overload') ||
-    msg.includes('service unavailable') ||
-    msg.includes('internal server error') ||
-    msg.includes('temporarily unavailable')
-  ) {
-    return 'server'
   }
 
   // Require a model-specific phrase so deprecated parameters do not look like retired models.

@@ -393,9 +393,19 @@ describe('classifyError', () => {
     expect(result.category).toBe('server')
   })
 
-  it('classifies temporarily unavailable as server', () => {
-    const result = classifyError(makeError({ message: 'temporarily unavailable' }))
+  it('classifies a 503 with a transport-looking message as server', () => {
+    const result = classifyError(makeError({ statusCode: 503, message: 'fetch failed' }))
     expect(result.category).toBe('server')
+  })
+
+  it('classifies an explicit service temporarily unavailable response as server', () => {
+    const result = classifyError(makeError({ message: 'Service temporarily unavailable' }))
+    expect(result.category).toBe('server')
+  })
+
+  it('does not classify a bare temporarily unavailable message as server', () => {
+    const result = classifyError(makeError({ message: 'temporarily unavailable' }))
+    expect(result.category).not.toBe('server')
   })
 
   // Knowledge

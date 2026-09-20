@@ -25,7 +25,7 @@ export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcess
 
 /** CLI stderr carries no structured status, so the status is recovered from the text itself. */
 export function classifyClaudeCodeTerminalReason(reason: string): ErrorCategory {
-  return classifyErrorCategory({ text: reason, status: extractHttpStatus(reason) })
+  return classifyErrorCategory({ text: reason, status: extractHttpStatus(reason), source: 'claude-code' })
 }
 
 export function recordClaudeCodeProcessExit(

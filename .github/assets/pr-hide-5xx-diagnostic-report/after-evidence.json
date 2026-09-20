@@ -1,7 +1,7 @@
 [
   {
     "label": "after-5xx",
-    "shot": "/Users/siin/orca/workspaces/cherry-studio/hide-5xx-diagnostic-report/.context/cherry-electron-dev/after-5xx.png",
+    "shot": ".github/assets/pr-hide-5xx-diagnostic-report/after-5xx.png",
     "reviewShot": null,
     "names": ["", "", "关闭"],
     "a11y": [
@@ -26,8 +26,8 @@
   },
   {
     "label": "after-quota",
-    "shot": "/Users/siin/orca/workspaces/cherry-studio/hide-5xx-diagnostic-report/.context/cherry-electron-dev/after-quota.png",
-    "reviewShot": "/Users/siin/orca/workspaces/cherry-studio/hide-5xx-diagnostic-report/.context/cherry-electron-dev/after-quota-review.png",
+    "shot": ".github/assets/pr-hide-5xx-diagnostic-report/after-quota.png",
+    "reviewShot": ".github/assets/pr-hide-5xx-diagnostic-report/after-quota-review.png",
     "names": ["", "", "报告问题", "关闭"],
     "a11y": [
       {
@@ -56,8 +56,8 @@
   },
   {
     "label": "after-unknown",
-    "shot": "/Users/siin/orca/workspaces/cherry-studio/hide-5xx-diagnostic-report/.context/cherry-electron-dev/after-unknown.png",
-    "reviewShot": "/Users/siin/orca/workspaces/cherry-studio/hide-5xx-diagnostic-report/.context/cherry-electron-dev/after-unknown-review.png",
+    "shot": ".github/assets/pr-hide-5xx-diagnostic-report/after-unknown.png",
+    "reviewShot": ".github/assets/pr-hide-5xx-diagnostic-report/after-unknown-review.png",
     "names": ["", "", "报告问题", "关闭"],
     "a11y": [
       {

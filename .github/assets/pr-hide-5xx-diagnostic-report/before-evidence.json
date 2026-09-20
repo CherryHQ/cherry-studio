@@ -1,7 +1,7 @@
 [
   {
     "label": "before-5xx",
-    "shot": "/Users/siin/orca/workspaces/cherry-studio/hide-5xx-diagnostic-report/.context/cherry-electron-dev/before-5xx.png",
+    "shot": ".github/assets/pr-hide-5xx-diagnostic-report/before-5xx.png",
     "reviewShot": null,
     "names": ["", "", "报告问题", "关闭"],
     "a11y": [

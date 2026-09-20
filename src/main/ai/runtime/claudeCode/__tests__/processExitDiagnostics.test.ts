@@ -4,6 +4,7 @@ import { serializeError } from '../../../utils/serializeError'
 import {
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
+  recordClaudeCodeSpawnError,
   recordClaudeCodeProcessExit,
   resetClaudeCodeProcessDiagnostics
 } from '../processExitDiagnostics'
@@ -61,6 +62,22 @@ describe('Claude Code process exit diagnostics', () => {
 
     expect(diagnostics.category).toBe('unknown')
     expect(diagnostics.terminalReason).toContain('exited with code 429')
+  })
+
+  it('keeps a local Claude Code spawn failure with an unavailable message out of server', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('spawn-unavailable-ref')
+
+    recordClaudeCodeSpawnError(diagnostics, new Error('Service temporarily unavailable'))
+
+    expect(diagnostics.category).not.toBe('server')
+  })
+
+  it('keeps a local Claude Code CLI unavailable stderr out of server', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('cli-unavailable-ref')
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'Service temporarily unavailable')
+
+    expect(diagnostics.category).not.toBe('server')
   })
 
   it('clears a prior process result before a resume recovery spawns again', () => {

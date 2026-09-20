@@ -66,12 +66,29 @@ describe('classifyErrorCategory server failures', () => {
     expect(classifyErrorCategory({ status })).toBe('server')
   })
 
-  it.each(['Overloaded', 'internal server error', 'service unavailable', 'temporarily unavailable'])(
+  it.each(['Overloaded', 'internal server error', 'service unavailable', 'Service temporarily unavailable'])(
     'maps "%s" to server',
     (text) => {
       expect(classifyErrorCategory({ text })).toBe('server')
     }
   )
+
+  it('does not treat a bare temporarily unavailable phrase as an upstream server error', () => {
+    expect(classifyErrorCategory({ text: 'temporarily unavailable' })).not.toBe('server')
+  })
+
+  it('does not treat a Claude Code spawn failure as an upstream server error', () => {
+    expect(
+      classifyErrorCategory({ text: 'Failed to spawn Claude Code process: Service temporarily unavailable' })
+    ).not.toBe('server')
+  })
+
+  it('does not treat a Claude Code CLI unavailable message as an upstream server error', () => {
+    expect(classifyErrorCategory({ text: 'Service temporarily unavailable', source: 'claude-code' })).not.toBe('server')
+    expect(classifyErrorCategory({ text: 'API Error: Service temporarily unavailable', source: 'claude-code' })).toBe(
+      'server'
+    )
+  })
 
   it('does not treat fuzzy upstream compatibility text as server', () => {
     expect(classifyErrorCategory({ text: 'upstream model compatibility check failed' })).not.toBe('server')

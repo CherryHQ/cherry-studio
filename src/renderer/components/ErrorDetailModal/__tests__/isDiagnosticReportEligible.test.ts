@@ -20,7 +20,8 @@ describe('isDiagnosticReportEligible', () => {
 
   it('marks upstream server errors ineligible', () => {
     expect(isDiagnosticReportEligible(makeError({ statusCode: 503, message: 'Service Unavailable' }))).toBe(false)
-    expect(isDiagnosticReportEligible(makeError({ message: 'temporarily unavailable' }))).toBe(false)
+    expect(isDiagnosticReportEligible(makeError({ message: 'Service temporarily unavailable' }))).toBe(false)
+    expect(isDiagnosticReportEligible(makeError({ statusCode: 503, message: 'fetch failed' }))).toBe(false)
   })
 
   it.each([
