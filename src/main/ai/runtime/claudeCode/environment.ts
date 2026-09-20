@@ -141,6 +141,12 @@ export async function getClaudeCodeLoginShellEnvironment(
   return env
 }
 
+/** Non-empty session-bus address check; the Linux gate lives at the launch entry point. */
+export function hasSessionBusAddress(env: Record<string, string | undefined>): boolean {
+  const value = env.DBUS_SESSION_BUS_ADDRESS
+  return typeof value === 'string' && value.trim().length > 0
+}
+
 export async function buildEnvironment(
   provider: Provider,
   agent: AgentEntity
