@@ -18,6 +18,7 @@ import {
   resolveCommandKeybinding,
   resolveMenu
 } from '@shared/utils/command'
+import { doctorSettingsPath } from '@shared/utils/doctor'
 
 const logger = loggerService.withContext('AppMenuService')
 
@@ -168,6 +169,13 @@ export class AppMenuService extends BaseService {
                 .get('MainWindowService')
                 .openWebsite('https://cherry-ai.com/docs')
                 .catch((error) => logger.warn('Failed to open website', { error }))
+            }
+          },
+          {
+            type: 'custom',
+            label: t('appMenu.doctor'),
+            click: () => {
+              openSettingsInMainWindow(doctorSettingsPath('checks'))
             }
           },
           {

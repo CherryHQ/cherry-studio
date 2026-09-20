@@ -4,12 +4,13 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-09-08T09:27:19.959Z
- * Total icons: 161
+ * Generated at: 2026-09-20T06:47:01.926Z
+ * Total icons: 162
  */
 import { type CompoundIcon } from '../types'
-import { MinTop3Icon } from './3min-top'
+import { type ProviderIconKey } from './meta-catalog'
 import { Ai302Icon } from './302ai'
+import { MinTop3Icon } from './3min-top'
 import { AbacusIcon } from './abacus'
 import { AiOnlyIcon } from './ai-only'
 import { AiStudioIcon } from './ai-studio'
@@ -95,7 +96,6 @@ import { MacosIcon } from './macos'
 import { McpIcon } from './mcp'
 import { McpsoIcon } from './mcpso'
 import { MetaIcon } from './meta'
-import { type ProviderIconKey } from './meta-catalog'
 import { MetasoIcon } from './metaso'
 import { MineruIcon } from './mineru'
 import { MinimaxIcon } from './minimax'
@@ -136,6 +136,7 @@ import { RiverflowIcon } from './riverflow'
 import { RunwayIcon } from './runway'
 import { SearxngIcon } from './searxng'
 import { SensetimeIcon } from './sensetime'
+import { SerplyIcon } from './serply'
 import { SiliconIcon } from './silicon'
 import { SkyworkIcon } from './skywork'
 import { SmitheryIcon } from './smithery'
@@ -299,6 +300,7 @@ export const PROVIDER_ICON_CATALOG = {
   runway: RunwayIcon,
   searxng: SearxngIcon,
   sensetime: SensetimeIcon,
+  serply: SerplyIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
   smithery: SmitheryIcon,

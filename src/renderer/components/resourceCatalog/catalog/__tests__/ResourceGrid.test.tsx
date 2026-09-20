@@ -820,6 +820,12 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('does not expose a sidebar shortcut action on Skill settings cards', () => {
+    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
+
+    expect(screen.queryByRole('button', { name: 'launchpad.pin_to_sidebar' })).not.toBeInTheDocument()
+  })
+
   it('toggles a Skill globally from its settings card without opening the card', async () => {
     const user = userEvent.setup()
     const onEdit = vi.fn()
@@ -851,16 +857,25 @@ describe('ResourceGrid card actions', () => {
     expect(screen.queryByText('1.2.3')).not.toBeInTheDocument()
   })
 
-  it('shows the overflow menu only for assistant cards', () => {
-    render(<ResourceCard resource={createAssistantResource()} {...getResourceCardProps()} />)
+  it.each([createAssistantResource, createAgentResource])(
+    'offers both lifecycle choices for owner cards',
+    async (createResource) => {
+      const user = userEvent.setup()
+      const resource = createResource()
+      const onDelete = vi.fn()
+      render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
 
-    expect(screen.getByRole('button', { name: /common.more/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
-  })
+      await user.click(screen.getByRole('button', { name: /common.more/ }))
+      expect(screen.getByRole('menuitem', { name: 'common.archive' })).toBeInTheDocument()
+      await user.click(screen.getByRole('menuitem', { name: 'common.delete_permanently' }))
+      await waitFor(() => expect(onDelete).toHaveBeenCalledExactlyOnceWith(resource, true))
+      expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+    }
+  )
 
   it('shows a direct delete action when delete is the only card action', async () => {
     const user = userEvent.setup()
-    const resource = createAgentResource()
+    const resource = createPromptResource()
     const onDelete = vi.fn()
 
     render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
@@ -1107,15 +1122,17 @@ describe('ResourceCardMenu group binding', () => {
     expect(screen.queryByTestId('menu-divider')).not.toBeInTheDocument()
   })
 
-  it('keeps the divider when assistant resources have actions before delete', async () => {
+  it('separates archive from permanent deletion for assistant resources', async () => {
     const user = userEvent.setup()
+    const resource = createAssistantResource()
+    const onDelete = vi.fn()
 
     render(
       <ResourceCardMenu
-        resource={createAssistantResource()}
+        resource={resource}
         onClose={vi.fn()}
         onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
+        onDelete={onDelete}
         onExport={vi.fn()}
         allGroups={[]}
       />
@@ -1124,6 +1141,10 @@ describe('ResourceCardMenu group binding', () => {
     await user.click(screen.getByRole('button', { name: /common.more/ }))
     expect(screen.queryByRole('button', { name: /common.edit/ })).not.toBeInTheDocument()
     expect(screen.getByTestId('menu-divider')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: '删除' })).toBeInTheDocument()
+    await user.click(screen.getByRole('menuitem', { name: 'common.archive' }))
+    await waitFor(() => expect(onDelete).toHaveBeenLastCalledWith(resource))
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'common.delete_permanently' }))
+    await waitFor(() => expect(onDelete).toHaveBeenLastCalledWith(resource, true))
   })
 })

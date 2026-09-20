@@ -24,6 +24,8 @@ export type ResourceCatalogViewProps = {
   variant?: 'library' | 'settings'
   title?: ReactNode
   description?: ReactNode
+  selectedSkillId?: string
+  onSelectedSkillIdChange?: (skillId: string | undefined) => void
   toolbarFooter?: ReactNode
   allowColumnToggle?: boolean
   filterResource?: (resource: ResourceItem) => boolean
@@ -37,12 +39,17 @@ export function ResourceCatalogView({
   variant = 'library',
   title,
   description,
+  selectedSkillId,
+  onSelectedSkillIdChange,
   toolbarFooter,
   allowColumnToggle,
   filterResource
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
-  const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
+  const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(
+    resourceType,
+    onSelectedSkillIdChange ? { id: selectedSkillId, onChange: onSelectedSkillIdChange } : undefined
+  )
   const hasActiveDialog = Boolean(
     dialogs.selectedSkill ||
     dialogs.assistantImportOpen ||
@@ -105,7 +112,11 @@ export function ResourceCatalogView({
         )}
       </div>
 
-      <ResourceDeleteConfirmDialog resource={dialogs.deleteConfirm} onClose={() => dialogs.setDeleteConfirm(null)} />
+      <ResourceDeleteConfirmDialog
+        resource={dialogs.deleteConfirm}
+        permanent={dialogs.deletePermanently}
+        onClose={() => dialogs.setDeleteConfirm(null)}
+      />
       {dialogsActivated ? (
         <Suspense fallback={null}>
           <ResourceCatalogDialogs

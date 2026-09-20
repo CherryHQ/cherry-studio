@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.14",
+    "version": "2.1.0",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -465,8 +465,8 @@
     }
   ],
   "providers": {
-    "version": "29a621aa936eeeea",
-    "count": 63,
+    "version": "ac95b77217ecc5c8",
+    "count": 64,
     "entries": [
       {
         "id": "cherryin",
@@ -607,6 +607,10 @@
       {
         "id": "moonshot",
         "name": "Moonshot AI"
+      },
+      {
+        "id": "moonshot-global",
+        "name": "Moonshot"
       },
       {
         "id": "baichuan",

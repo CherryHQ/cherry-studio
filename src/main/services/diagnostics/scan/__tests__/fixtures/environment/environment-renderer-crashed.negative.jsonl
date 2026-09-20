@@ -1,0 +1,4 @@
+{"timestamp":"2026-09-05T00:00:00Z","level":"error","message":"Renderer process crashed with: {\"reason\":\"clean-exit\"}"}
+{"timestamp":"2026-09-05T00:00:00Z","level":"error","message":"Relocation renderer process exited","reason":"killed"}
+{"timestamp":"2026-09-05T00:00:00Z","level":"warn","message":"Migration renderer unresponsive; forcing safe quit"}
+{"timestamp":"2026-09-05T00:00:00Z","level":"error","message":"External tool exited","reason":"crashed"}

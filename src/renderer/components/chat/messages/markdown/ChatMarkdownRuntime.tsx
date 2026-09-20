@@ -10,10 +10,11 @@ import {
   useMessageRenderConfig,
   useOptionalMessageListActions
 } from '@renderer/components/chat/messages/MessageListProvider'
-import { createLatexMarkdownBlockParser, remarkLatexMath } from '@renderer/components/markdown'
+import { createLatexMarkdownBlockParser } from '@renderer/components/markdown'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isWin } from '@renderer/utils/platform'
+import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
 import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
@@ -30,24 +31,19 @@ const EMPTY_CITATION_REGISTRY = new Map()
 const MAX_ANIMATED_CONTENT_LENGTH = 64 * 1024
 const MAX_STREAMING_TRANSFORM_LENGTH = 256 * 1024
 
-export interface ChatMarkdownRuntimeProps extends ChatMarkdownProps {
-  createPlugins?: (singleDollarMath: boolean) => PluginConfig
-}
-
 const createDefaultPlugins = (singleDollarMath: boolean): PluginConfig => ({
   ...defaultMarkdownPlugins,
   math: withMath({ singleDollar: singleDollarMath })
 })
 
-const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
+const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
   block,
   inlineHtmlPreviewMode,
   postProcess,
   className,
   components,
   trustedCitations,
-  linkifyFilePaths = false,
-  createPlugins = createDefaultPlugins
+  linkifyFilePaths = false
 }) => {
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
@@ -57,7 +53,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
   if (isStreaming) hasStreamedRef.current = true
 
   const parseMarkdownBlocks = useMemo(createLatexMarkdownBlockParser, [])
-  const plugins = useMemo(() => createPlugins(mathEnableSingleDollar), [createPlugins, mathEnableSingleDollar])
+  const plugins = useMemo(() => createDefaultPlugins(mathEnableSingleDollar), [mathEnableSingleDollar])
 
   const content = useMemo(() => {
     if (block.status === 'paused' && isEmpty(block.content)) return t('message.chat.completion.paused')

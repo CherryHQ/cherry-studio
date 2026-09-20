@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateTopicSchema, DuplicateTopicSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+import {
+  CreateTopicSchema,
+  DuplicateTopicSchema,
+  ListTopicsQuerySchema,
+  SetActiveNodeSchema,
+  UpdateTopicSchema
+} from '../topics'
+
+describe('ListTopicsQuerySchema', () => {
+  it('accepts non-empty exact ids and enforces the list limit', () => {
+    const ids = Array.from({ length: 200 }, (_, index) => `topic-${index}`)
+
+    expect(ListTopicsQuerySchema.parse({ ids }).ids).toEqual(ids)
+    expect(ListTopicsQuerySchema.safeParse({ ids: [] }).success).toBe(false)
+    expect(ListTopicsQuerySchema.safeParse({ ids: [...ids, 'overflow'] }).success).toBe(false)
+  })
+})
 
 describe('CreateTopicSchema', () => {
   it.each(['sourceNodeId', 'groupId'])('rejects unsupported key %s', (key) => {
@@ -66,5 +82,28 @@ describe('DuplicateTopicSchema', () => {
 
   it('rejects unknown keys', () => {
     expect(() => DuplicateTopicSchema.parse({ nodeId: 'n1', includeDescendants: true })).toThrow()
+  })
+})
+
+describe('deletedAt is read-only', () => {
+  // deletedAt is set via Delete (move to Recycle Bin) and cleared via the Restore endpoints;
+  // it must never be writable through the Create/Update DTOs.
+  it('CreateTopicSchema rejects deletedAt', () => {
+    expect(() => CreateTopicSchema.parse({ name: 'n', deletedAt: '2026-07-04T00:00:00.000Z' })).toThrow(/unrecognized/i)
+  })
+
+  it('UpdateTopicSchema rejects deletedAt', () => {
+    expect(() => UpdateTopicSchema.parse({ deletedAt: null })).toThrow(/unrecognized/i)
+  })
+})
+
+describe('ListTopicsQuerySchema', () => {
+  it('accepts a boolean inTrash and defaults to absent', () => {
+    expect(ListTopicsQuerySchema.parse({ inTrash: true })).toEqual({ inTrash: true })
+    expect(ListTopicsQuerySchema.parse({})).toEqual({})
+  })
+
+  it('rejects a non-boolean inTrash (plain z.boolean, no coercion)', () => {
+    expect(() => ListTopicsQuerySchema.parse({ inTrash: 'true' })).toThrow()
   })
 })

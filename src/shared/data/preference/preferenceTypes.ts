@@ -131,22 +131,34 @@ export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
  * existing flat `SidebarFavoriteItem[]` values.
  */
 export type SidebarFavoriteItem =
-  | {
-      type: 'app'
-      id: SidebarFavorite
-    }
-  | {
-      type: 'mini_app'
-      id: string
-    }
-  | {
-      type: 'agent'
-      id: string
-    }
-  | {
-      type: 'assistant'
-      id: string
-    }
+  | { type: 'app'; id: SidebarFavorite }
+  | { type: 'mini_app'; id: string }
+  | { type: 'agent'; id: string }
+  | { type: 'assistant'; id: string }
+
+export interface ResourceLocator {
+  providerId: string
+  resourceId: string
+}
+
+export type SidebarShortcutTarget = {
+  kind: 'resource'
+  locator: ResourceLocator
+  activationId?: string
+}
+
+export interface SidebarShortcutItem {
+  type: 'shortcut'
+  id: string
+  target: SidebarShortcutTarget
+  fallbackLabel?: string
+}
+
+export function createSidebarShortcutId(target: SidebarShortcutTarget): string {
+  const parts = ['sidebar-shortcut', target.locator.providerId, target.locator.resourceId]
+  if (target.activationId !== undefined) parts.push(target.activationId)
+  return parts.map(encodeURIComponent).join(':')
+}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
@@ -247,7 +259,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'fetch',
   'jina',
   'firecrawl',
-  'parallel'
+  'parallel',
+  'serply'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
