@@ -64,6 +64,13 @@ describe('useComposerFileCapabilities', () => {
       expect(containsAll(result.current.supportedExts, documentExts)).toBe(true)
     })
 
+    it('allows code / script / configuration text files on any model', () => {
+      const { result } = renderHook(() => useComposerFileCapabilities({ models: [], fallbackModel: model('m1') }))
+
+      expect(containsAll(result.current.supportedExts, ['.cs', '.css', '.sh', '.bash'])).toBe(true)
+      expect(containsAll(result.current.supportedExts, ['.conf', '.config', '.yaml', '.toml', '.ini'])).toBe(true)
+    })
+
     it('gates audio/video on the model capability (no fallback for them)', () => {
       const { result } = renderHook(() => useComposerFileCapabilities({ models: [], fallbackModel: model('m1') }))
 

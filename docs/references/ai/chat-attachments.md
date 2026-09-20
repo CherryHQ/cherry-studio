@@ -4,6 +4,8 @@ sources:
   - src/main/ai/messages/attachmentRouting.ts
   - src/main/ai/messages/fileProcessor.ts
   - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
+  - src/shared/utils/file/fileExtensions.ts
+  - src/renderer/utils/file.ts
 ---
 
 # Chat Attachments
@@ -64,6 +66,20 @@ Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway 
 external file parts (no `fileEntryId`) are still eagerly materialized, but
 image/audio/video parts are omitted when native support is false. Other
 gateway/external file types keep their existing behavior.
+
+## Supported extensions (upload allowlist)
+
+What the composer lets the user pick is the union of `imageExts`,
+`documentExts`, and `textExts` (`src/shared/utils/file/fileExtensions.ts`):
+images and documents always, plus every linguist-recognized code extension and
+the `customTextExts` additions (dotfiles, config, log, and domain formats such
+as `.conf`, `.config`, `.yaml`, `.toml`, `.ini`). That union covers C# (`.cs`),
+stylesheets (`.css`), shell scripts (`.sh`, `.bash`), and common configuration
+files. Unknown extensions are not rejected outright — `isSupportedFile`
+(`src/renderer/utils/file.ts`) falls back to a content sniff that accepts text
+content — while recognized binary extensions (executables, archives) stay
+rejected, with a per-file notice in the composer and a short unsupported-type
+note to the model.
 
 ## The cap (the only context guard)
 
