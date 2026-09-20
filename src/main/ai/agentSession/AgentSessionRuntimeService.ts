@@ -770,9 +770,12 @@ export class AgentSessionRuntimeService extends BaseService {
 
       const connected = await this.ensureConnection(entry)
       // A turn may have superseded/cleared this entry while connecting — leave its lifecycle to it.
+      // A live turn on the same entry owns it too; only drop a still-idle prime.
       if (this.entries.get(sessionId) !== entry) return
       if (!connected) {
-        void this.closeSession(sessionId)
+        if (this.runtimeStatus(entry) === 'idle' && !this.liveTurn(entry)) {
+          void this.closeSession(sessionId)
+        }
         return
       }
       // Still idle (no turn took over): arm the TTL so an unused primed connection self-closes.
@@ -782,8 +785,13 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       logger.warn('Failed to prime agent session connection', { sessionId, error })
       // A throw strands the entry inserted above with no connection and no idle timer; drop it
-      // so a later open rebuilds instead of reusing it.
-      if (primedEntry && this.entries.get(sessionId) === primedEntry) {
+      // so a later open rebuilds instead of reusing it — unless a turn has taken it over.
+      if (
+        primedEntry &&
+        this.entries.get(sessionId) === primedEntry &&
+        this.runtimeStatus(primedEntry) === 'idle' &&
+        !this.liveTurn(primedEntry)
+      ) {
         void this.closeSession(sessionId)
       }
     }

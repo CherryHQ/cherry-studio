@@ -4263,6 +4263,32 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.inspect('session-1')).toBeUndefined()
     })
 
+    it('keeps a live turn when priming fails after the turn takes over the entry', async () => {
+      const pendingConnect = createDeferred<never>()
+      const connect = vi.fn().mockReturnValue(pendingConnect.promise)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+
+      const service = new AgentSessionRuntimeService()
+      const priming = service.primeConnection('session-1')
+      await vi.waitFor(() => expect(connect).toHaveBeenCalledTimes(1))
+
+      // A real turn arrives while prime is still connecting — beginTurn reuses the same idle
+      // entry, so the failed prime must leave its lifecycle to the turn.
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      pendingConnect.reject(new Error('connect boom'))
+      await priming
+
+      expect(service.inspect('session-1')).toBeDefined()
+    })
+
     it('re-priming a live session republishes the catalog without rebuilding the connection', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
       const connection = {
