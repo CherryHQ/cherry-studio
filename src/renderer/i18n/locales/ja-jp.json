@@ -721,6 +721,8 @@
   "chat.message.flow.continue_here": "ここから続ける",
   "chat.message.flow.copy_topic.created": "新しい会話にコピーしました",
   "chat.message.flow.copy_topic.label": "新しい会話としてコピー",
+  "chat.message.flow.layout.switch_to_horizontal": "横方向レイアウトに切り替え",
+  "chat.message.flow.layout.switch_to_vertical": "縦方向レイアウトに切り替え",
   "chat.message.flow.status.awaiting_input": "入力待ち",
   "chat.message.flow.title": "高度なビュー",
   "chat.message.more": "その他のアクション",

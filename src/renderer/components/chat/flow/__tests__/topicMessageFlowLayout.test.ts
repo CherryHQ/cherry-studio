@@ -120,6 +120,57 @@ describe('topicMessageFlowLayout', () => {
     expect(assistant.style?.height).toBeUndefined()
   })
 
+  it('stacks responses below their prompts in the vertical direction', () => {
+    const graph = createGraph({
+      nodes: [
+        createNode('root', null, { role: 'user', isInactiveBranch: false, isOnActivePath: true }),
+        createNode('assistant-1', 'root', { isInactiveBranch: false, isOnActivePath: true })
+      ],
+      edges: [createEdge('root', 'assistant-1', { isActivePath: true })],
+      activeNodeId: 'assistant-1',
+      stats: {
+        nodeCount: 2,
+        branchCount: 0,
+        activePathLength: 2
+      }
+    })
+
+    const layout = layoutTopicMessageFlowGraph(graph, new Map(), 'vertical')
+    const root = getNode(layout.nodes, 'root')
+    const assistant = getNode(layout.nodes, 'assistant-1')
+
+    expect(root.position.y + root.measured!.height!).toBeLessThan(assistant.position.y)
+    expect(root.sourcePosition).toBe('bottom')
+    expect(assistant.targetPosition).toBe('top')
+  })
+
+  it('places sibling replies side by side in the vertical direction', () => {
+    const graph = createGraph({
+      nodes: [
+        createNode('root', null, { role: 'user', isInactiveBranch: false }),
+        createNode('model-a', 'root', { createdAt: '2026-05-22T14:16:01.000Z', siblingsGroupId: 7 }),
+        createNode('model-b', 'root', { createdAt: '2026-05-22T14:16:02.000Z', siblingsGroupId: 7 })
+      ],
+      edges: [
+        createEdge('root', 'model-a', { isSiblingBranch: true }),
+        createEdge('root', 'model-b', { isSiblingBranch: true })
+      ],
+      activeNodeId: null,
+      stats: {
+        nodeCount: 3,
+        branchCount: 1,
+        activePathLength: 0
+      }
+    })
+
+    const layout = layoutTopicMessageFlowGraph(graph, new Map(), 'vertical')
+    const first = getNode(layout.nodes, 'model-a')
+    const second = getNode(layout.nodes, 'model-b')
+
+    expect(first.position.y).toBe(second.position.y)
+    expect(first.position.x + first.width!).toBeLessThan(second.position.x)
+  })
+
   it('preserves node data and marks active, sibling, and inactive edge styles', () => {
     const graph = createGraph({
       nodes: [

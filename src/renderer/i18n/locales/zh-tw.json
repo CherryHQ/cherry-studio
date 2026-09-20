@@ -721,6 +721,8 @@
   "chat.message.flow.continue_here": "從這裡繼續",
   "chat.message.flow.copy_topic.created": "已複製到新對話",
   "chat.message.flow.copy_topic.label": "複製為新對話",
+  "chat.message.flow.layout.switch_to_horizontal": "切換為橫向佈局",
+  "chat.message.flow.layout.switch_to_vertical": "切換為縱向佈局",
   "chat.message.flow.status.awaiting_input": "等待輸入",
   "chat.message.flow.title": "高階視圖",
   "chat.message.more": "更多操作",

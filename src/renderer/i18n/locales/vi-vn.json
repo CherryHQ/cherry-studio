@@ -721,6 +721,8 @@
   "chat.message.flow.continue_here": "Tiếp tục từ đây",
   "chat.message.flow.copy_topic.created": "Đã sao chép sang một cuộc trò chuyện mới",
   "chat.message.flow.copy_topic.label": "Sao chép thành Cuộc trò chuyện mới",
+  "chat.message.flow.layout.switch_to_horizontal": "Chuyển sang bố cục ngang",
+  "chat.message.flow.layout.switch_to_vertical": "Chuyển sang bố cục dọc",
   "chat.message.flow.status.awaiting_input": "Đang chờ nhập liệu",
   "chat.message.flow.title": "Chế độ xem nâng cao",
   "chat.message.more": "Thêm hành động",

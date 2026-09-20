@@ -1,8 +1,11 @@
 import type { Edge, Node } from '@xyflow/react'
 
+import type { RendererPersistCacheSchema } from '@shared/data/cache/cacheSchemas'
 import type { MessageRole, MessageStatus } from '@shared/data/types/message'
 
 export const TOPIC_MESSAGE_FLOW_NODE_TYPE = 'topicMessage'
+
+export type TopicMessageFlowDirection = RendererPersistCacheSchema['ui.chat.message_flow.direction']
 
 export type TopicMessageFlowEdgeState = 'active' | 'default' | 'inactive' | 'sibling'
 

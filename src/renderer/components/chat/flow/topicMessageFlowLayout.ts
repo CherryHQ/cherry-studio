@@ -2,6 +2,7 @@ import { graphlib, layout, type OrderConstraint } from '@dagrejs/dagre'
 import { Position } from '@xyflow/react'
 
 import type {
+  TopicMessageFlowDirection,
   TopicMessageFlowEdgeModel,
   TopicMessageFlowEdgeState,
   TopicMessageFlowGraph,
@@ -46,7 +47,8 @@ const EDGE_COLORS: Record<TopicMessageFlowEdgeState, string> = {
 
 export function layoutTopicMessageFlowGraph(
   graph: TopicMessageFlowGraph,
-  measuredSizes: ReadonlyMap<string, TopicMessageFlowNodeSize> = new Map()
+  measuredSizes: ReadonlyMap<string, TopicMessageFlowNodeSize> = new Map(),
+  direction: TopicMessageFlowDirection = 'horizontal'
 ): TopicMessageFlowLayout {
   const depthById = getDepthById(graph)
   const orderedNodes = [...graph.nodes].sort((a, b) => compareGraphNodes(a, b, depthById))
@@ -66,7 +68,7 @@ export function layoutTopicMessageFlowGraph(
 
   const dagreGraph = new graphlib.Graph()
     .setGraph({
-      rankdir: 'LR',
+      rankdir: direction === 'vertical' ? 'TB' : 'LR',
       ...GRAPH_SPACING
     })
     .setDefaultEdgeLabel(() => ({}))
@@ -85,7 +87,12 @@ export function layoutTopicMessageFlowGraph(
     const positioned = dagreGraph.node(node.id)
 
     const size = measuredSizes.get(node.id) ?? getTopicMessageFlowNodeSize(node)
-    return toReactFlowNode(node, { x: positioned.x - size.width / 2, y: positioned.y - size.height / 2 }, size)
+    return toReactFlowNode(
+      node,
+      { x: positioned.x - size.width / 2, y: positioned.y - size.height / 2 },
+      size,
+      direction
+    )
   })
 
   const root = nodes[0]
@@ -107,15 +114,18 @@ export function layoutTopicMessageFlowGraph(
 function toReactFlowNode(
   node: TopicMessageFlowGraph['nodes'][number],
   position: TopicMessageFlowNodeModel['position'],
-  size: TopicMessageFlowNodeSize
+  size: TopicMessageFlowNodeSize,
+  direction: TopicMessageFlowDirection
 ): TopicMessageFlowNodeModel {
+  const isVertical = direction === 'vertical'
+
   return {
     id: node.id,
     type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
     position,
     data: { ...node.data },
-    sourcePosition: Position.Right,
-    targetPosition: Position.Left,
+    sourcePosition: isVertical ? Position.Bottom : Position.Right,
+    targetPosition: isVertical ? Position.Top : Position.Left,
     draggable: false,
     connectable: false,
     selectable: true,

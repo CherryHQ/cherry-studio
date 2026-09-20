@@ -721,6 +721,8 @@
   "chat.message.flow.continue_here": "Buradan devam et",
   "chat.message.flow.copy_topic.created": "Yeni bir konuşmaya kopyalandı",
   "chat.message.flow.copy_topic.label": "Yeni Konuşma Olarak Kopyala",
+  "chat.message.flow.layout.switch_to_horizontal": "Yatay düzene geç",
+  "chat.message.flow.layout.switch_to_vertical": "Dikey düzene geç",
   "chat.message.flow.status.awaiting_input": "Girdi bekleniyor",
   "chat.message.flow.title": "Gelişmiş Görünüm",
   "chat.message.more": "Diğer eylemler",

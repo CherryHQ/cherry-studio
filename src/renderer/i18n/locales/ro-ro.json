@@ -721,6 +721,8 @@
   "chat.message.flow.continue_here": "Continuă de aici",
   "chat.message.flow.copy_topic.created": "Copiat într-o conversație nouă",
   "chat.message.flow.copy_topic.label": "Copiază ca o nouă conversație",
+  "chat.message.flow.layout.switch_to_horizontal": "Comută la aspect orizontal",
+  "chat.message.flow.layout.switch_to_vertical": "Comută la aspect vertical",
   "chat.message.flow.status.awaiting_input": "În așteptarea intrării",
   "chat.message.flow.title": "Vizualizare avansată",
   "chat.message.more": "Mai multe acțiuni",

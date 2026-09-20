@@ -1,5 +1,6 @@
 import '@renderer/assets/styles/vendor/xyflow.css'
 import {
+  ControlButton,
   Controls,
   MiniMap,
   type NodeChange,
@@ -10,9 +11,11 @@ import {
   type ReactFlowProps,
   type Viewport
 } from '@xyflow/react'
+import { Network } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePersistCache } from '@data/hooks/useCache'
 import { cn } from '@renderer/utils/style'
 
 import {
@@ -46,7 +49,7 @@ const nodeTypes = {
 } satisfies NodeTypes
 
 const rootFocusViewport: Viewport = { x: 0, y: 0, zoom: 0.85 }
-const ROOT_LEFT_OFFSET = 32
+const ROOT_EDGE_OFFSET = 32
 
 const rootFocusOptions = {
   duration: 0
@@ -56,10 +59,13 @@ const proOptions: ReactFlowProps<TopicMessageFlowNodeModel, TopicMessageFlowEdge
   hideAttribution: true
 }
 
+// Minimap blocks sit next to near-white canvas cards, so the role hues stay heavily tinted down.
+const tintMiniMapNode = (color: string) => `color-mix(in srgb, ${color} 30%, var(--card))`
+
 function getMiniMapNodeColor(node: TopicMessageFlowNodeModel) {
-  if (node.data.role === 'user') return 'var(--chart-1)'
-  if (node.data.role === 'assistant') return 'var(--chart-2)'
-  return 'var(--foreground-tertiary)'
+  if (node.data.role === 'user') return tintMiniMapNode('var(--chart-1)')
+  if (node.data.role === 'assistant') return tintMiniMapNode('var(--chart-2)')
+  return tintMiniMapNode('var(--foreground-tertiary)')
 }
 
 function getEdgeStyle(edge: TopicMessageFlowEdgeModel): TopicMessageFlowEdgeModel['style'] {
@@ -72,12 +78,16 @@ function getEdgeStyle(edge: TopicMessageFlowEdgeModel): TopicMessageFlowEdgeMode
   }
 }
 
-function getRootFocusNode(nodes: TopicMessageFlowNodeModel[]) {
+function getRootFocusNode(nodes: TopicMessageFlowNodeModel[], isVertical: boolean) {
+  const lead = isVertical ? 'y' : 'x'
+  const cross = isVertical ? 'x' : 'y'
+
   return nodes.reduce<TopicMessageFlowNodeModel | null>((rootNode, node) => {
     if (!rootNode) return node
-    if (node.position.x !== rootNode.position.x) return node.position.x < rootNode.position.x ? node : rootNode
+    if (node.position[lead] !== rootNode.position[lead])
+      return node.position[lead] < rootNode.position[lead] ? node : rootNode
     if (node.data.isOnActivePath !== rootNode.data.isOnActivePath) return node.data.isOnActivePath ? node : rootNode
-    return node.position.y < rootNode.position.y ? node : rootNode
+    return node.position[cross] < rootNode.position[cross] ? node : rootNode
   }, null)
 }
 
@@ -91,13 +101,23 @@ function getNodeCenter(node: TopicMessageFlowNodeModel) {
   }
 }
 
-function getRootFocusViewport(containerHeight: number, positionX: number, centerY: number): Viewport {
+function getRootFocusViewport(
+  container: { width: number; height: number },
+  root: { positionX: number; positionY: number; centerX: number; centerY: number },
+  isVertical: boolean
+): Viewport {
   const zoom = rootFocusViewport.zoom
-  return {
-    x: ROOT_LEFT_OFFSET - positionX * zoom,
-    y: containerHeight / 2 - centerY * zoom,
-    zoom
-  }
+  return isVertical
+    ? {
+        x: container.width / 2 - root.centerX * zoom,
+        y: ROOT_EDGE_OFFSET - root.positionY * zoom,
+        zoom
+      }
+    : {
+        x: ROOT_EDGE_OFFSET - root.positionX * zoom,
+        y: container.height / 2 - root.centerY * zoom,
+        zoom
+      }
 }
 
 const TopicMessageFlowCanvas = ({
@@ -112,6 +132,8 @@ const TopicMessageFlowCanvas = ({
   layoutReady = true
 }: TopicMessageFlowCanvasProps) => {
   const { t } = useTranslation()
+  const [direction, setDirection] = usePersistCache('ui.chat.message_flow.direction')
+  const isVertical = direction === 'vertical'
   const containerRef = useRef<HTMLDivElement>(null)
   const hasNodes = graph.nodes.length > 0
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
@@ -129,6 +151,7 @@ const TopicMessageFlowCanvas = ({
   } | null>(null)
   const layout = useMemo(() => {
     const key = JSON.stringify([
+      direction,
       graph.nodes.map(({ id, parentId, data }) => [
         id,
         parentId,
@@ -141,10 +164,10 @@ const TopicMessageFlowCanvas = ({
     ])
     const cached = layoutCacheRef.current
     if (cached?.key === key && cached.sizes === measuredSizes) return cached.layout
-    const next = layoutTopicMessageFlowGraph(graph, measuredSizes)
+    const next = layoutTopicMessageFlowGraph(graph, measuredSizes, direction)
     layoutCacheRef.current = { key, sizes: measuredSizes, layout: next }
     return next
-  }, [graph, measuredSizes])
+  }, [direction, graph, measuredSizes])
 
   const handleNodesChange = useCallback((changes: NodeChange<TopicMessageFlowNodeModel>[]) => {
     for (const change of changes) {
@@ -201,6 +224,14 @@ const TopicMessageFlowCanvas = ({
     [actionsDisabled, onNodeActivate]
   )
 
+  const toggleDirection = useCallback(() => {
+    setDirection(isVertical ? 'horizontal' : 'vertical')
+  }, [isVertical, setDirection])
+
+  const directionLabel = isVertical
+    ? t('chat.message.flow.layout.switch_to_horizontal')
+    : t('chat.message.flow.layout.switch_to_vertical')
+
   const handleNodeContextMenu = useCallback<NodeMouseHandler<TopicMessageFlowNodeModel>>(
     (_event, node) => {
       onNodeContextMenu?.(node.data.messageId)
@@ -209,20 +240,24 @@ const TopicMessageFlowCanvas = ({
   )
 
   const rootFocusTarget = useMemo(() => {
-    const rootNode = getRootFocusNode(nodes)
+    const rootNode = getRootFocusNode(nodes, isVertical)
     if (!rootNode) return null
 
     const center = getNodeCenter(rootNode)
     return {
       id: rootNode.id,
       positionX: rootNode.position.x,
+      positionY: rootNode.position.y,
+      centerX: center.x,
       centerY: center.y
     }
-  }, [nodes])
+  }, [isVertical, nodes])
   const rootFocusNodeId = rootFocusTarget?.id
   const rootFocusPositionX = rootFocusTarget?.positionX
+  const rootFocusPositionY = rootFocusTarget?.positionY
+  const rootFocusCenterX = rootFocusTarget?.centerX
   const rootFocusCenterY = rootFocusTarget?.centerY
-  const focusSignature = rootFocusNodeId ? String(focusKey ?? 'initial') : null
+  const focusSignature = rootFocusNodeId ? `${focusKey ?? 'initial'}:${direction}` : null
   const [initialViewport, setInitialViewport] = useState<{ signature: string; viewport: Viewport } | null>(null)
   const initialFocusRef = useRef<{ signature: string; rootId: string; interrupted: boolean } | null>(null)
   const readyViewport = initialViewport?.signature === focusSignature ? initialViewport.viewport : null
@@ -237,6 +272,8 @@ const TopicMessageFlowCanvas = ({
       !focusSignature ||
       !rootFocusNodeId ||
       rootFocusPositionX === undefined ||
+      rootFocusPositionY === undefined ||
+      rootFocusCenterX === undefined ||
       rootFocusCenterY === undefined
     )
       return
@@ -253,7 +290,8 @@ const TopicMessageFlowCanvas = ({
       )
         return
       const containerHeight = containerRef.current?.clientHeight ?? 0
-      if (containerHeight <= 0) {
+      const containerWidth = containerRef.current?.clientWidth ?? 0
+      if ((isVertical ? containerWidth : containerHeight) <= 0) {
         frame = window.requestAnimationFrame(measure)
         return
       }
@@ -261,7 +299,16 @@ const TopicMessageFlowCanvas = ({
       initialFocusRef.current = { signature: focusSignature, rootId: rootFocusNodeId, interrupted: false }
       setInitialViewport({
         signature: focusSignature,
-        viewport: getRootFocusViewport(containerHeight, rootFocusPositionX, rootFocusCenterY)
+        viewport: getRootFocusViewport(
+          { width: containerWidth, height: containerHeight },
+          {
+            positionX: rootFocusPositionX,
+            positionY: rootFocusPositionY,
+            centerX: rootFocusCenterX,
+            centerY: rootFocusCenterY
+          },
+          isVertical
+        )
       })
     }
 
@@ -271,7 +318,16 @@ const TopicMessageFlowCanvas = ({
       cancelled = true
       window.cancelAnimationFrame(frame)
     }
-  }, [focusSignature, layoutReady, rootFocusNodeId, rootFocusPositionX, rootFocusCenterY])
+  }, [
+    focusSignature,
+    isVertical,
+    layoutReady,
+    rootFocusNodeId,
+    rootFocusPositionX,
+    rootFocusPositionY,
+    rootFocusCenterX,
+    rootFocusCenterY
+  ])
 
   useEffect(() => {
     if (!reactFlowInstance || !readyViewport || initialFocusRef.current?.interrupted) return
@@ -375,7 +431,15 @@ const TopicMessageFlowCanvas = ({
             position="bottom-right"
             zoomable
           />
-          <Controls position="bottom-left" showInteractive={false} />
+          <Controls position="bottom-left" showInteractive={false}>
+            <ControlButton
+              aria-label={directionLabel}
+              data-testid="topic-message-flow-direction"
+              onClick={toggleDirection}
+              title={directionLabel}>
+              <Network className={cn(isVertical && '-rotate-90')} />
+            </ControlButton>
+          </Controls>
         </ReactFlow>
       )}
     </div>

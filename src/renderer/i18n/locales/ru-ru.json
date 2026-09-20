@@ -721,6 +721,8 @@
   "chat.message.flow.continue_here": "Продолжить отсюда",
   "chat.message.flow.copy_topic.created": "Скопировано в новый диалог",
   "chat.message.flow.copy_topic.label": "Скопировать как новый разговор",
+  "chat.message.flow.layout.switch_to_horizontal": "Переключить на горизонтальную схему",
+  "chat.message.flow.layout.switch_to_vertical": "Переключить на вертикальную схему",
   "chat.message.flow.status.awaiting_input": "Ожидание ввода",
   "chat.message.flow.title": "Расширенный вид",
   "chat.message.more": "Дополнительные действия",

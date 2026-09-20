@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactFlowProps, Viewport } from '@xyflow/react'
@@ -13,9 +14,10 @@ const flow = vi.hoisted(() => ({ props: null as FlowProps | null, viewport: { x:
 vi.mock('@xyflow/react', async () => {
   const React = await import('react')
   return {
-    Controls: () => <div data-testid="flow-controls" />,
+    ControlButton: (props: React.ComponentProps<'button'>) => <button type="button" {...props} />,
+    Controls: ({ children }: { children?: React.ReactNode }) => <div data-testid="flow-controls">{children}</div>,
     MiniMap: () => <div data-testid="flow-minimap" />,
-    Position: { Left: 'left', Right: 'right' },
+    Position: { Bottom: 'bottom', Left: 'left', Right: 'right', Top: 'top' },
     ReactFlow: (props: FlowProps) => {
       flow.props = props
       const { onInit } = props
@@ -102,6 +104,7 @@ describe('TopicMessageFlowCanvas', () => {
   beforeEach(() => {
     flow.props = null
     flow.viewport = { x: 0, y: 0, zoom: 1 }
+    MockUseCacheUtils.resetMocks()
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600)
   })
   afterEach(() => vi.restoreAllMocks())
@@ -244,6 +247,35 @@ describe('TopicMessageFlowCanvas', () => {
     const revealedViewport = flow.viewport
     await measureNodeHeight('user-1', 420)
     expect(flow.viewport).toEqual(revealedViewport)
+  })
+
+  it('stacks the conversation downwards and opens at the top in the vertical layout', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(480)
+    MockUseCacheUtils.setPersistCacheValue('ui.chat.message_flow.direction', 'vertical')
+    render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
+    await findInitializedCanvas()
+
+    const root = node('user-1')
+    const answer = node('answer-a')
+    expect(answer.position.y).toBeGreaterThan(root.position.y + root.measured!.height!)
+    expect(root.sourcePosition).toBe('bottom')
+    expect(answer.targetPosition).toBe('top')
+
+    const viewport = flow.viewport
+    expect(viewport.y + root.position.y * viewport.zoom).toBeCloseTo(32)
+    expect(viewport.x + (root.position.x + root.width! / 2) * viewport.zoom).toBeCloseTo(240)
+  })
+
+  it('stores the opposite direction when the layout control is used', async () => {
+    const user = userEvent.setup()
+    render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
+    await findInitializedCanvas()
+
+    await user.click(screen.getByTestId('topic-message-flow-direction'))
+
+    await waitFor(() =>
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.chat.message_flow.direction')).toBe('vertical')
+    )
   })
 
   it('keeps empty conversations out of React Flow', () => {

@@ -117,7 +117,13 @@ function TopicMessageFlowHeader({
   )
 }
 
-function TopicMessageFlowMessage({ data }: { data: TopicMessageFlowNodeModel['data'] }) {
+function TopicMessageFlowMessage({
+  data,
+  isVertical
+}: {
+  data: TopicMessageFlowNodeModel['data']
+  isVertical: boolean
+}) {
   const { t } = useTranslation()
   const { messages, topic } = useMessageListData()
   const actions = useMessageListActions()
@@ -200,7 +206,9 @@ function TopicMessageFlowMessage({ data }: { data: TopicMessageFlowNodeModel['da
               isEditing={editingMessageId === message.id}
             />
           </div>
-          {editingMessageId !== message.id && <TopicMessageFlowBranchButton data={data} message={message} />}
+          {editingMessageId !== message.id && (
+            <TopicMessageFlowBranchButton data={data} isVertical={isVertical} message={message} />
+          )}
         </MessagePartsScopeProvider>
       )}
     </>
@@ -209,9 +217,11 @@ function TopicMessageFlowMessage({ data }: { data: TopicMessageFlowNodeModel['da
 
 function TopicMessageFlowBranchButton({
   data,
+  isVertical,
   message
 }: {
   data: TopicMessageFlowNodeModel['data']
+  isVertical: boolean
   message: MessageListItem
 }) {
   const { t } = useTranslation()
@@ -224,12 +234,19 @@ function TopicMessageFlowBranchButton({
   const continueLabel = t('chat.message.flow.continue_here')
 
   return (
-    <div className={cn(visibility, '-translate-y-1/2 top-1/2 right-0 flex translate-x-1/2')}>
+    <div
+      className={cn(
+        visibility,
+        'flex',
+        isVertical
+          ? '-translate-x-1/2 bottom-0 left-1/2 translate-y-1/2'
+          : '-translate-y-1/2 top-1/2 right-0 translate-x-1/2'
+      )}>
       <Tooltip content={disabled ? t('chat.message.flow.actions_unavailable') : continueLabel} placement="top">
         <Button
           variant="outline"
           size="icon"
-          className="size-5 rounded-full border-border-strong bg-card text-primary"
+          className="size-5 rounded-full border-primary bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:bg-primary/90"
           aria-label={continueLabel}
           disabled={disabled}
           onClick={(event) => {
@@ -275,9 +292,10 @@ function TopicMessageFlowMessageActions({
   )
 }
 
-const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNodeModel>) => {
+const TopicMessageFlowNode = ({ data, selected, sourcePosition }: NodeProps<TopicMessageFlowNodeModel>) => {
   const { t } = useTranslation()
   const statusLabel = useStatusLabel(data.status, data.isAwaitingInput)
+  const isVertical = sourcePosition === Position.Bottom
 
   return (
     <div
@@ -285,14 +303,19 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
         'group/message group/flow-node relative flex max-h-105 min-w-0 flex-col rounded-lg border border-border-strong bg-card text-card-foreground',
         data.role === 'user' && 'bg-chat-user',
         data.isAwaitingInput && 'border-dashed',
-        (data.isActive || selected) && 'border-border-selected ring-1 ring-border-selected ring-inset',
+        (data.isActive || selected) && 'border-2 border-primary',
         data.isContextBoundary && 'bg-muted'
       )}
       data-active={data.isActive ? 'true' : 'false'}
       data-selected={selected ? 'true' : 'false'}
       data-message-id={data.messageId}
       data-on-active-path={data.isOnActivePath ? 'true' : 'false'}>
-      <Handle className="opacity-0" isConnectable={false} position={Position.Left} type="target" />
+      <Handle
+        className="opacity-0"
+        isConnectable={false}
+        position={isVertical ? Position.Top : Position.Left}
+        type="target"
+      />
       {data.isAwaitingInput || data.isContextBoundary ? (
         <>
           <TopicMessageFlowHeader data={data} />
@@ -301,9 +324,14 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
           </p>
         </>
       ) : (
-        <TopicMessageFlowMessage data={data} />
+        <TopicMessageFlowMessage data={data} isVertical={isVertical} />
       )}
-      <Handle className="opacity-0" isConnectable={false} position={Position.Right} type="source" />
+      <Handle
+        className="opacity-0"
+        isConnectable={false}
+        position={isVertical ? Position.Bottom : Position.Right}
+        type="source"
+      />
     </div>
   )
 }

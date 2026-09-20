@@ -405,6 +405,9 @@ export type RendererPersistCacheSchema = {
   // Right-pane width for the topic/session list tab. Separate from the artifact pane's key so a
   // width dragged for an artifact never widens the list (and vice versa).
   'ui.chat.resource_pane.width': number
+  // Advanced view canvas orientation. Renderer-local: the layout is a view style, so a toggle
+  // must re-render the open canvas without a main round trip.
+  'ui.chat.message_flow.direction': 'horizontal' | 'vertical'
   // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
@@ -469,6 +472,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 460,
   'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
+  'ui.chat.message_flow.direction': 'horizontal',
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,

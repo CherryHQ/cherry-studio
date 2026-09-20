@@ -721,6 +721,8 @@
   "chat.message.flow.continue_here": "Continue from here",
   "chat.message.flow.copy_topic.created": "Copied to a new conversation",
   "chat.message.flow.copy_topic.label": "Copy as New Conversation",
+  "chat.message.flow.layout.switch_to_horizontal": "Switch to horizontal layout",
+  "chat.message.flow.layout.switch_to_vertical": "Switch to vertical layout",
   "chat.message.flow.status.awaiting_input": "Awaiting input",
   "chat.message.flow.title": "Advanced View",
   "chat.message.more": "More actions",
