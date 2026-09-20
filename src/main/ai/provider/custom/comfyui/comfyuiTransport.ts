@@ -366,7 +366,24 @@ class ComfyuiTransport implements ImageGenerationTransport {
   async cancel(taskId: string): Promise<void> {
     const action = await this.cancelAction(taskId)
     const headers = { ...this.headers, 'Content-Type': 'application/json' }
-    if (action === 'running') {
+
+    // TOCTOU safety: between reading the queue snapshot and acting on it a
+    // pending prompt can start running.  When the snapshot says 'pending' we
+    // send *both* the queue-delete (idempotent — harmless if already removed)
+    // and the interrupt (scoped to `prompt_id` — only touches this prompt if
+    // it has since started).  This closes the race window without risking a
+    // global kill on older servers, because the interrupt path is still gated
+    // on `targetedInterrupt`.
+    if (action === 'running' || action === 'pending') {
+      // Dequeue (safe even if the prompt already moved to running).
+      if (action === 'pending') {
+        await this.doFetch(`${this.baseURL}/queue`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ delete: [taskId] })
+        }).catch(() => undefined)
+      }
+      // Interrupt if the server supports prompt_id-scoped cancellation.
       const caps = await this.getCancelCapabilities()
       if (caps.targetedInterrupt) {
         await this.doFetch(`${this.baseURL}/interrupt`, {
@@ -375,15 +392,9 @@ class ComfyuiTransport implements ImageGenerationTransport {
           body: JSON.stringify({ prompt_id: taskId })
         }).catch(() => undefined)
       }
-      // otherwise: intentionally no-op.  A server that does not guarantee
-      // target-specific semantics must not be interrupted from the client
-      // (the queue → interrupt round-trip cannot prove idempotence over HTTP).
-    } else if (action === 'pending') {
-      await this.doFetch(`${this.baseURL}/queue`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ delete: [taskId] })
-      }).catch(() => undefined)
+      // otherwise on a pre-0.3.57 server: intentionally no-op for the
+      // interrupt path.  The queue-delete is still sent (it is id-scoped
+      // and safe), but we must not issue a global /interrupt.
     }
   }
 
@@ -498,7 +509,15 @@ class ComfyuiTransport implements ImageGenerationTransport {
       // A plain error, not a structured one: the poll loop retries it.
       throw new Error(message)
     }
-    return (await response.json()) as Record<string, HistoryEntry>
+    // The response body is also bounded: a stalled JSON parse or an
+    // uncompressed error body on a slow link should not outlive the poll
+    // budget.  readWithTimeout reuses the remaining deadline so the whole
+    // GET + body-read is capped at remainingMs.
+    return this.readWithTimeout(
+      response.json() as Promise<Record<string, HistoryEntry>>,
+      remainingMs,
+      t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
+    )
   }
 
   /** The AI SDK downloads returned URLs itself, so hand back inline data. */
