@@ -32,6 +32,7 @@ type Session = {
   closed: boolean
   files: Map<FileEntryId, SessionFile>
   pending: Set<Promise<unknown>>
+  attach: () => void
   detach: () => void
   requestId?: string
   operation?: VoiceOperation
@@ -187,7 +188,7 @@ export class VoiceSessionService extends BaseService {
       session.operation !== expectedOperation
     )
       return
-    await this.closeSession(session)
+    await this.closeSession(session, true)
   }
 
   async discard(owner: VoiceOwner, sessionId: string): Promise<void> {
@@ -238,9 +239,13 @@ export class VoiceSessionService extends BaseService {
       closed: false,
       files: new Map(),
       pending: new Set(),
+      attach: () => {
+        owner.webContents.removeListener('destroyed', destroyed)
+        owner.webContents.once('destroyed', destroyed)
+      },
       detach: () => owner.webContents.removeListener('destroyed', destroyed)
     }
-    owner.webContents.once('destroyed', destroyed)
+    session.attach()
     this.sessions.set(id, session)
     return session
   }
@@ -378,6 +383,15 @@ export class VoiceSessionService extends BaseService {
         this.sessions.delete(session.id)
       } catch (error) {
         session.cleanup = undefined
+        if (!terminal) {
+          if (session.owner.webContents.isDestroyed()) {
+            void this.closeSession(session, true).catch(() =>
+              logger.warn('Voice cleanup failed', { sessionId: session.id, category: 'operation_failed' })
+            )
+          } else {
+            session.attach()
+          }
+        }
         throw error
       }
     })()

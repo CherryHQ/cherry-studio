@@ -84,12 +84,14 @@ describe('VoiceSessionService file and admission contract', () => {
     native.status.mockReset().mockResolvedValue({ status: 'ready' })
     native.transcribe.mockReset().mockResolvedValue({ text: 'private-transcript', segments: [] })
     native.speech.mockReset().mockResolvedValue({ audio: wav(), mediaType: 'audio/wav' })
+    await files._doInit()
     service = new VoiceSessionService()
     await service._doInit()
     a = owner()
   })
   afterEach(async () => {
     await service._doStop()
+    await files._doStop()
     vi.restoreAllMocks()
     await rm(root, { recursive: true, force: true })
   })
@@ -225,6 +227,39 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(await outcome).toBe('aborted')
   })
 
+  it('treats active abort as terminal when file deletion keeps failing', async () => {
+    const input = await recording()
+    makeCleanupEligible(input.fileEntryId)
+    native.transcribe.mockImplementation(
+      (_id, _audio, _options, signal: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const work = service.transcribe(a, input)
+    const settled = work.catch(() => undefined)
+    await vi.waitFor(() => expect(native.transcribe).toHaveBeenCalled())
+    const deletion = vi
+      .spyOn(files, 'deleteRetainedTemporaryEntry')
+      .mockRejectedValue(Object.assign(new Error('denied'), { code: 'EPERM' }))
+
+    await expect(service.abort(a, input, 'transcription')).resolves.toBeUndefined()
+    await settled
+    await expect(service.abort(a, input, 'transcription')).resolves.toBeUndefined()
+    await files.runEntryCleanup()
+    expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+
+    deletion.mockRestore()
+    const replacementOwner = owner()
+    const replacement = await service.createRecording(replacementOwner, {
+      sessionId: input.sessionId,
+      audio: webm,
+      mimeType: 'audio/webm;codecs=opus'
+    })
+    await service.discard(replacementOwner, input.sessionId)
+    expect(fileEntryService.findById(replacement.id)).toBeNull()
+  })
+
   it('owner destruction releases a failed recording and removes its listener', async () => {
     const input = await recording()
     native.transcribe.mockRejectedValueOnce(new VoiceRuntimeError('asset_required'))
@@ -256,6 +291,23 @@ describe('VoiceSessionService file and admission contract', () => {
     })
     await service.discard(replacementOwner, input.sessionId)
     expect(fileEntryService.findById(replacement.id)).toBeNull()
+  })
+
+  it('restores owner cleanup after explicit discard deletion fails', async () => {
+    const input = await recording()
+    makeCleanupEligible(input.fileEntryId)
+    vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockRejectedValue(
+      Object.assign(new Error('denied'), { code: 'EPERM' })
+    )
+
+    await expect(service.discard(a, input.sessionId)).rejects.toMatchObject({ code: 'EPERM' })
+    expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(1)
+
+    ;(a.webContents as unknown as EventEmitter).emit('destroyed')
+    await vi.waitFor(async () => {
+      await files.runEntryCleanup()
+      expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+    })
   })
 
   it('keeps failed temporary deletion tracked so session cleanup can retry', async () => {
@@ -452,17 +504,19 @@ describe('VoiceSessionService file and admission contract', () => {
     expect((await recording()).fileEntryId).toBeTruthy()
   })
 
-  it('stop releases failed deletion ownership before restart', async () => {
+  it('stops Voice before FileManager and restarts both without stale ownership', async () => {
     const input = await recording()
     makeCleanupEligible(input.fileEntryId)
-    vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockRejectedValueOnce(
-      Object.assign(new Error('denied'), { code: 'EPERM' })
-    )
+    const deletion = vi
+      .spyOn(files, 'deleteRetainedTemporaryEntry')
+      .mockRejectedValue(Object.assign(new Error('denied'), { code: 'EPERM' }))
 
     await service._doStop()
-    await files.runEntryCleanup()
-    expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+    await files._doStop()
+    deletion.mockRestore()
 
+    await files._doInit()
+    await vi.waitFor(() => expect(fileEntryService.findById(input.fileEntryId)).toBeNull())
     await service._doInit()
     const replacementOwner = owner()
     const replacement = await service.createRecording(replacementOwner, {
