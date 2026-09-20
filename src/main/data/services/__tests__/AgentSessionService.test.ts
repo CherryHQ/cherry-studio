@@ -1965,7 +1965,7 @@ describe('AgentSessionService', () => {
       const session = await createSession('Bogus override')
 
       const error = captureError(() =>
-        agentSessionService.update(session.id, { modelId: 'missing::model' as UniqueModelId })
+        agentSessionService.update(session.id, { modelId: 'missing::model' })
       )
       expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
       expect(String((error as Error).message)).toMatch(/Model/)
@@ -1976,7 +1976,7 @@ describe('AgentSessionService', () => {
         agentSessionService.create({
           agentId: 'agent-session-test',
           name: 'Bogus create',
-          modelId: 'missing::model' as UniqueModelId,
+          modelId: 'missing::model',
           workspace: { type: 'system' }
         })
       )
