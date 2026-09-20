@@ -69,6 +69,8 @@ const ENVIRONMENT_NAMES = new Set([
   'multline*'
 ])
 
+const DISPLAY_COMMAND_PATTERN = /\\(?:begin|tag)\b/
+
 function removeNestedDelimiters(value: string, kind: Exclude<LatexMathKind, 'environment'>): string {
   const open = kind === 'paren' ? OPEN_PAREN : OPEN_BRACKET
   const close = kind === 'paren' ? CLOSE_PAREN : CLOSE_BRACKET
@@ -767,11 +769,23 @@ function demoteEmbeddedEnvironments(tree: Root, source: string): void {
   })
 }
 
-function isDisplayLatexMath(node: InlineMath): boolean {
+function isDollarDisplayMath(node: InlineMath, source: string): boolean {
+  if (getLatexMathKind(node) !== undefined) return false
+  if (!DISPLAY_COMMAND_PATTERN.test(node.value)) return false
+  // A bare $ inside single-line $$ is prose or unbalanced input, not a display formula.
+  if (node.value.includes('$')) return false
+  const start = node.position?.start.offset
+  const end = node.position?.end.offset
+  if (start === undefined || end === undefined) return false
+  return /^(\${2,})[\s\S]*\1$/.test(source.slice(start, end).trim())
+}
+
+function isDisplayLatexMath(node: InlineMath, source: string): boolean {
   const kind = getLatexMathKind(node)
   return (
     kind === 'environment' ||
-    (kind === 'bracket' && (node.value.includes('\n') || /\\(?:begin|tag)\b/.test(node.value)))
+    (kind === 'bracket' && (node.value.includes('\n') || DISPLAY_COMMAND_PATTERN.test(node.value))) ||
+    (kind === undefined && isDollarDisplayMath(node, source))
   )
 }
 
@@ -806,12 +820,12 @@ function createParagraph(children: PhrasingContent[]): Paragraph | undefined {
   }
 }
 
-function splitDisplayMath(paragraph: Paragraph): RootContent[] {
+function splitDisplayMath(paragraph: Paragraph, source: string): RootContent[] {
   const result: RootContent[] = []
   let phrasing: PhrasingContent[] = []
 
   for (const child of paragraph.children) {
-    if (child.type !== 'inlineMath' || !isDisplayLatexMath(child)) {
+    if (child.type !== 'inlineMath' || !isDisplayLatexMath(child, source)) {
       if (child.type === 'inlineMath') delete child.data?.latexMathKind
       phrasing.push(child)
       continue
@@ -828,16 +842,16 @@ function splitDisplayMath(paragraph: Paragraph): RootContent[] {
   return result
 }
 
-function promoteDisplayMath(tree: Root): void {
+function promoteDisplayMath(tree: Root, source: string): void {
   visit(tree, 'paragraph', (node, index, parent) => {
     if (
       !parent ||
       typeof index !== 'number' ||
-      !node.children.some((child) => child.type === 'inlineMath' && isDisplayLatexMath(child))
+      !node.children.some((child) => child.type === 'inlineMath' && isDisplayLatexMath(child, source))
     ) {
       return
     }
-    const replacements = splitDisplayMath(node)
+    const replacements = splitDisplayMath(node, source)
     parent.children.splice(index, 1, ...replacements)
     return index + replacements.length
   })
@@ -881,7 +895,7 @@ export const remarkLatexMath: Plugin<[], Root> = function remarkLatexMath() {
     const source = String(file)
     visit(tree, 'link', demoteLinkMath)
     demoteEmbeddedEnvironments(tree, source)
-    promoteDisplayMath(tree)
+    promoteDisplayMath(tree, source)
     repairMathMeta(tree, source)
   }
 }

@@ -437,6 +437,27 @@ describe('remarkLatexMath', () => {
     expect(mathNodes(source)).toMatchObject([{ type: 'math', meta: null, value: '\\tag{1}\nx=1' }])
   })
 
+  it('promotes single-line dollar math with display-only constructs (issue #20797)', () => {
+    expect(mathNodes('$$\\tag{1} x=1$$')).toMatchObject([{ type: 'math', meta: null, value: '\\tag{1} x=1' }])
+    expect(mathNodes('$$x=1 \\tag{1}$$')).toMatchObject([{ type: 'math', value: 'x=1 \\tag{1}' }])
+    expect(mathNodes('$$price $5 \\tag{1}$$')).toMatchObject([{ type: 'inlineMath' }])
+    expect(parse('$$\\tag{1} x=1$$').children.map((child) => child.type)).toEqual(['math'])
+
+    const { container } = render(
+      createElement(Markdown, {
+        id: 'single-line-tag-display',
+        plugins: { ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) },
+        remarkPlugins: [remarkLatexMath],
+        children: '$$\\tag{1} x=1$$'
+      })
+    )
+    expect(container.querySelector('.katex-error')).toBeNull()
+  })
+
+  it('keeps single-dollar math with display-only constructs inline', () => {
+    expect(mathNodes('$\\tag{1} x=1$')).toMatchObject([{ type: 'inlineMath' }])
+  })
+
   it.each([
     ['$x$', 'inlineMath', 'x'],
     ['$$x$$', 'inlineMath', 'x'],
