@@ -17,10 +17,14 @@ describe('voice service public boundary', () => {
   it('exports singleton capabilities without exposing constructable service classes', () => {
     expect(voice.voiceService).toBeDefined()
     expect(voice.voiceTargetManager).toBeDefined()
+    expect(voice.dictationService).toBeDefined()
+    expect(voice.speechPlaybackService).toBeDefined()
     expect(voice.planReadableText).toBeTypeOf('function')
     expect(voice.chunkReadableText).toBeTypeOf('function')
     expect('VoiceService' in voice).toBe(false)
     expect('VoiceTargetManager' in voice).toBe(false)
+    expect('DictationService' in voice).toBe(false)
+    expect('SpeechPlaybackService' in voice).toBe(false)
   })
 
   it('keeps direct production Voice IPC route calls inside VoiceService', () => {

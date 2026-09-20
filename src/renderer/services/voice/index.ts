@@ -24,3 +24,18 @@ export {
   SPEECH_ADAPTER_TEXT_LIMIT
 } from './readableText'
 export type { ReadableTextMode, ReadableTextPlan, ReadableTextTrigger } from './readableText'
+export { dictationService } from './DictationService'
+export type {
+  DictationErrorCategory,
+  DictationPhase,
+  DictationSnapshot,
+  DictationStartOptions
+} from './DictationService'
+export { speechPlaybackService } from './SpeechPlaybackService'
+export type {
+  SpeechPlaybackPhase,
+  SpeechPlaybackSnapshot,
+  SpeechPlaybackSourceLabel,
+  SpeechPlaybackStartInput,
+  SpeechPlaybackStartResult
+} from './SpeechPlaybackService'
