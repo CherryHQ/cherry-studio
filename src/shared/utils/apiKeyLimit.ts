@@ -1,5 +1,6 @@
 // Shared so the settings form and the credential picker agree on one key shape.
 
+import { AI_USAGE_RECORD_MAX_RANGE_DAYS } from '@shared/data/api/schemas/aiUsageRecords'
 import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyTier } from '@shared/data/types/provider'
@@ -27,6 +28,20 @@ export const apiKeyModelLimitId = (providerId: string, keyId: string, modelId: U
  *
  * All dates computed in `tz` (IANA string, default UTC).
  */
+/**
+ * The `from` for a usage-stats query covering these period starts.
+ *
+ * `periodStartOf('total')` is epoch 0 — a lifetime ceiling has no start — and the stats endpoint
+ * rejects any range wider than {@link AI_USAGE_RECORD_MAX_RANGE_DAYS}. Passing that 0 through does
+ * not just break the total-period row: the whole request fails, so every used/remaining/forecast
+ * column that shares the query goes blank with nothing on screen to say why.
+ */
+export function usageStatsFrom(periodStarts: readonly number[], now: number = Date.now()): number {
+  const earliest = periodStarts.length > 0 ? Math.min(...periodStarts) : now
+  const floor = now - (AI_USAGE_RECORD_MAX_RANGE_DAYS - 1) * 24 * 60 * 60 * 1000
+  return Math.max(earliest, floor)
+}
+
 export function periodStartOf(period: ApiKeyLimitPeriod, anchor?: string, tz: string = 'UTC'): number {
   if (period === 'total') return 0
 

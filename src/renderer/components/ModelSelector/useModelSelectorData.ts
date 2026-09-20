@@ -14,7 +14,7 @@ import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { periodStartOf } from '@shared/utils/apiKeyLimit'
+import { periodStartOf, usageStatsFrom } from '@shared/utils/apiKeyLimit'
 import { isAgentOnlyProvider } from '@shared/utils/provider'
 
 import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
@@ -139,7 +139,7 @@ export function useModelSelectorData({
     // `useQuery` treats absent options as enabled, so skipping has to be said explicitly — passing
     // `undefined` sent a query-less request that the endpoint rejects, once per picker render.
     if (quotaPeriods.length === 0) return { enabled: false }
-    const minFrom = Math.min(...quotaPeriods.map((p) => periodStartOf(p)))
+    const minFrom = usageStatsFrom(quotaPeriods.map((p) => periodStartOf(p)))
     return {
       query: {
         groupBy: 'apiKey' as const,

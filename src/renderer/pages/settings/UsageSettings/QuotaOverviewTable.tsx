@@ -8,7 +8,13 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { ApiKeyLimitPeriod, ServiceUsageMap } from '@shared/data/preference/preferenceTypes'
 import type { RuntimeApiKey } from '@shared/data/types/provider'
-import { forecastQuotaExhaustion, periodRenewsAt, periodStartOf, type QuotaForecast } from '@shared/utils/apiKeyLimit'
+import {
+  forecastQuotaExhaustion,
+  periodRenewsAt,
+  periodStartOf,
+  type QuotaForecast,
+  usageStatsFrom
+} from '@shared/utils/apiKeyLimit'
 
 import {
   UsagePanel,
@@ -120,7 +126,7 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
     // Absent options mean "enabled" to `useQuery`, so an empty table must opt out explicitly
     // instead of firing a query-less request the endpoint rejects.
     if (periods.length === 0) return { enabled: false }
-    const minFrom = Math.min(...periods.map((p) => periodStarts.get(p) ?? 0))
+    const minFrom = usageStatsFrom(periods.map((p) => periodStarts.get(p) ?? 0))
     return {
       query: {
         groupBy: 'apiKey' as const,

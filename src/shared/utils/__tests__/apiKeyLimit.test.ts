@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AI_USAGE_RECORD_MAX_RANGE_DAYS } from '@shared/data/api/schemas/aiUsageRecords'
+
 import {
   dueQuotaNotices,
   forecastQuotaExhaustion,
   periodRenewsAt,
   periodStartOf,
-  type QuotaNoticeInput
+  type QuotaNoticeInput,
+  usageStatsFrom
 } from '../apiKeyLimit'
 
 describe('periodStartOf', () => {
@@ -246,5 +249,34 @@ describe('dueQuotaNotices', () => {
     vi.setSystemTime(new Date('2026-09-18T08:00:00Z'))
     const first = dueQuotaNotices([dailyKey({ tier: 'trial', used: 20, limit: 20 })], {})
     expect(first.notices).toEqual([])
+  })
+})
+
+describe('usageStatsFrom', () => {
+  const DAY = 24 * 60 * 60 * 1000
+  const now = Date.UTC(2026, 8, 20, 12, 0, 0)
+
+  it('never asks for a range the stats endpoint rejects', () => {
+    // `periodStartOf('total')` is epoch 0: a lifetime ceiling has no start. Passing it through
+    // failed the whole request, and every column sharing that query went blank with no error.
+    const from = usageStatsFrom([0], now)
+
+    expect(now - from).toBeLessThan(AI_USAGE_RECORD_MAX_RANGE_DAYS * DAY)
+  })
+
+  it('keeps a recent period start rather than widening it to the cap', () => {
+    const yesterday = now - DAY
+
+    expect(usageStatsFrom([yesterday], now)).toBe(yesterday)
+  })
+
+  it('covers the earliest period when several are declared', () => {
+    const lastMonth = now - 30 * DAY
+
+    expect(usageStatsFrom([now - DAY, lastMonth, now - 7 * DAY], now)).toBe(lastMonth)
+  })
+
+  it('falls back to the cap when asked with nothing to cover', () => {
+    expect(now - usageStatsFrom([], now)).toBeLessThan(AI_USAGE_RECORD_MAX_RANGE_DAYS * DAY)
   })
 })

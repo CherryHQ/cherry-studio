@@ -5,7 +5,7 @@ import { useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
-import { dueQuotaNotices, type QuotaNoticeInput } from '@shared/utils/apiKeyLimit'
+import { dueQuotaNotices, type QuotaNoticeInput, usageStatsFrom } from '@shared/utils/apiKeyLimit'
 
 /** The smallest declared period is daily, so this only needs to catch a midnight rollover while
  *  the app sits open — reopening the app after being closed is covered by the immediate check below. */
@@ -17,7 +17,6 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000
  * long before a year passes, so this window undercounts only in the one case (a key active for
  * over a year) where being late is harmless.
  */
-const TOTAL_USAGE_LOOKBACK_MS = 365 * 24 * 60 * 60 * 1000
 
 /**
  * Surfaces two quota events the usage settings page otherwise only shows if you go looking for
@@ -50,7 +49,7 @@ export function useQuotaNotifications(): void {
           query: {
             groupBy: 'apiKey' as const,
             metric: 'requests' as const,
-            from: Math.max(0, Date.now() - TOTAL_USAGE_LOOKBACK_MS),
+            from: usageStatsFrom([]),
             to: Date.now(),
             limit: 100
           }
