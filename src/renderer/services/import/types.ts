@@ -1,6 +1,6 @@
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { ModelSnapshot } from '@shared/data/types/message'
+import type { AssistantTurnOptions, MessageSnapshot, MessageStatus, ModelSnapshot } from '@shared/data/types/message'
 
 export interface ImportMessageNode {
   sourceId: string
@@ -8,12 +8,18 @@ export interface ImportMessageNode {
   role: CreateMessageDto['role']
   parts: NonNullable<CreateMessageDto['data']['parts']>
   model?: ModelSnapshot
+  /** Native topic files carry these verbatim; external importers leave them unset. */
+  status?: MessageStatus
+  siblingsGroupId?: number
+  messageSnapshot?: MessageSnapshot
+  turnOptions?: AssistantTurnOptions
 }
 
 export interface ImportConversation {
   name: string
   messages: ImportMessageNode[]
   activeSourceId?: string
+  isNameManuallyEdited?: boolean
 }
 
 /**

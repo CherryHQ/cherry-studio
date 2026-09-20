@@ -6,6 +6,7 @@ import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 
 import { AnthropicImporter } from './importers/AnthropicImporter'
 import { ChatgptImporter } from './importers/ChatgptImporter'
+import { CherryTopicImporter } from './importers/CherryTopicImporter'
 import type { ConversationImporter, ImportMessageNode, ImportResponse, ImportResult } from './types'
 
 const logger = loggerService.withContext('ImportService')
@@ -14,7 +15,7 @@ type ImportProgressCallback = (percent: number) => void
 
 // Every conversation importer the service registers on construction. Add new
 // importers here as they are implemented.
-const availableImporters = [new ChatgptImporter(), new AnthropicImporter()]
+const availableImporters = [new ChatgptImporter(), new AnthropicImporter(), new CherryTopicImporter()]
 
 /**
  * Main import service that manages all conversation importers
@@ -156,26 +157,95 @@ class ImportService {
   }
 
   /**
+   * Import a native Cherry Studio topic file. Unlike external imports this
+   * creates only the topic itself — no assistant — and preserves the exported
+   * snapshots, sibling groups and status verbatim. The file is fully validated
+   * before anything is written, so invalid input creates nothing.
+   */
+  async importNativeTopic(fileContent: string, onProgress?: ImportProgressCallback): Promise<ImportResponse> {
+    try {
+      logger.info('Starting native topic import...')
+      onProgress?.(0)
+
+      const importer = this.getImporter('cherry')
+      if (!importer) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: 'Importer "cherry" not found'
+        }
+      }
+      if (!importer.validate(fileContent)) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: i18n.t('import.error.invalid_format', { defaultValue: 'Invalid Cherry Studio topic file' })
+        }
+      }
+      onProgress?.(10)
+
+      const result = await importer.parse(fileContent)
+      const conversation = result.conversations[0]
+      if (!conversation) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: i18n.t('import.error.invalid_format', { defaultValue: 'Invalid Cherry Studio topic file' })
+        }
+      }
+      onProgress?.(20)
+
+      const messagesCount = await this.persistImport({ conversations: [conversation] }, undefined, onProgress)
+      onProgress?.(100)
+
+      logger.info(`Native topic import completed: 1 topic, ${messagesCount} messages imported`)
+
+      return {
+        success: true,
+        topicsCount: 1,
+        messagesCount
+      }
+    } catch (error) {
+      logger.error('Native topic import failed:', error as Error)
+      return {
+        success: false,
+        topicsCount: 0,
+        messagesCount: 0,
+        error:
+          error instanceof Error ? error.message : i18n.t('import.error.unknown', { defaultValue: 'Unknown error' })
+      }
+    }
+  }
+
+  /**
    * Builds a v2 create-message DTO. Imported messages are historical, so they
    * are persisted as `success`. For assistant rows the producing author is
    * frozen into `messageSnapshot` so the header survives later rename/delete.
+   * Native topic nodes carry their snapshot, status and sibling group verbatim;
+   * external nodes synthesize them from the import assistant and tree position.
    */
   private toMessageDto(
     message: ImportMessageNode,
     parentId: string | null,
     siblingsGroupId: number | undefined,
-    assistant: { id: string; name: string; emoji: string }
+    assistant?: { id: string; name: string; emoji: string }
   ): CreateMessageDto {
+    const effectiveSiblingsGroupId = message.siblingsGroupId ?? siblingsGroupId
     const dto: CreateMessageDto = {
       parentId,
       role: message.role,
-      data: { parts: message.parts },
-      status: 'success',
+      data: message.turnOptions ? { parts: message.parts, turnOptions: message.turnOptions } : { parts: message.parts },
+      status: message.status ?? 'success',
       setAsActive: false,
-      ...(siblingsGroupId ? { siblingsGroupId } : {})
+      ...(effectiveSiblingsGroupId ? { siblingsGroupId: effectiveSiblingsGroupId } : {})
     }
 
-    if (message.role === 'assistant' && message.model) {
+    if (message.messageSnapshot) {
+      dto.messageSnapshot = message.messageSnapshot
+    } else if (assistant && message.role === 'assistant' && message.model) {
       dto.messageSnapshot = {
         id: assistant.id,
         name: assistant.name,
@@ -195,10 +265,13 @@ class ImportService {
   /**
    * Persists each imported conversation as a message tree. Source IDs stay
    * local to the import contract and are mapped to newly-created database IDs.
+   * Without an assistant the topic is created unlinked; the caller moves it to
+   * an assistant afterwards. Continuation then falls back to the destination's
+   * current assistant and model while history renders from the snapshots.
    */
   private async persistImport(
     result: ImportResult,
-    assistant: { id: string; name: string; emoji: string },
+    assistant: { id: string; name: string; emoji: string } | undefined,
     onProgress?: ImportProgressCallback
   ): Promise<number> {
     const { conversations } = result
@@ -214,8 +287,11 @@ class ImportService {
 
     for (const conversation of conversations) {
       const createdTopic = await dataApiService.post('/topics', {
-        body: { name: conversation.name, assistantId: assistant.id }
+        body: assistant ? { name: conversation.name, assistantId: assistant.id } : { name: conversation.name }
       })
+      if (conversation.isNameManuallyEdited) {
+        await dataApiService.patch(`/topics/${createdTopic.id}`, { body: { isNameManuallyEdited: true } })
+      }
       completeStep()
 
       const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()
