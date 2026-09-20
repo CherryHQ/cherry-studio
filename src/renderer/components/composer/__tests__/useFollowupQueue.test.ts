@@ -141,7 +141,7 @@ describe('useFollowupQueue', () => {
 
     expect(queued).toBe(true)
     expect(postTrigger).toHaveBeenCalledWith({
-      body: { scopeKey: SCOPE, draft: draft('new'), payload: payload('new') }
+      body: { id: expect.any(String), scopeKey: SCOPE, draft: draft('new'), payload: payload('new') }
     })
   })
 
@@ -654,7 +654,7 @@ describe('useFollowupQueue', () => {
 
     expect(taken).toBeUndefined()
     expect(postTrigger).toHaveBeenCalledWith({
-      body: { scopeKey: SCOPE, draft: draft('head'), payload: payload('head') }
+      body: { id: expect.any(String), scopeKey: SCOPE, draft: draft('head'), payload: payload('head') }
     })
   })
 
@@ -712,8 +712,13 @@ describe('useFollowupQueue', () => {
     expect(taken).toBeUndefined()
     expect(postTrigger).toHaveBeenCalledTimes(3)
     expect(postTrigger).toHaveBeenCalledWith({
-      body: { scopeKey: SCOPE, draft: draft('head'), payload: payload('head') }
+      body: { id: expect.any(String), scopeKey: SCOPE, draft: draft('head'), payload: payload('head') }
     })
+    // Retries reuse one idempotency key so a committed insert is not duplicated.
+    const retryIds = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>).map(
+      ([args]) => args.body.id
+    )
+    expect(new Set(retryIds).size).toBe(1)
   })
 
   it('retries an orphaned restore in the background until the enqueue lands', async () => {
@@ -755,8 +760,12 @@ describe('useFollowupQueue', () => {
       })
       expect(postTrigger).toHaveBeenCalledTimes(4)
       expect(postTrigger).toHaveBeenLastCalledWith({
-        body: { scopeKey: SCOPE, draft: draft('head'), payload: payload('head') }
+        body: { id: expect.any(String), scopeKey: SCOPE, draft: draft('head'), payload: payload('head') }
       })
+      const backgroundIds = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>).map(
+        ([args]) => args.body.id
+      )
+      expect(new Set(backgroundIds).size).toBe(1)
     } finally {
       vi.useRealTimers()
     }
@@ -783,6 +792,37 @@ describe('useFollowupQueue', () => {
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
     await act(async () => {
       rerender({ scopeKey: 's2', isFulfilled: true })
+    })
+    await act(async () => {
+      resolveClaim({ claimed: true, id: 'h', alreadySent: false })
+    })
+    await act(async () => {})
+
+    expect(onDrain).not.toHaveBeenCalled()
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+  })
+
+  it('releases the head claim without sending when the hook unmounts mid-claim', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, failTrigger } = wireMutations()
+    let resolveClaim!: (value: { claimed: true; id: string; alreadySent: boolean }) => void
+    claimHeadTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveClaim = resolve
+      })
+    )
+    const onDrain = vi.fn(async () => true)
+    const { rerender, unmount } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
+    await act(async () => {
+      unmount()
     })
     await act(async () => {
       resolveClaim({ claimed: true, id: 'h', alreadySent: false })

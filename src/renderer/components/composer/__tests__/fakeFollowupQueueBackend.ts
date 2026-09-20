@@ -79,8 +79,19 @@ export function installFakeFollowupQueueBackend() {
           async ({
             body
           }: {
-            body: { scopeKey: string; draft: FollowupQueueRow['draft']; payload: FollowupQueueRow['payload'] }
+            body: {
+              id?: string
+              scopeKey: string
+              draft: FollowupQueueRow['draft']
+              payload: FollowupQueueRow['payload']
+            }
           }) => {
+            // Mirror production idempotency: a retried POST carries the same
+            // client-generated id and returns the existing row.
+            if (body.id) {
+              const duplicate = state.rows.find((row) => row.id === body.id)
+              if (duplicate) return duplicate
+            }
             // Mirror production: the write path rejects past the per-scope limit.
             const scopedCount = state.rows.filter((row) => row.scopeKey === body.scopeKey).length
             if (scopedCount >= FOLLOWUP_QUEUE_LIMIT) {
@@ -88,7 +99,7 @@ export function installFakeFollowupQueueBackend() {
             }
             counter += 1
             const row: FollowupQueueRow = {
-              id: `fake-queue-${counter}`,
+              id: body.id ?? crypto.randomUUID(),
               scopeKey: body.scopeKey,
               draft: body.draft,
               payload: body.payload,
@@ -187,7 +198,10 @@ export function installFakeFollowupQueueBackend() {
         ...shell,
         trigger: vi.fn(async ({ params }: { params: { id: string } }) => {
           const row = state.rows.find((candidate) => candidate.id === params.id)
-          if (row && row.status === 'sending') row.status = 'failed'
+          if (row && row.status === 'sending') {
+            row.status = 'failed'
+            row.updatedAt = new Date().toISOString()
+          }
           return undefined
         })
       }
@@ -197,7 +211,11 @@ export function installFakeFollowupQueueBackend() {
         ...shell,
         trigger: vi.fn(async ({ params }: { params: { id: string } }) => {
           const row = state.rows.find((candidate) => candidate.id === params.id)
-          if (row && row.status === 'sending') row.sentAt = new Date().toISOString()
+          if (row && row.status === 'sending') {
+            const now = new Date().toISOString()
+            row.sentAt = now
+            row.updatedAt = now
+          }
           return undefined
         })
       }

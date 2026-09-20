@@ -264,7 +264,12 @@ export function useFollowupQueue({
         return false
       }
       try {
-        await enqueueTrigger({ body: { scopeKey: scopeKeyRef.current, draft, payload } })
+        // Idempotency key for the transport retry: a POST that commits
+        // server-side but times out is retried with the same body, and the
+        // service returns the existing row instead of duplicating it.
+        await enqueueTrigger({
+          body: { id: crypto.randomUUID(), scopeKey: scopeKeyRef.current, draft, payload }
+        })
         return true
       } catch {
         toast.error(t('message.error.operation_unavailable'))
@@ -369,9 +374,12 @@ export function useFollowupQueue({
         // belongs to the old scope — put it back at the end of that scope's
         // queue instead of restoring it into the new composer.
         let restored = false
+        const restoreId = crypto.randomUUID()
         for (let attempt = 0; attempt < 3 && !restored; attempt++) {
           try {
-            await enqueueTrigger({ body: { scopeKey: scope, draft: item.draft, payload: item.payload } })
+            await enqueueTrigger({
+              body: { id: restoreId, scopeKey: scope, draft: item.draft, payload: item.payload }
+            })
             restored = true
           } catch {
             // Transient failure — retry inline, then in the background below.
@@ -379,7 +387,7 @@ export function useFollowupQueue({
         }
         if (!restored) {
           toast.error(t('message.error.operation_unavailable'))
-          scheduleReenqueueRetryRef.current(scope, item.draft, item.payload)
+          scheduleReenqueueRetryRef.current(restoreId, scope, item.draft, item.payload)
         }
         return undefined
       }
@@ -504,26 +512,27 @@ export function useFollowupQueue({
   // replacement enqueue keeps failing. Uncapped like resolve retries — each
   // tick is one statement — and refetches on success so mirrors converge.
   const scheduleReenqueueRetryRef = useRef<
-    (scope: string, draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
+    (id: string, scope: string, draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
   >(() => {})
   scheduleReenqueueRetryRef.current = (
+    id: string,
     scope: string,
     draft: ComposerSerializedDraft,
     payload: ComposerQueuedMessagePayload
   ) => {
-    const key = crypto.randomUUID()
+    if (pendingReenqueueRef.current.has(id)) return
     const tick = () => {
-      pendingReenqueueRef.current.delete(key)
+      pendingReenqueueRef.current.delete(id)
       void (async () => {
         try {
-          await enqueueTrigger({ body: { scopeKey: scope, draft, payload } })
+          await enqueueTrigger({ body: { id, scopeKey: scope, draft, payload } })
           if (mountedRef.current) void refetch()
         } catch {
-          scheduleReenqueueRetryRef.current(scope, draft, payload)
+          scheduleReenqueueRetryRef.current(id, scope, draft, payload)
         }
       })()
     }
-    pendingReenqueueRef.current.set(key, setTimeout(tick, 5000))
+    pendingReenqueueRef.current.set(id, setTimeout(tick, 5000))
   }
 
   // Resolve a won claim: dequeue on success, mark failed otherwise. Retried so
@@ -587,6 +596,12 @@ export function useFollowupQueue({
       onCommitted?: () => void
     }): Promise<boolean> => {
       const { id, scope, payload, alreadySent, send, onCommitted } = args
+      // Unmounted while the claim was in flight: release it without sending —
+      // no composer is left to own the result. The row stays queued.
+      if (!mountedRef.current) {
+        await settleItem(id, false)
+        return false
+      }
       // Scope switched mid-flight: release the claim without sending — the payload
       // belongs to the previous scope. Only our own won claim reaches here.
       if (scopeKeyRef.current !== scope) {
