@@ -5,7 +5,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import { resolveMutationLockKey, withPathMutationLock } from '../mutationLock'
-import { logger, validatePath } from '../types'
+import { logger, validatePath, verifyWrittenContent } from '../types'
 
 // Schema definition
 export const WriteToolSchema = z.object({
@@ -29,12 +29,10 @@ export const writeToolDefinition = {
 // Handler implementation
 export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, baseDir: string): Promise<CallToolResult> {
   const filePath = args.file_path
-  // Register in the lock chain before validating so concurrent calls queue in call order.
-  // The canonical lock below additionally serializes alias spellings of the same file.
-  const validPath = await withPathMutationLock(resolveMutationLockKey(filePath, baseDir), () =>
-    validatePath(filePath, baseDir)
-  )
-  return withPathMutationLock(validPath, async () => {
+  // Hold the mutation lock across validation and mutation so concurrent calls queue in
+  // call order even when file existence flips the lock key mid-operation (e.g. creates).
+  return withPathMutationLock(resolveMutationLockKey(filePath, baseDir), async () => {
+    const validPath = await validatePath(filePath, baseDir)
     // Create parent directory if it doesn't exist
     const parentDir = path.dirname(validPath)
     try {
@@ -61,10 +59,7 @@ export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, bas
       throw new Error(`Failed to write file: ${error.message}`)
     }
 
-    const writtenContent = await fs.readFile(validPath, 'utf-8')
-    if (writtenContent !== args.content) {
-      throw new Error('Post-write verification failed: file content did not match requested content')
-    }
+    await verifyWrittenContent(validPath, args.content)
 
     // Log the operation
     logger.info('File written', {
