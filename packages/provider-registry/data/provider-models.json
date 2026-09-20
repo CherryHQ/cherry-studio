@@ -20806,6 +20806,11 @@
       "providerId": "ollama"
     },
     {
+      "modelId": "auto",
+      "name": "OmniRoute Auto",
+      "providerId": "omniroute"
+    },
+    {
       "apiModelId": "gpt-5.3-codex-spark",
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-3-codex-spark",

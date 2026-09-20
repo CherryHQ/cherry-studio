@@ -820,6 +820,29 @@
       "name": "LM Studio"
     },
     {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "OmniRoute - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:20128/v1",
+          "modelsApiUrls": {
+            "default": "http://localhost:20128/v1/models"
+          }
+        }
+      },
+      "id": "omniroute",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/diegosouzapw/OmniRoute",
+          "models": "https://github.com/diegosouzapw/OmniRoute#-providers",
+          "official": "https://github.com/diegosouzapw/OmniRoute"
+        }
+      },
+      "name": "OmniRoute"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",
