@@ -5,11 +5,10 @@ import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
+import { isEmbeddingModel, isPublicGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
 import { isAgentOnlyProvider, isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 import { CLI_TOOL_PROVIDER_MAP } from '../constants/cliTools'
@@ -41,12 +40,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
     () =>
       new Map(
         allModels
-          .filter(
-            (model) =>
-              gatewayProviderIds.has(model.providerId) &&
-              !isManagedCherryCloudModel(model.providerId) &&
-              isGatewayRoutableModel(model)
-          )
+          .filter((model) => gatewayProviderIds.has(model.providerId) && isPublicGatewayRoutableModel(model))
           .map((model) => [model.id, model])
       ),
     [allModels, gatewayProviderIds]
@@ -78,11 +72,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
         // keeping only what Code Mate may route through the gateway. Cherry Cloud does not expose
         // a Code Mate feature entitlement, so its managed models are never offered here.
         if (isApiGatewayProviderId(providerId)) {
-          return (
-            gatewayProviderIds.has(model.providerId) &&
-            !isManagedCherryCloudModel(model.providerId) &&
-            isGatewayRoutableModel(model)
-          )
+          return gatewayProviderIds.has(model.providerId) && isPublicGatewayRoutableModel(model)
         }
         if (!modelSupportsCliTool(selectedCliTool, model)) return false
         return model.providerId === providerId

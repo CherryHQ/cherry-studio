@@ -120,7 +120,7 @@ describe('api gateway model listing', () => {
     })
   })
 
-  // The listing shares isGatewayRoutableModel with the renderer's gateway picker: it must never
+  // The listing shares isPublicGatewayRoutableModel with the renderer's gateway picker: it must never
   // advertise a model the proxy cannot route (non-chat classes, un-addressable provider ids).
   it('does not expose non-chat (audio/video/transcription) models', async () => {
     mocks.listProviders.mockReturnValue([{ id: 'openai', name: 'OpenAI' }])
