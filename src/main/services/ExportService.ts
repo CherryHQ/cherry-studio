@@ -384,12 +384,12 @@ export class ExportService {
         filters: [{ name: t('dialog.word_document'), extensions: ['docx'] }],
         defaultPath: fileName
       }
-      // A parented native dialog avoids the unparented-save crash with Unicode
-      // file names on Windows. Null when the caller window is gone — fall back
-      // to the unparented overload instead of throwing.
-      const parent: BrowserWindow | undefined = senderId
+      // Parented dialog avoids the unparented-save crash with Unicode names.
+      // Missing or destroyed caller window falls back to the unparented overload.
+      const candidate: BrowserWindow | undefined = senderId
         ? application.get('WindowManager').getWindow(senderId)
         : undefined
+      const parent = candidate && !candidate.isDestroyed() ? candidate : undefined
       const { canceled, filePath } = parent
         ? await dialog.showSaveDialog(parent, dialogOptions)
         : await dialog.showSaveDialog(dialogOptions)

@@ -297,11 +297,12 @@ export class PrintService {
       defaultPath: getDefaultPdfPath(payload.title),
       filters: [{ name: t('dialog.pdf_files'), extensions: ['pdf'] }]
     }
-    // Parent the native dialog to the caller window (see ExportService for why);
-    // fall back to unparented when the caller window is gone.
-    const parent: BrowserWindow | undefined = senderId
+    // Parented dialog avoids the unparented-save crash with Unicode names.
+    // Missing or destroyed caller window falls back to the unparented overload.
+    const candidate: BrowserWindow | undefined = senderId
       ? application.get('WindowManager').getWindow(senderId)
       : undefined
+    const parent = candidate && !candidate.isDestroyed() ? candidate : undefined
     const { canceled, filePath } = parent
       ? await dialog.showSaveDialog(parent, dialogOptions)
       : await dialog.showSaveDialog(dialogOptions)

@@ -142,7 +142,7 @@ describe('PrintService', () => {
 
   describe('save dialog parenting (Unicode file names)', () => {
     const senderId = 'main-1'
-    const ownerWindow = { id: 'owner-window' }
+    const ownerWindow = { id: 'owner-window', isDestroyed: () => false }
     const printWindow = {
       loadURL,
       showInactive,
@@ -175,6 +175,22 @@ describe('PrintService', () => {
       const result = await service.exportToPdf({ ...payload, title: '会议记录' }, null)
 
       expect(result).toBe(false)
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '会议记录.pdf' }))
+      expect(open).not.toHaveBeenCalled()
+    })
+
+    it('falls back to an unparented dialog when the caller window is destroyed', async () => {
+      getWindow.mockImplementation((id: string) =>
+        id === senderId ? { ...ownerWindow, isDestroyed: () => true } : printWindow
+      )
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+      const service = new PrintService()
+
+      const result = await service.exportToPdf({ ...payload, title: '会议记录' }, senderId)
+
+      expect(result).toBe(false)
+      expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(dialog.showSaveDialog).mock.calls[0]).toHaveLength(1)
       expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '会议记录.pdf' }))
       expect(open).not.toHaveBeenCalled()
     })
