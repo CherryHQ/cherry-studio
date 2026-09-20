@@ -64,6 +64,7 @@ type Session = {
   currentChunkIndex?: number
   nextChunkIndex?: number
   generatedUnchunked?: boolean
+  outputAccess?: Promise<unknown>
 }
 type ActiveOperation = { session: Session; requestId: string; controller: AbortController }
 
@@ -276,9 +277,12 @@ export class VoiceSessionService extends BaseService {
     }
     const file = session.files.get(input.fileEntryId)
     if (!file || file.entry.ext !== 'wav') throw new VoiceRuntimeError('forbidden_owner')
-    const output = await application.get('FileManager').read(input.fileEntryId, { encoding: 'binary' })
-    if (output.mime !== 'audio/wav') throw new VoiceRuntimeError('invalid_audio')
-    return { audio: Uint8Array.from(output.content), mimeType: 'audio/wav' as const }
+    return this.withOutputAccess(session, async () => {
+      const output = await application.get('FileManager').read(input.fileEntryId, { encoding: 'binary' })
+      if (session.closed) throw new VoiceRuntimeError('aborted')
+      if (output.mime !== 'audio/wav') throw new VoiceRuntimeError('invalid_audio')
+      return { audio: Uint8Array.from(output.content), mimeType: 'audio/wav' as const }
+    })
   }
 
   async releaseOutput(owner: VoiceOwner, input: InputFor<'ai.voice.output.release'>): Promise<void> {
@@ -286,10 +290,12 @@ export class VoiceSessionService extends BaseService {
     if (session.kind !== 'playback' || session.outputId !== input.fileEntryId) {
       throw new VoiceRuntimeError('forbidden_owner')
     }
-    await this.deleteFile(session, input.fileEntryId)
-    session.outputId = undefined
-    if (session.currentChunkIndex !== undefined) session.nextChunkIndex = session.currentChunkIndex + 1
-    session.currentChunkIndex = undefined
+    await this.withOutputAccess(session, async () => {
+      await this.deleteFile(session, input.fileEntryId)
+      session.outputId = undefined
+      if (session.currentChunkIndex !== undefined) session.nextChunkIndex = session.currentChunkIndex + 1
+      session.currentChunkIndex = undefined
+    })
   }
 
   async updatePlayback(owner: VoiceOwner, input: InputFor<'ai.voice.playback.update'>): Promise<VoiceSessionState> {
@@ -702,6 +708,17 @@ export class VoiceSessionService extends BaseService {
     }
   }
 
+  private async withOutputAccess<T>(session: Session, work: () => Promise<T>): Promise<T> {
+    if (session.outputAccess) throw new VoiceRuntimeError('busy')
+    const operation = Promise.resolve().then(work)
+    session.outputAccess = operation
+    try {
+      return await this.track(session, operation)
+    } finally {
+      if (session.outputAccess === operation) session.outputAccess = undefined
+    }
+  }
+
   private async createFile(session: Session, bytes: Uint8Array, ext: 'webm' | 'wav'): Promise<InternalFileEntry> {
     const files = application.get('FileManager')
     const entry = await files.createInternalEntry({
@@ -857,6 +874,7 @@ export class VoiceSessionService extends BaseService {
     const lease = this.lease
     if (
       !lease ||
+      lease.closed ||
       lease.kind !== 'recording' ||
       lease.phase !== 'recording' ||
       lease.owner.webContents !== webContents

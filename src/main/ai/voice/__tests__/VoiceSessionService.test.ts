@@ -319,6 +319,38 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(shell.openExternal).toHaveBeenCalledTimes(1)
   })
 
+  it('revokes microphone permission as soon as recording cleanup starts', async () => {
+    const sessionId = randomUUID()
+    await service.startRecording(a, { sessionId, requestId: randomUUID(), source: 'dictation' })
+    const createInternalEntry = files.createInternalEntry.bind(files)
+    let releaseCreate!: () => void
+    const createGate = new Promise<void>((resolve) => (releaseCreate = resolve))
+    vi.spyOn(files, 'createInternalEntry').mockImplementationOnce(async (input) => {
+      await createGate
+      return createInternalEntry(input)
+    })
+    const capture = service.createRecording(a, {
+      sessionId,
+      audio: webm,
+      mimeType: 'audio/webm;codecs=opus',
+      durationMs: 1_000
+    })
+    await vi.waitFor(() => expect(files.createInternalEntry).toHaveBeenCalled())
+
+    const cleanup = service.discard(a, sessionId)
+    const trustedUrl = pathToFileURL(path.join(root, 'renderer', 'index.html')).href
+    const allowedDuringCleanup = runtime.permissionCheck?.(a.webContents as never, 'media', trustedUrl, {
+      isMainFrame: true,
+      mediaType: 'audio',
+      requestingUrl: trustedUrl
+    })
+
+    releaseCreate()
+    await expect(capture).rejects.toMatchObject({ reason: 'aborted' })
+    await cleanup
+    expect(allowedDuringCleanup).toBe(false)
+  })
+
   it('recording preempts playback, while recognition blocks manual playback and auto-read never preempts', async () => {
     const playbackOwner = owner()
     const first = await speech(playbackOwner)
@@ -437,6 +469,36 @@ describe('VoiceSessionService file and admission contract', () => {
     })
     expect(second.fileEntry.id).not.toBe(first.result.fileEntry.id)
     expect(service.getState(a)).toMatchObject({ phase: 'ready', sessionId })
+  })
+
+  it('serializes output release with completion and rejects duplicate release', async () => {
+    const playback = await speech(a)
+    const deleteRetained = files.deleteRetainedTemporaryEntry.bind(files)
+    let releaseDelete!: () => void
+    const deleteGate = new Promise<void>((resolve) => (releaseDelete = resolve))
+    vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockImplementationOnce(async (id) => {
+      await deleteGate
+      return deleteRetained(id)
+    })
+
+    const release = service.releaseOutput(a, {
+      sessionId: playback.input.sessionId,
+      fileEntryId: playback.result.fileEntry.id
+    })
+    await vi.waitFor(() => expect(files.deleteRetainedTemporaryEntry).toHaveBeenCalled())
+    await expect(
+      service.releaseOutput(a, {
+        sessionId: playback.input.sessionId,
+        fileEntryId: playback.result.fileEntry.id
+      })
+    ).rejects.toMatchObject({ reason: 'busy' })
+    const completion = service.updatePlayback(a, { sessionId: playback.input.sessionId, phase: 'completed' })
+
+    releaseDelete()
+    await release
+    await expect(completion).resolves.toMatchObject({ phase: 'idle' })
+    expect(fileEntryService.findById(playback.result.fileEntry.id)).toBeNull()
+    expect(service.getState(a).phase).toBe('idle')
   })
 
   it('continues an auto-read session after releasing the previous chunk', async () => {
