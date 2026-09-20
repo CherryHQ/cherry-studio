@@ -1354,6 +1354,7 @@
   "error.http.504": "Quá thời gian chờ của cổng. Vui lòng thử lại sau.",
   "error.image_unreadable_for_non_vision_model": "Mô hình đã chọn chưa được cấu hình để nhận hình ảnh và Cherry Studio không thể trích xuất văn bản có thể đọc được từ tệp đính kèm. Hãy bật Tầm nhìn cho mô hình này trong phần cài đặt nhà cung cấp, chọn một mô hình hỗ trợ hình ảnh khác hoặc xóa hình ảnh rồi thử lại.",
   "error.lastError": "Lỗi Cuối Cùng",
+  "error.linux_session_bus_unavailable": "Claude Code không thể khởi động trên Linux nếu thiếu bus phiên desktop (DBUS_SESSION_BUS_ADDRESS chưa được thiết lập). Hãy khởi chạy Cherry Studio từ phiên desktop của bạn để nó kế thừa bus phiên, rồi thử lại.",
   "error.maxEmbeddingsPerCall": "Số lượng nhúng tối đa mỗi lần gọi",
   "error.message": "Thông báo lỗi",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> đã kết thúc phản hồi mà không nêu lý do hoàn tất. Phần phản hồi đã nhận được vẫn được giữ lại; hãy thử lại yêu cầu.",

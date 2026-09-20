@@ -4244,6 +4244,25 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.inspect('session-1')).toBeUndefined()
     })
 
+    it('drops the entry when priming fails so a later open rebuilds', async () => {
+      const connect = vi.fn().mockRejectedValue(new Error('connect boom'))
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+
+      expect(connect).toHaveBeenCalledTimes(1)
+      expect(service.inspect('session-1')).toBeUndefined()
+    })
+
     it('re-priming a live session republishes the catalog without rebuilding the connection', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
       const connection = {

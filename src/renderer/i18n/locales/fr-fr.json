@@ -1354,6 +1354,7 @@
   "error.http.504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard.",
   "error.image_unreadable_for_non_vision_model": "Le modèle sélectionné n’est pas configuré pour accepter les images et Cherry Studio n’a pas pu extraire de texte lisible de la pièce jointe. Activez Image pour ce modèle dans les paramètres du fournisseur, choisissez un autre modèle compatible avec les images ou retirez l’image, puis réessayez.",
   "error.lastError": "Dernière erreur",
+  "error.linux_session_bus_unavailable": "Claude Code ne peut pas démarrer sous Linux sans bus de session de bureau (DBUS_SESSION_BUS_ADDRESS n'est pas défini). Lancez Cherry Studio depuis votre session de bureau afin qu'il hérite du bus de session, puis réessayez.",
   "error.maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",
   "error.message": "Erreur message",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> a interrompu la réponse sans indiquer de motif de fin. La réponse partielle a été conservée ; réessayez la requête.",

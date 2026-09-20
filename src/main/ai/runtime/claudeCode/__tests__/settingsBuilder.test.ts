@@ -78,6 +78,7 @@ const mocks = vi.hoisted(() => ({
   loadAgentsMdInitialContext: vi.fn(),
   agentsMdHook: vi.fn(async () => ({})),
   platform: { isLinux: false, isMac: false },
+  isPackaged: false,
   isWin: false
 }))
 
@@ -92,7 +93,12 @@ vi.mock('node:module', async (importOriginal) => {
 })
 
 vi.mock('electron', () => ({
-  app: { getVersion: vi.fn(() => '1.0.0-test') }
+  app: {
+    getVersion: vi.fn(() => '1.0.0-test'),
+    get isPackaged() {
+      return mocks.isPackaged
+    }
+  }
 }))
 
 vi.mock('@logger', () => ({
@@ -275,6 +281,7 @@ const {
   registerMcpSessionCatalogSync
 } = await import('../settingsBuilder')
 const { ClaudeCodeSessionStateService } = await import('../ClaudeCodeSessionStateService')
+const { LinuxSessionBusUnavailableError } = await import('../environment')
 // One real instance per test file — the facade resolves it via application.get, and the real Maps
 // preserve the warm-pool resolve-by-id semantics the Bug A/Bug B and dispose tests exercise.
 const sessionStateService = new ClaudeCodeSessionStateService()
@@ -370,6 +377,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false
+    mocks.isPackaged = false
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
@@ -426,6 +434,108 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   it('does not invent a Linux desktop session bus when neither environment provides one', async () => {
     mocks.platform.isLinux = true
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).not.toHaveProperty('DBUS_SESSION_BUS_ADDRESS')
+  })
+
+  it('fails a packaged Linux launch without a session bus with an actionable error', async () => {
+    mocks.platform.isLinux = true
+    mocks.isPackaged = true
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
+
+    const build = buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    await expect(build).rejects.toBeInstanceOf(LinuxSessionBusUnavailableError)
+    await expect(build).rejects.toMatchObject({ i18nKey: 'linux_session_bus_unavailable' })
+  })
+
+  it('launches packaged Linux when the desktop session bus was propagated past the shell', async () => {
+    mocks.platform.isLinux = true
+    mocks.isPackaged = true
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus')
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env!.DBUS_SESSION_BUS_ADDRESS).toBe('unix:path=/run/user/1000/bus')
+  })
+
+  it('launches packaged Linux when the agent configuration supplies the session bus', async () => {
+    mocks.platform.isLinux = true
+    mocks.isPackaged = true
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { DBUS_SESSION_BUS_ADDRESS: 'unix:path=/agent/override' } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env!.DBUS_SESSION_BUS_ADDRESS).toBe('unix:path=/agent/override')
+  })
+
+  it('does not block an unpackaged Linux launch without a session bus', async () => {
+    mocks.platform.isLinux = true
+    mocks.isPackaged = false
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).not.toHaveProperty('DBUS_SESSION_BUS_ADDRESS')
+  })
+
+  it('does not block a packaged non-Linux launch without a session bus', async () => {
+    mocks.platform.isLinux = false
+    mocks.isPackaged = true
     mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
     vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
 

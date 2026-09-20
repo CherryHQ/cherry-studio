@@ -1354,6 +1354,7 @@
   "error.http.504": "Gateway timeout. Please try again later",
   "error.image_unreadable_for_non_vision_model": "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again.",
   "error.lastError": "Last Error",
+  "error.linux_session_bus_unavailable": "Claude Code cannot start on Linux without a desktop session bus (DBUS_SESSION_BUS_ADDRESS is not set). Launch Cherry Studio from your desktop session so it inherits the session bus, then try again.",
   "error.maxEmbeddingsPerCall": "Max Embeddings Per Call",
   "error.message": "Error Message",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> ended the response without a finish reason. The partial response was kept; retry the request.",

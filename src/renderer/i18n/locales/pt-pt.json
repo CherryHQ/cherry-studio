@@ -1354,6 +1354,7 @@
   "error.http.504": "Tempo de espera do gateway excedido, por favor tente novamente mais tarde",
   "error.image_unreadable_for_non_vision_model": "O modelo selecionado não está configurado para receber imagens e o Cherry Studio não conseguiu extrair texto legível do anexo. Ative imagem para este modelo nas definições do fornecedor, escolha outro modelo com capacidade visual ou remova a imagem e tente novamente.",
   "error.lastError": "Último erro",
+  "error.linux_session_bus_unavailable": "O Claude Code não consegue iniciar no Linux sem um barramento de sessão do ambiente de trabalho (DBUS_SESSION_BUS_ADDRESS não está definido). Inicie o Cherry Studio a partir da sua sessão do ambiente de trabalho para que herde o barramento de sessão e tente novamente.",
   "error.maxEmbeddingsPerCall": "Máximo de embeddings por chamada",
   "error.message": "Mensagem de erro",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> terminou a resposta sem indicar um motivo de conclusão. A resposta parcial foi mantida; tente novamente o pedido.",

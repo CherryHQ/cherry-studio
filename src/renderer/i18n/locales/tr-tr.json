@@ -1354,6 +1354,7 @@
   "error.http.504": "Ağ geçidi zaman aşımına uğradı. Lütfen daha sonra tekrar deneyin",
   "error.image_unreadable_for_non_vision_model": "Seçilen model görüntü girişi için yapılandırılmamış ve Cherry Studio ekteki dosyadan okunabilir metin çıkaramadı. Sağlayıcı Ayarları'nda bu model için Vision özelliğini etkinleştirin, görüntü işleyebilen başka bir model seçin veya görüntüyü kaldırıp tekrar deneyin.",
   "error.lastError": "Son Hata",
+  "error.linux_session_bus_unavailable": "Claude Code, bir masaüstü oturum veri yolu olmadan Linux'ta başlatılamıyor (DBUS_SESSION_BUS_ADDRESS ayarlı değil). Oturum veri yolunu devralması için Cherry Studio'yu masaüstü oturumunuzdan başlatın ve ardından yeniden deneyin.",
   "error.maxEmbeddingsPerCall": "Çağrı Başına Maksimum Gömme Sayısı",
   "error.message": "Hata Mesajı",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> yanıtı bir bitiş nedeni döndürmeden sonlandırdı. Alınan kısmi yanıt korundu; isteği yeniden deneyin.",

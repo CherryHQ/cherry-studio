@@ -7,6 +7,8 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
@@ -29,6 +31,18 @@ import {
 } from './agentProxyEnvironment'
 
 const logger = loggerService.withContext('ClaudeCodeEnvironment')
+
+const LINUX_SESSION_BUS_UNAVAILABLE_MESSAGE =
+  'Claude Code cannot start on Linux without a desktop session bus (DBUS_SESSION_BUS_ADDRESS is not set). Launch Cherry Studio from your desktop session so it inherits the session bus, then try again.'
+
+export class LinuxSessionBusUnavailableError extends Error {
+  readonly i18nKey = 'linux_session_bus_unavailable'
+
+  constructor() {
+    super(LINUX_SESSION_BUS_UNAVAILABLE_MESSAGE)
+    this.name = 'LinuxSessionBusUnavailableError'
+  }
+}
 
 const MIN_AUTO_COMPACT_WINDOW = 100_000
 const MAX_AUTO_COMPACT_WINDOW = 1_000_000
@@ -265,6 +279,12 @@ export async function buildEnvironment(
     } else {
       env.CLAUDE_CONFIG_DIR = loginShellEnv.CLAUDE_CONFIG_DIR || path.join(application.getPath('sys.home'), '.claude')
     }
+  }
+
+  // Packaged Linux launches have been observed failing without the desktop session bus,
+  // so fail fast instead of spawning a child that dies as a generic closed transport.
+  if (isLinux && app.isPackaged && !env.DBUS_SESSION_BUS_ADDRESS?.trim()) {
+    throw new LinuxSessionBusUnavailableError()
   }
 
   return mergeAgentLoopbackProxyBypass(env)

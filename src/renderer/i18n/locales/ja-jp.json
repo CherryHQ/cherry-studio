@@ -1354,6 +1354,7 @@
   "error.http.504": "ゲートウェイタイムアウトが発生しました。後でもう一度試してください",
   "error.image_unreadable_for_non_vision_model": "選択したモデルは画像入力を受け付けるように設定されておらず、Cherry Studio は添付ファイルから読み取り可能なテキストを抽出できませんでした。プロバイダー設定でこのモデルの「画像」を有効にするか、別の画像対応モデルを選択するか、画像を削除してもう一度お試しください。",
   "error.lastError": "最後のエラー",
+  "error.linux_session_bus_unavailable": "Claude Code はデスクトップセッションバスなしでは Linux 上で起動できません（DBUS_SESSION_BUS_ADDRESS が設定されていません）。デスクトップセッションから Cherry Studio を起動してセッションバスを継承させてから、もう一度お試しください。",
   "error.maxEmbeddingsPerCall": "1回の呼び出しでの最大埋め込み数",
   "error.message": "エラーメッセージ",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> が終了理由を返さずに応答を終了しました。途中までの応答は保持されています。リクエストを再試行してください。",
