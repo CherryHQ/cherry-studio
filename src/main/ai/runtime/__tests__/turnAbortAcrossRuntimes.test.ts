@@ -22,6 +22,19 @@ describe('runtime turn abort without session teardown', () => {
     expect((connection as any).closed).toBe(false)
   })
 
+  it('resolves a stop on a warm Pi connection whose turn already settled', async () => {
+    const connection = new PiRuntimeConnection(input)
+    const session = { abort: vi.fn(async () => {}) }
+    ;(connection as any).session = session
+    ;(connection as any).promptRunActive = false
+
+    // A re-dispatched user stop finds the turn already gone: declining here would fall back to
+    // the teardown of a runtime a prior stop preserved.
+    await expect(connection.abortTurn()).resolves.toBe(true)
+    expect(session.abort).not.toHaveBeenCalled()
+    expect((connection as any).closed).toBe(false)
+  })
+
   it('cancels only DSH main session and retains its bridge', async () => {
     const connection = new DshRuntimeConnection(input)
     const bridge = {

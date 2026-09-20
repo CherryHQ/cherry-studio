@@ -570,7 +570,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   /** Stop the active Pi prompt while retaining the session and its conversation state. */
   async abortTurn(): Promise<boolean> {
     const session = this.session
-    if (this.closed || !session || !this.promptRunActive) return false
+    if (this.closed || !session) return false
+    // A warm connection whose turn already settled has nothing to interrupt: report success so
+    // the stop keeps the preserved runtime instead of falling back to the teardown.
+    if (!this.promptRunActive) return true
     this.stopRequested = true
     try {
       let timeout: ReturnType<typeof setTimeout> | undefined

@@ -863,7 +863,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('declines a graceful stop when the connection has no live turn', async () => {
+  it('reports success when a stop lands on a warm connection with no active turn', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), return: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -873,8 +873,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
       modelId: 'claude-code::sonnet'
     })
 
-    await expect(connection.abortTurn!()).resolves.toBe(false)
+    // A re-dispatched user stop finds the turn already gone: there is nothing to interrupt, and
+    // declining here would fall back to the teardown of a runtime a prior stop preserved.
+    await expect(connection.abortTurn!()).resolves.toBe(true)
     expect(query.interrupt).not.toHaveBeenCalled()
+    expect(query.close).not.toHaveBeenCalled()
     void connection.close()
   })
 
