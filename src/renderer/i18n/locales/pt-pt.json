@@ -4584,6 +4584,8 @@
   "settings.provider.api_key.label": "Chave API",
   "settings.provider.api_key.label_placeholder": "Etiqueta",
   "settings.provider.api_key.list_description": "Gira várias chaves de API para este fornecedor",
+  "settings.provider.api_key.note_placeholder": "Nota (conta, origem)",
+  "settings.provider.api_key.open_key_page": "Abrir página da chave",
   "settings.provider.api_key.placeholder": "Introduza a chave de API",
   "settings.provider.api_key.probe.action": "Testar esta chave",
   "settings.provider.api_key.probe.failed": "Não funciona",

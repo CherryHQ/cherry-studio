@@ -4584,6 +4584,8 @@
   "settings.provider.api_key.label": "API-Schlüssel",
   "settings.provider.api_key.label_placeholder": "Beschriftung",
   "settings.provider.api_key.list_description": "Verwalten Sie mehrere API-Schlüssel für diesen Anbieter",
+  "settings.provider.api_key.note_placeholder": "Notiz (Konto, Quelle)",
+  "settings.provider.api_key.open_key_page": "Schlüsselseite öffnen",
   "settings.provider.api_key.placeholder": "API-Schlüssel eingeben",
   "settings.provider.api_key.probe.action": "Diesen Schlüssel testen",
   "settings.provider.api_key.probe.failed": "Funktioniert nicht",

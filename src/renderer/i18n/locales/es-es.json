@@ -4584,6 +4584,8 @@
   "settings.provider.api_key.label": "Clave API",
   "settings.provider.api_key.label_placeholder": "Etiqueta",
   "settings.provider.api_key.list_description": "Administrar múltiples claves de API para este proveedor",
+  "settings.provider.api_key.note_placeholder": "Nota (cuenta, origen)",
+  "settings.provider.api_key.open_key_page": "Abrir página de clave",
   "settings.provider.api_key.placeholder": "Introduce la clave API",
   "settings.provider.api_key.probe.action": "Probar esta clave",
   "settings.provider.api_key.probe.failed": "No funciona",

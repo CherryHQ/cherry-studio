@@ -4584,6 +4584,8 @@
   "settings.provider.api_key.label": "ÎšÎ»ÎµÎ¹Î´Î¯ API",
   "settings.provider.api_key.label_placeholder": "Î•Ï„Î¹ÎºÎ­Ï„Î±",
   "settings.provider.api_key.list_description": "Î”Î¹Î±Ï‡ÎµÎ¹ÏÎ¹ÏƒÏ„ÎµÎ¯Ï„Îµ Ï€Î¿Î»Î»Î¬ ÎºÎ»ÎµÎ¹Î´Î¹Î¬ API Î³Î¹Î± Î±Ï…Ï„ÏŒÎ½ Ï„Î¿Î½ Ï€Î¬ÏÎ¿Ï‡Î¿",
+  "settings.provider.api_key.note_placeholder": "Σημείωση (λογαριασμός, προέλευση)",
+  "settings.provider.api_key.open_key_page": "Άνοιγμα σελίδας κλειδιού",
   "settings.provider.api_key.placeholder": "Î•Î¹ÏƒÎ±Î³Î¬Î³ÎµÏ„Îµ ÎºÎ»ÎµÎ¹Î´Î¯ API",
   "settings.provider.api_key.probe.action": "Δοκιμάστε αυτό το κλειδί",
   "settings.provider.api_key.probe.failed": "Δεν λειτουργεί",

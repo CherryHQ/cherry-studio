@@ -4584,6 +4584,8 @@
   "settings.provider.api_key.label": "API Anahtarı",
   "settings.provider.api_key.label_placeholder": "Etiket",
   "settings.provider.api_key.list_description": "Bu sağlayıcı için birden fazla API anahtarını yönetin",
+  "settings.provider.api_key.note_placeholder": "Not (hesap, kaynak)",
+  "settings.provider.api_key.open_key_page": "Anahtar sayfasını aç",
   "settings.provider.api_key.placeholder": "API anahtarını girin",
   "settings.provider.api_key.probe.action": "Bu anahtarı dene",
   "settings.provider.api_key.probe.failed": "Çalışmıyor",

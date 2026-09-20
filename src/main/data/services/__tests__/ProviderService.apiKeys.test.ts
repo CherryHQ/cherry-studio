@@ -158,6 +158,22 @@ describe('ProviderService API keys', () => {
     expect(keys.find((entry) => entry.id === 'key-b')).toMatchObject({ label: 'B', isEnabled: false })
   })
 
+  it('round-trips a key note to the database and clears it on an empty update', async () => {
+    await seedProvider()
+
+    const updated = providerService.updateApiKey('openai', 'key-a', { note: 'Signed up with throwaway@mail.com' })
+    expect(updated.apiKeys.find((entry) => entry.id === 'key-a')).toMatchObject({
+      note: 'Signed up with throwaway@mail.com'
+    })
+
+    const storedKeys = await readApiKeys()
+    expect(storedKeys.find((entry) => entry.id === 'key-a')?.note).toBe('Signed up with throwaway@mail.com')
+
+    providerService.updateApiKey('openai', 'key-a', { note: '' })
+    const clearedKeys = await readApiKeys()
+    expect(clearedKeys.find((entry) => entry.id === 'key-a')?.note).toBeUndefined()
+  })
+
   it('deletes API keys by id and persists the updated list', async () => {
     await seedProvider()
 

@@ -13,6 +13,7 @@ import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { apiKeyListClasses } from '../primitives/ProviderSettingsPrimitives'
+import { ApiKeyNote } from './ApiKeyNote'
 import { ApiKeyQuotaLimit } from './ApiKeyQuotaLimit'
 import { ApiKeyRotationPolicy } from './ApiKeyRotationPolicy'
 import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
@@ -209,7 +210,12 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
                     onToggleEnabled={(next) => void toggleEnabled(entry, next)}
                   />
                 )}
-                {editingId === entry.id ? null : <ApiKeyQuotaLimit providerId={providerId} keyId={entry.id} />}
+                {editingId === entry.id ? null : (
+                  <>
+                    <ApiKeyNote providerId={providerId} keyId={entry.id} note={entry.note} />
+                    <ApiKeyQuotaLimit providerId={providerId} keyId={entry.id} />
+                  </>
+                )}
               </div>
             ))}
             {draft?.isNew ? (

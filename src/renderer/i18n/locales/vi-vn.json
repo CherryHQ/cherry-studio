@@ -4584,6 +4584,8 @@
   "settings.provider.api_key.label": "Khóa API",
   "settings.provider.api_key.label_placeholder": "Nhãn",
   "settings.provider.api_key.list_description": "Quản lý nhiều khóa API cho nhà cung cấp này",
+  "settings.provider.api_key.note_placeholder": "Ghi chú (tài khoản, nguồn)",
+  "settings.provider.api_key.open_key_page": "Mở trang khóa",
   "settings.provider.api_key.placeholder": "Nhập khóa API",
   "settings.provider.api_key.probe.action": "Kiểm tra khóa này",
   "settings.provider.api_key.probe.failed": "Không hoạt động",

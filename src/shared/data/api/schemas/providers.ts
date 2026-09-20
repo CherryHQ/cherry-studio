@@ -191,7 +191,8 @@ export const UpdateApiKeySchema = z.strictObject({
   tier: ApiKeyTierSchema.optional(),
   /** ISO date the quota period counts from — free tiers usually renew on the signup day. */
   renewalAnchor: z.string().optional(),
-  renewalTimezone: z.string().optional()
+  renewalTimezone: z.string().optional(),
+  note: z.string().optional()
 })
 export type UpdateApiKeyDto = z.infer<typeof UpdateApiKeySchema>
 

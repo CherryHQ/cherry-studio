@@ -72,7 +72,9 @@ export const ApiKeyEntrySchema = z.object({
   /** ISO date anchor for renewal (e.g. signup date); period resets relative to this. */
   renewalAnchor: z.string().optional(),
   /** IANA timezone for renewal calculation (e.g. "America/New_York"); defaults to UTC. */
-  renewalTimezone: z.string().optional()
+  renewalTimezone: z.string().optional(),
+  /** Free-text note (e.g. which account this came from) — the renewal link itself is derived from the provider preset. */
+  note: z.string().optional()
 })
 
 export type ApiKeyEntry = z.infer<typeof ApiKeyEntrySchema>

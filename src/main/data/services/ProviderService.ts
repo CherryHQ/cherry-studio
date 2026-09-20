@@ -875,6 +875,7 @@ class ProviderService {
       tier?: ApiKeyTier
       renewalAnchor?: string
       renewalTimezone?: string
+      note?: string
     }
   ): Provider {
     assertManagedCherryProviderMutationAllowed(providerId, `update API key for provider ${providerId}`)
@@ -933,6 +934,14 @@ class ProviderService {
             updatedEntry.label = updates.label
           } else {
             delete updatedEntry.label
+          }
+        }
+
+        if (updates.note !== undefined) {
+          if (updates.note) {
+            updatedEntry.note = updates.note
+          } else {
+            delete updatedEntry.note
           }
         }
 

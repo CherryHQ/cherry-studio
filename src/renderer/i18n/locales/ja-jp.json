@@ -4584,6 +4584,8 @@
   "settings.provider.api_key.label": "APIキー",
   "settings.provider.api_key.label_placeholder": "ラベル",
   "settings.provider.api_key.list_description": "このプロバイダーの複数のAPIキーを管理する",
+  "settings.provider.api_key.note_placeholder": "メモ（アカウント、ソース）",
+  "settings.provider.api_key.open_key_page": "キーページを開く",
   "settings.provider.api_key.placeholder": "API キーを入力",
   "settings.provider.api_key.probe.action": "このキーをテストする",
   "settings.provider.api_key.probe.failed": "機能していません",

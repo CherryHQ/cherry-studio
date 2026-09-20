@@ -4584,6 +4584,8 @@
   "settings.provider.api_key.label": "API 密钥",
   "settings.provider.api_key.label_placeholder": "标签",
   "settings.provider.api_key.list_description": "管理当前服务商的多个 API Key",
+  "settings.provider.api_key.note_placeholder": "备注（账户、来源）",
+  "settings.provider.api_key.open_key_page": "打开密钥页面",
   "settings.provider.api_key.placeholder": "输入 API 密钥",
   "settings.provider.api_key.probe.action": "测试此密钥",
   "settings.provider.api_key.probe.failed": "不可用",

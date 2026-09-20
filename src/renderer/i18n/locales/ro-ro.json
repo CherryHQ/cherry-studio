@@ -4584,6 +4584,8 @@
   "settings.provider.api_key.label": "Cheie API",
   "settings.provider.api_key.label_placeholder": "Etichetă",
   "settings.provider.api_key.list_description": "Gestionează mai multe chei API pentru acest furnizor",
+  "settings.provider.api_key.note_placeholder": "Notă (cont, sursă)",
+  "settings.provider.api_key.open_key_page": "Deschideți pagina cheii",
   "settings.provider.api_key.placeholder": "Introdu cheia API",
   "settings.provider.api_key.probe.action": "Testați această cheie",
   "settings.provider.api_key.probe.failed": "Nu funcționează",

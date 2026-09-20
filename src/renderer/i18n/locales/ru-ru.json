@@ -4584,6 +4584,8 @@
   "settings.provider.api_key.label": "ĞšĞ»ÑÑ‡ API",
   "settings.provider.api_key.label_placeholder": "ĞœĞµÑ‚ĞºĞ°",
   "settings.provider.api_key.list_description": "Ğ£Ğ¿Ñ€Ğ°Ğ²Ğ»ÑĞ¹Ñ‚Ğµ Ğ½ĞµÑĞºĞ¾Ğ»ÑŒĞºĞ¸Ğ¼Ğ¸ ĞºĞ»ÑÑ‡Ğ°Ğ¼Ğ¸ API Ğ´Ğ»Ñ ÑÑ‚Ğ¾Ğ³Ğ¾ Ğ¿Ñ€Ğ¾Ğ²Ğ°Ğ¹Ğ´ĞµÑ€Ğ°",
+  "settings.provider.api_key.note_placeholder": "Примечание (аккаунт, источник)",
+  "settings.provider.api_key.open_key_page": "Открыть страницу ключа",
   "settings.provider.api_key.placeholder": "Ğ’Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ API-ĞºĞ»ÑÑ‡",
   "settings.provider.api_key.probe.action": "Протестировать этот ключ",
   "settings.provider.api_key.probe.failed": "Не работает",

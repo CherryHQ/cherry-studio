@@ -4584,6 +4584,8 @@
   "settings.provider.api_key.label": "API Key",
   "settings.provider.api_key.label_placeholder": "Label",
   "settings.provider.api_key.list_description": "Manage multiple API keys for this provider",
+  "settings.provider.api_key.note_placeholder": "Note (account, source)",
+  "settings.provider.api_key.open_key_page": "Open key page",
   "settings.provider.api_key.placeholder": "Enter API key",
   "settings.provider.api_key.probe.action": "Test this key",
   "settings.provider.api_key.probe.failed": "Not working",
