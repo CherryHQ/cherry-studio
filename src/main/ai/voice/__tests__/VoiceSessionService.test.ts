@@ -1233,14 +1233,14 @@ describe('VoiceSessionService file and admission contract', () => {
       expect(logs).not.toContain(sensitive)
   })
 
-  it('capability inspection follows owner destruction and holds bounded admission until settled', async () => {
-    let probeSignal!: AbortSignal
-    let finish!: () => void
-    native.status.mockImplementationOnce(
+  it('allows concurrent capability inspections while retaining owner cleanup and bounded admission', async () => {
+    const probeSignals: AbortSignal[] = []
+    const finishes: Array<() => void> = []
+    native.status.mockImplementation(
       (_id, _options, signal: AbortSignal) =>
         new Promise((resolve) => {
-          probeSignal = signal
-          finish = () => resolve({ status: 'ready' })
+          probeSignals.push(signal)
+          finishes.push(() => resolve({ status: 'ready' }))
         })
     )
     const probe = service.status(a, { modelId: APPLE_ASR_MODEL_ID })
@@ -1248,23 +1248,26 @@ describe('VoiceSessionService file and admission contract', () => {
       () => 'success',
       (error: VoiceRuntimeError) => error.reason
     )
-    await vi.waitFor(() => expect(probeSignal).toBeDefined())
-    const simultaneous = await service.status(a, { modelId: APPLE_ASR_MODEL_ID }).then(
+    const other = owner()
+    const simultaneous = service.status(other, { modelId: APPLE_ASR_MODEL_ID }).then(
       () => 'success',
       (error: VoiceRuntimeError) => error.reason
     )
+    await vi.waitFor(() => expect(probeSignals).toHaveLength(2))
     ;(a.webContents as unknown as EventEmitter).emit('destroyed')
-    const cancelled = probeSignal.aborted
+    const cancelled = probeSignals[0].aborted
+    const otherCancelled = probeSignals[1].aborted
     const speech = await service
       .speech(owner(), { sessionId: randomUUID(), requestId: randomUUID(), text: 'private-text', voice: 'exact' })
       .then(
         () => 'success',
         (error: VoiceRuntimeError) => error.reason
       )
-    finish()
+    finishes.forEach((finish) => finish())
     expect(await outcome).toBe('aborted')
     expect(cancelled).toBe(true)
-    expect(simultaneous).toBe('busy')
+    expect(otherCancelled).toBe(false)
+    expect(await simultaneous).toBe('success')
     expect(speech).toBe('busy')
     expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
   })

@@ -811,7 +811,7 @@ export class VoiceSessionService extends BaseService {
   private async inspect<T>(owner: VoiceOwner, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
     this.requireAdmission()
     this.requireOwner(owner)
-    if (this.active || this.inspections.size) throw new VoiceRuntimeError('busy')
+    if (this.active) throw new VoiceRuntimeError('busy')
     const controller = new AbortController()
     const terminate = () => controller.abort(new VoiceRuntimeError('aborted'))
     const navigation = (...args: unknown[]) => {
