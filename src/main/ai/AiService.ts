@@ -991,7 +991,7 @@ export class AiService extends BaseService {
     const dataUrls: Base64String[] = []
     let filteredCount = 0
     for (const image of result.images ?? []) {
-      if (image.base64) {
+      if (image.base64?.trim()) {
         dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
         continue
       }
@@ -999,13 +999,19 @@ export class AiService extends BaseService {
       filteredCount += 1
     }
 
-    if (filteredCount > 0) {
+    if (filteredCount > 0 && dataUrls.length > 0) {
       logger.warn('Filtered invalid generated images', {
         uniqueModelId: request.uniqueModelId,
         providerId: sdkConfig.providerId,
         modelId: sdkConfig.modelId,
         filteredCount
       })
+    }
+    if (dataUrls.length === 0) {
+      if (signal?.aborted) throw new DOMException('Image generation aborted', 'AbortError')
+      throw new Error(
+        `Image generation for '${sdkConfig.modelId}' completed upstream but returned no usable images. The provider may still have billed this request, so it was not retried automatically.`
+      )
     }
     const fileManager = application.get('FileManager')
     const files = await Promise.all(
