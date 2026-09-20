@@ -253,14 +253,11 @@ export function useAgentChatRuntimeState({
           changed = true
         }
         delete next[toolCallId]
-        // The persisted part settled the answers — the draft cache can go now.
-        if (sourcePart.approval?.id) clearAskUserQuestionDraftCache(sourcePart.approval.id)
       }
       return changed ? next : current
     })
-    // A session switch or remount drops the optimistic ids above, so the sweep
-    // over persisted parts is what still evicts drafts once their settlement
-    // shows up here (e.g. on returning to the session).
+    // The sweep over persisted parts is the single draft-eviction point (the
+    // updater stays side-effect-free), so settlements survive remounts too.
     for (const approvalId of getSettledAskUserQuestionApprovalIds(partsByMessageId)) {
       clearAskUserQuestionDraftCache(approvalId)
     }
