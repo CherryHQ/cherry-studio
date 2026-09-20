@@ -857,7 +857,11 @@ const AgentPage = () => {
               .map((agentId) => `session:agent:${agentId}`)
           )
         )
-        cacheService.setPersist('ui.agent.session.expansion.agent', collapsedAgentGroupIds)
+        if (isWindowFrame) {
+          cacheService.set('ui.window.agent.session.expansion.agent', collapsedAgentGroupIds)
+        } else {
+          cacheService.setPersist('ui.agent.session.expansion.agent', collapsedAgentGroupIds)
+        }
       }
       await setPanePosition(position)
       setSessionPaneOpen(position === 'right', { force: true })
@@ -865,6 +869,7 @@ const AgentPage = () => {
     },
     [
       agentSessions,
+      isWindowFrame,
       setPanePosition,
       setShellPaneOpen,
       setSessionDisplayMode,

@@ -616,13 +616,17 @@ const HomePage: FC = () => {
             allTopics.map(getTopicAssistantDisplayGroupId).filter((groupId) => groupId !== activeAssistantGroupId)
           )
         )
-        cacheService.setPersist('ui.topic.expansion.assistant', collapsedAssistantGroupIds)
+        if (isWindowFrame) {
+          cacheService.set('ui.window.chat.topic.expansion.assistant', collapsedAssistantGroupIds)
+        } else {
+          cacheService.setPersist('ui.topic.expansion.assistant', collapsedAssistantGroupIds)
+        }
       }
       await setPanePosition(position)
       setTopicPaneOpen(position === 'right', { force: true })
       setShellPaneOpen(true)
     },
-    [allTopics, setPanePosition, setShellPaneOpen, setTopicDisplayMode, setTopicPaneOpen, visibleTopic]
+    [allTopics, isWindowFrame, setPanePosition, setShellPaneOpen, setTopicDisplayMode, setTopicPaneOpen, visibleTopic]
   )
   // Classic layout = entity rail + right topic panel; modern layout = one left navigation panel (HomeTabs).
   const pane =
