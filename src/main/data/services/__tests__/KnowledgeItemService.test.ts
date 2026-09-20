@@ -687,11 +687,32 @@ describe('KnowledgeItemService', () => {
   })
 
   describe('external synchronization mutations', () => {
-    it('creates a completed external item and updates only its external metadata in the caller transaction', () => {
-      const relativePath = 'external/document-1.md' as PosixRelativeFilePath
+    it('persists the staged UUIDv7 as the completed external item id', () => {
+      const stagedItemId = '0198f3f2-7d21-7abc-8def-123456789abc'
 
       const created = dbh.db.transaction((tx) =>
-        service.createCompletedExternalTx(tx, KNOWLEDGE_BASE_ID, {
+        service.createCompletedExternalTx(tx, KNOWLEDGE_BASE_ID, stagedItemId, {
+          source: 'Feishu Wiki',
+          title: 'Document 1',
+          relativePath: 'external/staged-document-1.md' as PosixRelativeFilePath
+        })
+      )
+
+      expect(created.id).toBe(stagedItemId)
+      expect(
+        dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, stagedItemId)).get()
+      ).toMatchObject({
+        id: stagedItemId,
+        status: 'completed'
+      })
+    })
+
+    it('creates a completed external item and updates only its external metadata in the caller transaction', () => {
+      const relativePath = 'external/document-1.md' as PosixRelativeFilePath
+      const itemId = '0198f3f2-7d22-7abc-8def-123456789abc'
+
+      const created = dbh.db.transaction((tx) =>
+        service.createCompletedExternalTx(tx, KNOWLEDGE_BASE_ID, itemId, {
           source: 'Feishu Wiki',
           title: 'Document 1',
           relativePath

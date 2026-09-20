@@ -364,11 +364,16 @@ describe('ExternalKnowledgeDocumentService', () => {
 
     expect(() =>
       dbh.db.transaction((tx) => {
-        const item = knowledgeItemService.createCompletedExternalTx(tx, BASE_ID, {
-          source: 'Feishu Wiki',
-          title: 'Rolled back document',
-          relativePath: KnowledgeRelativePathSchema.parse('external/rolled-back-document.md')
-        })
+        const item = knowledgeItemService.createCompletedExternalTx(
+          tx,
+          BASE_ID,
+          '0198f3f2-7d23-7abc-8def-123456789abc',
+          {
+            source: 'Feishu Wiki',
+            title: 'Rolled back document',
+            relativePath: KnowledgeRelativePathSchema.parse('external/rolled-back-document.md')
+          }
+        )
         createdItemId = item.id
         const document = externalKnowledgeDocumentService.createActiveTx(tx, syncFence, {
           remoteObjectId: 'doc-rollback',

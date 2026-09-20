@@ -354,12 +354,17 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
-  createCompletedExternalTx(tx: Pick<DbType, 'insert'>, baseId: string, data: ExternalItemData): KnowledgeItem {
+  createCompletedExternalTx(
+    tx: Pick<DbType, 'insert'>,
+    baseId: string,
+    id: string,
+    data: ExternalItemData
+  ): KnowledgeItem {
     const [row] = withSqliteErrors(
       () =>
         tx
           .insert(knowledgeItemTable)
-          .values({ baseId, groupId: null, type: 'external', data, status: 'completed', error: null })
+          .values({ id, baseId, groupId: null, type: 'external', data, status: 'completed', error: null })
           .returning()
           .all(),
       {
