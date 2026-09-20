@@ -30,14 +30,15 @@ import type {
   TopicMessageFlowGraph,
   TopicMessageFlowLayout,
   TopicMessageFlowNodeActions,
-  TopicMessageFlowNodeModel
+  TopicMessageFlowNodeModel,
+  TopicMessageFlowRevealRequest
 } from './types'
 import { TOPIC_MESSAGE_FLOW_NODE_TYPE } from './types'
 
 interface TopicMessageFlowCanvasProps extends Pick<TopicMessageFlowNodeActions, 'onStartBranch' | 'actionsDisabled'> {
   graph: TopicMessageFlowGraph
   onNodeActivate: (messageId: string) => void | Promise<void>
-  revealNodeId?: string
+  revealRequest?: TopicMessageFlowRevealRequest
   onNodeContextMenu?: (messageId: string) => void
   className?: string
   focusKey?: string | number
@@ -127,7 +128,7 @@ const TopicMessageFlowCanvas = ({
   onNodeActivate,
   onStartBranch,
   actionsDisabled,
-  revealNodeId,
+  revealRequest,
   focusKey,
   layoutReady = true
 }: TopicMessageFlowCanvasProps) => {
@@ -137,7 +138,7 @@ const TopicMessageFlowCanvas = ({
   const containerRef = useRef<HTMLDivElement>(null)
   const hasNodes = graph.nodes.length > 0
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  const revealedNodeIdRef = useRef<string | undefined>(undefined)
+  const revealedRequestIdRef = useRef<number | undefined>(undefined)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<
     TopicMessageFlowNodeModel,
     TopicMessageFlowEdgeModel
@@ -336,8 +337,8 @@ const TopicMessageFlowCanvas = ({
   }, [reactFlowInstance, readyViewport])
 
   useEffect(() => {
-    if (!reactFlowInstance || !revealNodeId || revealedNodeIdRef.current === revealNodeId) return
-    const node = nodes.find((item) => item.id === revealNodeId)
+    if (!reactFlowInstance || !revealRequest || revealedRequestIdRef.current === revealRequest.requestId) return
+    const node = nodes.find((item) => item.id === revealRequest.nodeId)
     const container = containerRef.current
     if (!node || !container?.clientWidth || !container.clientHeight) return
 
@@ -366,9 +367,9 @@ const TopicMessageFlowCanvas = ({
         rootFocusOptions
       )
     }
-    revealedNodeIdRef.current = revealNodeId
-    setSelectedNodeId(revealNodeId)
-  }, [nodes, reactFlowInstance, revealNodeId])
+    revealedRequestIdRef.current = revealRequest.requestId
+    setSelectedNodeId(revealRequest.nodeId)
+  }, [nodes, reactFlowInstance, revealRequest])
 
   if (!hasNodes) {
     return (

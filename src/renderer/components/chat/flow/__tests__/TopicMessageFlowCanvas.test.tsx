@@ -93,6 +93,17 @@ async function findInitializedCanvas() {
   return canvas
 }
 
+function expectNodeRevealed(id: string) {
+  const viewport = flow.viewport
+  const target = node(id)
+  const left = target.position.x * viewport.zoom + viewport.x
+  const top = target.position.y * viewport.zoom + viewport.y
+  expect(left).toBeGreaterThanOrEqual(0)
+  expect(left + target.width! * viewport.zoom).toBeLessThanOrEqual(480)
+  expect(top).toBeGreaterThanOrEqual(0)
+  expect(top + target.measured!.height! * viewport.zoom).toBeLessThanOrEqual(600)
+}
+
 async function measureNodeHeight(id: string, height: number) {
   act(() => flow.props!.onNodesChange!([{ id, type: 'dimensions', dimensions: { width: node(id).width!, height } }]))
   await act(async () => {
@@ -232,21 +243,42 @@ describe('TopicMessageFlowCanvas', () => {
     const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={() => {}} />)
     await findInitializedCanvas()
     flow.viewport = { x: -900, y: -900, zoom: 0.7 }
-    rerender(<TopicMessageFlowCanvas graph={graph} onNodeActivate={() => {}} revealNodeId="answer-b" />)
-    await waitFor(() => {
-      const viewport = flow.viewport
-      expect(viewport.zoom).toBe(0.7)
-      const target = node('answer-b')
-      const left = target.position.x * viewport.zoom + viewport.x
-      const top = target.position.y * viewport.zoom + viewport.y
-      expect(left).toBeGreaterThanOrEqual(0)
-      expect(left + target.width! * viewport.zoom).toBeLessThanOrEqual(480)
-      expect(top).toBeGreaterThanOrEqual(0)
-      expect(top + target.measured!.height! * viewport.zoom).toBeLessThanOrEqual(600)
-    })
+    rerender(
+      <TopicMessageFlowCanvas
+        graph={graph}
+        onNodeActivate={() => {}}
+        revealRequest={{ nodeId: 'answer-b', requestId: 1 }}
+      />
+    )
+    await waitFor(() => expectNodeRevealed('answer-b'))
+    expect(flow.viewport.zoom).toBe(0.7)
     const revealedViewport = flow.viewport
     await measureNodeHeight('user-1', 420)
     expect(flow.viewport).toEqual(revealedViewport)
+  })
+
+  it('reveals the same node again when it is requested after the user pans it offscreen', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(480)
+    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={() => {}} />)
+    await findInitializedCanvas()
+    rerender(
+      <TopicMessageFlowCanvas
+        graph={graph}
+        onNodeActivate={() => {}}
+        revealRequest={{ nodeId: 'answer-b', requestId: 1 }}
+      />
+    )
+    await waitFor(() => expectNodeRevealed('answer-b'))
+
+    flow.viewport = { x: -900, y: -900, zoom: 0.7 }
+    rerender(
+      <TopicMessageFlowCanvas
+        graph={graph}
+        onNodeActivate={() => {}}
+        revealRequest={{ nodeId: 'answer-b', requestId: 2 }}
+      />
+    )
+    await waitFor(() => expectNodeRevealed('answer-b'))
   })
 
   it('stacks the conversation downwards and opens at the top in the vertical layout', async () => {

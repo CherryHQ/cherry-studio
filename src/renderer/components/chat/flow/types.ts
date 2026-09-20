@@ -57,6 +57,12 @@ export interface TopicMessageFlowGraph {
   stats: TopicMessageFlowStats
 }
 
+/** Identifies a single reveal request so repeating the same node still recenters it. */
+export interface TopicMessageFlowRevealRequest {
+  nodeId: string
+  requestId: number
+}
+
 export interface TopicMessageFlowNodeActions {
   onStartBranch?: (messageId: string) => void | Promise<void>
   actionsDisabled?: boolean
