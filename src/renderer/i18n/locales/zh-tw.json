@@ -2744,6 +2744,7 @@
   "onboarding.privacy.period": "",
   "onboarding.privacy.policy": "隱私權政策",
   "onboarding.privacy.update_failed": "無法儲存隱私權政策同意狀態，請重試",
+  "onboarding.provider_setup.free_hint": "優先顯示免費和本地提供商，包括LM Studio（如果正在執行）。使用上方的篩選器查看所有提供商。",
   "onboarding.provider_setup.missing_model": "請先啟用該供應商下的至少一個模型",
   "onboarding.provider_setup.missing_provider": "請先啟用一個供應商",
   "onboarding.provider_setup.next": "下一步",

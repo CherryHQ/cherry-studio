@@ -2744,6 +2744,7 @@
   "onboarding.privacy.period": ".",
   "onboarding.privacy.policy": "Política de privacidad",
   "onboarding.privacy.update_failed": "No se pudo guardar tu aceptación de la política de privacidad. Inténtalo de nuevo.",
+  "onboarding.provider_setup.free_hint": "Mostrando primero proveedores gratuitos y locales, incluido LM Studio si está en ejecución. Use el filtro de arriba para ver todos los proveedores.",
   "onboarding.provider_setup.missing_model": "Habilita al menos un modelo del proveedor habilitado",
   "onboarding.provider_setup.missing_provider": "Habilitar un proveedor para continuar",
   "onboarding.provider_setup.next": "Siguiente",

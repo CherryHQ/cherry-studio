@@ -2744,6 +2744,7 @@
   "onboarding.privacy.period": ".",
   "onboarding.privacy.policy": "Privacy Policy",
   "onboarding.privacy.update_failed": "Unable to save your privacy agreement. Please try again.",
+  "onboarding.provider_setup.free_hint": "Showing free and local providers first, including LM Studio if it is running. Use the filter above to see every provider.",
   "onboarding.provider_setup.missing_model": "Enable at least one model from the enabled provider",
   "onboarding.provider_setup.missing_provider": "Enable a provider to continue",
   "onboarding.provider_setup.next": "Next",

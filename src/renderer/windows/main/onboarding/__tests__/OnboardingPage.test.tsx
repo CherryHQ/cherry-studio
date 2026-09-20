@@ -110,7 +110,9 @@ vi.mock('@renderer/components/WindowControls', () => ({
 }))
 
 vi.mock('@renderer/pages/settings/ProviderSettings', () => ({
-  ProviderSettingsPage: () => <div data-testid="provider-settings" />,
+  ProviderSettingsPage: ({ filterModeHint }: { filterModeHint?: string }) => (
+    <div data-testid="provider-settings" data-filter-mode-hint={filterModeHint ?? ''} />
+  ),
   useProviderModelSync: () => ({
     syncProviderModels: syncProviderModelsMock,
     isSyncingModels: false
@@ -222,6 +224,15 @@ describe('OnboardingPage', () => {
 
     expect(screen.getByTestId('provider-settings')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'onboarding.provider_setup.title' })).toBeInTheDocument()
+  })
+
+  it('defaults the provider list to free and local options with an explanatory hint', async () => {
+    render(<OnboardingPage />)
+
+    await openProviderSetup()
+
+    expect(screen.getByTestId('provider-settings')).toHaveAttribute('data-filter-mode-hint', 'free')
+    expect(screen.getByText('onboarding.provider_setup.free_hint')).toBeInTheDocument()
   })
 
   it('moves from provider setup to model selection and completes the flow', async () => {

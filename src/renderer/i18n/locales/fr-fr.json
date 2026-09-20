@@ -2744,6 +2744,7 @@
   "onboarding.privacy.period": ".",
   "onboarding.privacy.policy": "Politique de confidentialité",
   "onboarding.privacy.update_failed": "Impossible d'enregistrer votre acceptation de la politique de confidentialité. Veuillez réessayer.",
+  "onboarding.provider_setup.free_hint": "Affichage en premier des fournisseurs gratuits et locaux, y compris LM Studio s'il est actif. Utilisez le filtre ci-dessus pour voir tous les fournisseurs.",
   "onboarding.provider_setup.missing_model": "Activez au moins un modèle du fournisseur activé",
   "onboarding.provider_setup.missing_provider": "Activer un fournisseur pour continuer",
   "onboarding.provider_setup.next": "Suivant",

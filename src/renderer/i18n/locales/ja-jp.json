@@ -2744,6 +2744,7 @@
   "onboarding.privacy.period": "",
   "onboarding.privacy.policy": "プライバシーポリシー",
   "onboarding.privacy.update_failed": "プライバシーポリシーへの同意を保存できませんでした。もう一度お試しください。",
+  "onboarding.provider_setup.free_hint": "無料および地元のプロバイダーを最初に表示し、LM Studioが実行中の場合はそれを含みます。上記のフィルターを使用して、すべてのプロバイダーを表示します。",
   "onboarding.provider_setup.missing_model": "有効化されたプロバイダーから少なくとも1つのモデルを有効にしてください",
   "onboarding.provider_setup.missing_provider": "プロバイダーを有効にして続行",
   "onboarding.provider_setup.next": "次へ",
