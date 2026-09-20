@@ -129,19 +129,25 @@ export class VoiceSessionService extends BaseService {
   async startRecording(owner: VoiceOwner, input: InputFor<'ai.voice.recording.start'>): Promise<VoiceSessionState> {
     this.requireAdmission()
     this.requireOwner(owner)
-    if (this.inspections.size) {
-      for (const controller of this.inspections.values()) controller.abort(new VoiceRuntimeError('aborted'))
-      await Promise.allSettled(this.inspections.keys())
-    }
-    while (this.lease || this.active) {
-      const displaced = this.lease ?? this.active!.session
-      if (this.lease === displaced && !displaced.closed) this.sendCommand(displaced, 'stop')
-      await this.closeSession(displaced, true)
-    }
     const session = this.createSession(owner, input.sessionId, 'recording', input.source)
     session.requestId = input.requestId
-    this.acquireLease(session)
-    return this.transition(session, 'recording')
+    try {
+      if (this.inspections.size) {
+        for (const controller of this.inspections.values()) controller.abort(new VoiceRuntimeError('aborted'))
+        await Promise.allSettled(this.inspections.keys())
+      }
+      while (this.lease || this.active) {
+        const displaced = this.lease ?? this.active!.session
+        if (this.lease === displaced && !displaced.closed) this.sendCommand(displaced, 'stop')
+        await this.closeSession(displaced, true)
+      }
+      if (session.closed) throw new VoiceRuntimeError('aborted')
+      this.acquireLease(session)
+      return this.transition(session, 'recording')
+    } catch (error) {
+      await this.closeSession(session, true)
+      throw error
+    }
   }
 
   async createRecording(owner: VoiceOwner, input: InputFor<'file.voice_recording.create'>): Promise<InternalFileEntry> {
@@ -418,22 +424,29 @@ export class VoiceSessionService extends BaseService {
       return session
     }
     if (trigger === 'auto_read' && (this.lease || this.active)) throw new VoiceRuntimeError('busy')
-
-    while (this.lease || this.active) {
-      const occupied = this.lease ?? this.active!.session
-      if (trigger !== 'manual' || occupied.kind !== 'playback' || this.lease !== occupied) {
-        throw new VoiceRuntimeError('busy')
-      }
-      if (!occupied.closed) this.sendCommand(occupied, 'stop')
-      await this.closeSession(occupied, true)
-    }
-
-    if (input.chunkIndex !== undefined && input.chunkIndex !== 0) throw new VoiceRuntimeError('invalid_request')
+    const occupied = this.lease ?? this.active?.session
+    if (occupied && (occupied.kind !== 'playback' || this.lease !== occupied)) throw new VoiceRuntimeError('busy')
     const session = this.createSession(owner, input.sessionId, 'playback', input.source, trigger)
     session.requestId = input.requestId
     session.chunkCount = input.chunkCount
-    this.acquireLease(session)
-    return session
+    try {
+      while (this.lease || this.active) {
+        const occupied = this.lease ?? this.active!.session
+        if (trigger !== 'manual' || occupied.kind !== 'playback' || this.lease !== occupied) {
+          throw new VoiceRuntimeError('busy')
+        }
+        if (!occupied.closed) this.sendCommand(occupied, 'stop')
+        await this.closeSession(occupied, true)
+      }
+
+      if (session.closed) throw new VoiceRuntimeError('aborted')
+      if (input.chunkIndex !== undefined && input.chunkIndex !== 0) throw new VoiceRuntimeError('invalid_request')
+      this.acquireLease(session)
+      return session
+    } catch (error) {
+      await this.closeSession(session, true)
+      throw error
+    }
   }
 
   private validateNextChunk(

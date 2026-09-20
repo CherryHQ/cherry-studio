@@ -339,7 +339,7 @@ describe('VoiceSessionService file and admission contract', () => {
 
     const cleanup = service.discard(a, sessionId)
     const trustedUrl = pathToFileURL(path.join(root, 'renderer', 'index.html')).href
-    const allowedDuringCleanup = runtime.permissionCheck?.(a.webContents as never, 'media', trustedUrl, {
+    const allowedDuringCleanup = runtime.permissionCheck?.(a.webContents, 'media', trustedUrl, {
       isMainFrame: true,
       mediaType: 'audio',
       requestingUrl: trustedUrl
@@ -616,6 +616,75 @@ describe('VoiceSessionService file and admission contract', () => {
       for (const event of ['destroyed', 'render-process-gone', 'did-start-navigation']) {
         expect(contents.listenerCount(event)).toBe(0)
       }
+    }
+  })
+
+  it('does not admit recording after its owner navigates while displaced playback cleanup is pending', async () => {
+    const playback = await speech(a)
+    const deleteRetained = files.deleteRetainedTemporaryEntry.bind(files)
+    let continueDelete!: () => void
+    vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockImplementationOnce(async (id) => {
+      await new Promise<void>((resolve) => (continueDelete = resolve))
+      return deleteRetained(id)
+    })
+    const recordingOwner = owner()
+    const sessionId = randomUUID()
+    const admission = service.startRecording(recordingOwner, {
+      sessionId,
+      requestId: randomUUID(),
+      source: 'dictation'
+    })
+    const failure = expect(admission).rejects.toMatchObject({ reason: 'aborted' })
+    await vi.waitFor(() => expect(continueDelete).toBeTypeOf('function'))
+
+    const contents = recordingOwner.webContents as unknown as EventEmitter
+    contents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false, url: 'file:///new' })
+    continueDelete()
+    await failure
+
+    const trustedUrl = pathToFileURL(path.join(root, 'renderer', 'index.html')).href
+    expect(
+      runtime.permissionCheck?.(recordingOwner.webContents, 'media', trustedUrl, {
+        isMainFrame: true,
+        mediaType: 'audio',
+        requestingUrl: trustedUrl
+      })
+    ).toBe(false)
+    expect(service.getState(a)).toEqual({ phase: 'idle', revision: 3 })
+    expect(fileEntryService.findMany()).toHaveLength(0)
+    for (const event of ['destroyed', 'render-process-gone', 'did-start-navigation']) {
+      expect(contents.listenerCount(event)).toBe(0)
+    }
+    expect(fileEntryService.findById(playback.result.fileEntry.id)).toBeNull()
+  })
+
+  it('does not admit manual playback after its owner navigates while displaced generation cleanup is pending', async () => {
+    let activeSignal!: AbortSignal
+    let finishAbort!: () => void
+    native.speech.mockImplementationOnce(
+      (_model, _text, _options, signal: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          activeSignal = signal
+          signal.addEventListener('abort', () => (finishAbort = () => reject(signal.reason)), { once: true })
+        })
+    )
+    const active = speech(a)
+    const activeFailure = expect(active).rejects.toMatchObject({ reason: 'aborted' })
+    await vi.waitFor(() => expect(activeSignal).toBeDefined())
+
+    const replacementOwner = owner()
+    const replacement = speech(replacementOwner)
+    const replacementFailure = expect(replacement).rejects.toMatchObject({ reason: 'aborted' })
+    await vi.waitFor(() => expect(finishAbort).toBeTypeOf('function'))
+    const contents = replacementOwner.webContents as unknown as EventEmitter
+    contents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false, url: 'file:///new' })
+    finishAbort()
+
+    await Promise.all([activeFailure, replacementFailure])
+    expect(service.getState(a)).toEqual({ phase: 'idle', revision: 2 })
+    expect(fileEntryService.findMany()).toHaveLength(0)
+    for (const event of ['destroyed', 'render-process-gone', 'did-start-navigation']) {
+      expect(contents.listenerCount(event)).toBe(0)
     }
   })
 
