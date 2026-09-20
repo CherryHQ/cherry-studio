@@ -66,7 +66,13 @@ describe('classifyErrorCategory server failures', () => {
     expect(classifyErrorCategory({ status })).toBe('server')
   })
 
-  it.each(['Overloaded', 'internal server error', 'service unavailable', 'Service temporarily unavailable'])(
+  it.each([
+    'Overloaded',
+    'internal server error',
+    'service unavailable',
+    'Service temporarily unavailable',
+    'Upstream service temporarily unavailable'
+  ])(
     'maps "%s" to server',
     (text) => {
       expect(classifyErrorCategory({ text })).toBe('server')

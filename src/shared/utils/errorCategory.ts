@@ -215,7 +215,7 @@ export function classifyErrorCategory({ text, status, finishReason, source }: Er
     msg.includes('claude code process terminated')
   const hasUpstreamUnavailableContext = /\b(?:api|gateway|http|provider|response|upstream)\b/.test(msg)
   const isExplicitTemporaryUnavailable =
-    /\b(?:service|server)(?:\s+is)?\s+temporarily unavailable\b/.test(msg) &&
+    /\b(?:service|server|upstream)(?:\s+is)?\s+temporarily unavailable\b/.test(msg) &&
     !isClaudeCodeSpawnFailure &&
     (source !== 'claude-code' || hasUpstreamUnavailableContext)
 
