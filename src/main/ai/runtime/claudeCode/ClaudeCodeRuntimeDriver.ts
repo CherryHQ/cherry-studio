@@ -651,7 +651,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   async abortTurn(): Promise<boolean> {
     const query = this.query
-    if (!query || this.adapter?.isTurnActive !== true) return false
+    if (!query) return false
+    // A warm connection whose turn already settled has nothing to interrupt: report success so
+    // the stop keeps the preserved runtime instead of falling back to the teardown.
+    if (this.adapter?.isTurnActive !== true) return true
     logger.info('Gracefully interrupting Claude Code turn', { sessionId: this.input.sessionId })
     const acknowledged = await Promise.race([
       query.interrupt().then(
