@@ -48,8 +48,10 @@ completion to the hook; a stream returned by `reconnectToStream()` has no
 original request signal at all. The explicit idempotent IPC therefore covers
 both paths and makes the hook's Stop promise resolve only after Main has crossed
 the topic teardown barrier: terminal persistence is settled and, for an Agent
-session, its runtime generation — including a pending connection attempt — is
-closed before a retry is admitted.
+session, its runtime stop is settled — graceful SDK interrupt (session +
+subprocess survive), with session teardown, including a pending connection
+attempt, only when the driver cannot gracefully stop — before a retry is
+admitted.
 
 Per-topic chunks arrive through `ipcApi.on('ai.stream.chunk', ...)`, filtered
 by `topicId`.
