@@ -1,6 +1,6 @@
 import { EditorContent } from '@tiptap/react'
 import type { WebviewTag } from 'electron'
-import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
+import { Copy, Loader2, SquareDashedMousePointer, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -132,7 +132,7 @@ export function WebviewAnnotationControls({
               className={cn(controlButtonClassName(enabled), count > 0 && 'h-7 w-auto gap-1 px-1.5')}
               aria-label={annotationToggleLabel}
               aria-pressed={enabled}>
-              <MousePointer2 size={14} />
+              <SquareDashedMousePointer size={14} />
               {count > 0 && (
                 <Badge
                   variant="secondary"
