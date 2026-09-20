@@ -30,6 +30,7 @@ describe('getFileTypeByExt', () => {
     expect(getFileTypeByExt('m4v')).toBe('video')
     expect(getFileTypeByExt('ogg')).toBe('audio')
     expect(getFileTypeByExt('mp3')).toBe('audio')
+    expect(getFileTypeByExt('m4a')).toBe('audio')
     expect(getFileTypeByExt('pdf')).toBe('document')
     expect(getFileTypeByExt('jpg')).toBe('image')
   })
