@@ -15,6 +15,10 @@ const mocks = vi.hoisted(() => ({
   resetOverlay: vi.fn(),
   useTopicOverlayHandoffOnTerminal: vi.fn(),
   sendTurn: vi.fn(),
+  editTarget: vi.fn(),
+  editResend: vi.fn(),
+  controllerOptions: vi.fn(),
+  toastError: vi.fn(),
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
@@ -26,7 +30,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.tool.respond_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval'
+        ? mocks.respondToolApproval(input)
+        : route === 'ai.agent.session.edit_target'
+          ? mocks.editTarget(input)
+          : route === 'ai.agent.session.edit_resend'
+            ? mocks.editResend(input)
+            : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))
@@ -44,9 +54,10 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 }))
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
-  useConversationTurnController: () => ({
-    send: mocks.sendTurn
-  })
+  useConversationTurnController: (options: unknown) => {
+    mocks.controllerOptions(options)
+    return { send: mocks.sendTurn }
+  }
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -67,6 +78,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 import { useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
+
+vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError, warning: mocks.toastWarning } }))
 
 // <Activity> harness: tab switches hide/show the session UI without unmounting
 // it, so hooks keep their state but effects are destroyed and re-created.
@@ -143,6 +156,63 @@ function makeAskUserQuestionApproval(part = makeAskUserQuestionPart()) {
 }
 
 describe('useAgentChatRuntimeState', () => {
+  it('retains the edited draft after a failed resend and clears it only on acceptance or cancel', async () => {
+    const draft = {
+      messageId: 'last-user',
+      version: 'version-1',
+      parts: [{ type: 'text' as const, text: 'Original question' }]
+    }
+    const history: CherryUIMessage[] = [
+      { id: 'earlier-user', role: 'user', parts: [{ type: 'text', text: 'Earlier question' }] },
+      { id: draft.messageId, role: 'user', parts: draft.parts },
+      { ...assistantMessage, parts: [{ type: 'text', text: 'Old answer' }] }
+    ]
+    mocks.useAgentSessionParts.mockReturnValue({ ...mocks.useAgentSessionParts(), messages: history })
+    mocks.editTarget.mockResolvedValue(draft)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    await act(() => result.current.startEditing(draft.messageId))
+    expect(result.current.editing).toMatchObject(draft)
+    const sending = Promise.withResolvers<boolean>()
+    mocks.sendTurn.mockReturnValueOnce(sending.promise)
+    let resend: Promise<boolean>
+    act(() => {
+      resend = result.current.resendEditedMessage({ text: 'Replacement' })
+    })
+    expect(result.current.uiMessages.map((item) => item.id)).toEqual(['earlier-user', draft.messageId])
+    expect(result.current.partsByMessageId[draft.messageId]).toEqual([{ type: 'text', text: 'Replacement' }])
+    await act(async () => {
+      sending.reject(new Error('Rejected'))
+      await resend
+    })
+    expect(result.current.uiMessages).toEqual(history)
+    expect(result.current.editing).toMatchObject(draft)
+    expect(mocks.toastError).toHaveBeenCalledWith('Rejected')
+    await act(() => result.current.resendEditedMessage({ text: 'Replacement' }))
+    expect(mocks.sendTurn).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        text: 'Replacement',
+        editTarget: expect.objectContaining({ messageId: draft.messageId, version: draft.version })
+      })
+    )
+    const input = mocks.sendTurn.mock.lastCall![0]
+    mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: [] })
+    await act(() =>
+      mocks.controllerOptions.mock.lastCall![0].openStream(
+        { trigger: 'submit-message', userMessageParts: [{ type: 'text', text: input.text }] },
+        input
+      )
+    )
+    expect(mocks.editResend).toHaveBeenLastCalledWith(
+      expect.objectContaining({ target: { messageId: draft.messageId, version: draft.version } })
+    )
+    expect(result.current.editing).toBeUndefined()
+    await act(() => result.current.startEditing(draft.messageId))
+    act(() => result.current.cancelEditing())
+    expect(result.current.editing).toBeUndefined()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })

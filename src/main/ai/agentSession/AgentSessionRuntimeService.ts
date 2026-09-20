@@ -3,7 +3,9 @@ import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { AgentSessionEditError } from '@data/services/agentSessionEdit'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
@@ -40,6 +42,7 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
@@ -338,8 +341,74 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 @DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
+  private readonly failedClosures = new Map<string, AgentRuntimeConnection>()
+  private readonly runtimeClosures = new Map<AgentRuntimeConnection, { sessionId: string; promise: Promise<void> }>()
+  private readonly pendingEditInputs = new Map<number, Map<string, number>>()
+  private readonly inputCountSenders = new Map<Electron.WebContents, () => void>()
+
+  setPendingInputCount(sender: Electron.WebContents, sessionId: string, count: number): void {
+    const windowId = sender.id
+    if (!this.inputCountSenders.has(sender)) {
+      const onDestroyed = () => {
+        this.pendingEditInputs.delete(windowId)
+        this.inputCountSenders.delete(sender)
+      }
+      sender.once('destroyed', onDestroyed)
+      this.inputCountSenders.set(sender, () => sender.removeListener('destroyed', onDestroyed))
+    }
+    const counts = this.pendingEditInputs.get(windowId) ?? new Map<string, number>()
+    if (count) counts.set(sessionId, count)
+    else counts.delete(sessionId)
+    if (counts.size) this.pendingEditInputs.set(windowId, counts)
+    else this.pendingEditInputs.delete(windowId)
+  }
+
+  assertSessionWritable(sessionId: string): void {
+    if (this.failedClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
+    if (this.forks.edits.has(sessionId)) throw new AgentSessionEditError('busy')
+  }
+
+  assertSessionEditable(sessionId: string, ownEdit = false): void {
+    if (!ownEdit) this.assertSessionWritable(sessionId)
+    const entry = this.entries.get(sessionId)
+    if (
+      this.isShuttingDown ||
+      this.isWriteQuiesced ||
+      this.closingSessions.has(sessionId) ||
+      [...this.runtimeClosures.values()].some((closing) => closing.sessionId === sessionId) ||
+      this.connectionAttempts.has(sessionId) ||
+      toolApprovalRegistry.hasSession(sessionId) ||
+      [...this.pendingEditInputs.values()].some((counts) => counts.has(sessionId)) ||
+      [...this.inFlightBackgroundFlowFlushes.values()].includes(sessionId) ||
+      (entry &&
+        (isAgentSessionRuntimeBusy(entry.runtimeState) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)))
+    ) {
+      throw new AgentSessionEditError('busy')
+    }
+  }
+
+  editSession<T>(
+    sessionId: string,
+    target: AgentSessionEditTarget,
+    persist: (tx: DbOrTx, nativeSessionId: string) => T
+  ): Promise<T> {
+    this.assertSessionEditable(sessionId)
+    return this.forks.edit(
+      sessionId,
+      target,
+      async () => {
+        this.assertSessionEditable(sessionId, true)
+        const entry = this.entries.get(sessionId)
+        const connection = entry && this.currentConnection(entry)
+        await this.closeRuntimeConnection(connection, sessionId, true)
+        await this.closeSession(sessionId)
+      },
+      persist
+    )
+  }
 
   forkSession(sourceSessionId: string, messageId: string): Promise<string> {
+    this.assertSessionWritable(sourceSessionId)
     if (this.isShuttingDown || this.isWriteQuiesced) return Promise.reject(new Error('Session writes are paused'))
     return this.forks.fork(sourceSessionId, messageId)
   }
@@ -506,6 +575,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
+    this.assertSessionWritable(input.sessionId)
     const turnId = crypto.randomUUID()
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
@@ -639,6 +709,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
+    if (this.forks.edits.has(sessionId) || this.failedClosures.has(sessionId)) return
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -1115,6 +1186,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private disposeWarmLeases(): void {
+    for (const dispose of this.inputCountSenders.values()) dispose()
+    this.inputCountSenders.clear()
+    this.pendingEditInputs.clear()
     for (const timer of this.pendingWarmTeardowns.values()) clearTimeout(timer)
     this.pendingWarmTeardowns.clear()
     for (const record of this.warmLeaseSenders.values()) record.dispose()
@@ -1131,6 +1205,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * `beginTurn`.
    */
   isSessionBusy(sessionId: string): boolean {
+    if (this.forks.edits.has(sessionId) || this.failedClosures.has(sessionId)) return true
     const entry = this.entries.get(sessionId)
     if (!entry) return false
     return isAgentSessionRuntimeBusy(entry.runtimeState)
@@ -1145,6 +1220,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
   hasBusySessions(): boolean {
+    if (this.forks.edits.size || this.failedClosures.size || this.runtimeClosures.size) return true
     if (this.closingSessions.size > 0) return true
     if (this.inFlightBackgroundFlowFlushes.size > 0) return true
     for (const sessionId of this.entries.keys()) {
@@ -1535,6 +1611,14 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
+      this.assertSessionWritable(entry.sessionId)
+      const runtimeClosings = [...this.runtimeClosures.values()].filter(
+        (closing) => closing.sessionId === entry.sessionId
+      )
+      if (runtimeClosings.length) {
+        await Promise.all(runtimeClosings.map((closing) => closing.promise))
+        continue
+      }
       const closing = this.closingSessions.get(entry.sessionId)
       if (closing) {
         await closing.promise
@@ -1674,6 +1758,7 @@ export class AgentSessionRuntimeService extends BaseService {
       fastMode: target.fastMode,
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
+      nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId),
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
@@ -3275,15 +3360,39 @@ export class AgentSessionRuntimeService extends BaseService {
     void this.closeRuntimeConnection(connection, entry.sessionId)
   }
 
-  private closeRuntimeConnection(connection: AgentRuntimeConnection | undefined, sessionId: string): Promise<void> {
-    if (!connection) return Promise.resolve()
+  private async closeRuntimeConnection(
+    connection: AgentRuntimeConnection | undefined,
+    sessionId: string,
+    strict = false
+  ): Promise<void> {
+    if (!connection) return
+    const existing = this.runtimeClosures.get(connection)
+    if (existing) {
+      await existing.promise
+      if (strict && this.failedClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
+      return
+    }
+    const settled = Promise.withResolvers<void>()
+    this.runtimeClosures.set(connection, { sessionId, promise: settled.promise })
+    let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      return Promise.resolve(connection.close()).catch((error) => {
-        logger.warn('Agent runtime connection close failed', { sessionId, error })
-      })
+      const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()
+      await Promise.race([
+        Promise.resolve(closing).then(() => {
+          if (this.failedClosures.get(sessionId) === connection) this.failedClosures.delete(sessionId)
+        }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new AgentSessionEditError('close_failed')), 20_000)
+        })
+      ])
     } catch (error) {
+      this.failedClosures.set(sessionId, connection)
       logger.warn('Agent runtime connection close failed', { sessionId, error })
-      return Promise.resolve()
+      if (strict) throw new AgentSessionEditError('close_failed')
+    } finally {
+      clearTimeout(timer)
+      this.runtimeClosures.delete(connection)
+      settled.resolve()
     }
   }
 }

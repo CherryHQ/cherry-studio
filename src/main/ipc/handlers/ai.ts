@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
+import { AgentSessionEditError } from '@data/services/agentSessionEdit'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
+import { validateEditedInput } from '@main/ai/agentSession/editInput'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
@@ -54,6 +58,9 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {
     return await op()
   } catch (error) {
+    if (error instanceof AgentSessionEditError) {
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED, error.reason, { reason: error.reason })
+    }
     if (error instanceof AiStreamAdmissionError) {
       throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
     }
@@ -245,6 +252,43 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
+
+  'ai.agent.session.edit_target': ({ sessionId, messageId }) =>
+    exposeAiStreamAdmission(async () => {
+      application.get('AgentSessionRuntimeService').assertSessionEditable(sessionId)
+      const snapshot = application
+        .get('DbService')
+        .withWriteTx((tx) => agentSessionMessageService.readEditSnapshotTx(tx, sessionId, messageId))
+      const parts = snapshot.user.data.parts ?? []
+      await validateEditedInput(parts)
+      return { messageId, version: snapshot.version, parts }
+    }),
+  'ai.agent.session.set_pending_input_count': async ({ sessionId, count }, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc) return
+    application.get('AgentSessionRuntimeService').setPendingInputCount(wc, sessionId, count)
+  },
+  'ai.agent.session.edit_resend': ({ sessionId, target, ...input }, { senderId }) =>
+    exposeAiStreamAdmission(async () => {
+      const wc = senderWebContents(senderId)
+      if (!wc) throw new Error('Edit and resend requires a managed window')
+      try {
+        return await application
+          .get('AiStreamManager')
+          .dispatch(new WebContentsListener(wc, buildAgentSessionTopicId(sessionId)), {
+            ...input,
+            trigger: 'edit-agent-message',
+            topicId: buildAgentSessionTopicId(sessionId),
+            editTarget: target
+          })
+      } catch (error) {
+        if (error instanceof AgentSessionForkError) {
+          const reason = isAgentSessionForkFailureReason(error.reason) ? error.reason : 'operation_failed'
+          throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
+        }
+        throw error
+      }
+    }),
 
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {

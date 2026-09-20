@@ -110,6 +110,8 @@ interface AgentMessageListParams {
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   diagnosticReport?: DiagnosticReportConfig
   deleteMessage?: MessageListActions['deleteMessage']
+  startEditing?: (messageId: string) => Promise<void>
+  editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
   imageActionConsumer?: 'capture'
   messageNavigation: string
@@ -170,6 +172,8 @@ export function useAgentMessageListProviderValue({
   openDiagnosticReport,
   diagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval,
   imageActionConsumer,
   messageNavigation,
@@ -451,6 +455,19 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      editLabel: t('agent.edit_resend.label'),
+      canEditMessage: (message) =>
+        normalInteractionsEnabled &&
+        !!startEditing &&
+        !editBusy &&
+        message.role === 'user' &&
+        message.id === messages.findLast((item) => item.role === 'user')?.id &&
+        !message.delivery,
+      startEditing: startEditing
+        ? (message) => {
+            void startEditing(message.id)
+          }
+        : undefined,
       openForkSourceSession: normalInteractionsEnabled ? openForkSourceSession : undefined,
       forkSession: normalInteractionsEnabled
         ? {
@@ -487,6 +504,9 @@ export function useAgentMessageListProviderValue({
     }),
     [
       forkSession,
+      startEditing,
+      editBusy,
+      messages,
       openForkSourceSession,
       t,
       abortTool,

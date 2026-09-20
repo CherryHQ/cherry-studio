@@ -444,10 +444,13 @@ describe('DshRuntimeConnection tracing', () => {
   it('resumes native history using the saved token', async () => {
     const connection = await new DshRuntimeConnection({
       ...connectInput,
-      resumeToken: 'session-1'
+      resumeToken: 'edited-native-session'
     }).start()
     try {
-      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith('session/open', expect.objectContaining({ resume: true }))
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+        'session/open',
+        expect.objectContaining({ resume: true, sessionId: 'edited-native-session' })
+      )
     } finally {
       await connection.close()
     }

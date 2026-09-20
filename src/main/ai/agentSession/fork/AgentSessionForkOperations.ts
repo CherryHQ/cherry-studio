@@ -5,14 +5,18 @@ import path from 'node:path'
 
 import { application } from '@application'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { AgentSessionEditError } from '@data/services/agentSessionEdit'
 import { AgentSessionForkSourceError, agentSessionForkService } from '@data/services/AgentSessionForkService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { type RuntimeForkCheckpoint, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
+import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import { copyForkWorkspace, forkFileIdentity, publishForkArtifact } from './files'
@@ -30,9 +34,10 @@ function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
 }
 
-/** Per-runtime-host operation owner. No source connection is started, closed or mutated by fork. */
+/** Owns native history publication for forks and in-place edits. */
 export class AgentSessionForkOperations {
   private recoveryChain: Promise<void> = Promise.resolve()
+  readonly edits = new Map<string, { operationId: string; controller: AbortController; promise: Promise<unknown> }>()
   readonly pending = new Map<
     string,
     { sourceSessionId: string; operationId: string; promise: Promise<string>; controller: AbortController }
@@ -57,7 +62,122 @@ export class AgentSessionForkOperations {
       (value) => !sourceSessionId || value.sourceSessionId === sourceSessionId
     )
     for (const operation of operations) operation.controller.abort(new AgentSessionForkError('cancelled'))
-    await Promise.allSettled(operations.map((value) => value.promise))
+    const edits = [...this.edits.entries()].filter(([sessionId]) => !sourceSessionId || sessionId === sourceSessionId)
+    for (const [, edit] of edits) edit.controller.abort(new AgentSessionForkError('cancelled'))
+    await Promise.allSettled([...operations.map((value) => value.promise), ...edits.map(([, edit]) => edit.promise)])
+  }
+
+  edit<T>(
+    sessionId: string,
+    target: AgentSessionEditTarget,
+    closeSource: () => Promise<void>,
+    persist: (tx: DbOrTx, nativeSessionId: string) => T
+  ): Promise<T> {
+    if (this.edits.has(sessionId)) return Promise.reject(new AgentSessionEditError('busy'))
+    const operationId = randomUUID()
+    const controller = new AbortController()
+    const promise = Promise.resolve()
+      .then(() => this.runEdit(sessionId, target, operationId, controller.signal, closeSource, persist))
+      .finally(() => this.edits.delete(sessionId))
+    this.edits.set(sessionId, { operationId, controller, promise })
+    return promise
+  }
+
+  private async runEdit<T>(
+    sessionId: string,
+    target: AgentSessionEditTarget,
+    operationId: string,
+    signal: AbortSignal,
+    closeSource: () => Promise<void>,
+    persist: (tx: DbOrTx, nativeSessionId: string) => T
+  ): Promise<T> {
+    const database = application.get('DbService')
+    const source = database.withWriteTx((tx) =>
+      agentSessionMessageService.readEditSnapshotTx(tx, sessionId, target.messageId)
+    )
+    if (source.version !== target.version) throw new AgentSessionEditError('history_changed')
+    const agent = source.session.agentId ? agentService.getAgent(source.session.agentId) : undefined
+    const driver = agent && runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+    if (!agent || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
+    const prefix = structuredClone(source.prefix)
+    const nativeSessionId = randomUUID()
+    let resources: AgentSessionForkResources | undefined
+    try {
+      if (prefix.length) {
+        const boundary = prefix.at(-1)!
+        const anchor = RuntimeForkAnchorSchema.safeParse(boundary.data.runtimeAnchor)
+        if (boundary.role !== 'assistant' || boundary.status !== 'success' || !anchor.success)
+          throw new AgentSessionForkError('legacy_history')
+        if (
+          anchor.data.checkpoint.runtime !== agent.type ||
+          anchor.data.excludedMessageIds?.some((id) => prefix.some((row) => row.id === id))
+        )
+          throw new AgentSessionForkError('history_changed')
+        const checkpoints = prefix.flatMap((row) => {
+          const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+          return parsed.success ? [parsed.data.checkpoint] : []
+        })
+        const root = application.getPath('feature.agents.forks')
+        resources = {
+          version: 1,
+          operationId,
+          targetSessionId: sessionId,
+          resumeToken: '',
+          createdAt: Date.now(),
+          artifactDirectory: path.join(root, operationId),
+          published: []
+        }
+        await mkdir(root, { recursive: true })
+        await writeForkResources(resources)
+        await mkdir(resources.artifactDirectory)
+        resources.artifactIdentity = await forkFileIdentity(resources.artifactDirectory)
+        await writeForkResources(resources)
+        const native = await driver.fork({
+          sourceSessionId: sessionId,
+          checkpoint: anchor.data.checkpoint,
+          checkpoints,
+          targetSessionId: nativeSessionId,
+          targetCwd: source.workspace.path,
+          artifactDirectory: resources.artifactDirectory,
+          signal
+        })
+        if (!native.resumeToken.trim() || native.checkpoints.length !== checkpoints.length)
+          throw new AgentSessionForkError('history_corrupt')
+        resources.resumeToken = native.resumeToken
+        await writeForkResources(resources)
+        let checkpointIndex = 0
+        for (const row of prefix) {
+          const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+          if (parsed.success)
+            row.data.runtimeAnchor = RuntimeForkAnchorSchema.parse({
+              ...parsed.data,
+              checkpoint: native.checkpoints[checkpointIndex++]
+            })
+          row.runtimeResumeToken = row.role === 'assistant' ? native.resumeToken : null
+        }
+        await this.publish(resources, native.publish, signal)
+      }
+      signal.throwIfAborted()
+      await closeSource()
+      signal.throwIfAborted()
+      return database.withWriteTx((tx) => {
+        agentSessionMessageService.replaceEditTailTx(tx, sessionId, target, prefix)
+        return persist(tx, nativeSessionId)
+      })
+    } catch (error) {
+      if (resources && !this.hasPublishedResources(resources)) {
+        await this.cleanup(resources).catch((cleanupError) =>
+          logger.warn('Edit rollback requires recovery', { operationId, error: cleanupError })
+        )
+      }
+      throw error
+    }
+  }
+
+  private hasPublishedResources(resources: AgentSessionForkResources): boolean {
+    return resources.resumeToken === undefined
+      ? agentSessionForkService.hasPublishedSession(resources.targetSessionId)
+      : agentSessionMessageService.hasRuntimeResumeToken(resources.targetSessionId, resources.resumeToken)
   }
 
   recover(): Promise<void> {
@@ -69,7 +189,8 @@ export class AgentSessionForkOperations {
   private async recoverOnce(): Promise<void> {
     for (const resources of await readForkResources()) {
       if ([...this.pending.values()].some((operation) => operation.operationId === resources.operationId)) continue
-      if (agentSessionForkService.hasPublishedSession(resources.targetSessionId)) continue
+      if ([...this.edits.values()].some((operation) => operation.operationId === resources.operationId)) continue
+      if (this.hasPublishedResources(resources)) continue
       try {
         await this.cleanup(resources)
       } catch (error) {
@@ -164,20 +285,7 @@ export class AgentSessionForkOperations {
         throw new AgentSessionForkError('history_corrupt')
       signal.throwIfAborted()
       const messages = cloneMessages(source.messages, resources.targetSessionId, result.resumeToken, result.checkpoints)
-      for (const artifact of result.publish) {
-        if (!isInside(resources.artifactDirectory, artifact.source)) throw new Error('Unowned SDK fork artifact')
-        await forkFileIdentity(artifact.source)
-        await mkdir(path.dirname(artifact.target), { recursive: true })
-        // Record intent first. Hard-link publication is exclusive and gives recovery an
-        // inode ownership proof even if the process dies before the next resource write.
-        const owned = { ...artifact, identity: undefined as string | undefined }
-        resources.published.push(owned)
-        await writeForkResources(resources)
-        await publishForkArtifact(artifact.source, artifact.target, signal, async (identity) => {
-          owned.identity = identity
-          await writeForkResources(resources)
-        })
-      }
+      await this.publish(resources, result.publish, signal)
       signal.throwIfAborted()
       application.get('DbService').withWriteTx((tx) => {
         agentSessionForkService.commitTx(tx, {
@@ -204,9 +312,28 @@ export class AgentSessionForkOperations {
   }
 
   private async cleanup(resources: AgentSessionForkResources): Promise<void> {
-    if (agentSessionForkService.hasPublishedSession(resources.targetSessionId)) return
+    if (this.hasPublishedResources(resources)) return
     await this.cleanupOwned(resources)
     await removeForkResources(resources.operationId)
+  }
+
+  private async publish(
+    resources: AgentSessionForkResources,
+    artifacts: Array<{ source: string; target: string }>,
+    signal: AbortSignal
+  ): Promise<void> {
+    for (const artifact of artifacts) {
+      if (!isInside(resources.artifactDirectory, artifact.source)) throw new Error('Unowned SDK fork artifact')
+      await forkFileIdentity(artifact.source)
+      await mkdir(path.dirname(artifact.target), { recursive: true })
+      const owned = { ...artifact, identity: undefined as string | undefined }
+      resources.published.push(owned)
+      await writeForkResources(resources)
+      await publishForkArtifact(artifact.source, artifact.target, signal, async (identity) => {
+        owned.identity = identity
+        await writeForkResources(resources)
+      })
+    }
   }
 
   private async cleanupOwned(resources: AgentSessionForkResources): Promise<void> {
@@ -290,6 +417,7 @@ function cloneMessages(
   let checkpointIndex = 0
   return rows.map((row, index) => {
     const data = structuredClone(row.data)
+    delete data.nativeSessionId
     const anchor = RuntimeForkAnchorSchema.safeParse(data.runtimeAnchor)
     delete data.runtimeAnchor
     if (anchor.success) {

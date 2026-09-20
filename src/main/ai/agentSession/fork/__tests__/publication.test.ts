@@ -152,6 +152,111 @@ describe('Agent fork publication', () => {
     await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
+  // Editing must never append the replacement to the old native prompt or partially delete a turn.
+  it.each(['commit', 'history changed', 'close failed', 'write failed'] as const)(
+    'edits a native prefix: %s',
+    async (outcome) => {
+      const tail = agentSessionMessageService.saveMessages({
+        sessionId,
+        messages: [
+          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Old question' }] } },
+          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Old answer' }] } }
+        ]
+      })
+      const target = {
+        messageId: tail[0].id,
+        version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, tail[0].id).version
+      }
+      beforeForkResult = async (input) => {
+        expect(input.targetCwd).toBe(directory)
+        expect(input.checkpoint).toMatchObject({ leafId: 'leaf' })
+        if (outcome === 'history changed')
+          dbh.db
+            .update(agentSessionTable)
+            .set({ name: 'Changed elsewhere' })
+            .where(eq(agentSessionTable.id, sessionId))
+            .run()
+      }
+      const operation = new AgentSessionForkOperations().edit(
+        sessionId,
+        target,
+        async () => {
+          if (outcome === 'close failed') throw new Error('close failed')
+        },
+        (tx, nativeSessionId) => {
+          const saved = agentSessionMessageService.saveMessagesTx(tx, {
+            sessionId,
+            messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New question' }] } }]
+          })
+          agentSessionMessageService.setEditRuntimeTx(tx, sessionId, saved[0].id, nativeSessionId)
+          if (outcome === 'write failed') throw new Error('write failed')
+          return saved[0].id
+        }
+      )
+      if (outcome === 'commit') {
+        const newId = await operation
+        const rows = agentSessionMessageService.listSessionMessages(sessionId).items.toReversed()
+        expect(rows.map((row) => row.id)).toEqual([messageId, newId])
+        expect(rows[0].data.parts).toEqual([{ type: 'text', text: 'Preserved answer' }])
+        expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-child')
+        expect(agentSessionService.getById(sessionId).workspace.path).toBe(directory)
+        await new AgentSessionForkOperations().recover()
+        expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
+      } else {
+        await expect(operation).rejects.toThrow()
+        expect(
+          agentSessionMessageService
+            .listSessionMessages(sessionId)
+            .items.toReversed()
+            .map((row) => row.id)
+        ).toEqual([messageId, ...tail.map((row) => row.id)])
+        expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-parent')
+        expect(await readForkResources()).toEqual([])
+      }
+    }
+  )
+
+  it('starts an edited first message with a durable independent identity', async () => {
+    agentSessionMessageService.deleteSessionMessage(sessionId, messageId)
+    const user = agentSessionMessageService.saveMessage({
+      sessionId,
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Old' }] } }
+    })
+    const target = {
+      messageId: user.id,
+      version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, user.id).version
+    }
+    beforeForkResult = async () => {
+      throw new Error('Empty history must not fork the old native session')
+    }
+    await new AgentSessionForkOperations().edit(
+      sessionId,
+      target,
+      async () => {},
+      (tx, nativeSessionId) => {
+        const [saved] = agentSessionMessageService.saveMessagesTx(tx, {
+          sessionId,
+          messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New' }] } }]
+        })
+        agentSessionMessageService.setEditRuntimeTx(tx, sessionId, saved.id, nativeSessionId)
+      }
+    )
+    expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
+    expect(agentSessionMessageService.getNativeSessionId(sessionId)).not.toBe(sessionId)
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBeNull()
+    expect(agentSessionMessageService.listSessionMessages(sessionId).items[0].data).toEqual({
+      parts: [{ type: 'text', text: 'New' }]
+    })
+    await expect(
+      new AgentSessionForkOperations().edit(
+        sessionId,
+        target,
+        async () => {},
+        () => {}
+      )
+    ).rejects.toMatchObject({ reason: 'not_last_user' })
+  })
+
   it('replaces inherited links with the direct parent only at the new fork boundary', async () => {
     const childId = await new AgentSessionForkOperations().fork(sessionId, messageId)
     const nextMessageId = randomUUID()
