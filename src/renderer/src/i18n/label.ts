@@ -250,7 +250,8 @@ export const getSelectionDescriptionLabel = (key: string): string => {
 }
 
 const paintingsImageSizeOptionsKeyMap = {
-  auto: 'paintings.image_size_options.auto'
+  auto: 'paintings.image_size_options.auto',
+  custom: 'paintings.custom_size'
 } as const
 
 export const getPaintingsImageSizeOptionsLabel = (key: string): string => {
