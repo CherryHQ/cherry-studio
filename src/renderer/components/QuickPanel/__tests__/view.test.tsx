@@ -410,6 +410,30 @@ describe('QuickPanelView', () => {
     expect(screen.getByRole('button', { name: 'Clear' })).toHaveFocus()
   })
 
+  it('activates the clear button with Enter without selecting a result', async () => {
+    const user = userEvent.setup()
+    const action = vi.fn()
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          items={[{ id: 'action', label: 'Action', icon: 'a', action }]}
+          searchInput={{ placeholder: 'Search actions', ariaLabel: 'Search actions' }}
+        />
+      </QuickPanelProvider>
+    )
+
+    const search = await screen.findByRole('textbox', { name: 'Search actions' })
+    await user.type(search, 'action')
+    await user.tab()
+    await user.keyboard('{Enter}')
+
+    expect(search).toHaveValue('')
+    expect(screen.getByText('Action')).toBeInTheDocument()
+    expect(action).not.toHaveBeenCalled()
+  })
+
   it('ignores stale close callbacks after the provider unmounts', () => {
     vi.useFakeTimers()
 

@@ -651,6 +651,15 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         return false
       }
 
+      if (
+        hasSearchInput &&
+        e.target instanceof HTMLButtonElement &&
+        searchInputContainerRef.current?.contains(e.target) &&
+        ['Enter', 'NumpadEnter', ' '].includes(e.key)
+      ) {
+        return false
+      }
+
       const assistivePressed = isMac ? e.metaKey : e.ctrlKey
 
       if (assistivePressed) {
