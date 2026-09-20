@@ -18,6 +18,7 @@ import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvide
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
+import { VoicePlaybackHost } from '@renderer/components/VoicePlaybackHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useMainWindowNavigation } from '@renderer/hooks/tab'
 import { useIsPrivacyUpdateRequired } from '@renderer/hooks/useIsPrivacyUpdateRequired'
@@ -126,6 +127,7 @@ export function MainWindowContent(): React.ReactElement {
           <ConversationNotificationRuntime />
           <PopupHost />
           <ToastHost />
+          <VoicePlaybackHost />
           {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
         </MandatoryGateProvider>
       </SidebarShortcutRegistryProvider>
