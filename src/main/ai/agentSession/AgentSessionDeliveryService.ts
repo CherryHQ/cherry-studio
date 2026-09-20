@@ -302,7 +302,8 @@ export class AgentSessionDeliveryService extends BaseService {
           const prepared = agentChatContextProvider.persistDispatchTx(tx, validated, {
             id: validated.agentId,
             updatedAt: validated.agentUpdatedAt,
-            model: validated.uniqueModelId,
+            // The ownership check compares the agent default, not the session override.
+            model: validated.agentModel,
             type: validated.agentType
           })
           const claimed = agentSessionMessageService.claimSessionDeliveryTx(
