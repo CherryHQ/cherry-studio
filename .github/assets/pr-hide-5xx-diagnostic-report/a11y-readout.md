@@ -22,4 +22,3 @@ Review opened: True
 ### after-unknown
 Buttons: `复制`, `查看详情`, `报告问题`, `关闭`
 Review opened: True
-
