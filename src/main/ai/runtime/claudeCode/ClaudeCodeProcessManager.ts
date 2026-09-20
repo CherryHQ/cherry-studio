@@ -4,6 +4,7 @@ import type { Readable } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
 
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'

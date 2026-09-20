@@ -13,9 +13,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
 import type { IpcMainEvent } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 // Undo the global mock from main.setup.ts — we want the REAL CacheService.
 vi.unmock('@main/data/CacheService')

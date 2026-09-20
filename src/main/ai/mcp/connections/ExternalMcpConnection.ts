@@ -1,12 +1,6 @@
+import { EventEmitter } from 'events'
 import crypto from 'node:crypto'
-import fs from 'node:fs/promises'
-import path from 'node:path'
 
-import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
-import { findCommandInShellEnv } from '@main/utils/commandResolver'
-import { defaultAppHeaders } from '@main/utils/http'
-import { removeEnvProxy } from '@main/utils/processRunner'
-import { getShellEnv } from '@main/utils/shellEnv'
 import {
   SdkHttpError,
   SSEClientTransport,
@@ -16,13 +10,19 @@ import {
   UnauthorizedError
 } from '@modelcontextprotocol/client'
 import { StdioClientTransport, type StdioServerParameters } from '@modelcontextprotocol/client/stdio'
-import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import { net } from 'electron'
-import { EventEmitter } from 'events'
 
-import type { McpPackageService } from '../McpPackageService'
+import { loggerService } from '@logger'
+import { t } from '@main/i18n'
+import { defaultAppHeaders } from '@main/utils/http'
+import { removeEnvProxy } from '@main/utils/processRunner'
+import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
+
+import { buildStdioEnvironment } from '../mcpLaunch'
+import { resolveStdioLaunch } from '../mcpStdioLaunch'
 import { CallBackServer } from '../oauth/callback'
 import { McpOAuthClientProvider } from '../oauth/provider'
+import { getBuiltinRegistryEnv } from '../servers/factory'
 import { ClientMcpConnection } from './ClientMcpConnection'
 import type { McpConnection, McpConnectionEvents } from './McpConnection'
 
@@ -49,6 +49,21 @@ function isTransportFallbackError(error: unknown): boolean {
   return false
 }
 
+function mergeHeaders(...sources: Array<Record<string, string> | undefined>): Record<string, string> {
+  const headers: Record<string, string> = {}
+  const nameByLowercase = new Map<string, string>()
+
+  for (const source of sources) {
+    for (const [name, value] of Object.entries(source ?? {})) {
+      const previousName = nameByLowercase.get(name.toLowerCase())
+      if (previousName !== undefined) delete headers[previousName]
+      nameByLowercase.set(name.toLowerCase(), name)
+      headers[name] = value
+    }
+  }
+  return headers
+}
+
 function createClient(appVersion: string, events: McpConnectionEvents): ClientMcpConnection {
   return new ClientMcpConnection(
     { name: 'Cherry Studio', version: appVersion },
@@ -70,14 +85,12 @@ function createClient(appVersion: string, events: McpConnectionEvents): ClientMc
 export async function createExternalMcpConnection({
   server,
   appVersion,
-  packageService,
   events,
   log,
   connectTimeoutMs
 }: {
   server: McpServer
   appVersion: string
-  packageService: McpPackageService
   events: McpConnectionEvents
   log: ExternalMcpConnectionLog
   connectTimeoutMs: number
@@ -88,8 +101,9 @@ export async function createExternalMcpConnection({
       .update(server.baseUrl || '')
       .digest('hex')
   })
-  const headers = () => ({ ...defaultAppHeaders(), ...server.headers })
-  let args = [...(server.args || [])]
+  const headers = mergeHeaders(defaultAppHeaders(), server.headers)
+  const useOAuth = !Object.keys(headers).some((name) => name.toLowerCase() === 'authorization')
+  const args = [...(server.args || [])]
 
   const createTransport = async (typeOverride?: McpServerType): Promise<Transport> => {
     if (server.baseUrl) {
@@ -97,15 +111,15 @@ export async function createExternalMcpConnection({
       if (type === 'streamableHttp') {
         return new StreamableHTTPClientTransport(new URL(server.baseUrl), {
           fetch: (input, init) => net.fetch(input.toString(), init),
-          requestInit: { headers: headers() },
-          authProvider
+          requestInit: { headers },
+          ...(useOAuth ? { authProvider } : {})
         })
       }
       if (type === 'sse') {
         return new SSEClientTransport(new URL(server.baseUrl), {
           fetch: (input, init) => net.fetch(input.toString(), init),
-          requestInit: { headers: headers() },
-          authProvider
+          requestInit: { headers },
+          ...(useOAuth ? { authProvider } : {})
         })
       }
       throw new Error(`Unsupported URL transport: ${type}`)
@@ -115,61 +129,22 @@ export async function createExternalMcpConnection({
       throw new Error('Either baseUrl or command must be provided')
     }
 
-    let command = server.command
-    let effectiveCommand = server.command
-    const connectEnv: Record<string, string> = { ...server.env }
-    const loginShellEnv = await getShellEnv()
-
-    if (server.dxtPath) {
-      const resolvedConfig = packageService.getResolvedMcpConfig(server.dxtPath)
-      if (resolvedConfig) {
-        command = resolvedConfig.command
-        effectiveCommand = resolvedConfig.command
-        args = [...resolvedConfig.args]
-        Object.assign(connectEnv, resolvedConfig.env)
-      } else {
-        log.warn('Failed to resolve package config; using manifest values')
-      }
+    const { launch, loginShellEnv, serverEnv } = await resolveStdioLaunch({
+      server,
+      args,
+      logger: loggerService.withContext('ExternalMcpConnection', { serverId: server.id })
+    })
+    if (launch.unavailableReason) throw new Error(launch.unavailableReason)
+    if (launch.resolution === 'unresolved') {
+      log.warn('Could not resolve the stdio command; attempting the configured command', { command: launch.command })
     }
-
-    if (effectiveCommand === 'npx') {
-      command = (await findCommandInShellEnv('npx', loginShellEnv)) ?? ''
-      if (!command) {
-        if (!(await isBinaryExists('bun'))) {
-          throw new Error('npx is not available and the bundled bun fallback is missing')
-        }
-        command = await getBinaryPath('bun')
-        if (!args.includes('-y')) args.unshift('-y')
-        if (!args.includes('x')) args.unshift('x')
-      }
-      if (server.registryUrl) {
-        connectEnv.NPM_CONFIG_REGISTRY = server.registryUrl
-        if (server.name.includes('mcp-auto-install')) {
-          const binaryPath = await getBinaryPath()
-          await fs.mkdir(binaryPath, { recursive: true })
-          connectEnv.MCP_REGISTRY_PATH = path.join(binaryPath, '..', 'config', 'mcp-registry.json')
-        }
-      }
-    } else if (effectiveCommand === 'uvx' || effectiveCommand === 'uv') {
-      command = (await findCommandInShellEnv(effectiveCommand, loginShellEnv)) ?? ''
-      if (!command) {
-        if (!(await isBinaryExists(effectiveCommand))) {
-          throw new Error(`${effectiveCommand} is not available and the bundled fallback is missing`)
-        }
-        command = await getBinaryPath(effectiveCommand)
-      }
-      if (server.registryUrl) {
-        connectEnv.UV_DEFAULT_INDEX = server.registryUrl
-        connectEnv.PIP_INDEX_URL = server.registryUrl
-      }
-    }
-
-    if (command.includes('bun')) removeEnvProxy(loginShellEnv)
+    Object.assign(serverEnv, launch.env, getBuiltinRegistryEnv(server))
+    if (launch.command.includes('bun')) removeEnvProxy(loginShellEnv)
 
     const parameters: StdioServerParameters = {
-      command,
-      args,
-      env: { ...loginShellEnv, ...connectEnv },
+      command: launch.command,
+      args: launch.args,
+      env: buildStdioEnvironment(loginShellEnv, serverEnv),
       stderr: 'pipe',
       ...(server.dxtPath ? { cwd: server.dxtPath } : {})
     }
@@ -178,63 +153,81 @@ export async function createExternalMcpConnection({
     return transport
   }
 
-  const authenticate = async (transport: UrlTransport): Promise<void> => {
-    const callbackEvents = new EventEmitter()
-    const callbackServer = new CallBackServer({
+  let callbackServer: CallBackServer | undefined
+  authProvider.prepareAuthorization = async () => {
+    callbackServer ??= new CallBackServer({
       port: authProvider.config.callbackPort,
       path: authProvider.config.callbackPath,
-      events: callbackEvents
+      events: new EventEmitter()
     })
     try {
-      const callback = await callbackServer.waitForAuthCallback()
-      await authProvider.validateCallbackState(callback)
-      await transport.finishAuth(callback)
-    } finally {
-      await callbackServer.close()
-    }
-  }
-
-  const candidates = transportCandidates(server) ?? [undefined]
-  let lastError: unknown
-
-  for (const candidate of candidates) {
-    let connection = createClient(appVersion, events)
-    let transport = await createTransport(candidate)
-    try {
-      await connection.connect(transport, { timeout: connectTimeoutMs })
-      log.info('Server connected', { era: connection.era, serverVersion: connection.serverVersion })
-      return connection
+      await callbackServer.getServer
     } catch (error) {
-      lastError = error
-
-      if (
-        (transport instanceof SSEClientTransport || transport instanceof StreamableHTTPClientTransport) &&
-        UnauthorizedError.isInstance(error)
-      ) {
-        try {
-          await authenticate(transport)
-          await connection.close().catch(() => undefined)
-          connection = createClient(appVersion, events)
-          transport = await createTransport(candidate)
-          await connection.connect(transport, { timeout: connectTimeoutMs })
-          log.info('Server authenticated', { era: connection.era })
-          return connection
-        } catch (oauthError) {
-          await connection.close().catch(() => undefined)
-          throw oauthError
-        }
-      }
-
-      await connection.close().catch(() => undefined)
-      if (candidate && candidate !== candidates.at(-1) && isTransportFallbackError(error)) {
-        log.warn('Transport mismatch; trying fallback', { candidate })
-        continue
-      }
-      throw error
+      const code = (error as NodeJS.ErrnoException)?.code
+      throw new Error(
+        t('settings.mcp.oauth.callback.listen_error', {
+          port: authProvider.config.callbackPort,
+          reason: code ?? (error instanceof Error ? error.message : String(error))
+        }),
+        { cause: error }
+      )
     }
   }
 
-  throw lastError ?? new Error('Failed to connect to MCP server')
+  const authenticate = async (transport: UrlTransport): Promise<void> => {
+    if (!callbackServer) throw new UnauthorizedError()
+    const callback = await callbackServer.waitForAuthCallback()
+    await authProvider.validateCallbackState(callback)
+    await transport.finishAuth(callback)
+  }
+
+  try {
+    const candidates = transportCandidates(server) ?? [undefined]
+    let lastError: unknown
+
+    for (const candidate of candidates) {
+      let connection = createClient(appVersion, events)
+      let transport = await createTransport(candidate)
+      try {
+        await connection.connect(transport, { timeout: connectTimeoutMs })
+        log.info('Server connected', { era: connection.era, serverVersion: connection.serverVersion })
+        return connection
+      } catch (error) {
+        lastError = error
+
+        if (
+          (transport instanceof SSEClientTransport || transport instanceof StreamableHTTPClientTransport) &&
+          callbackServer &&
+          UnauthorizedError.isInstance(error)
+        ) {
+          try {
+            await authenticate(transport)
+            await connection.close().catch(() => undefined)
+            connection = createClient(appVersion, events)
+            transport = await createTransport(candidate)
+            await connection.connect(transport, { timeout: connectTimeoutMs })
+            log.info('Server authenticated', { era: connection.era })
+            return connection
+          } catch (oauthError) {
+            await connection.close().catch(() => undefined)
+            throw oauthError
+          }
+        }
+
+        await connection.close().catch(() => undefined)
+        if (candidate && candidate !== candidates.at(-1) && isTransportFallbackError(error)) {
+          log.warn('Transport mismatch; trying fallback', { candidate })
+          continue
+        }
+        throw error
+      }
+    }
+
+    throw lastError ?? new Error('Failed to connect to MCP server')
+  } finally {
+    authProvider.prepareAuthorization = undefined
+    await callbackServer?.close()
+  }
 }
 
 export const externalMcpConnectionInternals = {

@@ -1,7 +1,8 @@
-import { BaseService } from '@main/core/lifecycle'
-import type { McpServer } from '@shared/data/types/mcpServer'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
@@ -29,9 +30,8 @@ vi.mock('@data/services/McpServerService', () => ({
   }
 }))
 
-const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
-  '../McpRuntimeService'
-)
+const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } =
+  await import('../McpRuntimeService')
 
 /** Build the JSON server key the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
@@ -309,7 +309,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
     getByIdMock.mockReset()
     mcpCatalogMock.clearSharedToolsCache.mockReset()
     mcpCatalogMock.refreshTools.mockReset().mockResolvedValue(undefined)
-    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true } as McpServer)
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true })
   })
 
   // listTools is cache-only, so a failed restart must clear the shared tools cache —

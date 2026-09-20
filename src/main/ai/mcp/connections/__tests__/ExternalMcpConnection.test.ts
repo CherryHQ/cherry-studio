@@ -1,6 +1,7 @@
 import { SdkErrorCode, SdkHttpError } from '@modelcontextprotocol/client'
-import type { McpServer } from '@shared/data/types/mcpServer'
 import { describe, expect, it } from 'vitest'
+
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { externalMcpConnectionInternals } from '../ExternalMcpConnection'
 

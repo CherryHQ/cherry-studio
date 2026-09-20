@@ -1,5 +1,4 @@
 import { autoUpdate, computePosition, flip, offset, shift, size } from '@floating-ui/dom'
-import { loggerService } from '@logger'
 import type { Editor } from '@tiptap/core'
 import type { MentionNodeAttrs } from '@tiptap/extension-mention'
 import { posToDOMRect, ReactRenderer } from '@tiptap/react'
@@ -30,6 +29,8 @@ import {
   Undo,
   X
 } from 'lucide-react'
+
+import { loggerService } from '@logger'
 
 import CommandListPopover from './CommandListPopover'
 

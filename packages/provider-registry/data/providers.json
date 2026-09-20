@@ -1,7 +1,7 @@
 {
   "providers": [
     {
-      "availableInEditions": ["global"],
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "CherryIN - AI model provider",
       "endpointConfigs": {
@@ -704,6 +704,50 @@
         }
       },
       "name": "AMD GPU Cloud"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "TokenDance - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "google-generate-content": {
+          "adapterFamily": "google",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway",
+          "modelsApiUrls": {
+            "default": "https://tokendance.space/gateway/v1/models"
+          }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://tokendance.space/gateway"
+        }
+      },
+      "id": "tokendance",
+      "metadata": {
+        "website": {
+          "apiKey": "https://tokendance.space/keys",
+          "docs": "https://tokendance.space/docs/cherry-studio",
+          "models": "https://tokendance.space/models",
+          "official": "https://tokendance.space"
+        }
+      },
+      "name": "TokenDance"
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -1454,6 +1498,79 @@
       "name": "Moonshot AI",
       "serverTools": [
         {
+          "endpointTypes": ["openai-chat-completions"],
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["kimi"]
+        }
+      ]
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Moonshot - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.moonshot.ai/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.moonshot.ai",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "moonshot-global",
+      "metadata": {
+        "website": {
+          "apiKey": "https://platform.moonshot.ai/console/api-keys",
+          "docs": "https://platform.moonshot.ai/docs/",
+          "models": "https://platform.moonshot.ai/docs/",
+          "official": "https://www.moonshot.ai/"
+        }
+      },
+      "name": "Moonshot",
+      "presetProviderId": "moonshot",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-chat-completions"],
           "id": "web-search",
           "modelScope": "model-dependent",
           "vendors": ["kimi"]
@@ -2485,5 +2602,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "c81369dcccb6c728"
+  "version": "c1e12f94463bc3de"
 }

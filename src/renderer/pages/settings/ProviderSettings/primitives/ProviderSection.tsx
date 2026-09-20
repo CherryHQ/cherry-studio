@@ -1,5 +1,6 @@
-import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 import { sectionHeadingClasses } from './ProviderSettingsPrimitives'
 
@@ -19,7 +20,7 @@ export default function ProviderSection({ id, title, description, action, childr
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             {title && <div className={sectionHeadingClasses}>{title}</div>}
-            {description && <div className="mt-1 text-muted-foreground text-xs leading-tight">{description}</div>}
+            {description && <div className="mt-1 text-xs leading-tight text-muted-foreground">{description}</div>}
           </div>
           {action}
         </div>

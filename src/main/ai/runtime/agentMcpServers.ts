@@ -1,6 +1,9 @@
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
@@ -14,12 +17,12 @@ import {
 } from '@main/ai/runtime/claudeCode'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 
 const logger = loggerService.withContext('AgentMcpServers')
 
@@ -65,12 +68,28 @@ export function buildAgentMcpServers(
   for (const mcpId of agent.mcps ?? []) {
     try {
       const serverSnapshot = mcpServerSnapshots?.get(mcpId)
+      const legacyServer = mcpServerSnapshots ? serverSnapshot : mcpServerService.findByIdOrName(mcpId)
+      if (
+        legacyServer &&
+        isInMemoryBuiltinMcpServer(legacyServer) &&
+        legacyServer.name === BuiltinMcpServerNames.browser
+      )
+        continue
       if (mcpServerSnapshots && !serverSnapshot) {
         throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
       }
       servers[mcpId] = { name: mcpId, instance: configuredServerFactory(mcpId, serverSnapshot) }
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
+    }
+  }
+
+  if (mountedServers.has(CHERRY_MCP_SERVER.BROWSER)) {
+    servers.browser = {
+      name: CHERRY_MCP_SERVER.BROWSER,
+      instance: application
+        .get('BrowserSessionService')
+        .createAgentMcpServer({ agentId: agent.id, sessionId: session.id })
     }
   }
 

@@ -34,6 +34,7 @@ import p_minimax_global from './minimax-global'
 import p_mistral from './mistral'
 import p_modelscope from './modelscope'
 import p_moonshot from './moonshot'
+import p_moonshot_global from './moonshot-global'
 import p_new_api from './new-api'
 import p_nvidia from './nvidia'
 import p_ocoolai from './ocoolai'
@@ -53,6 +54,7 @@ import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
 import p_together from './together'
+import p_tokendance from './tokendance'
 import p_tokenhub from './tokenhub'
 import type { Provider } from './types'
 import p_vertexai from './vertexai'
@@ -83,6 +85,7 @@ export const PROVIDERS: Provider[] = [
   p_openrouter,
   p_ollama,
   p_radeon_cloud,
+  p_tokendance,
   p_new_api,
   p_lmstudio,
   p_anthropic,
@@ -96,6 +99,7 @@ export const PROVIDERS: Provider[] = [
   p_vertexai,
   p_copilot,
   p_moonshot,
+  p_moonshot_global,
   p_baichuan,
   p_dashscope,
   p_stepfun,

@@ -1,3 +1,7 @@
+import { useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+import { sanitizeUrl } from 'strict-url-sanitise'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -6,9 +10,6 @@ import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { getKnowledgeItemDisplayTitle, type KnowledgeItem } from '@shared/data/types/knowledge'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
-import { useCallback, useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
-import { sanitizeUrl } from 'strict-url-sanitise'
 
 import type { KnowledgeFilePreviewTarget } from '../types'
 import { normalizeKnowledgeError } from '../utils/error'

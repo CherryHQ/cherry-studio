@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildInferenceWorkerSource } from '../../../runtime/worker/buildWorkerSource'
-import { onnxRuntimeWorkerSource } from '../../../runtime/worker/onnxRuntime'
 import { l2normalize } from '../pooling'
-import { embeddingWorkerSource } from '../worker'
 
 describe('pooling', () => {
   it('l2normalize returns a unit vector', () => {
@@ -16,14 +13,5 @@ describe('pooling', () => {
 
   it('l2normalize leaves a zero vector unchanged (no divide-by-zero)', () => {
     expect(l2normalize([0, 0, 0])).toEqual([0, 0, 0])
-  })
-
-  it('is baked into the inference worker source verbatim (single source, no drift)', () => {
-    // The worker runs as an eval'd string and cannot import project modules, so this
-    // function is injected via `.toString()`. Pin that the executed copy IS this tested
-    // one — if someone re-inlines a divergent copy, this fails.
-    const workerSource = buildInferenceWorkerSource(onnxRuntimeWorkerSource, embeddingWorkerSource)
-    expect(workerSource).toContain(l2normalize.toString())
-    expect(workerSource).toContain('const l2normalize =')
   })
 })

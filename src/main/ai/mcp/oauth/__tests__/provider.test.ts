@@ -1,7 +1,8 @@
-import type { StoredOAuthClientInformation, StoredOAuthTokens } from '@modelcontextprotocol/client'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
+
+import type { StoredOAuthClientInformation, StoredOAuthTokens } from '@modelcontextprotocol/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The provider constructor reads application.getPath('feature.mcp.oauth'); the

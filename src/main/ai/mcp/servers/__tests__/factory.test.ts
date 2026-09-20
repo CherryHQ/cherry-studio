@@ -1,11 +1,17 @@
+import { describe, expect, it } from 'vitest'
+
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
-import { describe, expect, it } from 'vitest'
 
 import { createBuiltinMcpEndpoint, resolveBuiltinExternalMcpServer } from '../factory'
 
-const server = (overrides: Partial<McpServer>): McpServer =>
-  ({ id: 'id', name: 'custom', type: 'stdio', isActive: true, ...overrides }) as McpServer
+const server = (overrides: Partial<McpServer>): McpServer => ({
+  id: 'id',
+  name: 'custom',
+  type: 'stdio',
+  isActive: true,
+  ...overrides
+})
 
 describe('resolveBuiltinExternalMcpServer', () => {
   const qveris = (apiKey?: string) =>
@@ -48,6 +54,8 @@ describe('resolveBuiltinExternalMcpServer', () => {
 
 describe('createBuiltinMcpEndpoint', () => {
   it('rejects a name with no in-process implementation', async () => {
-    expect(() => createBuiltinMcpEndpoint(BuiltinMcpServerNames.mcpAutoInstall)).toThrow(/Unknown in-memory MCP server/)
+    await expect(createBuiltinMcpEndpoint(BuiltinMcpServerNames.mcpAutoInstall)).rejects.toThrow(
+      /Unknown in-memory MCP server/
+    )
   })
 })

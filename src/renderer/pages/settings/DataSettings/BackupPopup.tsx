@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   CircularProgress,
@@ -14,8 +17,6 @@ import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { IpcChannel } from '@shared/IpcChannel'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface OwnProps {
   forceFullBackup?: boolean

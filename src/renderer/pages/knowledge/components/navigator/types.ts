@@ -1,8 +1,9 @@
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+
 import type { KnowledgePageBaseGroupSection } from '@renderer/pages/knowledge/utils/group'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 
 export interface BaseNavigatorContentProps {
   isLoading: boolean
@@ -35,6 +36,8 @@ export interface BaseNavigatorGroupSectionProps {
   onCreateGroup: (baseId: string) => void
   onDeleteGroup: (groupId: string) => Promise<void> | void
   onDeleteBase: (baseId: string) => Promise<void> | void
+  onToggleSidebar: (base: KnowledgeBaseListItem) => void
+  sidebarPinnedBaseIds: ReadonlySet<string>
 }
 
 export interface BaseNavigatorSectionTriggerProps {
@@ -56,6 +59,8 @@ export interface KnowledgeBaseRowProps {
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onCreateGroup: (baseId: string) => void
   onDeleteBase: (baseId: string) => Promise<void> | void
+  onToggleSidebar: (base: KnowledgeBaseListItem) => void
+  sidebarPinned: boolean
 }
 
 export interface KnowledgeGroupRowProps {

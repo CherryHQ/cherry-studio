@@ -2,6 +2,7 @@ import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } fro
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+
 import { withoutTrailingApiVersion } from '@shared/utils/api'
 
 import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
@@ -81,5 +82,5 @@ export function createTokenhubProvider(settings: TokenhubProviderSettings = {}):
   provider.imageModel = (modelId: string) =>
     createImageGenerationModel(modelId, { provider: TOKENHUB_PROVIDER_NAME, transport })
 
-  return provider as TokenhubProvider
+  return provider
 }

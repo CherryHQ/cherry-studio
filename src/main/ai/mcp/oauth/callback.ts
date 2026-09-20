@@ -1,8 +1,9 @@
-import { loggerService } from '@logger'
-import { t } from '@main/i18n'
 import type EventEmitter from 'events'
 import http from 'http'
 import { URL } from 'url'
+
+import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 
 import type { OAuthCallbackServerOptions } from './types'
 
@@ -11,6 +12,7 @@ const logger = loggerService.withContext('Mcp:OAuthCallbackServer')
 export class CallBackServer {
   private server: Promise<http.Server>
   private events: EventEmitter
+  private authCallback?: URLSearchParams
 
   constructor(options: OAuthCallbackServerOptions) {
     const { port, path, events } = options
@@ -27,7 +29,8 @@ export class CallBackServer {
           // complete the authorization-server-bound exchange.
           const url = new URL(req.url, `http://127.0.0.1:${port}`)
           if (url.searchParams.has('code') || url.searchParams.has('error')) {
-            this.events.emit('auth-callback-received', new URLSearchParams(url.searchParams))
+            this.authCallback = new URLSearchParams(url.searchParams)
+            this.events.emit('auth-callback-received', this.authCallback)
             // Send success response to browser
             const title = t('settings.mcp.oauth.callback.title')
             const message = t('settings.mcp.oauth.callback.message')
@@ -112,7 +115,8 @@ export class CallBackServer {
   }
 
   async close(): Promise<void> {
-    const server = await this.server
+    const server = await this.server.catch(() => undefined)
+    if (!server?.listening) return
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
         if (error) reject(error)
@@ -127,6 +131,7 @@ export class CallBackServer {
    * cancelled / never-completed callback, leaking the connect attempt and its status.
    */
   async waitForAuthCallback(timeoutMs = 300_000): Promise<URLSearchParams> {
+    if (this.authCallback) return new URLSearchParams(this.authCallback)
     return new Promise((resolve, reject) => {
       const onCallback = (params: URLSearchParams) => {
         clearTimeout(timer)

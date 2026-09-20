@@ -1,5 +1,6 @@
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { net } from 'electron'
+
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { ApiKeysResponseSchema, CHERRYIN_CONFIG, validateCherryInApiHost } from '../../CherryInOAuthConfig'
 import { OAuthServiceError } from '../../errors'

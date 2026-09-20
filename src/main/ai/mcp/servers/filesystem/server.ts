@@ -1,7 +1,9 @@
-import { application } from '@application'
-import { type ListToolsResult, Server } from '@modelcontextprotocol/server'
 import fs from 'fs/promises'
 import path from 'path'
+
+import { type ListToolsResult, Server } from '@modelcontextprotocol/server'
+
+import { application } from '@application'
 
 import {
   deleteToolDefinition,

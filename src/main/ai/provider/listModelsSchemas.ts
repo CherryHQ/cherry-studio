@@ -9,18 +9,32 @@ import * as z from 'zod'
 
 // === OpenAI-compatible (also used by OpenRouter, PPIO, etc.) ===
 
-export const OpenAIModelsResponseSchema = z.object({
-  data: z.array(
-    z.looseObject({
-      id: z.string(),
-      name: z.string().optional(),
-      object: z.string().optional().default('model'),
-      created: z.number().optional(),
-      owned_by: z.string().optional()
-    })
-  ),
-  object: z.string().optional()
+const OpenAIModelSchema = z.looseObject({
+  id: z.string(),
+  name: z.string().optional(),
+  object: z.string().optional().default('model'),
+  created: z.number().optional(),
+  owned_by: z.string().optional()
 })
+
+const OpenAIModelItemSchema = z.unknown().transform((model) => {
+  const parsed = OpenAIModelSchema.safeParse(model)
+  return parsed.success ? parsed.data : undefined
+})
+
+export const OpenAIModelsResponseSchema = z
+  .object({
+    data: z.array(OpenAIModelItemSchema),
+    object: z.string().optional()
+  })
+  .transform((response) => {
+    const data = response.data.filter((model): model is z.output<typeof OpenAIModelSchema> => model !== undefined)
+    return {
+      ...response,
+      data,
+      skippedModelCount: response.data.length - data.length
+    }
+  })
 
 // === GitHub Copilot (/models) ===
 export const CopilotModelsResponseSchema = z.object({
@@ -139,6 +153,35 @@ export const TogetherModelsResponseSchema = z.array(
   })
 )
 
+// === LM Studio (/api/v1/models) ===
+
+export const LMStudioModelsResponseSchema = z.object({
+  models: z.array(
+    z.looseObject({
+      key: z.string(),
+      display_name: z.string().nullish(),
+      capabilities: z
+        .looseObject({ vision: z.boolean().nullish(), trained_for_tool_use: z.boolean().nullish() })
+        .nullish(),
+      type: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined),
+      publisher: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined),
+      max_context_length: z
+        .number()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined)
+    })
+  )
+})
+
 // === NewAPI (extends OpenAI with endpoint types) ===
 
 export const NewApiModelsResponseSchema = z.object({
@@ -156,6 +199,25 @@ export const NewApiModelsResponseSchema = z.object({
     })
   ),
   object: z.string().optional()
+})
+
+// === TokenDance ===
+
+export const TokenDanceModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      name: z.string().optional(),
+      created: z.number().optional(),
+      description: z.string().optional(),
+      context_length: z.number().optional(),
+      supported_protocols: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined)
+    })
+  )
 })
 
 // === OVMS (OpenVINO Model Server) ===

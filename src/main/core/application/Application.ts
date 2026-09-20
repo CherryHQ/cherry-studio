@@ -1,6 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { app, dialog } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import { loggerService } from '@logger'
 import {
   type Disposable,
@@ -16,8 +19,6 @@ import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
 import { handleGuarded } from '@main/core/security/guardedIpc'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, dialog } from 'electron'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { ServiceRegistry } from './serviceRegistry'
 
@@ -565,6 +566,16 @@ export class Application {
    */
   public getOptional<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
     return this.container.getOptional(name)
+  }
+
+  /**
+   * Resolve a service only if the container already created it — never
+   * registers, instantiates, or throws. For preboot-era callers that run before
+   * `bootstrap()` and must degrade gracefully; use `get()` everywhere else.
+   * @param name - Service name from ServiceRegistry
+   */
+  public getExisting<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
+    return this.container.getInstance(name) as ServiceRegistry[K] | undefined
   }
 
   /**

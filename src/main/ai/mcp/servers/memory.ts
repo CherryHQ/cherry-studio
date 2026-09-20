@@ -1,10 +1,12 @@
+import { promises as fs } from 'fs'
+import path from 'path'
+
+import { type ListToolsResult, ProtocolError, ProtocolErrorCode, Server } from '@modelcontextprotocol/server'
+import { Mutex } from 'async-mutex' // 引入 Mutex
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { TraceMethod } from '@main/ai/observability'
-import { type ListToolsResult, ProtocolError, ProtocolErrorCode, Server } from '@modelcontextprotocol/server'
-import { Mutex } from 'async-mutex' // 引入 Mutex
-import { promises as fs } from 'fs'
-import path from 'path'
 
 const logger = loggerService.withContext('McpServer:Memory')
 

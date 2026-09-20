@@ -1,3 +1,5 @@
+import type EventEmitter from 'events'
+
 import type {
   OAuthClientInformationContext,
   OAuthDiscoveryState,
@@ -12,15 +14,14 @@ import {
   OAuthTokensSchema,
   OpenIdProviderDiscoveryMetadataSchema
 } from '@modelcontextprotocol/core'
-import type EventEmitter from 'events'
 import * as z from 'zod'
 
 const issuerStamp = { issuer: z.string().optional() }
-const StoredOAuthClientInformationSchema = z.union([
+const StoredOAuthClientInformationSchema: z.ZodType<StoredOAuthClientInformation> = z.union([
   OAuthClientInformationFullSchema.extend(issuerStamp),
   OAuthClientInformationSchema.extend(issuerStamp)
 ])
-const StoredOAuthTokensSchema = OAuthTokensSchema.extend(issuerStamp)
+const StoredOAuthTokensSchema: z.ZodType<StoredOAuthTokens> = OAuthTokensSchema.extend(issuerStamp)
 const AuthorizationServerMetadataSchema = z.union([OAuthMetadataSchema, OpenIdProviderDiscoveryMetadataSchema])
 const OAuthDiscoveryStateSchema: z.ZodType<OAuthDiscoveryState> = z.object({
   authorizationServerUrl: z.string(),

@@ -1,7 +1,8 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { throttle } from 'es-toolkit/compat'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
   ref?: React.Ref<HTMLDivElement | null>
@@ -59,7 +60,7 @@ const Scrollbar: FC<ScrollbarProps> = ({
     <div
       {...htmlProps} // Pass other HTML attributes
       className={cn(
-        'overflow-y-auto [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-[2000ms]',
+        'overflow-y-auto [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-[2000ms] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)]',
         isScrolling
           ? '[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]'
           : '[&::-webkit-scrollbar-thumb]:bg-transparent',

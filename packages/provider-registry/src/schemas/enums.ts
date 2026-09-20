@@ -182,6 +182,7 @@ export const REASONING_EFFORT = {
   HIGH: 'high',
   XHIGH: 'xhigh',
   MAX: 'max',
+  ULTRA: 'ultra',
   AUTO: 'auto'
 } as const
 export type ReasoningEffort = (typeof REASONING_EFFORT)[keyof typeof REASONING_EFFORT]
@@ -199,6 +200,7 @@ export const REASONING_EFFORT_ORDER: readonly ReasoningEffort[] = [
   'high',
   'xhigh',
   'max',
+  'ultra',
   'auto'
 ]
 

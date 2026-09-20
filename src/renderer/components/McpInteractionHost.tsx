@@ -1,3 +1,6 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -11,8 +14,6 @@ import {
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { EventPayload } from '@shared/ipc/types'
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('McpInteractionHost')
 type Interaction = EventPayload<'mcp.interaction.requested'>

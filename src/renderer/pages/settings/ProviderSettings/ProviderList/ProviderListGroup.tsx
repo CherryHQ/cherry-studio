@@ -1,12 +1,13 @@
+import { ChevronRight, GripVertical, Plus } from 'lucide-react'
+import { type ReactNode, useId } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ReorderableList } from '@cherrystudio/ui'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
 import type { Provider } from '@shared/data/types/provider'
-import { ChevronRight, GripVertical, Plus } from 'lucide-react'
-import { type ReactNode, useId } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ProviderListContentItemState } from './ProviderListContent'
 

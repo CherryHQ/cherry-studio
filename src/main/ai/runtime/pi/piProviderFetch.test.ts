@@ -4,9 +4,10 @@ import net from 'node:net'
 import type { Api, Context, Model } from '@earendil-works/pi-ai'
 import { streamSimple as streamOpenAICompletions } from '@earendil-works/pi-ai/api/openai-completions'
 import { streamSimple as streamOpenAIResponses } from '@earendil-works/pi-ai/api/openai-responses'
-import { NodeProxyController } from '@main/services/proxy/NodeProxyController'
 import { fetch as undiciFetch, ProxyAgent } from 'undici'
 import { afterEach, describe, expect, it } from 'vitest'
+
+import { NodeProxyController } from '@main/services/proxy/NodeProxyController'
 
 const servers: Array<http.Server | net.Server> = []
 let nodeProxyController: NodeProxyController | undefined

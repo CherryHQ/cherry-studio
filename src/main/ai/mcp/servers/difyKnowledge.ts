@@ -1,8 +1,9 @@
-// inspired by https://dify.ai/blog/turn-your-dify-app-into-an-mcp-server
-import { loggerService } from '@logger'
 import { type ListToolsResult, Server } from '@modelcontextprotocol/server'
 import { net } from 'electron'
 import * as z from 'zod'
+
+// inspired by https://dify.ai/blog/turn-your-dify-app-into-an-mcp-server
+import { loggerService } from '@logger'
 
 import { requireToolInputSchema } from './schema'
 

@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs'
 
+import { app } from 'electron'
+
 import { application } from '@application'
 import type { AppEdition } from '@shared/types/appEdition'
-import { app } from 'electron'
 
 const APPLICATION_IDS = {
   global: 'com.kangfenmao.CherryStudio',

@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-08-26T09:13:47.814Z
- * Total icons: 159
+ * Generated at: 2026-09-10T18:57:46.000Z
+ * Total icons: 161
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -133,6 +133,7 @@ export { RiverflowIcon as Riverflow } from './riverflow'
 export { RunwayIcon as Runway } from './runway'
 export { SearxngIcon as Searxng } from './searxng'
 export { SensetimeIcon as Sensetime } from './sensetime'
+export { SerplyIcon as Serply } from './serply'
 export { SiliconIcon as Silicon } from './silicon'
 export { SkyworkIcon as Skywork } from './skywork'
 export { SmitheryIcon as Smithery } from './smithery'
@@ -147,6 +148,7 @@ export { TesseractJsIcon as TesseractJs } from './tesseract-js'
 export { ThinkAnyIcon as ThinkAny } from './think-any'
 export { TngIcon as Tng } from './tng'
 export { TogetherIcon as Together } from './together'
+export { TokendanceIcon as Tokendance } from './tokendance'
 export { TwitterIcon as Twitter } from './twitter'
 export { UpstageIcon as Upstage } from './upstage'
 export { VercelIcon as Vercel } from './vercel'

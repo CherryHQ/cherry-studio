@@ -1,8 +1,9 @@
+import { describe, expect, it } from 'vitest'
+
 import {
   createComposerClipboardFragment,
   readComposerClipboardFragment
 } from '@renderer/utils/message/composerClipboard'
-import { describe, expect, it } from 'vitest'
 
 import {
   createComposerMarkedTextPasteContent,

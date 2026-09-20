@@ -74,6 +74,7 @@ const providerKeyMap = {
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
   together: 'provider.together',
+  tokendance: 'provider.tokendance',
   tokenhub: 'provider.tokenhub',
   vertexai: 'provider.vertexai',
   voyageai: 'provider.voyageai',
@@ -90,6 +91,7 @@ const providerKeyMap = {
   cerebras: 'provider.cerebras',
   mimo: 'provider.mimo',
   'minimax-global': 'provider.minimax-global',
+  'moonshot-global': 'provider.moonshot-global',
   zai: 'provider.zai',
   'local-embedding': 'provider.local-embedding',
   opencode: 'provider.opencode'

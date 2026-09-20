@@ -1,8 +1,9 @@
-import { useDataChange, useMutation } from '@data/hooks/useDataApi'
 import { act, renderHook as renderHookBase, waitFor } from '@testing-library/react'
 import { createElement, type PropsWithChildren } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useDataChange, useMutation } from '@data/hooks/useDataApi'
 
 const invalidateMock = vi.hoisted(() => vi.fn())
 const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))

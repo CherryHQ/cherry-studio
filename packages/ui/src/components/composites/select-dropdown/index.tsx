@@ -1,9 +1,10 @@
-import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronDown, X } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import { useEffect, useRef, useState } from 'react'
+
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 export interface SelectDropdownProps<T extends { id: string }> {
   items: T[]
@@ -212,7 +213,7 @@ export function SelectDropdown<T extends { id: string }>({
         sideOffset={4}
         className="w-(--radix-popover-trigger-width) rounded-md border border-border-subtle bg-popover p-1 shadow-lg">
         {items.length === 0 && emptyText ? (
-          <div className="px-2.5 py-3 text-muted-foreground/45 text-sm">{emptyText}</div>
+          <div className="px-2.5 py-3 text-sm text-muted-foreground/45">{emptyText}</div>
         ) : virtualize ? (
           <VirtualRows
             items={items}

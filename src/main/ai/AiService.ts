@@ -1,3 +1,15 @@
+import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
+
+import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/client'
+import {
+  type EmbeddingModelUsage,
+  isToolUIPart,
+  type LanguageModelUsage,
+  type ModelMessage,
+  type UIMessageChunk
+} from 'ai'
+
 import { application } from '@application'
 import {
   type AiPlugin,
@@ -26,25 +38,24 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
-import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/client'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
-import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
-import { isOllamaProvider } from '@shared/utils/provider'
 import {
-  type EmbeddingModelUsage,
-  isToolUIPart,
-  type LanguageModelUsage,
-  type ModelMessage,
-  type UIMessageChunk
-} from 'ai'
+  isEmbeddingModel,
+  isFunctionCallingModel,
+  isGenerateImageModel,
+  isNonChatModel,
+  isRerankModel
+} from '@shared/utils/model'
+import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -52,6 +63,7 @@ import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
+import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
 import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
@@ -60,6 +72,7 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
+import { resolveSdkConfig } from './provider/sdkConfig'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import {
   Agent,
@@ -74,7 +87,8 @@ import { type MessageRuntimeTimingSink, WebContentsListener } from './streamMana
 import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type {
-  AiBaseRequest,
+  AiChatRequest,
+  AiRequest,
   AiStreamRequest,
   AiTransportOptions,
   AppProviderSettingsMap,
@@ -83,6 +97,8 @@ import type {
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
+import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
+import { routeToEndpoint } from './utils/provider'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 
 const logger = loggerService.withContext('AiService')
@@ -235,11 +251,16 @@ export interface AiRequestOptions extends AiTransportOptions {
 }
 
 /** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
-export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
+export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
-  usageContext?: InProcessUsageContext
   /** Trusted in-process classification for remote token analytics. */
   tokenUsageSource?: TokenUsageSource
+  resolvedModel?: { readonly provider: Provider; readonly model: Model }
+}
+
+/** Chat requests additionally carry the turn's correlation and the stream manager's sinks. */
+export type AsInProcessChat<T extends AiChatRequest> = AsInProcess<T> & {
+  usageContext?: InProcessUsageContext
   runtimeTimingSink?: MessageRuntimeTimingSink
   /**
    * Emits compaction lifecycle events as `data-compaction-anchor` chunks.
@@ -250,9 +271,7 @@ export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
 }
 
 /** Non-streaming text generation request — pure transport data. */
-export interface AiGenerateRequest extends AiBaseRequest {
-  /** Stable conversation identity used for provider routing and request tracing. */
-  chatId?: string
+export interface AiGenerateRequest extends AiChatRequest {
   system?: string
   prompt?: string
   messages?: ModelMessage[]
@@ -267,7 +286,7 @@ export interface AiGenerateResult {
 }
 
 /** Image generation request. */
-export interface AiImageRequest extends AiBaseRequest {
+export interface AiImageRequest extends AiRequest {
   prompt: string
   /** Input images for editing (base64 data URLs or URLs). If provided, uses edit mode. */
   inputImages?: string[]
@@ -331,7 +350,7 @@ function resolveImageRequestSize(size: string | undefined): string | undefined {
 }
 
 /** Embedding request. */
-export interface AiEmbedRequest extends AiBaseRequest {
+export interface AiEmbedRequest extends AiRequest {
   values: string[]
 }
 
@@ -341,7 +360,7 @@ export interface AiEmbedResult {
   usage?: EmbeddingModelUsage
 }
 
-export interface AiRerankRequest extends AiBaseRequest {
+export interface AiRerankRequest extends AiRequest {
   query: string
   documents: string[]
   topN?: number
@@ -367,13 +386,13 @@ export interface AiRerankResult {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
 export class AiService extends BaseService {
-  // Per-request AbortControllers for the `ai.image.generate` route, paired with the
-  // `ai.image.abort` route. Key is the renderer-generated requestId. Entries are
-  // self-cleaning via `runImageRequest`'s `finally` block; abort on an unknown id is
-  // a no-op.
+  // Per-request AbortControllers for the cancellable one-shot routes (`ai.image.generate`,
+  // `ai.text.generate`), paired with their `*.abort` routes. Key is the renderer-generated
+  // requestId. Entries are self-cleaning via `runWithAbort`'s `finally` block; abort on an
+  // unknown id is a no-op.
   // TODO(abort-registry): collapse with MCP/stream/LAN registries once
   // the shared `ipcHandleWithAbort` helper lands.
-  private readonly imageRequests = new Map<string, AbortController>()
+  private readonly requests = new Map<string, AbortController>()
 
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
@@ -536,10 +555,10 @@ export class AiService extends BaseService {
    * the stream itself.
    */
   async streamText(
-    request: AsInProcess<AiStreamRequest>,
+    request: AsInProcessChat<AiStreamRequest>,
     extraFeatures: readonly RequestFeature[] = []
   ): Promise<ReadableStream<UIMessageChunk>> {
-    logger.info('streamText started', { chatId: request.chatId })
+    logger.info('streamText started', { chatId: request.conversation.topicId })
     const signal = request.requestOptions?.signal
     if (!signal) {
       throw new Error('streamText requires requestOptions.signal — no AbortController was attached by the caller')
@@ -553,8 +572,8 @@ export class AiService extends BaseService {
       })
     }
 
-    if (isAgentSessionTopic(request.chatId)) {
-      throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
+    if (isAgentSessionTopic(request.conversation.topicId)) {
+      throw new Error(`Agent session stream ${request.conversation.topicId} requires an agent-session runtime request`)
     }
 
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
@@ -647,7 +666,11 @@ export class AiService extends BaseService {
       wrapModel = createRetryableWrap({
         apiKeyFallbacks,
         retryPolicy,
-        diagnosticContext: { chatId: request.chatId, messageId: request.messageId, assistantId: request.assistantId },
+        diagnosticContext: {
+          chatId: request.conversation.topicId,
+          messageId: request.messageId,
+          assistantId: request.assistantId
+        },
         fallbacks: buildFallbackModels({
           request,
           assistant,
@@ -720,10 +743,35 @@ export class AiService extends BaseService {
     return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage, source))
   }
 
+  // ── Request-scoped cancellation ──
+
+  /** Run `operation` under a registry entry keyed by the renderer-supplied `requestId`. */
+  private async runWithAbort<T>(requestId: string, operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const controller = new AbortController()
+    this.requests.set(requestId, controller)
+    try {
+      return await operation(controller.signal)
+    } finally {
+      this.requests.delete(requestId)
+    }
+  }
+
+  /** Abort the in-flight request for `requestId`; a no-op on an unknown id. */
+  abortRequest(requestId: string): void {
+    this.requests.get(requestId)?.abort()
+  }
+
   // ── Non-streaming text generation (agent.generate) ──
 
+  /** Cancellable variant of {@link generateText}, paired with the `ai.text.abort` route. */
+  async runTextRequest(requestId: string, request: AsInProcess<AiGenerateRequest>): Promise<AiGenerateResult> {
+    return this.runWithAbort(requestId, (signal) =>
+      this.generateText({ ...request, requestOptions: { ...request.requestOptions, signal } })
+    )
+  }
+
   async generateText(
-    request: AsInProcess<AiGenerateRequest>,
+    request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[] = []
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
@@ -849,13 +897,14 @@ export class AiService extends BaseService {
   ): Promise<CreateMessageResult> {
     const result = await this.generateText({
       uniqueModelId: model,
+      conversation: { id: `mcp-sampling:${randomUUID()}` },
       system: request.systemPrompt,
       messages: request.messages as ModelMessage[],
       disableTools: true,
       callOverrides: {
         maxOutputTokens: request.maxTokens,
         ...(typeof request.temperature === 'number' ? { temperature: request.temperature } : {}),
-        ...(Array.isArray(request.stopSequences) ? { stopSequences: request.stopSequences as string[] } : {})
+        ...(Array.isArray(request.stopSequences) ? { stopSequences: request.stopSequences } : {})
       },
       requestOptions: { signal }
     })
@@ -871,25 +920,13 @@ export class AiService extends BaseService {
 
   /**
    * Run an image request under an abort registry entry keyed by the renderer-supplied
-   * `requestId`, so `ai.image.abort` can cancel it. Self-cleaning via `finally`; the
-   * `ai.image.generate` handler delegates here (the registry is service state).
+   * `requestId`, so `ai.image.abort` can cancel it. The `ai.image.generate` handler
+   * delegates here (the registry is service state).
    */
   async runImageRequest(requestId: string, payload: AiImageRequest): Promise<AiImageResult> {
-    const controller = new AbortController()
-    this.imageRequests.set(requestId, controller)
-    try {
-      return await this.generateImage({
-        ...payload,
-        requestOptions: { ...payload.requestOptions, signal: controller.signal }
-      })
-    } finally {
-      this.imageRequests.delete(requestId)
-    }
-  }
-
-  /** Abort the in-flight image request for `requestId`; a no-op on an unknown id. */
-  abortImage(requestId: string): void {
-    this.imageRequests.get(requestId)?.abort()
+    return this.runWithAbort(requestId, (signal) =>
+      this.generateImage({ ...payload, requestOptions: { ...payload.requestOptions, signal } })
+    )
   }
 
   async generateImage(request: AsInProcess<AiImageRequest>): Promise<AiImageResult> {
@@ -907,10 +944,11 @@ export class AiService extends BaseService {
     // WireProfile engine forwards.
     const params = request.paramValues
     const { structured, vendorBag } = splitParamValues(params)
+    const inputImages = request.inputImages ? await normalizeImageEditInputs(request.inputImages, signal) : undefined
 
     // Async custom-provider transports (ppio / dashscope / modelscope /
     // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
-    // a restart. Decide this before `buildAgentParamsFor` selects a serving key:
+    // a restart. Decide this before `resolveTransportFor` selects a serving key:
     // the job handler is the single selection owner for this path. A transport
     // builds its own request envelope per model, so it receives the canonical
     // camelCase `vendorBag` directly (native n/size/seed travel via the job
@@ -919,12 +957,12 @@ export class AiService extends BaseService {
     // through to the direct image model, which never passes `modelDescriptor`.
     const transportProviderId = provider.presetProviderId ?? provider.id
     if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
-      return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
+      return await this.generateImageViaJob({ ...request, inputImages }, structured, vendorBag, signal, source)
     }
 
-    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(request, signal)
-    const promptParam = request.inputImages
-      ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
+    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
+    const promptParam = inputImages
+      ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
 
     // Vendor body (`providerOptions[providerId]`): the WireProfile engine maps the
@@ -1133,7 +1171,7 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1158,12 +1196,6 @@ export class AiService extends BaseService {
       ...(signal ? { abortSignal: signal } : {})
     })
 
-    this.trackUsage(
-      model,
-      { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 },
-      request.tokenUsageSource ?? 'chat'
-    )
-
     return { embeddings: result.embeddings, usage: result.usage }
   }
 
@@ -1173,14 +1205,7 @@ export class AiService extends BaseService {
     logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
     const signal = request.requestOptions?.signal
 
-    const {
-      sdkConfig,
-      credentialReceipt,
-      options = {},
-      provider,
-      model,
-      assistant
-    } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1190,8 +1215,9 @@ export class AiService extends BaseService {
       messageRef: null
     })
     const retryPolicy = readRetryPolicy()
-    const headers = options.headers
-      ? (Object.fromEntries(Object.entries(options.headers).filter(([, value]) => value !== undefined)) as Record<
+    const callerHeaders = request.requestOptions?.headers
+    const headers = callerHeaders
+      ? (Object.fromEntries(Object.entries(callerHeaders).filter(([, value]) => value !== undefined)) as Record<
           string,
           string
         >)
@@ -1263,131 +1289,195 @@ export class AiService extends BaseService {
     return mergeProviderModelsWithRegistry(remoteModels, registryModels)
   }
 
+  /** Captures one model configuration for related probes without re-reading changing settings. */
+  prepareModelCheck(uniqueModelId: UniqueModelId) {
+    const resolvedModel = structuredClone(this.getProviderAndModel({ uniqueModelId }))
+    const { provider, model } = resolvedModel
+    const endpoint = resolveEffectiveEndpoint(provider, model)
+    const primaryEndpoint = model.endpointTypes?.[0]
+    const chatPrimary = primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
+    return {
+      uniqueModelId: model.id,
+      modelName: model.name,
+      isCurrent: () => {
+        try {
+          return isDeepStrictEqual(this.getProviderAndModel({ uniqueModelId }), resolvedModel)
+        } catch (error) {
+          if (isDataApiNotFoundError(error)) return false
+          throw error
+        }
+      },
+      modelId: resolveWireModelId(model, endpoint.endpointType),
+      baseUrl: routeToEndpoint(endpoint.baseUrl).baseURL,
+      supportsModelListing: provider.modelListSource !== 'registry',
+      isExternalCli: isExternalCliProvider(provider),
+      supportsChat: chatPrimary || !isNonChatModel(model),
+      listModels: async (signal: AbortSignal) => {
+        const models = await listModelsFromProvider(
+          { ...provider, defaultChatEndpoint: endpoint.endpointType },
+          signal,
+          { throwOnError: true }
+        )
+        return models.flatMap((candidate) =>
+          candidate.apiModelId === undefined
+            ? []
+            : [resolveWireModelId({ ...model, apiModelId: candidate.apiModelId }, endpoint.endpointType)]
+        )
+      },
+      checkConversation: (signal: AbortSignal) =>
+        this.checkModel({ uniqueModelId, resolvedModel, requestOptions: { signal, maxRetries: 0 } }, { chatOnly: true })
+    }
+  }
+
   // ── API validation ──
 
   /** Dispatches rerank first, then prefers text for chat-primary models over embedding. */
-  async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
+  async checkModel(
+    request: AsInProcess<AiRequest> & { timeout?: number },
+    options?: { chatOnly: boolean }
+  ): Promise<{ latency: number }> {
+    request.requestOptions?.signal?.throwIfAborted()
     const { provider, model } = this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
-
-    if (isOllamaProvider(provider)) {
-      const controller = new AbortController()
-      const timeoutHandle = setTimeout(() => controller.abort(), timeout)
-      try {
-        return await probeOllamaModel(provider, model.apiModelId, controller.signal, request.apiKeyOverride)
-      } finally {
-        clearTimeout(timeoutHandle)
-      }
-    }
 
     const primaryEndpoint = model.endpointTypes?.[0]
     const hasChatPrimaryEndpoint = primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
 
     // AbortController on timeout so the HTTP work cancels too (otherwise tokens keep burning).
     const controller = new AbortController()
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutHandle = setTimeout(() => {
-        controller.abort(new Error('Check model timeout'))
-        reject(new Error('Check model timeout'))
-      }, timeout)
+    const signal = request.requestOptions?.signal
+      ? AbortSignal.any([controller.signal, request.requestOptions.signal])
+      : controller.signal
+    const timeoutHandle = setTimeout(() => controller.abort(new Error('Check model timeout')), timeout)
+    let onAbort: () => void = () => {}
+    const aborted = new Promise<never>((_, reject) => {
+      onAbort = () => reject(signal.reason)
+      signal.addEventListener('abort', onAbort, { once: true })
     })
-
-    const probeRequest = {
-      ...request,
-      requestOptions: { ...request.requestOptions, signal: controller.signal }
-    }
-    let probe: Promise<unknown>
-    if (isRerankModel(model)) {
-      probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 }).then((result) => {
-        if (result.ranking.length === 0) {
-          throw new Error('Rerank health check returned empty ranking')
-        }
-        return result
-      })
-    } else if (isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
-      probe = this.embedMany({ ...probeRequest, values: ['test'] })
-    } else if (isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
-      // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
-      // Edit-only models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
-      // `generate` mode: the bare default leaves the job path without a transport
-      // descriptor, failing before any provider request. Probe their first declared
-      // mode with a tiny inline PNG and the mode's registry defaults instead — the
-      // vendor bag must carry required params (qwen-mt-image langs, wanx2.1 function)
-      // that main never materializes on its own.
-      const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, model.apiModelId ?? model.id)
-      const editOnly = imageSupport != null && !('generate' in imageSupport.modes)
-      const probeMode: ImageGenerationMode = editOnly
-        ? (EDIT_ONLY_PROBE_FALLBACK_MODES.find((mode) => mode in imageSupport.modes) ?? 'edit')
-        : 'generate'
-      const probeSupports = imageSupport?.modes?.[probeMode]?.supports
-      const probeParams: ParamValues = {}
-      for (const [key, spec] of Object.entries(probeSupports ?? {})) {
-        if (spec && typeof spec === 'object' && 'default' in spec && spec.default !== undefined) {
-          probeParams[key] = spec.default
-        }
-      }
-      const transportProviderId = provider.presetProviderId ?? provider.id
-      if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
-        // Transport models run their submit/poll loop on the job system, whose
-        // handler re-selects a serving key — dropping the health check's
-        // `apiKeyOverride` and possibly probing a different rotated credential
-        // than the one being reported. A check needs no restart survival, so
-        // probe inline: one submit (accepted = credential + endpoint + model OK)
-        // with the caller's key, no job row, no result download.
-        const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
-        probe = (async () => {
-          const { config } = await resolveProviderAiSdkConfig(provider, model, {
-            apiKeyOverride: request.apiKeyOverride
-          })
-          const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
-          const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
-          if (!transport) {
-            throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
+    const probeRequest = { ...request, requestOptions: { ...request.requestOptions, signal } }
+    try {
+      let probe: Promise<unknown>
+      if (isOllamaProvider(provider) && !options?.chatOnly) {
+        probe = probeOllamaModel(provider, model.apiModelId, signal, request.apiKeyOverride)
+      } else if (!options?.chatOnly && isRerankModel(model)) {
+        probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 }).then((result) => {
+          if (result.ranking.length === 0) {
+            throw new Error('Rerank health check returned empty ranking')
           }
-          await transport.submit({
-            modelId: wireModelId,
+          return result
+        })
+      } else if (!options?.chatOnly && isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
+        probe = this.embedMany({ ...probeRequest, values: ['test'] })
+      } else if (!options?.chatOnly && isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
+        // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
+        // Edit-only models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
+        // `generate` mode: the bare default leaves the job path without a transport
+        // descriptor, failing before any provider request. Probe their first declared
+        // mode with a tiny inline PNG and the mode's registry defaults instead — the
+        // vendor bag must carry required params (qwen-mt-image langs, wanx2.1 function)
+        // that main never materializes on its own.
+        const imageSupport = providerRegistryService.getImageGenerationSupport(
+          provider.id,
+          model.apiModelId ?? model.id
+        )
+        const editOnly = imageSupport != null && !('generate' in imageSupport.modes)
+        const probeMode: ImageGenerationMode = editOnly
+          ? (EDIT_ONLY_PROBE_FALLBACK_MODES.find((mode) => mode in imageSupport.modes) ?? 'edit')
+          : 'generate'
+        const probeSupports = imageSupport?.modes?.[probeMode]?.supports
+        const probeParams: ParamValues = {}
+        for (const [key, spec] of Object.entries(probeSupports ?? {})) {
+          if (spec && typeof spec === 'object' && 'default' in spec && spec.default !== undefined) {
+            probeParams[key] = spec.default
+          }
+        }
+        const transportProviderId = provider.presetProviderId ?? provider.id
+        if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
+          // Transport models run their submit/poll loop on the job system, whose
+          // handler re-selects a serving key — dropping the health check's
+          // `apiKeyOverride` and possibly probing a different rotated credential
+          // than the one being reported. A check needs no restart survival, so
+          // probe inline: one submit (accepted = credential + endpoint + model OK)
+          // with the caller's key, no job row, no result download.
+          const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
+          probe = (async () => {
+            const { config } = await resolveProviderAiSdkConfig(provider, model, {
+              apiKeyOverride: request.apiKeyOverride
+            })
+            const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+            const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
+            if (!transport) {
+              throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
+            }
+            await transport.submit({
+              modelId: wireModelId,
+              prompt: 'a red circle',
+              n: 1,
+              size: undefined,
+              seed: undefined,
+              files: editOnly ? [{ type: 'file', mediaType: 'image/png', data: PROBE_INPUT_IMAGE_BASE64 }] : undefined,
+              mask: undefined,
+              modelDescriptor: vendorTransport
+                ? {
+                    id: wireModelId,
+                    endpoint: vendorTransport.endpoint,
+                    isSync: vendorTransport.isSync,
+                    mode: probeMode
+                  }
+                : undefined,
+              providerParams: probeParams,
+              signal
+            })
+          })()
+        } else {
+          probe = this.generateImage({
+            ...probeRequest,
             prompt: 'a red circle',
-            n: 1,
-            size: undefined,
-            seed: undefined,
-            files: editOnly ? [{ type: 'file', mediaType: 'image/png', data: PROBE_INPUT_IMAGE_BASE64 }] : undefined,
-            mask: undefined,
-            modelDescriptor: vendorTransport
-              ? { id: wireModelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode: probeMode }
-              : undefined,
-            providerParams: probeParams,
-            signal: controller.signal
+            ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
+            paramValues: probeParams,
+            cleanupPolicy: 'delete_when_unreferenced'
           })
-        })()
+        }
       } else {
-        probe = this.generateImage({
+        // Latency is the probe's measured output — thinking tokens would pollute it
+        // for reasoning-capable models whose provider default enables reasoning.
+        probe = this.generateText({
           ...probeRequest,
-          prompt: 'a red circle',
-          ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
-          paramValues: probeParams,
-          cleanupPolicy: 'delete_when_unreferenced'
+          // A health check has no topic; each probe is its own conversation.
+          conversation: { id: `check:${randomUUID()}` },
+          system: 'test',
+          prompt: 'hi',
+          reasoningEffort: 'none'
         })
       }
-    } else {
-      // Latency is the probe's measured output — thinking tokens would pollute it
-      // for reasoning-capable models whose provider default enables reasoning.
-      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi', reasoningEffort: 'none' })
-    }
 
-    try {
-      await Promise.race([probe, timeoutPromise])
+      await Promise.race([probe, aborted])
+      signal.throwIfAborted()
       return { latency: performance.now() - start }
     } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
+      clearTimeout(timeoutHandle)
+      signal.removeEventListener('abort', onAbort)
     }
   }
 
   // ── Shared agent parameter resolution ──
 
+  /** Transport resolution shared by every modality: provider, model, credential, wire model id. */
+  private async resolveTransportFor(request: AsInProcess<AiRequest>) {
+    const { provider, model, assistant } = this.getProviderAndModel(request)
+    const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
+      provider,
+      model,
+      resolveEffectiveEndpoint(provider, model),
+      request.apiKeyOverride
+    )
+    applyHttpTrace(sdkConfig.providerSettings, { modelName: model.name ?? model.id })
+    return { provider, model, assistant, sdkConfig, credentialReceipt }
+  }
+
   private async buildAgentParamsFor(
-    request: AsInProcess<AiBaseRequest> & { chatId?: string },
+    request: AsInProcessChat<AiChatRequest> & { messageId?: string },
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = [],
     getRepairUsagePlugins?: () => AiPlugin[]
@@ -1432,7 +1522,8 @@ export class AiService extends BaseService {
   }
 
   /** Priority: explicit `uniqueModelId` > `assistant.modelId`. */
-  private getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
+  private getProviderAndModel(request: AsInProcess<AiRequest>) {
+    if (request.resolvedModel) return { ...request.resolvedModel, assistant: undefined }
     let assistant: Assistant | undefined
     if (request.assistantId) {
       try {

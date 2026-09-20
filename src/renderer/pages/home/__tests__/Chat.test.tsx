@@ -1,10 +1,11 @@
-import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
-import { popup } from '@renderer/services/popup'
-import type { Topic } from '@renderer/types/topic'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { popup } from '@renderer/services/popup'
+import type { Topic } from '@renderer/types/topic'
 
 import Chat from '../Chat'
 
@@ -161,10 +162,6 @@ vi.mock('react-hotkeys-hook', () => ({
   useHotkeys: vi.fn()
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
-}))
-
 vi.mock('../ChatContent', async () => {
   const { useChatLayoutMode } = await vi.importActual<typeof ChatLayoutModeContextModule>(
     '@renderer/components/chat/layout/ChatLayoutModeContext'
@@ -201,10 +198,6 @@ vi.mock('../components/ChatNavbar', () => ({
       {conversationControls}
     </div>
   )
-}))
-
-vi.mock('../components/TopicBranchSwitcher', () => ({
-  default: () => null
 }))
 
 vi.mock('../components/TopicRightPane', () => {

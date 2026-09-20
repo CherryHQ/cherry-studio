@@ -1,5 +1,6 @@
-import { isAbortError } from '@main/utils/error'
 import { SdkError, SdkErrorCode } from '@modelcontextprotocol/client'
+
+import { isAbortError } from '@main/utils/error'
 
 /**
  * True when `error` is the cancellation outcome of `signal` aborting, not a genuine

@@ -1,8 +1,9 @@
-import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 
 import { ResourceEntityRail, type ResourceEntityRailItem } from '../ResourceEntityRail'
 
@@ -91,8 +92,9 @@ vi.mock('@renderer/components/VirtualList', () => {
         ref={(node) => {
           // The real virtual list exposes an imperative scrollToIndex; stub it so keyboard
           // navigation (which scrolls the active item into view) works under this mock.
-          const listNode = node as (HTMLDivElement & { scrollToIndex?: (index: number) => void }) | null
-          if (listNode && typeof listNode.scrollToIndex !== 'function') listNode.scrollToIndex = () => {}
+          if (node && typeof Reflect.get(node, 'scrollToIndex') !== 'function') {
+            Reflect.set(node, 'scrollToIndex', () => {})
+          }
           if (typeof ref === 'function') ref(node)
           else if (ref) (ref as { current: HTMLDivElement | null }).current = node
           if (typeof scrollElementRef === 'function') scrollElementRef(node)

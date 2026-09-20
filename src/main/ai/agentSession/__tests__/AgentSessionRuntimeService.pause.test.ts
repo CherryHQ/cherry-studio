@@ -6,8 +6,9 @@
  * resumes that exact target once.
  */
 
-import { BaseService } from '@main/core/lifecycle/BaseService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle/BaseService'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),

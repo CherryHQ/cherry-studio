@@ -1,10 +1,11 @@
-import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
-import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 
 import { ChatAppShell } from '../ChatAppShell'
 import {
@@ -20,8 +21,8 @@ const originalResizeObserver = globalThis.ResizeObserver
 
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
-  observe: ReturnType<typeof vi.fn>
-  disconnect: ReturnType<typeof vi.fn>
+  observe: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  disconnect: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
@@ -121,7 +122,7 @@ describe('ChatAppShell', () => {
       writable: true
     })
     resizeObserverMockInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance = {
         callback,
         observe: vi.fn(),
@@ -133,7 +134,7 @@ describe('ChatAppShell', () => {
         observe: instance.observe,
         disconnect: instance.disconnect
       } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+    })
   })
 
   afterEach(() => {

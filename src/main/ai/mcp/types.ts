@@ -1,4 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/client'
+
 import type { McpResource } from '@shared/types/mcp'
 
 /**

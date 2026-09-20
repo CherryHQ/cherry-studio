@@ -61,6 +61,9 @@
  * @since v2.0.0
  */
 
+import { eq, inArray, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
@@ -72,8 +75,6 @@ import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { eq, inArray, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
@@ -588,11 +589,17 @@ export class ChatMigrator extends BaseMigrator {
 
     try {
       // Count topics in target
-      const topicResult = db.select({ count: sql<number>`count(*)` }).from(topicTable).get()
+      const topicResult = db
+        .select({ count: sql<number>`count(*)` })
+        .from(topicTable)
+        .get()
       const targetTopicCount = topicResult?.count ?? 0
 
       // Count messages in target
-      const messageResult = db.select({ count: sql<number>`count(*)` }).from(messageTable).get()
+      const messageResult = db
+        .select({ count: sql<number>`count(*)` })
+        .from(messageTable)
+        .get()
       const targetMessageCount = messageResult?.count ?? 0
 
       logger.info('Validation counts', {
@@ -707,7 +714,10 @@ export class ChatMigrator extends BaseMigrator {
       // fault (WAL loss, CASCADE from an unexpected file_entry delete), not a
       // migration logic bug — so it warrants investigation, not migration abort.
       if (this.fileRefInsertCount > 0) {
-        const fileRefResult = db.select({ count: sql<number>`count(*)` }).from(chatMessageFileRefTable).get()
+        const fileRefResult = db
+          .select({ count: sql<number>`count(*)` })
+          .from(chatMessageFileRefTable)
+          .get()
         const targetFileRefCount = fileRefResult?.count ?? 0
         if (targetFileRefCount < this.fileRefInsertCount) {
           logger.warn(

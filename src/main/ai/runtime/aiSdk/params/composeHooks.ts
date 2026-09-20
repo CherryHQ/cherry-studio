@@ -90,6 +90,6 @@ function chainPrepareStep(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentL
         }
       }
     }
-    return merged as Awaited<ReturnType<NonNullable<AgentLoopHooks['prepareStep']>>>
+    return merged
   }
 }

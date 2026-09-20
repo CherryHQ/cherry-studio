@@ -1,13 +1,14 @@
+import { ElicitResultSchema } from '@modelcontextprotocol/core'
+import { type JSONSchema7, type Tool } from 'ai'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { mcpServerService } from '@main/data/services/McpServerService'
-import { ElicitResultSchema } from '@modelcontextprotocol/core'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
-import { type JSONSchema7, type Tool } from 'ai'
 
 import { getRequestContext } from '../context'
 import { createMcpInputSchema } from '../mcpSchema'

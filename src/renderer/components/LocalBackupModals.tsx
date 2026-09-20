@@ -1,9 +1,10 @@
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { backupToLocal } from '@renderer/services/BackupService'
 import { createDefaultBackupFileName } from '@renderer/utils/backupFileName'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface LocalBackupModalProps {
   isModalVisible: boolean

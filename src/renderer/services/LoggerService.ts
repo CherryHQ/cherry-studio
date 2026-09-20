@@ -56,6 +56,7 @@ export class LoggerService {
   private derivedWindow: string = ''
   private module: string = ''
   private context: Record<string, any> = {}
+  private errorReporter?: (error: Error, entry: Record<string, unknown>) => void
 
   constructor() {
     this.derivedWindow = resolveWindowSourceFromMeta(typeof document === 'undefined' ? undefined : document)
@@ -125,6 +126,10 @@ export class LoggerService {
     newLogger.context = { ...this.context, ...context }
 
     return newLogger
+  }
+
+  public setErrorReporter(reporter: (error: Error, entry: Record<string, unknown>) => void): void {
+    this.errorReporter = reporter
   }
 
   /**
@@ -202,7 +207,25 @@ export class LoggerService {
 
       // In renderer process, forward the log to main via the App_LogToMain channel
       if (!IS_WORKER) {
-        void window.electron.ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, data)
+        // Structured clone drops custom Error fields such as cancellation names and codes.
+        const serializedData = data.map((item) =>
+          item instanceof Error
+            ? {
+                name: item.name,
+                errorMessage: item.message,
+                stack: item.stack,
+                code: 'code' in item && typeof item.code === 'string' ? item.code : undefined
+              }
+            : item
+        )
+        void window.electron.ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, serializedData)
+        if (level === LEVEL.ERROR && data[0] instanceof Error) {
+          try {
+            this.errorReporter?.(data[0], { ...serializedData[0], ...source, level, data: serializedData.slice(1) })
+          } catch (error) {
+            this.warn('Failed to report logged error', error instanceof Error ? error : { error })
+          }
+        }
       } else {
         //TODO support worker to send log to main process
       }

@@ -1,10 +1,11 @@
 // Sequential Thinking MCP Server
 // port https://github.com/modelcontextprotocol/servers/blob/main/src/sequentialthinking/index.ts
 
-import { loggerService } from '@logger'
 import { type CallToolResult, Server, type Tool } from '@modelcontextprotocol/server'
 // Fixed chalk import for ESM
 import chalk from 'chalk'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('McpServer:SequentialThinking')
 

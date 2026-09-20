@@ -1,17 +1,9 @@
-import { loggerService } from '@logger'
 import type { Server } from '@modelcontextprotocol/server'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames, isBuiltinMcpServerName } from '@shared/utils/mcp'
-
-import BraveSearchServer from './braveSearch'
-import { BrowserServer } from './browser'
-import DiDiMcpServer from './didiMcp'
-import DifyKnowledgeServer from './difyKnowledge'
-import FetchServer from './fetch'
-import { FileSystemServer, resolveFilesystemBaseDir } from './filesystem'
-import MemoryServer from './memory'
-import PythonServer from './python'
-import ThinkingServer from './sequentialthinking'
 
 const logger = loggerService.withContext('McpFactory')
 
@@ -57,14 +49,15 @@ export function resolveBuiltinExternalMcpServer(server: McpServer): McpServer {
   }
 }
 
-export function createBuiltinMcpEndpoint(
+export async function createBuiltinMcpEndpoint(
   name: BuiltinMcpServerName,
   args: string[] = [],
   envs: Record<string, string> = {}
-): BuiltinMcpEndpoint {
+): Promise<BuiltinMcpEndpoint> {
   logger.debug(`[MCP] Creating builtin MCP endpoint: ${name}`, { args, envNames: Object.keys(envs) })
   switch (name) {
     case BuiltinMcpServerNames.memory: {
+      const { default: MemoryServer } = await import('./memory')
       const envPath = envs.MEMORY_FILE_PATH
       const server = new MemoryServer(envPath)
       return {
@@ -73,6 +66,7 @@ export function createBuiltinMcpEndpoint(
       }
     }
     case BuiltinMcpServerNames.sequentialThinking: {
+      const { default: ThinkingServer } = await import('./sequentialthinking')
       const server = new ThinkingServer()
       return {
         createServer: () => server.createServer(),
@@ -80,34 +74,65 @@ export function createBuiltinMcpEndpoint(
       }
     }
     case BuiltinMcpServerNames.braveSearch: {
+      const { default: BraveSearchServer } = await import('./braveSearch')
       return statelessEndpoint(() => new BraveSearchServer(envs.BRAVE_API_KEY).server)
     }
     case BuiltinMcpServerNames.fetch: {
+      const { default: FetchServer } = await import('./fetch')
       const server = new FetchServer()
       return statelessEndpoint(() => server.createServer())
     }
     case BuiltinMcpServerNames.filesystem: {
+      const { FileSystemServer, resolveFilesystemBaseDir } = await import('./filesystem')
       return statelessEndpoint(() => new FileSystemServer(resolveFilesystemBaseDir(args, envs)).server)
     }
     case BuiltinMcpServerNames.difyKnowledge: {
+      const { default: DifyKnowledgeServer } = await import('./difyKnowledge')
       const difyKey = envs.DIFY_KEY
       return statelessEndpoint(() => new DifyKnowledgeServer(difyKey, args).server)
     }
     case BuiltinMcpServerNames.python: {
+      const { default: PythonServer } = await import('./python')
       return statelessEndpoint(() => new PythonServer().server)
     }
     case BuiltinMcpServerNames.didiMcp: {
+      const { default: DiDiMcpServer } = await import('./didiMcp')
       const apiKey = envs.DIDI_API_KEY
       return statelessEndpoint(() => new DiDiMcpServer(apiKey).server)
     }
     case BuiltinMcpServerNames.browser: {
-      const server = new BrowserServer()
-      return {
-        createServer: () => server.createServer(),
-        close: () => server.close()
-      }
+      return application.get('BrowserSessionService').createMcpEndpoint()
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)
   }
+}
+
+/**
+ * Extra env for servers that resolve packages from a custom registry: `@cherry/mcp-auto-install`
+ * reads its catalog from a file whose location only exists at runtime.
+ */
+export function getBuiltinRegistryEnv(server: McpServer): Record<string, string> {
+  if (
+    server.installSource !== 'builtin' ||
+    server.name !== BuiltinMcpServerNames.mcpAutoInstall ||
+    !server.registryUrl
+  ) {
+    return {}
+  }
+  return { MCP_REGISTRY_PATH: application.getPath('feature.mcp.registry_file') }
+}
+
+export function hasInMemoryImplementation(name: string): boolean {
+  return [
+    BuiltinMcpServerNames.memory,
+    BuiltinMcpServerNames.sequentialThinking,
+    BuiltinMcpServerNames.braveSearch,
+    BuiltinMcpServerNames.fetch,
+    BuiltinMcpServerNames.filesystem,
+    BuiltinMcpServerNames.difyKnowledge,
+    BuiltinMcpServerNames.python,
+    BuiltinMcpServerNames.didiMcp,
+    BuiltinMcpServerNames.browser
+  ].some((builtin) => builtin === name)
 }

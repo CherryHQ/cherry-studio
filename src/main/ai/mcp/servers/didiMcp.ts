@@ -10,8 +10,9 @@
  * Note: Only available in Mainland China.
  */
 
-import { loggerService } from '@logger'
 import { type CallToolResult, type ListToolsResult, Server } from '@modelcontextprotocol/server'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('DiDiMcpServer')
 

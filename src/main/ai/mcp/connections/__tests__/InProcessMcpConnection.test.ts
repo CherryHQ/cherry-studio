@@ -3,8 +3,9 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { acceptedContent, inputRequired, Server } from '@modelcontextprotocol/server'
-import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import type { BuiltinMcpEndpoint } from '../../servers/factory'
 import { createBuiltinMcpEndpoint } from '../../servers/factory'
@@ -79,7 +80,7 @@ describe('modern in-process MCP wire', () => {
   })
 
   it('keeps memory state across independent createMcpHandler.fetch requests', async () => {
-    const endpoint = createBuiltinMcpEndpoint(BuiltinMcpServerNames.memory, [], {
+    const endpoint = await createBuiltinMcpEndpoint(BuiltinMcpServerNames.memory, [], {
       MEMORY_FILE_PATH: path.join(tempDir, 'memory.jsonl')
     })
     const connection = await createInProcessMcpConnection({
@@ -147,7 +148,7 @@ describe('modern in-process MCP wire', () => {
   })
 
   it('keeps sequential-thinking history across handler requests', async () => {
-    const endpoint = createBuiltinMcpEndpoint(BuiltinMcpServerNames.sequentialThinking)
+    const endpoint = await createBuiltinMcpEndpoint(BuiltinMcpServerNames.sequentialThinking)
     const closeEndpoint = vi.spyOn(endpoint, 'close')
     const connection = await createInProcessMcpConnection({
       appVersion: 'test',

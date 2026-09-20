@@ -1,13 +1,6 @@
-// v1 compatibility island: this file may expose MCP SDK v1 objects only to the Claude Agent SDK.
-import { application } from '@application'
-import { mcpServerService } from '@data/services/McpServerService'
-import { loggerService } from '@logger'
-import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
-import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
-  type CallToolResult,
   GetPromptRequestSchema,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
@@ -20,6 +13,13 @@ import {
   type Resource as SdkResource,
   type Tool as SdkTool
 } from '@modelcontextprotocol/sdk/types.js'
+
+// v1 compatibility island: this file may expose MCP SDK v1 objects only to the Claude Agent SDK.
+import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
+import { loggerService } from '@logger'
+import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
+import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
@@ -172,7 +172,7 @@ export function createSdkMcpServerInstance(
         onProgress,
         interactionContext
       })
-      return result as CallToolResult
+      return result
     } catch (error) {
       if (isMcpCancellation(error, extra.signal)) {
         logger.debug('SDK bridge: tool call aborted', { mcpId, tool: request.params.name })

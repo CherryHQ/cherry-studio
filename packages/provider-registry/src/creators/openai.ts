@@ -27,6 +27,7 @@ export default defineCreator({
   fetchModels: openaiCompatible('openai', 'OPENAI_API_KEY'),
   modelsDevProviders: ['openai'],
   reasoningFamilies: [
+    { pattern: '^gpt-6-astra', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
     { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },
     { pattern: '^gpt-5[.-]1-codex-max', effort: ['medium', 'high', 'xhigh'] },
     { pattern: '^gpt-5[.-]1-codex', effort: ['medium', 'high'] },
@@ -38,6 +39,8 @@ export default defineCreator({
     // gpt-5.2 and later minor versions inherit the 5.2 vocabulary
     { pattern: '^gpt-5[.-]\\d+(?!.*chat)', effort: ['none', 'low', 'medium', 'high', 'xhigh'] },
     { pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', effort: ['minimal', 'low', 'medium', 'high'] },
+    // gpt-6 and later inherit the full upstream effort ladder (gpt-6-astra is the first SKU)
+    { pattern: '^gpt-6', effort: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
     { pattern: '^gpt-oss', effort: ['low', 'medium', 'high'] },
     // o-series reasoning SKUs (excluding the non-reasoning previews)
     { pattern: '^o1(?!-preview|-mini)|^o3|^o4', effort: ['low', 'medium', 'high'] },
@@ -68,6 +71,44 @@ export default defineCreator({
   // web-search limitations); gpt-5.x sub-versions use the `none` tier and are fine.
   webSearchUnsupportedEfforts: [{ pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', efforts: ['minimal'] }],
   models: [
+    {
+      id: 'gpt-6-astra',
+      name: 'GPT-6 Astra',
+      family: 'gpt',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-search'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      endpointTypes: ['openai-responses'],
+      contextWindow: 1050000,
+      maxInputTokens: 922000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 10 },
+        cacheRead: { currency: 'USD', perMillionTokens: 1 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 12.5 },
+        output: { currency: 'USD', perMillionTokens: 50 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { currency: 'USD', perMillionTokens: 20 },
+            cacheRead: { currency: 'USD', perMillionTokens: 2 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 25 },
+            output: { currency: 'USD', perMillionTokens: 75 }
+          }
+        ]
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: false,
+        systemMessage: true
+      },
+      reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }] }
+    },
     {
       id: 'gpt-image-1-mini',
       name: 'GPT-Image-1-Mini',

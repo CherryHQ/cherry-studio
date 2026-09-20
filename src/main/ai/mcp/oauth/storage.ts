@@ -1,4 +1,6 @@
-import { loggerService } from '@logger'
+import fs from 'fs/promises'
+import path from 'path'
+
 import type {
   OAuthClientInformationContext,
   OAuthDiscoveryState,
@@ -6,8 +8,8 @@ import type {
   StoredOAuthTokens
 } from '@modelcontextprotocol/client'
 import { safeStorage } from 'electron'
-import fs from 'fs/promises'
-import path from 'path'
+
+import { loggerService } from '@logger'
 
 import type { IOAuthStorage, OAuthSecretData, OAuthStorageData } from './types'
 import { LegacyOAuthStorageSchema, OAuthSecretDataSchema, OAuthStorageSchema } from './types'

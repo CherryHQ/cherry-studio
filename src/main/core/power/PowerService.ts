@@ -1,3 +1,6 @@
+import ElectronShutdownHandler from '@paymoapp/electron-shutdown-handler'
+import { BrowserWindow, powerMonitor, powerSaveBlocker } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import {
@@ -10,8 +13,6 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
-import ElectronShutdownHandler from '@paymoapp/electron-shutdown-handler'
-import { BrowserWindow, powerMonitor, powerSaveBlocker } from 'electron'
 
 const logger = loggerService.withContext('PowerService')
 

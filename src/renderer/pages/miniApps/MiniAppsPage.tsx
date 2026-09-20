@@ -1,3 +1,9 @@
+import { Menu, PackagePlus, Plus } from 'lucide-react'
+import type { FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import BeatLoader from 'react-spinners/BeatLoader'
+
 import { Button, EmptyState, SearchInput, Tooltip, useDropzone } from '@cherrystudio/ui'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import App from '@renderer/components/MiniApp/MiniApp'
@@ -6,15 +12,11 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { toast } from '@renderer/services/toast'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { isDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { Menu, PackagePlus, Plus } from 'lucide-react'
-import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import BeatLoader from 'react-spinners/BeatLoader'
 
 import InstallMiniAppPanel from './InstallMiniAppPanel'
 import MiniAppDisplaySettings from './MiniAppSettings/MiniAppDisplaySettings'
@@ -48,7 +50,7 @@ const MiniAppsPage: FC = () => {
     hideMiniApp,
     removeCustomMiniApp
   } = useMiniApps()
-  const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
+  const { shortcuts, setPinned } = useSidebarShortcuts()
   const { openTab } = useTabs()
   const openTabRef = useRef(openTab)
   openTabRef.current = openTab
@@ -56,7 +58,29 @@ const MiniAppsPage: FC = () => {
   miniAppsRef.current = miniApps
   const pinnedIds = useMemo(() => new Set(pinned.map((app) => app.appId)), [pinned])
   const openedIds = useMemo(() => new Set(openedKeepAliveMiniApps.map((app) => app.appId)), [openedKeepAliveMiniApps])
-  const sidebarFavoriteIds = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
+  const sidebarFavoriteIds = useMemo(
+    () =>
+      new Set(
+        shortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [shortcuts]
+  )
+  const toggleMiniApp = useCallback(
+    (appId: string) => {
+      const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
+      const fallbackLabel = app ? (app.nameKey ? t(app.nameKey) : app.name) : undefined
+      setPinned(
+        createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId),
+        !sidebarFavoriteIds.has(appId),
+        fallbackLabel
+      )
+    },
+    [t, setPinned, sidebarFavoriteIds]
+  )
   const openMiniApp = useCallback((appId: string, displayName: string, icon?: string) => {
     openTabRef.current(`/app/mini-app/${appId}`, {
       title: displayName,
@@ -78,7 +102,10 @@ const MiniAppsPage: FC = () => {
 
   const filteredApps = search
     ? miniApps.filter(
-        (app) => app.name.toLowerCase().includes(search.toLowerCase()) || app.url.includes(search.toLowerCase())
+        (app) =>
+          app.name.toLowerCase().includes(search.toLowerCase()) ||
+          (app.nameKey && t(app.nameKey).toLowerCase().includes(search.toLowerCase())) ||
+          app.url.includes(search.toLowerCase())
       )
     : miniApps
   const filteredBuiltins = search

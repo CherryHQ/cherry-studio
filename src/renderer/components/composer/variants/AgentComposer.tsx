@@ -1,3 +1,7 @@
+import { Settings2, Terminal, ToolCase } from 'lucide-react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
@@ -77,9 +81,6 @@ import type { OutputFor } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Settings2, Terminal, ToolCase } from 'lucide-react'
-import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { excludeComposerDraftTokens } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
@@ -124,6 +125,7 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
+import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
@@ -1107,6 +1109,17 @@ const AgentComposerInner = ({
   }, [actionsRef, sessionTopicId])
 
   useEffect(() => {
+    return EventEmitter.on(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, (payload) => {
+      const data =
+        typeof payload === 'object' && payload
+          ? (payload as { topicId?: string; token?: ComposerDraftToken; updateOnly?: boolean })
+          : null
+      if (!data?.token || data.topicId !== sessionTopicId) return
+      data.updateOnly ? actionsRef.current.insertToken(data.token, true) : actionsRef.current.insertToken(data.token)
+    })
+  }, [actionsRef, sessionTopicId])
+
+  useEffect(() => {
     if (!launchOptions?.initialDraft) return
     const frameId = window.requestAnimationFrame(() => actionsRef.current.focus('end'))
     return () => window.cancelAnimationFrame(frameId)
@@ -1206,6 +1219,7 @@ const AgentComposerInner = ({
   }, [refreshAvailableSkills])
 
   useComposerQuoteInsertion(actionsRef)
+  useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })

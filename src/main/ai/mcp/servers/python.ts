@@ -1,7 +1,8 @@
-import { application } from '@application'
-import { loggerService } from '@logger'
 import { ProtocolError, ProtocolErrorCode, Server } from '@modelcontextprotocol/server'
 import * as z from 'zod'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('McpServer:Python')
 

@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import type { ProviderEdition } from '@cherrystudio/provider-registry'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { parse } from 'yaml'
+
+import type { ProviderEdition } from '@cherrystudio/provider-registry'
 
 import createChinaEditionConfig from '../../electron-builder.cn.config.cjs'
 import { APP_EDITIONS, type AppEdition } from '../../src/shared/types/appEdition'

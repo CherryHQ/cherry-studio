@@ -1,9 +1,10 @@
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { InputGroup, InputGroupAddon, InputGroupInputNumber, InputGroupText } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   ProviderHelpText,

@@ -1,5 +1,6 @@
-import { preferenceTable } from '@data/db/schemas/preference'
 import { and, eq } from 'drizzle-orm'
+
+import { preferenceTable } from '@data/db/schemas/preference'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
@@ -35,10 +36,10 @@ export class WebSearchPreferenceUpgradeSeeder implements ISeeder {
           key: WEB_SEARCH_PREFERENCE_UPGRADE.nextKey,
           value: !legacyPreference.value
         })
-        .onConflictDoUpdate({
-          target: [preferenceTable.scope, preferenceTable.key],
-          set: { value: !legacyPreference.value }
-        })
+        // The renamed key has existed since the rename, so a returning user already has a value
+        // for it - written by PreferenceSeeder, and possibly changed by hand afterwards. Only a
+        // database that predates the rename may still be missing it.
+        .onConflictDoNothing({ target: [preferenceTable.scope, preferenceTable.key] })
         .run()
       tx.delete(preferenceTable)
         .where(

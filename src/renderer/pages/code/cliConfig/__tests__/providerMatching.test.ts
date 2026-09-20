@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { describe, expect, it } from 'vitest'
 
 import { cliConfigConnectionMatchesProvider } from '../providerMatching'
 

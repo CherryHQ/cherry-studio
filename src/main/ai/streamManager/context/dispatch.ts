@@ -63,7 +63,6 @@ export type MainDispatchRequest = (
   headless?: boolean
   /** Main-only durable user row accepted by the cross-session delivery path. */
   agentDeliveryMessage?: AgentSessionMessageEntity
-  /** Main-only queue policy: never redirect this delivery into the currently-running turn. */
   /** Trusted main-process sender identity for targeted MCP interaction requests. */
   interactionWindowId?: WindowId
 }

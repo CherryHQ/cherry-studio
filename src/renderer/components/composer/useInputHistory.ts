@@ -1,5 +1,6 @@
-import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCallback, useRef, useState } from 'react'
+
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 
 import { getNextInputHistoryIndex, type InputHistoryDirection } from './inputHistoryNavigation'
 import type { ComposerSerializedDraft } from './tokens'

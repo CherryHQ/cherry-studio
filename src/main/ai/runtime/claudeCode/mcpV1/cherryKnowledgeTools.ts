@@ -23,6 +23,9 @@
  * `unrestricted` variant may pass an empty list down.
  */
 
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import {
   KNOWLEDGE_LIST_DESCRIPTION,
@@ -38,7 +41,6 @@ import {
   readOrGrepConcept,
   searchKnowledge
 } from '@main/ai/tools/knowledgeLookup'
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import {
   KB_LIST_TOOL_NAME,
   KB_MANAGE_TOOL_NAME,
@@ -49,7 +51,6 @@ import {
   kbReadInputSchema,
   kbSearchInputSchema
 } from '@shared/ai/builtinTools'
-import * as z from 'zod'
 
 import type { CherryAgentContext } from './cherryAutonomyTools'
 

@@ -4,8 +4,9 @@
  * covered by its integration suite.
  */
 
-import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -26,6 +27,8 @@ vi.mock('@data/services/JobScheduleService', () => ({
 vi.mock('@data/services/JobService', () => ({
   jobService: { getRunStatesByScheduleIds: vi.fn(), list: vi.fn() }
 }))
+
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -87,12 +90,12 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
     attempt: 0,
     maxAttempts: 1,
     input: {},
-    output: { sessionId: 'sess-1', result: 'ok' },
+    output: { result: 'ok' },
     error: null,
     parentId: null,
     cancelRequested: false,
     cancelRequestedAt: null,
-    metadata: {},
+    metadata: { sessionId: 'sess-1' },
     timeoutMs: null,
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:05.000Z',
@@ -102,6 +105,16 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
 
 describe('AgentTaskService (read side)', () => {
   beforeEach(() => {
+    MockMainDbServiceUtils.resetMocks()
+    MockMainDbServiceUtils.setDb({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            all: () => [{ id: AGENT_ID }, { id: 'other-agent' }, { id: 'other' }]
+          })
+        })
+      })
+    })
     notifyDataApiDataChangeMock.mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValue([])
@@ -132,6 +145,28 @@ describe('AgentTaskService (read side)', () => {
       { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] }
     ])
   })
+
+  it.each(['membership', 'projection'] as const)(
+    'publishes task and run-log effects in one %s notification',
+    (kind) => {
+      agentTaskService.notifyRunChange(TASK_ID, 'job-1', kind)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [TASK_ID] },
+        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
+        { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] },
+        {
+          endpoint: '/agents/:agentId/tasks/:taskId/logs',
+          kind,
+          routeParams: { taskId: TASK_ID },
+          entityIds: ['job-1']
+        }
+      ])
+    }
+  )
 
   describe('getTask', () => {
     it('returns a task by id without requiring the owning agent id', () => {
@@ -196,6 +231,19 @@ describe('AgentTaskService (read side)', () => {
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(null)
 
       expect(agentTaskService.getTask(AGENT_ID, TASK_ID)).toBeNull()
+    })
+
+    it('hides a heartbeat row from the by-id lookups, including the v1-migrated shape', () => {
+      // The list side excludes heartbeat rows; a known schedule id must not
+      // let ordinary task commands reach the row the heartbeat sync owns.
+      vi.mocked(jobScheduleService.getById).mockReturnValue(makeHeartbeatSnapshot())
+
+      try {
+        expect(agentTaskService.getTaskById(TASK_ID)).toBeNull()
+        expect(agentTaskService.getTask(AGENT_ID, TASK_ID)).toBeNull()
+      } finally {
+        vi.mocked(jobScheduleService.getById).mockReset()
+      }
     })
 
     it('derives status=paused when the schedule is disabled', () => {
@@ -337,6 +385,48 @@ describe('AgentTaskService (read side)', () => {
       expect(result.logs[0]).not.toHaveProperty('taskId')
       expect(result.logs[0]).not.toHaveProperty('runAt')
       expect(result.logs[0]).toHaveProperty('startedAt')
+    })
+
+    it('preserves pre-metadata session links while preferring the current metadata link', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({ id: 'old', metadata: {}, output: { result: 'ok', sessionId: 'old-session' } }),
+        makeJobSnapshot({
+          id: 'rebound',
+          metadata: { sessionId: 'replacement-session' },
+          output: { result: 'ok', sessionId: 'old-session' }
+        })
+      ])
+
+      expect(agentTaskService.getTaskLogs(TASK_ID).logs).toEqual([
+        expect.objectContaining({ id: 'old', sessionId: 'old-session', result: 'ok' }),
+        expect.objectContaining({ id: 'rebound', sessionId: 'replacement-session', result: 'ok' })
+      ])
+    })
+
+    it('links a failed run to its session from metadata when no output was persisted', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({
+          id: 'j1',
+          status: 'failed',
+          output: null,
+          error: { code: 'X', message: 'boom', retryable: false },
+          metadata: { sessionId: 'sess-meta' }
+        })
+      ])
+
+      const result = agentTaskService.getTaskLogs(TASK_ID)
+
+      expect(result.logs).toEqual([expect.objectContaining({ id: 'j1', status: 'failed', sessionId: 'sess-meta' })])
+    })
+
+    it('links a run that never reached the session step to no session', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({ id: 'j1', status: 'cancelled', output: null, metadata: {} })
+      ])
+
+      const result = agentTaskService.getTaskLogs(TASK_ID)
+
+      expect(result.logs).toEqual([expect.objectContaining({ id: 'j1', status: 'cancelled', sessionId: null })])
     })
 
     it('returns a null duration while a run is still in flight', () => {

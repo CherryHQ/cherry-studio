@@ -1,14 +1,14 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/ProviderRegistryService'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
 
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { resolveAiSdkProviderId } from '@main/ai/provider/endpoint'
 import { ErrorCode } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
@@ -235,6 +235,35 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     expect(provider.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     expect(provider.reportedCostCurrency).toBe('USD')
     expect(provider.availableInEditions).toEqual(['global', 'cn'])
+  })
+
+  it('resolves transaction reasoning contexts without decoding unrelated provider fields', () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'cherryin',
+        presetProviderId: 'cherryin',
+        name: 'CherryIN',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.sqlite.prepare("UPDATE user_provider SET api_keys = 'invalid-json' WHERE provider_id = ?").run('cherryin')
+
+    const context = dbh.db.transaction((tx) =>
+      providerService.getReasoningContextsByProviderIdsTx(tx, ['cherryin']).get('cherryin')
+    )
+
+    expect(context).toMatchObject({
+      id: 'cherryin',
+      presetProviderId: 'cherryin',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+    expect(context?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).toEqual({
+      adapterFamily: 'cherryin',
+      baseUrl: 'https://open.cherryin.net',
+      modelsApiUrls: { default: 'https://open.cherryin.net/v1/models' }
+    })
   })
 
   it('keeps providers absent from the current registry edition-neutral', async () => {

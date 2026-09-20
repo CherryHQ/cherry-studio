@@ -8,6 +8,7 @@ import { parse } from 'yaml'
 
 import { prepareBackport } from '../release/backport-patch'
 import { composeReleaseBody } from '../release/compose-release-body'
+import { getExpectedReleaseArtifacts } from '../release/edition'
 import {
   extractHotfixReleaseNote,
   readBuilderReleaseNotes,
@@ -29,6 +30,7 @@ interface GitFixture {
 }
 
 let roots: string[] = []
+let isolatedGitConfigDir: string | undefined
 const inheritedGitEnvironment = Object.entries(process.env).filter(
   (entry): entry is [string, string] => entry[0].startsWith('GIT_') && entry[1] !== undefined
 )
@@ -41,13 +43,21 @@ function clearGitEnvironment(): void {
 
 beforeAll(() => {
   clearGitEnvironment()
-  process.env.GIT_CONFIG_GLOBAL = os.devNull
+  // Isolate from the developer's global git config with an empty file instead of
+  // os.devNull: on Windows os.devNull is the device path '\\.\nul', which
+  // Git for Windows cannot stat ("fatal: unable to access '\\.\nul'"), breaking
+  // every git invocation in this file. An empty real file behaves identically
+  // (no config entries) on every platform.
+  isolatedGitConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), 'release-workflow-gitconfig-'))
+  fs.writeFileSync(path.join(isolatedGitConfigDir, 'gitconfig'), '')
+  process.env.GIT_CONFIG_GLOBAL = path.join(isolatedGitConfigDir, 'gitconfig')
   process.env.GIT_CONFIG_NOSYSTEM = '1'
 })
 
 afterAll(() => {
   clearGitEnvironment()
   for (const [key, value] of inheritedGitEnvironment) process.env[key] = value
+  if (isolatedGitConfigDir) fs.rmSync(isolatedGitConfigDir, { recursive: true, force: true })
 })
 
 function git(cwd: string, ...args: string[]): string {
@@ -216,8 +226,19 @@ describe('backport patch preparation', () => {
   it('rejects a symbolic link before release metadata can be updated', () => {
     const fixture = createGitFixture()
     const base = git(fixture.repo, 'rev-parse', 'HEAD')
-    fs.symlinkSync('app.txt', path.join(fixture.repo, 'linked.txt'))
-    const mergeSha = commit(fixture.repo, 'add linked file')
+    // Stage the symlink at the index level instead of fs.symlinkSync: creating a
+    // real symlink on Windows requires developer mode, and Git for Windows only
+    // records mode 120000 when core.symlinks was enabled at init time.
+    const linkBlob = execFileSync('git', ['hash-object', '-w', '--stdin'], {
+      cwd: fixture.repo,
+      encoding: 'utf8',
+      input: 'app.txt'
+    }).trim()
+    git(fixture.repo, 'update-index', '--add', '--cacheinfo', `120000,${linkBlob},linked.txt`)
+    // No 'git add .' here: it would stage the missing worktree file as a deletion
+    // and drop the cacheinfo entry before it reaches the tree.
+    git(fixture.repo, 'commit', '-m', 'add linked file')
+    const mergeSha = git(fixture.repo, 'rev-parse', 'HEAD')
     markOriginMain(fixture.repo, mergeSha)
     git(fixture.repo, 'checkout', '-b', 'release', base)
 
@@ -230,8 +251,14 @@ describe('backport patch preparation', () => {
     const fixture = createGitFixture()
     const base = git(fixture.repo, 'rev-parse', 'HEAD')
     write(fixture.repo, 'script.sh', '#!/bin/sh\n')
+    // fs.chmodSync alone cannot set the exec bit on Windows; flip it in the
+    // index (the tree is what prepareBackport inspects) so the mode 100755
+    // entry exists on every platform.
     fs.chmodSync(path.join(fixture.repo, 'script.sh'), 0o755)
-    const mergeSha = commit(fixture.repo, 'add executable')
+    git(fixture.repo, 'add', 'script.sh')
+    git(fixture.repo, 'update-index', '--chmod=+x', 'script.sh')
+    git(fixture.repo, 'commit', '-m', 'add executable')
+    const mergeSha = git(fixture.repo, 'rev-parse', 'HEAD')
     markOriginMain(fixture.repo, mergeSha)
     git(fixture.repo, 'checkout', '-b', 'release', base)
 
@@ -261,6 +288,10 @@ describe('backport patch preparation', () => {
     git(fixture.repo, 'update-index', '--chmod=+x', 'app.txt')
     git(fixture.repo, 'commit', '-m', 'make app executable')
     const mergeSha = git(fixture.repo, 'rev-parse', 'HEAD')
+    // The exec bit now lives in the committed tree, which is what prepareBackport
+    // diffs. Relax core.filemode so the Windows worktree (fs.chmodSync is a no-op
+    // there) does not look dirty and block the checkout below.
+    git(fixture.repo, 'config', 'core.filemode', 'false')
     markOriginMain(fixture.repo, mergeSha)
     git(fixture.repo, 'checkout', '-b', 'release', base)
 
@@ -1140,20 +1171,40 @@ describe('release workflow gates', () => {
     expect(addLabelIndex).toBeLessThan(noteCheckIndex)
   })
 
-  it('requires environment approval before exposing preview signing and service credentials', () => {
+  it('builds previews without environment approval while retaining signing and service credentials', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
     const buildJob = workflow.jobs.build
     const checkoutStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Check out preview commit')
     const macBuildStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Build Mac')
 
-    expect(buildJob.environment).toBe('release')
+    for (const job of Object.values(workflow.jobs)) {
+      expect(job).not.toHaveProperty('environment')
+    }
     expect(checkoutStep.with['persist-credentials']).toBe(false)
     expect(macBuildStep.env).toMatchObject({
       APPLE_ID: '${{ secrets.APPLE_ID }}',
       CSC_LINK: '${{ secrets.CSC_LINK }}',
-      GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
       MAIN_VITE_CHERRYAI_CLIENT_SECRET: '${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}'
     })
+  })
+
+  it('keeps preview packages in Actions artifacts without GitHub release publishing', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+
+    expect(workflow.permissions).toEqual({ contents: 'read' })
+    for (const job of Object.values(workflow.jobs) as {
+      permissions?: { contents?: string }
+      steps: { name?: string; uses?: string; run?: string; env?: Record<string, string> }[]
+    }[]) {
+      expect(job.permissions?.contents).not.toBe('write')
+      for (const step of job.steps) {
+        expect(step.uses ?? '').not.toMatch(/release-action|action-gh-release/)
+        if (step.name?.startsWith('Build ')) {
+          expect(step.run).toContain('--publish never')
+          expect(step.env).not.toHaveProperty('GH_TOKEN')
+        }
+      }
+    }
   })
 
   it('builds and stages both editions for every selected preview platform', () => {
@@ -1163,15 +1214,103 @@ describe('release workflow gates', () => {
     const validationStep = buildJob.steps.find(
       (step: { name?: string }) => step.name === 'Validate edition preview artifacts'
     )
-    const uploadStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Upload preview artifacts')
 
     expect(buildJob.strategy.matrix.edition).toEqual(['global', 'cn'])
     for (const step of buildSteps) {
       expect(step.run).toContain("matrix.edition == 'cn'")
     }
     expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
-    expect(uploadStep.with.name).toContain('${{ matrix.edition }}')
-    expect(uploadStep.with.path).toContain('dist/preview*.yml')
+  })
+
+  it('uploads one directly downloadable installer per preview architecture', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const uploads = workflow.jobs.build.steps.filter((step: { uses?: string }) =>
+      step.uses?.startsWith('actions/upload-artifact@')
+    )
+
+    expect(uploads).toHaveLength(2)
+    for (const [index, arch] of ['x64', 'arm64'].entries()) {
+      const options = uploads[index].with
+      expect(options.archive).toBe(false)
+      expect(options['if-no-files-found']).toBe('error')
+      const patterns = options.path.trim().split('\n')
+      for (const edition of ['global', 'cn']) {
+        for (const [platform, suffix] of [
+          ['windows', '-setup.exe'],
+          ['mac', '.dmg'],
+          ['linux', '.AppImage']
+        ]) {
+          const artifacts = getExpectedReleaseArtifacts({
+            edition,
+            platform,
+            productName: 'Cherry Studio',
+            version: '2.0.14-preview-1234567'
+          })
+          const files = [...artifacts.files, ...artifacts.manifests.map((manifest) => manifest.file)]
+          const selected = files.filter((file) =>
+            patterns.some((pattern: string) => path.matchesGlob(`dist/${file}`, pattern))
+          )
+          expect(selected).toHaveLength(1)
+          expect(selected[0]).toContain(edition === 'cn' ? 'Cherry-Studio-CN-' : 'Cherry-Studio-2.')
+          expect(selected[0].endsWith(`-${arch}${suffix}`)).toBe(true)
+        }
+      }
+    }
+  })
+
+  it.each([false, true])('summarizes available preview downloads when artifacts are empty: %s', async (empty) => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const job = workflow.jobs.summary
+    expect(job.needs).toContain('build')
+    expect(job.if).toContain('always()')
+    expect(job.permissions.actions).toBe('read')
+    const artifacts = [
+      { id: 101, name: 'Cherry-Studio-2.0.14-preview-1234567-win-x64-setup.exe', size_in_bytes: 1048576 },
+      { id: 102, name: 'Cherry-Studio-CN-2.0.14-preview-1234567-mac-arm64.dmg', size_in_bytes: 2621440 },
+      { id: 103, name: 'Cherry-Studio-2.0.14-preview-1234567-linux-arm64.AppImage', size_in_bytes: 3145728 },
+      { id: 104, name: 'Cherry-Studio-2.0.14-preview-1234567-win-arm64-setup.exe', expired: true },
+      { id: 105, name: 'unrelated.zip' }
+    ]
+    let output = ''
+    const github = {
+      rest: { actions: { listWorkflowRunArtifacts: 'listWorkflowRunArtifacts' } },
+      paginate: async (_endpoint: unknown, params: { owner: string; repo: string; run_id: number }) => {
+        expect(params).toMatchObject({ owner: 'CherryHQ', repo: 'cherry-studio', run_id: 42 })
+        return empty ? [] : artifacts
+      }
+    }
+    const core = {
+      summary: {
+        addRaw(markdown: string) {
+          output += markdown
+          return this
+        },
+        async write() {}
+      }
+    }
+    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+    await new AsyncFunction('github', 'context', 'core', job.steps[0].with.script)(
+      github,
+      { repo: { owner: 'CherryHQ', repo: 'cherry-studio' }, runId: 42, serverUrl: 'https://github.com' },
+      core
+    )
+
+    expect(output).toContain('3 days')
+    if (empty) {
+      expect(output).toContain('No preview installers are available')
+      expect(output).not.toContain('[Download]')
+    } else {
+      expect(output).toContain('| Windows | Global | x64 | 2.0.14-preview-1234567 | 1.0 MiB |')
+      expect(output).toContain('| macOS | CN | arm64 | 2.0.14-preview-1234567 | 2.5 MiB |')
+      expect(output).toContain('| Linux | Global | arm64 | 2.0.14-preview-1234567 | 3.0 MiB |')
+      for (const id of [101, 102, 103]) {
+        expect(output).toContain(
+          `[Download](https://github.com/CherryHQ/cherry-studio/actions/runs/42/artifacts/${id})`
+        )
+      }
+      expect(output).not.toContain('/artifacts/104')
+      expect(output).not.toContain('unrelated.zip')
+    }
   })
 
   it('syncs post-release metadata from the published tag without depending on the release branch head', () => {
@@ -1205,60 +1344,68 @@ describe('release workflow gates', () => {
     expect(validationStep.run).not.toContain('git status')
   })
 
-  it('restores the frozen release head and keeps only prepared metadata changes', () => {
-    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'prepare-release.yml'), 'utf8'))
-    const prepareSteps = workflow.jobs.prepare.steps
-    const claudeStep = prepareSteps.find((step: { name?: string }) => step.name === 'Prepare Release via Claude')
-    const retainStep = prepareSteps.find((step: { name?: string }) => step.name === 'Retain prepared release metadata')
-    const syncIndex = prepareSteps.findIndex(
-      (step: { name?: string }) => step.name === 'Sync release history from prepared release notes'
-    )
-    const validationIndex = prepareSteps.findIndex(
-      (step: { name?: string }) => step.name === 'Validate prepared release metadata'
-    )
+  // The workflow step under test is a bash script authored for GitHub-hosted
+  // ubuntu runners. On Windows `bash` resolves to WSL or Git Bash, neither of
+  // which can consume the Windows-style RUNNER_TEMP path this test passes in.
+  it.skipIf(process.platform === 'win32')(
+    'restores the frozen release head and keeps only prepared metadata changes',
+    () => {
+      const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'prepare-release.yml'), 'utf8'))
+      const prepareSteps = workflow.jobs.prepare.steps
+      const claudeStep = prepareSteps.find((step: { name?: string }) => step.name === 'Prepare Release via Claude')
+      const retainStep = prepareSteps.find(
+        (step: { name?: string }) => step.name === 'Retain prepared release metadata'
+      )
+      const syncIndex = prepareSteps.findIndex(
+        (step: { name?: string }) => step.name === 'Sync release history from prepared release notes'
+      )
+      const validationIndex = prepareSteps.findIndex(
+        (step: { name?: string }) => step.name === 'Validate prepared release metadata'
+      )
 
-    expect(claudeStep.with.claude_args).toContain('Bash(git:*)')
-    expect(claudeStep.with.claude_args).toContain('Bash(node:*)')
-    expect(retainStep.run).toContain('git diff --binary --full-index')
-    expect(retainStep.run).toContain('git reset --hard "$RELEASE_HEAD"')
-    expect(retainStep.run).toContain('git clean -fd')
-    expect(retainStep.run).toContain('git apply "$RELEASE_PATCH"')
-    expect(prepareSteps.indexOf(retainStep)).toBeLessThan(syncIndex)
-    expect(syncIndex).toBeLessThan(validationIndex)
+      expect(claudeStep.with.claude_args).toContain('Bash(git:*)')
+      expect(claudeStep.with.claude_args).toContain('Bash(node:*)')
+      expect(retainStep.run).toContain('git diff --binary --full-index')
+      expect(retainStep.run).toContain('git reset --hard "$RELEASE_HEAD"')
+      expect(retainStep.run).toContain('git clean -fd')
+      expect(retainStep.run).toContain('git apply "$RELEASE_PATCH"')
+      expect(prepareSteps.indexOf(retainStep)).toBeLessThan(syncIndex)
+      expect(syncIndex).toBeLessThan(validationIndex)
 
-    const fixture = createGitFixture()
-    write(fixture.repo, 'package.json', '{"version":"1.0.0"}\n')
-    write(fixture.repo, 'electron-builder.yml', 'releaseInfo:\n  releaseNotes: old\n')
-    write(fixture.repo, 'resources/cherry-studio/release-history.json', '[]\n')
-    const releaseHead = commit(fixture.repo, 'release metadata')
+      const fixture = createGitFixture()
+      write(fixture.repo, 'package.json', '{"version":"1.0.0"}\n')
+      write(fixture.repo, 'electron-builder.yml', 'releaseInfo:\n  releaseNotes: old\n')
+      write(fixture.repo, 'resources/cherry-studio/release-history.json', '[]\n')
+      const releaseHead = commit(fixture.repo, 'release metadata')
 
-    write(fixture.repo, 'package.json', '{"version":"1.1.0"}\n')
-    write(fixture.repo, 'electron-builder.yml', 'releaseInfo:\n  releaseNotes: new\n')
-    write(fixture.repo, 'resources/cherry-studio/release-history.json', '[{"version":"1.1.0"}]\n')
-    write(fixture.repo, 'app.txt', 'unexpected tracked change\n')
-    write(fixture.repo, '.release-prep/prepare.js', 'temporary helper\n')
-    commit(fixture.repo, 'temporary local release preparation')
+      write(fixture.repo, 'package.json', '{"version":"1.1.0"}\n')
+      write(fixture.repo, 'electron-builder.yml', 'releaseInfo:\n  releaseNotes: new\n')
+      write(fixture.repo, 'resources/cherry-studio/release-history.json', '[{"version":"1.1.0"}]\n')
+      write(fixture.repo, 'app.txt', 'unexpected tracked change\n')
+      write(fixture.repo, '.release-prep/prepare.js', 'temporary helper\n')
+      commit(fixture.repo, 'temporary local release preparation')
 
-    const runnerTemp = path.join(fixture.root, 'runner-temp')
-    fs.mkdirSync(runnerTemp)
-    execFileSync('bash', ['-e', '-o', 'pipefail', '-c', retainStep.run], {
-      cwd: fixture.repo,
-      env: { ...process.env, RELEASE_HEAD: releaseHead, RUNNER_TEMP: runnerTemp }
-    })
+      const runnerTemp = path.join(fixture.root, 'runner-temp')
+      fs.mkdirSync(runnerTemp)
+      execFileSync('bash', ['-e', '-o', 'pipefail', '-c', retainStep.run], {
+        cwd: fixture.repo,
+        env: { ...process.env, RELEASE_HEAD: releaseHead, RUNNER_TEMP: runnerTemp }
+      })
 
-    expect(git(fixture.repo, 'rev-parse', 'HEAD')).toBe(releaseHead)
-    expect(fs.readFileSync(path.join(fixture.repo, 'package.json'), 'utf8')).toBe('{"version":"1.1.0"}\n')
-    expect(fs.readFileSync(path.join(fixture.repo, 'electron-builder.yml'), 'utf8')).toContain('releaseNotes: new')
-    expect(fs.readFileSync(path.join(fixture.repo, 'app.txt'), 'utf8')).toBe('base\n')
-    expect(fs.existsSync(path.join(fixture.repo, '.release-prep'))).toBe(false)
-    expect(fs.readFileSync(path.join(fixture.repo, 'resources/cherry-studio/release-history.json'), 'utf8')).toBe(
-      '[]\n'
-    )
-    expect(git(fixture.repo, 'diff', '--name-only').split('\n').sort()).toEqual([
-      'electron-builder.yml',
-      'package.json'
-    ])
-  })
+      expect(git(fixture.repo, 'rev-parse', 'HEAD')).toBe(releaseHead)
+      expect(fs.readFileSync(path.join(fixture.repo, 'package.json'), 'utf8')).toBe('{"version":"1.1.0"}\n')
+      expect(fs.readFileSync(path.join(fixture.repo, 'electron-builder.yml'), 'utf8')).toContain('releaseNotes: new')
+      expect(fs.readFileSync(path.join(fixture.repo, 'app.txt'), 'utf8')).toBe('base\n')
+      expect(fs.existsSync(path.join(fixture.repo, '.release-prep'))).toBe(false)
+      expect(fs.readFileSync(path.join(fixture.repo, 'resources/cherry-studio/release-history.json'), 'utf8')).toBe(
+        '[]\n'
+      )
+      expect(git(fixture.repo, 'diff', '--name-only').split('\n').sort()).toEqual([
+        'electron-builder.yml',
+        'package.json'
+      ])
+    }
+  )
 
   it('runs release workflow contract tests for release-workflow-only pull requests', () => {
     const workflow = fs.readFileSync(path.join(workflowRoot, 'ci.yml'), 'utf8')

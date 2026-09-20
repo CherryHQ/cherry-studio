@@ -1,5 +1,8 @@
 import path from 'node:path'
 
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import {
   inferReasoningControls,
   REASONING_FORMAT_PROFILES,
@@ -7,8 +10,6 @@ import {
   type ReasoningWireProfile
 } from '@cherrystudio/provider-registry'
 import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'
@@ -231,7 +232,9 @@ describe('OpenAI Responses reasoning summary', () => {
 })
 
 describe('resolveReasoningInvocation logging', () => {
-  beforeEach(() => mockMainLoggerService.info.mockClear())
+  beforeEach(() => {
+    mockMainLoggerService.info.mockClear()
+  })
 
   // `resolveReasoningInvocation` runs for every message. 'default' means the user asked for
   // nothing, and it reaches the omit paths on ordinary traffic: any non-reasoning model, plus

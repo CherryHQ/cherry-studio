@@ -1,18 +1,34 @@
-import { BaseService } from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { loggerDebug } = vi.hoisted(() => ({ loggerDebug: vi.fn() }))
+import { BaseService } from '@main/core/lifecycle'
+
+const { loggerDebug, loggerWarn } = vi.hoisted(() => ({ loggerDebug: vi.fn(), loggerWarn: vi.fn() }))
 const getById = vi.fn()
 const listServers = vi.fn()
 const listTools = vi.fn()
 const runtimeListResources = vi.fn()
 const runtimeListPrompts = vi.fn()
 const cacheStore = new Map<string, unknown>()
+const cacheExpirations = new Map<string, number>()
+const readCache = (key: string) => {
+  const expiresAt = cacheExpirations.get(key)
+  if (expiresAt !== undefined && expiresAt <= Date.now()) {
+    cacheStore.delete(key)
+    cacheExpirations.delete(key)
+  }
+  return cacheStore.get(key)
+}
 const cacheService = {
-  has: vi.fn((key: string) => cacheStore.has(key)),
-  get: vi.fn((key: string) => cacheStore.get(key)),
-  set: vi.fn((key: string, value: unknown) => cacheStore.set(key, value)),
-  delete: vi.fn((key: string) => cacheStore.delete(key)),
+  has: vi.fn((key: string) => readCache(key) !== undefined),
+  get: vi.fn((key: string) => readCache(key)),
+  set: vi.fn((key: string, value: unknown, ttl?: number) => {
+    cacheStore.set(key, value)
+    if (ttl !== undefined) cacheExpirations.set(key, Date.now() + ttl)
+  }),
+  delete: vi.fn((key: string) => {
+    cacheExpirations.delete(key)
+    return cacheStore.delete(key)
+  }),
   setShared: vi.fn((key: string, value: unknown) => cacheStore.set(key, value)),
   getShared: vi.fn((key: string) => cacheStore.get(key))
 }
@@ -44,7 +60,7 @@ vi.mock('@logger', () => ({
       debug: loggerDebug,
       error: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn()
+      warn: loggerWarn
     })
   }
 }))
@@ -77,9 +93,11 @@ describe('McpCatalogService', () => {
     listServers.mockReset()
     listTools.mockReset()
     loggerDebug.mockReset()
+    loggerWarn.mockReset()
     runtimeListResources.mockReset()
     runtimeListPrompts.mockReset()
     cacheStore.clear()
+    cacheExpirations.clear()
     Object.values(cacheService).forEach((mock) => mock.mockClear())
     runtimeService.getServerKey.mockClear()
     runtimeService.listTools.mockClear()
@@ -267,10 +285,7 @@ describe('McpCatalogService', () => {
     await service.warmToolsCache('server-1')
 
     expect(runtimeService.listTools).toHaveBeenCalledTimes(1)
-    expect(loggerDebug).toHaveBeenCalledWith(
-      'Skipping MCP tools warm during retry backoff',
-      expect.objectContaining({ serverId: 'server-1', remainingMs: expect.any(Number) })
-    )
+    expect(loggerDebug).toHaveBeenCalledWith('Skipping MCP tools warm during retry backoff', { serverId: 'server-1' })
   })
 
   it('clears the retry deadline when the shared tools cache is explicitly cleared', async () => {
@@ -343,6 +358,57 @@ describe('McpCatalogService', () => {
     }
   })
 
+  it('backs off after a failed refresh triggered by a tool list change', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      getById.mockReturnValue(server())
+      listTools.mockRejectedValue(new Error('connection failed'))
+      const service = new McpCatalogService()
+      await (service as unknown as { onInit(): Promise<void> }).onInit()
+      const [onToolListChanged] = runtimeService.onToolListChanged.mock.calls[0] as unknown as [
+        (event: { serverId: string }) => void
+      ]
+
+      onToolListChanged({ serverId: 'server-1' })
+      await vi.waitFor(() =>
+        expect(loggerWarn).toHaveBeenCalledWith(
+          'Failed to refresh tools after tool list changed notification',
+          expect.objectContaining({ serverId: 'server-1' })
+        )
+      )
+      await service.warmToolsCache('server-1')
+      expect(runtimeService.listTools).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(30 * 1000)
+      await service.warmToolsCache('server-1')
+      expect(runtimeService.listTools).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('backs off after a failed prewarm', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      listServers.mockReturnValue({ items: [server()], total: 1, page: 1 })
+      getById.mockReturnValue(server())
+      listTools.mockRejectedValue(new Error('connection failed'))
+      const service = new McpCatalogService()
+
+      await (service as unknown as { prewarmActiveServerTools(): Promise<void> }).prewarmActiveServerTools()
+      await service.warmToolsCache('server-1')
+      expect(runtimeService.listTools).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(30 * 1000)
+      await service.warmToolsCache('server-1')
+      expect(runtimeService.listTools).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('warmToolsCache single-flights concurrent refreshes for the same server', async () => {
     getById.mockReturnValue(server())
     listTools.mockResolvedValue([sdkTool('search')])
@@ -363,6 +429,22 @@ describe('McpCatalogService', () => {
     await service.refreshTools('server-1')
 
     expect(listener).toHaveBeenCalledExactlyOnceWith({ serverId: 'server-1' })
+  })
+
+  it('publishes the replacement catalog after a restart clears the shared cache', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValueOnce([sdkTool('search')]).mockResolvedValueOnce([sdkTool('fetch')])
+
+    const service = new McpCatalogService()
+    const listener = vi.fn()
+    service.onToolsCacheUpdated(listener)
+
+    await service.refreshTools('server-1')
+    service.clearSharedToolsCache('server-1')
+    await service.refreshTools('server-1')
+
+    expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['fetch'])
+    expect(listener).toHaveBeenCalledTimes(3)
   })
 
   it('onToolsCacheUpdated does not fire when a refresh rewrites identical content', async () => {

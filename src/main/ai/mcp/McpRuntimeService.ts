@@ -1,6 +1,12 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 
+import type { CacheMode, GetPromptResult, Progress, ServerCapabilities, Tool } from '@modelcontextprotocol/client'
+import { app } from 'electron'
+import { nanoid } from 'nanoid'
+import { v4 as uuidv4 } from 'uuid'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
@@ -8,25 +14,23 @@ import { createBuiltinMcpEndpoint, resolveBuiltinExternalMcpServer } from '@main
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import type { CacheMode, GetPromptResult, Progress, ServerCapabilities, Tool } from '@modelcontextprotocol/client'
+import { clampImageForModel } from '@main/utils/image'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
-import { BuiltinMcpServerNames, isBuiltinMcpServerName } from '@shared/utils/mcp'
+import type { BuiltinMcpServerName } from '@shared/utils/mcp'
 import { safeSerialize } from '@shared/utils/serialize'
-import { app } from 'electron'
-import { nanoid } from 'nanoid'
-import { v4 as uuidv4 } from 'uuid'
-import * as z from 'zod'
 
 import { createExternalMcpConnection } from './connections/ExternalMcpConnection'
 import { createInProcessMcpConnection } from './connections/InProcessMcpConnection'
 import type { McpConnection, McpConnectionEvents, McpInteractionContext } from './connections/McpConnection'
 import { isMcpCancellation } from './mcpAbort'
 import type { McpPackageService } from './McpPackageService'
+import { resolveMcpRequestOptions } from './mcpRequestOptions'
+import { mcpTransportKind } from './mcpTransportKind'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
 
@@ -71,7 +75,7 @@ export const McpGetResourcePayloadSchema = z.object({
 export const McpStringArgSchema = NonEmptyStringSchema
 
 const logger = loggerService.withContext('McpRuntimeService')
-const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}` as SharedCacheKey
+const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}`
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 const MCP_INTERACTION_TIMEOUT_MS = 10 * 60 * 1000
 
@@ -130,9 +134,33 @@ function getServerLogger(server: McpServer, extra?: Record<string, unknown>) {
   })
 }
 
+/**
+ * Shrink tool-result images to the model-bound edge cap before any consumer (Cherry chat, pi,
+ * dsh, claude bridge) sees them. An unusable image degrades to a text block: the result lands
+ * in durable session history, so failing the call would strand the turn over one screenshot.
+ */
+async function clampToolResultImages(
+  response: McpCallToolResponse,
+  serverLogger: ReturnType<typeof getServerLogger>
+): Promise<McpCallToolResponse> {
+  const content = await Promise.all(
+    response.content.map(async (part) => {
+      if (part.type !== 'image' || !part.data) return part
+      try {
+        const clamped = await clampImageForModel(Buffer.from(part.data, 'base64'))
+        return clamped ? { ...part, data: Buffer.from(clamped).toString('base64') } : part
+      } catch (error) {
+        serverLogger.warn('Dropping unprocessable tool-result image', { mimeType: part.mimeType, error })
+        return { type: 'text' as const, text: `[image (${part.mimeType ?? 'unknown'}) could not be processed]` }
+      }
+    })
+  )
+  return { ...response, content }
+}
+
 @Injectable('McpRuntimeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'McpPackageService'])
+@DependsOn(['WindowManager', 'McpPackageService', 'BrowserSessionService'])
 export class McpRuntimeService extends BaseService {
   private connections = new Map<string, McpConnection>()
   private pendingConnections = new Map<string, Promise<McpConnection>>()
@@ -250,15 +278,14 @@ export class McpRuntimeService extends BaseService {
     const connectTimeoutMs = Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
     const events = this.connectionEvents(server)
 
-    if (
-      isBuiltinMcpServerName(server.name) &&
-      server.name !== BuiltinMcpServerNames.mcpAutoInstall &&
-      server.name !== BuiltinMcpServerNames.nowledgeMem &&
-      server.name !== BuiltinMcpServerNames.flomo
-    ) {
+    if (mcpTransportKind(server) === 'inMemory') {
       return createInProcessMcpConnection({
         appVersion: app.getVersion(),
-        endpoint: createBuiltinMcpEndpoint(server.name, [...(server.args || [])], server.env || {}),
+        endpoint: await createBuiltinMcpEndpoint(
+          server.name as BuiltinMcpServerName,
+          [...(server.args || [])],
+          server.env || {}
+        ),
         events,
         connectTimeoutMs
       })
@@ -267,7 +294,6 @@ export class McpRuntimeService extends BaseService {
     return createExternalMcpConnection({
       server: resolveBuiltinExternalMcpServer(server),
       appVersion: app.getVersion(),
-      packageService: this.mcpPackageService,
       events,
       connectTimeoutMs,
       log: {
@@ -454,11 +480,12 @@ export class McpRuntimeService extends BaseService {
         ]).finally(() => {
           if (handleAbort) effectiveSignal.removeEventListener('abort', handleAbort)
         })
-        return await connection.callTool(name, normalizedArgs, {
+        const policy = resolveMcpRequestOptions(server)
+        const response = await connection.callTool(name, normalizedArgs, {
           signal: effectiveSignal,
-          timeoutMs: server.timeout ? server.timeout * 1000 : 60_000,
-          resetTimeoutOnProgress: server.longRunning,
-          maxTotalTimeoutMs: server.longRunning ? 10 * 60 * 1000 : undefined,
+          timeoutMs: policy.timeout,
+          resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+          maxTotalTimeoutMs: policy.maxTotalTimeout,
           interactionContext,
           onProgress: (progress, total) => {
             const update: Progress = { progress, ...(total === undefined ? {} : { total }) }
@@ -473,6 +500,8 @@ export class McpRuntimeService extends BaseService {
             }
           }
         })
+        if (response.isError) return response
+        return clampToolResultImages(response, getServerLogger(server, { tool: name, callId: toolCallId }))
       } catch (error) {
         if (isMcpCancellation(error, effectiveSignal)) {
           getServerLogger(server, { tool: name, callId: toolCallId }).debug('Tool call aborted')
@@ -510,7 +539,7 @@ export class McpRuntimeService extends BaseService {
         id: `p${nanoid()}`,
         serverId: server.id,
         serverName: server.name
-      })) as McpPrompt[]
+      }))
     } catch (error) {
       getServerLogger(server).error('Failed to list prompts', error as Error)
       return []
@@ -541,7 +570,7 @@ export class McpRuntimeService extends BaseService {
         ...resource,
         serverId: server.id,
         serverName: server.name
-      })) as McpResource[]
+      }))
     } catch (error) {
       getServerLogger(server).error('Failed to list resources', error as Error)
       return []
@@ -563,9 +592,10 @@ export class McpRuntimeService extends BaseService {
     return {
       contents: result.contents.map((content) => ({
         ...content,
+        name: content.uri,
         serverId: server.id,
         serverName: server.name
-      })) as McpResource[]
+      }))
     }
   }
 
@@ -703,7 +733,11 @@ export class McpRuntimeService extends BaseService {
   private async closeConnectionsForServer(serverId: string): Promise<void> {
     this.abortActiveToolCalls(serverId)
     const pendingKeys = [...this.pendingConnections.keys()].filter((key) => this.isServerKeyForId(key, serverId))
-    await Promise.all(pendingKeys.map((key) => this.pendingConnections.get(key)?.catch(() => undefined)))
+    const pendingConnections = pendingKeys.flatMap((key) => {
+      const pending = this.pendingConnections.get(key)
+      return pending ? [pending.catch(() => undefined)] : []
+    })
+    await Promise.all(pendingConnections)
     const keys = [...this.connections.keys()].filter((key) => this.isServerKeyForId(key, serverId))
     await Promise.all(keys.map((key) => this.closeConnection(key)))
   }

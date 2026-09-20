@@ -1,7 +1,8 @@
-import type { AiUsageRecordStatsResponse, AiUsageRecordTimelineResponse } from '@shared/data/api/schemas/aiUsageRecords'
 import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AiUsageRecordStatsResponse, AiUsageRecordTimelineResponse } from '@shared/data/api/schemas/aiUsageRecords'
 
 import { EMPTY_STATS_METRICS } from '../usageAnalytics'
 import { useUsageData } from '../useUsageData'

@@ -12,10 +12,11 @@
  * FEISHU_WEBHOOK_URL="..." FEISHU_WEBHOOK_SECRET="..." pnpm tsx feishu-notify.ts issue ...
  */
 
-import { Command } from 'commander'
 import crypto from 'crypto'
-import dotenv from 'dotenv'
 import https from 'https'
+
+import { Command } from 'commander'
+import dotenv from 'dotenv'
 import * as z from 'zod'
 
 // Load environment variables from .env file

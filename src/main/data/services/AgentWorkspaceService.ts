@@ -1,3 +1,8 @@
+import path from 'path'
+
+import { and, asc, count, desc, eq } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -18,9 +23,6 @@ import {
   AgentWorkspaceTypeSchema,
   type UpdateAgentWorkspaceDto
 } from '@shared/data/api/schemas/agentWorkspaces'
-import { and, asc, count, desc, eq } from 'drizzle-orm'
-import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
 
 type AgentWorkspaceLookupOptions = { includeSystem?: boolean }
 export type FindOrCreateAgentWorkspaceResult = { workspace: AgentWorkspaceEntity; created: boolean }
@@ -253,6 +255,41 @@ export class AgentWorkspaceService {
       .returning({ id: agentWorkspaceTable.id })
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
+  }
+
+  /**
+   * Delete a workspace row only while nothing references it: sessions (whose
+   * FK cascades on delete), channels, and task schedules all keep the row
+   * alive. A referenced — or already missing — row is left in place.
+   *
+   * Used by cleanup paths (e.g. agent deletion dropping an auto-provisioned
+   * heartbeat workspace) where the row may have been reused by, or shared
+   * with, user data: deleting a referenced row would cascade unrelated
+   * sessions and leave dangling template references.
+   *
+   * @returns Whether the row was deleted.
+   */
+  deleteIfUnreferencedTx(tx: DbOrTx, id: string): boolean {
+    const [row] = tx
+      .select({ id: agentWorkspaceTable.id })
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, id))
+      .limit(1)
+      .all()
+    if (!row) return false
+
+    const [session] = tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, id))
+      .limit(1)
+      .all()
+    if (session) return false
+    if (agentChannelService.listWorkspaceReferencesTx(tx, id).length > 0) return false
+    if (getDataService('AgentTaskService').listWorkspaceReferencesTx(tx, id).length > 0) return false
+
+    this.deleteByIdTx(tx, id)
+    return true
   }
 
   reorder(id: string, anchor: OrderRequest): void {

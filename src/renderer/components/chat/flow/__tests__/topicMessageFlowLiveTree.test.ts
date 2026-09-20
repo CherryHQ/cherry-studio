@@ -1,5 +1,6 @@
-import type { CherryMessagePart, CherryUIMessage, TreeNode, TreeResponse } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart, CherryUIMessage, TreeNode, TreeResponse } from '@shared/data/types/message'
 
 import { buildTopicMessageFlowLiveState, mergeTopicMessageFlowLiveTree } from '../topicMessageFlowLiveTree'
 
@@ -11,7 +12,6 @@ function treeNode({ id, ...overrides }: Partial<TreeNode> & Pick<TreeNode, 'id'>
     // Roots hang off the unrendered virtual root; use a non-node sentinel id.
     parentId: 'vroot',
     role: 'user',
-    hasContent: true,
     preview: id,
     modelId: null,
     status: 'success',
@@ -44,10 +44,10 @@ function uiMessage({
       modelId: metadata.modelId,
       createdAt: metadata.createdAt ?? createdAt
     }
-  } as CherryUIMessage
+  }
 }
 
-const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as CherryMessagePart
+const textPart = (text: string): CherryMessagePart => ({ type: 'text', text })
 
 describe('topicMessageFlowLiveTree', () => {
   it('derives a context boundary from the hidden data UI part', () => {

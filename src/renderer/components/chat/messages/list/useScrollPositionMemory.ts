@@ -21,10 +21,11 @@
  * restore from (that overwrite is exactly what made the list jump to the top).
  */
 
-import { cacheService } from '@data/CacheService'
-import type { ChatScrollAnchor } from '@shared/data/cache/cacheValueTypes'
 import { type RefObject, useCallback, useEffect, useRef } from 'react'
 import type { VListHandle } from 'virtua'
+
+import { cacheService } from '@data/CacheService'
+import type { ChatScrollAnchor } from '@shared/data/cache/cacheValueTypes'
 
 export type { ChatScrollAnchor }
 

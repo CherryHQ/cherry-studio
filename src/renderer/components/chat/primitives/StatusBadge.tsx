@@ -1,6 +1,7 @@
+import type { ComponentProps, ReactNode } from 'react'
+
 import { Badge } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComponentProps, ReactNode } from 'react'
 
 type StatusBadgeStatus = 'idle' | 'loading' | 'success' | 'warning' | 'error' | 'info' | 'muted'
 

@@ -1,3 +1,8 @@
+import { Check, Copy, TriangleAlert } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -8,10 +13,6 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
-import { Check, Copy, TriangleAlert } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Persistent first-level notification for a failed install, rendered inside
@@ -38,7 +39,7 @@ export const BinaryInstallFailureRow: FC<{ error: string; onShowError: () => voi
 export const BinaryInstallingHint: FC = () => {
   const { t } = useTranslation()
   return (
-    <p className="mt-1.5 text-[11px] text-muted-foreground leading-4">{t('settings.dependencies.installingHint')}</p>
+    <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">{t('settings.dependencies.installingHint')}</p>
   )
 }
 
@@ -111,7 +112,7 @@ export const BinaryInstallErrorDialog: FC<{
             )}
           </DialogDescription>
         </DialogHeader>
-        <pre className="max-h-72 select-text overflow-auto whitespace-pre-wrap break-all rounded-lg bg-muted p-3 font-mono text-muted-foreground text-xs leading-5">
+        <pre className="max-h-72 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs leading-5 break-all whitespace-pre-wrap text-muted-foreground select-text">
           {lastError.current.message}
         </pre>
         <DialogFooter>

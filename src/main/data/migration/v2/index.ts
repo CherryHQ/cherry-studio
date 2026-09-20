@@ -5,13 +5,14 @@
 // Core
 export { createMigrationContext, type MigrationContext } from './core/MigrationContext'
 export { MigrationEngine, migrationEngine } from './core/MigrationEngine'
-export { isSchemaOutOfSyncError } from './core/migrationErrors'
+export { describeErrorChain, isSchemaOutOfSyncError } from './core/migrationErrors'
 export {
   type MigrationPaths,
   type MigrationPathsResult,
   pinUserDataPath,
   resolveMigrationPaths
 } from './core/MigrationPaths'
+export { readMigrationV2CompletedAt, readMigrationV2Status } from './core/migrationStatus'
 export {
   evaluateCandidateVersion,
   getBlockMessage,

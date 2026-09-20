@@ -1,9 +1,10 @@
+import { shell } from 'electron'
+
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
 import type { skillRequestSchemas } from '@shared/ipc/schemas/skill'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import type { SkillResult } from '@shared/types/skill'
-import { shell } from 'electron'
 
 const logger = loggerService.withContext('skillHandlers')
 
