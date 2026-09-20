@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -44,27 +44,6 @@ beforeAll(() => {
 afterEach(cleanup)
 
 describe('AssistantPresetPreviewDialog overlay close', () => {
-  it('shows inline provider guidance and exposes its configuration action', () => {
-    const onConfigureProvider = vi.fn()
-
-    render(
-      <AssistantPresetPreviewDialog
-        preset={preset}
-        open
-        configurationProviderId="anthropic"
-        onOpenChange={vi.fn()}
-        onAdd={vi.fn()}
-        onOpenChat={vi.fn()}
-        onConfigureProvider={onConfigureProvider}
-      />
-    )
-
-    expect(screen.getByText('library.assistant_catalog.provider_required_title')).toBeInTheDocument()
-    expect(screen.getByText('library.assistant_catalog.provider_required_description')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'navigate.provider_settings' }))
-    expect(onConfigureProvider).toHaveBeenCalledWith('anthropic')
-  })
-
   it('closes when clicking the overlay while idle', () => {
     const onOpenChange = vi.fn()
 

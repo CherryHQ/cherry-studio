@@ -1858,8 +1858,6 @@
   "library.assistant_catalog.no_match_title": "找不到相符的助理",
   "library.assistant_catalog.preview_description": "簡介",
   "library.assistant_catalog.preview_prompt": "提示詞",
-  "library.assistant_catalog.provider_required_description": "請先在供應商設定中啟用一個 {{name}} 模型，再新增此助理。",
-  "library.assistant_catalog.provider_required_title": "請先設定 {{name}}",
   "library.assistant_catalog.title": "助理庫",
   "library.config.agent.field.description.hint": "有助於識別此 Agent 的用途",
   "library.config.agent.field.description.label": "描述",

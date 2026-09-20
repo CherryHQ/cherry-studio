@@ -1858,8 +1858,6 @@
   "library.assistant_catalog.no_match_title": "Keine passenden Assistenten",
   "library.assistant_catalog.preview_description": "Übersicht",
   "library.assistant_catalog.preview_prompt": "Aufforderung",
-  "library.assistant_catalog.provider_required_description": "Aktiviere ein {{name}}-Modell in den Anbietereinstellungen, bevor du diesen Assistenten hinzufügst.",
-  "library.assistant_catalog.provider_required_title": "Richte zuerst {{name}} ein",
   "library.assistant_catalog.title": "Assistenten-Bibliothek",
   "library.config.agent.field.description.hint": "Hilft dabei zu erkennen, wofür dieser Agent bestimmt ist",
   "library.config.agent.field.description.label": "Beschreibung",

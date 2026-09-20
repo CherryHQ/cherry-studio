@@ -1858,8 +1858,6 @@
   "library.assistant_catalog.no_match_title": "No matching assistants",
   "library.assistant_catalog.preview_description": "Overview",
   "library.assistant_catalog.preview_prompt": "Prompt",
-  "library.assistant_catalog.provider_required_description": "Enable a {{name}} model in its provider settings before adding this assistant.",
-  "library.assistant_catalog.provider_required_title": "Set up {{name}} first",
   "library.assistant_catalog.title": "Assistant Library",
   "library.config.agent.field.description.hint": "Helps identify what this agent is for",
   "library.config.agent.field.description.label": "Description",

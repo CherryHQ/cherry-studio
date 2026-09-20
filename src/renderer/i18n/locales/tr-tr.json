@@ -1858,8 +1858,6 @@
   "library.assistant_catalog.no_match_title": "Eşleşen asistan yok",
   "library.assistant_catalog.preview_description": "Genel Bakış",
   "library.assistant_catalog.preview_prompt": "İstem",
-  "library.assistant_catalog.provider_required_description": "Bu asistanı eklemeden önce sağlayıcı ayarlarında bir {{name}} modelini etkinleştirin.",
-  "library.assistant_catalog.provider_required_title": "Önce {{name}} kurulumunu yapın",
   "library.assistant_catalog.title": "Asistan Kitaplığı",
   "library.config.agent.field.description.hint": "Bu ajanın amacını belirlemeye yardımcı olur",
   "library.config.agent.field.description.label": "Açıklama",

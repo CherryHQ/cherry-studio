@@ -55,6 +55,7 @@ const homeMocks = vi.hoisted(() => ({
       }
     | undefined,
   cacheSetPersist: vi.fn(),
+  addAssistant: vi.fn(),
   createTopic: vi.fn(),
   classicLayoutTopics: [] as Array<{
     id: string
@@ -191,6 +192,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     isRefreshing: homeMocks.assistantsRefreshing,
     error: homeMocks.assistantsError,
     refetch: vi.fn(),
+    addAssistant: homeMocks.addAssistant,
     removeAssistant: vi.fn(),
     updateAssistant: vi.fn()
   }),
@@ -624,6 +626,22 @@ vi.mock('../components/AssistantConversationPickerDialog', () => ({
         <button type="button" onClick={() => onSelect?.({ type: 'assistant', assistantId: 'assistant-2' })}>
           Select my assistant
         </button>
+        <button
+          type="button"
+          onClick={() =>
+            onSelect?.({
+              type: 'catalog',
+              preset: {
+                id: 'preset-product',
+                name: 'Catalog Preset',
+                prompt: 'Preset prompt',
+                description: 'Preset description',
+                emoji: '📦'
+              }
+            })
+          }>
+          Select catalog assistant
+        </button>
       </div>
     ) : null
 }))
@@ -700,6 +718,10 @@ describe('HomePage', () => {
     homeMocks.homeTabsTopicsSource = undefined
     homeMocks.topicPanelTopicsSource = undefined
     homeMocks.persistCacheValues.clear()
+    homeMocks.addAssistant.mockResolvedValue({
+      id: 'assistant-created',
+      name: 'Catalog Preset'
+    })
     homeMocks.isActiveTab = false
     homeMocks.createTopic.mockResolvedValue(createdTopic)
     homeMocks.refreshTopics.mockResolvedValue(undefined)
@@ -1291,8 +1313,45 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(homeMocks.addAssistant).not.toHaveBeenCalled()
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
+  })
+
+  it('adds a catalog assistant before creating an empty topic from the classic-layout picker', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-created' })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select catalog assistant' }))
+
+    await waitFor(() =>
+      expect(homeMocks.addAssistant).toHaveBeenCalledWith({
+        name: 'Catalog Preset',
+        prompt: 'Preset prompt',
+        description: 'Preset description',
+        emoji: '📦'
+      })
+    )
+    expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-created' })
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-created')
+  })
+
+  it('reuses an existing assistant whose name matches the catalog preset instead of duplicating it', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-existing', name: 'Catalog Preset' }]
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-existing' })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select catalog assistant' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-existing' }))
+    expect(homeMocks.addAssistant).not.toHaveBeenCalled()
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-existing')
   })
 
   it('reuses the assistant latest empty topic instead of creating another one in the classic-layout picker', async () => {

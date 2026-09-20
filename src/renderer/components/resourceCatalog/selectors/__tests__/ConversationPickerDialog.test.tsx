@@ -71,21 +71,6 @@ afterEach(() => {
 })
 
 describe('ConversationPickerDialog', () => {
-  it('renders consumer-owned inline guidance above the choices', () => {
-    render(
-      <ConversationPickerDialog
-        open
-        onOpenChange={vi.fn()}
-        items={ITEMS}
-        labels={LABELS}
-        notice={<div>Configure the provider first</div>}
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(screen.getByText('Configure the provider first')).toBeInTheDocument()
-  })
-
   it('renders items in order and selects an item', () => {
     const onSelect = vi.fn()
 

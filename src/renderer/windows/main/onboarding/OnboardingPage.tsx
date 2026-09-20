@@ -22,6 +22,7 @@ import {
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
@@ -45,6 +46,8 @@ import { defaultLanguage } from '@shared/utils/languages'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog'
+
+const logger = loggerService.withContext('OnboardingPage')
 
 type OnboardingStep = 'welcome' | 'provider' | 'select-model'
 type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
@@ -363,6 +366,13 @@ export default function OnboardingPage({
       if (loginAttemptRef.current !== attemptId) return
 
       const cherryInModels = await syncProviderModels()
+      if (loginAttemptRef.current !== attemptId) return
+
+      try {
+        await dataApiService.post('/assistants:initialize-cherryin-official', {})
+      } catch (error) {
+        logger.error('Failed to initialize CherryIN official assistants', error as Error)
+      }
       if (loginAttemptRef.current !== attemptId) return
 
       if (!cherryInModels.some((model) => model.isEnabled)) {

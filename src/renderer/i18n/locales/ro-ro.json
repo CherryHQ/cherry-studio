@@ -1858,8 +1858,6 @@
   "library.assistant_catalog.no_match_title": "Niciun asistent potrivit",
   "library.assistant_catalog.preview_description": "Prezentare generală",
   "library.assistant_catalog.preview_prompt": "Prompt",
-  "library.assistant_catalog.provider_required_description": "Activați un model {{name}} în setările furnizorului înainte de a adăuga acest asistent.",
-  "library.assistant_catalog.provider_required_title": "Configurați mai întâi {{name}}",
   "library.assistant_catalog.title": "Bibliotecă asistent",
   "library.config.agent.field.description.hint": "Ajută la identificarea scopului acestui agent",
   "library.config.agent.field.description.label": "Descriere",

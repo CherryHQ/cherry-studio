@@ -1,6 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
@@ -13,12 +12,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 const mocks = vi.hoisted(() => ({
   createAssistant: vi.fn(),
-  createFromPreset: vi.fn(),
-  refetchCreationDependencies: vi.fn(),
-  creationDependencies: {
-    error: undefined as Error | undefined,
-    isLoading: false
-  },
   pickerProps: undefined as any,
   createDialogProps: undefined as any
 }))
@@ -31,28 +24,14 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   ConversationPickerDialog: (props: any) => {
     mocks.pickerProps = props
     return (
-      <div data-testid="picker" data-open={String(props.open)} data-loading={String(props.isLoading)}>
+      <div data-testid="picker" data-open={String(props.open)}>
         {props.toolbar}
-        {props.notice}
-        <button type="button" onClick={() => props.onOpenChange(false)}>
-          dismiss-picker
-        </button>
         <span data-testid="create-action-icon">{props.createAction?.row('').icon}</span>
         <button type="button" onClick={() => props.createAction?.onSelect('')}>
           create-new
         </button>
         <button type="button" onClick={() => props.createAction?.onSelect('测试助手')}>
           create-new-from-query
-        </button>
-        <button
-          type="button"
-          onClick={() => props.onSelect(props.items.find((item: any) => item.id.startsWith('assistant:')))}>
-          select-assistant
-        </button>
-        <button
-          type="button"
-          onClick={() => props.onSelect(props.items.find((item: any) => item.id.startsWith('catalog:')))}>
-          select-catalog
         </button>
       </div>
     )
@@ -90,19 +69,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/hooks/useAssistantCatalogPresets', () => ({
-  useAssistantCatalogPresets: () => ({
-    presets: [{ id: 'preset-1', name: 'Claude', officialVendor: 'anthropic' }],
-    isLoading: false
-  })
-}))
-
-vi.mock('@renderer/hooks/resourceCatalog', () => ({
-  useAssistantPresetCreation: () => ({
-    createFromPreset: mocks.createFromPreset,
-    error: mocks.creationDependencies.error,
-    isLoading: mocks.creationDependencies.isLoading,
-    refetch: mocks.refetchCreationDependencies
-  })
+  useAssistantCatalogPresets: () => ({ presets: [{ id: 'preset-1', name: 'Preset One' }], isLoading: false })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -132,24 +99,6 @@ afterEach(() => {
   mocks.pickerProps = undefined
   mocks.createDialogProps = undefined
 })
-
-beforeEach(() => {
-  mocks.creationDependencies.error = undefined
-  mocks.creationDependencies.isLoading = false
-  mocks.createFromPreset.mockResolvedValue({
-    status: 'created',
-    assistant: { id: 'assistant-from-preset', name: 'Claude' }
-  })
-  mocks.refetchCreationDependencies.mockResolvedValue(undefined)
-})
-
-function createDeferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((promiseResolve) => {
-    resolve = promiseResolve
-  })
-  return { promise, resolve }
-}
 
 describe('AssistantConversationPickerDialog', () => {
   it('exposes a create action that closes the picker and opens the assistant create dialog', () => {
@@ -231,88 +180,6 @@ describe('AssistantConversationPickerDialog', () => {
 
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
     expect(onSelect).not.toHaveBeenCalled()
-  })
-
-  it('materializes a catalog preset before forwarding the persisted assistant', async () => {
-    const onSelect = vi.fn()
-    render(<AssistantConversationPickerDialog open onOpenChange={vi.fn()} assistants={[]} onSelect={onSelect} />)
-
-    fireEvent.click(screen.getByText('select-catalog'))
-
-    await waitFor(() =>
-      expect(mocks.createFromPreset).toHaveBeenCalledWith(expect.objectContaining({ name: 'Claude' }))
-    )
-    expect(onSelect).toHaveBeenCalledWith({ type: 'assistant', assistantId: 'assistant-from-preset' })
-  })
-
-  it('keeps the picker open with inline guidance when the vendor is unavailable', async () => {
-    mocks.createFromPreset.mockResolvedValueOnce({ status: 'configuration-required', providerId: 'anthropic' })
-    const onOpenChange = vi.fn()
-    const onSelect = vi.fn()
-    render(<AssistantConversationPickerDialog open onOpenChange={onOpenChange} assistants={[]} onSelect={onSelect} />)
-
-    fireEvent.click(screen.getByText('select-catalog'))
-
-    expect(await screen.findByText('library.assistant_catalog.provider_required_title')).toBeInTheDocument()
-    expect(onSelect).not.toHaveBeenCalled()
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
-  })
-
-  it('blocks competing picker actions until preset creation settles', async () => {
-    const user = userEvent.setup()
-    const creation = createDeferred<{
-      status: 'created'
-      assistant: { id: string; name: string }
-    }>()
-    mocks.createFromPreset.mockReturnValueOnce(creation.promise)
-    const onOpenChange = vi.fn()
-    const onSelect = vi.fn()
-
-    render(
-      <AssistantConversationPickerDialog
-        open
-        onOpenChange={onOpenChange}
-        assistants={[{ id: 'mine', name: 'Mine' }] as any}
-        onSelect={onSelect}
-      />
-    )
-
-    await user.click(screen.getByText('select-catalog'))
-    await waitFor(() => expect(screen.getByTestId('picker')).toHaveAttribute('data-loading', 'true'))
-
-    await user.click(screen.getByText('dismiss-picker'))
-    await user.click(screen.getByText('select-assistant'))
-    await user.click(screen.getByText('create-new'))
-
-    expect(onOpenChange).not.toHaveBeenCalled()
-    expect(onSelect).not.toHaveBeenCalled()
-    expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'false')
-    expect(screen.getByRole('button', { name: 'selector.assistant.filter' })).toBeDisabled()
-
-    creation.resolve({ status: 'created', assistant: { id: 'created', name: 'Created' } })
-    await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ type: 'assistant', assistantId: 'created' }))
-    await waitFor(() => expect(screen.getByTestId('picker')).toHaveAttribute('data-loading', 'false'))
-
-    await user.click(screen.getByText('select-assistant'))
-    await user.click(screen.getByText('dismiss-picker'))
-    expect(onSelect).toHaveBeenLastCalledWith({ type: 'assistant', assistantId: 'mine' })
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-  })
-
-  it('shows dependency errors without provider guidance and retries loading them', async () => {
-    const user = userEvent.setup()
-    mocks.creationDependencies.error = new Error('Could not load providers')
-    mocks.creationDependencies.isLoading = true
-
-    render(<AssistantConversationPickerDialog open onOpenChange={vi.fn()} assistants={[]} onSelect={vi.fn()} />)
-
-    expect(screen.getByText('common.error')).toBeInTheDocument()
-    expect(screen.getByText('Could not load providers')).toBeInTheDocument()
-    expect(screen.queryByText('library.assistant_catalog.provider_required_title')).not.toBeInTheDocument()
-    expect(screen.getByTestId('picker')).toHaveAttribute('data-loading', 'false')
-
-    await user.click(screen.getByRole('button', { name: 'common.retry' }))
-    expect(mocks.refetchCreationDependencies).toHaveBeenCalledTimes(1)
   })
 
   it('defaults to the combined view and filters via the popover', async () => {

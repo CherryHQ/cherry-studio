@@ -8,9 +8,7 @@ import { toast } from '@renderer/services/toast'
 
 import { AssistantLibraryDialog } from '../AssistantLibraryDialog'
 
-const createFromPresetMock = vi.fn()
-const resolvePresetMock = vi.fn()
-const refetchCreationDependenciesMock = vi.fn()
+const createAssistantMock = vi.fn(async () => ({ id: 'assistant-1' }))
 
 type VirtualizerOptionsMock = {
   count: number
@@ -35,7 +33,6 @@ const virtualizerMocks = vi.hoisted(() => ({
 }))
 
 const assistantCatalogMocks = vi.hoisted(() => ({
-  previewProps: undefined as any,
   presetsFixture: [
     { id: 'p1', name: 'Web Generator', description: 'Build a web page', group: ['Featured'] },
     { id: 'p2', name: 'Chain of Thought', prompt: 'thinking protocol', group: ['Featured'] }
@@ -46,12 +43,7 @@ const assistantCatalogMocks = vi.hoisted(() => ({
       { id: 'p1', name: 'Web Generator', description: 'Build a web page', group: ['Featured'] },
       { id: 'p2', name: 'Chain of Thought', prompt: 'thinking protocol', group: ['Featured'] }
     ]
-  } as { isLoading: boolean; presets: AssistantCatalogPresetsModule.AssistantCatalogPreset[] }
-}))
-
-const creationDependenciesMock = vi.hoisted(() => ({
-  error: undefined as Error | undefined,
-  isLoading: false
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -59,13 +51,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
-  useAssistantPresetCreation: () => ({
-    createFromPreset: createFromPresetMock,
-    resolvePreset: resolvePresetMock,
-    error: creationDependenciesMock.error,
-    isLoading: creationDependenciesMock.isLoading,
-    refetch: refetchCreationDependenciesMock
-  })
+  useAssistantMutations: () => ({ createAssistant: createAssistantMock })
 }))
 
 vi.mock('@renderer/hooks/useAssistantCatalogPresets', async (importOriginal) => {
@@ -77,12 +63,7 @@ vi.mock('@renderer/hooks/useAssistantCatalogPresets', async (importOriginal) => 
 })
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/detail', () => ({
-  AssistantPresetPreviewDialog: (props: any) => {
-    assistantCatalogMocks.previewProps = props
-    return props.open ? (
-      <div data-testid="preset-preview" data-configuration-provider={props.configurationProviderId} />
-    ) : null
-  }
+  AssistantPresetPreviewDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="preset-preview" /> : null)
 }))
 
 vi.mock('@tanstack/react-virtual', () => ({
@@ -120,13 +101,6 @@ vi.mock('@cherrystudio/ui', () => {
     },
     DialogHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
     DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
-    Alert: ({ action, description, message }: { action?: ReactNode; description?: ReactNode; message?: ReactNode }) => (
-      <div role="alert">
-        <div>{message}</div>
-        <div>{description}</div>
-        {action}
-      </div>
-    ),
     EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
     Input: (props: ComponentProps<'input'>) => <input {...props} />,
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
@@ -150,13 +124,7 @@ vi.mock('@cherrystudio/ui', () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  createFromPresetMock.mockResolvedValue({ status: 'created', assistant: { id: 'assistant-1' } })
-  resolvePresetMock.mockReturnValue({ status: 'not-required' })
-  refetchCreationDependenciesMock.mockResolvedValue(undefined)
-  creationDependenciesMock.error = undefined
-  creationDependenciesMock.isLoading = false
   virtualizerMocks.measureElement.mockClear()
-  assistantCatalogMocks.previewProps = undefined
   assistantCatalogMocks.state.isLoading = false
   assistantCatalogMocks.state.presets = assistantCatalogMocks.presetsFixture
 })
@@ -238,7 +206,7 @@ describe('AssistantLibraryDialog', () => {
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
   })
 
-  it('materializes a preset and swaps the row action to "go to chat"', async () => {
+  it('adds a preset via createAssistant and swaps the row action to "go to chat"', async () => {
     const user = userEvent.setup()
     const onAssistantAdded = vi.fn()
     renderDialog({ onAssistantAdded })
@@ -247,63 +215,11 @@ describe('AssistantLibraryDialog', () => {
     const addButtons = screen.getAllByText('library.assistant_catalog.add')
     await user.click(addButtons[0])
 
-    await waitFor(() => expect(createFromPresetMock).toHaveBeenCalledTimes(1))
-    expect(createFromPresetMock).toHaveBeenCalledWith(expect.objectContaining({ name: 'Web Generator' }))
+    await waitFor(() => expect(createAssistantMock).toHaveBeenCalledTimes(1))
+    expect(createAssistantMock).toHaveBeenCalledWith(expect.objectContaining({ name: 'Web Generator' }))
     expect(onAssistantAdded).toHaveBeenCalledTimes(1)
     expect(toast.success).toHaveBeenCalledWith('common.add_success')
     expect(await screen.findByText('library.assistant_catalog.go_to_chat')).toBeInTheDocument()
-  })
-
-  it('opens inline provider guidance instead of creating when an official vendor is unavailable', async () => {
-    const user = userEvent.setup()
-    const officialPreset: AssistantCatalogPresetsModule.AssistantCatalogPreset = {
-      id: 'official-claude',
-      name: 'Claude',
-      officialVendor: 'anthropic',
-      group: ['Featured']
-    }
-    assistantCatalogMocks.state.presets = [officialPreset]
-    createFromPresetMock.mockResolvedValueOnce({ status: 'configuration-required', providerId: 'anthropic' })
-
-    renderDialog()
-    await user.click(await screen.findByText('library.assistant_catalog.add'))
-
-    expect(await screen.findByTestId('preset-preview')).toHaveAttribute('data-configuration-provider', 'anthropic')
-    expect(toast.success).not.toHaveBeenCalled()
-  })
-
-  it('shows provider guidance as soon as an unavailable official preset is opened', async () => {
-    const user = userEvent.setup()
-    const officialPreset: AssistantCatalogPresetsModule.AssistantCatalogPreset = {
-      id: 'official-claude',
-      name: 'Claude',
-      officialVendor: 'anthropic',
-      group: ['Featured']
-    }
-    assistantCatalogMocks.state.presets = [officialPreset]
-    resolvePresetMock.mockReturnValueOnce({ status: 'configuration-required', providerId: 'anthropic' })
-
-    renderDialog()
-    await user.click(await screen.findByRole('button', { name: 'Claude' }))
-
-    expect(await screen.findByTestId('preset-preview')).toHaveAttribute('data-configuration-provider', 'anthropic')
-    expect(createFromPresetMock).not.toHaveBeenCalled()
-  })
-
-  it('keeps community presets available while dependency loading is in error and offers retry', async () => {
-    const user = userEvent.setup()
-    creationDependenciesMock.error = new Error('Could not load providers')
-    creationDependenciesMock.isLoading = true
-
-    renderDialog()
-
-    expect(await screen.findByText('Web Generator')).toBeInTheDocument()
-    expect(screen.getByText('common.error')).toBeInTheDocument()
-    expect(screen.getByText('Could not load providers')).toBeInTheDocument()
-    expect(screen.getAllByText('library.assistant_catalog.add')).toHaveLength(2)
-
-    await user.click(screen.getByRole('button', { name: 'common.retry' }))
-    expect(refetchCreationDependenciesMock).toHaveBeenCalledTimes(1)
   })
 
   it('clears added preset actions when the dialog closes', async () => {

@@ -1858,8 +1858,6 @@
   "library.assistant_catalog.no_match_title": "未找到匹配的助手",
   "library.assistant_catalog.preview_description": "简介",
   "library.assistant_catalog.preview_prompt": "提示词",
-  "library.assistant_catalog.provider_required_description": "请先在服务商设置中启用一个 {{name}} 模型，再添加此助手。",
-  "library.assistant_catalog.provider_required_title": "请先配置 {{name}}",
   "library.assistant_catalog.title": "助手库",
   "library.config.agent.field.description.hint": "帮助你快速识别用途",
   "library.config.agent.field.description.label": "描述",

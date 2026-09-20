@@ -1858,8 +1858,6 @@
   "library.assistant_catalog.no_match_title": "一致するアシスタントがいません",
   "library.assistant_catalog.preview_description": "概要",
   "library.assistant_catalog.preview_prompt": "プロンプト",
-  "library.assistant_catalog.provider_required_description": "このアシスタントを追加する前に、プロバイダー設定で {{name}} モデルを有効にしてください。",
-  "library.assistant_catalog.provider_required_title": "先に {{name}} を設定してください",
   "library.assistant_catalog.title": "アシスタントライブラリ",
   "library.config.agent.field.description.hint": "このエージェントの用途を識別するのに役立ちます",
   "library.config.agent.field.description.label": "説明",

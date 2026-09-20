@@ -9,34 +9,52 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
+import { matchVendor, normalizeModelId } from '@cherrystudio/provider-registry'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
+import { userModelTable } from '@data/db/schemas/userModel'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
+import { getAppLanguage } from '@main/i18n'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   CreateAssistantDto,
   DuplicateAssistantDto,
   ImportAssistantDto,
+  InitializeCherryInOfficialAssistantsResult,
   ListAssistantsQuery,
   UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { getRawModelId, isNonChatModel } from '@shared/utils/model'
 
+import {
+  CHERRYIN_OFFICIAL_ASSISTANTS,
+  type CherryInOfficialAssistantVendor,
+  getLocalizedCherryInOfficialAssistant
+} from './cherryInOfficialAssistants'
 import { groupService } from './GroupService'
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
 import { promptService } from './PromptService'
 import { topicService } from './TopicService'
-import { applyMoves, insertWithOrderKey } from './utils/orderKey'
+import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
+const CHERRYIN_OFFICIAL_ASSISTANTS_STATE_KEY = 'assistantService:cherryInOfficialAssistants'
+const CHERRYIN_OFFICIAL_ASSISTANTS_STATE_DESCRIPTION =
+  'Fixed assistant IDs created after a successful CherryIN OAuth model sync'
+
+type CherryInOfficialAssistantsState = {
+  createdIds: string[]
+}
 
 type AssistantRow = typeof assistantTable.$inferSelect
 
@@ -91,6 +109,28 @@ function rethrowAssistantOrderError(error: unknown): never {
   }
 
   throw error
+}
+
+function isPreferredCherryInChatTier(
+  vendor: CherryInOfficialAssistantVendor,
+  model: Model,
+  canonicalModelId: string
+): boolean {
+  switch (vendor) {
+    case 'anthropic':
+      return canonicalModelId.includes('sonnet')
+    case 'openai':
+      return /^gpt-5(?:-\d+)?(?:-\d{4}-\d{2}-\d{2})?(?:-chat(?:-latest)?)?$/.test(canonicalModelId)
+    case 'gemini':
+      return canonicalModelId.includes('pro')
+    case 'deepseek':
+      if (model.family) return model.family === 'deepseek-flash'
+      return /^deepseek-(?:v\d+(?:[.-]\d+)?-)?flash(?:-|$)/.test(canonicalModelId)
+    case 'kimi':
+      return canonicalModelId.startsWith('kimi-k2') && !canonicalModelId.includes('thinking')
+    case 'doubao':
+      return true
+  }
 }
 
 export class AssistantDataService {
@@ -368,6 +408,133 @@ export class AssistantDataService {
       total: Number(count),
       page
     }
+  }
+
+  private listEligibleCherryInModelsTx(tx: Pick<DbType, 'select'>): Model[] {
+    const rows = tx
+      .select({ id: userModelTable.id })
+      .from(userModelTable)
+      .where(eq(userModelTable.providerId, 'cherryin'))
+      .orderBy(asc(userModelTable.orderKey))
+      .all()
+
+    return rows.flatMap(({ id }) => {
+      const model = modelService.findByIdTx(tx, id)
+      if (
+        !model ||
+        model.providerId !== 'cherryin' ||
+        !model.isEnabled ||
+        model.isHidden ||
+        model.isDeprecated ||
+        isNonChatModel(model)
+      ) {
+        return []
+      }
+      return [model]
+    })
+  }
+
+  private selectCherryInModel(
+    vendor: CherryInOfficialAssistantVendor,
+    models: readonly Model[],
+    defaultModelId: string | null
+  ): Model | undefined {
+    const candidates = models.flatMap((model) => {
+      const canonicalModelId = normalizeModelId(model.presetModelId ?? getRawModelId(model))
+      return matchVendor(canonicalModelId) === vendor ? [{ model, canonicalModelId }] : []
+    })
+
+    const preferredDefault = candidates.find(({ model }) => model.id === defaultModelId)
+    if (preferredDefault) return preferredDefault.model
+
+    return (
+      candidates.find(({ model, canonicalModelId }) => isPreferredCherryInChatTier(vendor, model, canonicalModelId))
+        ?.model ?? candidates[0]?.model
+    )
+  }
+
+  initializeCherryInOfficialAssistants(): InitializeCherryInOfficialAssistantsResult {
+    const defaultModelId = application.get('PreferenceService').get('chat.default_model_id') ?? null
+    const locale = getAppLanguage()
+    const officialIds = CHERRYIN_OFFICIAL_ASSISTANTS.map(({ id }) => id)
+
+    const createdAssistantIds = application.get('DbService').withWriteTx((tx) => {
+      const [stateRow] = tx
+        .select({ value: appStateTable.value })
+        .from(appStateTable)
+        .where(eq(appStateTable.key, CHERRYIN_OFFICIAL_ASSISTANTS_STATE_KEY))
+        .limit(1)
+        .all()
+      const state = stateRow?.value as Partial<CherryInOfficialAssistantsState> | undefined
+      const recordedIds = new Set(Array.isArray(state?.createdIds) ? state.createdIds : [])
+      let stateChanged = !stateRow || !Array.isArray(state?.createdIds)
+
+      const existingRows = tx
+        .select({ id: assistantTable.id })
+        .from(assistantTable)
+        .where(inArray(assistantTable.id, officialIds))
+        .all()
+      for (const { id } of existingRows) {
+        if (!recordedIds.has(id)) {
+          recordedIds.add(id)
+          stateChanged = true
+        }
+      }
+
+      const models = this.listEligibleCherryInModelsTx(tx)
+      const selected = CHERRYIN_OFFICIAL_ASSISTANTS.flatMap((definition) => {
+        if (recordedIds.has(definition.id)) return []
+        const model = this.selectCherryInModel(definition.vendor, models, defaultModelId)
+        if (!model) return []
+        return [{ definition: getLocalizedCherryInOfficialAssistant(definition, locale), model }]
+      })
+
+      insertManyWithOrderKey(
+        tx,
+        assistantTable,
+        selected.map(({ definition, model }) => ({
+          id: definition.id,
+          name: definition.name,
+          prompt: definition.prompt,
+          emoji: definition.emoji,
+          description: definition.description,
+          modelId: model.id,
+          settings: { ...definition.settings }
+        })),
+        { pkColumn: assistantTable.id, scope: isNull(assistantTable.deletedAt) }
+      )
+
+      const insertedIds = selected.map(({ definition }) => definition.id)
+      for (const id of insertedIds) recordedIds.add(id)
+      stateChanged ||= insertedIds.length > 0
+
+      if (stateChanged && recordedIds.size > 0) {
+        const now = Date.now()
+        const value: CherryInOfficialAssistantsState = { createdIds: [...recordedIds] }
+
+        tx.insert(appStateTable)
+          .values({
+            key: CHERRYIN_OFFICIAL_ASSISTANTS_STATE_KEY,
+            value,
+            description: CHERRYIN_OFFICIAL_ASSISTANTS_STATE_DESCRIPTION,
+            createdAt: now,
+            updatedAt: now
+          })
+          .onConflictDoUpdate({
+            target: appStateTable.key,
+            set: { value, description: CHERRYIN_OFFICIAL_ASSISTANTS_STATE_DESCRIPTION, updatedAt: now }
+          })
+          .run()
+      }
+
+      return insertedIds
+    })
+
+    this.notifyReadModelChange(createdAssistantIds, 'membership')
+    if (createdAssistantIds.length > 0) {
+      logger.info('Created CherryIN official assistants', { assistantIds: createdAssistantIds })
+    }
+    return { createdAssistantIds }
   }
 
   /**

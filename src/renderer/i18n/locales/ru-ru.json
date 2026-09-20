@@ -1858,8 +1858,6 @@
   "library.assistant_catalog.no_match_title": "Подходящие ассистенты не найдены",
   "library.assistant_catalog.preview_description": "Обзор",
   "library.assistant_catalog.preview_prompt": "Промпт",
-  "library.assistant_catalog.provider_required_description": "Перед добавлением этого ассистента включите модель {{name}} в настройках провайдера.",
-  "library.assistant_catalog.provider_required_title": "Сначала настройте {{name}}",
   "library.assistant_catalog.title": "Библиотека помощников",
   "library.config.agent.field.description.hint": "Помогает определить, для чего предназначен этот агент",
   "library.config.agent.field.description.label": "Описание",

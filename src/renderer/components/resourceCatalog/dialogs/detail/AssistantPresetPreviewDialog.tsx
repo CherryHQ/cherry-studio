@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
 import {
-  Alert,
   Badge,
   Button,
   Dialog,
@@ -11,27 +10,22 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
-import { AssistantPresetIcon } from '@renderer/components/resourceCatalog/AssistantPresetIcon'
-import type { OfficialAssistantVendor } from '@renderer/utils/resourceCatalog'
 
 export interface AssistantPresetPreviewDialogPreset {
   description?: string
   emoji?: string
   group?: string[]
   name: string
-  officialVendor?: OfficialAssistantVendor
   prompt?: string
 }
 
-type Props = {
+interface Props {
   preset: AssistantPresetPreviewDialogPreset | null
   open: boolean
   adding?: boolean
   addedAssistantId?: string
-  configurationProviderId?: string
   onOpenChange: (open: boolean) => void
   onAdd: () => Promise<void> | void
-  onConfigureProvider?: (providerId: string) => void
   onOpenChat: (assistantId: string) => void
 }
 
@@ -40,10 +34,8 @@ export function AssistantPresetPreviewDialog({
   open,
   adding = false,
   addedAssistantId,
-  configurationProviderId,
   onOpenChange,
   onAdd,
-  onConfigureProvider,
   onOpenChat
 }: Props) {
   const { t } = useTranslation()
@@ -67,7 +59,7 @@ export function AssistantPresetPreviewDialog({
         <DialogHeader className="shrink-0 border-b border-border-subtle px-5 pt-5 pr-12 pb-4 text-left">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-base">
-              <AssistantPresetIcon preset={preset} size={20} />
+              {preset.emoji || '🤖'}
             </div>
             <div className="min-w-0 pt-0.5">
               <DialogTitle className="truncate">{preset.name}</DialogTitle>
@@ -77,7 +69,7 @@ export function AssistantPresetPreviewDialog({
                     <Badge
                       key={group}
                       variant="secondary"
-                      className="text-muted-foreground border-0 bg-secondary px-1.5 py-px text-xs">
+                      className="border-0 bg-secondary px-1.5 py-px text-xs text-muted-foreground">
                       {group}
                     </Badge>
                   ))}
@@ -88,23 +80,9 @@ export function AssistantPresetPreviewDialog({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]">
-          {configurationProviderId && onConfigureProvider ? (
-            <Alert
-              type="warning"
-              showIcon
-              message={t('library.assistant_catalog.provider_required_title', { name: preset.name })}
-              description={t('library.assistant_catalog.provider_required_description', { name: preset.name })}
-              action={
-                <Button variant="outline" size="sm" onClick={() => onConfigureProvider(configurationProviderId)}>
-                  {t('navigate.provider_settings')}
-                </Button>
-              }
-              className="rounded-md px-3 py-2 shadow-none"
-            />
-          ) : null}
           {description && (
             <section>
-              <div className="text-muted-foreground mb-2 text-sm">
+              <div className="mb-2 text-sm text-muted-foreground">
                 {t('library.assistant_catalog.preview_description')}
               </div>
               <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">{description}</p>
@@ -113,8 +91,8 @@ export function AssistantPresetPreviewDialog({
 
           {prompt && (
             <section>
-              <div className="text-muted-foreground mb-2 text-sm">{t('library.assistant_catalog.preview_prompt')}</div>
-              <p className="text-muted-foreground rounded-md border border-border-subtle bg-muted p-4 text-sm leading-relaxed whitespace-pre-wrap">
+              <div className="mb-2 text-sm text-muted-foreground">{t('library.assistant_catalog.preview_prompt')}</div>
+              <p className="rounded-md border border-border-subtle bg-muted p-4 text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
                 {prompt}
               </p>
             </section>
@@ -128,7 +106,7 @@ export function AssistantPresetPreviewDialog({
           <Button
             variant="emphasis"
             loading={!isAdded && adding}
-            disabled={!isAdded && (adding || Boolean(configurationProviderId))}
+            disabled={!isAdded && adding}
             onClick={() => {
               if (addedAssistantId) {
                 onOpenChat(addedAssistantId)

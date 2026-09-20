@@ -1858,8 +1858,6 @@
   "library.assistant_catalog.no_match_title": "Δεν υπάρχουν αντίστοιχοι βοηθοί",
   "library.assistant_catalog.preview_description": "Επισκόπηση",
   "library.assistant_catalog.preview_prompt": "Προτροπή",
-  "library.assistant_catalog.provider_required_description": "Ενεργοποιήστε ένα μοντέλο {{name}} στις ρυθμίσεις παρόχου πριν προσθέσετε αυτόν τον βοηθό.",
-  "library.assistant_catalog.provider_required_title": "Ρυθμίστε πρώτα το {{name}}",
   "library.assistant_catalog.title": "Βιβλιοθήκη Βοηθού",
   "library.config.agent.field.description.hint": "Βοηθά στον εντοπισμό του σκοπού αυτού του πράκτορα",
   "library.config.agent.field.description.label": "Περιγραφή",
