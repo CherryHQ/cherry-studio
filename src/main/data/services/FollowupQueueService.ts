@@ -138,11 +138,17 @@ export class FollowupQueueService {
 
   /**
    * Enqueue one item at the end of the scope. Count check + insert run in one
-   * transaction so concurrent enqueues cannot overshoot the limit.
+   * transaction so concurrent enqueues cannot overshoot the limit. A caller
+   * supplied `id` is an idempotency key: a transport retry of a committed
+   * insert returns the existing row instead of duplicating it.
    */
   enqueue(dto: CreateFollowupQueueDto): FollowupQueueItem {
     const dbService = application.get('DbService')
     const item = dbService.withWriteTx((tx) => {
+      if (dto.id) {
+        const [duplicate] = tx.select().from(followupQueueTable).where(eq(followupQueueTable.id, dto.id)).limit(1).all()
+        if (duplicate) return rowToItem(duplicate)
+      }
       const existing = tx
         .select({ id: followupQueueTable.id })
         .from(followupQueueTable)
@@ -157,7 +163,13 @@ export class FollowupQueueService {
       const inserted = insertWithOrderKey(
         tx,
         followupQueueTable,
-        { scopeKey: dto.scopeKey, draft: dto.draft, payload: dto.payload, status: 'pending' as const },
+        {
+          ...(dto.id ? { id: dto.id } : {}),
+          scopeKey: dto.scopeKey,
+          draft: dto.draft,
+          payload: dto.payload,
+          status: 'pending' as const
+        },
         { pkColumn: followupQueueTable.id, scope: eq(followupQueueTable.scopeKey, dto.scopeKey) }
       )
       return rowToItem(inserted as FollowupQueueRow)

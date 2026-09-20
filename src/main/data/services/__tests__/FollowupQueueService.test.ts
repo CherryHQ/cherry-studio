@@ -83,6 +83,15 @@ describe('FollowupQueueService', () => {
       const rows = followupQueueService.listByScope(SCOPE_A)
       expect(rows).toHaveLength(FOLLOWUP_QUEUE_LIMIT)
     })
+
+    it('should return the existing row when a caller-supplied id is enqueued twice', () => {
+      const id = '33333333-3333-7333-8333-333333333333'
+      const first = followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id })
+      const second = followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id })
+
+      expect(second).toEqual(first)
+      expect(followupQueueService.listByScope(SCOPE_A)).toHaveLength(1)
+    })
   })
 
   describe('claim', () => {

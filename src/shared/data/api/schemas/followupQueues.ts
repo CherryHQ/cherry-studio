@@ -32,8 +32,11 @@ export const FollowupQueueScopeQuerySchema = z.strictObject({
 })
 export type FollowupQueueScopeQuery = z.infer<typeof FollowupQueueScopeQuerySchema>
 
-/** Body for `POST /followup-queues`. */
+/** Body for `POST /followup-queues`. `id` is a client-generated idempotency
+ * key: the transport retries timed-out POSTs with the same body, so a retry
+ * after a committed insert returns the existing row instead of duplicating it. */
 export const CreateFollowupQueueSchema = z.strictObject({
+  id: FollowupQueueIdSchema.optional(),
   scopeKey: FollowupQueueScopeKeySchema,
   draft: FollowupQueueDraftSchema,
   payload: FollowupQueuePayloadSchema
