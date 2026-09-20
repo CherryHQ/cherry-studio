@@ -144,8 +144,10 @@ session.
 ### LAN exposure is confined to pairing + export
 
 The local gateway keeps its configured port (default `23333`) on loopback.
-Enabling LAN access starts a separate `ApiGateway` listener on `0.0.0.0` with an
-OS-assigned port; the pairing offer reports that actual port. Disabling LAN
+Enabling LAN access starts a separate `ApiGateway` listener on `0.0.0.0` on the
+persisted `feature.api_gateway.lan_port` port, falling back to an OS-assigned
+one (and re-persisting it) when that port is taken; the pairing offer reports
+that actual port. Disabling LAN
 closes only that listener and invalidates its pairing code. Existing local
 streams and new local requests continue on the original listener.
 
@@ -311,8 +313,10 @@ An explicit gateway stop atomically persists `enabled = false` and the return
 from LAN to loopback, then closes the LAN listener and clears its pairing code.
 A `deferred` stop preserves the local listener for existing task leases; the
 final lease release stops it. A later ordinary gateway start stays on loopback.
-An explicit restart retains LAN intent, but creates a new LAN listener whose
-port may differ; mobile clients must obtain its new endpoint from a fresh QR.
+An explicit restart retains LAN intent, and the new LAN listener re-claims the
+persisted `feature.api_gateway.lan_port` when free; if another process took it,
+a fresh OS-assigned port is assigned and persisted, so mobile clients may need
+to obtain the new endpoint from a fresh QR.
 
 ### Running state — Shared Cache, not IPC
 
@@ -345,7 +349,8 @@ already-consumed QR code in every settings window.
 |---|---|---|---|
 | `feature.api_gateway.enabled` | `boolean` | `false` | Auto-start on launch / toggled from settings |
 | `feature.api_gateway.host` | `string` | `'127.0.0.1'` | `0.0.0.0` requests the separate LAN listener; the local listener stays on loopback |
-| `feature.api_gateway.port` | `number` | `23333` | Local TCP port (UI clamps 1000–65535); LAN uses an OS-assigned port |
+| `feature.api_gateway.port` | `number` | `23333` | Local TCP port (UI clamps 1000–65535); LAN uses the persisted LAN port below |
+| `feature.api_gateway.lan_port` | `number` | `0` | Last assigned LAN listener port; `0` = assign an ephemeral one on next start |
 | `feature.api_gateway.api_key` | `string \| null` | `null` | Auto-generated `cs-sk-<uuid>` on first activate |
 
 Migrated from v1 `redux/settings/apiServer.{enabled,host,port,apiKey}` via the

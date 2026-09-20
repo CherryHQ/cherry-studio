@@ -2443,6 +2443,14 @@
             },
             {
               "category": "preferences",
+              "defaultValue": 0,
+              "originalKey": "lanPort",
+              "status": "classified",
+              "targetKey": "feature.api_gateway.lan_port",
+              "type": "number"
+            },
+            {
+              "category": "preferences",
               "defaultValue": "VALUE: null",
               "originalKey": "apiKey",
               "status": "classified",
