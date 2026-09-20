@@ -38,48 +38,51 @@ export interface GeneratePaintingOptions {
 }
 
 export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMetadata[]> {
-  return runPainting(async () => {
-    // The caller awaits model-support prefetch, provider checks and input-image reads
-    // before reaching here; an abort during those never fires the listener below.
-    if (opts.signal.aborted) {
-      throw new DOMException('Image generation aborted', 'AbortError')
-    }
-    const requestId = crypto.randomUUID()
-    const onAbort = () => void ipcApi.request('ai.image.abort', { requestId })
-    opts.signal.addEventListener('abort', onAbort, { once: true })
-    const result = await ipcApi
-      .request('ai.image.generate', {
-        requestId,
-        payload: {
-          uniqueModelId: `${opts.provider.id}::${opts.modelId}`,
-          prompt: opts.prompt,
-          ...(opts.mode && { mode: opts.mode }),
-          paramValues: opts.paramValues,
-          // Painting-owned images: reaped once no painting references them (file-entry-cleanup.md §4.1).
-          cleanupPolicy: 'delete_when_unreferenced',
-          ...(opts.inputImages && opts.inputImages.length > 0 && { inputImages: opts.inputImages })
-        }
-      })
-      // A failure now crosses IpcApi as an IpcError (name 'IpcError'), so an abort would
-      // no longer satisfy runPainting's `name === 'AbortError'` cancel check. When the
-      // user aborted, re-throw a real AbortError to preserve the silent-cancel behaviour.
-      .catch((error) => {
-        if (opts.signal.aborted) throw new DOMException('Image generation aborted', 'AbortError')
-        throw error
-      })
-      .finally(() => opts.signal.removeEventListener('abort', onAbort))
+  return runPainting(
+    async () => {
+      // The caller awaits model-support prefetch, provider checks and input-image reads
+      // before reaching here; an abort during those never fires the listener below.
+      if (opts.signal.aborted) {
+        throw new DOMException('Image generation aborted', 'AbortError')
+      }
+      const requestId = crypto.randomUUID()
+      const onAbort = () => void ipcApi.request('ai.image.abort', { requestId })
+      opts.signal.addEventListener('abort', onAbort, { once: true })
+      const result = await ipcApi
+        .request('ai.image.generate', {
+          requestId,
+          payload: {
+            uniqueModelId: `${opts.provider.id}::${opts.modelId}`,
+            prompt: opts.prompt,
+            ...(opts.mode && { mode: opts.mode }),
+            paramValues: opts.paramValues,
+            // Painting-owned images: reaped once no painting references them (file-entry-cleanup.md §4.1).
+            cleanupPolicy: 'delete_when_unreferenced',
+            ...(opts.inputImages && opts.inputImages.length > 0 && { inputImages: opts.inputImages })
+          }
+        })
+        // A failure now crosses IpcApi as an IpcError (name 'IpcError'), so an abort would
+        // no longer satisfy runPainting's `name === 'AbortError'` cancel check. When the
+        // user aborted, re-throw a real AbortError to preserve the silent-cancel behaviour.
+        .catch((error) => {
+          if (opts.signal.aborted) throw new DOMException('Image generation aborted', 'AbortError')
+          throw error
+        })
+        .finally(() => opts.signal.removeEventListener('abort', onAbort))
 
-    if (opts.signal.aborted) {
-      throw new DOMException('Image generation aborted', 'AbortError')
-    }
-    if (result.files.length === 0) {
-      return undefined
-    }
+      if (opts.signal.aborted) {
+        throw new DOMException('Image generation aborted', 'AbortError')
+      }
+      if (result.files.length === 0) {
+        return undefined
+      }
 
-    // main already persisted the images (`createInternalEntry`); just adapt the
-    // returned v2 `FileEntry` rows to the v1 `FileMetadata` the painting state
-    // still consumes. No base64 round-trip.
-    const files = await Promise.all(result.files.map(fileEntryToMetadata))
-    return files.length > 0 ? { files } : undefined
-  })
+      // main already persisted the images (`createInternalEntry`); just adapt the
+      // returned v2 `FileEntry` rows to the v1 `FileMetadata` the painting state
+      // still consumes. No base64 round-trip.
+      const files = await Promise.all(result.files.map(fileEntryToMetadata))
+      return files.length > 0 ? { files } : undefined
+    },
+    { hasInputImages: Boolean(opts.inputImages?.length) }
+  )
 }
