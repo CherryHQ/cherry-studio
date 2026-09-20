@@ -35,6 +35,7 @@ import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
+import { appLanguageOptions } from '@renderer/i18n/languages'
 import { toast } from '@renderer/services/toast'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
@@ -43,7 +44,12 @@ import {
   initialAssistantFormState
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
-import { DEFAULT_ASSISTANT_SETTINGS, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/data/types/assistant'
+import {
+  type AssistantReplyLanguage,
+  DEFAULT_ASSISTANT_SETTINGS,
+  MAX_TOOL_CALLS,
+  MIN_TOOL_CALLS
+} from '@shared/data/types/assistant'
 import {
   MAX_COMPRESS_THRESHOLD_PERCENT,
   MIN_COMPRESS_THRESHOLD_PERCENT,
@@ -100,6 +106,7 @@ type AssistantEditFormValues = {
   enableMaxToolCalls: boolean
   customParameters: AssistantFormState['customParameters']
   mcpMode: AssistantFormState['mcpMode']
+  replyLanguage: AssistantReplyLanguage | null
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
@@ -116,6 +123,8 @@ type AssistantToolTab = 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
+/** Sentinel Select value for "no reply language locked" — `replyLanguage` itself stays null. */
+const REPLY_LANGUAGE_AUTO = 'auto'
 
 function isAssistantToolTab(value: string): value is AssistantToolTab {
   return value === 'tools.mcp' || value === 'tools.knowledge'
@@ -141,6 +150,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
     mcpMode: form.mcpMode,
+    replyLanguage: form.replyLanguage,
     contextOverrideEnabled: form.contextOverrideEnabled,
     contextCompressEnabled: form.contextCompressEnabled,
     contextTruncateThreshold: form.contextTruncateThreshold,
@@ -181,6 +191,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     enableMaxToolCalls: values.enableMaxToolCalls,
     customParameters: values.customParameters,
     mcpMode: values.mcpMode,
+    replyLanguage: values.replyLanguage,
     contextOverrideEnabled: values.contextOverrideEnabled,
     contextCompressEnabled: values.contextCompressEnabled,
     contextTruncateThreshold: values.contextTruncateThreshold,
@@ -816,6 +827,43 @@ function AssistantAdvancedFields({
                   onCheckedChange={field.onChange}
                   aria-label={t('library.config.basic.stream_output')}
                 />
+              </FormControl>
+            </div>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="replyLanguage"
+        render={({ field }) => (
+          <FormItem>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <FieldLabelWithHelp
+                  label={t('library.config.basic.reply_language')}
+                  help={t('library.config.basic.field.reply_language.hint')}
+                />
+              </div>
+              <FormControl>
+                <Select
+                  value={field.value ?? REPLY_LANGUAGE_AUTO}
+                  onValueChange={(value) =>
+                    field.onChange(value === REPLY_LANGUAGE_AUTO ? null : (value as AssistantReplyLanguage))
+                  }>
+                  <SelectTrigger size="sm" className="w-40" aria-label={t('library.config.basic.reply_language')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent portalContainer={portalContainer}>
+                    <SelectItem value={REPLY_LANGUAGE_AUTO}>{t('library.config.basic.reply_language_auto')}</SelectItem>
+                    {appLanguageOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormControl>
             </div>
             <FormMessage />

@@ -1,5 +1,5 @@
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
-import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
+import type { Assistant, AssistantReplyLanguage, AssistantSettings } from '@shared/data/types/assistant'
 import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS, McpModeSchema } from '@shared/data/types/assistant'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 
@@ -44,6 +44,8 @@ export interface AssistantFormState {
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
   mcpMode: AssistantSettings['mcpMode']
+  /** Locks replies to one language; null = Auto (no instruction, today's behavior). */
+  replyLanguage: AssistantReplyLanguage | null
   // context management (P2-D assistant override). `contextOverrideEnabled` is
   // the master switch for the OFFLOAD + COMPRESSION fields only.
   contextOverrideEnabled: boolean
@@ -92,6 +94,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
+    replyLanguage: settings.replyLanguage ?? null,
     // Only an offload/compression field means "override": a lone maxMessages is
     // the scope control saved on its own.
     contextOverrideEnabled: ctx != null && (ctx.truncateThreshold !== undefined || ctx.compress !== undefined),
@@ -169,6 +172,7 @@ export function diffAssistantUpdate(
     ...(baseline.maxToolCalls !== form.maxToolCalls ? { maxToolCalls: form.maxToolCalls } : {}),
     ...(baseline.enableMaxToolCalls !== form.enableMaxToolCalls ? { enableMaxToolCalls: form.enableMaxToolCalls } : {}),
     ...(baseline.mcpMode !== form.mcpMode ? { mcpMode: form.mcpMode } : {}),
+    ...(baseline.replyLanguage !== form.replyLanguage ? { replyLanguage: form.replyLanguage } : {}),
     ...(customParametersChanged ? { customParameters: form.customParameters } : {}),
     ...(contextSettingsChanged
       ? {
