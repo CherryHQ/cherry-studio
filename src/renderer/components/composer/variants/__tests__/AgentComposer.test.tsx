@@ -1468,6 +1468,33 @@ describe('AgentComposer', () => {
     expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 
+  it('keeps a reasoning effort pick local while a session model override is active', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        resolvedModel={{
+          ...model,
+          id: 'anthropic::claude-opus-4',
+          apiModelId: 'claude-opus-4',
+          name: 'Claude Opus 4'
+        }}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+
+    // Persisting would renormalize the pick against the unrelated agent
+    // default and clobber shared config, so the pick stays composer-local.
+    expect(mocks.updateAgent).not.toHaveBeenCalled()
+    expect(mocks.updateSession).not.toHaveBeenCalled()
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
+  })
+
   it('does not mistake an in-flight session update for a pending reasoning edit', () => {
     mocks.updateSession.mockImplementation(() => new Promise(() => undefined))
 
