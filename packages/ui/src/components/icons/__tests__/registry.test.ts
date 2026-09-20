@@ -11,6 +11,7 @@ describe('resolveProviderIconRef', () => {
     { providerId: 'zai', expectedToExist: true },
     { providerId: 'tencent-cloud-ti', expectedToExist: true },
     { providerId: 'tokenhub', expectedToExist: true },
+    { providerId: 'tokenmarket', expectedToExist: true },
     { providerId: 'baidu-cloud', expectedToExist: true },
     { providerId: 'aws-bedrock', expectedToExist: true },
     { providerId: 'aionly', expectedToExist: true },

@@ -26,6 +26,7 @@ export const REASONING_WIRE_TARGETS = [
   'chat_template_kwargs.thinking',
   'chat_template_kwargs.thinking_mode',
   'chat_template_kwargs.thinking_budget',
+  'extra_body.enable_thinking',
   'extra_body.google.thinking_config.thinking_budget',
   'extra_body.google.thinking_config.include_thoughts',
   'extra_body.thinking.type',
