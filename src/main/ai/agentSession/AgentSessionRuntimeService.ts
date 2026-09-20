@@ -732,6 +732,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   async primeConnection(sessionId: string): Promise<void> {
     if (this.forks.edits.has(sessionId)) return
+    let primedEntry: AgentSessionRuntimeEntry | undefined
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -777,6 +778,7 @@ export class AgentSessionRuntimeService extends BaseService {
         runtimeState: createAgentSessionRuntimeState()
       }
       this.entries.set(sessionId, entry)
+      primedEntry = entry
 
       const connected = await this.ensureConnection(entry)
       // A turn may have superseded/cleared this entry while connecting — leave its lifecycle to it.
@@ -791,6 +793,11 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     } catch (error) {
       logger.warn('Failed to prime agent session connection', { sessionId, error })
+      // A throw strands the entry inserted above with no connection and no idle timer; drop it
+      // so a later open rebuilds instead of reusing it.
+      if (primedEntry && this.entries.get(sessionId) === primedEntry) {
+        void this.closeSession(sessionId)
+      }
     }
   }
 
