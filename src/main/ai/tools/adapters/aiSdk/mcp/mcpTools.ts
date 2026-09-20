@@ -4,9 +4,10 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { mcpServerService } from '@main/data/services/McpServerService'
-import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
+import { isBrowserMcpServer } from '@shared/utils/mcp'
 
 import { getRequestContext } from '../context'
 import { createMcpInputSchema } from '../mcpSchema'
@@ -177,4 +178,57 @@ export async function syncMcpToolsToRegistry(
       reg.deregister(entry.name)
     }
   }
+}
+
+export interface ResolveMcpToolIdsOptions {
+  /**
+   * Skip approval-gated (force-prompt) tools. Assistant-less chat surfaces
+   * (Quick Assist etc.) have no approval continuation path — those tools would
+   * stall the turn, so the global fallback excludes them. The assistant path
+   * keeps them: the full chat UI has the approval card flow.
+   */
+  readonly excludeForcePrompt?: boolean
+}
+
+/**
+ * Shared per-server tool-ID collection, used by the assistant-less fallback
+ * (`resolveGlobalMcpToolIds`). Reads each server's cache-only catalog (which
+ * kicks a non-blocking warm when cold), then applies the per-server
+ * disable-policy filter (and optionally the force-prompt exclusion).
+ */
+export async function resolveMcpToolIdsForServers(
+  servers: readonly McpServer[],
+  opts: ResolveMcpToolIdsOptions = {}
+): Promise<string[]> {
+  if (servers.length === 0) return []
+
+  const results = await Promise.allSettled(
+    servers.map(async (server) => {
+      const tools = application.get('McpCatalogService').listTools(server.id)
+      return tools
+        .filter((tool) => !isMcpToolDisabledBySource(server, tool))
+        .filter((tool) => !(opts.excludeForcePrompt && isMcpToolForcePromptBySource(server, tool)))
+        .map((tool) => tool.id)
+    })
+  )
+
+  return results.flatMap((result) => {
+    if (result.status === 'fulfilled') return result.value
+    logger.warn('Failed to list tools for an MCP server', { err: result.reason })
+    return []
+  })
+}
+
+/**
+ * Resolve MCP tool IDs from all globally active servers — fallback for
+ * assistant-less chat surfaces (e.g. Quick Assist with no `assistantId`).
+ * Respects per-server tool-disable policies, excludes approval-gated
+ * (force-prompt) tools (no approval continuation path here), and skips the
+ * in-memory browser server (its tools are routed via the web-tool routing,
+ * same as the assistant path).
+ */
+export async function resolveGlobalMcpToolIds(): Promise<string[]> {
+  const { items: activeServers } = mcpServerService.list({ isActive: true })
+  const servers = activeServers.filter((server) => !isBrowserMcpServer(server))
+  return resolveMcpToolIdsForServers(servers, { excludeForcePrompt: true })
 }
