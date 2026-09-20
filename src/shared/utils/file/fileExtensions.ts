@@ -1,8 +1,83 @@
 import { codeLanguages } from '@shared/utils/codeLanguages'
 
-export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
-export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
-export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a']
+/**
+ * Media catalogs are curated from mime-db (the IANA-backed type→extension
+ * database): every entry must exist there under the catalog's own type, and
+ * `fileExtensions.test.ts` enforces both that grounding and cross-catalog
+ * uniqueness. Curate for formats users actually hold — not every registered
+ * type. To extend: verify the extension in mime-db, add it here, run the tests.
+ */
+export const imageExts = [
+  '.apng',
+  '.avif',
+  '.bmp',
+  '.dng',
+  '.gif',
+  '.heic',
+  '.heif',
+  '.ico',
+  '.jfif',
+  '.jpe',
+  '.jpeg',
+  '.jpg',
+  '.jp2',
+  '.jxl',
+  '.ktx2',
+  '.png',
+  '.psd',
+  '.svg',
+  '.svgz',
+  '.tif',
+  '.tiff',
+  '.webp'
+]
+export const videoExts = [
+  '.3g2',
+  '.3gp',
+  '.asf',
+  '.avi',
+  '.f4v',
+  '.flv',
+  '.m2ts',
+  '.m4v',
+  '.mkv',
+  '.mov',
+  '.mp4',
+  '.mpeg',
+  '.mpg',
+  '.mts',
+  '.ogv',
+  '.qt',
+  '.ts',
+  '.webm',
+  '.wmv'
+]
+export const audioExts = [
+  '.aac',
+  '.aif',
+  '.aifc',
+  '.aiff',
+  '.amr',
+  '.au',
+  '.caf',
+  '.dts',
+  '.flac',
+  '.m4a',
+  '.m4b',
+  '.mka',
+  '.mid',
+  '.midi',
+  '.mp2',
+  '.mp3',
+  '.mpga',
+  '.oga',
+  '.ogg',
+  '.opus',
+  '.ra',
+  '.wav',
+  '.weba',
+  '.wma'
+]
 export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', '.odt', '.odp', '.ods']
 export const archiveExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2', '.xz'] as const
 export const knowledgeSupportedFileExts = [
