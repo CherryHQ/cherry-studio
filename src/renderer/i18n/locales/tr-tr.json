@@ -2744,7 +2744,7 @@
   "onboarding.privacy.period": "。",
   "onboarding.privacy.policy": "Gizlilik Politikası",
   "onboarding.privacy.update_failed": "Gizlilik sözleşmesi kaydedilemedi. Lütfen tekrar deneyin.",
-  "onboarding.provider_setup.free_hint": "Ücretsiz ve yerel sağlayıcılar (LM Studio çalışıyorsa da dahil) ilk olarak gösterilir. Tüm sağlayıcıları görmek için yukarıdaki filtreyi kullanın.",
+  "onboarding.provider_setup.free_hint": "Önce ücretsiz olanlar gösteriliyor: ücretsiz katmanı olan sağlayıcılar ve bu bilgisayarda çalışan LM Studio, Ollama gibi yerel olanlar. Tümünü görmek için yukarıdaki filtreyi kullan.",
   "onboarding.provider_setup.missing_model": "Etkin sağlayıcıdan en az bir modeli etkinleştirin",
   "onboarding.provider_setup.missing_provider": "Devam etmek için bir sağlayıcıyı etkinleştirin",
   "onboarding.provider_setup.next": "İleri",

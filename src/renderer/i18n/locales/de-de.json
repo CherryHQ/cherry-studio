@@ -2744,7 +2744,7 @@
   "onboarding.privacy.period": "",
   "onboarding.privacy.policy": "Datenschutzerklärung",
   "onboarding.privacy.update_failed": "Ihre Zustimmung zur Datenschutzerklärung konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
-  "onboarding.provider_setup.free_hint": "Zeigt zunächst kostenlose und lokale Provider an, einschließlich LM Studio, wenn es läuft. Verwenden Sie den Filter oben, um alle Provider zu sehen.",
+  "onboarding.provider_setup.free_hint": "Die kostenlosen werden zuerst angezeigt: Anbieter mit kostenlosem Tier und lokale wie LM Studio und Ollama, die auf diesem Computer laufen. Verwenden Sie den Filter oben, um alle Anbieter zu sehen.",
   "onboarding.provider_setup.missing_model": "Aktivieren Sie mindestens ein Modell vom aktivierten Anbieter",
   "onboarding.provider_setup.missing_provider": "Aktivieren Sie einen Anbieter, um fortzufahren",
   "onboarding.provider_setup.next": "Nächster",

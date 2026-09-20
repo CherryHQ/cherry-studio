@@ -2744,7 +2744,7 @@
   "onboarding.privacy.period": "",
   "onboarding.privacy.policy": "隐私协议",
   "onboarding.privacy.update_failed": "无法保存隐私协议同意状态，请重试",
-  "onboarding.provider_setup.free_hint": "优先显示免费和本地提供商，包括LM Studio（如果正在运行）。使用上方的筛选器查看所有提供商。",
+  "onboarding.provider_setup.free_hint": "优先显示免费的：有免费层级的服务商，以及在此计算机上运行的LM Studio和Ollama等本地服务商。使用上方的筛选器查看所有服务商。",
   "onboarding.provider_setup.missing_model": "请先启用该服务商下的至少一个模型",
   "onboarding.provider_setup.missing_provider": "请先启用一个服务商",
   "onboarding.provider_setup.next": "下一步",
