@@ -109,6 +109,7 @@ export function useHomeMessageListProviderValue({
     refresh: ['/topics']
   })
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
+  const [excludedMessageIds, setExcludedMessageIds] = usePreference('chat.context_settings.excluded_messages')
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const [translationLanguagesRequested, setTranslationLanguagesRequested] = useState(false)
@@ -137,7 +138,7 @@ export function useHomeMessageListProviderValue({
     >()
   )
 
-  const messageItems = useMemo(() => {
+  const baseMessageItems = useMemo(() => {
     return messages.map((message) => {
       const cached = messageItemCacheRef.current.get(message)
       if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topicId) {
@@ -156,6 +157,29 @@ export function useHomeMessageListProviderValue({
       return item
     })
   }, [messages, resolvedAssistantId, topicId])
+
+  // Overlaid separately from `baseMessageItems`: that memo caches per raw message object and
+  // would not re-run when only the exclusion preference changes.
+  const messageItems = useMemo(() => {
+    if (!excludedMessageIds || Object.keys(excludedMessageIds).length === 0) return baseMessageItems
+    return baseMessageItems.map((item) =>
+      excludedMessageIds[item.id] ? { ...item, isExcludedFromContext: true } : item
+    )
+  }, [baseMessageItems, excludedMessageIds])
+
+  const setMessageContextExclusion = useCallback<NonNullable<MessageListActions['setMessageContextExclusion']>>(
+    (messageId, excluded) => {
+      const current = excludedMessageIds ?? {}
+      if (excluded === Boolean(current[messageId])) return
+      if (excluded) {
+        void setExcludedMessageIds({ ...current, [messageId]: true })
+        return
+      }
+      const { [messageId]: _removed, ...rest } = current
+      void setExcludedMessageIds(rest)
+    },
+    [excludedMessageIds, setExcludedMessageIds]
+  )
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
   const partsByMessageIdRef = useRef(partsByMessageId)
@@ -862,6 +886,7 @@ export function useHomeMessageListProviderValue({
       startEditing,
       getMessageDeleteAvailability: normalInteractionsEnabled ? getMessageDeleteAvailability : undefined,
       deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
+      setMessageContextExclusion: normalInteractionsEnabled ? setMessageContextExclusion : undefined,
       startMessageBranch,
       copyBranchToNewTopic: normalInteractionsEnabled ? copyBranchToNewTopic : undefined,
       setActiveBranch,
@@ -908,6 +933,7 @@ export function useHomeMessageListProviderValue({
       removeMessageErrorPart,
       saveCodeBlock,
       setActiveBranch,
+      setMessageContextExclusion,
       showInFolder,
       startEditing,
       startMessageBranch,

@@ -7,6 +7,7 @@ export type MessageMenuBarButtonId =
   | 'translate'
   | 'useful'
   | 'notes'
+  | 'exclude-context'
   | 'delete'
   | 'more-menu'
 
@@ -19,6 +20,7 @@ export const DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenuBarButtonId[] = [
   'translate',
   'useful',
   'notes',
+  'exclude-context',
   'delete',
   'more-menu'
 ]
@@ -27,5 +29,6 @@ export const STREAMING_DISABLED_BUTTON_IDS: ReadonlySet<MessageMenuBarButtonId> 
   'user-edit',
   'delete',
   'assistant-regenerate',
-  'assistant-continue'
+  'assistant-continue',
+  'exclude-context'
 ])

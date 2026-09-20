@@ -71,6 +71,15 @@ export type ServiceUsageMap = Record<string, { count: number; periodStart: numbe
  */
 export type QuotaNoticeMap = QuotaNoticeState
 
+/**
+ * Which historical messages are excluded from the model-facing history for a
+ * turn. Keyed by message id; presence (mapped to `true`) means excluded,
+ * absence means included. Global (not scoped by topic) because message ids
+ * are unique app-wide; toggling a message back in deletes its key rather than
+ * setting it to `false`, so the map only grows with currently-excluded messages.
+ */
+export type ExcludedContextMessageMap = Record<string, true>
+
 /** Task kinds the router recognises; each maps to the models that are best at it. */
 export const TASK_CATEGORIES = ['code', 'research', 'writing', 'image', 'general'] as const
 export type TaskCategory = (typeof TASK_CATEGORIES)[number]

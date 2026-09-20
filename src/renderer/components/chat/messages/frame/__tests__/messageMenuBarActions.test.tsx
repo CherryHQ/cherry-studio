@@ -411,6 +411,31 @@ describe('messageMenuBarActions', () => {
     expect(continueTruncatedMessage).toHaveBeenCalledWith('message-7')
   })
 
+  it('hides the context-exclusion toggle when the capability is absent', () => {
+    const toolbarActions = resolveMessageMenuBarToolbarActions(createActionContext({ actions: {} }))
+    expect(toolbarActions.map((action) => action.id)).not.toContain('exclude-context')
+  })
+
+  it('excludes an included message and includes an excluded one', async () => {
+    const setMessageContextExclusion = vi.fn()
+    const actions = { setMessageContextExclusion } as unknown as MessageListActions
+
+    await executeMessageMenuBarAction(
+      'exclude-context',
+      createActionContext({ actions, message: { ...createActionContext().message, id: 'message-included' } })
+    )
+    expect(setMessageContextExclusion).toHaveBeenCalledWith('message-included', true)
+
+    await executeMessageMenuBarAction(
+      'exclude-context',
+      createActionContext({
+        actions,
+        message: { ...createActionContext().message, id: 'message-excluded', isExcludedFromContext: true }
+      })
+    )
+    expect(setMessageContextExclusion).toHaveBeenCalledWith('message-excluded', false)
+  })
+
   it('does not require confirmation before regenerating an assistant message', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({

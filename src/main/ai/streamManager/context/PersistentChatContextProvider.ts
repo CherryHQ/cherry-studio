@@ -44,6 +44,7 @@ import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
 import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
+import { applyContextExclusions } from '../../messages/contextExclusion'
 import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
@@ -1197,7 +1198,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
     const messagePath = messageService.getPathToNode(anchorMessageId)
     const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
-    const rawMsgs = messagePath.slice(lastClearIndex + 1)
+    // Selective context (Q2): ids the user ticked out of history, independent of the clear-context
+    // boundary above. Filtered here, before rawUI/retainedContext exist, so an excluded message's
+    // file/tool handles are never allow-listed either — same revocation the max-messages window needs.
+    const excludedMessageIds = application.get('PreferenceService').get('chat.context_settings.excluded_messages')
+    const rawMsgs = applyContextExclusions(
+      messagePath.slice(lastClearIndex + 1),
+      new Set(Object.keys(excludedMessageIds))
+    )
     // Capability state from the RAW path: compaction folds file parts and tool
     // outputs out of the served view, so scanning served messages downstream
     // would silently drop read_file for folded attachments (finding #2) and

@@ -1,6 +1,7 @@
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -73,6 +74,11 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
   // The text a prior turn produced before it yielded to the steer; the steer continuation's
   // history must include it (it was persisted on the assistant row by the normal terminal path).
   const PARTIAL = 'partial answer so far'
+
+  // The exclusion map is a mocked Preference (module-level state), not reset between `it`s.
+  afterEach(async () => {
+    await application.get('PreferenceService').set('chat.context_settings.excluded_messages', {})
+  })
 
   beforeEach(async () => {
     const [providerKey, modelKey] = generateOrderKeySequence(2)
@@ -341,6 +347,26 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { role: 'assistant', text: PARTIAL },
       { role: 'user', text: 'branch without boundary' },
       { role: 'user', text: 'continue old branch' }
+    ])
+  })
+
+  it('drops an individually excluded message while keeping the rest of the history in order', async () => {
+    await application.get('PreferenceService').set('chat.context_settings.excluded_messages', { u1: true })
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        userMessageParts: [{ type: 'text', text: 'new question' }]
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(flatten(prepared.models[0].request.messages!)).toEqual([
+      { role: 'assistant', text: PARTIAL },
+      { role: 'user', text: 'new question' }
     ])
   })
 

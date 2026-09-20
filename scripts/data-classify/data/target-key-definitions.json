@@ -384,6 +384,13 @@
       "description": "Percent of the model input room at which history is compacted (v2 新增，非迁移)"
     },
     {
+      "targetKey": "chat.context_settings.excluded_messages",
+      "type": "PreferenceTypes.ExcludedContextMessageMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Message ids currently excluded from the history sent to the model, keyed by message id (presence means excluded); toggled per message in the chat UI and does not affect the persisted message content"
+    },
+    {
       "targetKey": "topic.tab.display_mode",
       "type": "PreferenceTypes.TopicDisplayMode",
       "defaultValue": "assistant",

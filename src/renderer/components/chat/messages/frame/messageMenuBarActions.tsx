@@ -6,6 +6,8 @@ import {
   CirclePause,
   CopyPlus,
   CornerDownRight,
+  Eye,
+  EyeOff,
   FilePenLine,
   Languages,
   ListChecks,
@@ -212,6 +214,10 @@ registerCommand('message.regenerate', async ({ actions, message }) => {
 
 registerCommand('message.continueTruncated', async ({ actions, message }) => {
   await actions.continueTruncatedMessage?.(message.id)
+})
+
+registerCommand('message.toggleContextExclusion', async ({ actions, message }) => {
+  await actions.setMessageContextExclusion?.(message.id, !message.isExcludedFromContext)
 })
 
 registerCommand('message.delete', async ({ actions, message }) => {
@@ -431,6 +437,15 @@ registerToolbarAction({
     'notes',
     ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.exportToNotes
   )
+})
+
+registerToolbarAction({
+  id: 'exclude-context',
+  commandId: 'message.toggleContextExclusion',
+  label: ({ t, message }) =>
+    t(message.isExcludedFromContext ? 'chat.message.exclude_context.include' : 'chat.message.exclude_context.exclude'),
+  icon: ({ message }) => (message.isExcludedFromContext ? <Eye size={15} /> : <EyeOff size={15} />),
+  availability: toolbarAvailability('exclude-context', ({ actions }) => !!actions.setMessageContextExclusion)
 })
 
 registerToolbarAction({
