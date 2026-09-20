@@ -75,8 +75,8 @@ const TRANSPORTS: Record<string, TransportRegistration> = {
     poll: true,
     cancel: true,
     load: async (settings) => {
-      const { buildComfyuiTransport } = await import('./comfyui/comfyuiTransport')
-      return buildComfyuiTransport(settings as Parameters<typeof buildComfyuiTransport>[0])
+      const { createComfyuiTransport } = await import('./comfyui/comfyuiTransport')
+      return createComfyuiTransport(settings as Parameters<typeof createComfyuiTransport>[0])
     }
   }
 }
