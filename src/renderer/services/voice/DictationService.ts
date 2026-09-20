@@ -27,10 +27,16 @@ export interface DictationSnapshot {
   readonly phase: DictationPhase
   readonly elapsedMs: number
   readonly recoveryAvailable: boolean
+  readonly retryAvailable?: true
   readonly error?: DictationErrorCategory
 }
 
 export type DictationStartOptions = Pick<TranscriptionInput, 'language' | 'modelId'>
+
+export interface DictationRun {
+  readonly result: Promise<void>
+  cancel(): Promise<void>
+}
 
 interface RecordingEntry {
   readonly id: string
@@ -84,6 +90,7 @@ interface DictationServiceOptions {
 
 interface ActiveDictation {
   readonly generation: number
+  readonly runToken: symbol
   readonly sessionId: string
   readonly target: CapturedVoiceTarget | null
   readonly options: DictationStartOptions
@@ -97,6 +104,12 @@ interface ActiveDictation {
   transcription?: VoiceOperation<TranscriptionResult>
   stopTask?: Promise<void>
   discardTask?: Promise<void>
+}
+
+interface DictationRecovery {
+  readonly runToken: symbol
+  readonly generation: number
+  readonly text: string
 }
 
 const voiceReasons = new Set<string>(Object.keys(voiceErrorCodes))
@@ -123,13 +136,15 @@ export class DictationService {
   private readonly listeners = new Set<() => void>()
   private snapshot: DictationSnapshot = { phase: 'idle', elapsedMs: 0, recoveryAvailable: false }
   private active?: ActiveDictation
-  private recoveryText?: string
+  private recovery?: DictationRecovery
   private elapsedTimer?: ReturnType<typeof setInterval>
   private maximumTimer?: ReturnType<typeof setTimeout>
+  private timerOwner?: ActiveDictation
   private initialization?: { generation: number; promise: Promise<void> }
   private unsubscribeCommands?: () => void
   private lifecycleGeneration = 0
   private generation = 0
+  private currentRunToken?: symbol
 
   constructor(options: DictationServiceOptions = {}) {
     this.voice = options.voice ?? voiceService
@@ -172,27 +187,46 @@ export class DictationService {
     return promise
   }
 
-  async start(options: DictationStartOptions = {}): Promise<void> {
+  start(options: DictationStartOptions = {}): Promise<void> {
+    return this.startScoped(options).result
+  }
+
+  startScoped(options: DictationStartOptions = {}): DictationRun {
     const target = this.targets.captureCurrent()
     const generation = ++this.generation
-    this.recoveryText = undefined
+    const runToken = Symbol('dictation-run')
+    this.currentRunToken = runToken
+    this.recovery = undefined
+    return {
+      result: this.startRun(runToken, generation, target, options),
+      cancel: () => this.cancelRun(runToken)
+    }
+  }
+
+  private async startRun(
+    runToken: symbol,
+    generation: number,
+    target: CapturedVoiceTarget | null,
+    options: DictationStartOptions
+  ): Promise<void> {
     if (await this.cleanupActive()) return
-    if (generation !== this.generation) return
+    if (!this.isRunCurrent(runToken, generation)) return
     this.publish('starting')
 
     try {
       await this.initialize()
     } catch (error) {
-      if (generation === this.generation) {
+      if (this.isRunCurrent(runToken, generation)) {
         this.publish('failed', 0, false, errorCategory(error, 'operation_failed'))
       }
       return
     }
-    if (generation !== this.generation) return
+    if (!this.isRunCurrent(runToken, generation)) return
 
     const admission = this.voice.startRecording({ source: 'dictation' })
     const active: ActiveDictation = {
       generation,
+      runToken,
       sessionId: admission.sessionId,
       target,
       options,
@@ -219,7 +253,7 @@ export class DictationService {
     } catch (error) {
       const cleanupError = await this.cleanupSession(active)
       if (cleanupError) return
-      if (generation === this.generation) {
+      if (this.isRunCurrent(runToken, generation)) {
         this.publish(
           'failed',
           0,
@@ -252,7 +286,9 @@ export class DictationService {
     } catch (error) {
       const cleanupError = await this.cleanupSession(active)
       if (cleanupError) return
-      if (generation === this.generation) this.publish('failed', 0, false, errorCategory(error, 'recording_failed'))
+      if (this.isRunCurrent(runToken, generation)) {
+        this.publish('failed', 0, false, errorCategory(error, 'recording_failed'))
+      }
     }
   }
 
@@ -265,10 +301,12 @@ export class DictationService {
   }
 
   async cancel(): Promise<void> {
+    const runToken = this.currentRunToken
+    if (runToken) return this.cancelRun(runToken)
     this.generation += 1
-    this.recoveryText = undefined
+    this.recovery = undefined
     const cleanupError = await this.cleanupActive()
-    if (!cleanupError) this.publish('idle')
+    if (!cleanupError && !this.currentRunToken) this.publish('idle')
   }
 
   async retry(): Promise<void> {
@@ -278,27 +316,26 @@ export class DictationService {
   }
 
   insertRecovery(): VoiceTargetInsertResult {
-    if (!this.recoveryText) return 'unavailable'
-    const result = this.targets.insertIntoCurrent(this.recoveryText, 'user_recovery')
+    const recovery = this.recovery
+    if (!recovery) return 'unavailable'
+    const result = this.targets.insertIntoCurrent(recovery.text, 'user_recovery')
     if (result === 'inserted') {
-      this.recoveryText = undefined
-      this.publish('idle')
+      this.finishRecovery(recovery)
     }
     return result
   }
 
   async copyRecovery(): Promise<boolean> {
-    const text = this.recoveryText
-    if (!text) return false
+    const recovery = this.recovery
+    if (!recovery) return false
     try {
-      await this.clipboard.writeText(text)
-      if (this.recoveryText === text) {
-        this.recoveryText = undefined
-        this.publish('idle')
+      await this.clipboard.writeText(recovery.text)
+      if (this.isRecoveryCurrent(recovery)) {
+        this.finishRecovery(recovery)
       }
       return true
     } catch {
-      this.publish('recovery', 0, true, 'clipboard_failed')
+      if (this.isRecoveryCurrent(recovery)) this.publish('recovery', 0, true, 'clipboard_failed')
       return false
     }
   }
@@ -318,7 +355,7 @@ export class DictationService {
   private async finishRecording(active: ActiveDictation): Promise<void> {
     const elapsedMs = this.elapsed(active)
     this.publish('stopping', elapsedMs)
-    this.clearTimers()
+    this.clearTimers(active)
     this.stopRecorder(active)
     this.stopActiveTracks(active)
     await active.recorderStopped
@@ -356,7 +393,7 @@ export class DictationService {
     } catch (error) {
       if (!this.isCurrent(active)) return
       active.transcription = undefined
-      this.publish('failed', this.snapshot.elapsedMs, false, errorCategory(error, 'transcription_failed'))
+      this.publish('failed', this.snapshot.elapsedMs, false, errorCategory(error, 'transcription_failed'), true)
     }
   }
 
@@ -367,15 +404,42 @@ export class DictationService {
     } catch {
       inserted = 'unavailable'
     }
-    if (inserted === 'unavailable') this.recoveryText = text
+    if (inserted === 'unavailable') {
+      this.recovery = { runToken: active.runToken, generation: active.generation, text }
+    }
     const cleanupError = await this.cleanupSession(active, false)
-    if (this.recoveryText) {
+    if (!this.isRunCurrent(active.runToken, active.generation)) return
+    if (this.recovery) {
       this.publish('recovery', 0, true, cleanupError)
     } else if (cleanupError) {
       this.publish('failed', 0, false, cleanupError)
     } else {
+      this.currentRunToken = undefined
       this.publish('idle')
     }
+  }
+
+  private async cancelRun(runToken: symbol): Promise<void> {
+    if (this.currentRunToken !== runToken) return
+    this.generation += 1
+    this.recovery = undefined
+    const cleanupError = await this.cleanupActive()
+    if (this.currentRunToken !== runToken) return
+    if (!cleanupError) {
+      this.currentRunToken = undefined
+      this.publish('idle')
+    }
+  }
+
+  private finishRecovery(recovery: DictationRecovery): void {
+    if (!this.isRecoveryCurrent(recovery)) return
+    this.recovery = undefined
+    if (!this.active) this.currentRunToken = undefined
+    this.publish('idle')
+  }
+
+  private isRecoveryCurrent(recovery: DictationRecovery): boolean {
+    return this.recovery === recovery && this.isRunCurrent(recovery.runToken, recovery.generation)
   }
 
   private async cleanupActive(): Promise<DictationErrorCategory | undefined> {
@@ -391,7 +455,7 @@ export class DictationService {
     active: ActiveDictation,
     publishFailure = true
   ): Promise<DictationErrorCategory | undefined> {
-    this.clearTimers()
+    this.clearTimers(active)
     this.stopRecorder(active)
     this.stopActiveTracks(active)
     this.clearRecordingData(active)
@@ -433,6 +497,7 @@ export class DictationService {
 
   private startTimers(active: ActiveDictation): void {
     this.clearTimers()
+    this.timerOwner = active
     this.elapsedTimer = setInterval(() => {
       if (this.isCurrent(active) && this.snapshot.phase === 'recording') {
         this.publish('recording', this.elapsed(active))
@@ -443,11 +508,13 @@ export class DictationService {
     }, MAX_RECORDING_DURATION_MS)
   }
 
-  private clearTimers(): void {
+  private clearTimers(active?: ActiveDictation): void {
+    if (active && this.timerOwner !== active) return
     if (this.elapsedTimer !== undefined) clearInterval(this.elapsedTimer)
     if (this.maximumTimer !== undefined) clearTimeout(this.maximumTimer)
     this.elapsedTimer = undefined
     this.maximumTimer = undefined
+    this.timerOwner = undefined
   }
 
   private elapsed(active: ActiveDictation): number {
@@ -485,7 +552,7 @@ export class DictationService {
     ) {
       return
     }
-    void this.cancel()
+    void this.cancelRun(active.runToken)
   }
 
   private detachCommands(): void {
@@ -494,16 +561,27 @@ export class DictationService {
   }
 
   private isCurrent(active: ActiveDictation): boolean {
-    return this.active === active && active.generation === this.generation
+    return this.active === active && active.generation === this.generation && this.currentRunToken === active.runToken
+  }
+
+  private isRunCurrent(runToken: symbol, generation: number): boolean {
+    return this.currentRunToken === runToken && this.generation === generation
   }
 
   private publish(
     phase: DictationPhase,
     elapsedMs = 0,
     recoveryAvailable = false,
-    error?: DictationErrorCategory
+    error?: DictationErrorCategory,
+    retryAvailable?: true
   ): void {
-    this.snapshot = Object.freeze({ phase, elapsedMs, recoveryAvailable, ...(error && { error }) })
+    this.snapshot = Object.freeze({
+      phase,
+      elapsedMs,
+      recoveryAvailable,
+      ...(retryAvailable && { retryAvailable }),
+      ...(error && { error })
+    })
     this.listeners.forEach((listener) => listener())
   }
 }

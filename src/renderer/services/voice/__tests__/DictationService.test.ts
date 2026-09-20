@@ -256,6 +256,124 @@ describe('DictationService recording lifecycle', () => {
     expect(harness.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
   })
 
+  it('lets the scoped owner stop its recording and discard the admitted lease', async () => {
+    const harness = createHarness()
+
+    const run = harness.service.startScoped()
+    await run.result
+    await run.cancel()
+
+    expect(harness.recorders[0].stop).toHaveBeenCalledOnce()
+    harness.tracks.forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
+    expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')
+    expect(harness.voice.createRecording).not.toHaveBeenCalled()
+    expect(harness.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
+  })
+
+  it('cancels a scoped run while initialize is pending without admitting a recording later', async () => {
+    const initialization = deferred<void>()
+    const harness = createHarness()
+    harness.voice.initialize.mockReturnValueOnce(initialization.promise)
+
+    const run = harness.service.startScoped()
+    await vi.waitFor(() => expect(harness.voice.initialize).toHaveBeenCalledOnce())
+    await run.cancel()
+    initialization.resolve()
+    await run.result
+
+    expect(harness.voice.startRecording).not.toHaveBeenCalled()
+    expect(harness.getUserMedia).not.toHaveBeenCalled()
+    expect(harness.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
+  })
+
+  it('cancels a pending scoped admission without requesting the microphone after it resolves', async () => {
+    const admission = deferred<{ revision: number; phase: 'recording'; sessionId: string }>()
+    const harness = createHarness()
+    harness.voice.startRecording.mockReturnValueOnce(operation('session-a', 'request-a', admission.promise))
+
+    const run = harness.service.startScoped()
+    await vi.waitFor(() => expect(harness.voice.startRecording).toHaveBeenCalledOnce())
+    await run.cancel()
+    admission.resolve({ revision: 1, phase: 'recording', sessionId: 'session-a' })
+    await run.result
+
+    expect(harness.getUserMedia).not.toHaveBeenCalled()
+    expect(harness.voice.discardSession).toHaveBeenCalledWith('session-a')
+    expect(harness.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
+  })
+
+  it('stops a late permission stream after its scoped owner cancels', async () => {
+    const permission = deferred<MediaStream>()
+    const lateTracks = [{ stop: vi.fn() }, { stop: vi.fn() }]
+    const lateStream = { getTracks: () => lateTracks } as unknown as MediaStream
+    const getUserMedia = vi.fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>(() => permission.promise)
+    const harness = createHarness({ getUserMedia })
+
+    const run = harness.service.startScoped()
+    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledWith({ audio: true }))
+    await run.cancel()
+    permission.resolve(lateStream)
+    await run.result
+
+    lateTracks.forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
+    expect(harness.createMediaRecorder).not.toHaveBeenCalled()
+    expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')
+    expect(harness.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
+  })
+
+  it('does not let an older scoped owner cancel a replacement recording', async () => {
+    const firstTrack = { stop: vi.fn() }
+    const secondTrack = { stop: vi.fn() }
+    const firstStream = { getTracks: () => [firstTrack] } as unknown as MediaStream
+    const secondStream = { getTracks: () => [secondTrack] } as unknown as MediaStream
+    const getUserMedia = vi
+      .fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>()
+      .mockResolvedValueOnce(firstStream)
+      .mockResolvedValueOnce(secondStream)
+    const harness = createHarness({ getUserMedia })
+
+    const first = harness.service.startScoped()
+    await first.result
+    const second = harness.service.startScoped()
+    await second.result
+    await first.cancel()
+
+    expect(firstTrack.stop).toHaveBeenCalledOnce()
+    expect(secondTrack.stop).not.toHaveBeenCalled()
+    expect(harness.voice.discardSession).not.toHaveBeenCalledWith('session-2')
+    expect(harness.service.getSnapshot().phase).toBe('recording')
+
+    await second.cancel()
+    expect(secondTrack.stop).toHaveBeenCalledOnce()
+    expect(harness.voice.discardSession).toHaveBeenCalledWith('session-2')
+  })
+
+  it('keeps replacement recording timers when an older permission request rejects late', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    const firstPermission = deferred<MediaStream>()
+    const replacementTrack = { stop: vi.fn() }
+    const replacementStream = { getTracks: () => [replacementTrack] } as unknown as MediaStream
+    const getUserMedia = vi
+      .fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>()
+      .mockReturnValueOnce(firstPermission.promise)
+      .mockResolvedValueOnce(replacementStream)
+    const harness = createHarness({ getUserMedia })
+
+    const first = harness.service.startScoped()
+    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1))
+    const replacement = harness.service.startScoped()
+    await replacement.result
+    expect(harness.service.getSnapshot().phase).toBe('recording')
+
+    firstPermission.reject(new DOMException('late denial', 'NotAllowedError'))
+    await first.result
+    await vi.advanceTimersByTimeAsync(300_000)
+
+    await vi.waitFor(() => expect(harness.voice.transcribe).toHaveBeenCalledOnce())
+    expect(replacementTrack.stop).toHaveBeenCalledOnce()
+  })
+
   it('cleans the previous session and tracks before a new recording, and cleans the replacement on teardown', async () => {
     const firstTrack = { stop: vi.fn() }
     const secondTrack = { stop: vi.fn() }
@@ -340,6 +458,7 @@ describe('DictationService failure and retry', () => {
       error: 'microphone_permission'
     })
     expect(JSON.stringify(harness.service.getSnapshot())).not.toContain('private permission detail')
+    expect(harness.service.getSnapshot()).not.toHaveProperty('retryAvailable')
   })
 
   it('retains the same FileEntry after ASR failure and retries it with a new request', async () => {
@@ -360,6 +479,7 @@ describe('DictationService failure and retry', () => {
     expect(harness.service.getSnapshot()).toMatchObject({
       phase: 'failed',
       recoveryAvailable: false,
+      retryAvailable: true,
       error: 'operation_failed'
     })
     expect(harness.voice.discardSession).not.toHaveBeenCalled()
@@ -377,7 +497,30 @@ describe('DictationService failure and retry', () => {
     })
     expect(harness.replaceRange).toHaveBeenCalledWith({ from: 2, to: 5 }, 'recovered text')
     expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')
-    expect(harness.service.getSnapshot().phase).toBe('idle')
+    expect(harness.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
+  })
+
+  it('aborts transcription and prevents late injection when its scoped owner cancels', async () => {
+    const transcription = deferred<{ sessionId: string; requestId: string; text: string }>()
+    const harness = createHarness()
+    harness.voice.transcribe.mockReturnValueOnce(operation('session-1', 'request-asr', transcription.promise))
+
+    const run = harness.service.startScoped()
+    await run.result
+    const stopping = harness.service.stop()
+    await vi.waitFor(() => expect(harness.voice.transcribe).toHaveBeenCalledOnce())
+    await run.cancel()
+    transcription.resolve({ sessionId: 'session-1', requestId: 'request-asr', text: 'late private transcript' })
+    await stopping
+
+    expect(harness.voice.abortTranscription).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      requestId: 'request-asr',
+      result: transcription.promise
+    })
+    expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')
+    expect(harness.replaceRange).not.toHaveBeenCalled()
+    expect(harness.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
   })
 
   it('preserves cleanup failure over microphone permission failure', async () => {
@@ -465,6 +608,98 @@ describe('DictationService private recovery', () => {
     await second.service.discard()
     expect(second.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
     expect(second.service.insertRecovery()).toBe('unavailable')
+  })
+
+  it('lets the scoped owner discard recovery without affecting a completed successful run', async () => {
+    const recovered = createHarness()
+    recovered.unbind()
+    const recoveryRun = recovered.service.startScoped()
+    await recoveryRun.result
+    await recovered.service.stop()
+
+    expect(recovered.service.getSnapshot()).toEqual({ phase: 'recovery', elapsedMs: 0, recoveryAvailable: true })
+    await recoveryRun.cancel()
+    expect(recovered.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
+    expect(recovered.service.insertRecovery()).toBe('unavailable')
+    expect(recovered.voice.discardSession).toHaveBeenCalledOnce()
+
+    const completed = createHarness()
+    const completedRun = completed.service.startScoped()
+    await completedRun.result
+    await completed.service.stop()
+    expect(completed.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
+
+    await completedRun.cancel()
+    expect(completed.voice.discardSession).toHaveBeenCalledOnce()
+    expect(completed.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
+  })
+
+  it('retires scoped ownership after recovery is explicitly inserted', async () => {
+    const harness = createHarness()
+    harness.unbind()
+    const run = harness.service.startScoped()
+    await run.result
+    await harness.service.stop()
+
+    harness.targetManager.bind({
+      targetId: 'recovery-composer',
+      owner: { closed: false } as Window,
+      sourceEntityId: 'topic-b',
+      captureReplaceRange: () => ({ from: 0, to: 0 }),
+      replaceRange: vi.fn(() => true)
+    })
+    harness.targetManager.markCurrent('recovery-composer')
+    const onChange = vi.fn()
+    harness.service.subscribe(onChange)
+
+    expect(harness.service.insertRecovery()).toBe('inserted')
+    expect(onChange).toHaveBeenCalledOnce()
+    await run.cancel()
+
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(harness.voice.discardSession).toHaveBeenCalledOnce()
+    expect(harness.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
+  })
+
+  it('does not let an older clipboard success consume an identical replacement recovery', async () => {
+    const clipboardWrite = deferred<undefined>()
+    const harness = createHarness()
+    harness.unbind()
+    const first = harness.service.startScoped()
+    await first.result
+    await harness.service.stop()
+    harness.clipboard.writeText.mockReturnValueOnce(clipboardWrite.promise)
+    const copying = harness.service.copyRecovery()
+
+    const replacement = harness.service.startScoped()
+    await replacement.result
+    await harness.service.stop()
+    expect(harness.service.getSnapshot()).toEqual({ phase: 'recovery', elapsedMs: 0, recoveryAvailable: true })
+
+    clipboardWrite.resolve(undefined)
+    await expect(copying).resolves.toBe(true)
+
+    expect(harness.service.getSnapshot()).toEqual({ phase: 'recovery', elapsedMs: 0, recoveryAvailable: true })
+    await replacement.cancel()
+  })
+
+  it('does not let an older clipboard failure replace a newer recording snapshot', async () => {
+    const clipboardWrite = deferred<undefined>()
+    const harness = createHarness()
+    harness.unbind()
+    const first = harness.service.startScoped()
+    await first.result
+    await harness.service.stop()
+    harness.clipboard.writeText.mockReturnValueOnce(clipboardWrite.promise)
+    const copying = harness.service.copyRecovery()
+
+    const replacement = harness.service.startScoped()
+    await replacement.result
+    clipboardWrite.reject(new Error('late clipboard failure'))
+    await expect(copying).resolves.toBe(false)
+
+    expect(harness.service.getSnapshot()).toEqual({ phase: 'recording', elapsedMs: 0, recoveryAvailable: false })
+    await replacement.cancel()
   })
 
   it('keeps successful ASR as recovery when captured insertion and post-ASR cleanup fail', async () => {
