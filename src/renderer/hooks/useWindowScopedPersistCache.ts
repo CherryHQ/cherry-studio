@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+
 import type { CacheSetStateAction } from '@data/CacheService'
 import { useCache, usePersistCache } from '@data/hooks/useCache'
 import type {
@@ -31,7 +33,10 @@ export function useWindowScopedPersistCache<K extends RendererPersistCacheKey, W
   windowCacheKey: W & CompatibleWindowCacheKey<K, W>
 ): WindowScopedCachePair<K> {
   const persistedPair = usePersistCache(persistCacheKey)
-  const windowPair = useCache(windowCacheKey, persistedPair[0] as unknown as InferUseCacheValue<typeof windowCacheKey>)
+  // Seed the window tier from a mount-time snapshot: a live persisted binding would re-seed a
+  // nullish local value whenever another window broadcasts the persisted key.
+  const seed = useRef(persistedPair[0] as InferUseCacheValue<typeof windowCacheKey>)
+  const windowPair = useCache(windowCacheKey, seed.current)
   const isWindowFrame = useWindowFrame().mode === 'window'
 
   if (!isWindowFrame) return persistedPair
