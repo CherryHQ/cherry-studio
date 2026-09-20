@@ -111,7 +111,7 @@ describe('Cherry Cloud provider transport', () => {
     [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, '/v1/messages']
   ])('rejects requests outside the configured %s route', async (endpointType, mismatchedPath) => {
     const config = await buildCherryCloudProviderConfig(endpointType, undefined, MODEL_ID, 'chat')
-    const fetch = (config.providerSettings as { fetch?: typeof globalThis.fetch }).fetch!
+    const fetch = config.providerSettings.fetch!
 
     await expect(fetch(`https://example.com${mismatchedPath}`, { method: 'POST', body: '{}' })).rejects.toThrow(
       'configured Cherry Cloud API origin'
