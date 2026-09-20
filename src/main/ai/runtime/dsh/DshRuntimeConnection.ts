@@ -656,6 +656,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     if (this.closed || !this.turnActive || !this.bridge) return false
     try {
       await this.bridge.request('session/cancel', { sessionId: this.input.sessionId }, { timeoutMs: 5_000 })
+      // A graceful cancel keeps this connection (and its registrations) alive, so
+      // approvals still awaiting a renderer decision must be denied here, not just
+      // at close(), or they outlive the cancelled turn.
+      toolApprovalRegistry.abort(this.input.sessionId, 'dsh-turn-cancelled')
       if (!this.turnActive) return true
       return await new Promise<boolean>((resolve) => {
         const poll = setInterval(() => {
