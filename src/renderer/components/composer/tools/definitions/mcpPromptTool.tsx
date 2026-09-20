@@ -6,7 +6,12 @@ import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
-import { type QuickPanelCallBackOptions, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import {
+  type QuickPanelCallBackOptions,
+  type QuickPanelListItem,
+  type QuickPanelOpenOptions,
+  useQuickPanel
+} from '@renderer/components/QuickPanel'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
@@ -27,16 +32,17 @@ export function restoreMcpPromptConsumedQuery(options?: QuickPanelCallBackOption
   const inputAdapter = options?.inputAdapter
   if (!inputAdapter) return false
 
-  let parentPanel = options?.context.parentPanel
-  while (parentPanel) {
-    const triggerInfo = parentPanel.triggerInfo
-    if (triggerInfo?.type === 'input' && !parentPanel.searchInput) {
+  // Searchable input-triggered panels still consumed a composer trigger; restore that char only.
+  let panel: QuickPanelOpenOptions | QuickPanelCallBackOptions['context'] | undefined = options?.context
+  while (panel) {
+    const triggerInfo = panel.triggerInfo
+    if (triggerInfo?.type === 'input') {
       const trigger = triggerInfo.originalText?.slice(0, 1) ?? ''
-      inputAdapter.insertText(`${trigger}${parentPanel.initialSearchText ?? ''}`, { tokenizeVariables: false })
+      inputAdapter.insertText(trigger, { tokenizeVariables: false })
       inputAdapter.focus()
       return true
     }
-    parentPanel = parentPanel.parentPanel
+    panel = panel.parentPanel
   }
 
   return false

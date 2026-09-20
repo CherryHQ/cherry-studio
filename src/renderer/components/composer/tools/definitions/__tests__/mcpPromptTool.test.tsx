@@ -70,7 +70,7 @@ describe('flattenMcpPromptMessages', () => {
 })
 
 describe('restoreMcpPromptConsumedQuery', () => {
-  it.each(['/', '@'])('restores the %s input-trigger query when the argument dialog is cancelled', (trigger) => {
+  it.each(['/', '@'])('restores only the %s trigger when the argument dialog is cancelled', (trigger) => {
     const insertText = vi.fn()
     const focus = vi.fn()
     const parentPanel = {
@@ -95,7 +95,7 @@ describe('restoreMcpPromptConsumedQuery', () => {
       })
     ).toBe(true)
 
-    expect(insertText).toHaveBeenCalledWith(`${trigger}review`, { tokenizeVariables: false })
+    expect(insertText).toHaveBeenCalledWith(trigger, { tokenizeVariables: false })
     expect(focus).toHaveBeenCalledTimes(1)
   })
 
@@ -120,24 +120,26 @@ describe('restoreMcpPromptConsumedQuery', () => {
     expect(insertText).not.toHaveBeenCalled()
   })
 
-  it('restores the composer query instead of the panel-local query', () => {
+  it('restores only the trigger for searchable input-triggered MCP panels, never panel search text', () => {
     const insertText = vi.fn()
     const focus = vi.fn()
 
     expect(
       restoreMcpPromptConsumedQuery({
         context: {
+          triggerInfo: { type: 'input', originalText: '/' },
           searchInput: { placeholder: 'Search prompts', ariaLabel: 'Search prompts' },
+          initialSearchText: 'panel-query',
           parentPanel: {
             list: [],
             symbol: '/',
-            triggerInfo: { type: 'input', originalText: '@' },
+            triggerInfo: { type: 'input', originalText: '/' },
             initialSearchText: 'review'
           }
         } as never,
         action: 'click',
         item: {} as never,
-        searchText: 'foo',
+        searchText: 'panel-query',
         inputAdapter: {
           getText: vi.fn(),
           insertText,
@@ -147,7 +149,9 @@ describe('restoreMcpPromptConsumedQuery', () => {
       })
     ).toBe(true)
 
-    expect(insertText).toHaveBeenCalledWith('@review', { tokenizeVariables: false })
+    expect(insertText).toHaveBeenCalledWith('/', { tokenizeVariables: false })
+    expect(insertText).not.toHaveBeenCalledWith(expect.stringContaining('panel-query'), expect.anything())
+    expect(insertText).not.toHaveBeenCalledWith(expect.stringContaining('review'), expect.anything())
     expect(focus).toHaveBeenCalledTimes(1)
   })
 
