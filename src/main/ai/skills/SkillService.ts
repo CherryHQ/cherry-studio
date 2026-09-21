@@ -1512,7 +1512,7 @@ export class SkillService {
   }
 
   // A pre-suffix install stored a reserved name bare (`CON`); the stem row is the same skill
-  // when origin matches — local/ZIP URLs pin one directory, marketplace URLs need the same name.
+  // when origin matches — a skill-specific URL pins one skill, only a shared URL needs the same name.
   private findReservedAlias(
     folderName: string,
     source: string,
@@ -1527,8 +1527,9 @@ export class SkillService {
       return null
     }
     if (isBareGithubRepoUrl(sourceUrl)) return null
-    if (candidate.name.toLowerCase() !== skillName.toLowerCase() && source !== 'local' && source !== 'zip') return null
-    return candidate
+    if (candidate.name.toLowerCase() === skillName.toLowerCase()) return candidate
+    if (source === 'local' || source === 'zip' || sourceUrl) return candidate
+    return null
   }
 
   private async findStorageFolderCaseInsensitive(folderName: string): Promise<string | null> {
