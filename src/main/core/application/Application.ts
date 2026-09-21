@@ -18,7 +18,6 @@ import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from 
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
 import { handleGuarded } from '@main/core/security/guardedIpc'
 import { bootConfigService } from '@main/data/bootConfig'
-import { t } from '@main/i18n'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import type { ServiceRegistry } from './serviceRegistry'
@@ -29,6 +28,8 @@ const logger = loggerService.withContext('Lifecycle')
 interface QuitPreventionHold extends Disposable {
   readonly id: string
 }
+
+type QuitGuard = () => boolean | Promise<boolean>
 
 /**
  * Application
@@ -42,8 +43,9 @@ export class Application {
   private isBootstrapped = false
   private isShuttingDown = false
   private _isQuitting = false
-  private quitConfirmationPending = false
-  private quitConfirmed = false
+  private quitGuardsPending = false
+  private quitGuardsPassed = false
+  private readonly quitGuards = new Set<QuitGuard>()
   private quitPreventionHolds = new Map<string, string>()
   private ipcQuitHolds = new Map<string, QuitPreventionHold>()
 
@@ -485,21 +487,37 @@ export class Application {
       if (!this.canQuit()) {
         event.preventDefault()
         this._isQuitting = false // Reset — quit was blocked, not actually quitting
-        this.quitConfirmed = false
+        this.quitGuardsPassed = false
         const reasons = [...this.quitPreventionHolds.values()].join(', ')
         logger.info(`Quit prevented: ${reasons}`)
         return
       }
-      if (
-        !this._isQuitting &&
-        !this.quitConfirmed &&
-        (this.quitConfirmationPending || this.getExisting('RuntimeActivityService')?.hasActiveTasks())
-      ) {
-        event.preventDefault()
-        if (!this.quitConfirmationPending) void this.confirmQuitWithActiveTasks()
-        return
+      if (!this._isQuitting && !this.quitGuardsPassed) {
+        if (this.quitGuardsPending) {
+          event.preventDefault()
+          return
+        }
+        this.quitGuardsPending = true
+        try {
+          const allowed = this.checkQuitGuards()
+          if (typeof allowed !== 'boolean') {
+            event.preventDefault()
+            void this.finishQuitGuards(allowed)
+            return
+          }
+          this.quitGuardsPending = false
+          if (!allowed) {
+            event.preventDefault()
+            return
+          }
+        } catch (error) {
+          this.quitGuardsPending = false
+          event.preventDefault()
+          logger.error('Failed to evaluate quit guards', error as Error)
+          return
+        }
       }
-      this.quitConfirmed = false
+      this.quitGuardsPassed = false
       this._isQuitting = true
     })
 
@@ -524,28 +542,35 @@ export class Application {
     })
   }
 
-  private async confirmQuitWithActiveTasks(): Promise<void> {
-    this.quitConfirmationPending = true
-    let response: number | undefined
-    try {
-      const result = await dialog.showMessageBox({
-        type: 'warning',
-        title: t('dialog.quit_active_tasks.title'),
-        message: t('dialog.quit_active_tasks.message'),
-        detail: t('dialog.quit_active_tasks.detail'),
-        buttons: [t('dialog.quit_active_tasks.continue'), t('dialog.quit_active_tasks.quit')],
-        defaultId: 0,
-        cancelId: 0,
-        noLink: true
-      })
-      response = result.response
-    } catch (error) {
-      logger.error('Failed to confirm quit with active tasks', error as Error)
-    } finally {
-      this.quitConfirmationPending = false
+  private checkQuitGuards(guards = this.quitGuards.values()): boolean | Promise<boolean> {
+    for (const guard of guards) {
+      const allowed = guard()
+      if (typeof allowed !== 'boolean') {
+        return allowed.then(
+          (approved) =>
+            approved &&
+            this.quitGuards.has(guard) &&
+            !this._isQuitting &&
+            !this.isShuttingDown &&
+            this.checkQuitGuards(guards)
+        )
+      }
+      if (!allowed) return false
     }
-    if (response === 1 && !this._isQuitting && !this.isShuttingDown) {
-      this.quitConfirmed = true
+    return true
+  }
+
+  private async finishQuitGuards(decision: Promise<boolean>): Promise<void> {
+    let allowed = false
+    try {
+      allowed = await decision
+    } catch (error) {
+      logger.error('Failed to evaluate quit guards', error as Error)
+    } finally {
+      this.quitGuardsPending = false
+    }
+    if (allowed && !this._isQuitting && !this.isShuttingDown) {
+      this.quitGuardsPassed = true
       this.quit()
     }
   }
@@ -658,6 +683,17 @@ export class Application {
     }
   }
 
+  /**
+   * Register a user-quit guard. All guards must approve, in registration order.
+   * Async decisions share one pending quit attempt; errors cancel it. Hard holds take precedence.
+   * @returns A disposable that unregisters the guard and invalidates its pending approval.
+   */
+  public registerQuitGuard(guard: QuitGuard): Disposable {
+    const registeredGuard = () => guard()
+    this.quitGuards.add(registeredGuard)
+    return { dispose: () => this.quitGuards.delete(registeredGuard) }
+  }
+
   private canQuit(): boolean {
     return this.quitPreventionHolds.size === 0
   }
@@ -667,7 +703,7 @@ export class Application {
    * before-quit checks preventQuit holds, then will-quit runs shutdown().
    */
   public quit(reason: 'user' | 'system-shutdown' = 'user'): void {
-    if (reason === 'system-shutdown') this.quitConfirmed = true
+    if (reason === 'system-shutdown') this.quitGuardsPassed = true
     if (this._isQuitting) {
       // Re-kick app.quit(): if a prior quit stalled (e.g. a BrowserWindow close
       // handler preventDefault'd and broke the chain), this gives the user a

@@ -1,10 +1,13 @@
+import { setImmediate as nextImmediate } from 'node:timers/promises'
+
 import { app, dialog } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { BaseService, Injectable, LifecycleManager, ServiceContainer } from '@main/core/lifecycle'
+import { Application } from '@main/core/application/Application'
+import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
+import { BaseService, Injectable, LifecycleManager, Phase, ServiceContainer } from '@main/core/lifecycle'
 
-import { Application } from '../Application'
-import { RuntimeActivityService } from '../RuntimeActivityService'
+import { RuntimeQuitConfirmationService } from '../RuntimeQuitConfirmationService'
 
 vi.unmock('@application')
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
@@ -25,7 +28,7 @@ function resetApplication() {
   ;(Application as unknown as { instance: Application | null }).instance = null
 }
 
-describe('Application quit confirmation', () => {
+describe('RuntimeQuitConfirmationService', () => {
   let application: Application
   let activity: RuntimeActivityService
   let beforeQuit: (event: QuitEvent) => void
@@ -38,7 +41,7 @@ describe('Application quit confirmation', () => {
     if (event.preventDefault.mock.calls.length === 0) acceptedExits++
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     resetApplication()
     acceptedExits = 0
@@ -53,9 +56,11 @@ describe('Application quit confirmation', () => {
     const container = ServiceContainer.getInstance()
     container.register(TestPowerService)
     container.register(RuntimeActivityService)
+    container.register(RuntimeQuitConfirmationService)
     application = Application.getInstance()
     activity = application.get('RuntimeActivityService')
     application['setupQuitHandlers']()
+    await LifecycleManager.getInstance().startPhase(Phase.WhenReady)
   })
 
   afterEach(() => {
@@ -79,6 +84,7 @@ describe('Application quit confirmation', () => {
     expect(dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ defaultId: 0, cancelId: 0 }))
     prompt.resolve({ response: 0, checkboxChecked: false })
     await prompt.promise
+    await nextImmediate()
     expect(activity.hasActiveTasks()).toBe(true)
     expect(acceptedExits).toBe(0)
     hold.dispose()
@@ -105,6 +111,7 @@ describe('Application quit confirmation', () => {
     expect(acceptedExits).toBe(0)
     prompt.resolve({ response: 0, checkboxChecked: false })
     await prompt.promise
+    await nextImmediate()
     requestNativeQuit()
     expect(acceptedExits).toBe(1)
   })
@@ -115,6 +122,7 @@ describe('Application quit confirmation', () => {
     const critical = application.preventQuit('migration')
     prompt.resolve({ response: 1, checkboxChecked: false })
     await prompt.promise
+    await nextImmediate()
     expect(acceptedExits).toBe(0)
     expect(application.isQuitting).toBe(false)
     critical.dispose()
@@ -123,6 +131,7 @@ describe('Application quit confirmation', () => {
     expect(dialog.showMessageBox).toHaveBeenCalledTimes(2)
     prompt.resolve({ response: 0, checkboxChecked: false })
     await prompt.promise
+    await nextImmediate()
   })
 
   it('leaves the app running if the dialog fails, and allows another attempt', async () => {
@@ -130,6 +139,7 @@ describe('Application quit confirmation', () => {
     requestNativeQuit()
     prompt.reject(new Error('dialog unavailable'))
     await prompt.promise.catch(() => {})
+    await nextImmediate()
     expect(acceptedExits).toBe(0)
     expect(application.isQuitting).toBe(false)
     prompt = Promise.withResolvers<Electron.MessageBoxReturnValue>()
@@ -137,6 +147,7 @@ describe('Application quit confirmation', () => {
     expect(dialog.showMessageBox).toHaveBeenCalledTimes(2)
     prompt.resolve({ response: 0, checkboxChecked: false })
     await prompt.promise
+    await nextImmediate()
   })
 
   it('skips user confirmation for system shutdown while preserving hard quit holds', () => {
@@ -157,6 +168,7 @@ describe('Application quit confirmation', () => {
     expect(acceptedExits).toBe(1)
     prompt.resolve({ response: 1, checkboxChecked: false })
     await prompt.promise
+    await nextImmediate()
     expect(acceptedExits).toBe(1)
   })
 
@@ -166,5 +178,35 @@ describe('Application quit confirmation', () => {
     requestNativeQuit()
     expect(acceptedExits).toBe(1)
     expect(dialog.showMessageBox).not.toHaveBeenCalled()
+  })
+
+  it('unregisters its quit guard when stopped', async () => {
+    activity.begin('request')
+    await application.get('RuntimeQuitConfirmationService')._doStop()
+    requestNativeQuit()
+    expect(acceptedExits).toBe(1)
+    expect(dialog.showMessageBox).not.toHaveBeenCalled()
+  })
+
+  it('registers the guard again after restart without duplicate prompts', async () => {
+    const service = application.get('RuntimeQuitConfirmationService')
+    await service._doStop()
+    await service._doInit()
+    activity.begin('request')
+    requestNativeQuit()
+    prompt.resolve({ response: 1, checkboxChecked: false })
+    await nextImmediate()
+    expect(acceptedExits).toBe(1)
+    expect(dialog.showMessageBox).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not quit from a dialog belonging to a stopped service', async () => {
+    activity.begin('request')
+    requestNativeQuit()
+    await application.get('RuntimeQuitConfirmationService')._doStop()
+    prompt.resolve({ response: 1, checkboxChecked: false })
+    await nextImmediate()
+    expect(acceptedExits).toBe(0)
+    expect(application.isQuitting).toBe(false)
   })
 })

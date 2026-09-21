@@ -65,6 +65,7 @@ import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryU
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
+import { RuntimeQuitConfirmationService } from '@main/services/RuntimeQuitConfirmationService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SentryLogService } from '@main/services/SentryLogService'
@@ -128,6 +129,7 @@ export const services = {
   FileProcessingService,
   PowerService,
   RuntimeActivityService,
+  RuntimeQuitConfirmationService,
   SelectionService,
   ShortcutService,
   ThemeService,
