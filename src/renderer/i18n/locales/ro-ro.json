@@ -5568,7 +5568,6 @@
   "settings.voice.status.failed": "Indisponibil",
   "settings.voice.status.installing": "Se instalează",
   "settings.voice.status.label": "Stare",
-  "settings.voice.status.license_unverified": "FunASR nu este disponibil deoarece licența sa nu a fost verificată. Nu va începe nicio descărcare.",
   "settings.voice.status.model_load_failed": "Modelul vocal local nu a putut fi încărcat.",
   "settings.voice.status.model_required": "Descarcă modelul FunASR pentru a utiliza recunoașterea vocală locală.",
   "settings.voice.status.not_installed": "Sunt necesare resurse vocale suplimentare",

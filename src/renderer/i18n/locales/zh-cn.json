@@ -5568,7 +5568,6 @@
   "settings.voice.status.failed": "不可用",
   "settings.voice.status.installing": "正在安装",
   "settings.voice.status.label": "状态",
-  "settings.voice.status.license_unverified": "FunASR 的许可证尚未验证，因此不可用。不会开始任何下载。",
   "settings.voice.status.model_load_failed": "无法加载本地语音模型。",
   "settings.voice.status.model_required": "下载 FunASR 模型后即可使用本地语音识别。",
   "settings.voice.status.not_installed": "需要其他语音资源",

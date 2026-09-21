@@ -5568,7 +5568,6 @@
   "settings.voice.status.failed": "Μη διαθέσιμο",
   "settings.voice.status.installing": "Εγκατάσταση",
   "settings.voice.status.label": "Κατάσταση",
-  "settings.voice.status.license_unverified": "Το FunASR δεν είναι διαθέσιμο επειδή η άδειά του δεν έχει επαληθευτεί. Δεν θα ξεκινήσει λήψη.",
   "settings.voice.status.model_load_failed": "Δεν ήταν δυνατή η φόρτωση του τοπικού μοντέλου ομιλίας.",
   "settings.voice.status.model_required": "Κατεβάστε το μοντέλο FunASR για να χρησιμοποιήσετε την τοπική αναγνώριση ομιλίας.",
   "settings.voice.status.not_installed": "Απαιτούνται πρόσθετοι πόροι ομιλίας",

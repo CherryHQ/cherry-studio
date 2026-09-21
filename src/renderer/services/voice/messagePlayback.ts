@@ -19,8 +19,7 @@ const settingsRecoveryReasons: ReadonlySet<VoiceErrorReason> = new Set([
   'model_required',
   'voice_unavailable',
   'unsupported',
-  'asset_required',
-  'license_unverified'
+  'asset_required'
 ])
 
 function playbackErrorKey(reason: VoiceErrorReason) {
@@ -28,7 +27,6 @@ function playbackErrorKey(reason: VoiceErrorReason) {
     case 'voice_unavailable':
     case 'unsupported':
     case 'asset_required':
-    case 'license_unverified':
       return `settings.voice.status.${reason}` as const
     case 'model_required':
       return 'settings.voice.status.unconfigured' as const

@@ -5568,7 +5568,6 @@
   "settings.voice.status.failed": "Unavailable",
   "settings.voice.status.installing": "Installing",
   "settings.voice.status.label": "Status",
-  "settings.voice.status.license_unverified": "FunASR is unavailable because its license has not been verified. No download will be started.",
   "settings.voice.status.model_load_failed": "The local speech model could not be loaded.",
   "settings.voice.status.model_required": "Download the FunASR model to use local speech recognition.",
   "settings.voice.status.not_installed": "Additional speech assets are required",

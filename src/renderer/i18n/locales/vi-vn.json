@@ -5568,7 +5568,6 @@
   "settings.voice.status.failed": "Không khả dụng",
   "settings.voice.status.installing": "Đang cài đặt",
   "settings.voice.status.label": "Trạng thái",
-  "settings.voice.status.license_unverified": "FunASR không khả dụng vì giấy phép chưa được xác minh. Sẽ không có lượt tải xuống nào được bắt đầu.",
   "settings.voice.status.model_load_failed": "Không thể tải mô hình giọng nói cục bộ.",
   "settings.voice.status.model_required": "Hãy tải mô hình FunASR để sử dụng nhận dạng giọng nói cục bộ.",
   "settings.voice.status.not_installed": "Cần thêm tài nguyên giọng nói",

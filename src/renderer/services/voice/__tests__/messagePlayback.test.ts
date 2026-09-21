@@ -107,7 +107,7 @@ describe('readMessageAloud', () => {
     expect(popup.confirm).not.toHaveBeenCalled()
   })
 
-  it.each(['model_required', 'voice_unavailable', 'unsupported', 'asset_required', 'license_unverified'] as const)(
+  it.each(['model_required', 'voice_unavailable', 'unsupported', 'asset_required'] as const)(
     'shows a Voice Settings recovery action for %s without exposing message text',
     async (reason) => {
       vi.spyOn(speechPlaybackService, 'start').mockRejectedValue(new VoiceDomainError(reason))

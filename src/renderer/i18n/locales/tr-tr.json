@@ -5568,7 +5568,6 @@
   "settings.voice.status.failed": "Kullanılamıyor",
   "settings.voice.status.installing": "Yükleniyor",
   "settings.voice.status.label": "Durum",
-  "settings.voice.status.license_unverified": "Lisansı doğrulanmadığı için FunASR kullanılamıyor. İndirme başlatılmayacak.",
   "settings.voice.status.model_load_failed": "Yerel konuşma modeli yüklenemedi.",
   "settings.voice.status.model_required": "Yerel konuşma tanımayı kullanmak için FunASR modelini indirin.",
   "settings.voice.status.not_installed": "Ek konuşma varlıkları gerekli",

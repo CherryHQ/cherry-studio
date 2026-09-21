@@ -5568,7 +5568,6 @@
   "settings.voice.status.failed": "無法使用",
   "settings.voice.status.installing": "正在安裝",
   "settings.voice.status.label": "狀態",
-  "settings.voice.status.license_unverified": "FunASR 的授權尚未驗證，因此無法使用。不會開始任何下載。",
   "settings.voice.status.model_load_failed": "無法載入本機語音模型。",
   "settings.voice.status.model_required": "下載 FunASR 模型後即可使用本機語音辨識。",
   "settings.voice.status.not_installed": "需要其他語音資源",

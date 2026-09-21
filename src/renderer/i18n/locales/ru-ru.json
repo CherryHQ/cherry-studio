@@ -5568,7 +5568,6 @@
   "settings.voice.status.failed": "Недоступно",
   "settings.voice.status.installing": "Установка",
   "settings.voice.status.label": "Состояние",
-  "settings.voice.status.license_unverified": "FunASR недоступен, поскольку его лицензия не проверена. Загрузка не будет запущена.",
   "settings.voice.status.model_load_failed": "Не удалось загрузить локальную речевую модель.",
   "settings.voice.status.model_required": "Загрузите модель FunASR, чтобы использовать локальное распознавание речи.",
   "settings.voice.status.not_installed": "Требуются дополнительные речевые ресурсы",

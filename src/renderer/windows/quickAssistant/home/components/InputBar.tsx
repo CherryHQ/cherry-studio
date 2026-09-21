@@ -15,7 +15,6 @@ const errorTranslationKeys: Partial<Record<DictationErrorCategory, string>> = {
   voice_unavailable: 'settings.voice.status.voice_unavailable',
   unsupported: 'settings.voice.status.unsupported',
   asset_required: 'settings.voice.status.asset_required',
-  license_unverified: 'settings.voice.status.license_unverified',
   microphone_permission: 'settings.voice.microphone.denied',
   operation_failed: 'settings.voice.status.operation_failed',
   recording_failed: 'settings.voice.status.operation_failed',
@@ -28,7 +27,6 @@ const settingsRecoveryErrors = new Set<DictationErrorCategory>([
   'voice_unavailable',
   'unsupported',
   'asset_required',
-  'license_unverified',
   'microphone_permission'
 ])
 

@@ -5568,7 +5568,6 @@
   "settings.voice.status.failed": "利用できません",
   "settings.voice.status.installing": "インストール中",
   "settings.voice.status.label": "状態",
-  "settings.voice.status.license_unverified": "ライセンスが確認されていないため、FunASR は利用できません。ダウンロードは開始されません。",
   "settings.voice.status.model_load_failed": "ローカル音声モデルを読み込めませんでした。",
   "settings.voice.status.model_required": "ローカル音声認識を使用するには FunASR モデルをダウンロードしてください。",
   "settings.voice.status.not_installed": "追加の音声アセットが必要です",

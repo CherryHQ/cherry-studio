@@ -39,7 +39,6 @@ const errorTranslationKeys: Partial<Record<VoiceErrorReason, string>> = {
   voice_unavailable: 'settings.voice.status.voice_unavailable',
   unsupported: 'settings.voice.status.unsupported',
   asset_required: 'settings.voice.status.asset_required',
-  license_unverified: 'settings.voice.status.license_unverified',
   operation_failed: 'settings.voice.status.operation_failed'
 }
 

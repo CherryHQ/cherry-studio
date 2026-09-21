@@ -18,7 +18,6 @@ const SETTINGS_RECOVERY_ERRORS = new Set<DictationErrorCategory>([
   'model_required',
   'unsupported',
   'asset_required',
-  'license_unverified',
   'voice_unavailable',
   'microphone_permission'
 ])
@@ -37,7 +36,6 @@ function dictationErrorKey(error?: DictationErrorCategory) {
       return 'settings.voice.status.unconfigured'
     case 'unsupported':
     case 'asset_required':
-    case 'license_unverified':
     case 'voice_unavailable':
       return `settings.voice.status.${error}` as const
     case 'microphone_permission':

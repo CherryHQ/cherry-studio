@@ -5568,7 +5568,6 @@
   "settings.voice.status.failed": "Indisponible",
   "settings.voice.status.installing": "Installation en cours",
   "settings.voice.status.label": "État",
-  "settings.voice.status.license_unverified": "FunASR est indisponible car sa licence n’a pas été vérifiée. Aucun téléchargement ne sera lancé.",
   "settings.voice.status.model_load_failed": "Le modèle vocal local n’a pas pu être chargé.",
   "settings.voice.status.model_required": "Téléchargez le modèle FunASR pour utiliser la reconnaissance vocale locale.",
   "settings.voice.status.not_installed": "Des ressources vocales supplémentaires sont requises",
