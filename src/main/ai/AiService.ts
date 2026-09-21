@@ -6,6 +6,8 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
+  APICallError,
+  NoImageGeneratedError,
   type UIMessageChunk
 } from 'ai'
 
@@ -314,6 +316,23 @@ export interface AiImageRequest extends AiRequest {
 /** Image generation result — persisted file entries (main writes the bytes). */
 export interface AiImageResult {
   files: FileEntry[]
+}
+
+/** True when the cause chain holds the SDK's NoImageGeneratedError. Depth-capped so a cyclic chain cannot hang. */
+const MAX_IMAGE_ERROR_CAUSE_DEPTH = 10
+
+function isEmptyImageResponseError(error: unknown): boolean {
+  let current: unknown = error
+  for (let depth = 0; depth < MAX_IMAGE_ERROR_CAUSE_DEPTH && current instanceof Error; depth++) {
+    if (NoImageGeneratedError.isInstance(current)) return true
+    current = current.cause
+  }
+  return false
+}
+
+/** True for an HTTP-success rejection the SDK could not use — a response-contract failure, never a retryable timeout. */
+function isUnusableSuccessResponseError(error: unknown): error is APICallError {
+  return APICallError.isInstance(error) && error.statusCode === 200
 }
 
 /**
@@ -986,6 +1005,29 @@ export class AiService extends BaseService {
     const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       ...imageParams,
       onProviderCall: createProviderCallHandler(imageUsageContext)
+    }).catch((error: unknown) => {
+      // Upstream finished but unusable locally — a contract failure, not a retryable timeout. May have been billed; not retried.
+      if (isEmptyImageResponseError(error)) {
+        throw new Error(
+          `The image provider returned a successful response but no usable image data (provider "${sdkConfig.providerId}", model "${sdkConfig.modelId}"). The operation may still have been billed. It was not retried automatically.`,
+          { cause: error }
+        )
+      }
+      if (isUnusableSuccessResponseError(error)) {
+        // The status/body fields are ones serializeError copies, so the contract detail survives IPC.
+        throw Object.assign(
+          new Error(
+            `The image provider returned a response that could not be processed (provider "${sdkConfig.providerId}", model "${sdkConfig.modelId}", HTTP 200). The operation may still have been billed. It was not retried automatically.`,
+            { cause: error }
+          ),
+          {
+            statusCode: error.statusCode,
+            ...(typeof error.responseBody === 'string' ? { responseBody: error.responseBody } : {}),
+            url: error.url
+          }
+        )
+      }
+      throw error
     })
 
     const dataUrls: Base64String[] = []

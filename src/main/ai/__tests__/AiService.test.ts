@@ -3,6 +3,7 @@ import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { NoImageGeneratedError, APICallError } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -634,6 +635,92 @@ describe('AiService', () => {
     })
 
     expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ maxRetries: 3 }))
+  })
+
+  function stubImageTransport(service: InstanceType<typeof AiService>) {
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'test-provider',
+        providerSettings: {},
+        modelId: 'test-model'
+      }
+    })
+  }
+
+  it('reports a billing-aware contract failure when upstream succeeds but yields no usable image', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    // Mirrors the executor wrap: the SDK's NoImageGeneratedError inside a generic error.
+    const sdkFailure = new Error('Failed to generate image: No image generated.', {
+      cause: new NoImageGeneratedError({ responses: [] })
+    })
+    mockGenerateImage.mockRejectedValueOnce(sdkFailure)
+
+    const rejection = await service
+      .generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'edit this image',
+        paramValues: {}
+      })
+      .catch((error: unknown) => error)
+
+    expect(rejection).toBeInstanceOf(Error)
+    expect((rejection as Error).message).toMatch(
+      /successful response but no usable image data.*test-provider.*test-model.*may still have been billed.*not retried automatically/s
+    )
+    expect((rejection as Error).cause).toBe(sdkFailure)
+  })
+
+  it('reports a billing-aware contract failure when a successful response cannot be processed', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    mockGenerateImage.mockRejectedValueOnce(
+      new APICallError({
+        message: 'Invalid JSON response',
+        url: 'https://provider.example/v1/images/edits',
+        requestBodyValues: {},
+        statusCode: 200,
+        responseBody: '{"data":[{"unexpected":[]}]}'
+      })
+    )
+
+    const rejection = await service
+      .generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'edit this image',
+        paramValues: {}
+      })
+      .catch((error: unknown) => error)
+
+    expect(rejection).toBeInstanceOf(Error)
+    expect((rejection as Error).message).toMatch(
+      /could not be processed.*test-provider.*test-model.*HTTP 200.*may still have been billed.*not retried automatically/s
+    )
+    expect((rejection as { statusCode?: unknown }).statusCode).toBe(200)
+    expect((rejection as { responseBody?: unknown }).responseBody).toBe('{"data":[{"unexpected":[]}]}')
+  })
+
+  it('passes retryable image failures through without the contract message', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    const timeout = new APICallError({
+      message: 'gateway timeout',
+      url: 'https://provider.example/v1/images/edits',
+      requestBodyValues: {},
+      statusCode: 504
+    })
+    mockGenerateImage.mockRejectedValueOnce(timeout)
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+    ).rejects.toBe(timeout)
   })
 
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
