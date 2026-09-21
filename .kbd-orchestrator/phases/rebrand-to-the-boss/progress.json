@@ -2,7 +2,7 @@
   "phase": "rebrand-to-the-boss",
   "status": "applying",
   "createdAt": "2026-09-21T09:27:39Z",
-  "updatedAt": "2026-09-21T12:06:36Z",
+  "updatedAt": "2026-09-21T12:36:54Z",
   "previousPhase": null,
   "goals": [
     "G1",
@@ -31,7 +31,8 @@
     "rebrand-003-explicit-userdata",
     "rebrand-004-app-identity",
     "rebrand-005-visual-assets",
-    "rebrand-006-i18n-strings"
+    "rebrand-006-i18n-strings",
+    "rebrand-007-outbound-attribution"
   ],
   "depth": 0,
   "parentPhase": null,
@@ -71,11 +72,16 @@
       "at": "2026-09-21T11:41:40Z",
       "decision": "Boss assets ported and verified by bundled-output hash match. Added renderer logo.png beyond literal scope (6 in-app consumers). OUTSTANDING: cherry-text-logo.svg is a Cherry wordmark in MCP settings with no Boss equivalent in the reference — needs new artwork.",
       "by": "opsx-apply"
+    },
+    {
+      "at": "2026-09-21T12:36:54Z",
+      "decision": "007 closed out: http.ts and openapiDocs titles were delivered early by 002. Close-out verification caught a missed outbound string — DOC_TAGS.cherry was still Cherry Studio, which becomes a module name in generated API clients. Fixed, 486 apiGateway tests pass.",
+      "by": "opsx-apply"
     }
   ],
   "completion": {
     "implementation": {
-      "completed": 6,
+      "completed": 7,
       "total": 10
     }
   }

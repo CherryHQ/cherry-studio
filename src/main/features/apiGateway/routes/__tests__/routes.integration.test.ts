@@ -112,6 +112,8 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: { list: vi.fn(async () => ({ items: [], total: 0, page: 1 })), getById: vi.fn() }
 }))
 
+import { PRODUCT_NAME } from '@shared/utils/branding'
+
 import { buildApp } from '../../app'
 
 const AUTH = { 'content-type': 'application/json', 'x-api-key': 'test-key' }
@@ -214,7 +216,7 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.info.description).toBe('apiGateway.docs.description::en-US')
       const health = body.paths['/health'].get
-      expect(health.tags).toEqual(['Cherry Studio'])
+      expect(health.tags).toEqual([PRODUCT_NAME])
       expect(health.summary).toBe('Health')
       expect(health.description).toBe('apiGateway.docs.operations.health::en-US')
     })
@@ -225,7 +227,7 @@ describe('API gateway routes (integration)', () => {
         'OpenAI API',
         'Anthropic API',
         'Gemini API',
-        'Cherry Studio'
+        PRODUCT_NAME
       ])
       // Tag names and operation summaries are upstream identifiers: never translated,
       // so generated clients keep stable module/method names. Only prose is localized.

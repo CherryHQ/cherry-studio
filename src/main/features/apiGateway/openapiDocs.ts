@@ -51,7 +51,7 @@ export const DOC_TAGS = {
   openai: 'OpenAI API',
   anthropic: 'Anthropic API',
   gemini: 'Gemini API',
-  cherry: 'Cherry Studio'
+  cherry: PRODUCT_NAME
 } as const
 
 /**
