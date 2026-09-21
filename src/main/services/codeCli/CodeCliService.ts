@@ -41,6 +41,7 @@ import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@sh
 import { REDACTED } from '@shared/utils/redaction'
 
 import { prepareAntigravityLaunch } from './antigravity'
+import { describeClaudeStartupFailure, probeClaudeExecutable } from './claudeHealthProbe'
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
@@ -576,6 +577,22 @@ export class CodeCliService extends BaseService {
 
     const executablePath = availability.path
     const usesCherryExecutionEnv = availability.source !== 'system'
+
+    // A system Claude binary is user-owned, so verify it starts before opening a
+    // terminal where a native crash would flash and die with no diagnosis.
+    if (cliTool === CodeCli.CLAUDE_CODE && availability.source === 'system') {
+      logger.info('Selected Claude Code executable', { path: executablePath, source: availability.source })
+      const probe = await probeClaudeExecutable(executablePath)
+      if (!probe.ok) {
+        const message = describeClaudeStartupFailure(executablePath, probe.failure)
+        logger.warn('Claude Code system binary failed the startup probe', {
+          path: executablePath,
+          reason: probe.failure.reason,
+          detail: probe.failure.detail
+        })
+        return { success: false, message }
+      }
+    }
 
     // Cherry's MISE_* variables are needed for currently available mise shims
     // and bundled binaries. A system CLI receives no Cherry environment: adding
