@@ -10,6 +10,7 @@
  * - It should be auto-enabled internally when needed, not manually installed
  */
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { DOCS_URL } from '@shared/utils/branding'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 /** A builtin server as declared in code; the `id` is assigned by the database on install. */
@@ -57,7 +58,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   },
   {
     name: BuiltinMcpServerNames.mcpAutoInstall,
-    reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
+    reference: DOCS_URL,
     type: 'stdio',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],

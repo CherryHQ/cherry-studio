@@ -24,6 +24,7 @@ import { openExternalWebsite } from '@renderer/services/website'
 import { isLinux, isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
+import { ISSUES_URL } from '@shared/utils/branding'
 
 import MacProcessTrustHintModal from './components/MacProcessTrustHintModal'
 import SelectionActionsList from './components/SelectionActionsList'
@@ -103,7 +104,7 @@ const SelectionAssistantSettings: FC = () => {
             <button
               type="button"
               className="cursor-pointer border-0 bg-transparent p-0 text-xs font-normal text-link hover:underline"
-              onClick={() => openExternalWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}>
+              onClick={() => openExternalWebsite(`${ISSUES_URL}/6505`)}>
               {'FAQ & ' + t('settings.about.feedback.button')}
             </button>
           </div>

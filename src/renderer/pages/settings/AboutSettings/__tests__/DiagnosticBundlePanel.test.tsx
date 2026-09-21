@@ -49,6 +49,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 import DiagnosticBundlePanel from '@renderer/components/feedback/DiagnosticBundlePanel'
+import { SUPPORT_EMAIL } from '@shared/utils/branding'
 
 const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   hasWarnings: false,
@@ -222,7 +223,7 @@ describe('DiagnosticBundlePanel', () => {
       const mailCall = mocks.request.mock.calls.find(([route]) => route === 'system.shell.open_website')
       expect(mailCall).toBeDefined()
       const mailto = String(mailCall?.[1])
-      expect(mailto).toMatch(/^mailto:support@cherry-ai\.com\?/)
+      expect(mailto).toMatch(new RegExp(`^mailto:${SUPPORT_EMAIL}\\?`))
       expect(mailto).not.toContain('+')
       expect(mailto).toContain('%20')
       expect(decodeURIComponent(mailto)).toContain('Diagnostics bundle-123')
@@ -340,7 +341,7 @@ describe('DiagnosticBundlePanel', () => {
     expect(mocks.toastError).toHaveBeenCalledWith('settings.about.diagnostics.errors.email_client_failed')
 
     await user.click(copyButton)
-    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith('support@cherry-ai.com'))
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith(SUPPORT_EMAIL))
     expect(mocks.toastSuccess).toHaveBeenCalledWith('settings.about.diagnostics.success.email_copied')
   })
 })

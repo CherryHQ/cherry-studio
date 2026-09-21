@@ -10,6 +10,7 @@ import type { NativeCommandMenuItem, NativeMenuItem } from '@main/services/menu/
 import { toElectronMenuTemplate } from '@main/services/menu/adapters/nativeMenuAdapter'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { SupportedPlatform } from '@shared/types/command'
+import { WEBSITE_URL } from '@shared/utils/branding'
 import {
   type CommandId,
   evaluateContextExpr,
@@ -157,7 +158,7 @@ export class AppMenuService extends BaseService {
             click: () => {
               void application
                 .get('MainWindowService')
-                .openWebsite('https://cherry-ai.com')
+                .openWebsite(WEBSITE_URL)
                 .catch((error) => logger.warn('Failed to open website', { error }))
             }
           },

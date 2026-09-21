@@ -54,3 +54,22 @@ export const ATTRIBUTION_NAME = PRODUCT_NAME
 
 /** Site sent as `HTTP-Referer` alongside {@link ATTRIBUTION_NAME}. */
 export const ATTRIBUTION_URL = 'https://the-boss.know-me.tools'
+
+/**
+ * Fork-owned destinations.
+ *
+ * Only GitHub and the marketing site exist today: the-boss.know-me.tools is a
+ * catch-all SPA, so every path returns the landing page. Docs, releases, and
+ * issues therefore point at the repository, which has real per-path content,
+ * rather than at a URL that would render as marketing copy.
+ *
+ * These deliberately do NOT cover Cherry-operated services the app still
+ * consumes — CherryIN/CherryAI OAuth and provider endpoints keep their own
+ * hosts, because repointing them would break working integrations.
+ */
+export const REPO_URL = 'https://github.com/Prometheus-AGS/the-boss'
+export const WEBSITE_URL = ATTRIBUTION_URL
+export const DOCS_URL = `${REPO_URL}#readme`
+export const RELEASES_URL = `${REPO_URL}/releases`
+export const ISSUES_URL = `${REPO_URL}/issues`
+export const SUPPORT_EMAIL = 'support@know-me.tools'

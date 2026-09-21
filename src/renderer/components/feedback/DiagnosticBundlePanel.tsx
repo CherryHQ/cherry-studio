@@ -11,6 +11,7 @@ import { formatDiagnosticBytes } from '@renderer/utils/diagnosticSourceSummary'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
+import { SUPPORT_EMAIL as BRAND_SUPPORT_EMAIL } from '@shared/utils/branding'
 import { createFilePathHandle } from '@shared/utils/file'
 
 import {
@@ -19,7 +20,7 @@ import {
   useDiagnosticSourceSelection
 } from './DiagnosticSourceSelector'
 
-const SUPPORT_EMAIL = 'support@cherry-ai.com'
+const SUPPORT_EMAIL = BRAND_SUPPORT_EMAIL
 const logger = loggerService.withContext('DiagnosticBundlePanel')
 type SavedResult = Extract<OutputFor<'diagnostics.bundle.export'>, { status: 'saved' }>
 type ExportState =

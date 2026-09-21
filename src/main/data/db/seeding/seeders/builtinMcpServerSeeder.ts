@@ -14,6 +14,9 @@ function isLegacyMcpAutoInstall(row: McpServerRow): boolean {
     row.installSource === null &&
     row.name === BuiltinMcpServerNames.mcpAutoInstall &&
     row.type === 'inMemory' &&
+    // Historical value written by older builds. This is migration-detection
+    // input, not branding: rebranding it would stop legacy rows from matching
+    // and they would never migrate.
     row.reference === 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install' &&
     row.baseUrl === null &&
     row.command === 'npx' &&

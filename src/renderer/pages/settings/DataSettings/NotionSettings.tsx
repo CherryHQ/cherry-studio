@@ -17,6 +17,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { DOCS_URL } from '@shared/utils/branding'
 
 const logger = loggerService.withContext('NotionSettings')
 
@@ -73,7 +74,7 @@ const NotionSettings: FC = () => {
   }
 
   const handleNotionTitleClick = () => {
-    void openExternalWebsite('https://docs.cherry-ai.com/advanced-basic/notion')
+    void openExternalWebsite(DOCS_URL)
   }
 
   return (

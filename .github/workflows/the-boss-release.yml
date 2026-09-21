@@ -67,7 +67,17 @@ jobs:
           restore-keys: ${{ runner.os }}-pnpm-
 
       - name: Install dependencies
-        run: pnpm install
+        shell: bash
+        # Postinstall scripts fetch release binaries from third-party hosts; a
+        # single 504 there should not cost a whole platform's build.
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm install; then exit 0; fi
+            echo "::warning::pnpm install failed (attempt $attempt/3); retrying in 30s"
+            sleep 30
+          done
+          echo "::error::pnpm install failed after 3 attempts"
+          exit 1
 
       # Upstream hits a setuptools gap on the macOS runner image.
       - name: macOS build dependencies
@@ -169,10 +179,17 @@ jobs:
         id: gate
         shell: bash
         run: |
-          shopt -s nullglob
-          found=(manifests/*/ipfs-manifest.tsv)
+          # Print the tree first: a silent "no manifests" is indistinguishable
+          # from a download that landed somewhere unexpected.
+          echo "Downloaded tree:"
+          find manifests -type f 2>/dev/null || echo "  (manifests/ absent)"
+          shopt -s nullglob globstar
+          # Match at any depth — download-artifact's nesting depends on how many
+          # artifacts matched the pattern.
+          found=(manifests/**/ipfs-manifest.tsv)
+          echo "Matched ${#found[@]} manifest file(s)."
           if [ ${#found[@]} -eq 0 ]; then
-            echo "No manifests — every build failed; nothing to publish."
+            echo "No manifests — no platform published installers; nothing to record."
             echo "publish=false" >> "$GITHUB_OUTPUT"
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
@@ -195,7 +212,8 @@ jobs:
             echo
             echo "| Installer | Size | Download |"
             echo "|---|---|---|"
-            for m in manifests/*/ipfs-manifest.tsv; do
+            shopt -s nullglob globstar
+            for m in manifests/**/ipfs-manifest.tsv; do
               [ -f "$m" ] || continue
               while IFS=$'\t' read -r name cid size; do
                 [ -n "${name:-}" ] || continue

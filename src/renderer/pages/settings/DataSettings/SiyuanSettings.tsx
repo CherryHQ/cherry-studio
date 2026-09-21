@@ -14,6 +14,7 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
+import { DOCS_URL } from '@shared/utils/branding'
 
 const logger = loggerService.withContext('SiyuanSettings')
 
@@ -43,7 +44,7 @@ const SiyuanSettings: FC = () => {
   }
 
   const handleSiyuanHelpClick = () => {
-    void openExternalWebsite('https://docs.cherry-ai.com/advanced-basic/siyuan')
+    void openExternalWebsite(DOCS_URL)
   }
 
   const handleCheckConnection = async () => {

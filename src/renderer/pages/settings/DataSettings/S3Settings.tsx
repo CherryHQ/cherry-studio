@@ -21,6 +21,7 @@ import {
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { DOCS_URL } from '@shared/utils/branding'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -58,7 +59,7 @@ const S3Settings: FC = () => {
     openSmartMiniApp({
       appId: 's3-help',
       name: 'S3 Compatible Storage Help',
-      url: 'https://docs.cherry-ai.com/data-settings/s3-compatible',
+      url: DOCS_URL,
       logo: AppLogo
     })
   }

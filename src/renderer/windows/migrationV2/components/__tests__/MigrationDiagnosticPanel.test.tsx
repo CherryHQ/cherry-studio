@@ -69,6 +69,8 @@ vi.mock('../../hooks/useMigrationProgress', () => ({
   })
 }))
 
+import { SUPPORT_EMAIL } from '@shared/utils/branding'
+
 import { enUS, zhCN } from '../../i18n/locales'
 import { MigrationDiagnosticPanel } from '../MigrationDiagnosticPanel'
 
@@ -300,7 +302,7 @@ describe('MigrationDiagnosticPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy feedback email' }))
 
-    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('support@cherry-ai.com'))
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(SUPPORT_EMAIL))
     expect(mocks.toast.success).toHaveBeenCalledWith('Feedback email copied')
   })
 

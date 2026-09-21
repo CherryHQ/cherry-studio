@@ -11,6 +11,7 @@ import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
+import { DOCS_URL } from '@shared/utils/branding'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
@@ -80,10 +81,7 @@ const BuiltinMcpServerList: FC = () => {
                 <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 overflow-hidden">
                   <span className="truncate text-[14px] leading-5">{server.name}</span>
                   {server?.shouldConfig && (
-                    <a
-                      href="https://docs.cherry-ai.com/advanced-basic/mcp/buildin"
-                      target="_blank"
-                      rel="noopener noreferrer">
+                    <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
                       <Badge
                         variant="outline"
                         className="h-5 gap-1 rounded-md border-error-border bg-error-subtle px-1.5 text-[11px] text-error-subtle-foreground leading-none">

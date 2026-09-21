@@ -69,9 +69,11 @@ vi.mock('@renderer/components/icons/LogoAvatar', () => ({
   default: ({ logo, alt }: { logo: string; alt?: string }) => <img src={logo} alt={alt} />
 }))
 
+import { REPO_URL } from '@shared/utils/branding'
+
 import { AboutSettings } from '..'
 
-const REPOSITORY_URL = 'https://github.com/CherryHQ/cherry-studio'
+const REPOSITORY_URL = REPO_URL
 
 async function renderAboutSettings() {
   render(<AboutSettings />)

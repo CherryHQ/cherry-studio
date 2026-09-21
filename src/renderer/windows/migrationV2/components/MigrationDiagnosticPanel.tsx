@@ -4,10 +4,11 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, error as showErrorToast, success as showSuccessToast } from '@cherrystudio/ui'
 import { loggerService } from '@renderer/services/LoggerService'
+import { SUPPORT_EMAIL as BRAND_SUPPORT_EMAIL } from '@shared/utils/branding'
 
 import { useMigrationActions } from '../hooks/useMigrationProgress'
 
-const SUPPORT_EMAIL = 'support@cherry-ai.com'
+const SUPPORT_EMAIL = BRAND_SUPPORT_EMAIL
 const logger = loggerService.withContext('MigrationDiagnosticPanel')
 
 type DiagnosticStatus = 'idle' | 'saving' | 'saved_with_logs' | 'saved_without_logs' | 'failed'
