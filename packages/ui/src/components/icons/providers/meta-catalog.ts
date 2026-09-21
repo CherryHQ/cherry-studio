@@ -112,6 +112,7 @@ import { meta as nousresearchMeta } from './nousresearch/meta'
 import { meta as nvidiaMeta } from './nvidia/meta'
 import { meta as ocoolaiMeta } from './ocoolai/meta'
 import { meta as ollamaMeta } from './ollama/meta'
+import { meta as gitgotMeta } from './gitgot/meta'
 import { meta as omlxMeta } from './omlx/meta'
 import { meta as openaiMeta } from './openai/meta'
 import { meta as openclawMeta } from './openclaw/meta'
@@ -276,6 +277,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   nvidia: nvidiaMeta,
   ocoolai: ocoolaiMeta,
   ollama: ollamaMeta,
+  gitgot: gitgotMeta,
   omlx: omlxMeta,
   openai: openaiMeta,
   openclaw: openclawMeta,

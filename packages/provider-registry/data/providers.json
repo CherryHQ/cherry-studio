@@ -1009,6 +1009,30 @@
       "name": "Grok CLI"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "GitGot - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://inference.gitgot.ai/v1",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "gitgot",
+      "metadata": {
+        "website": {
+          "apiKey": "https://gitgot.ai/dashboard",
+          "docs": "https://gitgot.ai/docs/quickstart",
+          "models": "https://inference.gitgot.ai/v1/models",
+          "official": "https://gitgot.ai"
+        }
+      },
+      "name": "GitGot"
+    },
+    {
       "authOptional": true,
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-responses",
@@ -2636,5 +2660,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "2707d81b155c6c98"
+  "version": "f57e7046f8580797"
 }
