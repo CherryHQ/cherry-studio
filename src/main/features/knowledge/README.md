@@ -50,7 +50,7 @@ All jobs run on the per-base queue `base.{baseId}`; idempotency keys prevent dou
 | `knowledge.prepare-root` | Expand a directory root into child items, then enqueue leaf indexing. | `ingestion` (add), reindex handler |
 | `knowledge.index-documents` | Adapt JobManager context to `indexKnowledgeItem`, which owns live lookup/status, URL/note capture, `prepareKnowledgeMaterial`, the base-locked store rebuild, and completion. | `ingestion`, prepare-root, fp-check |
 | `knowledge.check-file-processing-result` | Poll a FileProcessingService job (5s delay per round); on success enqueue indexing. | `ingestion` (files needing conversion) |
-| `knowledge.delete-subtree` | Cancel active jobs → delete vectors → delete files → delete rows. | `ingestion` (delete), boot recovery |
+| `knowledge.delete-subtree` | Cancel active jobs → delete vectors → strictly delete external snapshots and best-effort delete ordinary files → delete rows. | `ingestion` (delete), external replacement/reconciliation, recovery |
 | `knowledge.reindex-subtree` | Verify source → re-acquire it → delete vectors → reset statuses → re-enqueue indexing. | `ingestion` (reindex) |
 | `knowledge.sync-external-source` | Scan one persisted Source, incrementally publish supported documents, reconcile missing/denied documents, and settle the Source summary. | External Source creation and manual synchronization |
 
@@ -73,12 +73,22 @@ path/item id, passes that descriptor to preparation, and swaps document ownershi
 same per-base mutation lock. Slow scan/read/embed work stays outside the lock; the Source
 revision and active Job id fence every publication and final summary write.
 
-Creating a Source re-resolves the user-entered URL in main and atomically persists the Source,
-enqueues its initial `knowledge.sync-external-source` Job, and binds `activeJobId`. Manual sync
+Creating a Source re-resolves the user-entered URL in main, then rechecks the base, connection,
+authorization state, resolved tenant, and provider-scope uniqueness in the same write transaction
+that persists the Source, enqueues its initial `knowledge.sync-external-source` Job, and binds
+`activeJobId`. Manual sync
 uses the same Job type, per-base queue, and per-Source idempotency key, so repeated requests
 coalesce onto the active Job without replacing its original trigger or start time. The Job
 payload contains only Source/Base identity, revision, and trigger; credentials and provider
 payloads remain in the main-only runtime boundary.
+
+External synchronization creates an invisible `deleting` external item before writing its versioned
+snapshot, material, or vectors. Publication CAS-promotes that staging row, switches document ownership,
+marks any previous owner `deleting`, and durably enqueues its subtree cleanup in one transaction. Success
+therefore means the previous content is hidden and cleanup was accepted; it does not promise the old
+physical bytes are already gone. A failed stage keeps its `deleting` row as the durable artifact locator
+and best-effort admits the same cleanup job. Service startup and the start of each Source sync recover
+committed deleting roots in batches.
 
 URL/note snapshot files contain Cherry OKF frontmatter, which their reader
 removes before chunking. External snapshots contain provider-normalized
@@ -111,8 +121,9 @@ into one token rotation, while different credentials keep independent request an
 Feishu reads reserve the documented endpoint budget before each individual HTTP attempt; a retry of
 one page or body request does not replay completed traversal work. Preview is ephemeral and reads
 metadata only. The adapter holds no queue, token, limiter, or session state of its own.
-`KnowledgeService` starts this runtime after initialization and closes admission, aborts in-flight
-operations, and clears transient state during service shutdown.
+`KnowledgeService` opens its local admission gate only after the runtime starts. Shutdown closes that
+gate first, lists and individually cancels pending, delayed, and running external-sync Jobs and awaits
+their settlement, then stops the runtime last so cancellation remains the authoritative classification.
 
 ## Related docs
 

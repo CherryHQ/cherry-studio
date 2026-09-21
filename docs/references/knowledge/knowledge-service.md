@@ -178,15 +178,19 @@ the runtime best-effort revoke the provider token and remove the credential;
 startup reconciliation retires credential residue. The reference checks do not
 filter on Source state, so both active and paused Sources block removal.
 
-The external synchronization writer stages provider-normalized Markdown and
-prepares its material outside the per-base mutation lock. Under the lock it
-rechecks the Source revision, active Job id, and current Document owner before
-one owner transaction creates the completed external item, publishes the
-content hash and remote revision, switches
-`ExternalKnowledgeDocument.knowledgeItemId`, and removes the old item row.
-Missing documents and explicit read-permission denials use the same fences to
-withdraw ownership before best-effort artifact cleanup. A failed or cancelled
-scan never treats unseen documents as deleted.
+The external synchronization writer first persists an invisible external item
+with status `deleting`, then stages provider-normalized Markdown and prepares its
+material outside the per-base mutation lock. Under the lock it rechecks the
+Source revision, active Job id, and current Document owner before one owner
+transaction CAS-promotes the staging item to `completed`, publishes the content
+hash and remote revision, switches `ExternalKnowledgeDocument.knowledgeItemId`,
+marks the old owner `deleting`, and enqueues its subtree cleanup. Missing documents
+and explicit read-permission denials use the same fences to withdraw ownership,
+mark the old owner deleting, and enqueue cleanup atomically. A successful sync
+means prior content is hidden and its cleanup Job is durably accepted; physical
+artifact deletion may finish later. Stage failure preserves the deleting row as
+the durable artifact locator and attempts cleanup admission separately. A failed
+or cancelled scan never treats unseen documents as deleted.
 
 ## Caller Contract
 
@@ -272,8 +276,12 @@ reindex-items(baseId, itemIds)
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. Chunks are derived index rows and are replaced wholesale by reindexing; there is no chunk-delete mutation.
 
 External Source creation accepts only a base id, connection id, URL, and name.
-Main resolves the URL again, then atomically creates the Source, enqueues its
-initial synchronization Job, and binds `activeJobId`. Manual synchronization
+Main resolves the URL again, then re-reads the base and connection and validates
+base availability, provider, authorization, resolved tenant, and provider-scope
+uniqueness inside the same write transaction that creates the Source, enqueues
+its initial synchronization Job, and binds `activeJobId`. Domain conflicts and
+unavailable targets cross IPC as stable safe codes without composite identity.
+Manual synchronization
 accepts only a Source id and coalesces on the same per-Source idempotency key;
 neither route accepts credentials, preview DTOs, or provider payloads.
 
@@ -295,6 +303,14 @@ Knowledge runtime work is persisted in JobManager. `KnowledgeService.onInit` reg
 - `knowledge.sync-external-source`
 
 Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispatch, retry, cancellation, timeout, and startup recovery. Knowledge code uses the per-base mutation lock (`KeyedMutex.runExclusive`) to serialize same-base vector and item mutations inside the current process.
+
+External Source admission is owner-local and opens only after its runtime starts.
+Shutdown closes admission first, lists pending, delayed, and running
+`knowledge.sync-external-source` Jobs, individually cancels and settles them, and
+stops the runtime last. Listing, cancellation, and runtime-stop failures are
+reported after all shutdown steps are attempted. Job settlement projects timeout
+only from the structured `JOB_HANDLER_TIMEOUT` code; metadata cannot downgrade it
+to cancellation.
 
 Current item statuses are:
 
@@ -358,7 +374,7 @@ existing vector contract must be rebuilt in a new base.
 1. Orchestration loads requested items and collapses descendants to top-level roots.
 2. Under the base mutation lock, one DB transaction rejects the whole request if any selected root's recursive subtree has an active `ExternalKnowledgeDocument` owner, marks the accepted subtrees `deleting`, and enqueues `knowledge.delete-subtree`.
 3. The delete job cancels active jobs touching the subtree.
-4. Under the base mutation lock, the delete job deletes leaf vectors, deletes Knowledge-owned raw files, and hard-deletes item rows.
+4. Under the base mutation lock, the delete job deletes leaf vectors, strictly deletes external snapshots, best-effort deletes ordinary Knowledge-owned raw files, and hard-deletes item rows. Any strict external snapshot failure preserves every target row for retry.
 
 The ownership check is based on document availability, not source state, so
 pausing a source does not make its active documents independently deletable.
@@ -373,7 +389,7 @@ an active-owned descendant.
 
 Knowledge files are managed by the Knowledge workflow under the base `raw/` directory. The create/index path does not register FileManager refs, so delete has no separate FileManager ref cleanup step.
 
-If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls back the `deleting` status write and the items retain their previous visible state. Startup recovery still scans committed `deleting` roots and re-enqueues cleanup jobs best-effort when already-durable cleanup was interrupted or failed.
+If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls back the `deleting` status write and the items retain their previous visible state. Startup recovery and the beginning of each external Source sync scan committed `deleting` roots and re-enqueue cleanup jobs best-effort when already-durable cleanup was interrupted or failed. Recovery groups roots by base and admits at most 500 roots per transaction and Job so one failure does not stop other batches.
 
 `reindex-items` currently runs:
 

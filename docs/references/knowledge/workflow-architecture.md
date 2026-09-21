@@ -41,9 +41,11 @@ Helpers may own source planning, lifecycle writes, knowledge-owned raw files, an
 - `deleteItems` resolves after top-level target subtrees are atomically confirmed not to contain active document-owned external items, marked `deleting`, and queued for `knowledge.delete-subtree`.
 - `reindexItems` resolves after each top-level target subtree is confirmed terminal (`completed` or `failed`) and `knowledge.reindex-subtree` is queued.
 - External Source creation resolves after trusted URL resolution and one
-  transaction creates the Source, enqueues `knowledge.sync-external-source`,
-  and binds its active Job fence. Manual synchronization resolves after that
-  same per-Source Job is enqueued or coalesced.
+  transaction rechecks the current base, connection, authorization state,
+  resolved tenant, and provider-scope uniqueness, creates the Source, enqueues
+  `knowledge.sync-external-source`, and binds its active Job fence. Manual
+  synchronization resolves after that same per-Source Job is enqueued or
+  coalesced.
 
 Default item list, search, and RAG hydration exclude `deleting` items. `deleting` is a durable cleanup marker, not a tombstone or terminal success state.
 
@@ -115,21 +117,28 @@ its Source/Document fences, index-store publication, and row visibility.
 
 The implemented external writer preserves this visibility protocol:
 
-1. Stage the provider-normalized snapshot and run slow preparation outside the
-   base mutation lock, using a distinct versioned snapshot path and new item id.
-2. Acquire the base lock, then recheck the source revision and current document
+1. Create an external `knowledge_item` with status `deleting` before any snapshot,
+   material, or vector side effect. The row is invisible to normal reads and is
+   the durable locator for the distinct versioned snapshot path and new item id.
+2. Stage the provider-normalized snapshot and run slow preparation outside the
+   base mutation lock.
+3. Acquire the base lock, then recheck the source revision and current document
    owner before publishing anything.
-3. Write the prepared material under the new item id while the staged snapshot
-   and material remain invisible: neither is reachable from a visible main-DB
-   `knowledge_item` row yet.
-4. In one main-database transaction, create the new external item already
-   `completed`, switch the document's owner, content hash, and remote revision
-   to that item, then delete the now-unowned old item row. The transaction must
-   not leave the old item visible as ownerless static content.
-5. After commit, remove the old snapshot and vector material best-effort. If the
-   main-DB transaction fails, compensate by removing the unpublished new
-   artifacts and report stable cleanup warning codes when compensation cannot
-   finish.
+4. Write the prepared material under the new item id while its `deleting` row
+   keeps the staged snapshot and material invisible.
+5. In one main-database transaction, CAS-promote that exact external staging row
+   to `completed`, switch the document's owner, content hash, and remote revision,
+   mark any old owner subtree `deleting`, and enqueue `knowledge.delete-subtree`.
+   A successful sync guarantees the old content is hidden and cleanup is durably
+   accepted, not that its physical bytes have already been removed.
+
+Snapshot staging, material preparation, vector rebuilding, or publication failure
+leaves the new `deleting` row intact and attempts cleanup admission in a separate
+short transaction. Failure to admit cleanup is logged without replacing the
+original error; startup recovery and the beginning of later Source syncs rescan
+committed deleting roots and retry admission. Missing and permission-denied
+reconciliation similarly withdraw ownership, mark the old owner deleting, and
+enqueue cleanup atomically.
 
 One `knowledge.sync-external-source` Job owns the complete scan, incremental
 document synchronization, and missing-document reconciliation. Reconciliation
@@ -139,9 +148,9 @@ dependency `AbortError` while that signal remains active follows the stable
 scan/document/reconciliation failure policy.
 
 The main database and per-base index store cannot participate in one distributed
-transaction. Cross-store consistency therefore depends on invisibility before
-the main-DB commit plus compensation and reconciliation, not distributed
-atomicity.
+transaction. Cross-store consistency therefore depends on the durable invisible
+staging/deleting row, idempotent cleanup admission, and reconciliation, not
+distributed atomicity.
 
 ## Job Types
 
@@ -149,13 +158,15 @@ Registered job types:
 
 - `knowledge.prepare-root`: expand a container and schedule each child.
 - `knowledge.index-documents`: call `indexKnowledgeItem` to read/chunk/embed/rebuild a concrete document source. Empty reader results or zero chunks fail the item without replacing the existing material.
-- `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, delete base-directory files, then delete resolved item ids with `deleteItemsByIds`. The create/index path does not register FileManager refs, so there is no separate file-ref detach step; any historical `FileEntry` rows are left to the file module's no-reference policy.
+- `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, strictly delete external snapshots, best-effort delete ordinary base-directory files, then delete resolved item ids with `deleteItemsByIds`. A strict external deletion failure preserves every target row, including its `deleting` locator, so recovery can retry. The create/index path does not register FileManager refs, so there is no separate file-ref detach step; any historical `FileEntry` rows are left to the file module's no-reference policy.
 - `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf roots keep their source files on disk and are repaired by `index-documents` from `knowledge_item.data`.
 - `knowledge.check-file-processing-result`: poll or inspect the FileProcessing job, record the converted markdown's location on the item (via `updateIndexedRelativePath`) on success, then schedule indexing.
 - `knowledge.sync-external-source`: scan one persisted Source, publish supported
   documents incrementally, reconcile missing or permission-denied documents,
   and settle the Source through revision plus active-Job fences. Initial and
-  manual requests share this handler and a per-Source idempotency key.
+  manual requests share this handler and a per-Source idempotency key. Settled
+  projection classifies timeout only from JobManager's structured
+  `JOB_HANDLER_TIMEOUT` error code, ahead of handler metadata.
 
 `knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result`, records the converted markdown's location on the item via `updateIndexedRelativePath` (the `indexedRelativePath` leaf field, not a separate file-ref artifact row), then indexes that markdown.
 
@@ -179,5 +190,10 @@ Delete admission is still a single-main-database transaction: recursive
 `deleting` status writes, active external-document ownership enforcement, and
 job enqueueing commit or roll back together. The renderer's subtree-aware
 `canDelete` field is only a read projection and cannot bypass this check.
+
+The same subtree-deletion primitive admits external replacement, reconciliation,
+and staging cleanup. Recovery groups committed deleting roots by base, chunks
+each group into at most 500 roots per transaction and Job, and logs one failed
+scan or admission without preventing other groups from being attempted.
 
 User-triggered reindex is not a cancellation primitive. The service admits reindex only when the entire selected subtree is already `completed` or `failed`. Active states (`idle`, `preparing`, `processing`, `reading`, `embedding`) and `deleting` are rejected; delete remains the operation that can be requested at any time.
