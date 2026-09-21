@@ -2419,6 +2419,154 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
+    it('forces the connection rebuild when background work never releases within the grace period', async () => {
+      vi.useFakeTimers()
+      try {
+        const firstConnection = {
+          events: createAsyncQueue<any>().iterable,
+          send: vi.fn(),
+          close: vi.fn(),
+          reconcile: vi.fn().mockResolvedValue('rebuild')
+        }
+        const secondConnection = {
+          events: createAsyncQueue<any>().iterable,
+          send: vi.fn(),
+          close: vi.fn(),
+          reconcile: vi.fn().mockResolvedValue('current')
+        }
+        const connect = vi.fn().mockResolvedValue(secondConnection)
+        runtimeDriverRegistry.register({
+          type: 'test-runtime',
+          capabilities: ['agent-session'],
+          connect,
+          validateSession: vi.fn(),
+          listAvailableTools: vi.fn().mockResolvedValue([])
+        })
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+        const entry = getEntry(service)
+        entry.connection = firstConnection
+        service.markTurnTerminal('session-1', 'success')
+        // Zombie occupancy: the work's process died without the driver ever reporting release,
+        // so no driver edge will ever settle the deferral.
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, firstConnection)
+
+        const handle = service.beginTurn({
+          ...baseTurnInput,
+          modelId: switchedModelId,
+          userMessage: userMessage('user-2')
+        })
+        const stream = service.openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        const reader = stream.getReader()
+        await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+        await vi.waitFor(() =>
+          expect(firstConnection.reconcile).toHaveBeenCalledWith({
+            modelId: switchedModelId,
+            reasoningEffort: 'default',
+            serviceTier: 'standard',
+            knowledgeBaseIds: [],
+            fastMode: false
+          })
+        )
+
+        // Within the grace window the stale connection is still left to its detached work.
+        expect(firstConnection.close).not.toHaveBeenCalled()
+        expect(connect).not.toHaveBeenCalled()
+
+        // Once the grace expires (BACKGROUND_WORK_REBUILD_GRACE_MS = 120s) the pending turn wins:
+        // the stale connection is torn down, the rebuild runs with the turn's model, and the
+        // user input is admitted instead of waiting forever.
+        vi.advanceTimersByTime(120_000)
+
+        await vi.waitFor(() =>
+          expect(secondConnection.send).toHaveBeenCalledWith(
+            expect.objectContaining({ message: userMessage('user-2') })
+          )
+        )
+        expect(firstConnection.close).toHaveBeenCalledOnce()
+        expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
+        expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+          'Background work did not release within the grace period; forcing connection rebuild',
+          { sessionId: 'session-1', graceMs: 120_000 }
+        )
+
+        await reader.cancel().catch(() => undefined)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('cancels the forced rebuild once background work releases within the grace period', async () => {
+      vi.useFakeTimers()
+      try {
+        const firstConnection = {
+          events: createAsyncQueue<any>().iterable,
+          send: vi.fn(),
+          close: vi.fn(),
+          reconcile: vi.fn().mockResolvedValue('rebuild')
+        }
+        const secondConnection = {
+          events: createAsyncQueue<any>().iterable,
+          send: vi.fn(),
+          close: vi.fn(),
+          reconcile: vi.fn().mockResolvedValue('current')
+        }
+        const connect = vi.fn().mockResolvedValue(secondConnection)
+        runtimeDriverRegistry.register({
+          type: 'test-runtime',
+          capabilities: ['agent-session'],
+          connect,
+          validateSession: vi.fn(),
+          listAvailableTools: vi.fn().mockResolvedValue([])
+        })
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+        const entry = getEntry(service)
+        entry.connection = firstConnection
+        service.markTurnTerminal('session-1', 'success')
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, firstConnection)
+
+        const handle = service.beginTurn({
+          ...baseTurnInput,
+          modelId: switchedModelId,
+          userMessage: userMessage('user-2')
+        })
+        const stream = service.openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        const reader = stream.getReader()
+        await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+        await vi.waitFor(() => expect(firstConnection.reconcile).toHaveBeenCalledOnce())
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false }, firstConnection)
+        await vi.waitFor(() =>
+          expect(secondConnection.send).toHaveBeenCalledWith(
+            expect.objectContaining({ message: userMessage('user-2') })
+          )
+        )
+
+        // A release inside the grace window settles its waiter and must also disarm the forced
+        // rebuild: firing the leftover timer later cannot warn or tear the new connection down.
+        vi.advanceTimersByTime(120_001)
+        expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith(
+          'Background work did not release within the grace period; forcing connection rebuild',
+          expect.anything()
+        )
+        expect(secondConnection.close).not.toHaveBeenCalled()
+        expect(secondConnection.send).toHaveBeenCalledOnce()
+
+        await reader.cancel().catch(() => undefined)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('never reconciles under an admitted streaming turn', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })

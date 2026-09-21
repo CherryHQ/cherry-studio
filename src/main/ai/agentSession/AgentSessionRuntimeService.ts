@@ -117,6 +117,13 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
+/**
+ * How long a fresh turn waits for detached background work to release a spawn-stale connection
+ * before forcing the rebuild. Detached work has no host-side liveness probe, so work whose
+ * process already died (e.g. an OS restart the runtime state never observed) would otherwise
+ * defer the rebuild — and with it turn admission — forever.
+ */
+const BACKGROUND_WORK_REBUILD_GRACE_MS = 120_000
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -369,10 +376,16 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
-  /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
+  /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase.
+   *  The promise settles `true` when the driver reports the work released, `false` on grace expiry. */
   private readonly backgroundWorkWaiters = new Map<
     string,
-    { connection: AgentRuntimeConnection; promise: Promise<void>; resolve: () => void }
+    {
+      connection: AgentRuntimeConnection
+      promise: Promise<boolean>
+      settle: (released: boolean) => void
+      timer: ReturnType<typeof setTimeout>
+    }
   >()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
@@ -1600,11 +1613,18 @@ export class AgentSessionRuntimeService extends BaseService {
               logger.info('Deferring connection rebuild until background work releases', {
                 sessionId: entry.sessionId
               })
-              await this.waitForBackgroundWorkRelease(entry, connection, target)
+              const released = await this.waitForBackgroundWorkRelease(entry, connection, target)
               if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) continue
-              logger.info('Background work released; retrying connection rebuild', {
-                sessionId: entry.sessionId
-              })
+              if (released) {
+                logger.info('Background work released; retrying connection rebuild', {
+                  sessionId: entry.sessionId
+                })
+                continue
+              }
+              // Grace expired — the occupancy may be a zombie (its process died without the driver
+              // reporting it). Prefer the pending user turn over an unbounded wait: force the
+              // rebuild on the regular teardown path, which structurally clears the occupancy.
+              this.closeConnectionAsync(entry)
               continue
             }
             this.closeConnectionAsync(entry)
@@ -2305,22 +2325,34 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     connection: AgentRuntimeConnection,
     target: AgentSessionConnectionTarget
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (
       !this.isCurrentEntry(entry) ||
       this.currentConnection(entry) !== connection ||
       !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
     ) {
-      return Promise.resolve()
+      return Promise.resolve(true)
     }
     const existing = this.backgroundWorkWaiters.get(entry.sessionId)
     if (existing?.connection === connection) return existing.promise
 
-    let resolve!: () => void
-    const promise = new Promise<void>((done) => {
-      resolve = done
+    let settle!: (released: boolean) => void
+    const promise = new Promise<boolean>((done) => {
+      settle = done
     })
-    this.backgroundWorkWaiters.set(entry.sessionId, { connection, promise, resolve })
+    const sessionId = entry.sessionId
+    const timer = setTimeout(() => {
+      logger.warn('Background work did not release within the grace period; forcing connection rebuild', {
+        sessionId,
+        graceMs: BACKGROUND_WORK_REBUILD_GRACE_MS
+      })
+      if (this.backgroundWorkWaiters.get(sessionId)?.timer === timer) {
+        this.backgroundWorkWaiters.delete(sessionId)
+      }
+      settle(false)
+    }, BACKGROUND_WORK_REBUILD_GRACE_MS)
+    timer.unref()
+    this.backgroundWorkWaiters.set(sessionId, { connection, promise, settle, timer })
     this.applyRuntimeStateEvent(entry, { type: 'connection-rebuild-deferred', connection, target })
     return promise
   }
@@ -2329,7 +2361,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const waiter = this.backgroundWorkWaiters.get(entry.sessionId)
     if (!waiter || (connection && waiter.connection !== connection)) return
     this.backgroundWorkWaiters.delete(entry.sessionId)
-    waiter.resolve()
+    clearTimeout(waiter.timer)
+    waiter.settle(true)
   }
 
   private handleAutonomousGenerationFinished(
