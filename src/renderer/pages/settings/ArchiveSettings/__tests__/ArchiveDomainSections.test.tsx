@@ -13,7 +13,7 @@ import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 
-import type { PendingPermanentDelete } from '../TrashSection'
+import type { PendingPermanentDelete } from '../ArchiveSection'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
@@ -63,13 +63,13 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 const {
-  AgentTrashSection,
-  AssistantTrashSection,
-  FileTrashSection,
-  PaintingTrashSection,
-  SessionTrashSection,
-  TopicTrashSection
-} = await import('../TrashDomainSections')
+  AgentArchiveSection,
+  AssistantArchiveSection,
+  FileArchiveSection,
+  PaintingArchiveSection,
+  SessionArchiveSection,
+  TopicArchiveSection
+} = await import('../ArchiveDomainSections')
 
 function deletedTopic(id: string, name: string) {
   return { id, name, deletedAt: '2026-08-01T00:00:00.000Z' }
@@ -104,7 +104,7 @@ interface DataDomainCase {
 const dataDomainCases: DataDomainCase[] = [
   {
     label: 'Topic',
-    Component: TopicTrashSection,
+    Component: TopicArchiveSection,
     listPath: '/topics',
     deletePath: '/topics/:id',
     paginated: false,
@@ -112,7 +112,7 @@ const dataDomainCases: DataDomainCase[] = [
   },
   {
     label: 'Assistant',
-    Component: AssistantTrashSection,
+    Component: AssistantArchiveSection,
     listPath: '/assistants',
     deletePath: '/assistants/:id',
     paginated: true,
@@ -120,7 +120,7 @@ const dataDomainCases: DataDomainCase[] = [
   },
   {
     label: 'Painting',
-    Component: PaintingTrashSection,
+    Component: PaintingArchiveSection,
     listPath: '/paintings',
     deletePath: '/paintings/:id',
     paginated: false,
@@ -165,17 +165,17 @@ beforeEach(async () => {
   vi.mocked(dataApiService.get).mockReset()
 })
 
-describe('Trash domain batch adapters', () => {
+describe('Archive domain batch adapters', () => {
   it.each([
     {
       path: '/assistants',
-      Component: AssistantTrashSection,
+      Component: AssistantArchiveSection,
       preference: 'assistant.icon_type',
       fields: { emoji: '🔭' }
     },
     {
       path: '/agents',
-      Component: AgentTrashSection,
+      Component: AgentArchiveSection,
       preference: 'agent.icon_type',
       fields: { configuration: { avatar: '🔭' } }
     }
@@ -208,7 +208,7 @@ describe('Trash domain batch adapters', () => {
 
     render(
       <SWRConfig value={{ provider: () => new Map() }}>
-        <PaintingTrashSection
+        <PaintingArchiveSection
           retentionDays={30}
           isBatchMode={false}
           isPermanentDeleting={false}
@@ -240,7 +240,7 @@ describe('Trash domain batch adapters', () => {
 
     render(
       <SWRConfig value={{ provider: () => new Map(), shouldRetryOnError: false }}>
-        <PaintingTrashSection
+        <PaintingArchiveSection
           retentionDays={30}
           isBatchMode={false}
           isPermanentDeleting={false}
@@ -262,7 +262,7 @@ describe('Trash domain batch adapters', () => {
 
   it('refreshes only assistant resources when restoring an assistant', () => {
     render(
-      <AssistantTrashSection
+      <AssistantArchiveSection
         retentionDays={30}
         isBatchMode={false}
         isPermanentDeleting={false}
@@ -281,7 +281,12 @@ describe('Trash domain batch adapters', () => {
       { id: 'agent-1', name: 'Agent one', deletedAt: '2026-08-01T00:00:00.000Z' }
     ])
     render(
-      <AgentTrashSection retentionDays={30} isBatchMode={false} isPermanentDeleting={false} onRequestDelete={vi.fn()} />
+      <AgentArchiveSection
+        retentionDays={30}
+        isBatchMode={false}
+        isPermanentDeleting={false}
+        onRequestDelete={vi.fn()}
+      />
     )
     await user.click(screen.getByRole('button', { name: 'Restore' }))
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.restore', { agentId: 'agent-1' }))
@@ -296,7 +301,7 @@ describe('Trash domain batch adapters', () => {
     mocks.ipcRequest.mockResolvedValue({ id: 'session-1' })
 
     render(
-      <SessionTrashSection
+      <SessionArchiveSection
         retentionDays={30}
         isBatchMode={false}
         isPermanentDeleting={false}
@@ -431,7 +436,7 @@ describe('Trash domain batch adapters', () => {
     })
     let pending: PendingPermanentDelete | undefined
     render(
-      <TopicTrashSection
+      <TopicArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}
@@ -466,7 +471,7 @@ describe('Trash domain batch adapters', () => {
     })
     let pending: PendingPermanentDelete | undefined
     render(
-      <AgentTrashSection
+      <AgentArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}
@@ -525,7 +530,7 @@ describe('Trash domain batch adapters', () => {
     })
     let pending: PendingPermanentDelete | undefined
     render(
-      <SessionTrashSection
+      <SessionArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}
@@ -570,7 +575,7 @@ describe('Trash domain batch adapters', () => {
   it.each([
     {
       label: 'Agent',
-      Component: AgentTrashSection,
+      Component: AgentArchiveSection,
       listPath: '/agents',
       record: { id: 'agent-stale', name: 'Stale agent', deletedAt: '2026-08-01T00:00:00.000Z' },
       request: ['ai.agent.delete', { agentId: 'agent-stale', deleteSessions: false, permanent: true }] as const,
@@ -580,7 +585,7 @@ describe('Trash domain batch adapters', () => {
     },
     {
       label: 'Session',
-      Component: SessionTrashSection,
+      Component: SessionArchiveSection,
       listPath: '/agent-sessions',
       record: { id: 'session-stale', name: 'Stale session', deletedAt: '2026-08-01T00:00:00.000Z' },
       request: ['ai.agent.session.delete', { sessionIds: ['session-stale'], permanent: true }] as const,
@@ -637,7 +642,7 @@ describe('Trash domain batch adapters', () => {
       if (method === 'POST') throw DataApiErrorFactory.notFound('Topic', 'topic-1')
     })
     vi.mocked(dataApiService.get).mockResolvedValueOnce(deletedTopic('topic-1', 'First topic'))
-    render(<TopicTrashSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+    render(<TopicArchiveSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
@@ -661,7 +666,7 @@ describe('Trash domain batch adapters', () => {
     vi.mocked(dataApiService.get).mockRejectedValue(DataApiErrorFactory.notFound('FileEntry', ids[500]))
     let pending: PendingPermanentDelete | undefined
     render(
-      <FileTrashSection
+      <FileArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}
@@ -717,7 +722,7 @@ describe('Trash domain batch adapters', () => {
     vi.mocked(dataApiService.get).mockRejectedValueOnce(DataApiErrorFactory.notFound('FileEntry', file.id))
     let pending: PendingPermanentDelete | undefined
     render(
-      <FileTrashSection
+      <FileArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}
@@ -763,7 +768,7 @@ describe('Trash domain batch adapters', () => {
         : { succeeded: chunkIds, failed: [] }
     })
     vi.mocked(dataApiService.get).mockResolvedValue({ ...files[500], deletedAt: undefined })
-    render(<FileTrashSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+    render(<FileArchiveSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
     await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
 
     await user.click(screen.getByRole('button', { name: 'Restore 501' }))
@@ -792,7 +797,7 @@ describe('Trash domain batch adapters', () => {
       failed: [{ id: file.id, error: 'not found' }]
     })
     vi.mocked(dataApiService.get).mockRejectedValueOnce(DataApiErrorFactory.notFound('FileEntry', file.id))
-    render(<FileTrashSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+    render(<FileArchiveSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
@@ -824,7 +829,7 @@ describe('Trash domain batch adapters', () => {
     )
     let pending: PendingPermanentDelete | undefined
     render(
-      <FileTrashSection
+      <FileArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}

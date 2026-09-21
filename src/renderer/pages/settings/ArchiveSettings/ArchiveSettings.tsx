@@ -32,21 +32,21 @@ import { toast } from '@renderer/services/toast'
 import { type FileEntryRefCount, REF_COUNTS_MAX_ENTRY_IDS } from '@shared/data/api/schemas/files'
 
 import {
-  AgentTrashSection,
-  AssistantTrashSection,
-  FileTrashSection,
-  PaintingTrashSection,
-  SessionTrashSection,
-  TopicTrashSection,
-  type TrashDomainSectionProps
-} from './TrashDomainSections'
-import type { PendingPermanentDelete } from './TrashSection'
+  AgentArchiveSection,
+  AssistantArchiveSection,
+  FileArchiveSection,
+  PaintingArchiveSection,
+  SessionArchiveSection,
+  TopicArchiveSection,
+  type ArchiveDomainSectionProps
+} from './ArchiveDomainSections'
+import type { PendingPermanentDelete } from './ArchiveSection'
 
 const logger = loggerService.withContext('ArchiveSettings')
 
-type TrashCategory = 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
+type ArchiveCategory = 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
 
-const CATEGORIES: { id: TrashCategory; labelKey: string }[] = [
+const CATEGORIES: { id: ArchiveCategory; labelKey: string }[] = [
   { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants' },
   { id: 'topics', labelKey: 'settings.data.trash.domain.topics' },
   { id: 'agents', labelKey: 'settings.data.trash.domain.agents' },
@@ -55,13 +55,13 @@ const CATEGORIES: { id: TrashCategory; labelKey: string }[] = [
   { id: 'files', labelKey: 'settings.data.trash.domain.files' }
 ]
 
-const SECTION_BY_CATEGORY: Record<TrashCategory, FC<TrashDomainSectionProps>> = {
-  topics: TopicTrashSection,
-  agents: AgentTrashSection,
-  sessions: SessionTrashSection,
-  assistants: AssistantTrashSection,
-  paintings: PaintingTrashSection,
-  files: FileTrashSection
+const SECTION_BY_CATEGORY: Record<ArchiveCategory, FC<ArchiveDomainSectionProps>> = {
+  topics: TopicArchiveSection,
+  agents: AgentArchiveSection,
+  sessions: SessionArchiveSection,
+  assistants: AssistantArchiveSection,
+  paintings: PaintingArchiveSection,
+  files: FileArchiveSection
 }
 
 const PURGE_INVALIDATE_PATHS = [
@@ -114,7 +114,7 @@ const ArchiveSettings: FC = () => {
     [t]
   )
 
-  const [category, setCategory] = useState<TrashCategory>('topics')
+  const [category, setCategory] = useState<ArchiveCategory>('topics')
   const [isBatchMode, setIsBatchMode] = useState(false)
   const [batchToolbarContainer, setBatchToolbarContainer] = useState<HTMLDivElement | null>(null)
   const [canBatchManage, setCanBatchManage] = useState(false)
@@ -124,7 +124,7 @@ const ArchiveSettings: FC = () => {
   const [isDeleting, setIsDeleting] = useState(false)
   const [fileReferencePreview, setFileReferencePreview] = useState<FileReferencePreview>({ status: 'idle' })
   const referenceRequestToken = useRef(0)
-  const [emptyTrashOpen, setEmptyTrashOpen] = useState(false)
+  const [emptyArchiveOpen, setEmptyArchiveOpen] = useState(false)
   const [isEmptying, setIsEmptying] = useState(false)
 
   const closePendingDelete = useCallback(() => {
@@ -188,7 +188,7 @@ const ArchiveSettings: FC = () => {
     }
   }
 
-  const handleEmptyTrash = async () => {
+  const handleEmptyArchive = async () => {
     setIsEmptying(true)
     try {
       const { status, reclaimed, deletedCount, retainedReferencedFileCount } = await ipcApi.request('trash.purge_now')
@@ -214,7 +214,7 @@ const ArchiveSettings: FC = () => {
       toast.error(t('settings.data.trash.empty_trash.error'))
     } finally {
       setIsEmptying(false)
-      setEmptyTrashOpen(false)
+      setEmptyArchiveOpen(false)
     }
   }
 
@@ -269,7 +269,7 @@ const ArchiveSettings: FC = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem variant="destructive" onSelect={() => setEmptyTrashOpen(true)}>
+              <DropdownMenuItem variant="destructive" onSelect={() => setEmptyArchiveOpen(true)}>
                 <Trash2 />
                 {t('settings.data.trash.empty_trash.button')}
               </DropdownMenuItem>
@@ -283,7 +283,7 @@ const ArchiveSettings: FC = () => {
           onValueChange={(value) => {
             closePendingDelete()
             setCanBatchManage(false)
-            setCategory(value as TrashCategory)
+            setCategory(value as ArchiveCategory)
           }}>
           <div className="flex items-center justify-between gap-4 border-border border-b">
             <div
@@ -351,9 +351,9 @@ const ArchiveSettings: FC = () => {
         onConfirm={handleConfirmDelete}
       />
       <ConfirmDialog
-        open={emptyTrashOpen}
+        open={emptyArchiveOpen}
         onOpenChange={(open) => {
-          if (!open && !isEmptying) setEmptyTrashOpen(false)
+          if (!open && !isEmptying) setEmptyArchiveOpen(false)
         }}
         destructive
         title={t('settings.data.trash.empty_trash.confirm_title')}
@@ -361,7 +361,7 @@ const ArchiveSettings: FC = () => {
         confirmText={t('settings.data.trash.empty_trash.button')}
         cancelText={t('common.cancel')}
         confirmLoading={isEmptying}
-        onConfirm={handleEmptyTrash}
+        onConfirm={handleEmptyArchive}
       />
     </SettingsContentColumn>
   )

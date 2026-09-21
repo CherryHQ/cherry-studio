@@ -27,16 +27,16 @@ import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 import { toFileUrl } from '@shared/utils/file'
 
-import TrashSection, { type PendingPermanentDelete } from './TrashSection'
-import type { TrashBatchOutcome, TrashItem } from './trashUtils'
-import { runPerItem, toEpochMs } from './trashUtils'
+import type { ArchiveBatchOutcome, ArchiveItem } from './archive'
+import { runPerItem, toEpochMs } from './archive'
+import ArchiveSection, { type PendingPermanentDelete } from './ArchiveSection'
 
-const logger = loggerService.withContext('TrashDomainSections')
+const logger = loggerService.withContext('ArchiveDomainSections')
 
-const IN_TRASH_QUERY = { inTrash: true } as const
+const ARCHIVED_ITEMS_QUERY = { inTrash: true } as const
 const PREVIEW_BATCH_SIZE = 500
 
-export interface TrashDomainSectionProps {
+export interface ArchiveDomainSectionProps {
   retentionDays: number
   batchToolbarContainer?: HTMLDivElement | null
   isBatchMode: boolean
@@ -70,7 +70,7 @@ async function reconcileNotFound(
 }
 
 /** Shared toast + logging around a restore/delete mutation. */
-function useTrashActionRunner() {
+function useArchiveActionRunner() {
   const { t } = useTranslation()
 
   return async (action: 'restore' | 'permanent_delete', run: () => Promise<unknown>): Promise<void> => {
@@ -96,11 +96,11 @@ function useTrashActionRunner() {
 }
 
 async function runSinglePermanentDelete(
-  item: TrashItem,
-  runAction: ReturnType<typeof useTrashActionRunner>,
-  run: (items: TrashItem[]) => Promise<TrashBatchOutcome>
-): Promise<TrashBatchOutcome> {
-  let outcome: TrashBatchOutcome = { succeeded: [], failed: [] }
+  item: ArchiveItem,
+  runAction: ReturnType<typeof useArchiveActionRunner>,
+  run: (items: ArchiveItem[]) => Promise<ArchiveBatchOutcome>
+): Promise<ArchiveBatchOutcome> {
+  let outcome: ArchiveBatchOutcome = { succeeded: [], failed: [] }
   await runAction('permanent_delete', async () => {
     outcome = await run([item])
     const [failure] = outcome.failed
@@ -112,11 +112,11 @@ async function runSinglePermanentDelete(
 }
 
 async function runDataPermanentDeletes(
-  targets: TrashItem[],
-  deleteItem: (item: TrashItem) => Promise<unknown>,
+  targets: ArchiveItem[],
+  deleteItem: (item: ArchiveItem) => Promise<unknown>,
   refresh: () => Promise<unknown>,
   staleMessage: string
-): Promise<TrashBatchOutcome> {
+): Promise<ArchiveBatchOutcome> {
   const staleIds = new Set<string>()
   const outcome = await runPerItem(targets, async (item) => {
     try {
@@ -137,7 +137,7 @@ async function runDataPermanentDeletes(
   return classifyStaleFailures(outcome, staleIds)
 }
 
-function classifyStaleFailures(outcome: TrashBatchOutcome, staleIds: ReadonlySet<string>): TrashBatchOutcome {
+function classifyStaleFailures(outcome: ArchiveBatchOutcome, staleIds: ReadonlySet<string>): ArchiveBatchOutcome {
   return {
     ...outcome,
     failed: outcome.failed.map((failure) =>
@@ -149,7 +149,7 @@ function classifyStaleFailures(outcome: TrashBatchOutcome, staleIds: ReadonlySet
 const FILE_DETAIL_LOOKUP_CONCURRENCY = 8
 
 async function inspectFailedFileIds(
-  failures: TrashBatchOutcome['failed']
+  failures: ArchiveBatchOutcome['failed']
 ): Promise<{ activeIds: Set<string>; missingIds: Set<string> }> {
   const activeIds = new Set<string>()
   const missingIds = new Set<string>()
@@ -169,7 +169,7 @@ async function inspectFailedFileIds(
   return { activeIds, missingIds }
 }
 
-export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
+export const TopicArchiveSection: FC<ArchiveDomainSectionProps> = ({
   retentionDays,
   batchToolbarContainer,
   isBatchMode,
@@ -178,16 +178,16 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
   onRequestDelete
 }) => {
   const { t } = useTranslation()
-  const runAction = useTrashActionRunner()
+  const runAction = useArchiveActionRunner()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/topics', {
-    query: IN_TRASH_QUERY,
+    query: ARCHIVED_ITEMS_QUERY,
     limit: 20
   })
   const topics = useInfiniteFlatItems(pages)
   useDataChange('/topics', () => void refresh())
-  const items = useMemo<TrashItem[]>(
+  const items = useMemo<ArchiveItem[]>(
     () => topics.map((topic) => ({ id: topic.id, name: topic.name, deletedAt: toEpochMs(topic.deletedAt) })),
     [topics]
   )
@@ -198,10 +198,10 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
   })
   const deleteMutation = useMutation('DELETE', '/topics/:id')
 
-  const restoreItem = (item: TrashItem) =>
+  const restoreItem = (item: ArchiveItem) =>
     reconcileNotFound(() => restoreMutation.trigger({ params: { id: item.id } }), refresh, `/topics/${item.id}`)
 
-  const handleRestore = async (item: TrashItem) => {
+  const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
     try {
       await runAction('restore', () => restoreItem(item))
@@ -210,18 +210,18 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
     }
   }
 
-  const handleRestoreMany = (targets: TrashItem[]) => runPerItem(targets, restoreItem)
-  const handleDeleteMany = (targets: TrashItem[]) =>
+  const handleRestoreMany = (targets: ArchiveItem[]) => runPerItem(targets, restoreItem)
+  const handleDeleteMany = (targets: ArchiveItem[]) =>
     runDataPermanentDeletes(
       targets,
       (target) => deleteMutation.trigger({ params: { id: target.id }, query: { permanent: true } }),
       refresh,
       t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
     )
-  const handleDelete = (item: TrashItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
+  const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
 
   return (
-    <TrashSection
+    <ArchiveSection
       icon={MessageSquare}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -243,7 +243,7 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
   )
 }
 
-export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
+export const AgentArchiveSection: FC<ArchiveDomainSectionProps> = ({
   retentionDays,
   batchToolbarContainer,
   isBatchMode,
@@ -252,7 +252,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
   onRequestDelete
 }) => {
   const { t } = useTranslation()
-  const runAction = useTrashActionRunner()
+  const runAction = useArchiveActionRunner()
   const invalidate = useInvalidateCache()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
@@ -267,10 +267,10 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
     nextPage,
     prevPage,
     refresh
-  } = usePaginatedQuery('/agents', { query: IN_TRASH_QUERY, limit: 50 })
+  } = usePaginatedQuery('/agents', { query: ARCHIVED_ITEMS_QUERY, limit: 50 })
   const [iconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
-  const items = useMemo<TrashItem[]>(
+  const items = useMemo<ArchiveItem[]>(
     () =>
       agents.map((agent) => ({
         id: agent.id,
@@ -283,7 +283,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
   const totalPages = Math.ceil(total / 50)
   useDataChange('/agents', () => void refresh())
 
-  const restoreItem = (item: TrashItem) =>
+  const restoreItem = (item: ArchiveItem) =>
     reconcileNotFound(
       async () => {
         const restored = await ipcApi.request('ai.agent.restore', { agentId: item.id })
@@ -299,7 +299,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
       isAgentNotFoundError
     )
 
-  const handleRestore = async (item: TrashItem) => {
+  const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
     try {
       await runAction('restore', () => restoreItem(item))
@@ -308,8 +308,8 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
     }
   }
 
-  const handleRestoreMany = (targets: TrashItem[]) => runPerItem(targets, restoreItem)
-  const handleDeleteMany = async (targets: TrashItem[]) => {
+  const handleRestoreMany = (targets: ArchiveItem[]) => runPerItem(targets, restoreItem)
+  const handleDeleteMany = async (targets: ArchiveItem[]) => {
     const staleIds = new Set<string>()
     const staleMessage = t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
     const outcome = await runPerItem(targets, async (target) => {
@@ -331,10 +331,10 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
     }
     return classifyStaleFailures(outcome, staleIds)
   }
-  const handleDelete = (item: TrashItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
+  const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
 
   return (
-    <TrashSection
+    <ArchiveSection
       icon={SIDEBAR_ICON_COMPONENTS.agents}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -365,7 +365,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
   )
 }
 
-export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
+export const SessionArchiveSection: FC<ArchiveDomainSectionProps> = ({
   retentionDays,
   batchToolbarContainer,
   isBatchMode,
@@ -374,22 +374,22 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
   onRequestDelete
 }) => {
   const { t } = useTranslation()
-  const runAction = useTrashActionRunner()
+  const runAction = useArchiveActionRunner()
   const invalidate = useInvalidateCache()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
-    query: IN_TRASH_QUERY,
+    query: ARCHIVED_ITEMS_QUERY,
     limit: 20
   })
   const sessions = useInfiniteFlatItems(pages)
   useDataChange('/agent-sessions', () => void refresh())
-  const items = useMemo<TrashItem[]>(
+  const items = useMemo<ArchiveItem[]>(
     () => sessions.map((session) => ({ id: session.id, name: session.name, deletedAt: toEpochMs(session.deletedAt) })),
     [sessions]
   )
 
-  const restoreItem = (item: TrashItem) =>
+  const restoreItem = (item: ArchiveItem) =>
     reconcileNotFound(
       async () => {
         const restored = await ipcApi.request('ai.agent.session.restore', { sessionId: item.id })
@@ -405,7 +405,7 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
       isAgentSessionNotFoundError
     )
 
-  const handleRestore = async (item: TrashItem) => {
+  const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
     try {
       await runAction('restore', () => restoreItem(item))
@@ -414,8 +414,8 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
     }
   }
 
-  const handleRestoreMany = (targets: TrashItem[]) => runPerItem(targets, restoreItem)
-  const handleDeleteMany = async (targets: TrashItem[]) => {
+  const handleRestoreMany = (targets: ArchiveItem[]) => runPerItem(targets, restoreItem)
+  const handleDeleteMany = async (targets: ArchiveItem[]) => {
     const staleIds = new Set<string>()
     const staleMessage = t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
     const outcome = await runPerItem(targets, async (target) => {
@@ -433,10 +433,10 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
     }
     return classifyStaleFailures(outcome, staleIds)
   }
-  const handleDelete = (item: TrashItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
+  const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
 
   return (
-    <TrashSection
+    <ArchiveSection
       icon={MessagesSquare}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -458,7 +458,7 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
   )
 }
 
-export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
+export const AssistantArchiveSection: FC<ArchiveDomainSectionProps> = ({
   retentionDays,
   batchToolbarContainer,
   isBatchMode,
@@ -467,7 +467,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
   onRequestDelete
 }) => {
   const { t } = useTranslation()
-  const runAction = useTrashActionRunner()
+  const runAction = useArchiveActionRunner()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
   const {
@@ -481,10 +481,10 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
     nextPage,
     prevPage,
     refresh
-  } = usePaginatedQuery('/assistants', { query: IN_TRASH_QUERY, limit: 50 })
+  } = usePaginatedQuery('/assistants', { query: ARCHIVED_ITEMS_QUERY, limit: 50 })
   const [iconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
-  const items = useMemo<TrashItem[]>(
+  const items = useMemo<ArchiveItem[]>(
     () =>
       assistants.map((assistant) => ({
         id: assistant.id,
@@ -502,10 +502,10 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
   })
   const deleteMutation = useMutation('DELETE', '/assistants/:id')
 
-  const restoreItem = (item: TrashItem) =>
+  const restoreItem = (item: ArchiveItem) =>
     reconcileNotFound(() => restoreMutation.trigger({ params: { id: item.id } }), refresh, `/assistants/${item.id}`)
 
-  const handleRestore = async (item: TrashItem) => {
+  const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
     try {
       await runAction('restore', () => restoreItem(item))
@@ -514,18 +514,18 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
     }
   }
 
-  const handleRestoreMany = (targets: TrashItem[]) => runPerItem(targets, restoreItem)
-  const handleDeleteMany = (targets: TrashItem[]) =>
+  const handleRestoreMany = (targets: ArchiveItem[]) => runPerItem(targets, restoreItem)
+  const handleDeleteMany = (targets: ArchiveItem[]) =>
     runDataPermanentDeletes(
       targets,
       (target) => deleteMutation.trigger({ params: { id: target.id }, query: { permanent: true } }),
       refresh,
       t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
     )
-  const handleDelete = (item: TrashItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
+  const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
 
   return (
-    <TrashSection
+    <ArchiveSection
       icon={SIDEBAR_ICON_COMPONENTS.assistants}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -556,7 +556,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
   )
 }
 
-export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
+export const PaintingArchiveSection: FC<ArchiveDomainSectionProps> = ({
   retentionDays,
   batchToolbarContainer,
   isBatchMode,
@@ -565,18 +565,18 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
   onRequestDelete
 }) => {
   const { t } = useTranslation()
-  const runAction = useTrashActionRunner()
+  const runAction = useArchiveActionRunner()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/paintings', {
-    query: IN_TRASH_QUERY,
+    query: ARCHIVED_ITEMS_QUERY,
     limit: 20
   })
   const paintings = useInfiniteFlatItems(pages)
   useDataChange('/paintings', () => void refresh())
   const previewIds = [...new Set(paintings.flatMap((painting) => painting.files.output.slice(0, 1)))]
   const { data: previewPaths } = useSWR(
-    previewIds.length > 0 ? (['trash-painting-previews', previewIds] as const) : null,
+    previewIds.length > 0 ? (['archive-painting-previews', previewIds] as const) : null,
     async ([, ids]) => {
       const batches = await Promise.all(
         chunk(ids, PREVIEW_BATCH_SIZE).map((batch) => ipcApi.request('file.batch_get_physical_paths', { ids: batch }))
@@ -586,7 +586,7 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
     { onError: (error) => logger.warn('Failed to load archived painting previews', error) }
   )
   const PaintingIcon = SIDEBAR_ICON_COMPONENTS.paintings
-  const items = useMemo<TrashItem[]>(
+  const items = useMemo<ArchiveItem[]>(
     () =>
       paintings.map((painting) => {
         const path = previewPaths?.[painting.files.output[0]]
@@ -612,10 +612,10 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
   })
   const deleteMutation = useMutation('DELETE', '/paintings/:id')
 
-  const restoreItem = (item: TrashItem) =>
+  const restoreItem = (item: ArchiveItem) =>
     reconcileNotFound(() => restoreMutation.trigger({ params: { id: item.id } }), refresh, `/paintings/${item.id}`)
 
-  const handleRestore = async (item: TrashItem) => {
+  const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
     try {
       await runAction('restore', () => restoreItem(item))
@@ -624,18 +624,18 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
     }
   }
 
-  const handleRestoreMany = (targets: TrashItem[]) => runPerItem(targets, restoreItem)
-  const handleDeleteMany = (targets: TrashItem[]) =>
+  const handleRestoreMany = (targets: ArchiveItem[]) => runPerItem(targets, restoreItem)
+  const handleDeleteMany = (targets: ArchiveItem[]) =>
     runDataPermanentDeletes(
       targets,
       (target) => deleteMutation.trigger({ params: { id: target.id }, query: { permanent: true } }),
       refresh,
       t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
     )
-  const handleDelete = (item: TrashItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
+  const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
 
   return (
-    <TrashSection
+    <ArchiveSection
       icon={SIDEBAR_ICON_COMPONENTS.paintings}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -657,7 +657,7 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
   )
 }
 
-export const FileTrashSection: FC<TrashDomainSectionProps> = ({
+export const FileArchiveSection: FC<ArchiveDomainSectionProps> = ({
   retentionDays,
   batchToolbarContainer,
   isBatchMode,
@@ -666,17 +666,17 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({
   onRequestDelete
 }) => {
   const { t } = useTranslation()
-  const runAction = useTrashActionRunner()
+  const runAction = useArchiveActionRunner()
   const invalidate = useInvalidateCache()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/files/entries', {
-    query: IN_TRASH_QUERY,
+    query: ARCHIVED_ITEMS_QUERY,
     limit: 20
   })
   const entries = useInfiniteFlatItems(pages)
   useDataChange('/files/entries', () => void refresh())
-  const items = useMemo<TrashItem[]>(
+  const items = useMemo<ArchiveItem[]>(
     () =>
       entries.map((entry) => ({
         id: entry.id,
@@ -691,12 +691,12 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({
   const invalidateFiles = () => invalidate(['/files/entries', '/files/entries/*'])
   const invalidatePurgedFiles = () => invalidate(['/files/entries'])
 
-  const restoreItems = async (targets: TrashItem[]): Promise<TrashBatchOutcome> => {
+  const restoreItems = async (targets: ArchiveItem[]): Promise<ArchiveBatchOutcome> => {
     const result = await requestBatchedFileMutation(
       'file.batch_restore',
       targets.map((item) => item.id)
     )
-    const outcome: TrashBatchOutcome = { succeeded: result.succeeded, failed: result.failed }
+    const outcome: ArchiveBatchOutcome = { succeeded: result.succeeded, failed: result.failed }
     try {
       await invalidateFiles()
     } catch (error) {
@@ -710,12 +710,12 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({
     }
   }
 
-  const deleteItems = async (targets: TrashItem[]): Promise<TrashBatchOutcome> => {
+  const deleteItems = async (targets: ArchiveItem[]): Promise<ArchiveBatchOutcome> => {
     const result = await requestBatchedFileMutation(
       'file.batch_permanent_delete_from_trash',
       targets.map((item) => item.id)
     )
-    const outcome: TrashBatchOutcome = { succeeded: result.succeeded, failed: result.failed }
+    const outcome: ArchiveBatchOutcome = { succeeded: result.succeeded, failed: result.failed }
     try {
       await invalidatePurgedFiles()
     } catch (error) {
@@ -736,7 +736,7 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({
     )
   }
 
-  const handleRestore = async (item: TrashItem) => {
+  const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
     try {
       await runAction('restore', async () => {
@@ -749,10 +749,10 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({
     }
   }
 
-  const handleDelete = (item: TrashItem) => runSinglePermanentDelete(item, runAction, deleteItems)
+  const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, deleteItems)
 
   return (
-    <TrashSection
+    <ArchiveSection
       icon={SIDEBAR_ICON_COMPONENTS.files}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}

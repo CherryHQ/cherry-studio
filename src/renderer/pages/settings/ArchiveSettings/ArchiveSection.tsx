@@ -8,18 +8,18 @@ import { Button, Checkbox, EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 
-import TrashItemRow from './TrashItemRow'
-import type { TrashBatchOutcome, TrashItem } from './trashUtils'
+import type { ArchiveBatchOutcome, ArchiveItem } from './archive'
+import ArchiveItemRow from './ArchiveItemRow'
 
-const logger = loggerService.withContext('TrashSection')
+const logger = loggerService.withContext('ArchiveSection')
 
 export interface PendingPermanentDelete {
-  items: TrashItem[]
-  run: (items: TrashItem[]) => Promise<TrashBatchOutcome>
+  items: ArchiveItem[]
+  run: (items: ArchiveItem[]) => Promise<ArchiveBatchOutcome>
   fileEntryIds?: string[]
 }
 
-export type TrashSectionPagination =
+export type ArchiveSectionPagination =
   | { kind: 'cursor'; hasMore: boolean; isLoadingMore: boolean; onLoadMore: () => void }
   | {
       kind: 'offset'
@@ -32,28 +32,28 @@ export type TrashSectionPagination =
       onNextPage: () => void
     }
 
-interface TrashSectionProps {
+interface ArchiveSectionProps {
   icon?: LucideIcon
-  items: TrashItem[]
+  items: ArchiveItem[]
   isLoading: boolean
   error: Error | undefined
   onRetry: () => void
-  pagination?: TrashSectionPagination
+  pagination?: ArchiveSectionPagination
   batchToolbarContainer?: HTMLDivElement | null
   isBatchMode: boolean
   onBatchAvailabilityChange?: (available: boolean) => void
   retentionDays: number
   pendingRestoreId: string | null
   isPermanentDeleting: boolean
-  onRestore: (item: TrashItem) => void
-  onRestoreMany: (items: TrashItem[]) => Promise<TrashBatchOutcome>
-  onPermanentDelete: (item: TrashItem) => Promise<TrashBatchOutcome>
-  onPermanentDeleteMany: (items: TrashItem[]) => Promise<TrashBatchOutcome>
+  onRestore: (item: ArchiveItem) => void
+  onRestoreMany: (items: ArchiveItem[]) => Promise<ArchiveBatchOutcome>
+  onPermanentDelete: (item: ArchiveItem) => Promise<ArchiveBatchOutcome>
+  onPermanentDeleteMany: (items: ArchiveItem[]) => Promise<ArchiveBatchOutcome>
   onRequestDelete: (request: PendingPermanentDelete) => void
   includeFileReferencePreview?: boolean
 }
 
-const TrashSection: FC<TrashSectionProps> = ({
+const ArchiveSection: FC<ArchiveSectionProps> = ({
   icon,
   items,
   isLoading,
@@ -105,7 +105,7 @@ const TrashSection: FC<TrashSectionProps> = ({
     if (!isBatchMode) setSelectedIds(new Set())
   }, [isBatchMode])
 
-  const applyOutcome = (outcome: TrashBatchOutcome) => {
+  const applyOutcome = (outcome: ArchiveBatchOutcome) => {
     if (!mountedRef.current || outcome.succeeded.length === 0) return
     setSelectedIds((current) => {
       const next = new Set(current)
@@ -114,7 +114,7 @@ const TrashSection: FC<TrashSectionProps> = ({
     })
   }
 
-  const showBatchOutcome = (action: 'restore' | 'permanent_delete', outcome: TrashBatchOutcome) => {
+  const showBatchOutcome = (action: 'restore' | 'permanent_delete', outcome: ArchiveBatchOutcome) => {
     const succeeded = outcome.succeeded.length
     const stale = outcome.failed.filter(({ reason }) => reason === 'no-longer-in-recycle-bin').length
     const failed = outcome.failed.length - stale
@@ -156,7 +156,7 @@ const TrashSection: FC<TrashSectionProps> = ({
     }
   }
 
-  const requestPermanentDelete = (targets: TrashItem[], isBatch: boolean) => {
+  const requestPermanentDelete = (targets: ArchiveItem[], isBatch: boolean) => {
     if (targets.length === 0) return
     onRequestDelete({
       items: targets,
@@ -239,7 +239,7 @@ const TrashSection: FC<TrashSectionProps> = ({
           ) : (
             <div>
               {items.map((item) => (
-                <TrashItemRow
+                <ArchiveItemRow
                   key={item.id}
                   icon={icon}
                   item={item}
@@ -290,4 +290,4 @@ const TrashSection: FC<TrashSectionProps> = ({
   )
 }
 
-export default TrashSection
+export default ArchiveSection

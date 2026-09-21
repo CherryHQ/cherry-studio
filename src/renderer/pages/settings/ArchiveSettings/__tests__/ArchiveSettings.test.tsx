@@ -10,12 +10,12 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 
-import type { TrashItem } from '../trashUtils'
+import type { ArchiveItem } from '../archive'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 const mocks = vi.hoisted(() => ({
-  fileItems: [] as TrashItem[],
+  fileItems: [] as ArchiveItem[],
   hideItems: false,
   isLoading: false,
   ipcRequest: vi.fn(),
@@ -26,13 +26,13 @@ const mocks = vi.hoisted(() => ({
     .mockResolvedValue({ succeeded: [] as string[], failed: [] as Array<{ id: string; error: string }> })
 }))
 
-vi.mock('../TrashDomainSections', async () => {
+vi.mock('../ArchiveDomainSections', async () => {
   const React = await import('react')
-  const { default: TrashSection } = await import('../TrashSection')
+  const { default: ArchiveSection } = await import('../ArchiveSection')
   const topic = { id: 'topic-1', name: 'Deleted topic', deletedAt: 1_750_000_000_000 }
   const session = { id: 'session-1', name: 'Deleted session', deletedAt: 1_750_000_000_000 }
 
-  const buildSelectionSection = (item: TrashItem | null) =>
+  const buildSelectionSection = (item: ArchiveItem | null) =>
     function SelectionSection(props: {
       retentionDays: number
       onRequestDelete: (request: unknown) => void
@@ -41,7 +41,7 @@ vi.mock('../TrashDomainSections', async () => {
       onBatchAvailabilityChange?: (available: boolean) => void
       isPermanentDeleting: boolean
     }) {
-      return React.createElement(TrashSection, {
+      return React.createElement(ArchiveSection, {
         items: item && !mocks.hideItems ? [item] : [],
         isLoading: mocks.isLoading,
         onBatchAvailabilityChange: props.onBatchAvailabilityChange,
@@ -80,19 +80,19 @@ vi.mock('../TrashDomainSections', async () => {
   const SessionSection = buildSelectionSection(session)
   const EmptySection = buildSelectionSection(null)
   return {
-    TopicTrashSection: TopicSection,
-    AgentTrashSection: EmptySection,
-    SessionTrashSection: SessionSection,
-    AssistantTrashSection: EmptySection,
-    PaintingTrashSection: EmptySection,
-    FileTrashSection: FileSection
+    TopicArchiveSection: TopicSection,
+    AgentArchiveSection: EmptySection,
+    SessionArchiveSection: SessionSection,
+    AssistantArchiveSection: EmptySection,
+    PaintingArchiveSection: EmptySection,
+    FileArchiveSection: FileSection
   }
 })
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
 
-const { default: TrashSettings } = await import('../ArchiveSettings')
+const { default: ArchiveSettings } = await import('../ArchiveSettings')
 
-function fileItems(count: number): TrashItem[] {
+function fileItems(count: number): ArchiveItem[] {
   return Array.from({ length: count }, (_, index) => ({
     id: `file-${index + 1}`,
     name: `File ${index + 1}`,
@@ -124,11 +124,11 @@ beforeEach(async () => {
   mocks.isLoading = false
 })
 
-describe('TrashSettings', () => {
+describe('ArchiveSettings', () => {
   it('keeps the cleanup preference editable from its settings row without deleting items', async () => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setPreferenceValue('data.trash.retention_days', 30)
-    render(<TrashSettings />)
+    render(<ArchiveSettings />)
 
     const retention = screen.getByRole('group', { name: 'Auto-cleanup interval' })
     await user.click(within(retention).getByRole('button', { name: '30 days' }))
@@ -144,7 +144,7 @@ describe('TrashSettings', () => {
   it('switches visible category tabs by click and keyboard with localized labels', async () => {
     const user = userEvent.setup()
     await i18n.changeLanguage('zh-CN')
-    render(<TrashSettings />)
+    render(<ArchiveSettings />)
 
     const tabs = within(screen.getByRole('tablist', { name: '归档' }))
     for (const name of ['助手', '话题', '智能体', '会话', '绘图', '文件']) {
@@ -165,19 +165,19 @@ describe('TrashSettings', () => {
   it('only enables batch management for loaded content in the current category', async () => {
     const user = userEvent.setup()
     mocks.isLoading = true
-    const { rerender } = render(<TrashSettings />)
+    const { rerender } = render(<ArchiveSettings />)
     const manage = screen.getByRole('button', { name: 'Batch manage' })
     expect(manage).toBeDisabled()
 
     mocks.isLoading = false
     mocks.hideItems = true
-    rerender(<TrashSettings />)
+    rerender(<ArchiveSettings />)
     expect(manage).toBeDisabled()
     await user.click(manage)
     expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
 
     mocks.hideItems = false
-    rerender(<TrashSettings />)
+    rerender(<ArchiveSettings />)
     expect(manage).toBeEnabled()
     await chooseCategory(user, 'Assistants')
     expect(manage).toBeDisabled()
@@ -186,7 +186,7 @@ describe('TrashSettings', () => {
 
     await user.click(manage)
     mocks.hideItems = true
-    rerender(<TrashSettings />)
+    rerender(<ArchiveSettings />)
     const done = screen.getByRole('button', { name: 'Done' })
     expect(done).toBeEnabled()
     await user.click(done)
@@ -201,7 +201,7 @@ describe('TrashSettings', () => {
       deletedCount: 3,
       retainedReferencedFileCount: 2
     })
-    render(<TrashSettings />)
+    render(<ArchiveSettings />)
 
     expect(screen.queryByRole('menuitem', { name: 'Empty Archive' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'More' }))
@@ -220,12 +220,12 @@ describe('TrashSettings', () => {
   })
 })
 
-describe('TrashSettings permanent-delete confirmation', () => {
+describe('ArchiveSettings permanent-delete confirmation', () => {
   it.each(['single', 'batch'] as const)(
     'requires confirmation before %s topic deletion and leaves cancellation harmless',
     async (mode) => {
       const user = userEvent.setup()
-      render(<TrashSettings />)
+      render(<ArchiveSettings />)
       if (mode === 'batch') {
         await user.click(screen.getByRole('button', { name: 'Batch manage' }))
         await user.click(screen.getByRole('checkbox', { name: 'Select Deleted topic' }))
@@ -257,7 +257,7 @@ describe('TrashSettings permanent-delete confirmation', () => {
 
   it('replaces category navigation with batch controls until batch mode ends', async () => {
     const user = userEvent.setup()
-    render(<TrashSettings />)
+    render(<ArchiveSettings />)
 
     expect(screen.queryByRole('checkbox', { name: 'Select Deleted topic' })).not.toBeInTheDocument()
 
@@ -310,7 +310,7 @@ describe('TrashSettings permanent-delete confirmation', () => {
         resolveCounts = resolve
       }) as never
     )
-    render(<TrashSettings />)
+    render(<ArchiveSettings />)
 
     await openFileDelete(user)
 
@@ -334,7 +334,7 @@ describe('TrashSettings permanent-delete confirmation', () => {
     vi.mocked(dataApiService.get).mockImplementation(async (_path, options) =>
       (options?.query?.entryIds ?? []).map((entryId) => ({ entryId, refCount: 0 }))
     )
-    render(<TrashSettings />)
+    render(<ArchiveSettings />)
 
     await openFileDelete(user)
 
@@ -355,7 +355,7 @@ describe('TrashSettings permanent-delete confirmation', () => {
     vi.mocked(dataApiService.get)
       .mockResolvedValueOnce(mocks.fileItems.slice(0, 500).map(({ id }) => ({ entryId: id, refCount: 0 })))
       .mockRejectedValueOnce(new Error('second chunk unavailable'))
-    render(<TrashSettings />)
+    render(<ArchiveSettings />)
 
     await openFileDelete(user)
 
@@ -373,7 +373,7 @@ describe('TrashSettings permanent-delete confirmation', () => {
       { entryId: 'file-2', refCount: 0 },
       { entryId: 'file-3', refCount: 4 }
     ])
-    render(<TrashSettings />)
+    render(<ArchiveSettings />)
 
     await openFileDelete(user)
 
@@ -387,7 +387,7 @@ describe('TrashSettings permanent-delete confirmation', () => {
     vi.mocked(dataApiService.get)
       .mockRejectedValueOnce(new Error('ref counts unavailable'))
       .mockResolvedValueOnce([{ entryId: 'file-1', refCount: 0 }])
-    render(<TrashSettings />)
+    render(<ArchiveSettings />)
 
     await openFileDelete(user)
 
@@ -402,7 +402,7 @@ describe('TrashSettings permanent-delete confirmation', () => {
   it('does not reuse a successful reference preview after closing and reopening', async () => {
     const user = userEvent.setup()
     vi.mocked(dataApiService.get).mockResolvedValue([{ entryId: 'file-1', refCount: 0 }])
-    render(<TrashSettings />)
+    render(<ArchiveSettings />)
     await openFileDelete(user)
     await waitFor(() => expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeEnabled())
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -422,7 +422,7 @@ describe('TrashSettings permanent-delete confirmation', () => {
         }) as never
       )
       .mockResolvedValueOnce([{ entryId: 'file-1', refCount: 3 }])
-    render(<TrashSettings />)
+    render(<ArchiveSettings />)
     await openFileDelete(user)
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     await chooseCategory(user, 'Topics')
