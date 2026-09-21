@@ -478,7 +478,7 @@ export const ToastViewport = ({
         if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
       }}
       role="region">
-      {toasts.toReversed().map((toast, index) => (
+      {[...toasts].reverse().map((toast, index) => (
         <motion.div
           key={toast.key}
           layout={reducedMotion ? false : 'position'}
