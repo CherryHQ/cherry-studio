@@ -234,6 +234,13 @@ const NormalTooltip = ({
   showArrow = true,
   ...tooltipProps
 }: NormalTooltipProps) => {
+  const surfaceActive = React.use(TooltipSurfaceContext)
+
+  if (!surfaceActive) {
+    // Tear the whole Root down so a stale open state cannot resurface when the surface reactivates.
+    return <>{children}</>
+  }
+
   return (
     <TooltipRoot {...tooltipProps}>
       <TooltipTrigger asChild={asChild} {...triggerProps}>

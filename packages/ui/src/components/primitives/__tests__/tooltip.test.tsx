@@ -120,6 +120,30 @@ describe('Tooltip', () => {
       expect(getTooltipContentElement('surface-tip')).toBeInTheDocument()
     })
 
+    it('drops an open compound NormalTooltip when its TooltipSurface turns inactive', () => {
+      function Harness({ active }: { active: boolean }) {
+        return (
+          <TooltipSurface active={active}>
+            <Activity mode={active ? 'visible' : 'hidden'}>
+              <NormalTooltip content="compound-tip" open>
+                <button type="button">Trigger</button>
+              </NormalTooltip>
+            </Activity>
+          </TooltipSurface>
+        )
+      }
+
+      const { rerender } = render(<Harness active />)
+      expect(getTooltipContentElement('compound-tip')).toBeInTheDocument()
+
+      rerender(<Harness active={false} />)
+
+      expect(document.querySelector('[data-slot="tooltip-content"]')).not.toBeInTheDocument()
+
+      rerender(<Harness active />)
+      expect(getTooltipContentElement('compound-tip')).toBeInTheDocument()
+    })
+
     it('uses title as fallback when content is not provided', () => {
       const { container } = render(
         <Tooltip title="title-tip">
