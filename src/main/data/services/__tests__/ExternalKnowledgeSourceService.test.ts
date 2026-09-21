@@ -1,8 +1,10 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
 import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import { ErrorCode } from '@shared/data/api/errors'
@@ -222,6 +224,194 @@ describe('ExternalKnowledgeSourceService', () => {
       lastErrorSummary: 'One document stayed stale',
       lastSuccessfulSyncAt: new Date(600).toISOString()
     })
+  })
+
+  it('refuses to begin provider work after the source is paused', () => {
+    seedBase(BASE_ID)
+    seedConnection()
+    seedSource(SOURCE_ID, BASE_ID, 300)
+    dbh.db.update(externalKnowledgeSourceTable).set({ state: 'paused' }).run()
+
+    expect(
+      externalKnowledgeSourceService.beginSyncTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 3,
+        expectedActiveJobId: null,
+        jobId: JOB_ID,
+        trigger: 'scheduled',
+        startedAt: 400
+      })
+    ).toBe(false)
+    expect(externalKnowledgeSourceService.getByIdTx(dbh.db, SOURCE_ID)?.activeJobId).toBeNull()
+  })
+
+  it('updates schedule ownership and lifecycle state behind revision fences', () => {
+    seedBase(BASE_ID)
+    seedConnection()
+    seedSource(SOURCE_ID, BASE_ID, 300)
+    const scheduleId = '33333333-3333-4333-8333-333333333333'
+    dbh.db
+      .insert(jobScheduleTable)
+      .values({
+        id: scheduleId,
+        type: 'knowledge.sync-external-source',
+        name: `external-source-${SOURCE_ID}`,
+        trigger: { kind: 'cron', expr: '0 9 * * *', timezone: 'Asia/Shanghai' },
+        jobInputTemplate: { baseId: BASE_ID, sourceId: SOURCE_ID, sourceRevision: 3, trigger: 'scheduled' },
+        catchUpPolicy: { kind: 'after-startup', minutes: 0 }
+      })
+      .run()
+
+    expect(
+      externalKnowledgeSourceService.setScheduleIdTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 2,
+        expectedScheduleId: null,
+        scheduleId
+      })
+    ).toBe(false)
+    expect(
+      externalKnowledgeSourceService.setScheduleIdTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 3,
+        expectedScheduleId: null,
+        scheduleId
+      })
+    ).toBe(true)
+    expect(
+      externalKnowledgeSourceService.setStateTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 3,
+        expectedState: 'active',
+        state: 'paused'
+      })
+    ).toBe(true)
+
+    expect(externalKnowledgeSourceService.getByIdTx(dbh.db, SOURCE_ID)).toMatchObject({
+      scheduleId,
+      state: 'paused',
+      revision: 4
+    })
+    expect(
+      externalKnowledgeSourceService.setStateTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 3,
+        expectedState: 'paused',
+        state: 'active'
+      })
+    ).toBe(false)
+  })
+
+  it('clears only the exact active job correlation and exposes reconciliation candidates', () => {
+    seedBase(BASE_ID)
+    seedConnection()
+    seedSource(SOURCE_ID, BASE_ID, 300)
+    expect(
+      externalKnowledgeSourceService.beginSyncTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 3,
+        expectedActiveJobId: null,
+        jobId: JOB_ID,
+        trigger: 'manual',
+        startedAt: 400
+      })
+    ).toBe(true)
+
+    expect(externalKnowledgeSourceService.listWithActiveJobId()).toEqual([
+      expect.objectContaining({ id: SOURCE_ID, activeJobId: JOB_ID })
+    ])
+    expect(
+      externalKnowledgeSourceService.clearActiveJobTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 3,
+        expectedActiveJobId: STALE_JOB_ID
+      })
+    ).toBe(false)
+    expect(
+      externalKnowledgeSourceService.clearActiveJobTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 3,
+        expectedActiveJobId: JOB_ID
+      })
+    ).toBe(true)
+    expect(externalKnowledgeSourceService.listWithActiveJobId()).toEqual([])
+  })
+
+  it('prepares and deletes a disconnected source only behind the complete lifecycle fence', () => {
+    seedBase(BASE_ID)
+    seedConnection()
+    seedSource(SOURCE_ID, BASE_ID, 300)
+    dbh.db
+      .update(externalKnowledgeSourceTable)
+      .set({ activeJobId: JOB_ID })
+      .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
+      .run()
+
+    expect(
+      externalKnowledgeSourceService.prepareDisconnectTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 2,
+        expectedScheduleId: null
+      })
+    ).toBeNull()
+    expect(
+      externalKnowledgeSourceService.prepareDisconnectTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 3,
+        expectedScheduleId: null
+      })
+    ).toMatchObject({ state: 'paused', revision: 4, activeJobId: JOB_ID, scheduleId: null })
+
+    expect(
+      externalKnowledgeSourceService.deleteForDisconnectTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 3,
+        expectedScheduleId: null,
+        expectedActiveJobId: JOB_ID
+      })
+    ).toBe(false)
+    expect(
+      externalKnowledgeSourceService.deleteForDisconnectTx(dbh.db, {
+        sourceId: SOURCE_ID,
+        expectedRevision: 4,
+        expectedScheduleId: null,
+        expectedActiveJobId: JOB_ID
+      })
+    ).toBe(true)
+    expect(externalKnowledgeSourceService.getById(SOURCE_ID)).toBeNull()
+  })
+
+  it('lists sources in a caller transaction and blocks base cleanup until schedules are removed', () => {
+    seedBase(BASE_ID)
+    seedConnection()
+    seedSource(SOURCE_ID, BASE_ID, 300)
+    const scheduleId = '33333333-3333-4333-8333-333333333333'
+    dbh.db
+      .insert(jobScheduleTable)
+      .values({
+        id: scheduleId,
+        type: 'knowledge.sync-external-source',
+        name: `external-source-${SOURCE_ID}`,
+        trigger: { kind: 'cron', expr: '0 9 * * *', timezone: 'Asia/Shanghai' },
+        jobInputTemplate: { baseId: BASE_ID, sourceId: SOURCE_ID, sourceRevision: 3, trigger: 'scheduled' },
+        catchUpPolicy: { kind: 'after-startup', minutes: 0 }
+      })
+      .run()
+    dbh.db
+      .update(externalKnowledgeSourceTable)
+      .set({ scheduleId })
+      .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
+      .run()
+
+    expect(externalKnowledgeSourceService.listByBaseIdTx(dbh.db, BASE_ID)).toEqual([
+      expect.objectContaining({ id: SOURCE_ID, scheduleId })
+    ])
+    expect(() => externalKnowledgeSourceService.deleteByBaseIdTx(dbh.db, BASE_ID)).toThrow(
+      'remove external knowledge source schedules'
+    )
+    dbh.db.delete(jobScheduleTable).where(eq(jobScheduleTable.id, scheduleId)).run()
+    expect(externalKnowledgeSourceService.deleteByBaseIdTx(dbh.db, BASE_ID)).toBe(1)
+    expect(externalKnowledgeSourceService.listByBaseIdTx(dbh.db, BASE_ID)).toEqual([])
   })
 
   it.each(['failed', 'cancelled'] as const)(

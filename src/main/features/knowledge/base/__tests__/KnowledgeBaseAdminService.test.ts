@@ -1,0 +1,124 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+
+import type { KnowledgeIngestionService } from '../../ingestion/KnowledgeIngestionService'
+
+const {
+  cancelActiveKnowledgeJobsMock,
+  deleteAllByBaseIdMock,
+  deleteBaseRowMock,
+  deleteStoreMock,
+  prepareExternalSourcesForBaseDeletionMock
+} = vi.hoisted(() => ({
+  cancelActiveKnowledgeJobsMock: vi.fn(),
+  deleteAllByBaseIdMock: vi.fn(),
+  deleteBaseRowMock: vi.fn(),
+  deleteStoreMock: vi.fn(),
+  prepareExternalSourcesForBaseDeletionMock: vi.fn()
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    KnowledgeVectorStoreService: {
+      deleteStore: deleteStoreMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
+
+vi.mock('@data/services/KnowledgeBaseService', () => ({
+  knowledgeBaseService: {
+    delete: deleteBaseRowMock
+  }
+}))
+
+vi.mock('@data/services/KnowledgeItemService', () => ({
+  knowledgeItemService: {
+    deleteAllByBaseId: deleteAllByBaseIdMock
+  }
+}))
+
+vi.mock('../../tasks/utils/cancel', () => ({
+  cancelActiveKnowledgeJobs: cancelActiveKnowledgeJobsMock
+}))
+
+const { KnowledgeBaseAdminService } = await import('../KnowledgeBaseAdminService')
+
+function createService() {
+  const lock = new KeyedMutex()
+  const runExclusiveSpy = vi.spyOn(lock, 'runExclusive')
+
+  return {
+    runExclusiveSpy,
+    service: new KnowledgeBaseAdminService(lock, {} as KnowledgeIngestionService, {
+      prepareExternalSourcesForBaseDeletion: prepareExternalSourcesForBaseDeletionMock
+    })
+  }
+}
+
+describe('KnowledgeBaseAdminService deleteBase', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    cancelActiveKnowledgeJobsMock.mockResolvedValue(undefined)
+    prepareExternalSourcesForBaseDeletionMock.mockResolvedValue(undefined)
+    deleteStoreMock.mockResolvedValue(undefined)
+    deleteAllByBaseIdMock.mockReturnValue(0)
+    deleteBaseRowMock.mockReturnValue(undefined)
+  })
+
+  it('strictly settles jobs, removes external ownership, then deletes artifacts, items, and the base row', async () => {
+    const events: string[] = []
+    cancelActiveKnowledgeJobsMock.mockImplementation(async () => events.push('cancel-jobs'))
+    prepareExternalSourcesForBaseDeletionMock.mockImplementation(async () => events.push('remove-external-sources'))
+    deleteStoreMock.mockImplementation(async () => events.push('delete-base-artifacts'))
+    deleteAllByBaseIdMock.mockImplementation(() => {
+      events.push('delete-items')
+      return 2
+    })
+    deleteBaseRowMock.mockImplementation(() => events.push('delete-base'))
+    const { runExclusiveSpy, service } = createService()
+
+    await service.deleteBase('kb-1')
+
+    expect(cancelActiveKnowledgeJobsMock).toHaveBeenCalledWith('kb-1', 'delete-base', {
+      onCancelTimeout: 'throw'
+    })
+    expect(prepareExternalSourcesForBaseDeletionMock).toHaveBeenCalledWith('kb-1')
+    expect(runExclusiveSpy).toHaveBeenCalledTimes(1)
+    expect(runExclusiveSpy).toHaveBeenCalledWith('kb-1', expect.any(Function))
+    expect(deleteAllByBaseIdMock).toHaveBeenCalledWith('kb-1')
+    expect(events).toEqual([
+      'cancel-jobs',
+      'remove-external-sources',
+      'delete-base-artifacts',
+      'delete-items',
+      'delete-base'
+    ])
+  })
+
+  it('does not unregister schedules or delete local data when a job cannot be settled', async () => {
+    cancelActiveKnowledgeJobsMock.mockRejectedValueOnce(new Error('job still running'))
+    const { runExclusiveSpy, service } = createService()
+
+    await expect(service.deleteBase('kb-1')).rejects.toThrow('job still running')
+
+    expect(prepareExternalSourcesForBaseDeletionMock).not.toHaveBeenCalled()
+    expect(runExclusiveSpy).not.toHaveBeenCalled()
+    expect(deleteStoreMock).not.toHaveBeenCalled()
+    expect(deleteAllByBaseIdMock).not.toHaveBeenCalled()
+    expect(deleteBaseRowMock).not.toHaveBeenCalled()
+  })
+
+  it('does not delete local data when an external source schedule cannot be removed', async () => {
+    prepareExternalSourcesForBaseDeletionMock.mockRejectedValueOnce(new Error('schedule unregister failed'))
+    const { runExclusiveSpy, service } = createService()
+
+    await expect(service.deleteBase('kb-1')).rejects.toThrow('schedule unregister failed')
+
+    expect(runExclusiveSpy).not.toHaveBeenCalled()
+    expect(deleteStoreMock).not.toHaveBeenCalled()
+    expect(deleteAllByBaseIdMock).not.toHaveBeenCalled()
+    expect(deleteBaseRowMock).not.toHaveBeenCalled()
+  })
+})

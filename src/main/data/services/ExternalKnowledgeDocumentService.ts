@@ -125,6 +125,21 @@ export class ExternalKnowledgeDocumentService {
       .map(rowToEntity)
   }
 
+  listOwnedKnowledgeItemIdsBySourceIdTx(tx: Pick<DbType, 'select'>, sourceId: string): string[] {
+    return tx
+      .select({ knowledgeItemId: externalKnowledgeDocumentTable.knowledgeItemId })
+      .from(externalKnowledgeDocumentTable)
+      .where(
+        and(
+          eq(externalKnowledgeDocumentTable.sourceId, sourceId),
+          eq(externalKnowledgeDocumentTable.availability, 'active')
+        )
+      )
+      .orderBy(asc(externalKnowledgeDocumentTable.id))
+      .all()
+      .flatMap((row) => (row.knowledgeItemId === null ? [] : [row.knowledgeItemId]))
+  }
+
   getById(id: string): ExternalKnowledgeDocument | null {
     const row = this.db
       .select()

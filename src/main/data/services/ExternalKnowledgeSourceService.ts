@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import {
@@ -11,6 +11,7 @@ import type { DbType } from '@data/db/types'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
   type ExternalKnowledgeSource,
+  type ExternalKnowledgeSourceState,
   ExternalKnowledgeSourceSchema,
   type ExternalKnowledgeSyncOutcome,
   type ExternalKnowledgeSyncTrigger
@@ -50,6 +51,36 @@ export type SettleExternalKnowledgeSyncInput = {
   errorSummary: string | null
 }
 
+export type SetExternalKnowledgeSourceScheduleInput = {
+  sourceId: string
+  expectedRevision: number
+  expectedScheduleId: string | null
+  scheduleId: string | null
+}
+
+export type SetExternalKnowledgeSourceStateInput = {
+  sourceId: string
+  expectedRevision: number
+  expectedState: ExternalKnowledgeSourceState
+  state: ExternalKnowledgeSourceState
+}
+
+export type ClearExternalKnowledgeActiveJobInput = {
+  sourceId: string
+  expectedRevision: number
+  expectedActiveJobId: string
+}
+
+export type PrepareExternalKnowledgeSourceDisconnectInput = {
+  sourceId: string
+  expectedRevision: number
+  expectedScheduleId: null
+}
+
+export type DeleteExternalKnowledgeSourceDisconnectInput = PrepareExternalKnowledgeSourceDisconnectInput & {
+  expectedActiveJobId: string | null
+}
+
 function rowToEntity(row: ExternalKnowledgeSourceRow): ExternalKnowledgeSource {
   return ExternalKnowledgeSourceSchema.parse({
     ...row,
@@ -68,7 +99,11 @@ export class ExternalKnowledgeSourceService {
 
   listByBaseId(baseId: string): ExternalKnowledgeSource[] {
     knowledgeBaseService.getById(baseId)
-    return this.db
+    return this.listByBaseIdTx(this.db, baseId)
+  }
+
+  listByBaseIdTx(tx: Pick<DbType, 'select'>, baseId: string): ExternalKnowledgeSource[] {
+    return tx
       .select()
       .from(externalKnowledgeSourceTable)
       .where(eq(externalKnowledgeSourceTable.baseId, baseId))
@@ -89,6 +124,30 @@ export class ExternalKnowledgeSourceService {
       .limit(1)
       .get()
     return row ? rowToEntity(row) : null
+  }
+
+  listByConnectionId(connectionId: string): ExternalKnowledgeSource[] {
+    return this.listByConnectionIdTx(this.db, connectionId)
+  }
+
+  listByConnectionIdTx(tx: Pick<DbType, 'select'>, connectionId: string): ExternalKnowledgeSource[] {
+    return tx
+      .select()
+      .from(externalKnowledgeSourceTable)
+      .where(eq(externalKnowledgeSourceTable.connectionId, connectionId))
+      .orderBy(desc(externalKnowledgeSourceTable.updatedAt), desc(externalKnowledgeSourceTable.id))
+      .all()
+      .map(rowToEntity)
+  }
+
+  listWithActiveJobId(): ExternalKnowledgeSource[] {
+    return this.db
+      .select()
+      .from(externalKnowledgeSourceTable)
+      .where(isNotNull(externalKnowledgeSourceTable.activeJobId))
+      .orderBy(desc(externalKnowledgeSourceTable.updatedAt), desc(externalKnowledgeSourceTable.id))
+      .all()
+      .map(rowToEntity)
   }
 
   createTx(tx: Pick<DbType, 'select' | 'insert'>, input: CreateExternalKnowledgeSourceInput): ExternalKnowledgeSource {
@@ -148,12 +207,117 @@ export class ExternalKnowledgeSourceService {
       .where(
         and(
           eq(externalKnowledgeSourceTable.id, input.sourceId),
+          eq(externalKnowledgeSourceTable.state, 'active'),
           eq(externalKnowledgeSourceTable.revision, input.expectedRevision),
           activeJobFence
         )
       )
       .run()
     return result.changes > 0
+  }
+
+  setScheduleIdTx(tx: Pick<DbType, 'update'>, input: SetExternalKnowledgeSourceScheduleInput): boolean {
+    const scheduleFence =
+      input.expectedScheduleId === null
+        ? isNull(externalKnowledgeSourceTable.scheduleId)
+        : eq(externalKnowledgeSourceTable.scheduleId, input.expectedScheduleId)
+    const result = tx
+      .update(externalKnowledgeSourceTable)
+      .set({ scheduleId: input.scheduleId })
+      .where(
+        and(
+          eq(externalKnowledgeSourceTable.id, input.sourceId),
+          eq(externalKnowledgeSourceTable.revision, input.expectedRevision),
+          scheduleFence
+        )
+      )
+      .run()
+    return result.changes > 0
+  }
+
+  setStateTx(tx: Pick<DbType, 'update'>, input: SetExternalKnowledgeSourceStateInput): boolean {
+    const result = tx
+      .update(externalKnowledgeSourceTable)
+      .set({ state: input.state, revision: sql`${externalKnowledgeSourceTable.revision} + 1` })
+      .where(
+        and(
+          eq(externalKnowledgeSourceTable.id, input.sourceId),
+          eq(externalKnowledgeSourceTable.revision, input.expectedRevision),
+          eq(externalKnowledgeSourceTable.state, input.expectedState)
+        )
+      )
+      .run()
+    return result.changes > 0
+  }
+
+  clearActiveJobTx(tx: Pick<DbType, 'update'>, input: ClearExternalKnowledgeActiveJobInput): boolean {
+    const result = tx
+      .update(externalKnowledgeSourceTable)
+      .set({ activeJobId: null })
+      .where(
+        and(
+          eq(externalKnowledgeSourceTable.id, input.sourceId),
+          eq(externalKnowledgeSourceTable.revision, input.expectedRevision),
+          eq(externalKnowledgeSourceTable.activeJobId, input.expectedActiveJobId)
+        )
+      )
+      .run()
+    return result.changes > 0
+  }
+
+  prepareDisconnectTx(
+    tx: Pick<DbType, 'select' | 'update'>,
+    input: PrepareExternalKnowledgeSourceDisconnectInput
+  ): ExternalKnowledgeSource | null {
+    const source = this.getByIdTx(tx, input.sourceId)
+    if (!source || source.revision !== input.expectedRevision || source.scheduleId !== input.expectedScheduleId) {
+      return null
+    }
+    if (source.state === 'paused') return source
+
+    const changed = this.setStateTx(tx, {
+      sourceId: source.id,
+      expectedRevision: source.revision,
+      expectedState: 'active',
+      state: 'paused'
+    })
+    return changed ? this.getByIdTx(tx, source.id) : null
+  }
+
+  deleteForDisconnectTx(tx: Pick<DbType, 'delete'>, input: DeleteExternalKnowledgeSourceDisconnectInput): boolean {
+    const activeJobFence =
+      input.expectedActiveJobId === null
+        ? isNull(externalKnowledgeSourceTable.activeJobId)
+        : eq(externalKnowledgeSourceTable.activeJobId, input.expectedActiveJobId)
+    const result = tx
+      .delete(externalKnowledgeSourceTable)
+      .where(
+        and(
+          eq(externalKnowledgeSourceTable.id, input.sourceId),
+          eq(externalKnowledgeSourceTable.state, 'paused'),
+          eq(externalKnowledgeSourceTable.revision, input.expectedRevision),
+          isNull(externalKnowledgeSourceTable.scheduleId),
+          activeJobFence
+        )
+      )
+      .run()
+    return result.changes > 0
+  }
+
+  deleteByBaseIdTx(tx: Pick<DbType, 'select' | 'delete'>, baseId: string): number {
+    const scheduled = tx
+      .select({ id: externalKnowledgeSourceTable.id })
+      .from(externalKnowledgeSourceTable)
+      .where(and(eq(externalKnowledgeSourceTable.baseId, baseId), isNotNull(externalKnowledgeSourceTable.scheduleId)))
+      .limit(1)
+      .get()
+    if (scheduled) {
+      throw DataApiErrorFactory.invalidOperation(
+        'delete knowledge base',
+        'remove external knowledge source schedules before deleting sources'
+      )
+    }
+    return tx.delete(externalKnowledgeSourceTable).where(eq(externalKnowledgeSourceTable.baseId, baseId)).run().changes
   }
 
   settleSyncTx(tx: Pick<DbType, 'update'>, input: SettleExternalKnowledgeSyncInput): boolean {

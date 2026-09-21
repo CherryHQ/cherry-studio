@@ -123,6 +123,11 @@ type Registration = {
 
 type Sleep = (milliseconds: number, signal?: AbortSignal) => Promise<void>
 
+export type ExternalKnowledgeRuntimeHooks = {
+  onReauthorizationRequired?(connectionId: string): void
+  onReauthorizationSucceeded?(connectionId: string): void
+}
+
 type RuntimeOptions = {
   connections?: ConnectionStore
   credentials?: CredentialStore
@@ -130,6 +135,7 @@ type RuntimeOptions = {
   registration?: Registration
   now?: () => number
   sleep?: Sleep
+  hooks?: ExternalKnowledgeRuntimeHooks
 }
 
 type RegistrationSession = {
@@ -249,6 +255,7 @@ export class ExternalKnowledgeRuntime {
   private readonly registration: Registration
   private readonly now: () => number
   private readonly sleep: Sleep
+  private readonly hooks: ExternalKnowledgeRuntimeHooks
   private lifetime = new AbortController()
   private accepting = false
   private readonly registrationSessions = new Map<string, RegistrationSession>()
@@ -264,6 +271,7 @@ export class ExternalKnowledgeRuntime {
     this.registration = options.registration ?? defaultRegistration
     this.now = options.now ?? Date.now
     this.sleep = options.sleep ?? ((milliseconds, signal) => delay(milliseconds, { signal }))
+    this.hooks = options.hooks ?? {}
   }
 
   async start(): Promise<void> {
@@ -390,7 +398,8 @@ export class ExternalKnowledgeRuntime {
     this.assertCredentialGeneration(state, currentGeneration)
     connection = this.requireConnection(connectionId)
     if (connection.authorizationStatus !== 'reauthorization-required') {
-      connection = this.connections.markReauthorizationRequired(connectionId)
+      this.markReauthorizationRequired(connectionId)
+      connection = this.requireConnection(connectionId)
     }
     const generation = this.advanceCredentialGeneration(connection.credentialReference, state)
     return await this.track(
@@ -918,9 +927,12 @@ export class ExternalKnowledgeRuntime {
             state,
             session.generation
           )
-          await this.retireCredential(session.expectedCredentialReference, signal)
         }
         state.validatedGeneration = session.generation
+        if (!session.initial) this.hooks.onReauthorizationSucceeded?.(connected.id)
+        if (session.expectedCredentialReference) {
+          await this.retireCredential(session.expectedCredentialReference, signal)
+        }
         return connected
       }
       this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
@@ -1212,6 +1224,7 @@ export class ExternalKnowledgeRuntime {
     const connection = this.connections.getById(connectionId)
     if (connection && connection.authorizationStatus !== 'reauthorization-required') {
       this.connections.markReauthorizationRequired(connectionId)
+      this.hooks.onReauthorizationRequired?.(connectionId)
     }
   }
 

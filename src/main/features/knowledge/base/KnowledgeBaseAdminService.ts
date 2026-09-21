@@ -21,11 +21,16 @@ import { inspectOrphanBaseArtifacts, type OrphanBaseArtifactsInspection } from '
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
 
-/** Knowledge base lifecycle: create (with rollback), delete, and restore — everything about the base row + its on-disk artifacts, not about items. */
+export interface KnowledgeBaseExternalSourceCleanup {
+  prepareExternalSourcesForBaseDeletion(baseId: string): Promise<void>
+}
+
+/** Knowledge base lifecycle: create (with rollback), delete, and restore — including ordered teardown of rows and on-disk artifacts. */
 export class KnowledgeBaseAdminService {
   constructor(
     private readonly knowledgeLockManager: KeyedMutex,
-    private readonly ingestionService: KnowledgeIngestionService
+    private readonly ingestionService: KnowledgeIngestionService,
+    private readonly externalSourceCleanup: KnowledgeBaseExternalSourceCleanup
   ) {}
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
@@ -65,7 +70,8 @@ export class KnowledgeBaseAdminService {
   }
 
   async deleteBase(baseId: string): Promise<void> {
-    await cancelActiveKnowledgeJobs(baseId, 'delete-base', { onCancelTimeout: 'proceed' })
+    await cancelActiveKnowledgeJobs(baseId, 'delete-base', { onCancelTimeout: 'throw' })
+    await this.externalSourceCleanup.prepareExternalSourcesForBaseDeletion(baseId)
 
     await this.knowledgeLockManager.runExclusive(baseId, async () => {
       try {
@@ -76,6 +82,8 @@ export class KnowledgeBaseAdminService {
         logger.error('Failed to delete knowledge base vector artifacts', normalizedError, { baseId })
         throw error
       }
+
+      knowledgeItemService.deleteAllByBaseId(baseId)
 
       try {
         knowledgeBaseService.delete(baseId)

@@ -8,6 +8,7 @@ import {
   ExternalKnowledgeSourceSyncError,
   type ExternalKnowledgeSourceSyncSummary
 } from '../../external/ExternalKnowledgeSyncService'
+import type { KnowledgeSyncExternalSourcePayload } from '../jobTypes'
 
 const { settleSyncTxMock, notifyDataChangeMock, withWriteTxMock } = vi.hoisted(() => ({
   settleSyncTxMock: vi.fn(),
@@ -32,12 +33,14 @@ const BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SOURCE_ID = '0198f3f2-7d11-7abc-8def-123456789abc'
 const JOB_ID = '0198f3f2-7d12-7abc-8def-123456789abc'
 
-const payload = {
+const payload: KnowledgeSyncExternalSourcePayload = {
   baseId: BASE_ID,
   sourceId: SOURCE_ID,
   sourceRevision: 3,
-  trigger: 'manual' as const
+  trigger: 'manual'
 }
+
+const scheduleEnvelope = { ...payload, trigger: 'scheduled' as const, dispatch: 'schedule' as const }
 
 const summary = (overrides: Partial<ExternalKnowledgeSourceSyncSummary> = {}): ExternalKnowledgeSourceSyncSummary => ({
   scannedCount: 4,
@@ -49,7 +52,7 @@ const summary = (overrides: Partial<ExternalKnowledgeSourceSyncSummary> = {}): E
   ...overrides
 })
 
-const createJobRun = (signal = new AbortController().signal): JobContext<typeof payload> => ({
+const createJobRun = (signal = new AbortController().signal): JobContext<KnowledgeSyncExternalSourcePayload> => ({
   jobId: JOB_ID,
   input: payload,
   attempt: 0,
@@ -61,7 +64,9 @@ const createJobRun = (signal = new AbortController().signal): JobContext<typeof 
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as unknown as JobContext['logger']
 })
 
-const settledEvent = (overrides: Partial<JobSettledEvent<typeof payload>> = {}): JobSettledEvent<typeof payload> => ({
+const settledEvent = (
+  overrides: Partial<JobSettledEvent<KnowledgeSyncExternalSourcePayload>> = {}
+): JobSettledEvent<KnowledgeSyncExternalSourcePayload> => ({
   jobId: JOB_ID,
   type: 'knowledge.sync-external-source',
   scheduleId: null,
@@ -120,6 +125,46 @@ describe('sync-external-source job handler', () => {
     expect(handler.cancelTimeoutMs).toBeGreaterThan(0)
     expect(handler.cancelTimeoutMs).toBeLessThanOrEqual(SERVICE_STOP_TIMEOUT_MS / 2)
     expect(handler.defaultQueue?.(payload)).toBe(`base.${BASE_ID}`)
+  })
+
+  it('classifies a natural envelope as scheduled even though its persisted scheduledAt is non-null', async () => {
+    const syncSource = vi.fn()
+    const dispatchScheduledEnvelope = vi.fn().mockResolvedValue(undefined)
+    const handler = createSyncExternalSourceJobHandler({ syncSource }, { now: () => 123, dispatchScheduledEnvelope })
+    const jobRun = { ...createJobRun(), input: scheduleEnvelope }
+
+    handler.onEnqueued?.({
+      id: JOB_ID,
+      scheduleId: 'schedule-1',
+      scheduledAt: '2026-09-21T09:05:00.000Z',
+      input: scheduleEnvelope
+    } as never)
+    await expect(handler.execute(jobRun)).resolves.toBeUndefined()
+    await handler.onSettled?.(settledEvent({ input: scheduleEnvelope, scheduleId: 'schedule-1' }))
+
+    expect(dispatchScheduledEnvelope).toHaveBeenCalledWith(scheduleEnvelope, 'scheduled')
+    expect(syncSource).not.toHaveBeenCalled()
+    expect(settleSyncTxMock).not.toHaveBeenCalled()
+    expect(notifyDataChangeMock).not.toHaveBeenCalled()
+  })
+
+  it('classifies JobManager catch-up as a startup envelope while keeping the same handler', async () => {
+    const dispatchScheduledEnvelope = vi.fn().mockResolvedValue(undefined)
+    const handler = createSyncExternalSourceJobHandler(
+      { syncSource: vi.fn() },
+      { now: () => 123, dispatchScheduledEnvelope }
+    )
+
+    await handler.onMissed?.({
+      scheduleId: 'schedule-1',
+      type: 'knowledge.sync-external-source',
+      missedCount: 1,
+      lastFireAt: 1
+    })
+    handler.onEnqueued?.({ id: JOB_ID, scheduleId: 'schedule-1', input: scheduleEnvelope } as never)
+    await handler.execute({ ...createJobRun(), input: scheduleEnvelope })
+
+    expect(dispatchScheduledEnvelope).toHaveBeenCalledWith(scheduleEnvelope, 'startup')
   })
 
   it('publishes content read models only after synchronization finishes', async () => {
