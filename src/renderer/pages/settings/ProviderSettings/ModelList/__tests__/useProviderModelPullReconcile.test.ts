@@ -469,6 +469,60 @@ describe('useProviderModelPullReconcile', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  it('keeps a workflow added while the authoritative list was loading', async () => {
+    // Opening the drawer loads the provider list; a workflow the user adds while
+    // that load is in flight is created after the provider built the list, and it
+    // must not be handed to the reconcile as a row to remove.
+    const vanished = {
+      ...localModel,
+      id: 'comfyui::sample_workflow_removed',
+      providerId: 'comfyui',
+      apiModelId: 'sample_workflow_removed',
+      presetModelId: null
+    }
+    const addedWhileLoading = {
+      ...fetchedModel,
+      id: 'comfyui::sample_workflow_added',
+      providerId: 'comfyui',
+      apiModelId: 'sample_workflow_added',
+      presetModelId: null
+    }
+    useModelsMock.mockReturnValue({ models: [vanished] })
+    useProviderMock.mockReturnValue({
+      provider: { id: 'comfyui', isEnabled: true, modelListIsAuthoritative: true },
+      enableProvider: enableProviderMock
+    })
+    const catalogLoad = deferred<any[]>()
+    const upstreamLoad = deferred<any[]>()
+    fetchProviderCatalogModelsMock.mockReturnValue(catalogLoad.promise)
+    fetchResolvedProviderModelsMock.mockReturnValue(upstreamLoad.promise)
+
+    const { result, rerender } = renderHook(() => useProviderModelPullReconcile('comfyui'))
+
+    // The fetch starts here, so the hook's own closure still sees only `vanished`.
+    act(() => {
+      result.current.openPullReconcile()
+    })
+    expect(fetchResolvedProviderModelsMock).toHaveBeenCalled()
+
+    useModelsMock.mockReturnValue({ models: [vanished, addedWhileLoading] })
+    rerender()
+
+    await act(async () => {
+      catalogLoad.resolve([])
+      upstreamLoad.resolve([addedWhileLoading])
+      await Promise.all([catalogLoad.promise, upstreamLoad.promise])
+    })
+
+    await waitFor(() => {
+      expect(reconcileTriggerMock).toHaveBeenCalled()
+    })
+    expect(reconcileTriggerMock).toHaveBeenCalledWith({
+      params: { providerId: 'comfyui' },
+      body: { toAdd: [], toRemove: ['comfyui::sample_workflow_removed'] }
+    })
+  })
+
   it('keeps a hand-added model when the provider does not claim an authoritative list', async () => {
     const handAdded = { ...localModel, id: 'openai::hand-added', apiModelId: 'hand-added', presetModelId: null }
     useModelsMock.mockReturnValue({ models: [handAdded] })

@@ -35,6 +35,8 @@ function uniqueById(models: Model[]): Model[] {
 interface ProviderModelLoadResult {
   models: Model[]
   error: unknown | null
+  /** The rows that were on screen when this load started. */
+  knownModelIds: Set<UniqueModelId>
 }
 
 async function deleteModelsSkippingDefaults(
@@ -82,6 +84,11 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [translateModelId] = usePreference('feature.translate.model_id')
   const { provider, enableProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
+  // The reconcile below runs after an await, and a row the user added while the
+  // list was loading only exists in the newest `models`: read it from a ref, and
+  // keep rows that were created after the load started out of the deletion set.
+  const modelsRef = useRef(models)
+  modelsRef.current = models
   const { createModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
   const { trigger: reconcileModels, isLoading: isReconciling } = useMutation(
     'POST',
@@ -145,6 +152,10 @@ export function useProviderModelPullReconcile(providerId: string) {
   const loadModels = useCallback(async () => {
     const sequence = ++loadModelsSequenceRef.current
     const isLatestLoad = () => sequence === loadModelsSequenceRef.current
+    // Rows already on screen when the fetch starts. Anything created while it is
+    // in flight may legitimately be missing from a list the provider built
+    // before the create landed, so it is not the reconcile's to judge.
+    const knownModelIds = new Set(modelsRef.current.map((model) => model.id))
 
     setIsLoadingModels(true)
     setHasLoadedCompleteRemoteModels(false)
@@ -187,7 +198,8 @@ export function useProviderModelPullReconcile(providerId: string) {
 
       return {
         models: uniqueById([...fetched, ...catalog]),
-        error: loadError
+        error: loadError,
+        knownModelIds
       } satisfies ProviderModelLoadResult
     } finally {
       if (isLatestLoad()) {
@@ -204,13 +216,19 @@ export function useProviderModelPullReconcile(providerId: string) {
    * alone: it cannot be deleted, and the warning names it.
    */
   const reconcileVanishedModels = useCallback(
-    async (remoteModels: Model[]) => {
+    async (remoteModels: Model[], knownModelIds: Set<UniqueModelId>) => {
       if (!listIsAuthoritative) {
         return
       }
 
       const remoteIds = new Set(remoteModels.map((model) => model.id))
-      const vanishedIds = models.filter((model) => !remoteIds.has(model.id)).map((model) => model.id)
+      // The newest rows, not the ones loadModels captured: a workflow added in
+      // this drawer while the list was loading is in `remoteIds`, so filtering
+      // over the stale snapshot would mark the row the user just created as
+      // vanished and delete it.
+      const vanishedIds = modelsRef.current
+        .filter((model) => knownModelIds.has(model.id) && !remoteIds.has(model.id))
+        .map((model) => model.id)
       if (vanishedIds.length === 0) {
         return
       }
@@ -242,7 +260,7 @@ export function useProviderModelPullReconcile(providerId: string) {
         })
       }
     },
-    [listIsAuthoritative, models, providerId, reconcileModels, t]
+    [listIsAuthoritative, providerId, reconcileModels, t]
   )
 
   const openPullReconcile = useCallback(() => {
@@ -255,7 +273,7 @@ export function useProviderModelPullReconcile(providerId: string) {
       if (!result || result.error) {
         return
       }
-      await reconcileVanishedModels(result.models)
+      await reconcileVanishedModels(result.models, result.knownModelIds)
     })()
   }, [loadModels, reconcileVanishedModels])
 
