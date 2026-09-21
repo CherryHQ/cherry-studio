@@ -1246,12 +1246,8 @@ export class AiService extends BaseService {
         presetProviderId: provider.presetProviderId ?? null
       })
     }
-    // Union the live API list with the registry catalog so vendor-exclusive models
-    // the upstream `/models` never returns (ppio image models, Claude-on-Vertex)
-    // still surface for the user to enable.
     const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
-    // DeepSeek's /models is authoritative; the registry also retains retired compatibility aliases.
-    if (provider.id === 'deepseek' || provider.presetProviderId === 'deepseek') {
+    if (!provider.supplementModelsFromRegistry) {
       return remoteModels
     }
     const registryModels = providerRegistryService.listProviderRegistryModels({
