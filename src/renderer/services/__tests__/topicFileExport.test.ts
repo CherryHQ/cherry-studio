@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import { parseGeneratedImageOutput } from '@renderer/components/chat/messages/tools/painting/generateImageTool'
 import { validateCherryTopicFileContent } from '@renderer/services/import'
 import { toast } from '@renderer/services/toast'
+import { extractOutputMetadata } from '@renderer/utils/message/toolOutput'
 import type { Message } from '@shared/data/types/message'
 
 vi.mock('@renderer/i18n/resolver', () => ({
@@ -409,6 +411,21 @@ describe('topicFileExport', () => {
         restore()
       }
     })
+
+    it('measures the cap in bytes so multibyte text cannot slip past it', async () => {
+      // 4M CJK chars are well under the 10M char count but encode to ~12MiB.
+      ipcRequest.mockResolvedValue({ found: true, output: '中'.repeat(4 * 1024 * 1024) })
+      const restore = withToolPart()
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
+        expect(parts[1]).toMatchObject({ output: persistedPart.output })
+        expect(toast.warning).toHaveBeenCalledWith('chat.topics.export.topic_file_skipped_tool_outputs')
+      } finally {
+        restore()
+      }
+    })
   })
 
   describe('generated images', () => {
@@ -448,7 +465,10 @@ describe('topicFileExport', () => {
         const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
         expect(parts[1]).toMatchObject({
           toolCallId: 'call-1',
-          output: { content: [{ type: 'image', data: 'AQID', mimeType: 'image/png' }] }
+          output: {
+            content: [{ type: 'image', data: 'AQID', mimeType: 'image/png' }],
+            metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+          }
         })
         expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
         expect(toast.warning).not.toHaveBeenCalled()
@@ -467,9 +487,38 @@ describe('topicFileExport', () => {
         const file = await collectTopicFileData('topic-1')
 
         const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
-        expect(parts[1]).toMatchObject({ toolCallId: 'call-1', output: { content: [] } })
+        expect(parts[1]).toMatchObject({
+          toolCallId: 'call-1',
+          output: {
+            content: [],
+            metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+          }
+        })
         expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
         expect(toast.warning).toHaveBeenCalledWith('chat.topics.export.topic_file_skipped_attachments')
+      } finally {
+        restore()
+      }
+    })
+
+    it('keeps the MCP envelope so the output survives response normalization', async () => {
+      ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.batch_get_physical_paths') return { 'gen-1': '/tmp/gen-1.png' }
+        if (route === 'file.get_metadata') return { kind: 'file', size: 3 }
+        return { content: new Uint8Array([1, 2, 3]), mime: 'image/png' }
+      })
+      const restore = withImagePart()
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
+        const output = (parts[1] as { output: unknown }).output
+        // Same two steps the renderer applies: buildToolResponseFromPart unwraps
+        // via extractOutputMetadata, then MessageGenerateImage parses the result.
+        const { response } = extractOutputMetadata(output)
+        const { inlineUrls, items } = parseGeneratedImageOutput(response)
+        expect(items).toEqual([])
+        expect(inlineUrls).toEqual(['data:image/png;base64,AQID'])
       } finally {
         restore()
       }

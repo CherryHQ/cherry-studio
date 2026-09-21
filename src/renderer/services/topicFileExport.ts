@@ -136,7 +136,12 @@ async function hydratePersistedToolOutputs(messages: CherryTopicFile['messages']
           messageId: message.sourceId,
           toolCallId: toolPart.toolCallId
         })
-        if (!response.found || JSON.stringify(response.output).length > MAX_EMBED_IMAGE_BYTES) {
+        // `length` counts UTF-16 units, so multibyte text would slip past the
+        // byte cap; measure the UTF-8 bytes actually written to the file.
+        if (
+          !response.found ||
+          new TextEncoder().encode(JSON.stringify(response.output)).length > MAX_EMBED_IMAGE_BYTES
+        ) {
           skipped += 1
           continue
         }
@@ -200,7 +205,22 @@ async function inlineGeneratedImages(messages: CherryTopicFile['messages']): Pro
         }
       }
       parts ??= [...message.parts]
-      parts[index] = { ...(part as Record<string, unknown>), output: { content: inline } }
+      // Keep the MCP envelope (not just the content array): the renderer
+      // unwraps `{ content }` without mcp metadata down to the bare array,
+      // which `parseGeneratedImageOutput` cannot read, so bare image blocks
+      // would render as a failure after import.
+      parts[index] = {
+        ...(part as Record<string, unknown>),
+        output: {
+          content: inline,
+          metadata: {
+            type: 'mcp',
+            serverId: 'cherry-tools',
+            serverName: 'cherry-tools',
+            name: GENERATE_IMAGE_TOOL_NAME
+          }
+        }
+      }
     }
     if (parts) message.parts = parts
   }
