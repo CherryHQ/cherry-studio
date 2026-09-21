@@ -503,7 +503,13 @@ describe('VoiceSessionService file and admission contract', () => {
 
   it('continues an auto-read session after releasing the previous chunk', async () => {
     const sessionId = randomUUID()
-    const first = await speech(a, { sessionId, trigger: 'auto_read', chunkIndex: 0, chunkCount: 2 })
+    const first = await speech(a, {
+      sessionId,
+      sourceEntityId: 'message-1',
+      trigger: 'auto_read',
+      chunkIndex: 0,
+      chunkCount: 2
+    })
     await service.releaseOutput(a, { sessionId, fileEntryId: first.result.fileEntry.id })
 
     await expect(
@@ -513,6 +519,7 @@ describe('VoiceSessionService file and admission contract', () => {
         text: 'private-second-chunk',
         voice: 'exact',
         source: 'playback',
+        sourceEntityId: 'message-1',
         trigger: 'auto_read',
         chunkIndex: 1,
         chunkCount: 2
@@ -520,7 +527,7 @@ describe('VoiceSessionService file and admission contract', () => {
     ).resolves.toMatchObject({ sessionId })
   })
 
-  it('rejects sequential chunks that change the session source or trigger', async () => {
+  it('rejects sequential chunks that change the session source, trigger, or source entity', async () => {
     const sourceSessionId = randomUUID()
     const sourceFirst = await speech(a, { sessionId: sourceSessionId, chunkIndex: 0, chunkCount: 2 })
     await service.releaseOutput(a, { sessionId: sourceSessionId, fileEntryId: sourceFirst.result.fileEntry.id })
@@ -553,6 +560,29 @@ describe('VoiceSessionService file and admission contract', () => {
         text: 'private-second-chunk',
         voice: 'exact',
         source: 'playback',
+        trigger: 'manual',
+        chunkIndex: 1,
+        chunkCount: 2
+      })
+    ).rejects.toMatchObject({ reason: 'invalid_request' })
+
+    await service.discard(a, triggerSessionId)
+    const entitySessionId = randomUUID()
+    const entityFirst = await speech(a, {
+      sessionId: entitySessionId,
+      sourceEntityId: 'message-1',
+      chunkIndex: 0,
+      chunkCount: 2
+    })
+    await service.releaseOutput(a, { sessionId: entitySessionId, fileEntryId: entityFirst.result.fileEntry.id })
+    await expect(
+      service.speech(a, {
+        sessionId: entitySessionId,
+        requestId: randomUUID(),
+        text: 'private-second-chunk',
+        voice: 'exact',
+        source: 'playback',
+        sourceEntityId: 'message-2',
         trigger: 'manual',
         chunkIndex: 1,
         chunkCount: 2
@@ -716,6 +746,7 @@ describe('VoiceSessionService file and admission contract', () => {
       text: 'private-event-text-canary',
       voice: 'exact',
       source: 'playback' as const,
+      sourceEntityId: 'private-playback-entity-canary',
       trigger: 'manual' as const,
       language: 'en-US'
     }
@@ -724,7 +755,8 @@ describe('VoiceSessionService file and admission contract', () => {
     await service.startRecording(a, {
       sessionId: recordingSessionId,
       requestId: randomUUID(),
-      source: 'dictation'
+      source: 'dictation',
+      sourceEntityId: 'private-recording-entity-canary'
     })
     const recordingEntry = await service.createRecording(a, {
       sessionId: recordingSessionId,
@@ -745,7 +777,14 @@ describe('VoiceSessionService file and admission contract', () => {
         (level) => mockMainLoggerService[level as 'info'].mock.calls
       )
     )
-    for (const privateValue of ['private-event-text-canary', 'private-transcript', root, JSON.stringify([...webm])]) {
+    for (const privateValue of [
+      'private-event-text-canary',
+      'private-playback-entity-canary',
+      'private-recording-entity-canary',
+      'private-transcript',
+      root,
+      JSON.stringify([...webm])
+    ]) {
       expect(serializedEvents).not.toContain(privateValue)
       expect(serializedLogs).not.toContain(privateValue)
     }

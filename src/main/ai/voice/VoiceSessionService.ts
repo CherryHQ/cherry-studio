@@ -46,6 +46,7 @@ type Session = {
   owner: VoiceOwner
   kind: SessionKind
   source?: VoiceSessionSource
+  sourceEntityId?: string
   trigger?: VoiceSessionTrigger
   phase?: ActivePhase
   closed: boolean
@@ -129,7 +130,7 @@ export class VoiceSessionService extends BaseService {
   async startRecording(owner: VoiceOwner, input: InputFor<'ai.voice.recording.start'>): Promise<VoiceSessionState> {
     this.requireAdmission()
     this.requireOwner(owner)
-    const session = this.createSession(owner, input.sessionId, 'recording', input.source)
+    const session = this.createSession(owner, input.sessionId, 'recording', input.source, input.sourceEntityId)
     session.requestId = input.requestId
     try {
       if (this.inspections.size) {
@@ -426,7 +427,7 @@ export class VoiceSessionService extends BaseService {
     if (trigger === 'auto_read' && (this.lease || this.active)) throw new VoiceRuntimeError('busy')
     const occupied = this.lease ?? this.active?.session
     if (occupied && (occupied.kind !== 'playback' || this.lease !== occupied)) throw new VoiceRuntimeError('busy')
-    const session = this.createSession(owner, input.sessionId, 'playback', input.source, trigger)
+    const session = this.createSession(owner, input.sessionId, 'playback', input.source, input.sourceEntityId, trigger)
     session.requestId = input.requestId
     session.chunkCount = input.chunkCount
     try {
@@ -461,6 +462,7 @@ export class VoiceSessionService extends BaseService {
       session.chunkCount !== input.chunkCount ||
       session.nextChunkIndex !== input.chunkIndex ||
       session.source !== input.source ||
+      session.sourceEntityId !== input.sourceEntityId ||
       session.trigger !== trigger
     ) {
       throw new VoiceRuntimeError('invalid_request')
@@ -512,6 +514,7 @@ export class VoiceSessionService extends BaseService {
     id: string,
     kind: SessionKind,
     source?: VoiceSessionSource,
+    sourceEntityId?: string,
     trigger?: VoiceSessionTrigger
   ): Session {
     this.requireAdmission()
@@ -537,6 +540,7 @@ export class VoiceSessionService extends BaseService {
       owner,
       kind,
       source,
+      sourceEntityId,
       trigger,
       closed: false,
       files: new Map(),

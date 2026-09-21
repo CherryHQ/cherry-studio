@@ -29,11 +29,17 @@ const request = session.extend({
   requestId: z.uuid(),
   source: z.enum(VOICE_SESSION_SOURCES).optional()
 })
+const sourceEntityId = z
+  .string()
+  .min(1)
+  .max(256)
+  .refine((value) => value === value.trim())
+const sessionAdmission = request.extend({ sourceEntityId: sourceEntityId.optional() })
 const abort = session.extend({ requestId: z.uuid() })
 const sessionFile = session.extend({ fileEntryId: FileEntryIdSchema })
 const modelId = z.enum(LOCAL_VOICE_MODEL_IDS)
 const asrModelId = z.enum([APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID])
-const speechInput = request
+const speechInput = sessionAdmission
   .extend({
     modelId: z.literal(APPLE_TTS_MODEL_ID).optional(),
     text: z.string().trim().min(1).max(10_000),
@@ -133,7 +139,7 @@ export const voiceRequestSchemas = {
   }),
   'ai.transcription.abort': defineRoute({ input: abort, output: z.void() }),
   'ai.voice.session.state': defineRoute({ input: z.void(), output: voiceSessionStateSchema }),
-  'ai.voice.recording.start': defineRoute({ input: request, output: voiceSessionStateSchema }),
+  'ai.voice.recording.start': defineRoute({ input: sessionAdmission, output: voiceSessionStateSchema }),
   'ai.voice.output.read': defineRoute({
     input: sessionFile,
     output: z.strictObject({

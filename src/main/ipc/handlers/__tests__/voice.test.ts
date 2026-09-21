@@ -51,7 +51,8 @@ const input = {
   sessionId: '00000000-0000-4000-8000-000000000001',
   requestId: '00000000-0000-4000-8000-000000000002',
   text: 'secret-text',
-  voice: 'exact'
+  voice: 'exact',
+  sourceEntityId: 'message-1'
 }
 const transcription = {
   sessionId: input.sessionId,
@@ -92,7 +93,12 @@ describe('Voice handlers through real IpcRouter', () => {
     await router.dispatch('ai.voice.session.state', undefined, { senderId: 'owner' })
     await router.dispatch(
       'ai.voice.recording.start',
-      { sessionId: input.sessionId, requestId: input.requestId, source: 'dictation' },
+      {
+        sessionId: input.sessionId,
+        requestId: input.requestId,
+        source: 'dictation',
+        sourceEntityId: 'topic-1'
+      },
       { senderId: 'owner' }
     )
     await router.dispatch('ai.voice.output.read', { sessionId: input.sessionId, fileEntryId }, { senderId: 'owner' })
@@ -122,6 +128,12 @@ describe('Voice handlers through real IpcRouter', () => {
     ]) {
       expect(method.mock.calls[0]?.[0]).toEqual(owner)
     }
+    expect(boundary.startRecording).toHaveBeenCalledWith(owner, {
+      sessionId: input.sessionId,
+      requestId: input.requestId,
+      source: 'dictation',
+      sourceEntityId: 'topic-1'
+    })
   })
 
   it('rejects forged Voice coordination fields before the service boundary', async () => {

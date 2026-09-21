@@ -79,6 +79,31 @@ describe('Voice IPC contract', () => {
     ).toMatchObject({ source: 'playback', trigger: 'auto_read', chunkIndex: 1, chunkCount: 3, speed: 1.25 })
   })
 
+  it('accepts a bounded opaque source entity only on session admission routes', () => {
+    const sourceEntityId = 'message-1'
+    expect(speech.parse({ ...base, sourceEntityId })).toMatchObject({ sourceEntityId })
+    expect(
+      voiceRequestSchemas['ai.voice.recording.start'].input.parse({
+        sessionId: base.sessionId,
+        requestId: base.requestId,
+        source: 'dictation',
+        sourceEntityId
+      })
+    ).toMatchObject({ sourceEntityId })
+
+    for (const value of ['', ' ', `x${'y'.repeat(256)}`, 1]) {
+      expect(speech.safeParse({ ...base, sourceEntityId: value }).success).toBe(false)
+    }
+    expect(
+      voiceRequestSchemas['ai.transcription.generate'].input.safeParse({
+        sessionId: base.sessionId,
+        requestId: base.requestId,
+        fileEntryId: 'file-entry',
+        sourceEntityId
+      }).success
+    ).toBe(false)
+  })
+
   it('rejects unknown sources/triggers and incoherent chunk metadata', () => {
     for (const input of [
       { ...base, source: 'webview' },
@@ -136,6 +161,15 @@ describe('Voice IPC contract', () => {
         source: 'dictation'
       })
     ).toEqual({ phase: 'recording', revision: 1, sessionId: base.sessionId, source: 'dictation' })
+    expect(
+      stateRoute.output.safeParse({
+        phase: 'recording',
+        revision: 1,
+        sessionId: base.sessionId,
+        source: 'dictation',
+        sourceEntityId: 'private-source-entity-canary'
+      }).success
+    ).toBe(false)
     expect(
       stateRoute.output.safeParse({
         phase: 'ready',
