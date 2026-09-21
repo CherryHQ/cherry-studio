@@ -1,4 +1,5 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, LoaderCircle, X } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
 import type React from 'react'
 import { createContext, use, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
@@ -435,6 +436,8 @@ export const ToastViewport = ({
 }) => {
   const toasts = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const toastLabels = getToastLabels(labels)
+  const reducedMotion = useReducedMotion()
+  const transition = { duration: reducedMotion ? 0 : 0.25, ease: 'easeOut' as const }
   const viewportRef = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
@@ -472,17 +475,25 @@ export const ToastViewport = ({
       }}
       role="region">
       {toasts.toReversed().map((toast, index) => (
-        <div
+        <motion.div
           key={toast.key}
+          layout={reducedMotion ? false : 'position'}
+          transition={transition}
           inert={!expanded && index > 0}
-          className={cn(!expanded && 'col-start-1 row-start-1 origin-top', !expanded && index >= 3 && 'hidden')}
-          style={
-            expanded
-              ? undefined
-              : { zIndex: toasts.length - index, transform: `translateY(${index * 8}px) scale(${1 - index * 0.04})` }
-          }>
-          <ToastItem labels={toastLabels} store={store} toast={toast} />
-        </div>
+          className={cn(!expanded && 'col-start-1 row-start-1')}
+          style={{ zIndex: toasts.length - index }}>
+          <motion.div
+            initial={false}
+            animate={{
+              y: expanded ? 0 : Math.min(index, 2) * 8,
+              scale: expanded ? 1 : 1 - Math.min(index, 2) * 0.04,
+              opacity: expanded || index < 3 ? 1 : 0
+            }}
+            transition={transition}
+            className="origin-top">
+            <ToastItem labels={toastLabels} store={store} toast={toast} />
+          </motion.div>
+        </motion.div>
       ))}
     </div>
   )
