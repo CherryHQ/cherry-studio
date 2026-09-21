@@ -12,7 +12,7 @@ agent does not control the test run.
 
 ## CI contract
 
-Use `.github/workflows/cherry-regression-test.yml` as the entry point. It:
+Use `.github/workflows/e2e-regression-test.yml` as the entry point. It:
 
 1. Resolves a trusted branch or release tag.
 2. Initializes an isolated directory under the GitHub runner temporary folder.

@@ -1,4 +1,4 @@
-name: Cherry End-to-End Regression Test
+name: E2E Regression Test
 
 on:
   workflow_dispatch:
@@ -9,10 +9,30 @@ on:
         default: "main"
         type: string
       task:
-        description: "Task ID from the regression manifest, or all (see regression README)"
+        description: "Test task (all = full regression)"
         required: true
         default: "all"
-        type: string
+        type: choice
+        options:
+          - all
+          - startup-smoke
+          - mini-app
+          - notes
+          - custom-provider-chat
+          - custom-assistant
+          - translation
+          - quick-assistant
+          - knowledge
+          - everything-mcp
+          - skill-import
+          - code-cli
+          - openclaw
+          - cherryin-chat
+          - image-generation
+          - claude-agent-runtime
+          - pi-runtime
+          - deepseek-harness-runtime
+          - agent-basic-task
 
 permissions:
   contents: read
@@ -137,7 +157,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/cherry-code-tools-npm/_cacache
-          key: cherry-code-tools-v1-${{ runner.os }}-${{ runner.arch }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('.github/workflows/cherry-regression-test.yml') }}
+          key: cherry-code-tools-v1-${{ runner.os }}-${{ runner.arch }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('.github/workflows/e2e-regression-test.yml') }}
 
       - name: Install code tools under test
         shell: bash

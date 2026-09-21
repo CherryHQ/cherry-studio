@@ -73,7 +73,7 @@ pnpm playwright show-report
 
 ### Critical-path regression suite
 
-Use the [regression workflow](../../.github/workflows/cherry-regression-test.yml) for hosted macOS and Windows runs.
+Use the [regression workflow](../../.github/workflows/e2e-regression-test.yml) for hosted macOS and Windows runs.
 It prepares the application, isolated run directory, and provider configuration before running the scenarios.
 `pnpm test:e2e:regression` selects the regression config, but does not perform that preparation itself:
 execution requires `CHERRY_TEST_RUN_DIR` to point to an initialized controller run.

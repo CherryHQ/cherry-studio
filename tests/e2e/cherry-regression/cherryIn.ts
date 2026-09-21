@@ -2,7 +2,10 @@ import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
 import { completeCherryInOauth } from '../../../scripts/cherry-regression-test/cherryInOauth'
-import { sendProtocolUrlToOwnedApp } from '../../../scripts/cherry-regression-test/debugBridge'
+import {
+  captureCherryInAuthorizationUrl,
+  sendCherryInCallbackToOwnedApp
+} from '../../../scripts/cherry-regression-test/debugBridge'
 import type { RegressionApp } from './RegressionApp'
 import { openSettingsSection } from './settings'
 
@@ -13,34 +16,12 @@ export async function ensureCherryInSignedIn(app: RegressionApp, page: Page): Pr
   const logout = page.getByRole('button', { name: 'Logout', exact: true })
   await expect(authorize.or(logout).first()).toBeVisible({ timeout: 60_000 })
   if (await authorize.isVisible().catch(() => false)) {
-    await page.evaluate(() => {
-      const original = window.open
-      ;(window as typeof window & { __cherryRegressionOauthUrl?: string }).open = ((url?: string | URL) => {
-        ;(window as typeof window & { __cherryRegressionOauthUrl?: string }).__cherryRegressionOauthUrl = String(url)
-        window.open = original
-        return null
-      }) as typeof window.open
-    })
-    await authorize.click()
-    const authorizationUrl = await expect
-      .poll(
-        () =>
-          page.evaluate(
-            () => (window as typeof window & { __cherryRegressionOauthUrl?: string }).__cherryRegressionOauthUrl
-          ),
-        { timeout: 30_000 }
-      )
-      .not.toBeUndefined()
-      .then(() =>
-        page.evaluate(
-          () => (window as typeof window & { __cherryRegressionOauthUrl?: string }).__cherryRegressionOauthUrl!
-        )
-      )
+    const authorizationUrl = await captureCherryInAuthorizationUrl(app.record, () => authorize.click())
     const callback = await completeCherryInOauth(authorizationUrl, {
       account: app.config.cherryIn.account,
       password: app.config.cherryIn.password
     })
-    await sendProtocolUrlToOwnedApp(app.record, callback)
+    await sendCherryInCallbackToOwnedApp(app.record, callback)
     await expect
       .poll(
         () =>

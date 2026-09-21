@@ -31,7 +31,7 @@ perform the same preparation in the target checkout before `launch`; release ins
 do not need it. Restarting still stops the owned application and preserves its profile.
 
 The workflow keeps ten separately timed steps. Each calls `run-phase`; the controller intersects its phase with the run's selected task and returns immediately for unselected phases.
-`cases.ts` is the execution manifest. Workflow task input is a string validated against the manifest, so adding a task does not require another task list in YAML.
+`cases.ts` is the execution manifest. The workflow task dropdown lists `all` and every task ID from the manifest. When adding a task, update the workflow options too; the manifest tests enforce that the lists stay in sync.
 
 `run.json` schema version 2 records both cases and phases. The parent marks a phase running before starting Playwright; the reporter records test results and executor errors; a nonzero child exit also fails the phase.
 A phase left pending/running becomes blocked during finalization. Passing cases cannot hide a failed or unfinished phase. Missing platform reports block the aggregate gate.

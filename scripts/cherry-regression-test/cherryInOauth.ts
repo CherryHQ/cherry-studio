@@ -1,5 +1,5 @@
 const CHERRYIN_ORIGIN = 'https://open.cherryin.ai'
-const CHERRYIN_CALLBACK = 'cherrystudio://oauth/callback'
+export const CHERRYIN_CALLBACK = 'http://127.0.0.1:29873/oauth/callback'
 
 type FetchImplementation = (input: string | URL, init?: RequestInit) => Promise<Response>
 
@@ -34,7 +34,7 @@ function callbackUrl(value: string | URL, expectedState?: string): URL {
   } catch {
     throw new Error('CherryIN OAuth returned an invalid application callback')
   }
-  if (`${url.protocol}//${url.host}${url.pathname}` !== CHERRYIN_CALLBACK) {
+  if (`${url.origin}${url.pathname}` !== CHERRYIN_CALLBACK || url.username || url.password || url.hash) {
     throw new Error('CherryIN OAuth returned an invalid application callback')
   }
   if (!url.searchParams.get('code') || !url.searchParams.get('state')) {
@@ -133,7 +133,7 @@ async function resolveAuthorizationDestination(
 ): Promise<URL> {
   let nextUrl = initialUrl
   for (let redirectCount = 0; redirectCount < 5; redirectCount += 1) {
-    if (nextUrl.protocol === 'cherrystudio:') return callbackUrl(nextUrl, expectedState)
+    if (nextUrl.origin !== CHERRYIN_ORIGIN) return callbackUrl(nextUrl, expectedState)
     const webUrl = trustedWebUrl(nextUrl, 'CherryIN OAuth authorization continuation was rejected')
     if (webUrl.pathname === '/oauth/consent') return webUrl
     if (webUrl.pathname !== '/oauth2/auth') {
@@ -152,13 +152,13 @@ async function requireCallback(
   errorMessage: string
 ): Promise<string> {
   const destination = await resolveAuthorizationDestination(session, absoluteUrl(redirect, errorMessage), expectedState)
-  if (destination.protocol !== 'cherrystudio:') throw new Error(errorMessage)
+  if (destination.origin === CHERRYIN_ORIGIN) throw new Error(errorMessage)
   return destination.toString()
 }
 
 async function finishConsent(session: SameOriginSession, nextUrl: URL, expectedState: string): Promise<string> {
   const consentUrl = await resolveAuthorizationDestination(session, nextUrl, expectedState)
-  if (consentUrl.protocol === 'cherrystudio:') return consentUrl.toString()
+  if (consentUrl.origin !== CHERRYIN_ORIGIN) return consentUrl.toString()
   if (consentUrl.pathname !== '/oauth/consent') throw new Error('CherryIN OAuth consent redirect was rejected')
   const consentChallenge = consentUrl.searchParams.get('consent_challenge')
   if (!consentChallenge) throw new Error('CherryIN OAuth consent challenge was missing')

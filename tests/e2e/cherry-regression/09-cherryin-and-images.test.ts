@@ -8,7 +8,7 @@ import { addCherryInModel, ensureCherryInSignedIn } from './cherryIn'
 import { expect, test } from './fixture'
 import { selectVisibleModel } from './models'
 import { dismissOnboarding, selectSidebarApp } from './navigation'
-import { closeSettings } from './settings'
+import { closeSettings, openSettingsSection } from './settings'
 
 const IMAGE_PROMPT = 'A red cherry robot holding a blue umbrella in a bright workshop, detailed illustration.'
 
@@ -27,8 +27,9 @@ test(...caseDefinition('M-01'), async ({ app, mainWindow: _mainWindow }) => {
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
-  await ensureCherryInSignedIn(app, page)
-  await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible()
+  await openSettingsSection(page, 'Model Provider')
+  await page.getByTestId('provider-list-item-cherryin').click()
+  await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible({ timeout: 60_000 })
 })
 
 async function generateAndSaveImage(

@@ -7,11 +7,19 @@ import { join, resolve } from 'node:path'
 import type { JSONReport, JSONReportSuite } from '@playwright/test/reporter'
 import { parse } from 'yaml'
 
-import { getCase, missingCapabilities, PHASE_IDS, REGRESSION_CASES, selectCases } from '../cases'
+import { getCase, missingCapabilities, PHASE_IDS, REGRESSION_CASES, selectCases, TASK_SELECTIONS } from '../cases'
 
 describe('regression execution plan', () => {
+  it('offers every supported task in the workflow dropdown with full regression as the default', () => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+    const task = workflow.on.workflow_dispatch.inputs.task
+    expect(task.type).toBe('choice')
+    expect(task.default).toBe('all')
+    expect(task.options).toEqual(TASK_SELECTIONS)
+  })
+
   it('caches only tool downloads and still installs and checks every tool on a cache hit', () => {
-    const workflow = parse(readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8'))
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
     const steps = workflow.jobs.test.steps
     const cacheIndex = steps.findIndex((step: { name: string }) => step.name === 'Cache code tool downloads')
     const installIndex = steps.findIndex((step: { name: string }) => step.name === 'Install code tools under test')
@@ -24,7 +32,7 @@ describe('regression execution plan', () => {
     for (const dimension of ['runner.os', 'runner.arch', 'env.NODE_VERSION']) {
       expect(cache.with.key).toContain(`\${{ ${dimension} }}`)
     }
-    expect(cache.with.key).toContain("hashFiles('.github/workflows/cherry-regression-test.yml')")
+    expect(cache.with.key).toContain("hashFiles('.github/workflows/e2e-regression-test.yml')")
     expect(install.if).toBeUndefined()
     expect(install.run).toMatch(/^npm install --global /)
     for (const tool of ['@anthropic-ai/claude-code', '@openai/codex', 'openclaw']) {
@@ -36,14 +44,14 @@ describe('regression execution plan', () => {
   })
 
   it('allows only manual runs from the trusted main controller', () => {
-    const workflow = parse(readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8'))
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
     expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch'])
     expect(workflow.jobs.resolve.if).toBe("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'")
     expect(workflow.concurrency['cancel-in-progress']).toBe(false)
   })
 
   it('prepares native and utility-process dependencies before the first branch launch only', () => {
-    const workflow = parse(readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8'))
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
     const steps = workflow.jobs.test.steps as Array<{ name: string; if?: string; run?: string }>
     const prepare = steps.findIndex((step) => step.name === 'Prepare application runtime once')
     expect(prepare).toBeGreaterThan(steps.findIndex((step) => step.name === 'Install application dependencies'))
@@ -67,7 +75,7 @@ describe('regression execution plan', () => {
   })
 
   it('keeps each manifest phase executable by the workflow', () => {
-    const workflow = parse(readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8'))
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
     const phases = workflow.jobs.test.steps
       .filter((step: { run?: string }) => step.run?.includes('cli.ts run-phase'))
       .map((step: { run: string }) => /--phase ([\w-]+)/.exec(step.run)?.[1])

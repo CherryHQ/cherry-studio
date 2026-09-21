@@ -1,15 +1,7 @@
-import { execFileSync } from 'node:child_process'
-import { basename, dirname, resolve, win32 } from 'node:path'
-
 import { evaluateCdpExpression } from './cdpClient'
+import { CHERRYIN_CALLBACK } from './cherryInOauth'
 import { type AppRecord, readCdpTargets } from './lifecycle'
-import {
-  assertOwnedProcess,
-  findListeningPid,
-  isAlive,
-  MAIN_INSPECTOR_PORT,
-  windowsProcessExecutablePath
-} from './process'
+import { assertOwnedProcess, findListeningPid, isAlive, MAIN_INSPECTOR_PORT } from './process'
 
 interface InspectorTarget {
   type: string
@@ -86,66 +78,76 @@ export async function prepareWindowsCdpConnection(record: AppRecord): Promise<vo
   throw new Error('Non-main Windows CDP targets did not close')
 }
 
-export async function sendProtocolUrlToOwnedApp(record: AppRecord, url: string): Promise<void> {
+export async function captureCherryInAuthorizationUrl(
+  record: AppRecord,
+  authorize: () => Promise<void>
+): Promise<string> {
   if (!isAlive(record.electronPid)) throw new Error('Owned Cherry Studio instance is not running')
   assertOwnedProcess(record, record.electronPid, 'electron')
-  if (record.mode === 'branch') {
-    const debuggerUrl = await ownedMainInspectorUrl(record)
-    const delivered = await evaluateCdpExpression<boolean>(
+  const debuggerUrl = await ownedMainInspectorUrl(record)
+  try {
+    await evaluateCdpExpression(
       debuggerUrl,
       `(() => {
-        const electron = process.mainModule?.require?.('electron')
-        if (!electron?.app) throw new Error('Electron app is unavailable in the main-process inspector')
-        return electron.app.emit('open-url', { preventDefault() {} }, ${JSON.stringify(url)})
-      })()`
+      const { shell } = process.mainModule.require('electron')
+      const original = shell.openExternal
+      const capture = { original, url: undefined }
+      globalThis.__cherryRegressionOauth = capture
+      shell.openExternal = async (url, ...args) => {
+        const target = new URL(url)
+        if (target.origin === 'https://open.cherryin.ai' && target.pathname === '/oauth2/auth') {
+          capture.url = url
+          shell.openExternal = original
+          return
+        }
+        return original.call(shell, url, ...args)
+      }
+    })()`
     )
-    if (!delivered) throw new Error('Owned Cherry Studio instance has no protocol URL listener')
-    return
-  }
-
-  if (record.platform === 'macos') {
-    const executablePath = record.executablePath
-    const isVerifiedExecutable = Boolean(
-      record.executablePath && resolve(executablePath ?? '') === resolve(record.executablePath)
+    await authorize()
+    const deadline = Date.now() + 30_000
+    while (Date.now() < deadline) {
+      const url = await evaluateCdpExpression<string | undefined>(
+        debuggerUrl,
+        'globalThis.__cherryRegressionOauth?.url'
+      )
+      if (url) return url
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 100))
+    }
+    throw new Error('CherryIN authorization URL was not opened by the owned application')
+  } finally {
+    await evaluateCdpExpression(
+      debuggerUrl,
+      `(() => {
+      const capture = globalThis.__cherryRegressionOauth
+      if (!capture) return
+      process.mainModule.require('electron').shell.openExternal = capture.original
+      delete globalThis.__cherryRegressionOauth
+    })()`
     )
-    if (!executablePath || !isVerifiedExecutable) {
-      throw new Error('Owned macOS Electron executable could not be verified')
-    }
-    const appBundlePath = dirname(dirname(dirname(executablePath)))
-    if (!basename(appBundlePath).endsWith('.app')) {
-      throw new Error('Owned macOS application bundle could not be verified')
-    }
-    try {
-      execFileSync('open', ['-a', appBundlePath, url], {
-        cwd: record.cwd,
-        stdio: 'ignore',
-        timeout: 15_000
-      })
-      return
-    } catch {
-      throw new Error('Failed to deliver the protocol callback to the owned Cherry Studio instance')
-    }
   }
+}
 
-  const executablePath = windowsProcessExecutablePath(record.electronPid)
-  const isVerifiedExecutable = Boolean(
-    record.executablePath &&
-    win32.resolve(executablePath).toLowerCase() === win32.resolve(record.executablePath).toLowerCase()
+export async function sendCherryInCallbackToOwnedApp(record: AppRecord, callback: string): Promise<void> {
+  const url = new URL(callback)
+  if (
+    `${url.origin}${url.pathname}` !== CHERRYIN_CALLBACK ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    !url.searchParams.get('code') ||
+    !url.searchParams.get('state')
   )
-  if (!executablePath || !isVerifiedExecutable) {
-    throw new Error('Owned Windows Electron executable could not be verified')
+    throw new Error('CherryIN OAuth returned an invalid application callback')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  if (findListeningPid(record.platform, Number(url.port)) !== record.electronPid) {
+    throw new Error('Owned Cherry Studio instance does not own the OAuth callback listener')
   }
-  const userDataArgument = record.args.find((arg) => arg.startsWith('--user-data-dir='))
-  if (!userDataArgument) throw new Error('Owned Windows application profile is missing')
   try {
-    execFileSync(executablePath, [userDataArgument, url], {
-      cwd: record.cwd,
-      env: { ...process.env },
-      stdio: 'ignore',
-      timeout: 15_000,
-      windowsHide: true
-    })
+    const response = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(15_000) })
+    if (!response.ok) throw new Error('Callback rejected')
+    await response.body?.cancel()
   } catch {
-    throw new Error('Failed to deliver the protocol callback to the owned Cherry Studio instance')
+    throw new Error('Failed to deliver the OAuth callback to the owned Cherry Studio instance')
   }
 }

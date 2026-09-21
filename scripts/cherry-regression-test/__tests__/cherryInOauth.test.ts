@@ -14,7 +14,12 @@ function jsonResponse(data: Record<string, unknown>): Response {
 }
 
 function createOauthFetch(
-  options: { authorizationRedirect?: string; callbackState?: string; loginData?: Record<string, unknown> } = {}
+  options: {
+    authorizationRedirect?: string
+    callbackUrl?: string
+    callbackState?: string
+    loginData?: Record<string, unknown>
+  } = {}
 ) {
   return vi.fn(async (input: string | URL, init: RequestInit = {}): Promise<Response> => {
     const url = new URL(input.toString())
@@ -26,7 +31,9 @@ function createOauthFetch(
       if (url.searchParams.has('consent_verifier')) {
         return new Response(null, {
           headers: {
-            location: `cherrystudio://oauth/callback?code=code-14142&state=${options.callbackState ?? STATE}`
+            location:
+              options.callbackUrl ??
+              `http://127.0.0.1:29873/oauth/callback?code=code-14142&state=${options.callbackState ?? STATE}`
           },
           status: 302
         })
@@ -65,7 +72,7 @@ describe('CherryIN OAuth automation', () => {
       { fetchImplementation }
     )
 
-    expect(callback).toBe(`cherrystudio://oauth/callback?code=code-14142&state=${STATE}`)
+    expect(callback).toBe(`http://127.0.0.1:29873/oauth/callback?code=code-14142&state=${STATE}`)
     const loginRequest = fetchImplementation.mock.calls.find(([input, init]) => {
       const url = new URL(input.toString())
       return url.pathname === '/api/oauth/login' && init?.method === 'POST'
@@ -112,5 +119,21 @@ describe('CherryIN OAuth automation', () => {
         { fetchImplementation: createOauthFetch({ callbackState: 'unexpected-state' }) }
       )
     ).rejects.toThrow('CherryIN OAuth callback state did not match the application request')
+  })
+  it.each([
+    'cherrystudio://oauth/callback',
+    'http://127.0.0.1:29874/oauth/callback',
+    'http://localhost:29873/oauth/callback',
+    'http://127.0.0.1:29873/other',
+    'http://user:password@127.0.0.1:29873/oauth/callback',
+    'https://untrusted.example.test/oauth/callback'
+  ])('rejects an unexpected callback destination: %s', async (destination) => {
+    await expect(
+      completeCherryInOauth(
+        AUTHORIZATION_URL,
+        { account: 'automation@example.test', password: 'account-secret' },
+        { fetchImplementation: createOauthFetch({ callbackUrl: `${destination}?code=code&state=${STATE}` }) }
+      )
+    ).rejects.toThrow('invalid application callback')
   })
 })

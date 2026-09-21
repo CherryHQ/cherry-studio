@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 
 import { parse } from 'yaml'
 
-const workflow = parse(readFileSync('.github/workflows/cherry-regression-test.yml', 'utf8'))
+const workflow = parse(readFileSync('.github/workflows/e2e-regression-test.yml', 'utf8'))
 const steps = workflow.jobs.aggregate.steps as Array<{ name: string; run?: string }>
 
 describe('single regression artifact bundle', () => {
