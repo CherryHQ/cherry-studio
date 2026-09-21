@@ -252,7 +252,10 @@ const agentSessionPartsMocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  // The chat shell mounts the interrupted-session recovery banner, whose useQuery/useMutation
+  // calls must resolve against the shared mock (its default data leaves the banner null).
+  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
   useInvalidateCache: () => vi.fn()
 }))
 

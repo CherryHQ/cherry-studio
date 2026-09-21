@@ -138,7 +138,10 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   usePersistCache: () => [undefined, vi.fn()]
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  // The chat shell mounts the interrupted-session recovery banner, whose useQuery calls must
+  // resolve against the shared mock (its default data leaves the banner null).
+  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
   useInvalidateCache: () => vi.fn(),
   useMutation: () => ({
     trigger: vi.fn(),
