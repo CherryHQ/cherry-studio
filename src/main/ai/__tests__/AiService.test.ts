@@ -68,7 +68,8 @@ const mockAddFileRefsTx = vi.fn()
 
 vi.mock('@application', () => ({
   application: {
-    get: mockApplicationGet,
+    get: (name: string) =>
+      name === 'RuntimeActivityService' ? defaultServiceInstances.RuntimeActivityService : mockApplicationGet(name),
     getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
 }))
@@ -290,6 +291,114 @@ describe('AiService', () => {
     // Default: resolve, like the real usage-record store's best-effort contract. Individual
     // tests override with mockRejectedValueOnce to exercise the failure path.
     mockRecordRequest.mockResolvedValue(undefined)
+  })
+
+  describe('sleep prevention', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it.each(['text', 'image', 'embedding', 'rerank'] as const)(
+      'holds independently for concurrent %s requests and releases on success, error, and abort',
+      async (modality) => {
+        const holds = new Set<symbol>()
+        vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+          const token = Symbol()
+          holds.add(token)
+          return {
+            dispose: vi.fn(() => {
+              holds.delete(token)
+            })
+          }
+        })
+        const imageSave = Promise.withResolvers<unknown>()
+        let savingImage = false
+        mockApplicationGet.mockImplementation((name: string) =>
+          name === 'FileManager'
+            ? {
+                createInternalEntry: () => {
+                  savingImage = true
+                  return imageSave.promise
+                }
+              }
+            : defaultServiceInstances[name as keyof typeof defaultServiceInstances]
+        )
+        const service = createService()
+        const transport = {
+          sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+          credentialReceipt: { attribution: 'unknown' },
+          provider: mockProviderGetByProviderId(),
+          model: mockModelGetByKey(),
+          plugins: [],
+          options: {},
+          hookParts: [],
+          nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+        }
+        vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue(transport)
+        vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue(transport)
+        mockResolveImageTransport.mockReturnValue(undefined)
+        const pending: Array<ReturnType<typeof Promise.withResolvers<unknown>>> = []
+        const providerCall = (...args: unknown[]) => {
+          const call = Promise.withResolvers<unknown>()
+          const { abortSignal: signal } = (modality === 'text' ? args[0] : args[2]) as { abortSignal?: AbortSignal }
+          signal?.addEventListener('abort', () => call.reject(signal.reason), { once: true })
+          pending.push(call)
+          return call.promise
+        }
+        const sdkMock = {
+          text: mockAgentGenerate,
+          image: mockGenerateImage,
+          embedding: mockEmbedMany,
+          rerank: mockRerank
+        }[modality]
+        sdkMock.mockImplementation(providerCall)
+        const request = { uniqueModelId: 'test-provider::test-model' as const }
+        const run = (signal?: AbortSignal) => {
+          const input = { ...request, requestOptions: { signal, maxRetries: 0 } }
+          switch (modality) {
+            case 'text':
+              return service.generateText({ ...input, conversation: { id: 'power-test' }, prompt: 'hi' })
+            case 'image':
+              return service.generateImage({ ...input, prompt: 'a cherry', paramValues: {}, cleanupPolicy: 'manual' })
+            case 'embedding':
+              return service.embedMany({ ...input, values: ['hi'] })
+            case 'rerank':
+              return service.rerank({ ...input, query: 'hi', documents: ['hi'] })
+          }
+        }
+        const first = run()
+        const second = run()
+        await vi.waitFor(() => expect(pending).toHaveLength(2))
+        expect(holds.size).toBe(2)
+        pending[0].resolve({
+          text: 'ok',
+          usage: {},
+          steps: [],
+          images: [{ base64: 'YQ==' }],
+          embeddings: [[1]],
+          ranking: []
+        })
+        if (modality === 'image') {
+          await vi.waitFor(() => expect(savingImage).toBe(true))
+          expect(holds.size).toBe(2)
+          imageSave.resolve({ id: 'saved-image' })
+        }
+        await first
+        expect(holds.size).toBe(1)
+        const failure = new Error('provider failed')
+        const rejected = expect(second).rejects.toThrow('provider failed')
+        pending[1].reject(failure)
+        await rejected
+        expect(holds.size).toBe(0)
+
+        const controller = new AbortController()
+        const cancelled = run(controller.signal)
+        await vi.waitFor(() => expect(pending).toHaveLength(3))
+        expect(holds.size).toBe(1)
+        const aborted = expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+        controller.abort()
+        await aborted
+        expect(holds.size).toBe(0)
+      }
+    )
   })
 
   it.each(['embedding', 'rerank', 'image'] as const)(
