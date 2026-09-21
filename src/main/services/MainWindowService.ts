@@ -703,7 +703,10 @@ export class MainWindowService extends BaseService {
         // 如果是Windows或Linux，直接退出
         // mac按照系统默认行为，不退出
         if (isWin || isLinux) {
-          return application.quit()
+          event.preventDefault()
+          // Let Electron finish cancelling this close before starting a new quit attempt.
+          setImmediate(() => application.quit())
+          return
         }
       }
 
