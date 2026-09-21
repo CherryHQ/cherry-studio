@@ -11,6 +11,7 @@ export interface ArchiveItem {
   id: string
   name: string
   deletedAt: number | undefined
+  categoryLabel?: string
   icon?: ReactNode
 }
 

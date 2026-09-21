@@ -865,3 +865,62 @@ describe('Archive domain batch adapters', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 })
+
+const { default: AllArchiveSection } = await import('../AllArchiveSection')
+
+describe('All archive actions', () => {
+  function seedMixedArchive() {
+    mocks.pagesByPath.set('/archives', [
+      {
+        items: [
+          { id: 'topics:same', entityId: 'same', domain: 'topics', name: 'Archived topic', deletedAt: 200 },
+          { id: 'files:same', entityId: 'same', domain: 'files', name: 'Archived file', deletedAt: 100 }
+        ]
+      }
+    ])
+  }
+
+  it('routes a mixed restore by domain and retains only failed selections even when entity IDs match', async () => {
+    seedMixedArchive()
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockResolvedValue({ succeeded: [], failed: [{ id: 'same', error: 'File unavailable' }] })
+    vi.mocked(dataApiService.get).mockResolvedValue({ origin: 'internal', deletedAt: 100 })
+    render(<AllArchiveSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+    await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
+    await user.click(screen.getByRole('button', { name: 'Restore 2' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Restore 1' })).toBeEnabled())
+    expect(screen.getByRole('checkbox', { name: 'Select Archived topic' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select Archived file' })).toBeChecked()
+    expect(mocks.mutate).toHaveBeenCalledWith('POST', '/topics/:id/restore', { params: { id: 'same' } })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('file.batch_restore', { ids: ['same'] })
+    expect(toast.warning).toHaveBeenCalledWith('Restored 1 item; 1 failed')
+  })
+
+  it('passes only raw file IDs to the reference check before a mixed permanent delete', async () => {
+    seedMixedArchive()
+    const user = userEvent.setup()
+    let pending: PendingPermanentDelete | undefined
+    mocks.ipcRequest.mockResolvedValue({ succeeded: ['same'], failed: [] })
+    render(
+      <AllArchiveSection
+        retentionDays={30}
+        isBatchMode
+        isPermanentDeleting={false}
+        onRequestDelete={(request) => {
+          pending = request
+        }}
+      />
+    )
+    await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently 2' }))
+    expect(pending?.fileEntryIds).toEqual(['same'])
+    expect(mocks.mutate).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    expect(await runPendingRequest(pending)).toEqual({ succeeded: ['topics:same', 'files:same'], failed: [] })
+    expect(mocks.mutate).toHaveBeenCalledWith('DELETE', '/topics/:id', {
+      params: { id: 'same' },
+      query: { permanent: true }
+    })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('file.batch_permanent_delete_from_trash', { ids: ['same'] })
+  })
+})

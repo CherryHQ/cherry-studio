@@ -31,6 +31,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { type FileEntryRefCount, REF_COUNTS_MAX_ENTRY_IDS } from '@shared/data/api/schemas/files'
 
+import AllArchiveSection from './AllArchiveSection'
 import {
   AgentArchiveSection,
   AssistantArchiveSection,
@@ -44,9 +45,10 @@ import type { PendingPermanentDelete } from './ArchiveSection'
 
 const logger = loggerService.withContext('ArchiveSettings')
 
-type ArchiveCategory = 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
+type ArchiveCategory = 'all' | 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
 
 const CATEGORIES: { id: ArchiveCategory; labelKey: string }[] = [
+  { id: 'all', labelKey: 'common.all' },
   { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants' },
   { id: 'topics', labelKey: 'settings.data.trash.domain.topics' },
   { id: 'agents', labelKey: 'settings.data.trash.domain.agents' },
@@ -56,6 +58,7 @@ const CATEGORIES: { id: ArchiveCategory; labelKey: string }[] = [
 ]
 
 const SECTION_BY_CATEGORY: Record<ArchiveCategory, FC<ArchiveDomainSectionProps>> = {
+  all: AllArchiveSection,
   topics: TopicArchiveSection,
   agents: AgentArchiveSection,
   sessions: SessionArchiveSection,
@@ -65,6 +68,7 @@ const SECTION_BY_CATEGORY: Record<ArchiveCategory, FC<ArchiveDomainSectionProps>
 }
 
 const PURGE_INVALIDATE_PATHS = [
+  '/archives',
   '/topics',
   '/topics/*',
   '/agents',
@@ -114,7 +118,7 @@ const ArchiveSettings: FC = () => {
     [t]
   )
 
-  const [category, setCategory] = useState<ArchiveCategory>('topics')
+  const [category, setCategory] = useState<ArchiveCategory>('all')
   const [isBatchMode, setIsBatchMode] = useState(false)
   const [batchToolbarContainer, setBatchToolbarContainer] = useState<HTMLDivElement | null>(null)
   const [canBatchManage, setCanBatchManage] = useState(false)
