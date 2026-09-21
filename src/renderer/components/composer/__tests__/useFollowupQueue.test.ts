@@ -60,6 +60,11 @@ function wireQuery(rows: FollowupQueueRow[], paused = false) {
 function wireMutations() {
   const postTrigger = vi.fn(async (): Promise<any> => undefined)
   const deleteTrigger = vi.fn(async (): Promise<any> => undefined)
+  // Takes delete on their own SWR mutation instance (see useFollowupQueue):
+  // the hook calls useMutation('DELETE', …) twice per render — remove/resolve
+  // first, take second — so odd calls get the shared trigger, even the take one.
+  const takeDeleteTrigger = vi.fn(async (): Promise<any> => undefined)
+  let deleteCalls = 0
   const reorderTrigger = vi.fn(async (): Promise<any> => undefined)
   const claimTrigger = vi.fn(async (): Promise<any> => undefined)
   const claimHeadTrigger = vi.fn(async (): Promise<any> => undefined)
@@ -70,8 +75,11 @@ function wireMutations() {
   mockUseMutation.mockImplementation((method: string, path: string) => {
     if (method === 'POST' && path === '/followup-queues')
       return { trigger: postTrigger, isLoading: false, error: undefined }
-    if (method === 'DELETE' && path === '/followup-queues/:id')
-      return { trigger: deleteTrigger, isLoading: false, error: undefined }
+    if (method === 'DELETE' && path === '/followup-queues/:id') {
+      deleteCalls += 1
+      const trigger = deleteCalls % 2 === 1 ? deleteTrigger : takeDeleteTrigger
+      return { trigger, isLoading: false, error: undefined }
+    }
     if (method === 'PATCH' && path === '/followup-queues/order:batch')
       return { trigger: reorderTrigger, isLoading: false, error: undefined }
     if (method === 'POST' && path === '/followup-queues/:id/claim')
@@ -91,6 +99,7 @@ function wireMutations() {
   return {
     postTrigger,
     deleteTrigger,
+    takeDeleteTrigger,
     reorderTrigger,
     claimTrigger,
     claimHeadTrigger,
@@ -572,7 +581,7 @@ describe('useFollowupQueue', () => {
 
   it('takes an item for edit and drops it from the queue', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    const { claimTrigger, takeDeleteTrigger, failTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: true })
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
@@ -584,13 +593,13 @@ describe('useFollowupQueue', () => {
 
     expect((taken as { draft: { text: string } }).draft.text).toBe('head')
     expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
-    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(failTrigger).not.toHaveBeenCalled()
   })
 
   it('refuses the edit take when another window owns the send', async () => {
     wireQuery([row('h', 'head', 'sending', new Date().toISOString())])
-    const { claimTrigger, deleteTrigger } = wireMutations()
+    const { claimTrigger, takeDeleteTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: false })
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
@@ -601,14 +610,14 @@ describe('useFollowupQueue', () => {
     })
 
     expect(taken).toBeUndefined()
-    expect(deleteTrigger).not.toHaveBeenCalled()
+    expect(takeDeleteTrigger).not.toHaveBeenCalled()
   })
 
   it('releases the take back to the queue when its delete keeps failing', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    const { claimTrigger, takeDeleteTrigger, failTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: true })
-    deleteTrigger.mockRejectedValue(new Error('db down'))
+    takeDeleteTrigger.mockRejectedValue(new Error('db down'))
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
 
@@ -618,16 +627,16 @@ describe('useFollowupQueue', () => {
     })
 
     expect(taken).toBeUndefined()
-    expect(deleteTrigger).toHaveBeenCalledTimes(2)
+    expect(takeDeleteTrigger).toHaveBeenCalledTimes(2)
     expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
   it('retries the take delete once before releasing it', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    const { claimTrigger, takeDeleteTrigger, failTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: true })
-    deleteTrigger.mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(undefined)
+    takeDeleteTrigger.mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(undefined)
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
 
@@ -637,18 +646,18 @@ describe('useFollowupQueue', () => {
     })
 
     expect((taken as { draft: { text: string } }).draft.text).toBe('head')
-    expect(deleteTrigger).toHaveBeenCalledTimes(2)
+    expect(takeDeleteTrigger).toHaveBeenCalledTimes(2)
     expect(failTrigger).not.toHaveBeenCalled()
   })
 
   it('returns the take when the delete commits but its response is lost', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    const { claimTrigger, takeDeleteTrigger, failTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: true })
     // First DELETE commits server-side but times out; the retry then reports
     // NOT_FOUND, proving the row is already gone — the draft must be handed
     // to the editor instead of dropped.
-    deleteTrigger
+    takeDeleteTrigger
       .mockRejectedValueOnce(new Error('timeout'))
       .mockRejectedValueOnce(new DataApiError(ErrorCode.NOT_FOUND, 'fake queue: missing id h', 404))
 
@@ -660,17 +669,17 @@ describe('useFollowupQueue', () => {
     })
 
     expect((taken as { draft: { text: string } }).draft.text).toBe('head')
-    expect(deleteTrigger).toHaveBeenCalledTimes(2)
+    expect(takeDeleteTrigger).toHaveBeenCalledTimes(2)
     expect(failTrigger).not.toHaveBeenCalled()
   })
 
   it('returns the take when the first delete attempt reports the row already gone', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    const { claimTrigger, takeDeleteTrigger, failTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: true })
     // The transport retries a timed-out DELETE and surfaces the retry's
     // NOT_FOUND on the first attempt — our own commit, so hand over the draft.
-    deleteTrigger.mockRejectedValue(new DataApiError(ErrorCode.NOT_FOUND, 'fake queue: missing id h', 404))
+    takeDeleteTrigger.mockRejectedValue(new DataApiError(ErrorCode.NOT_FOUND, 'fake queue: missing id h', 404))
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
 
@@ -680,16 +689,16 @@ describe('useFollowupQueue', () => {
     })
 
     expect((taken as { draft: { text: string } }).draft.text).toBe('head')
-    expect(deleteTrigger).toHaveBeenCalledTimes(1)
+    expect(takeDeleteTrigger).toHaveBeenCalledTimes(1)
     expect(failTrigger).not.toHaveBeenCalled()
   })
 
   it('returns the draft to its scope when the scope moves during the take delete', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger, postTrigger } = wireMutations()
+    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
     let resolveDelete!: () => void
-    deleteTrigger.mockReturnValueOnce(
+    takeDeleteTrigger.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveDelete = () => resolve(undefined)
       })
@@ -722,7 +731,7 @@ describe('useFollowupQueue', () => {
 
   it('does not restore a take for an item that was already sent', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger } = wireMutations()
+    const { claimTrigger, takeDeleteTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: true })
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
@@ -735,15 +744,40 @@ describe('useFollowupQueue', () => {
     // The delete above is the correct dequeue; restoring its draft would
     // invite resending content that already went out.
     expect(taken).toBeUndefined()
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+  })
+
+  it('deletes takes on their own trigger instance', async () => {
+    // SWR discards an older trigger's rejection once a newer trigger starts on
+    // the same mutation instance, which would mask a failed take delete as
+    // success and hand out a draft whose row remains. Takes therefore delete
+    // on a dedicated instance that remove/resolve never share.
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger, takeDeleteTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let taken: unknown = 'unset'
+    await act(async () => {
+      taken = await result.current.takeForEdit('h')
+    })
+    await act(async () => {
+      result.current.removeId('h')
+    })
+
+    expect((taken as { draft: { text: string } }).draft.text).toBe('head')
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(takeDeleteTrigger).not.toBe(deleteTrigger)
   })
 
   it('retries the scope-mismatch restore until the replacement enqueue lands', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger, postTrigger } = wireMutations()
+    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
     let resolveDelete!: () => void
-    deleteTrigger.mockReturnValueOnce(
+    takeDeleteTrigger.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveDelete = () => resolve(undefined)
       })
@@ -787,10 +821,10 @@ describe('useFollowupQueue', () => {
     vi.useFakeTimers()
     try {
       wireQuery([row('h', 'head')])
-      const { claimTrigger, deleteTrigger, postTrigger } = wireMutations()
+      const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
       claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
       let resolveDelete!: () => void
-      deleteTrigger.mockReturnValueOnce(
+      takeDeleteTrigger.mockReturnValueOnce(
         new Promise((resolve) => {
           resolveDelete = () => resolve(undefined)
         })
