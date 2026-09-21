@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 import useSWRMutation from 'swr/mutation'
 
-import { Button } from '@cherrystudio/ui'
+import { Button, Switch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
@@ -12,6 +14,9 @@ const PERMISSION_KEY = 'computer_use.get_permission_status'
 
 export function ComputerUseSettings() {
   const { t } = useTranslation()
+  const [enabled, setEnabled] = usePreference('app.computer_use.agent_control.enabled')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(false)
   const { data, error, isLoading, isValidating, mutate } = useSWR(
     PERMISSION_KEY,
     () => ipcApi.request(PERMISSION_KEY),
@@ -57,6 +62,39 @@ export function ComputerUseSettings() {
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">{t('settings.computerUse.description')}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p id="computer-use-control-title" className="text-sm font-medium">
+            {t('settings.computerUse.control')}
+          </p>
+          <p id="computer-use-control-help" className="text-sm text-muted-foreground">
+            {t('settings.computerUse.controlHelp')}
+          </p>
+        </div>
+        <Switch
+          checked={enabled}
+          disabled={saving}
+          aria-labelledby="computer-use-control-title"
+          aria-describedby="computer-use-control-help"
+          onCheckedChange={async (value) => {
+            setSaving(true)
+            setSaveError(false)
+            try {
+              await setEnabled(value)
+            } catch (cause) {
+              setSaveError(true)
+              logger.warn('Failed to change desktop control permission', cause as Error)
+            } finally {
+              setSaving(false)
+            }
+          }}
+        />
+      </div>
+      {saveError && (
+        <p role="alert" className="text-sm text-destructive">
+          {t('settings.computerUse.controlError')}
+        </p>
+      )}
       {busy && (
         <p role="status" className="text-sm text-muted-foreground">
           {t('common.loading')}

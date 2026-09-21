@@ -101,12 +101,22 @@ export function hostToolsEnabled(
  */
 export function resolveMountedMcpServers(
   agent: Pick<AgentEntity, 'type' | 'configuration' | 'disabledTools'>,
-  { channelLinked, browserEnabled = false }: { channelLinked: boolean; browserEnabled?: boolean }
+  {
+    channelLinked,
+    browserEnabled = false,
+    computerUseEnabled = false
+  }: {
+    channelLinked: boolean
+    browserEnabled?: boolean
+    computerUseEnabled?: boolean
+  }
 ): ReadonlySet<string> {
   const mounted = new Set<string>([CHERRY_MCP_SERVER.CHERRY_TOOLS, CHERRY_MCP_SERVER.AGENT_MEMORY])
   if (resolveAgentCapabilities(agent).environment === 'open') {
     if (browserEnabled && !channelLinked && !agent.disabledTools?.includes(BROWSER_TOOL_GROUP))
       mounted.add(CHERRY_MCP_SERVER.BROWSER)
+    if (computerUseEnabled && !channelLinked && !agent.disabledTools?.includes('mcp__computer'))
+      mounted.add(CHERRY_MCP_SERVER.COMPUTER)
     mounted.add(CHERRY_MCP_SERVER.SKILLS)
     // Registering an MCP server writes to the user's environment, so it rides the same axis as skills.
     mounted.add(CHERRY_MCP_SERVER.MCP_MANAGER)

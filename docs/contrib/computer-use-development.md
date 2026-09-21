@@ -1,8 +1,10 @@
 ---
-description: Local Computer Use SDK linking and helper permission verification before npm distribution
+description: Computer Use SDK setup, Agent tools, task ownership and tray stopping before npm distribution
 sources:
   - src/main/services/ComputerUseService.ts
   - src/main/services/TrayService.ts
+  - src/main/ai/tools/computerUse.ts
+  - src/main/ai/mcp/servers/computerUse.ts
   - src/main/core/paths/pathRegistry.ts
   - src/shared/ipc/schemas/computerUse.ts
   - src/renderer/pages/settings/ComputerUseSettings.tsx
@@ -10,7 +12,7 @@ sources:
 
 # Computer Use development
 
-This development slice connects the native Computer Use SDK to Cherry's permission settings. It does not yet expose Agent desktop tools or ship a packaged runtime. Code Mode remains a later, optional consumer; ordinary tools will use the same SDK independently of Code Mode.
+This development slice connects the native SDK to permission settings, ordinary chat tools and local Claude/Pi/DSH Agent tools. Cherry owns runtime lifecycle, application ownership and user-stop state. A packaged runtime and a dedicated Computer Use scripting API remain pending; ordinary tools work with Code Mode disabled.
 
 ## Local dependency setup
 
@@ -62,7 +64,7 @@ pnpm install --frozen-lockfile
 pnpm debug
 ```
 
-The junction setup is for a fresh checkout. Copy the rebuilt executable again after changing the runtime; the SDK junction follows its checkout automatically. The helper copy avoids requiring file-symlink privileges. On Windows, **Settings → Computer Use** should return the platform's empty permission list; desktop actions currently run through the SDK fixture, not Cherry Agent tools. These branches still need local setup before CI/install and do not yet package native helpers.
+The junction setup is for a fresh checkout. Copy the rebuilt executable again after changing the runtime; the SDK junction follows its checkout automatically. The helper copy avoids requiring file-symlink privileges. On Windows, **Settings → Computer Use** should return the platform's empty permission list; enable desktop control separately to expose the Cherry tools. These branches still need local setup before CI/install and do not yet package native helpers.
 
 ## Permission flow
 
@@ -70,30 +72,39 @@ Open **Settings → Computer Use**. Loading or refreshing the page only queries 
 
 The macOS SDK opens the existing native onboarding window and a draggable helper app tile beside System Settings. An accepted drag immediately dismisses the panel and ends the SDK guide. Complete any remaining system confirmation there; Cherry rechecks the actual grant with a new helper. **Done** and the window close button also end the guide. Dismissing without granting is allowed. The helper remains alive during this interaction; the request defaults to a five-minute deadline and supports cancellation.
 
-Completing the guide refreshes the status in Cherry. Each query or request uses a fresh private helper session and closes it in `finally`; a request stays pending until the guide ends, so the helper cannot disappear during a drag. A later query observes grants without restarting Cherry. The SDK guide does not restart or terminate the protocol process itself. Concurrent permission calls are serialized. Shutdown cancels in-flight work, waits for cleanup, and prevents queued prompts from launching. These short onboarding sessions are separate from future Agent task sessions, which must retain snapshots across tool calls.
+Completing the guide refreshes the status in Cherry. Each query or request uses a fresh private helper session and closes it in `finally`; a request stays pending until the guide ends, so the helper cannot disappear during a drag. A later query observes grants without restarting Cherry. The SDK guide does not restart or terminate the protocol process itself. Concurrent permission calls are serialized. Shutdown cancels in-flight work, waits for cleanup, and prevents queued prompts from launching. These short onboarding sessions are separate from Agent task sessions, which retain snapshots across tool calls.
 
 Only a native `granted` result is displayed as granted. macOS preflight cannot distinguish all ungranted states and currently reports `unknown`. Windows/Linux return an empty permission list, which means no OS permission flow is implemented; it does not establish desktop availability or authorize an Agent task.
 
 Keep the helper bundle path and signing identity stable when validating macOS grants. Rebuilding an ad-hoc signed helper may require granting permissions again. Runtime distribution, signing, ASAR-external resources, and packaged application validation remain pending.
 
-The local helper has now been rebuilt with a fixed certificate identity and its signature verified. Regrant access to this helper, then rebuild and restart it to verify that permissions remain valid. The earlier Accessibility diagnosis found a grant referencing an older ad-hoc build; an enabled System Settings toggle alone does not prove that the current helper matches the grant. Reauthorization, permission persistence and the macOS desktop fixture are still pending.
+The user reported successful testing of the existing runtime slice on all three platforms on 2026-09-21. That report does not cover this new host integration or future cursor/input capabilities. An enabled macOS System Settings toggle alone does not prove that a rebuilt helper matches its earlier grant; verify the signing identity when investigating permission regressions.
 
-## App control sessions and pending host integration
+## Agent control and stopping
 
-The 2026-09-18 design decision adds per-app control contexts inside each Agent task's SDK/runtime session. It does not require a separate helper process for every app. Permission onboarding keeps its independent short sessions. The SDK and native contract are now implemented; Cherry task ownership, user-stop policy, Tray controls and cursor feedback remain pending. The detailed contract lives in the fork's `docs/design-docs/computer-use-runtime.md`.
+Enable **Settings → Computer Use → Allow agents to control desktop applications**. This persistent grant defaults to off and is independent of OS permissions. Disabling it immediately revokes tool execution and closes current tasks. Channel-linked Agent sessions and sealed built-in agents cannot access desktop control.
 
-- Cherry's main process owns task/app control ownership, coordination between tasks and the user's stop state. The existing `TrayService` will expose the active apps and their tasks, with controls to stop one app or all control tasks.
-- Protocol v2 adds `openAppSession`, `listAppSessions` and `stopAppSession`; observation/actions require an `appSessionId`. Request-level `AbortSignal` and task-level `close()` remain separate. Rebuild both SDK/helper and restart Cherry after updating the local link; old v1 helpers fail the handshake. The SDK remains independent of Electron and Tray UI.
-- Native runtime isolates snapshots and cancellation per app. Stop/state queries bypass the ordinary queue; stop cancels current work, rejects queued/new work and waits for cleanup confirmation. It stops automation, not the user's app; unconfirmed cleanup disables the runtime. Held input and software cursor cleanup will be added with those future capabilities. Tray must use this native result before reporting completion.
-- Cherry retains the user-stop state across subsequent tool calls and SDK recreation. The Agent cannot automatically resume control after a user stops it. Ordinary tools use this same boundary with Code Mode disabled; script access remains a later integration.
-- Software cursor feedback follows native execution and the target window. Reuse the fork's macOS overlay after moving its global state into app contexts; Windows and Linux need separate implementations and validation. Animation does not prove an action succeeded or provide independent OS input pointers.
+The ordinary chat tools are `computer_list_apps`, `computer_open_app`, `computer_get_app_state` and `computer_click`. Claude/Pi/DSH consume the same implementation through their existing in-process tool bridge under `computer`. Only semantic left clicks are exposed. Observation never activates an application and actions never enable global input. Screenshots reach the model as image content alongside snapshot and element IDs. Completed actions with unavailable observations remain completed; uncertain effects must not cause automatic replay.
 
-The implementation order is stable macOS signing and real desktop verification, app-context contracts, Tray stopping, cursor feedback for supported clicks, then input/move/drag and broader platform/package validation. Acceptance must cover app isolation, rejected stale snapshots, stopping queued/running work, released input and overlay resources, and preventing automatic resumption after user stop. Global input still requires coordination, and X11/Wayland capabilities must be validated separately.
+Each chat run or Agent turn lazily starts one private SDK/runtime and can own multiple applications. Host-created task handles never come from model parameters. Chat completion, failure and cancellation close the runtime. Agent terminal/idle and connection-close events also release tasks, even when the Agent connection stays warm. Permission onboarding retains separate short sessions.
+
+- An application stays exclusively owned across observation and action, until stop or task cleanup is confirmed. `TrayService` displays each application and its conversation/Agent owner, with single-app and stop-all actions. The tray remains available while control or stopped-owner entries exist, even when the ordinary tray preference is off.
+- Protocol v2 supplies `openAppSession`, `listAppSessions` and `stopAppSession`; observations/actions require an `appSessionId`. Request cancellation and task-level close are separate. Rebuild both SDK/helper and restart Cherry after updating the link; old v1 helpers fail the handshake.
+- Native stopping bypasses the action queue, rejects new work, and waits for cleanup confirmation. Stopping automation does not quit the user's application. Tray shows stopping until confirmation; uncertain cleanup retains the application reservation and disables execution.
+- Cherry retains user-stop state in memory per conversation/Agent session across calls, turns and SDK recreation. Only **Allow control again** in the tray clears it. After stop-all, start a new turn; allowing control does not revive an ended task or old snapshots. Unconfirmed cleanup cannot be cleared through that menu. Resume is not an Agent tool.
+- Software cursors, held input, typing, scrolling, movement and dragging remain future capabilities. The fork's `docs/design-docs/computer-use-runtime.md` owns the native contract. X11 and Wayland capabilities require separate validation.
+
+## Host integration acceptance
+
+With desktop control enabled, ask a local chat or Agent to list applications, open a test application, observe it and click a harmless element. While it is controlling two applications, stop one from the tray: the other should remain usable. Retry the stopped target in the same conversation and a later turn; both must remain blocked until the user allows control again. Stop-all must close every task, including helpers still starting. A new turn must observe again because old sessions and snapshots are invalid.
+
+Disabling desktop control must stop ongoing work, including on warm Agent connections. Completing/cancelling a turn must release its helper without terminating the target app. Test these host behaviors separately from the fork's native desktop fixtures.
 
 ## Checks
 
 ```sh
-pnpm exec vitest run src/main/services/__tests__/ComputerUseService.test.ts src/renderer/pages/settings/__tests__/ComputerUseSettings.test.tsx
+pnpm test:main src/main/services/__tests__/ComputerUseService.test.ts src/main/services/__tests__/ComputerUseService.control.test.ts src/main/ai/mcp/servers/__tests__/computerUse.test.ts src/main/ai/tools/adapters/aiSdk/builtin/__tests__/ComputerUseTools.test.ts
+pnpm test:renderer src/renderer/pages/settings/__tests__/ComputerUseSettings.test.tsx
 pnpm lint
 pnpm docs:check
 ```

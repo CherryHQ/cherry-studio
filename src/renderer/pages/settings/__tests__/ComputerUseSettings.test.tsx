@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SWRConfig } from 'swr'
@@ -21,11 +22,29 @@ function showSettings() {
 
 beforeEach(async () => {
   vi.clearAllMocks()
+  MockUsePreferenceUtils.resetMocks()
   await i18n.changeLanguage('en-us')
 })
 afterEach(cleanup)
 
 describe('Computer Use permission settings', () => {
+  it('requires an explicit desktop-control grant independently of OS permission status', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipcApi.request).mockResolvedValue({ permissions: [] })
+    showSettings()
+    const toggle = screen.getByRole('switch', { name: 'Allow agents to control desktop applications' })
+    expect(toggle).not.toBeChecked()
+    await user.click(toggle)
+    expect(toggle).toBeChecked()
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.agent_control.enabled')).toBe(true)
+    expect(
+      vi.mocked(ipcApi.request).mock.calls.every(([route]) => route === 'computer_use.get_permission_status')
+    ).toBe(true)
+    await waitFor(() => expect(toggle).toBeEnabled())
+    await user.click(toggle)
+    expect(toggle).not.toBeChecked()
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.agent_control.enabled')).toBe(false)
+  })
   it('requests only on a click, keeps an unconfirmed result, and refreshes after returning from settings', async () => {
     const user = userEvent.setup()
     let granted = false
