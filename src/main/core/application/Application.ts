@@ -18,6 +18,7 @@ import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from 
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
 import { handleGuarded } from '@main/core/security/guardedIpc'
 import { bootConfigService } from '@main/data/bootConfig'
+import { t } from '@main/i18n'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import type { ServiceRegistry } from './serviceRegistry'
@@ -41,6 +42,8 @@ export class Application {
   private isBootstrapped = false
   private isShuttingDown = false
   private _isQuitting = false
+  private quitConfirmationPending = false
+  private quitConfirmed = false
   private quitPreventionHolds = new Map<string, string>()
   private ipcQuitHolds = new Map<string, QuitPreventionHold>()
 
@@ -482,10 +485,21 @@ export class Application {
       if (!this.canQuit()) {
         event.preventDefault()
         this._isQuitting = false // Reset — quit was blocked, not actually quitting
+        this.quitConfirmed = false
         const reasons = [...this.quitPreventionHolds.values()].join(', ')
         logger.info(`Quit prevented: ${reasons}`)
         return
       }
+      if (
+        !this._isQuitting &&
+        !this.quitConfirmed &&
+        (this.quitConfirmationPending || this.getExisting('RuntimeActivityService')?.hasActiveTasks())
+      ) {
+        event.preventDefault()
+        if (!this.quitConfirmationPending) void this.confirmQuitWithActiveTasks()
+        return
+      }
+      this.quitConfirmed = false
       this._isQuitting = true
     })
 
@@ -508,6 +522,32 @@ export class Application {
           app.exit(0)
         })
     })
+  }
+
+  private async confirmQuitWithActiveTasks(): Promise<void> {
+    this.quitConfirmationPending = true
+    let response: number | undefined
+    try {
+      const result = await dialog.showMessageBox({
+        type: 'warning',
+        title: t('dialog.quit_active_tasks.title'),
+        message: t('dialog.quit_active_tasks.message'),
+        detail: t('dialog.quit_active_tasks.detail'),
+        buttons: [t('dialog.quit_active_tasks.continue'), t('dialog.quit_active_tasks.quit')],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      response = result.response
+    } catch (error) {
+      logger.error('Failed to confirm quit with active tasks', error as Error)
+    } finally {
+      this.quitConfirmationPending = false
+    }
+    if (response === 1 && !this._isQuitting && !this.isShuttingDown) {
+      this.quitConfirmed = true
+      this.quit()
+    }
   }
 
   /**
@@ -623,10 +663,11 @@ export class Application {
   }
 
   /**
-   * Graceful quit: set flag then trigger the Electron quit event chain.
+   * Graceful quit through the Electron quit event chain.
    * before-quit checks preventQuit holds, then will-quit runs shutdown().
    */
-  public quit(): void {
+  public quit(reason: 'user' | 'system-shutdown' = 'user'): void {
+    if (reason === 'system-shutdown') this.quitConfirmed = true
     if (this._isQuitting) {
       // Re-kick app.quit(): if a prior quit stalled (e.g. a BrowserWindow close
       // handler preventDefault'd and broke the chain), this gives the user a
@@ -636,7 +677,6 @@ export class Application {
       return
     }
     logger.info('Quitting application...')
-    this._isQuitting = true
     app.quit()
   }
 

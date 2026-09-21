@@ -226,8 +226,8 @@ export class PowerService extends BaseService {
       try {
         await this.executeShutdownHandlers()
       } finally {
-        // application.quit() maintains the app's _isQuitting bookkeeping (not bare app.quit()).
-        application.quit()
+        // System shutdown must not wait for a user-facing active-task confirmation.
+        application.quit('system-shutdown')
       }
     }
     powerMonitor.on('shutdown', shutdownListener)
@@ -267,7 +267,7 @@ export class PowerService extends BaseService {
           // Release the block so Windows may proceed, then quit cleanly (mirrors the
           // macOS/Linux preventDefault → quit path; quit keeps _isQuitting bookkeeping).
           ElectronShutdownHandler.releaseShutdown()
-          application.quit()
+          application.quit('system-shutdown')
         }
       })
 
