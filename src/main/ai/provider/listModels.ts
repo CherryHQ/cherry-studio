@@ -40,6 +40,7 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { defaultHeaders, getBaseUrl, getExtraHeaders, getProviderAppHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { listWorkflows } from './custom/comfyui/comfyuiTransport'
 import {
   createVertexModelListRequest,
   DEFAULT_VERTEX_MODEL_PUBLISHERS,
@@ -447,6 +448,31 @@ const ovmsFetcher: ModelFetcher = {
     // fails to load them server-side — the UI communicates readiness, not OVMS.
     return dedup(Object.entries(response), ([name]) => name).map(([name]) =>
       toModel(name, provider, { ownedBy: 'ovms' })
+    )
+  }
+}
+
+/**
+ * ComfyUI has no `/models` endpoint: what a user can generate with is whatever
+ * workflow they saved, so the saved-workflow listing IS the model list. Each row is
+ * declared image-only on the ComfyUI image endpoint, which is what makes it selectable
+ * on the paintings page (`supportsImageGenerationEndpoint`) and routes generation to
+ * the comfyui transport instead of an OpenAI adapter.
+ */
+const comfyuiFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.comfyui),
+  fetch: async (provider, signal) => {
+    const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
+    const workflows = await listWorkflows(baseUrl, signal, { headers: defaultHeaders(provider) })
+    return dedup(workflows, (workflow) => workflow).map((workflow) =>
+      toModel(workflow, provider, {
+        name: workflow.split('/').pop() ?? workflow,
+        ownedBy: 'comfyui',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        inputModalities: [MODALITY.TEXT],
+        outputModalities: [MODALITY.IMAGE]
+      })
     )
   }
 }
@@ -1003,6 +1029,7 @@ const fetchers: ModelFetcher[] = [
   vertexFetcher,
   copilotFetcher,
   ovmsFetcher,
+  comfyuiFetcher,
   togetherFetcher,
   newApiFetcher,
   tokenDanceFetcher,

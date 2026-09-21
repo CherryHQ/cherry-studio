@@ -466,8 +466,8 @@
     }
   ],
   "providers": {
-    "version": "2707d81b155c6c98",
-    "count": 64,
+    "version": "9e38932f162dd1e6",
+    "count": 65,
     "entries": [
       {
         "id": "cherryin",
@@ -712,6 +712,10 @@
       {
         "id": "cerebras",
         "name": "Cerebras AI"
+      },
+      {
+        "id": "comfyui",
+        "name": "ComfyUI"
       },
       {
         "id": "mimo",

@@ -110,7 +110,17 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   if (isGeminiProvider(provider)) return formatApiHost(baseURL, appendApiVersion, 'v1beta')
 
   // Providers that don't append API version
-  const noVersionProviders = ['copilot', CHERRYAI_PROVIDER_ID, 'perplexity', 'newapi', 'new-api', 'azure-openai']
+  // ComfyUI serves its API at the root of the host (`/prompt`, `/queue`, `/view`),
+  // so appending the OpenAI `/v1` namespace would 404 every request.
+  const noVersionProviders = [
+    'copilot',
+    CHERRYAI_PROVIDER_ID,
+    'perplexity',
+    'newapi',
+    'new-api',
+    'azure-openai',
+    SystemProviderIds.comfyui
+  ]
   if (noVersionProviders.includes(provider.id) || noVersionProviders.includes(provider.presetProviderId ?? '')) {
     return formatApiHost(baseURL, false)
   }
@@ -238,6 +248,13 @@ export async function resolveProviderAiSdkConfig(
       }))
     },
     { match: (p) => isOllamaProvider(p), build: withSelectedApiKey(buildOllamaConfig) },
+    // ComfyUI is image-only and speaks a node-graph API, so there is no OpenAI route to
+    // fall back to: every request for the preset must resolve to the comfyui extension
+    // (registered in `extensions.ts`). Without this it lands on the generic
+    // openai-compatible builder, which would POST an OpenAI chat body to `/v1/...` and
+    // get ComfyUI's web UI HTML back. Its `languageModel`/`embeddingModel` factories
+    // throw the intentional "not served" error the UI surfaces.
+    { match: (p) => matchesPreset(p, SystemProviderIds.comfyui), build: withSelectedApiKey(buildComfyuiConfig) },
     { match: (p) => isAzureOpenAIProvider(p), build: withSelectedApiKey(buildAzureConfig) },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
     // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
@@ -590,6 +607,25 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
 
   return {
     providerId: 'ollama',
+    endpoint: ctx.endpoint,
+    providerSettings: { ...ctx.baseConfig, headers }
+  }
+}
+
+/**
+ * ComfyUI: a credential-free local server, so the host is the whole contract — no
+ * `Authorization` even when a key field happens to be filled in (the extension's
+ * `apiKey` is accepted for symmetry and never read). `baseURL` is the server root;
+ * the transport appends its own paths (`/prompt`, `/history/{id}`, `/view?…`).
+ */
+function buildComfyuiConfig(ctx: BuilderContext): ProviderConfig<'comfyui'> {
+  const headers: Record<string, string> = {
+    ...getProviderAppHeaders(ctx.actualProvider),
+    ...getExtraHeaders(ctx.actualProvider)
+  }
+
+  return {
+    providerId: 'comfyui',
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, headers }
   }
