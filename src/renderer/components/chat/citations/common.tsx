@@ -10,6 +10,7 @@ import type { MessageListActions } from '../messages/types'
 
 export type CitationCopyActions = Pick<MessageListActions, 'copyText' | 'notifyError'>
 export type CitationPanelActions = CitationCopyActions & {
+  openBrowserUrl?: MessageListActions['openBrowserUrl']
   openPath?: (path: string) => void | Promise<void>
   openExternalUrl?: (url: string) => void | Promise<void>
 }
@@ -70,7 +71,7 @@ export const CopyButton: React.FC<{ content: string; actions?: CitationCopyActio
 
   return (
     <div
-      className="absolute top-1/2 right-0 flex -translate-y-1/2 cursor-pointer items-center justify-center rounded p-1 text-muted-foreground opacity-0 transition-opacity duration-300 group-hover:opacity-100 hover:bg-muted hover:opacity-100"
+      className="text-muted-foreground absolute top-1/2 right-0 flex -translate-y-1/2 cursor-pointer items-center justify-center rounded p-1 opacity-0 transition-opacity duration-300 group-hover:opacity-100 hover:bg-muted hover:opacity-100"
       onClick={handleCopy}>
       {copied ? <Check size={14} /> : <Copy size={14} />}
     </div>

@@ -59,7 +59,7 @@ export type ChatAppShellProps = ChatAppShellMainProps | ChatAppShellCenterConten
 const MANUAL_EXPAND_RELEASE_NARROWING = 8
 
 function clampPaneStoredWidth(width: number, { minWidth, maxWidth }: RightPaneWidthPolicy): number {
-  return Math.min(maxWidth, Math.max(minWidth, Math.round(width)))
+  return Math.min(maxWidth ?? Number.POSITIVE_INFINITY, Math.max(minWidth, Math.round(width)))
 }
 
 /**

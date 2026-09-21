@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUIIcons from '@cherrystudio/ui/icons'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type { Model } from '@shared/data/types/model'
 
@@ -56,7 +57,8 @@ vi.mock('@renderer/utils/model', async (importOriginal) => ({
   getModelLogoRef: () => undefined
 }))
 
-vi.mock('@cherrystudio/ui/icons', () => ({
+vi.mock('@cherrystudio/ui/icons', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryStudioUIIcons>()),
   resolveProviderIconRef: () => undefined,
   useIcon: () => undefined
 }))

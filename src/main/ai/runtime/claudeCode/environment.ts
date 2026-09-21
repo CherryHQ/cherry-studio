@@ -134,7 +134,12 @@ export async function getClaudeCodeLoginShellEnvironment(
   if (hasStaleCherryProxyMarkers(loginShellEnv, currentProxyEnvironment)) {
     loginShellEnv = await refreshShellEnv()
   }
-  return stripInheritedCherryProxyMarkers(loginShellEnv)
+  const env = stripInheritedCherryProxyMarkers(loginShellEnv)
+  // A login shell can drop the desktop-session bus inherited by packaged Electron.
+  if (isLinux && process.env.DBUS_SESSION_BUS_ADDRESS) {
+    env.DBUS_SESSION_BUS_ADDRESS = process.env.DBUS_SESSION_BUS_ADDRESS
+  }
+  return env
 }
 
 export async function buildEnvironment(

@@ -35,7 +35,7 @@ interface ResourceCardProps {
 }
 
 function hasOverflowActions(resource: ResourceItem) {
-  return resource.type === 'assistant'
+  return resource.type === 'assistant' || resource.type === 'agent'
 }
 
 function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {

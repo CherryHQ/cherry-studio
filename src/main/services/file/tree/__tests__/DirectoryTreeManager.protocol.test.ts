@@ -11,7 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * and teardown are manager-level protocol, not filesystem behavior, so they are
  * covered here with no binary dependency and always execute.
  */
+import { application } from '@application'
 import type * as lifecycleModule from '@main/core/lifecycle'
+import type { ManagedWindow } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   DirectoryTreeOptions,
@@ -71,29 +73,22 @@ function addedEvent(name: string): TreeMutationEvent {
   return { type: 'added', kind: 'file', path: `/ws/${name}`, basename: name, parentPath: '/ws' }
 }
 
-/** `WebContents` double — only `id`, `isDestroyed`, `send` and `once('destroyed')` are touched. */
+/**
+ * `WebContents` double — only `id`, `isDestroyed` and `send` are touched. `windowId`
+ * is the managed window the manager keys ownership teardown by.
+ */
 function makeSender(id: number) {
   let destroyed = false
   const sentMutations: TreeMutationPushPayload[] = []
-  const destroyedListeners: Array<() => void> = []
   const sender = {
     id,
+    windowId: `win-${id}`,
     isDestroyed: () => destroyed,
     send: (channel: string, event: string, payload: TreeMutationPushPayload) => {
       if (channel === IpcChannel.IpcApi_Event && event === 'file.tree.mutation') sentMutations.push(payload)
     },
-    once: (event: string, listener: () => void) => {
-      if (event === 'destroyed') destroyedListeners.push(listener)
-      return sender
-    },
-    off: () => sender,
-    /** Mark destroyed and run the registered `destroyed` handlers. */
-    fireDestroyed: () => {
-      destroyed = true
-      for (const l of destroyedListeners.splice(0)) l()
-    },
-    /** Mark destroyed WITHOUT notifying — models the event firing before we subscribed. */
-    destroySilently: () => {
+    /** Mark destroyed with no event — models a window closing mid-create, after `onWindowDestroyed` already ran. */
+    destroy: () => {
       destroyed = true
     },
     sentMutations
@@ -104,12 +99,18 @@ function makeSender(id: number) {
 describe('DirectoryTreeManager protocol', () => {
   let manager: DirectoryTreeManager
   let builder: FakeBuilder
+  let windowDestroyed: (managed: ManagedWindow) => void
 
-  beforeEach(() => {
+  beforeEach(async () => {
     BaseService.resetInstances()
     builder = makeFakeBuilder()
     createDirectoryTreeMock.mockReset().mockResolvedValue(builder)
+    vi.mocked(application.get('WindowManager').onWindowDestroyed).mockImplementation((listener) => {
+      windowDestroyed = listener
+      return { dispose: () => {} }
+    })
     manager = new DirectoryTreeManager()
+    await manager._doInit()
   })
 
   afterEach(async () => {
@@ -118,7 +119,8 @@ describe('DirectoryTreeManager protocol', () => {
     vi.useRealTimers()
   })
 
-  const create = (sender: WebContents, options?: DirectoryTreeOptions) => manager.create(sender, '/ws', options)
+  const create = (sender: ReturnType<typeof makeSender>, options?: DirectoryTreeOptions) =>
+    manager.create({ windowId: sender.windowId, webContents: sender }, '/ws', options)
 
   describe('handshake', () => {
     it('buffers mutations until the owner activates, then flushes them in order', async () => {
@@ -221,9 +223,9 @@ describe('DirectoryTreeManager protocol', () => {
       )
 
       const pending = create(sender)
-      // The window goes away mid-scan: `destroyed` has already fired, so the listener
-      // the manager registers afterwards would never see it.
-      sender.destroySilently()
+      // The window goes away mid-scan: `onWindowDestroyed` has already fired with nothing
+      // of ours registered, so only the post-await reconcile can catch it.
+      sender.destroy()
       resolveBuilder?.(builder)
 
       await expect(pending).rejects.toThrow(/destroyed during creation/)
@@ -249,7 +251,7 @@ describe('DirectoryTreeManager protocol', () => {
       // to `draining`; the live one must not act on its stale `active` copy.
       const deadCreate = create(dead)
       const liveCreate = create(live)
-      dead.destroySilently()
+      dead.destroy()
       resolveBuilder?.(builder)
 
       await expect(deadCreate).rejects.toThrow(/destroyed during creation/)
@@ -268,15 +270,29 @@ describe('DirectoryTreeManager protocol', () => {
       expect(builder.disposeCount).toBe(1)
     })
 
-    it('drops every tree owned by a webContents when it is destroyed', async () => {
+    it('drops every tree owned by a window when it is destroyed, and nothing else', async () => {
       const sender = makeSender(1)
+      const survivor = makeSender(2)
       await create(sender)
       await create(sender, { includeHidden: true })
+      const kept = await create(survivor)
 
-      sender.fireDestroyed()
+      sender.destroy()
+      windowDestroyed({ id: sender.windowId } as ManagedWindow)
 
       const internal = manager as unknown as { consumers: Map<string, unknown> }
-      expect(internal.consumers.size).toBe(0)
+      expect(Array.from(internal.consumers.keys())).toEqual([kept.treeId])
+    })
+
+    it('registers nothing on the service disposable list per create/dispose cycle', async () => {
+      const internal = manager as unknown as { _disposables: unknown[] }
+      const baseline = internal._disposables.length
+      const sender = makeSender(1)
+      for (let i = 0; i < 3; i++) {
+        const { treeId } = await create(sender)
+        manager.dispose(treeId)
+      }
+      expect(internal._disposables.length).toBe(baseline)
     })
   })
 

@@ -284,7 +284,7 @@ async function resolveGithubCommit(
   refAndPath: string[],
   refNamespace: 'heads' | 'tags' | null
 ): Promise<{ ref: string; namespace: 'heads' | 'tags' | null; oid: string; target: GithubSkillTarget }> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+  const gitCommand = await resolveGitCommand()
   const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl])
   const refs = output.split('\n').flatMap((line) => {
     const [oid, fullName] = line.split('\t').map((part) => part.trim())
@@ -329,7 +329,7 @@ async function materializeGithubTarget(
   descriptorFileName: 'SKILL.md' | 'skill.md',
   tempDir: string
 ): Promise<{ contentDir: string; skillDir: string }> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+  const gitCommand = await resolveGitCommand()
   const gitDir = path.join(tempDir, 'repo.git')
   const contentDir = path.join(tempDir, 'content')
   const git = (args: string[], options?: { maxOutputBytes?: number }) =>
@@ -435,8 +435,19 @@ async function runGit(gitCommand: string, args: string[], options?: { maxOutputB
  * `git clone` already checks out, so resolving the branch first only adds a second way to hang.
  */
 async function cloneRepository(repoUrl: string, destDir: string): Promise<void> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+  const gitCommand = await resolveGitCommand()
   await runGit(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
+}
+
+async function resolveGitCommand(): Promise<string> {
+  try {
+    return (await findExecutableInEnv('git')) ?? 'git'
+  } catch (err) {
+    logger.warn('git lookup failed, falling back to bare git', {
+      error: err instanceof Error ? err.message : String(err)
+    })
+    return 'git'
+  }
 }
 
 async function reportInstall(owner: string, repo: string, skillName: string): Promise<void> {

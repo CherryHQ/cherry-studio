@@ -23,6 +23,7 @@ export * from './general'
 // consumer shows up.
 export { loadProviderIconCatalog } from './loader'
 export type { ModelIconKey } from './models/meta-catalog'
+export { getProviderIconAssetMetrics, type ProviderIconAssetMetrics } from './provider-icon-metrics'
 export { PROVIDER_ICON_META_CATALOG, type ProviderIconKey } from './providers/meta-catalog'
 export {
   type IconRef,

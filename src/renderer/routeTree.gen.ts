@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AppAgentsRouteImport } from './routes/app/agents'
+import { Route as AppBrowserRouteImport } from './routes/app/browser'
 import { Route as AppChatRouteImport } from './routes/app/chat'
 import { Route as AppCodeRouteImport } from './routes/app/code'
 import { Route as AppFilePreviewRouteImport } from './routes/app/file-preview'
@@ -25,10 +26,13 @@ import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-gateway'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
+import { Route as SettingsArchiveRouteImport } from './routes/settings/archive'
+import { Route as SettingsBrowserRouteImport } from './routes/settings/browser'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
 import { Route as SettingsCodeExecutionRouteImport } from './routes/settings/code-execution'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsDependenciesRouteImport } from './routes/settings/dependencies'
+import { Route as SettingsDeviceConnectionsRouteImport } from './routes/settings/device-connections'
 import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsLocalModelsRouteImport } from './routes/settings/local-models'
@@ -76,6 +80,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const AppAgentsRoute = AppAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBrowserRoute = AppBrowserRouteImport.update({
+  id: '/browser',
+  path: '/browser',
   getParentRoute: () => AppRoute,
 } as any)
 const AppChatRoute = AppChatRouteImport.update({
@@ -143,6 +152,16 @@ const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   path: '/appearance',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsArchiveRoute = SettingsArchiveRouteImport.update({
+  id: '/archive',
+  path: '/archive',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsBrowserRoute = SettingsBrowserRouteImport.update({
+  id: '/browser',
+  path: '/browser',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
   id: '/channels',
   path: '/channels',
@@ -163,6 +182,12 @@ const SettingsDependenciesRoute = SettingsDependenciesRouteImport.update({
   path: '/dependencies',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsDeviceConnectionsRoute =
+  SettingsDeviceConnectionsRouteImport.update({
+    id: '/device-connections',
+    path: '/device-connections',
+    getParentRoute: () => SettingsRoute,
+  } as any)
 const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
   id: '/file-processing',
   path: '/file-processing',
@@ -337,6 +362,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/file-preview': typeof AppFilePreviewRoute
@@ -349,10 +375,13 @@ export interface FileRoutesByFullPath {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/archive': typeof SettingsArchiveRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
+  '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
@@ -391,6 +420,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/app': typeof AppRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/file-preview': typeof AppFilePreviewRoute
@@ -403,10 +433,13 @@ export interface FileRoutesByTo {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/archive': typeof SettingsArchiveRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
+  '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
@@ -445,6 +478,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/file-preview': typeof AppFilePreviewRoute
@@ -457,10 +491,13 @@ export interface FileRoutesById {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/archive': typeof SettingsArchiveRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
+  '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
@@ -502,6 +539,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/settings'
     | '/app/agents'
+    | '/app/browser'
     | '/app/chat'
     | '/app/code'
     | '/app/file-preview'
@@ -514,10 +552,13 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/archive'
+    | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
     | '/settings/data'
     | '/settings/dependencies'
+    | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/local-models'
@@ -556,6 +597,7 @@ export interface FileRouteTypes {
   to:
     | '/app'
     | '/app/agents'
+    | '/app/browser'
     | '/app/chat'
     | '/app/code'
     | '/app/file-preview'
@@ -568,10 +610,13 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/archive'
+    | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
     | '/settings/data'
     | '/settings/dependencies'
+    | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/local-models'
@@ -609,6 +654,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/settings'
     | '/app/agents'
+    | '/app/browser'
     | '/app/chat'
     | '/app/code'
     | '/app/file-preview'
@@ -621,10 +667,13 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-gateway'
     | '/settings/appearance'
+    | '/settings/archive'
+    | '/settings/browser'
     | '/settings/channels'
     | '/settings/code-execution'
     | '/settings/data'
     | '/settings/dependencies'
+    | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/local-models'
@@ -687,6 +736,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/app/agents'
       preLoaderRoute: typeof AppAgentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/browser': {
+      id: '/app/browser'
+      path: '/browser'
+      fullPath: '/app/browser'
+      preLoaderRoute: typeof AppBrowserRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/chat': {
@@ -780,6 +836,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAppearanceRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/archive': {
+      id: '/settings/archive'
+      path: '/archive'
+      fullPath: '/settings/archive'
+      preLoaderRoute: typeof SettingsArchiveRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/browser': {
+      id: '/settings/browser'
+      path: '/browser'
+      fullPath: '/settings/browser'
+      preLoaderRoute: typeof SettingsBrowserRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/channels': {
       id: '/settings/channels'
       path: '/channels'
@@ -806,6 +876,13 @@ declare module '@tanstack/react-router' {
       path: '/dependencies'
       fullPath: '/settings/dependencies'
       preLoaderRoute: typeof SettingsDependenciesRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/device-connections': {
+      id: '/settings/device-connections'
+      path: '/device-connections'
+      fullPath: '/settings/device-connections'
+      preLoaderRoute: typeof SettingsDeviceConnectionsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/file-processing': {
@@ -1044,6 +1121,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRoute
+  AppBrowserRoute: typeof AppBrowserRoute
   AppChatRoute: typeof AppChatRoute
   AppCodeRoute: typeof AppCodeRoute
   AppFilePreviewRoute: typeof AppFilePreviewRoute
@@ -1061,6 +1139,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRoute,
+  AppBrowserRoute: AppBrowserRoute,
   AppChatRoute: AppChatRoute,
   AppCodeRoute: AppCodeRoute,
   AppFilePreviewRoute: AppFilePreviewRoute,
@@ -1124,10 +1203,13 @@ interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsApiGatewayRoute: typeof SettingsApiGatewayRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsArchiveRoute: typeof SettingsArchiveRoute
+  SettingsBrowserRoute: typeof SettingsBrowserRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsCodeExecutionRoute: typeof SettingsCodeExecutionRoute
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsDependenciesRoute: typeof SettingsDependenciesRoute
+  SettingsDeviceConnectionsRoute: typeof SettingsDeviceConnectionsRoute
   SettingsFileProcessingRoute: typeof SettingsFileProcessingRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsLocalModelsRoute: typeof SettingsLocalModelsRoute
@@ -1154,10 +1236,13 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsApiGatewayRoute: SettingsApiGatewayRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsArchiveRoute: SettingsArchiveRoute,
+  SettingsBrowserRoute: SettingsBrowserRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsCodeExecutionRoute: SettingsCodeExecutionRoute,
   SettingsDataRoute: SettingsDataRoute,
   SettingsDependenciesRoute: SettingsDependenciesRoute,
+  SettingsDeviceConnectionsRoute: SettingsDeviceConnectionsRoute,
   SettingsFileProcessingRoute: SettingsFileProcessingRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsLocalModelsRoute: SettingsLocalModelsRoute,
