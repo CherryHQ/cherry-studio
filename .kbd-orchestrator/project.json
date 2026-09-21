@@ -1,13 +1,16 @@
 {
   "name": "CherryStudio",
   "description": "A powerful AI assistant for producer — cross-platform desktop app (Electron + React + TypeScript).",
-  "activePhase": null,
+  "activePhase": "rebrand-to-the-boss",
   "worktreeRoot": "${HOME}/.claude/worktrees",
   "maxChildDepth": 4,
   "ux_profile": "advanced",
   "__ux_profile_note": "advanced → kbd-status is dense by default; beginner → kbd-status --explain is on by default (expands decision-log entries + next-and-why narrative). Verbosity only — never gates information.",
   "focus_project_path": "/Users/gqadonis/Projects/prometheus/the-boss",
-  "spec_paths": ["openspec/specs/*.md", "docs/references/**/*.md"],
+  "spec_paths": [
+    "openspec/specs/*.md",
+    "docs/references/**/*.md"
+  ],
   "openspec_available": true,
   "constraint_file": ".kbd-orchestrator/constraints.md",
   "__node_policy_note": "package.json engines requires node >=24.11.1 <24.16.0 and .npmrc sets engine-strict=true. v24.11.1 is installed under nvm and verified (pnpm install, docs:check, typecheck all pass). Every pnpm command keeps the explicit nvm prefix because the shell does not auto-select it: nvm is sourced only in ~/.bashrc and the repo-local .envrc needs a direnv hook that is not active. Do not weaken this prefix to whatever version happens to be on PATH.",
@@ -33,9 +36,21 @@
   "preferred_execution_agents": [],
   "model_policy": {
     "registry": {
-      "small": { "local": "Qwen3.5-9B-Q8_0", "t4": "Qwen3.5-9B-Q8_0", "l4": "Qwen3.5-9B-Q8_0" },
-      "medium": { "local": null, "t4": "Qwen3.5-27B-Q4", "l4": "Qwen3.5-35B-A3B-Q4" },
-      "frontier": { "local": "claude-sonnet-4-6", "t4": "claude-sonnet-4-6", "l4": "claude-sonnet-4-6" }
+      "small": {
+        "local": "Qwen3.5-9B-Q8_0",
+        "t4": "Qwen3.5-9B-Q8_0",
+        "l4": "Qwen3.5-9B-Q8_0"
+      },
+      "medium": {
+        "local": null,
+        "t4": "Qwen3.5-27B-Q4",
+        "l4": "Qwen3.5-35B-A3B-Q4"
+      },
+      "frontier": {
+        "local": "claude-sonnet-4-6",
+        "t4": "claude-sonnet-4-6",
+        "l4": "claude-sonnet-4-6"
+      }
     },
     "phases": {
       "kbd-assess": "frontier",
@@ -69,15 +84,24 @@
   "agents_config": {
     "antigravity": {
       "entry": "SKILL.md slash commands",
-      "strengths": ["multi-file features", "browser verification", "planning"]
+      "strengths": [
+        "multi-file features",
+        "browser verification",
+        "planning"
+      ]
     },
     "codex": {
       "entry": "OpenAI Codex CLI / app",
-      "strengths": ["parallel isolated tasks via git worktrees"]
+      "strengths": [
+        "parallel isolated tasks via git worktrees"
+      ]
     },
     "opencode": {
       "entry": "OpenCode CLI",
-      "strengths": ["quick targeted edits", "file patches"]
+      "strengths": [
+        "quick targeted edits",
+        "file patches"
+      ]
     }
   },
   "workspace": {
@@ -95,15 +119,39 @@
         "role": "reference",
         "write_access": false,
         "purpose": "Rust agent runtime — read for runtime/protocol conventions",
-        "read_paths": ["AGENTS.md", "docs/**/*.md", "*.md"]
+        "read_paths": [
+          "AGENTS.md",
+          "docs/**/*.md",
+          "*.md"
+        ]
       },
       {
         "path": "/Users/gqadonis/Projects/travisjames/skills/artifact-refiner",
         "role": "reference",
         "write_access": false,
         "purpose": "Artifact refiner skill package — read for skill authoring conventions",
-        "read_paths": ["AGENTS.md", "CLAUDE.md", "docs/**/*.md", "*.md"]
+        "read_paths": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "docs/**/*.md",
+          "*.md"
+        ]
+      },
+      {
+        "path": "/Users/gqadonis/Projects/references/baseline/cherry-studio",
+        "role": "reference",
+        "write_access": false,
+        "purpose": "Already-rebranded CherryStudio v1.9.11 fork — source of The Boss branding assets, appId/productName, update endpoints, and the proven upstream-merge playbook",
+        "read_paths": [
+          "build/**",
+          "electron-builder.yml",
+          "dev-app-update.yml",
+          "app-upgrade-config.json",
+          ".kbd-orchestrator/phases/upstream-1.9.x-merge-strategy/**",
+          "*.md"
+        ]
       }
     ]
-  }
+  },
+  "updatedAt": "2026-09-21T09:28:23Z"
 }

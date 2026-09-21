@@ -1,0 +1,21 @@
+{
+  "phase": "rebrand-to-the-boss",
+  "status": "assessment_ready",
+  "createdAt": "2026-09-21T09:27:39Z",
+  "updatedAt": "2026-09-21T09:27:39Z",
+  "previousPhase": null,
+  "goals": ["G1","G2","G3","G4","G5","G6"],
+  "goalsFile": "goals.md",
+  "changes": [],
+  "completedChanges": [],
+  "depth": 0,
+  "parentPhase": null,
+  "childPhases": [],
+  "decisionLog": [
+    {
+      "at": "2026-09-21T09:27:39Z",
+      "decision": "Phase seeded from user request; prior rebrand art found at references/baseline/cherry-studio (v1.9.11) including productName 'The Boss', appId tools.know-me.the-boss, and an upstream-1.9.x-merge-strategy playbook.",
+      "by": "kbd-new-phase"
+    }
+  ]
+}
