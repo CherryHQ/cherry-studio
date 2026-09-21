@@ -23,6 +23,14 @@ describe('CallBackServer.waitForAuthCallback', () => {
     await server.close()
   })
 
+  it('cancels authorization immediately and removes the callback waiter', async () => {
+    const controller = new AbortController()
+    const waiting = server.waitForAuthCallback(300_000, controller.signal)
+    controller.abort(new Error('request cancelled'))
+    await expect(waiting).rejects.toThrow('request cancelled')
+    expect(events.listenerCount('auth-callback-received')).toBe(0)
+  })
+
   it('resolves with all callback parameters before the timeout', async () => {
     const promise = server.waitForAuthCallback(1000)
 

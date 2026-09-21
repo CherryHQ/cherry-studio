@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 
+import { createMcpJsonSchemaValidator } from '../../mcpSchema'
 import { ToolRegistry } from '../../registry'
 
 const listTools = vi.fn()
@@ -53,6 +54,17 @@ async function registerToolExecute(reg: ToolRegistry) {
 }
 
 describe('mcpTools execute wrapper', () => {
+  it('honors declared schema dialects and rejects unsupported dialects', () => {
+    const schema = { type: 'array' as const, items: [{ type: 'string' as const }], additionalItems: false }
+    const validate = createMcpJsonSchemaValidator({ ...schema, $schema: 'http://json-schema.org/draft-07/schema#' })
+    expect(validate(['ok']).success).toBe(true)
+    expect(validate([42]).success).toBe(false)
+    expect(validate(['ok', 'extra']).success).toBe(false)
+    expect(() => createMcpJsonSchemaValidator({ $schema: 'https://example.org/unknown-schema' })).toThrow(
+      /unsupported dialect/
+    )
+  })
+
   beforeEach(() => {
     listTools.mockReset()
     list.mockReset()

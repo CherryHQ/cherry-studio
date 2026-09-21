@@ -4497,6 +4497,7 @@
   "settings.mcp.interaction.roots.title": "Cho phép MCP truy cập không gian làm việc?",
   "settings.mcp.interaction.sampling.description": "Máy chủ MCP yêu cầu một lần tạo nội dung bằng mô hình có giới hạn, không truyền trực tiếp và không dùng công cụ.",
   "settings.mcp.interaction.sampling.title": "Cho phép MCP lấy mẫu mô hình?",
+  "settings.mcp.interaction.url.instructions": "Kiểm tra địa chỉ trước khi mở. Hoàn tất các bước được yêu cầu trong trình duyệt, rồi xác nhận tại đây. Chỉ mở trang không có nghĩa là đã hoàn tất cấp quyền.",
   "settings.mcp.logs": "Nhật ký",
   "settings.mcp.logsHint": "Nhật ký từ tiến trình máy chủ MCP",
   "settings.mcp.longRunning": "Chế độ chạy dài",

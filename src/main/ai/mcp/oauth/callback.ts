@@ -130,18 +130,29 @@ export class CallBackServer {
    * `timeoutMs`. Without the reject path the caller's `await` hangs forever on a
    * cancelled / never-completed callback, leaking the connect attempt and its status.
    */
-  async waitForAuthCallback(timeoutMs = 300_000): Promise<URLSearchParams> {
+  async waitForAuthCallback(timeoutMs = 300_000, signal?: AbortSignal): Promise<URLSearchParams> {
+    signal?.throwIfAborted()
     if (this.authCallback) return new URLSearchParams(this.authCallback)
     return new Promise((resolve, reject) => {
-      const onCallback = (params: URLSearchParams) => {
+      const cleanup = () => {
         clearTimeout(timer)
+        this.events.off('auth-callback-received', onCallback)
+        signal?.removeEventListener('abort', onAbort)
+      }
+      const onAbort = () => {
+        cleanup()
+        reject(signal?.reason)
+      }
+      const onCallback = (params: URLSearchParams) => {
+        cleanup()
         resolve(params)
       }
       const timer = setTimeout(() => {
-        this.events.off('auth-callback-received', onCallback)
+        cleanup()
         reject(new Error(`Timed out waiting for OAuth callback after ${Math.round(timeoutMs / 1000)}s`))
       }, timeoutMs)
       this.events.once('auth-callback-received', onCallback)
+      signal?.addEventListener('abort', onAbort, { once: true })
     })
   }
 }

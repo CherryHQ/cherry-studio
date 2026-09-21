@@ -179,7 +179,8 @@ describe('DshCherryToolBridge', () => {
         'body',
         `[resource: video/mp4, uri="file:///clip.mp4", saved to ${JSON.stringify(videoPath)}]`,
         `[resource: application/pdf, uri="file:///report.pdf", saved to ${JSON.stringify(documentPath)}]`,
-        '[resource link: name="remote", uri="https://example.com/report.pdf", mimeType="application/pdf"]'
+        '[resource link: name="remote", uri="https://example.com/report.pdf", mimeType="application/pdf"]',
+        '{"total":7}'
       ].join('\n'),
       data: { total: 7 }
     })

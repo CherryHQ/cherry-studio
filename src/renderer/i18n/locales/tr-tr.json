@@ -4497,6 +4497,7 @@
   "settings.mcp.interaction.roots.title": "MCP’nin çalışma alanına erişmesine izin verilsin mi?",
   "settings.mcp.interaction.sampling.description": "MCP sunucusu araçlar olmadan, sınırlı ve akışsız bir model üretimi istiyor.",
   "settings.mcp.interaction.sampling.title": "MCP model örneklemesine izin verilsin mi?",
+  "settings.mcp.interaction.url.instructions": "Açmadan önce adresi kontrol edin. Tarayıcınızda istenen adımları tamamlayın, ardından burada onaylayın. Yalnızca sayfayı açmak yetkilendirmeyi tamamlamaz.",
   "settings.mcp.logs": "Günlükler",
   "settings.mcp.logsHint": "MCP sunucusu işleminden gelen günlükler",
   "settings.mcp.longRunning": "Uzun Süreli Çalışma Modu",

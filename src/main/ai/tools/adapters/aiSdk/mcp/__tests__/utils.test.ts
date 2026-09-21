@@ -5,6 +5,31 @@ import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { hasMultimodalContent, mcpResultToTextSummary } from '../utils'
 
 describe('mcpResultToTextSummary', () => {
+  it.each([null, false, 0, 'value', [1, 2], { answer: 42 }])(
+    'includes structured-only JSON: %j',
+    (structuredContent) => {
+      expect(mcpResultToTextSummary({ content: [], structuredContent })).toBe(JSON.stringify(structuredContent))
+    }
+  )
+
+  it('preserves media and text, without repeating the structured JSON fallback', () => {
+    const result = {
+      content: [
+        { type: 'text' as const, text: 'Answer' },
+        { type: 'image' as const, data: 'x', mimeType: 'image/png' }
+      ],
+      structuredContent: { answer: 42 }
+    }
+    expect(mcpResultToTextSummary(result)).toBe('Answer\n[Image: image/png, delivered to user]\n{"answer":42}')
+    expect(
+      mcpResultToTextSummary({
+        ...result,
+        content: [{ type: 'text', text: '{ "answer": 42 }' }]
+      })
+    ).toBe('{ "answer": 42 }')
+    expect(result.content).toHaveLength(2)
+  })
+
   it('returns JSON string for null / invalid shapes', () => {
     expect(mcpResultToTextSummary(null as unknown as McpCallToolResponse)).toBe('null')
     expect(mcpResultToTextSummary({} as McpCallToolResponse)).toBe('{}')

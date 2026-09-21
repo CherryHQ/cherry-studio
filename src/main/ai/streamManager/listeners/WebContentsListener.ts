@@ -1,5 +1,6 @@
 import type { UIMessageChunk } from 'ai'
 
+import { application } from '@application'
 import { projectStreamChunkForRenderer } from '@main/utils/messageOutputProjection'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
@@ -43,6 +44,10 @@ type CoalescableChunk =
 /** One instance per (topic, window). Id `wc:${wc.id}:${topicId}` is stable across re-attach. */
 export class WebContentsListener implements StreamListener {
   readonly id: string
+
+  get windowId(): string | undefined {
+    return this.isAlive() ? application.get('WindowManager').getWindowIdByWebContents(this.wc) : undefined
+  }
 
   private pending: PendingDelta | null = null
   private pendingStartedAt = 0

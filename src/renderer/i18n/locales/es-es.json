@@ -4497,6 +4497,7 @@
   "settings.mcp.interaction.roots.title": "¿Permitir que MCP acceda al espacio de trabajo?",
   "settings.mcp.interaction.sampling.description": "El servidor MCP solicita una generación de modelo restringida, sin transmisión y sin herramientas.",
   "settings.mcp.interaction.sampling.title": "¿Permitir el muestreo del modelo mediante MCP?",
+  "settings.mcp.interaction.url.instructions": "Compruebe la dirección antes de abrirla. Complete los pasos solicitados en su navegador y confirme aquí. Abrir la página por sí solo no completa la autorización.",
   "settings.mcp.logs": "Registros",
   "settings.mcp.logsHint": "Registros del proceso del servidor MCP",
   "settings.mcp.longRunning": "Modo de ejecución prolongada",

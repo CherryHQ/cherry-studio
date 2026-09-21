@@ -1,4 +1,3 @@
-import { ElicitResultSchema } from '@modelcontextprotocol/core'
 import { type JSONSchema7, type Tool } from 'ai'
 
 import { application } from '@application'
@@ -35,40 +34,11 @@ function interactionContext(options: Parameters<NonNullable<Tool['execute']>>[1]
   const request = getRequestContext(options)
   if (!request?.windowId || !request.topicId) return undefined
 
-  const runtime = application.get('McpRuntimeService')
-  const authorize = (kind: 'elicitation' | 'sampling' | 'roots', payload: unknown, signal: AbortSignal) =>
-    runtime.requestInteraction({
-      windowId: request.windowId!,
-      topicId: request.topicId!,
-      kind,
-      payload,
-      signal
-    })
-
   return {
     windowId: request.windowId,
     topicId: request.topicId,
     model: request.model,
-    roots: request.roots,
-    requestElicitation: async (embeddedRequest, signal) => {
-      const response = await authorize('elicitation', embeddedRequest, signal)
-      if (response.decision !== 'accept') return ElicitResultSchema.parse({ action: response.decision })
-      return ElicitResultSchema.parse(
-        embeddedRequest.params.mode === 'url'
-          ? { action: 'accept' }
-          : { action: 'accept', content: response.value ?? {} }
-      )
-    },
-    sample: async (samplingRequest, signal) => {
-      const response = await authorize('sampling', samplingRequest, signal)
-      if (response.decision !== 'accept') throw new Error(`MCP sampling ${response.decision}`)
-      if (!request.model) throw new Error('MCP sampling rejected: no current request model is available')
-      return application.get('AiService').generateMcpSampling(request.model, samplingRequest, signal)
-    },
-    requestRoots: async (roots, signal) => {
-      const response = await authorize('roots', { roots }, signal)
-      return response.decision === 'accept'
-    }
+    roots: request.roots
   }
 }
 

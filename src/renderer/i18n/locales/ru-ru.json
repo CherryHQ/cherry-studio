@@ -4497,6 +4497,7 @@
   "settings.mcp.interaction.roots.title": "Разрешить MCP доступ к рабочему пространству?",
   "settings.mcp.interaction.sampling.description": "Сервер MCP запрашивает ограниченную непотоковую генерацию модели без инструментов.",
   "settings.mcp.interaction.sampling.title": "Разрешить MCP использовать модель для генерации?",
+  "settings.mcp.interaction.url.instructions": "Проверьте адрес перед открытием. Выполните необходимые действия в браузере, затем подтвердите здесь. Само открытие страницы не завершает авторизацию.",
   "settings.mcp.logs": "Журналы",
   "settings.mcp.logsHint": "Журналы процесса сервера MCP",
   "settings.mcp.longRunning": "Длительный режим работы",

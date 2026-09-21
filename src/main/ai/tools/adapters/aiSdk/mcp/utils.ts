@@ -1,5 +1,6 @@
 /** MCP tool-result formatters. */
 
+import { mcpModelContent } from '@main/ai/mcp/toolResult'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 
 /** True if the call produced any image / audio / binary resource. */
@@ -25,7 +26,7 @@ export function mcpResultToTextSummary(result: McpCallToolResponse): string {
   }
 
   const parts: string[] = []
-  for (const item of result.content) {
+  for (const item of mcpModelContent(result)) {
     switch (item.type) {
       case 'text':
         parts.push(item.text || '')

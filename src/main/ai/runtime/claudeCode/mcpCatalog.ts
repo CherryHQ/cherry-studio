@@ -39,6 +39,7 @@ export function buildMcpServers(
   notificationContext?: AgentNotificationContext
 ): Record<string, McpServerConfig> | undefined {
   const interactionContext = {
+    sessionId: session.id,
     topicId: `agent-session:${session.id}`,
     model: agent.model ?? undefined,
     roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]

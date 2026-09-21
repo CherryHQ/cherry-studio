@@ -5,12 +5,16 @@ import {
   type CallToolRequest,
   type CallToolResult,
   Client,
+  CLIENT_CAPABILITIES_META_KEY,
   type ClientOptions,
   type ConnectOptions,
   type CreateMessageRequestParamsBase,
   type GetPromptRequest,
   type GetPromptResult,
   LOG_LEVEL_META_KEY,
+  isJSONRPCRequest,
+  isJSONRPCResponse,
+  isInputRequiredResult,
   type Prompt,
   type ReadResourceRequest,
   type ReadResourceResult,
@@ -18,8 +22,18 @@ import {
   type Tool,
   type Transport
 } from '@modelcontextprotocol/client'
+import { withInputRequired } from '@modelcontextprotocol/client'
+import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
+import { GetPromptResultSchema, ReadResourceResultSchema } from '@modelcontextprotocol/core'
 
-import type { McpCallToolOptions, McpConnection, McpConnectionEvents, McpInteractionContext } from './McpConnection'
+import type {
+  McpCallToolOptions,
+  McpConnection,
+  McpConnectionEvents,
+  McpInteractionContext,
+  McpRequestOptions
+} from './McpConnection'
+import type { McpForwardMethod, McpForwardOptions, McpForwardResult } from './McpConnection'
 
 const INTERACTION_TIMEOUT_MS = 10 * 60 * 1000
 
@@ -29,7 +43,7 @@ interface ActiveInteraction {
 }
 
 function requireInteractionContext(active: ActiveInteraction | undefined, capability: string): ActiveInteraction {
-  if (!active?.context.windowId || !active.context.topicId) {
+  if (!active) {
     throw new Error(`MCP ${capability} rejected: no active window/topic interaction context`)
   }
   if (active.signal.aborted) {
@@ -48,6 +62,7 @@ export class ClientMcpConnection implements McpConnection {
   private readonly interactionStorage = new AsyncLocalStorage<ActiveInteraction>()
   private readonly toolDefinitions = new Map<string, Tool>()
   private readonly closeHooks: Array<() => Promise<void>> = []
+  private readonly activeRequests = new Map<ActiveInteraction, AbortController>()
   private closePromise: Promise<void> | undefined
 
   constructor(
@@ -81,18 +96,18 @@ export class ClientMcpConnection implements McpConnection {
       events.log(notification.params.level, notification.params.logger, notification.params.data)
     })
 
-    this.client.setRequestHandler('elicitation/create', async (request) => {
+    this.client.setRequestHandler('elicitation/create', async (request, ctx) => {
       const active = requireInteractionContext(this.interactionStorage.getStore(), 'elicitation')
       if (!active.context.requestElicitation) {
         throw new Error('MCP elicitation rejected: no authorization host is available')
       }
       return active.context.requestElicitation(
         request,
-        AbortSignal.any([active.signal, AbortSignal.timeout(INTERACTION_TIMEOUT_MS)])
+        AbortSignal.any([active.signal, ctx.mcpReq.signal, AbortSignal.timeout(INTERACTION_TIMEOUT_MS)])
       )
     })
 
-    this.client.setRequestHandler('sampling/createMessage', async (request) => {
+    this.client.setRequestHandler('sampling/createMessage', async (request, ctx) => {
       const active = requireInteractionContext(this.interactionStorage.getStore(), 'sampling')
       if (!active.context.model || !active.context.sample) {
         throw new Error('MCP sampling rejected: no model or sampling host is available')
@@ -102,16 +117,16 @@ export class ClientMcpConnection implements McpConnection {
       Reflect.deleteProperty(withoutTools, 'toolChoice')
       return active.context.sample(
         withoutTools,
-        AbortSignal.any([active.signal, AbortSignal.timeout(INTERACTION_TIMEOUT_MS)])
+        AbortSignal.any([active.signal, ctx.mcpReq.signal, AbortSignal.timeout(INTERACTION_TIMEOUT_MS)])
       )
     })
 
-    this.client.setRequestHandler('roots/list', async () => {
+    this.client.setRequestHandler('roots/list', async (_request, ctx) => {
       const active = requireInteractionContext(this.interactionStorage.getStore(), 'roots')
       if (!active.context.roots || !active.context.requestRoots) {
         throw new Error('MCP roots rejected: no precomputed workspace allow-list is available')
       }
-      const signal = AbortSignal.any([active.signal, AbortSignal.timeout(INTERACTION_TIMEOUT_MS)])
+      const signal = AbortSignal.any([active.signal, ctx.mcpReq.signal, AbortSignal.timeout(INTERACTION_TIMEOUT_MS)])
       if (!(await active.context.requestRoots(active.context.roots, signal))) {
         throw new Error('MCP roots request was declined')
       }
@@ -121,10 +136,72 @@ export class ClientMcpConnection implements McpConnection {
 
   public async connect(transport: Transport, options?: ConnectOptions): Promise<void> {
     await this.client.connect(transport, options)
+    const pending = new Map<string | number, { active: ActiveInteraction; cleanup: () => void }>()
+    const send = transport.send.bind(transport)
+    const onmessage = transport.onmessage
+    transport.send = async (message, sendOptions) => {
+      const active = this.interactionStorage.getStore()
+      if (active && isJSONRPCRequest(message)) {
+        const cleanup = () => {
+          pending.delete(message.id)
+          active.signal.removeEventListener('abort', cleanup)
+        }
+        pending.set(message.id, { active, cleanup })
+        active.signal.addEventListener('abort', cleanup, { once: true })
+        try {
+          await send(message, sendOptions)
+        } catch (error) {
+          cleanup()
+          throw error
+        }
+      } else {
+        await send(message, sendOptions)
+      }
+    }
+    transport.onmessage = (message, extra) => {
+      const request = isJSONRPCResponse(message) && message.id !== undefined ? pending.get(message.id) : undefined
+      if (!request) {
+        if (isJSONRPCRequest(message) && this.era === 'legacy' && this.activeRequests.size === 1) {
+          const active = this.activeRequests.keys().next().value!
+          return this.interactionStorage.run(active, () => onmessage?.(message, extra))
+        }
+        return onmessage?.(message, extra)
+      }
+      request.cleanup()
+      // Stdio delivers responses from its connect-time listener, outside the caller's async context.
+      this.interactionStorage.run(request.active, () => onmessage?.(message, extra))
+    }
+    this.addCloseHook(async () => {
+      for (const request of pending.values()) request.cleanup()
+    })
+  }
+
+  private async withRequestContext<T>(
+    options: McpRequestOptions | undefined,
+    run: (signal: AbortSignal) => Promise<T>
+  ): Promise<T> {
+    const lifetime = new AbortController()
+    const signal = AbortSignal.any([
+      lifetime.signal,
+      ...(options ? [options.signal] : []),
+      AbortSignal.timeout(options?.maxTotalTimeoutMs ?? options?.timeoutMs ?? 60_000)
+    ])
+    const active = { context: options?.interactionContext ?? {}, signal }
+    this.activeRequests.set(active, lifetime)
+    try {
+      return await this.interactionStorage.run(active, () => run(signal))
+    } finally {
+      this.activeRequests.delete(active)
+      lifetime.abort()
+    }
   }
 
   public addCloseHook(hook: () => Promise<void>): void {
     this.closeHooks.push(hook)
+  }
+
+  public getInteractionContext(): McpInteractionContext | undefined {
+    return this.interactionStorage.getStore()?.context
   }
 
   public get era() {
@@ -148,35 +225,41 @@ export class ClientMcpConnection implements McpConnection {
 
   private paramsWithLogLevel<T extends { _meta?: Record<string, unknown> }>(params: T): T {
     if (this.era !== 'modern') return params
+    const context = this.interactionStorage.getStore()?.context
     return {
       ...params,
       _meta: {
         ...(typeof params._meta === 'object' && params._meta !== null ? params._meta : {}),
-        [LOG_LEVEL_META_KEY]: 'info'
+        [LOG_LEVEL_META_KEY]: 'info',
+        [CLIENT_CAPABILITIES_META_KEY]: {
+          ...(context?.requestElicitation ? { elicitation: { form: {}, url: {} } } : {}),
+          ...(context?.model && context.sample ? { sampling: {} } : {}),
+          ...(context?.roots && context.requestRoots ? { roots: {} } : {})
+        }
       }
     }
   }
 
-  public async listTools(cacheMode: CacheMode = 'use'): Promise<Tool[]> {
-    const { tools } = await this.client.listTools(this.paramsWithLogLevel({}), { cacheMode })
+  public async listTools(cacheMode: CacheMode = 'use', signal?: AbortSignal): Promise<Tool[]> {
+    const { tools } = await this.client.listTools(this.paramsWithLogLevel({}), { cacheMode, signal })
     this.rememberTools(tools)
     return tools
   }
 
   public async callTool(name: string, args: unknown, options: McpCallToolOptions): Promise<CallToolResult> {
-    let toolDefinition = this.toolDefinitions.get(name)
-    if (!toolDefinition) {
-      await this.listTools()
-      toolDefinition = this.toolDefinitions.get(name)
-    }
+    return this.withRequestContext(options, async (signal) => {
+      let toolDefinition = this.toolDefinitions.get(name)
+      if (!toolDefinition) {
+        await this.listTools('use', signal)
+        toolDefinition = this.toolDefinitions.get(name)
+      }
 
-    const params: CallToolRequest['params'] = {
-      name,
-      arguments: (args ?? {}) as Record<string, unknown>
-    }
-    const run = () =>
-      this.client.callTool(this.paramsWithLogLevel(params), {
-        signal: options.signal,
+      const params: CallToolRequest['params'] = {
+        name,
+        arguments: (args ?? {}) as Record<string, unknown>
+      }
+      return this.client.callTool(this.paramsWithLogLevel(params), {
+        signal,
         timeout: options.timeoutMs,
         resetTimeoutOnProgress: options.resetTimeoutOnProgress,
         maxTotalTimeout: options.maxTotalTimeoutMs,
@@ -185,11 +268,7 @@ export class ClientMcpConnection implements McpConnection {
           ? (progress) => options.onProgress?.(progress.progress, progress.total)
           : undefined
       })
-
-    const result = options.interactionContext
-      ? await this.interactionStorage.run({ context: options.interactionContext, signal: options.signal }, run)
-      : await run()
-    return result
+    })
   }
 
   public async listPrompts(cacheMode: CacheMode = 'use'): Promise<Prompt[]> {
@@ -198,9 +277,77 @@ export class ClientMcpConnection implements McpConnection {
     return prompts
   }
 
-  public async getPrompt(name: string, args?: Record<string, string>, signal?: AbortSignal): Promise<GetPromptResult> {
+  public async forwardRequest(
+    method: McpForwardMethod,
+    params: Record<string, unknown>,
+    options: McpForwardOptions
+  ): Promise<McpForwardResult> {
+    return this.withRequestContext(options, async (signal) => {
+      const forwarded = {
+        ...params,
+        _meta: { ...this.paramsWithLogLevel({ _meta: {} })._meta, [CLIENT_CAPABILITIES_META_KEY]: options.capabilities }
+      }
+      const requestOptions = {
+        signal,
+        timeout: options.timeoutMs,
+        resetTimeoutOnProgress: options.resetTimeoutOnProgress,
+        maxTotalTimeout: options.maxTotalTimeoutMs,
+        allowInputRequired: true,
+        onprogress: options.onProgress
+          ? (progress: { progress: number; total?: number }) => options.onProgress?.(progress.progress, progress.total)
+          : undefined
+      }
+      if (method === 'prompts/get')
+        return this.client.request(
+          { method, params: forwarded },
+          withInputRequired(GetPromptResultSchema),
+          requestOptions
+        )
+      if (method === 'resources/read')
+        return this.client.request(
+          { method, params: forwarded },
+          withInputRequired(ReadResourceResultSchema),
+          requestOptions
+        )
+      const name = String(params.name)
+      if (!this.toolDefinitions.has(name)) await this.listTools('use', signal)
+      const definition = this.toolDefinitions.get(name)
+      const validate =
+        definition?.outputSchema !== undefined
+          ? new CfWorkerJsonSchemaValidator().getValidator(definition.outputSchema)
+          : undefined
+      // callTool's complete-result validator cannot accept input_required; validate only the final result here.
+      const result = await this.client.callTool(
+        { ...forwarded, name },
+        {
+          ...requestOptions,
+          toolDefinition: definition ? { ...definition, outputSchema: undefined } : undefined
+        }
+      )
+      if (!isInputRequiredResult(result) && validate && !result.isError) {
+        if (result.structuredContent === undefined)
+          throw new Error(`Tool ${name} did not return its declared structured content`)
+        const checked = validate(result.structuredContent)
+        if (!checked.valid) throw new Error(checked.errorMessage)
+      }
+      return result
+    })
+  }
+
+  public async getPrompt(
+    name: string,
+    args?: Record<string, string>,
+    options?: McpRequestOptions
+  ): Promise<GetPromptResult> {
     const params: GetPromptRequest['params'] = { name, arguments: args }
-    return this.client.getPrompt(this.paramsWithLogLevel(params), signal ? { signal } : undefined)
+    return this.withRequestContext(options, (signal) =>
+      this.client.getPrompt(this.paramsWithLogLevel(params), {
+        signal,
+        timeout: options?.timeoutMs,
+        resetTimeoutOnProgress: options?.resetTimeoutOnProgress,
+        maxTotalTimeout: options?.maxTotalTimeoutMs
+      })
+    )
   }
 
   public async listResources(cacheMode: CacheMode = 'use'): Promise<Resource[]> {
@@ -212,10 +359,18 @@ export class ClientMcpConnection implements McpConnection {
   public async readResource(
     uri: string,
     cacheMode: CacheMode = 'use',
-    signal?: AbortSignal
+    options?: McpRequestOptions
   ): Promise<ReadResourceResult> {
     const params: ReadResourceRequest['params'] = { uri }
-    return this.client.readResource(this.paramsWithLogLevel(params), { cacheMode, signal })
+    return this.withRequestContext(options, (signal) =>
+      this.client.readResource(this.paramsWithLogLevel(params), {
+        cacheMode,
+        signal,
+        timeout: options?.timeoutMs,
+        resetTimeoutOnProgress: options?.resetTimeoutOnProgress,
+        maxTotalTimeout: options?.maxTotalTimeoutMs
+      })
+    )
   }
 
   public async health(): Promise<void> {
@@ -227,6 +382,7 @@ export class ClientMcpConnection implements McpConnection {
   }
 
   private async closeOnce(): Promise<void> {
+    for (const lifetime of this.activeRequests.values()) lifetime.abort()
     let firstError: unknown
     try {
       await this.client.close()

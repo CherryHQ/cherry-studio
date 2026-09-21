@@ -9,6 +9,8 @@
 import { application } from '@application'
 import type { McpResource } from '@shared/types/mcp'
 
+import type { McpInteractionContext } from './connections/McpConnection'
+
 export interface McpResourcePreview {
   /** Text content, capped at the requested length. Empty for a binary resource. */
   text: string
@@ -22,13 +24,19 @@ export interface McpResourcePreview {
 export async function readMcpResourcePreview({
   serverId,
   uri,
-  maxChars
+  maxChars,
+  signal,
+  interactionContext
 }: {
   serverId: string
   uri: string
   maxChars: number
+  signal?: AbortSignal
+  interactionContext?: McpInteractionContext
 }): Promise<McpResourcePreview> {
-  const { contents } = await application.get('McpRuntimeService').getResource({ serverId, uri })
+  const { contents } = await application
+    .get('McpRuntimeService')
+    .getResource({ serverId, uri, signal, interactionContext })
   const text = contents
     .map((content: McpResource) => content.text ?? '')
     .filter(Boolean)

@@ -1,3 +1,5 @@
+import { EventEmitter } from 'node:events'
+
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -102,13 +104,15 @@ describe('McpRuntimeService.setServerStatus', () => {
 describe('McpRuntimeService embedded interaction authorization', () => {
   beforeEach(() => {
     BaseService.resetInstances()
-    interactionMocks.getWindow.mockReset().mockReturnValue({})
+    interactionMocks.getWindow.mockReset().mockReturnValue(new EventEmitter())
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'Trusted server' } as McpServer)
     interactionMocks.send.mockReset()
   })
 
   it('targets the originating window and accepts a response only from that window', async () => {
     const service = new McpRuntimeService()
     const pending = service.requestInteraction({
+      serverId: 'server-1',
       windowId: 'window-1',
       topicId: 'topic-1',
       kind: 'sampling',
@@ -123,8 +127,52 @@ describe('McpRuntimeService embedded interaction authorization', () => {
     expect(interactionMocks.send).toHaveBeenCalledWith(
       'window-1',
       'mcp.interaction.requested',
-      expect.objectContaining({ requestId, topicId: 'topic-1', kind: 'sampling' })
+      expect.objectContaining({
+        requestId,
+        topicId: 'topic-1',
+        kind: 'sampling',
+        serverId: 'server-1',
+        serverName: 'Trusted server'
+      })
     )
+    expect(interactionMocks.send).toHaveBeenCalledWith('window-1', 'mcp.interaction.ended', { requestId })
+    await expect(service.respondInteraction({ requestId, decision: 'accept' }, 'window-1')).resolves.toBe(false)
+  })
+
+  it('validates accepted form values in Main and releases an invalid pending form when its window closes', async () => {
+    const service = new McpRuntimeService()
+    const window = new EventEmitter()
+    interactionMocks.getWindow.mockReturnValue(window)
+    const pending = service.requestInteraction({
+      serverId: 'server-1',
+      windowId: 'window-1',
+      topicId: 'topic-1',
+      kind: 'elicitation',
+      payload: {
+        method: 'elicitation/create',
+        params: {
+          message: 'Count',
+          requestedSchema: {
+            type: 'object',
+            properties: { count: { type: 'integer', minimum: 1 } },
+            required: ['count']
+          }
+        }
+      },
+      signal: new AbortController().signal
+    })
+    const requestId = interactionMocks.send.mock.calls[0][2].requestId
+    await expect(
+      service.respondInteraction({ requestId, decision: 'accept', value: { count: 0 } }, 'window-1')
+    ).rejects.toThrow()
+    expect(interactionMocks.send).not.toHaveBeenCalledWith('window-1', 'mcp.interaction.ended', { requestId })
+    const rejected = expect(pending).rejects.toThrow(/window/i)
+    window.emit('closed')
+    await rejected
+    expect(interactionMocks.send).toHaveBeenCalledWith('window-1', 'mcp.interaction.ended', { requestId })
+    await expect(
+      service.respondInteraction({ requestId, decision: 'accept', value: { count: 1 } }, 'window-1')
+    ).resolves.toBe(false)
   })
 
   it('rejects without an active window and cancels a pending authorization with its tool call', async () => {
@@ -132,6 +180,7 @@ describe('McpRuntimeService embedded interaction authorization', () => {
     interactionMocks.getWindow.mockReturnValueOnce(undefined)
     await expect(
       service.requestInteraction({
+        serverId: 'server-1',
         windowId: 'missing',
         topicId: 'topic-1',
         kind: 'roots',
@@ -142,10 +191,14 @@ describe('McpRuntimeService embedded interaction authorization', () => {
 
     const controller = new AbortController()
     const pending = service.requestInteraction({
+      serverId: 'server-1',
       windowId: 'window-1',
       topicId: 'topic-1',
       kind: 'elicitation',
-      payload: {},
+      payload: {
+        method: 'elicitation/create',
+        params: { message: 'Confirm', requestedSchema: { type: 'object', properties: {} } }
+      },
       signal: controller.signal
     })
     controller.abort(new Error('tool call cancelled'))

@@ -4497,6 +4497,7 @@
   "settings.mcp.interaction.roots.title": "Autoriser MCP à accéder à l’espace de travail ?",
   "settings.mcp.interaction.sampling.description": "Le serveur MCP demande une génération de modèle limitée, non diffusée et sans outils.",
   "settings.mcp.interaction.sampling.title": "Autoriser l’échantillonnage du modèle par MCP ?",
+  "settings.mcp.interaction.url.instructions": "Vérifiez l’adresse avant de l’ouvrir. Effectuez les étapes demandées dans votre navigateur, puis confirmez ici. L’ouverture de la page seule ne termine pas l’autorisation.",
   "settings.mcp.logs": "Journaux",
   "settings.mcp.logsHint": "Journaux du processus du serveur MCP",
   "settings.mcp.longRunning": "Mode d'exécution prolongée",

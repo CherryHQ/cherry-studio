@@ -20,6 +20,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
 import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
+import { mcpLegacyResult } from '@main/ai/mcp/toolResult'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
@@ -31,6 +32,8 @@ function toSdkTool(tool: McpTool): SdkTool {
   Reflect.deleteProperty(sdkTool, 'serverId')
   Reflect.deleteProperty(sdkTool, 'serverName')
   Reflect.deleteProperty(sdkTool, 'type')
+  // Output validation belongs to the v2 runtime; the v1 client cannot express every v2 schema.
+  Reflect.deleteProperty(sdkTool, 'outputSchema')
   return sdkTool
 }
 
@@ -172,7 +175,7 @@ export function createSdkMcpServerInstance(
         onProgress,
         interactionContext
       })
-      return result
+      return mcpLegacyResult(result)
     } catch (error) {
       if (isMcpCancellation(error, extra.signal)) {
         logger.debug('SDK bridge: tool call aborted', { mcpId, tool: request.params.name })
@@ -206,7 +209,7 @@ export function createSdkMcpServerInstance(
       logger.debug('SDK bridge: reading resource', { mcpId, uri })
       const { contents } = await application
         .get('McpRuntimeService')
-        .getResource({ serverId: serverConfig.id, uri, signal: extra.signal })
+        .getResource({ serverId: serverConfig.id, uri, signal: extra.signal, interactionContext })
       return {
         contents: contents.map(toSdkResourceContents)
       }
@@ -237,7 +240,8 @@ export function createSdkMcpServerInstance(
         serverId: serverConfig.id,
         name,
         args,
-        signal: extra.signal
+        signal: extra.signal,
+        interactionContext
       })
     } catch (error) {
       logger.error('SDK bridge: failed to get prompt', { mcpId, prompt: name, error })

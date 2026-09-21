@@ -1,3 +1,5 @@
+import { pathToFileURL } from 'node:url'
+
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { application } from '@application'
@@ -58,7 +60,14 @@ export function buildAgentMcpServers(
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
   notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot),
-  configuredServerFactory: ConfiguredMcpServerFactory = createMcpBridgeServer
+  configuredServerFactory: ConfiguredMcpServerFactory = (mcpId, snapshot) =>
+    createMcpBridgeServer(mcpId, snapshot, {
+      interactionContext: {
+        sessionId: session.id,
+        model: agent.model ?? undefined,
+        roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
+      }
+    })
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
   const channelLinked =

@@ -4497,6 +4497,7 @@
   "settings.mcp.interaction.roots.title": "允許 MCP 存取工作區？",
   "settings.mcp.interaction.sampling.description": "MCP 伺服器要求一次不含工具、非串流的受限模型生成。",
   "settings.mcp.interaction.sampling.title": "允許 MCP 使用目前模型取樣？",
+  "settings.mcp.interaction.url.instructions": "開啟前請核對網址。在瀏覽器中完成所需步驟後，再回到這裡確認。僅開啟頁面不代表已完成授權。",
   "settings.mcp.logs": "記錄",
   "settings.mcp.logsHint": "MCP 伺服器程序的日誌",
   "settings.mcp.longRunning": "長時間運作模式",

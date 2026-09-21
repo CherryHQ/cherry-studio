@@ -4497,6 +4497,7 @@
   "settings.mcp.interaction.roots.title": "MCP にワークスペースへのアクセスを許可しますか？",
   "settings.mcp.interaction.sampling.description": "MCP サーバーが、ツールを使用しない制限付きの非ストリーミングモデル生成を要求しています。",
   "settings.mcp.interaction.sampling.title": "MCP によるモデルサンプリングを許可しますか？",
+  "settings.mcp.interaction.url.instructions": "開く前にアドレスを確認してください。ブラウザーで必要な手順を完了してから、ここで確認してください。ページを開くだけでは認証は完了しません。",
   "settings.mcp.logs": "ログ",
   "settings.mcp.logsHint": "MCPサーバープロセスのログ",
   "settings.mcp.longRunning": "長時間運行モード",

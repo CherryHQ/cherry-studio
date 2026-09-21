@@ -9,6 +9,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
+import { mcpModelContent } from '@main/ai/mcp/toolResult'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
@@ -106,9 +107,9 @@ function toPiToolDefinition(serverName: string, tool: Tool, client: Client): PiM
         // Forwarding only: no timeout policy at this layer — McpRuntimeService owns it (#20266).
         { signal, timeout: MCP_FORWARDING_TIMEOUT_MS }
       )) as CallToolResult
-      if (result.isError) throw new Error(joinErrorText(result.content))
+      if (result.isError) throw new Error(joinErrorText(mcpModelContent(result)))
       return {
-        content: result.content.map(toPiContent),
+        content: mcpModelContent(result).map(toPiContent),
         details: result.structuredContent ?? null
       }
     }

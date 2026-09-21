@@ -4497,6 +4497,7 @@
   "settings.mcp.interaction.roots.title": "MCP-Zugriff auf den Arbeitsbereich erlauben?",
   "settings.mcp.interaction.sampling.description": "Der MCP-Server fordert eine eingeschränkte, nicht gestreamte Modellgenerierung ohne Werkzeuge an.",
   "settings.mcp.interaction.sampling.title": "Modell-Sampling durch MCP erlauben?",
+  "settings.mcp.interaction.url.instructions": "Prüfen Sie die Adresse vor dem Öffnen. Führen Sie die erforderlichen Schritte im Browser aus und bestätigen Sie anschließend hier. Das Öffnen der Seite allein schließt die Autorisierung nicht ab.",
   "settings.mcp.logs": "Protokolle",
   "settings.mcp.logsHint": "Logs vom MCP-Serverprozess",
   "settings.mcp.longRunning": "Lang laufender Modus",

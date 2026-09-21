@@ -92,15 +92,16 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('relays upstream tool progress to a client that supplied a progressToken', async () => {
-    mocks.listTools.mockReturnValue([searchTool()])
+    mocks.listTools.mockReturnValue([{ ...searchTool(), outputSchema: { type: 'array', items: { type: 'integer' } } }])
     // Emit two progress ticks from "upstream" before resolving the call.
     mocks.callTool.mockImplementation(async ({ onProgress }: { onProgress?: (p: unknown) => void }) => {
       onProgress?.({ progress: 1, total: 2 })
       onProgress?.({ progress: 2, total: 2 })
-      return { content: [{ type: 'text', text: 'done' }] }
+      return { content: [{ type: 'text', text: 'done' }], structuredContent: [1, 2] }
     })
 
     const client = await connectClient(createMcpBridgeServer('server-1'))
+    expect((await client.listTools()).tools[0].outputSchema).toBeUndefined()
     const seen: { progress: number; total?: number }[] = []
     client.setNotificationHandler(ProgressNotificationSchema, async (notification) => {
       seen.push({ progress: notification.params.progress, total: notification.params.total })
@@ -110,7 +111,10 @@ describe('createMcpBridgeServer', () => {
       onprogress: () => {}
     })
 
-    expect(result.content).toEqual([{ type: 'text', text: 'done' }])
+    expect(result.content).toEqual([
+      { type: 'text', text: 'done' },
+      { type: 'text', text: '[1,2]' }
+    ])
     expect(seen).toEqual([
       { progress: 1, total: 2 },
       { progress: 2, total: 2 }

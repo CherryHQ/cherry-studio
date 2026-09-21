@@ -39,6 +39,8 @@ export const mcpRequestSchemas = {
     input: z.object({
       serverId: z.string().min(1),
       name: z.string().min(1),
+      requestId: z.uuid().optional(),
+      topicId: z.string().optional(),
       args: z.record(z.string(), z.any()).optional()
     }),
     output: z.any()
@@ -49,7 +51,9 @@ export const mcpRequestSchemas = {
     input: z.object({
       serverId: z.string().min(1),
       uri: z.string().min(1),
-      maxChars: z.number().int().positive()
+      maxChars: z.number().int().positive(),
+      requestId: z.uuid().optional(),
+      topicId: z.string().optional()
     }),
     output: z.object({
       text: z.string(),
@@ -84,6 +88,7 @@ export const mcpRequestSchemas = {
     }),
     output: z.boolean()
   }),
+  'mcp.request.cancel': defineRoute({ input: z.object({ requestId: z.uuid() }), output: z.void() }),
   // Package upload. Output kept as `z.any()` (McpPackageUploadResult, whose `data.manifest`
   // type lives in src/main): matches the legacy preload's `Promise<any>` and avoids hoisting
   // the manifest type into @shared for this transport migration.
@@ -95,9 +100,13 @@ export type McpEventSchemas = {
   'mcp.server.log': McpServerLogEntry & { serverId: string }
   'mcp.tool.call_progress': McpProgressEvent
   'mcp.interaction.requested': {
+    serverId: string
+    serverName: string
+    sourceRequestId?: string
     requestId: string
     topicId: string
     kind: 'elicitation' | 'sampling' | 'roots'
     payload: unknown
   }
+  'mcp.interaction.ended': { requestId: string }
 }

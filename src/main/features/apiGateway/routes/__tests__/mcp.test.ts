@@ -1,3 +1,4 @@
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -14,6 +15,7 @@ const {
   mockListTools,
   mockWarmToolsCache,
   mockCallTool,
+  mockForwardRequest,
   toolsCacheListeners
 } = vi.hoisted(() => ({
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
@@ -22,6 +24,7 @@ const {
   mockListTools: vi.fn(),
   mockWarmToolsCache: vi.fn(async () => undefined),
   mockCallTool: vi.fn(),
+  mockForwardRequest: vi.fn(),
   // Real listener set so a test can actually fire the event the bridge relays as
   // `tools/list_changed` — the whole point of sessions.
   toolsCacheListeners: new Set<(event: { serverId: string }) => void>()
@@ -41,7 +44,7 @@ vi.mock('@application', async () => {
         return { dispose: () => toolsCacheListeners.delete(listener) }
       })
     },
-    McpRuntimeService: { callTool: mockCallTool }
+    McpRuntimeService: { callTool: mockCallTool, forwardRequest: mockForwardRequest }
   }
   return mockApplicationFactory(overrides)
 })
@@ -184,6 +187,84 @@ describe('/v1/mcps', () => {
 
   afterEach(async () => {
     await sessions.closeAll()
+  })
+
+  it('serves modern discovery and relays MRTR, progress and subscription updates to the external client', async () => {
+    const changed = vi.fn()
+    const client = new Client(
+      { name: 'external', version: '1' },
+      {
+        capabilities: { elicitation: { form: {} } },
+        versionNegotiation: { mode: { pin: '2026-07-28' } },
+        listChanged: { tools: { onChanged: changed } }
+      }
+    )
+    client.setRequestHandler('elicitation/create', async (request) => {
+      expect(request.params.message).toBe('External approval')
+      return { action: 'accept', content: { approved: true } }
+    })
+    mockForwardRequest.mockImplementation(async (_serverId, _method, params, options) => {
+      expect(options.capabilities.elicitation).toEqual({ form: {} })
+      if (!params.inputResponses)
+        return {
+          resultType: 'input_required',
+          requestState: 'opaque-upstream-state',
+          inputRequests: {
+            confirm: {
+              method: 'elicitation/create',
+              params: {
+                mode: 'form',
+                message: 'External approval',
+                requestedSchema: {
+                  type: 'object',
+                  properties: { approved: { type: 'boolean' } },
+                  required: ['approved']
+                }
+              }
+            }
+          }
+        }
+      expect(params.requestState).toBe('opaque-upstream-state')
+      expect(params.inputResponses.confirm).toEqual({ action: 'accept', content: { approved: true } })
+      options.onProgress?.(1, 2)
+      return { content: [], structuredContent: [1, 2, 3] }
+    })
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL('http://localhost/v1/mcps/server-1/mcp'), {
+        requestInit: { headers: { 'x-api-key': 'test-key' } },
+        fetch: (input, init) => app.handle(new Request(input, init))
+      })
+    )
+    try {
+      expect(client.getProtocolEra()).toBe('modern')
+      const progress = vi.fn()
+      const result = await client.callTool({ name: 'read_file', arguments: { path: '/a' } }, { onprogress: progress })
+      expect(result.structuredContent).toEqual([1, 2, 3])
+      expect(progress).toHaveBeenCalledWith(expect.objectContaining({ progress: 1, total: 2 }))
+      mockListTools.mockReturnValue([{ ...TOOL, description: 'updated' }])
+      for (const listener of toolsCacheListeners) listener({ serverId: 'server-1' })
+      await vi.waitFor(() => {
+        expect(changed).toHaveBeenCalledWith(
+          null,
+          expect.arrayContaining([expect.objectContaining({ description: 'updated' })])
+        )
+      })
+      let upstreamSignal: AbortSignal | undefined
+      mockForwardRequest.mockImplementation((_serverId, _method, _params, options) => {
+        upstreamSignal = options.signal
+        return new Promise((_, reject) =>
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+        )
+      })
+      const controller = new AbortController()
+      const cancelled = expect(client.callTool({ name: 'read_file' }, { signal: controller.signal })).rejects.toThrow()
+      await vi.waitFor(() => expect(upstreamSignal).toBeDefined())
+      controller.abort()
+      await cancelled
+      await vi.waitFor(() => expect(upstreamSignal?.aborted).toBe(true))
+    } finally {
+      await client.close()
+    }
   })
 
   it('GET /v1/mcps lists active servers with an absolute proxy url', async () => {

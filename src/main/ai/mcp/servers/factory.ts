@@ -70,7 +70,7 @@ export async function createBuiltinMcpEndpoint(
       const server = new ThinkingServer()
       return {
         createServer: () => server.createServer(),
-        close: async () => undefined
+        close: async () => server.close()
       }
     }
     case BuiltinMcpServerNames.braveSearch: {

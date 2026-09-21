@@ -4497,6 +4497,7 @@
   "settings.mcp.interaction.roots.title": "Permiteți accesul MCP la spațiul de lucru?",
   "settings.mcp.interaction.sampling.description": "Serverul MCP solicită o generare restricționată a modelului, fără streaming și fără instrumente.",
   "settings.mcp.interaction.sampling.title": "Permiteți eșantionarea modelului prin MCP?",
+  "settings.mcp.interaction.url.instructions": "Verificați adresa înainte de a o deschide. Parcurgeți pașii solicitați în browser, apoi confirmați aici. Simpla deschidere a paginii nu finalizează autorizarea.",
   "settings.mcp.logs": "Jurnale",
   "settings.mcp.logsHint": "Jurnalizări de la procesul serverului MCP",
   "settings.mcp.longRunning": "Mod rulare lungă",

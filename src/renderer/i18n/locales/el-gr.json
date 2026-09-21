@@ -4497,6 +4497,7 @@
   "settings.mcp.interaction.roots.title": "Να επιτραπεί η πρόσβαση MCP στον χώρο εργασίας;",
   "settings.mcp.interaction.sampling.description": "Ο διακομιστής MCP ζητά μια περιορισμένη δημιουργία από το μοντέλο, χωρίς ροή και χωρίς εργαλεία.",
   "settings.mcp.interaction.sampling.title": "Να επιτραπεί η δειγματοληψία μοντέλου MCP;",
+  "settings.mcp.interaction.url.instructions": "Ελέγξτε τη διεύθυνση πριν την ανοίξετε. Ολοκληρώστε τα απαιτούμενα βήματα στο πρόγραμμα περιήγησης και επιβεβαιώστε εδώ. Το άνοιγμα της σελίδας από μόνο του δεν ολοκληρώνει την εξουσιοδότηση.",
   "settings.mcp.logs": "Αρχεία καταγραφής",
   "settings.mcp.logsHint": "Καταγραφές από τη διεργασία του διακομιστή MCP",
   "settings.mcp.longRunning": "Μακροχρόνια λειτουργία",

@@ -1,7 +1,16 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 
-import type { CacheMode, GetPromptResult, Progress, ServerCapabilities, Tool } from '@modelcontextprotocol/client'
+import {
+  isInputRequiredResult,
+  type CacheMode,
+  type GetPromptResult,
+  type Progress,
+  type ServerCapabilities,
+  type Tool
+} from '@modelcontextprotocol/client'
+import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
+import { ElicitRequestSchema, ElicitResultSchema } from '@modelcontextprotocol/core'
 import { app } from 'electron'
 import { nanoid } from 'nanoid'
 import { v4 as uuidv4 } from 'uuid'
@@ -19,6 +28,7 @@ import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import type { BuiltinMcpServerName } from '@shared/utils/mcp'
@@ -27,10 +37,12 @@ import { safeSerialize } from '@shared/utils/serialize'
 import { createExternalMcpConnection } from './connections/ExternalMcpConnection'
 import { createInProcessMcpConnection } from './connections/InProcessMcpConnection'
 import type { McpConnection, McpConnectionEvents, McpInteractionContext } from './connections/McpConnection'
+import type { McpForwardMethod, McpForwardOptions, McpForwardResult } from './connections/McpConnection'
 import { isMcpCancellation } from './mcpAbort'
 import type { McpPackageService } from './McpPackageService'
 import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { mcpTransportKind } from './mcpTransportKind'
+import { McpOAuthCoordinator } from './oauth/McpOAuthCoordinator'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
 
@@ -81,6 +93,7 @@ const MCP_INTERACTION_TIMEOUT_MS = 10 * 60 * 1000
 
 interface PendingInteraction {
   windowId: WindowId
+  validate?: (value: unknown) => boolean
   resolve(response: McpInteractionResponse): void
   reject(error: unknown): void
   cleanup(): void
@@ -168,7 +181,9 @@ export class McpRuntimeService extends BaseService {
   private pendingRemovals = new Map<string, Promise<void>>()
   private activeToolCalls = new Map<string, Set<ActiveToolCall>>()
   private pendingInteractions = new Map<string, PendingInteraction>()
+  private desktopRequests = new Map<string, AbortController>()
   private serverLogs = new ServerLogBuffer(200)
+  private readonly oauthCoordinator = new McpOAuthCoordinator()
   private stopping = false
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
   readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
@@ -183,7 +198,9 @@ export class McpRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.stopping = true
+    this.oauthCoordinator.close()
     this.abortActiveToolCalls()
+    for (const controller of this.desktopRequests.values()) controller.abort()
     this.cancelPendingInteractions()
     await this.waitForPendingConnections()
     await this.closeAllConnections()
@@ -274,7 +291,11 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  private async createConnection(server: McpServer): Promise<McpConnection> {
+  private async createConnection(
+    server: McpServer,
+    requestContext?: McpInteractionContext | null,
+    signal?: AbortSignal
+  ): Promise<McpConnection> {
     const connectTimeoutMs = Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
     const events = this.connectionEvents(server)
 
@@ -293,6 +314,10 @@ export class McpRuntimeService extends BaseService {
 
     return createExternalMcpConnection({
       server: resolveBuiltinExternalMcpServer(server),
+      oauthCoordinator: this.oauthCoordinator,
+      allowInteractiveAuthorization: requestContext === undefined || Boolean(requestContext?.windowId),
+      authorizationWindowId: requestContext?.windowId,
+      signal,
       appVersion: app.getVersion(),
       events,
       connectTimeoutMs,
@@ -313,7 +338,12 @@ export class McpRuntimeService extends BaseService {
     })
   }
 
-  private async getOrCreateConnection(server: McpServer): Promise<McpConnection> {
+  private async getOrCreateConnection(
+    server: McpServer,
+    requestContext?: McpInteractionContext | null,
+    signal?: AbortSignal
+  ): Promise<McpConnection> {
+    signal?.throwIfAborted()
     if (this.stopping || this.isStopped || this.isDestroyed) throw new Error('MCP runtime is stopping')
     if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
     if (!server.isActive) {
@@ -351,7 +381,7 @@ export class McpRuntimeService extends BaseService {
     this.setServerStatus(server.id, 'connecting')
     const initialize = (async () => {
       try {
-        const connection = await this.createConnection(server)
+        const connection = await this.createConnection(server, requestContext, signal)
         if (this.stopping || this.isStopped || this.isDestroyed || this.removedServerIds.has(server.id)) {
           await connection.close()
           if (this.removedServerIds.has(server.id)) {
@@ -389,7 +419,7 @@ export class McpRuntimeService extends BaseService {
 
   public async listTools(serverId: string, cacheMode: CacheMode = 'use'): Promise<Tool[]> {
     const server = this.getServerById(serverId)
-    return (await this.getOrCreateConnection(server)).listTools(cacheMode)
+    return (await this.getOrCreateConnection(server, null)).listTools(cacheMode)
   }
 
   public getConnectedServerCapabilities(serverId: string): ServerCapabilities | undefined {
@@ -470,8 +500,9 @@ export class McpRuntimeService extends BaseService {
           args: redactSensitive(normalizedArgs)
         })
         let handleAbort: (() => void) | undefined
+        const host = this.resolveInteractionContext(server.id, { ...interactionContext, requestId: toolCallId })
         const connection = await Promise.race([
-          this.getOrCreateConnection(server),
+          this.getOrCreateConnection(server, host ?? null, effectiveSignal),
           new Promise<never>((_, reject) => {
             handleAbort = () => reject(getAbortReason(effectiveSignal))
             if (effectiveSignal.aborted) return handleAbort()
@@ -486,7 +517,7 @@ export class McpRuntimeService extends BaseService {
           timeoutMs: policy.timeout,
           resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
           maxTotalTimeoutMs: policy.maxTotalTimeout,
-          interactionContext,
+          interactionContext: host,
           onProgress: (progress, total) => {
             const update: Progress = { progress, ...(total === undefined ? {} : { total }) }
             application.get('IpcApiService').broadcastToType(WindowType.Main, 'mcp.tool.call_progress', {
@@ -530,10 +561,38 @@ export class McpRuntimeService extends BaseService {
     )
   }
 
+  public async forwardRequest(
+    serverId: string,
+    method: McpForwardMethod,
+    params: Record<string, unknown>,
+    options: Pick<McpForwardOptions, 'signal' | 'capabilities' | 'onProgress'>
+  ): Promise<McpForwardResult> {
+    const server = this.getServerById(serverId)
+    if (
+      method === 'tools/call' &&
+      isMcpToolDisabledBySource(this.getLatestSourcePolicy(server), { name: String(params.name) })
+    ) {
+      throw new Error(`MCP tool is disabled: ${String(params.name)}`)
+    }
+    const policy = resolveMcpRequestOptions(server)
+    const result = await (
+      await this.getOrCreateConnection(server, null, options.signal)
+    ).forwardRequest(method, params, {
+      ...options,
+      timeoutMs: policy.timeout,
+      resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+      maxTotalTimeoutMs: policy.maxTotalTimeout
+    })
+    if (method === 'tools/call' && !isInputRequiredResult(result) && 'content' in result) {
+      return clampToolResultImages(result as McpCallToolResponse, getServerLogger(server))
+    }
+    return result
+  }
+
   public async listPrompts(serverId: string, cacheMode: CacheMode = 'use'): Promise<McpPrompt[]> {
     const server = this.getServerById(serverId)
     try {
-      const prompts = await (await this.getOrCreateConnection(server)).listPrompts(cacheMode)
+      const prompts = await (await this.getOrCreateConnection(server, null)).listPrompts(cacheMode)
       return prompts.map((prompt) => ({
         ...prompt,
         id: `p${nanoid()}`,
@@ -551,21 +610,31 @@ export class McpRuntimeService extends BaseService {
     serverId,
     name,
     args,
-    signal
+    signal,
+    interactionContext
   }: {
     serverId: string
     name: string
     args?: Record<string, string>
     signal?: AbortSignal
+    interactionContext?: McpInteractionContext
   }): Promise<GetPromptResult> {
     const server = this.getServerById(serverId)
-    return (await this.getOrCreateConnection(server)).getPrompt(name, args, signal)
+    const policy = resolveMcpRequestOptions(server)
+    const host = this.resolveInteractionContext(server.id, interactionContext)
+    return (await this.getOrCreateConnection(server, host ?? null, signal)).getPrompt(name, args, {
+      signal: signal ?? new AbortController().signal,
+      timeoutMs: policy.timeout,
+      resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+      maxTotalTimeoutMs: policy.maxTotalTimeout,
+      interactionContext: host
+    })
   }
 
   public async listResources(serverId: string, cacheMode: CacheMode = 'use'): Promise<McpResource[]> {
     const server = this.getServerById(serverId)
     try {
-      const resources = await (await this.getOrCreateConnection(server)).listResources(cacheMode)
+      const resources = await (await this.getOrCreateConnection(server, null)).listResources(cacheMode)
       return resources.map((resource) => ({
         ...resource,
         serverId: server.id,
@@ -581,14 +650,26 @@ export class McpRuntimeService extends BaseService {
   public async getResource({
     serverId,
     uri,
-    signal
+    signal,
+    interactionContext
   }: {
     serverId: string
     uri: string
     signal?: AbortSignal
+    interactionContext?: McpInteractionContext
   }): Promise<GetResourceResponse> {
     const server = this.getServerById(serverId)
-    const result = await (await this.getOrCreateConnection(server)).readResource(uri, 'use', signal)
+    const policy = resolveMcpRequestOptions(server)
+    const host = this.resolveInteractionContext(server.id, interactionContext)
+    const result = await (
+      await this.getOrCreateConnection(server, host ?? null, signal)
+    ).readResource(uri, 'use', {
+      signal: signal ?? new AbortController().signal,
+      timeoutMs: policy.timeout,
+      resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+      maxTotalTimeoutMs: policy.maxTotalTimeout,
+      interactionContext: host
+    })
     return {
       contents: result.contents.map((content) => ({
         ...content,
@@ -631,48 +712,150 @@ export class McpRuntimeService extends BaseService {
     return true
   }
 
+  public async runDesktopRequest<T>(
+    windowId: string,
+    requestId: string,
+    run: (signal: AbortSignal) => Promise<T>
+  ): Promise<T> {
+    const key = toolCallKey(requestId, windowId)
+    if (this.desktopRequests.has(key)) throw new Error('Duplicate MCP request identifier')
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (!window) throw new Error('MCP request window is unavailable')
+    const controller = new AbortController()
+    const onClose = () => controller.abort()
+    this.desktopRequests.set(key, controller)
+    window.once('closed', onClose)
+    try {
+      return await run(controller.signal)
+    } finally {
+      controller.abort()
+      window.removeListener('closed', onClose)
+      this.desktopRequests.delete(key)
+    }
+  }
+
+  public cancelDesktopRequest(windowId: string, requestId: string): void {
+    this.desktopRequests.get(toolCallKey(requestId, windowId))?.abort()
+  }
+
+  private resolveInteractionContext(
+    serverId: string,
+    context?: McpInteractionContext
+  ): McpInteractionContext | undefined {
+    if (!context) return undefined
+    if (context.sessionId) {
+      const host = application.get('AgentSessionRuntimeService').getMcpInteractionHost(context.sessionId)
+      if (!host) return undefined
+      context = { ...context, ...host }
+    }
+    if (!context.windowId || !context.topicId || context.requestElicitation) return context
+    const host = context
+    const authorize = (kind: 'elicitation' | 'sampling' | 'roots', payload: unknown, signal: AbortSignal) =>
+      this.requestInteraction({
+        serverId,
+        windowId: host.windowId!,
+        topicId: host.topicId!,
+        sourceRequestId: host.requestId,
+        kind,
+        payload,
+        signal
+      })
+    return {
+      ...host,
+      requestElicitation: async (request, signal) => {
+        const response = await authorize('elicitation', request, signal)
+        return ElicitResultSchema.parse({
+          action: response.decision,
+          ...(response.decision === 'accept' && request.params.mode !== 'url' ? { content: response.value ?? {} } : {})
+        })
+      },
+      ...(host.model
+        ? ({
+            sample: async (request, signal) => {
+              const response = await authorize('sampling', request, signal)
+              if (response.decision !== 'accept') throw new Error(`MCP sampling ${response.decision}`)
+              return application
+                .get('AiService')
+                .generateMcpSampling(UniqueModelIdSchema.parse(host.model), request, signal)
+            }
+          } satisfies Partial<McpInteractionContext>)
+        : {}),
+      ...(host.roots
+        ? ({
+            requestRoots: async (roots, signal) => (await authorize('roots', { roots }, signal)).decision === 'accept'
+          } satisfies Partial<McpInteractionContext>)
+        : {})
+    }
+  }
+
   public requestInteraction({
+    serverId,
+    sourceRequestId,
     windowId,
     topicId,
     kind,
     payload,
     signal
   }: {
+    serverId: string
+    sourceRequestId?: string
     windowId: WindowId
     topicId: string
     kind: 'elicitation' | 'sampling' | 'roots'
     payload: unknown
     signal: AbortSignal
   }): Promise<McpInteractionResponse> {
-    if (!application.get('WindowManager').getWindow(windowId)) {
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (!window) {
       return Promise.reject(new Error('MCP interaction rejected: the originating window is unavailable'))
     }
 
     const requestId = uuidv4()
+    const server = this.getServerById(serverId)
+    let validate: PendingInteraction['validate']
+    if (kind === 'elicitation') {
+      const request = ElicitRequestSchema.parse(payload)
+      if (request.params.mode !== 'url') {
+        const validator = new CfWorkerJsonSchemaValidator().getValidator(request.params.requestedSchema)
+        validate = (value) => validator(value).valid
+      }
+    }
     return new Promise((resolve, reject) => {
+      let settled = false
       const cleanup = () => {
         clearTimeout(timeout)
         signal.removeEventListener('abort', onAbort)
         this.pendingInteractions.delete(requestId)
+        window.removeListener('closed', onWindowClosed)
+        application.get('IpcApiService').send(windowId, 'mcp.interaction.ended', { requestId })
       }
       const finish = (response: McpInteractionResponse) => {
+        if (settled) return
+        settled = true
         cleanup()
         resolve(response)
       }
       const fail = (error: unknown) => {
+        if (settled) return
+        settled = true
         cleanup()
         reject(error)
       }
       const onAbort = () => fail(signal.reason ?? new DOMException('The operation was aborted', 'AbortError'))
+      const onWindowClosed = () => fail(new Error('MCP interaction window closed'))
       const timeout = setTimeout(() => fail(new Error('MCP interaction timed out')), MCP_INTERACTION_TIMEOUT_MS)
 
-      this.pendingInteractions.set(requestId, { windowId, resolve: finish, reject: fail, cleanup })
+      this.pendingInteractions.set(requestId, { windowId, validate, resolve: finish, reject: fail, cleanup })
       if (signal.aborted) {
         onAbort()
         return
       }
       signal.addEventListener('abort', onAbort, { once: true })
+      window.once('closed', onWindowClosed)
       application.get('IpcApiService').send(windowId, 'mcp.interaction.requested', {
+        serverId: server.id,
+        serverName: server.name,
+        sourceRequestId,
         requestId,
         topicId,
         kind,
@@ -684,6 +867,9 @@ export class McpRuntimeService extends BaseService {
   public async respondInteraction(response: McpInteractionResponse, senderId: WindowId | null): Promise<boolean> {
     const pending = this.pendingInteractions.get(response.requestId)
     if (!pending || !senderId || pending.windowId !== senderId) return false
+    if (response.decision === 'accept' && pending.validate && !pending.validate(response.value)) {
+      throw new Error('MCP elicitation response does not satisfy the requested schema')
+    }
     pending.resolve(response)
     return true
   }

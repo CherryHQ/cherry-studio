@@ -23,6 +23,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   private storage: JsonFileStorage
   public readonly config: Required<OAuthProviderOptions>
   public prepareAuthorization?: () => Promise<void>
+  public beginAuthorization?: () => Promise<void>
 
   constructor(options: OAuthProviderOptions) {
     const configDir = application.getPath('feature.mcp.oauth')
@@ -53,9 +54,14 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   }
 
   async state(): Promise<string> {
+    await this.beginAuthorization?.()
     const state = randomUUID()
     await this.storage.saveState(state)
     return state
+  }
+
+  reloadCredentials(): void {
+    this.storage = new JsonFileStorage(this.config.serverUrlHash, this.config.configDir)
   }
 
   async validateCallbackState(params: URLSearchParams): Promise<void> {
@@ -84,7 +90,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
-    // Only an active connection attempt can consume the callback and finish authorization.
+    // Only an active authorized request can consume the callback and finish authorization.
     const prepareAuthorization = this.prepareAuthorization
     if (!prepareAuthorization) throw new UnauthorizedError()
     await prepareAuthorization()
