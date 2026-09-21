@@ -1576,4 +1576,31 @@ describe('listModels — ComfyUI credentials', () => {
     expect(headers.get('x-api-key')).toBeNull()
     expect(headers.get('x-custom')).toBe('on')
   })
+
+  it('skips saved workflows whose names carry a reserved route character', async () => {
+    const entries = [
+      { type: 'file', name: 'portrait.json', path: 'workflows/portrait.json' },
+      { type: 'file', name: 'a#b.json', path: 'workflows/a#b.json' },
+      { type: 'file', name: 'c?d.json', path: 'workflows/c?d.json' },
+      { type: 'file', name: 'kept.json', path: 'workflows/sub/kept.json' }
+    ]
+    const fetchMock = vi.fn<typeof fetch>(async () => Response.json(entries))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const provider = makeProvider({
+      id: 'comfyui',
+      presetProviderId: 'comfyui',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'http://localhost:8188' }
+      }
+    })
+
+    const models = await listModels(provider, undefined, { throwOnError: true })
+
+    // A handle becomes the model's apiModelId, and `#`/`?` cannot survive in a
+    // unique id, so the row would break every consumer that builds one.
+    expect(models.map((m) => m.apiModelId)).toEqual(['portrait', 'sub/kept'])
+    expect(models.map((m) => m.id)).toEqual(['comfyui::portrait', 'comfyui::sub/kept'])
+  })
 })

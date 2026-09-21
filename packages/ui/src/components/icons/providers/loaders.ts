@@ -40,7 +40,7 @@ export const PROVIDER_ICON_LOADERS = {
   'claude-code': () => import('./claude-code').then(({ ClaudeCodeIcon }) => ClaudeCodeIcon),
   cloudflare: () => import('./cloudflare').then(({ CloudflareIcon }) => CloudflareIcon),
   cohere: () => import('./cohere').then(({ CohereIcon }) => CohereIcon),
-  comfyui: () => import('./comfyui').then(({ ComfyuiIcon }) => ComfyuiIcon),
+  comfyui: () => import('./comfyui/comfyui').then(({ ComfyuiIcon }) => ComfyuiIcon),
   composio: () => import('./composio').then(({ ComposioIcon }) => ComposioIcon),
   coze: () => import('./coze').then(({ CozeIcon }) => CozeIcon),
   dangbei: () => import('./dangbei').then(({ DangbeiIcon }) => DangbeiIcon),

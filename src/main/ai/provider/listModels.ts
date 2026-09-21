@@ -23,6 +23,7 @@ import {
   createUniqueModelId,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
+  hasReservedRouteChar,
   MODALITY,
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
@@ -162,7 +163,8 @@ function defaultGroup(modelId: string, providerId: string): string {
   return deriveModelGroupName(modelId) ?? providerId
 }
 
-/** Build a partial v2 Model from API response */
+/** Build a partial v2 Model from API response. `apiModelId` carries `#`/`?`
+ * verbatim (it is the provider's own handle), so `id` strips them. */
 function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>): Partial<Model> {
   const safeModelId = apiModelId.replace(/[?#]/g, '')
   return {
@@ -472,7 +474,17 @@ const comfyuiFetcher: ModelFetcher = {
     // The ComfyUI server takes no credentials, and the stored key belongs to
     // some other provider's host: `defaultHeaders` would hand it to this one.
     const workflows = await listWorkflows(baseUrl, signal, { headers: headersWithoutCredentials(provider) })
-    return dedup(workflows, (workflow) => workflow).map((workflow) =>
+    // A workflow handle is the model's `apiModelId`, and a unique id cannot carry a
+    // reserved route character, so such a workflow is skipped rather than listed as
+    // a row that no consumer can turn into an id.
+    const listed = workflows.filter((workflow) => !hasReservedRouteChar(workflow))
+    if (listed.length !== workflows.length) {
+      logger.warn('Skipped ComfyUI workflows whose names contain a reserved route character', {
+        providerId: provider.id,
+        skipped: workflows.filter(hasReservedRouteChar)
+      })
+    }
+    return dedup(listed, (workflow) => workflow).map((workflow) =>
       toModel(workflow, provider, {
         name: workflow.split('/').pop() ?? workflow,
         ownedBy: 'comfyui',

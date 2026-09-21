@@ -136,6 +136,15 @@ const RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS = ['?', '#'] as const
 export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${string}`
 
 /**
+ * The reserved route characters of a modelId (`#`, `?`) — a value carrying one
+ * cannot be part of an id that round-trips through a URL. A provider whose ids
+ * are file handles (ComfyUI workflows) has to drop them before they are listed.
+ */
+export function hasReservedRouteChar(value: string): boolean {
+  return RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => value.includes(char))
+}
+
+/**
  * Syntactic check for "looks like an encoded UniqueModelId" — value is a
  * string and contains the separator. Permissive on purpose: empty providerId
  * or modelId parts are accepted here so handler boundaries that legitimately
@@ -160,7 +169,7 @@ export const UniqueModelIdSchema = z.custom<UniqueModelId>(
     if (idx <= 0) return false
     const modelId = value.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
     if (modelId.length === 0) return false
-    return !RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => modelId.includes(char))
+    return !hasReservedRouteChar(modelId)
   },
   { message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)` }
 )
