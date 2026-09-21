@@ -124,6 +124,11 @@
   "settings.mcp.oauth.callback.message": "Sie können diese Seite schließen und zu Cherry Studio zurückkehren",
   "settings.mcp.oauth.callback.title": "Authentifizierung erfolgreich",
   "settings.title": "Einstellungen",
+  "skill.attach.disabled": "Der Skill „{{name}}“ ist deaktiviert. Aktiviere ihn in den Skill-Einstellungen oder entferne ihn aus der Nachricht.",
+  "skill.attach.missing": "Der Skill „{{name}}“ ist nicht mehr installiert. Installiere ihn erneut oder entferne ihn aus der Nachricht.",
+  "skill.attach.too_large": "Der Skill „{{name}}“ überschreitet das Limit von {{limit}} MB. Entferne ihn aus der Nachricht.",
+  "skill.attach.total_too_large": "Die angehängten Skills überschreiten gemeinsam das Limit von {{limit}} MB. Entferne einige davon.",
+  "skill.attach.unreadable": "Der Skill „{{name}}“ konnte nicht gelesen werden. Entferne ihn aus der Nachricht oder installiere ihn erneut.",
   "tray.quit": "Beenden",
   "tray.show_quick_assistant": "Schnellassistent",
   "tray.show_window": "Fenster anzeigen"

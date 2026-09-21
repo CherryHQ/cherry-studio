@@ -124,6 +124,11 @@
   "settings.mcp.oauth.callback.message": "You can close this page and return to Cherry Studio",
   "settings.mcp.oauth.callback.title": "Authentication Successful",
   "settings.title": "Settings",
+  "skill.attach.disabled": "Skill \"{{name}}\" is disabled. Enable it in skill settings or remove it from the message.",
+  "skill.attach.missing": "Skill \"{{name}}\" is no longer installed. Reinstall it or remove it from the message.",
+  "skill.attach.too_large": "Skill \"{{name}}\" exceeds the {{limit}} MB limit. Remove it from the message.",
+  "skill.attach.total_too_large": "The attached skills together exceed the {{limit}} MB limit. Remove some of them.",
+  "skill.attach.unreadable": "Skill \"{{name}}\" could not be read. Remove it from the message or reinstall it.",
   "tray.quit": "Quit",
   "tray.show_quick_assistant": "Quick Assistant",
   "tray.show_window": "Show Window"

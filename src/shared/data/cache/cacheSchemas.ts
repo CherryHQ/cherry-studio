@@ -405,8 +405,9 @@ export type RendererPersistCacheSchema = {
   // Right-pane width for the topic/session list tab. Separate from the artifact pane's key so a
   // width dragged for an artifact never widens the list (and vice versa).
   'ui.chat.resource_pane.width': number
-  // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
-  'ui.composer.input_history': string[]
+  // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer).
+  // Entries with skill chips carry their tokens so recall restores the attachment.
+  'ui.composer.input_history': CacheValueTypes.CacheInputHistoryEntry[]
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
   // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
