@@ -149,6 +149,11 @@ export function useFollowupQueue({
   const { trigger: removeTrigger } = useMutation('DELETE', '/followup-queues/:id', {
     refresh: ['/followup-queues']
   })
+  // Takes delete on a dedicated instance: SWR turns an older trigger's rejection
+  // into a resolve once a newer trigger starts on the same instance, hiding failure.
+  const { trigger: takeDeleteTrigger } = useMutation('DELETE', '/followup-queues/:id', {
+    refresh: ['/followup-queues']
+  })
   const { trigger: reorderTrigger } = useMutation('PATCH', '/followup-queues/order:batch', {
     refresh: ['/followup-queues']
   })
@@ -356,7 +361,7 @@ export function useFollowupQueue({
       let deleted = false
       for (let attempt = 0; attempt < 2 && !deleted; attempt++) {
         try {
-          await removeTrigger({ params: { id } })
+          await takeDeleteTrigger({ params: { id } })
           deleted = true
         } catch (error) {
           if (isAlreadyResolved(error)) {
@@ -403,7 +408,7 @@ export function useFollowupQueue({
       }
       return item
     },
-    [claimItem, removeTrigger, enqueueTrigger, markFailedTrigger, t]
+    [claimItem, takeDeleteTrigger, enqueueTrigger, markFailedTrigger, t]
   )
 
   const reorder = useCallback(
