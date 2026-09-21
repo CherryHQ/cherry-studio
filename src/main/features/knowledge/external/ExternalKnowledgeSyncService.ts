@@ -241,6 +241,10 @@ export class ExternalKnowledgeSyncService {
     this.dependencies = { ...defaultDependencies, ...dependencies }
   }
 
+  recoverDeletingItems(baseId?: string): void {
+    this.dependencies.recoverDeletingKnowledgeItems(baseId, this.activeStagingItemIds)
+  }
+
   async syncSource(input: SyncExternalKnowledgeSourceInput): Promise<ExternalKnowledgeSourceSyncSummary> {
     const summary: ExternalKnowledgeSourceSyncSummary = {
       scannedCount: 0,
@@ -257,7 +261,7 @@ export class ExternalKnowledgeSyncService {
     } catch {
       throw new ExternalKnowledgeSourceSyncError('cancelled', finalizedSummary(summary))
     }
-    this.dependencies.recoverDeletingKnowledgeItems(input.fence.baseId, this.activeStagingItemIds)
+    this.recoverDeletingItems(input.fence.baseId)
     const source = externalKnowledgeSourceService.getByIdTx(db, input.fence.sourceId)
     if (!matchesSourceFence(source, input.fence)) {
       throw new ExternalKnowledgeSourceSyncError('stale-publication', finalizedSummary(summary))

@@ -39,7 +39,6 @@ import {
 import { ExternalKnowledgeSyncService } from './external/ExternalKnowledgeSyncService'
 import { createIndexKnowledgeItem } from './ingestion/indexKnowledgeItem'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
-import { recoverDeletingKnowledgeItems } from './ingestion/subtreeDeletion'
 import type {
   KnowledgeConceptContent,
   KnowledgeConceptGrep,
@@ -149,7 +148,7 @@ export class KnowledgeService extends BaseService {
   }
 
   protected async onAllReady(): Promise<void> {
-    recoverDeletingKnowledgeItems()
+    this.externalKnowledgeSyncService.recoverDeletingItems()
     this.ingestionService.recoverInterruptedItems()
   }
 

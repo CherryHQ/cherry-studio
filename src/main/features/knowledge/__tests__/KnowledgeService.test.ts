@@ -664,6 +664,28 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('routes all-ready deletion recovery through the external sync active-staging exclusions', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetDeletingRootGroupsMock.mockReturnValueOnce([
+      { baseId: 'kb-1', rootItemIds: ['live-staging', 'orphaned-root'] }
+    ])
+    ;(
+      service as unknown as {
+        externalKnowledgeSyncService: { activeStagingItemIds: Set<string> }
+      }
+    ).externalKnowledgeSyncService.activeStagingItemIds.add('live-staging')
+
+    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
+
+    expect(enqueueTxMock).toHaveBeenCalledOnce()
+    expect(enqueueTxMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'knowledge.delete-subtree',
+      { baseId: 'kb-1', rootItemIds: ['orphaned-root'] },
+      expect.anything()
+    )
+  })
+
   it('recovers deleting roots in bounded chunks', async () => {
     const service = new KnowledgeService()
     const rootItemIds = Array.from({ length: 501 }, (_, index) => `note-${index + 1}`)
