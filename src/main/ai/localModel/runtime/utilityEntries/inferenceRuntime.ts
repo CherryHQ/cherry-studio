@@ -48,6 +48,47 @@ export function describeError(error: unknown): string {
   return details.join(' <- caused by ')
 }
 
+const NATIVE_RUNTIME_MARKERS = ['onnxruntime_binding.node', 'onnxruntime-node', 'onnxruntime.dll', 'libonnxruntime']
+const NATIVE_LOADER_MARKERS = [
+  'dll initialization routine failed',
+  'dynamic link library',
+  'err_dlopen_failed',
+  'error loading shared library',
+  'is not a valid win32 application',
+  'node_module_version',
+  'the specified module could not be found'
+] as const
+
+export function isNativeRuntimeLoadError(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  let hasRuntimeMarker = false
+  let hasLoaderMarker = false
+  let current: any = error
+
+  while (current && (!hasRuntimeMarker || !hasLoaderMarker)) {
+    if (typeof current === 'object') {
+      if (seen.has(current)) break
+      seen.add(current)
+    }
+    const details =
+      `${current?.code ?? ''} ${current?.message ?? (typeof current === 'string' ? current : '')}`.toLowerCase()
+    hasRuntimeMarker ||= NATIVE_RUNTIME_MARKERS.some((marker) => details.includes(marker))
+    hasLoaderMarker ||= NATIVE_LOADER_MARKERS.some((marker) => details.includes(marker))
+    current = typeof current === 'object' ? current.cause : null
+  }
+
+  return hasRuntimeMarker && hasLoaderMarker
+}
+
+export function describeNativeRuntimeLoadFailure(error: unknown, cpuError?: unknown): string {
+  const cpuDetails = cpuError ? `; CPU fallback failed error=${describeError(cpuError)}` : ''
+  return (
+    `local inference native runtime failed to load (onnxruntime native module): ${describeError(error)}${cpuDetails}. ` +
+    `This is a broken or incompatible native runtime, not a network download failure — ` +
+    `re-download the local model runtime to reinstall it.`
+  )
+}
+
 /** Applies the connect-time init data: native binding path and hardware profile. */
 export function applyInitData(initData: InferenceInitData): void {
   appPath = initData.appPath
@@ -120,7 +161,10 @@ export async function withHardwareFallback<T>(
   try {
     return await operation()
   } catch (hardwareError) {
-    if (context.retryOnHardwareFailure === false || runtimeProfile.id === 'cpu') throw hardwareError
+    if (context.retryOnHardwareFailure === false || runtimeProfile.id === 'cpu') {
+      if (isNativeRuntimeLoadError(hardwareError)) throw new Error(describeNativeRuntimeLoadFailure(hardwareError))
+      throw hardwareError
+    }
     const provider = runtimeProfile.id
     context.logger.warn(
       `hardware inference failed provider=${provider} ${context.describeRequest()} error=${describeError(hardwareError)}; falling back to cpu`
@@ -130,6 +174,9 @@ export async function withHardwareFallback<T>(
     try {
       return await operation()
     } catch (cpuError) {
+      if (isNativeRuntimeLoadError(hardwareError) || isNativeRuntimeLoadError(cpuError)) {
+        throw new Error(describeNativeRuntimeLoadFailure(hardwareError, cpuError))
+      }
       throw new Error(
         `hardware inference failed provider=${provider} error=${describeError(hardwareError)}; CPU fallback failed error=${describeError(cpuError)}`
       )
