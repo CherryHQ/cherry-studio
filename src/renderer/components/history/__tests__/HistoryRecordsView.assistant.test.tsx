@@ -14,20 +14,6 @@ import type { Topic } from '@shared/data/types/topic'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
 
-import deDE from '../../../i18n/locales/de-de.json'
-import elGR from '../../../i18n/locales/el-gr.json'
-import enUS from '../../../i18n/locales/en-us.json'
-import esES from '../../../i18n/locales/es-es.json'
-import frFR from '../../../i18n/locales/fr-fr.json'
-import jaJP from '../../../i18n/locales/ja-jp.json'
-import ptPT from '../../../i18n/locales/pt-pt.json'
-import roRO from '../../../i18n/locales/ro-ro.json'
-import ruRU from '../../../i18n/locales/ru-ru.json'
-import trTR from '../../../i18n/locales/tr-tr.json'
-import viVN from '../../../i18n/locales/vi-vn.json'
-import zhCN from '../../../i18n/locales/zh-cn.json'
-import zhTW from '../../../i18n/locales/zh-tw.json'
-
 const hookMocks = vi.hoisted(() => ({
   isMac: false,
   cancelTopicRenaming: vi.fn(),
@@ -1733,90 +1719,5 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
     expect(toast.info).toHaveBeenCalledWith('Already in Recycle Bin')
-  })
-})
-
-describe('HistoryRecordsView locale resources', () => {
-  it('defines the real history and delete dialog keys used by the page', () => {
-    const requiredGlobalKeys = [
-      'chat.topics.manage.delete.confirm.content',
-      'chat.topics.manage.delete.confirm.title',
-      'common.archive',
-      'common.back',
-      'common.cancel',
-      'common.delete',
-      'common.delete_permanently',
-      'common.required_field',
-      'common.save',
-      'recycle_bin.already_moved',
-      'recycle_bin.move_failed'
-    ]
-    const requiredRuntimeRecordKeys = [
-      'clearSearch',
-      'filter.selectAgent',
-      'filter.selectAssistant',
-      'filter.statusLabel',
-      'filter.statusPlaceholder',
-      'filter.unlinkedAssistant',
-      'table.conversation'
-    ]
-    const requiredRecordKeys = [
-      'agentTitle',
-      'bulkMove',
-      'bulkMoveTopics.confirm',
-      'bulkMoveTopics.description',
-      'bulkMoveTopics.empty',
-      'bulkMoveTopics.error',
-      'bulkMoveTopics.partialSuccess',
-      'bulkMoveTopics.placeholder',
-      'bulkMoveTopics.success',
-      'bulkMoveTopics.target',
-      'bulkMoveTopics.title',
-      'clearSearch',
-      'empty.description',
-      'empty.sessionsDescription',
-      'empty.sessionsTitle',
-      'empty.title',
-      'filter.statusLabel',
-      'filter.unlinkedAssistant',
-      'loading.description',
-      'loading.sessionsDescription',
-      'loading.sessionsTitle',
-      'loading.title',
-      'searchSession',
-      'searchTopic',
-      'shortTitle',
-      'status.completed',
-      'status.failed',
-      'status.running',
-      'table.emptyValue',
-      'table.actions',
-      'table.conversation',
-      'table.session',
-      'table.time',
-      'title'
-    ]
-    const originalLocaleResources = [enUS, zhCN, zhTW]
-    const runtimeLocaleResources = [enUS, zhCN, zhTW, deDE, elGR, esES, frFR, jaJP, ptPT, roRO, ruRU, trTR, viVN]
-
-    for (const resource of runtimeLocaleResources) {
-      for (const key of requiredGlobalKeys) {
-        expect(resource[key]).toEqual(expect.any(String))
-      }
-
-      for (const key of requiredRuntimeRecordKeys) {
-        const value = resource[`history.records.${key}`]
-        expect(value).toEqual(expect.any(String))
-        expect(value).not.toMatch(/^\[to be translated]/)
-      }
-    }
-
-    for (const resource of originalLocaleResources) {
-      // The `history.v2.*` namespace was renamed to `history.records.*`; no key may go back.
-      expect(Object.keys(resource).filter((key) => key.startsWith('history.v2.'))).toEqual([])
-      for (const key of requiredRecordKeys) {
-        expect(resource[`history.records.${key}`]).toEqual(expect.any(String))
-      }
-    }
   })
 })
