@@ -109,18 +109,17 @@ export async function createBuiltinMcpEndpoint(
 }
 
 /**
- * Extra env for servers that resolve packages from a custom registry: `@cherry/mcp-auto-install`
- * reads its catalog from a file whose location only exists at runtime.
+ * Env that keeps `@cherry/mcp-auto-install` inside the Cherry tree: its Registry cache, and the
+ * config file it writes to so a missed `dryRun` never lands in the user's other MCP clients.
  */
-export function getBuiltinRegistryEnv(server: McpServer): Record<string, string> {
-  if (
-    server.installSource !== 'builtin' ||
-    server.name !== BuiltinMcpServerNames.mcpAutoInstall ||
-    !server.registryUrl
-  ) {
+export function getBuiltinAutoInstallEnv(server: McpServer): Record<string, string> {
+  if (server.installSource !== 'builtin' || server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
     return {}
   }
-  return { MCP_REGISTRY_PATH: application.getPath('feature.mcp.registry_file') }
+  return {
+    MCP_REGISTRY_PATH: application.getPath('feature.mcp.registry_file'),
+    MCP_SETTINGS_PATH: application.getPath('feature.mcp.auto_install_settings_file')
+  }
 }
 
 export function hasInMemoryImplementation(name: string): boolean {

@@ -312,7 +312,7 @@ describe('DiagnosticUploadPanel', () => {
         'The diagnostic report service is temporarily unavailable. Try again later or use manual feedback.'
       )
     ).toBeInTheDocument()
-    expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
+    expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_external_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
 
     expect(screen.queryByRole('region', { name: 'Saved locally' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save locally' })).toBeInTheDocument()
@@ -321,7 +321,7 @@ describe('DiagnosticUploadPanel', () => {
     expect(manualFeedback.compareDocumentPosition(retry)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     await user.click(manualFeedback)
-    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
+    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
     await user.click(retry)
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.retry_upload', { bundleId })
     expect(await screen.findByText(reportId)).toBeInTheDocument()

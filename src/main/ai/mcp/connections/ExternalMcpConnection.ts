@@ -29,7 +29,7 @@ import {
   type McpAuthorizationLease
 } from '../oauth/McpOAuthCoordinator'
 import { McpOAuthClientProvider } from '../oauth/provider'
-import { getBuiltinRegistryEnv } from '../servers/factory'
+import { getBuiltinAutoInstallEnv } from '../servers/factory'
 import { ClientMcpConnection } from './ClientMcpConnection'
 import type { McpConnection, McpConnectionEvents } from './McpConnection'
 
@@ -186,7 +186,7 @@ export async function createExternalMcpConnection({
     if (launch.resolution === 'unresolved') {
       log.warn('Could not resolve the stdio command; attempting the configured command', { command: launch.command })
     }
-    Object.assign(serverEnv, launch.env, getBuiltinRegistryEnv(server))
+    Object.assign(serverEnv, launch.env, getBuiltinAutoInstallEnv(server))
     if (launch.command.includes('bun')) removeEnvProxy(loginShellEnv)
 
     const parameters: StdioServerParameters = {

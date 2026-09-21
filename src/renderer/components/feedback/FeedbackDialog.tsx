@@ -22,6 +22,7 @@ import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 
 export const FEEDBACK_GITHUB_URL = 'https://github.com/CherryHQ/cherry-studio/issues/new/choose'
 
@@ -98,7 +99,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
   const openGitHubIssue = async () => {
     try {
-      await ipcApi.request('system.shell.open_website', FEEDBACK_GITHUB_URL)
+      await openExternalWebsite(FEEDBACK_GITHUB_URL)
     } catch (error) {
       logger.error('Failed to open GitHub issue chooser', error as Error)
       toast.error(t('settings.about.feedback.github.error'))

@@ -23,6 +23,7 @@ import {
   createUniqueModelId,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
+  MODALITY,
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -55,6 +56,7 @@ import {
   NewApiModelsResponseSchema,
   OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
+  OmlxModelStatusResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
   TogetherModelsResponseSchema,
@@ -830,6 +832,91 @@ const openAICompatibleFetcher: ModelFetcher = {
   fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
 }
 
+const omlxFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.omlx),
+  fetch: async (provider, signal) => {
+    // `/v1/models` carries no type information, so every entry would present
+    // as a chat model — including block-diffusion canvas models, which the
+    // server only serves through its diffusion lane. `/v1/models/status`
+    // reports the model type: keep the models that chat ('llm'/'vlm') and
+    // drop the diffusion families. The status endpoint hangs off the server
+    // root, and a configured host may already carry an API version other than
+    // v1, so strip any trailing version segment rather than only /v1.
+    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false))
+    const response = await getFromApi({
+      url: `${root}/v1/models/status`,
+      headers: defaultHeaders(provider),
+      responseSchema: OmlxModelStatusResponseSchema,
+      abortSignal: signal
+    })
+    return (
+      dedup(
+        // The markitdown virtual model rides the same chat completions endpoint,
+        // so the server's own model_type list of chat-servable kinds.
+        response.models.filter(
+          (m) => m.model_type === 'llm' || m.model_type === 'vlm' || m.model_type === 'markitdown'
+        ),
+        (m) => m.id
+      )
+        .filter((m) => !(m.config_model_type ?? '').startsWith('diffusion'))
+        // The server hides models on purpose (operator-managed); keep them out.
+        .filter((m) => m.is_hidden !== true)
+        .map((m) => {
+          // `resolveEffectiveEndpoint` reads `endpointTypes[0]` before
+          // `provider.defaultChatEndpoint`, so listing chat-completions first
+          // silently overrode the registry's declared default (Responses, oMLX's
+          // native chat surface) and routed every discovered model to the legacy
+          // dialect. Derive the first entry from the provider's declaration so
+          // discovery inherits it — including a user who changes the default.
+          //
+          // The Anthropic endpoint stays declared for the Claude Agent SDK, which
+          // speaks only Messages and asks for it explicitly.
+          //
+          // MarkItDown is the exception: the server special-cases that virtual
+          // model only on the chat-completions route, so it must not advertise
+          // Responses or Anthropic — either would send a dialect the server does
+          // not implement for it. The registry's other declared endpoints stay
+          // listed behind the default: callers that prefer one (the pi runtime
+          // asks for Anthropic when both chat dialects are present) must still
+          // find it.
+          const endpointTypes: EndpointType[] =
+            m.model_type === 'markitdown'
+              ? [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+              : [
+                  ...new Set([
+                    provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+                    ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+                    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+                  ])
+                ]
+
+          return toModel(m.id, provider, {
+            ownedBy: 'omlx',
+            // An alias renames the model in the UI only: the server still keys
+            // the request on the physical id, so `id`/`apiModelId` stay `m.id`.
+            // Spread conditionally — `toModel` applies `extra` last, so a
+            // present-but-undefined `name` would overwrite the id fallback.
+            ...(m.model_alias ? { name: m.model_alias } : {}),
+            endpointTypes,
+            // The server reports the window it serves and its output cap; a
+            // discovered model would otherwise carry no limits at all.
+            ...(m.max_context_window ? { contextWindow: m.max_context_window } : {}),
+            ...(m.max_tokens ? { maxOutputTokens: m.max_tokens } : {}),
+            // A VLM takes text and images; the image modality has to be stated
+            // explicitly, or exported configurations read it as text-only even
+            // though the capability says otherwise.
+            ...(m.model_type === 'vlm'
+              ? {
+                  capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+                  inputModalities: [MODALITY.TEXT, MODALITY.IMAGE]
+                }
+              : {})
+          })
+        })
+    )
+  }
+}
+
 // Native v1 lists downloaded models even when JIT loading is disabled.
 const lmStudioFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
@@ -911,6 +998,7 @@ const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
   lmStudioFetcher,
+  omlxFetcher,
   geminiFetcher,
   vertexFetcher,
   copilotFetcher,

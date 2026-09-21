@@ -1,9 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
-import { createBuiltinMcpEndpoint, resolveBuiltinExternalMcpServer } from '../factory'
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({})
+})
+
+const { createBuiltinMcpEndpoint, getBuiltinAutoInstallEnv, resolveBuiltinExternalMcpServer } =
+  await import('../factory')
 
 const server = (overrides: Partial<McpServer>): McpServer => ({
   id: 'id',
@@ -11,6 +17,39 @@ const server = (overrides: Partial<McpServer>): McpServer => ({
   type: 'stdio',
   isActive: true,
   ...overrides
+})
+
+describe('getBuiltinAutoInstallEnv', () => {
+  const autoInstall = {
+    name: BuiltinMcpServerNames.mcpAutoInstall,
+    command: 'npx',
+    installSource: 'builtin' as const
+  }
+  const cherryOwnedPaths = {
+    MCP_REGISTRY_PATH: '/mock/feature.mcp.registry_file',
+    MCP_SETTINGS_PATH: '/mock/feature.mcp.auto_install_settings_file'
+  }
+
+  it('keeps the cache and config writes inside the Cherry tree whether or not an npm mirror is set', () => {
+    expect(getBuiltinAutoInstallEnv(server(autoInstall))).toEqual(cherryOwnedPaths)
+    expect(getBuiltinAutoInstallEnv(server({ ...autoInstall, registryUrl: 'https://npm.example' }))).toEqual(
+      cherryOwnedPaths
+    )
+  })
+
+  it('leaves every other server alone', () => {
+    const other = server({ name: 'my-server', command: 'node' })
+    const collision = server({ name: BuiltinMcpServerNames.mcpAutoInstall, installSource: 'manual', command: 'npx' })
+    const prefix = server({
+      name: `${BuiltinMcpServerNames.mcpAutoInstall}-custom`,
+      installSource: 'builtin',
+      command: 'npx'
+    })
+
+    expect(getBuiltinAutoInstallEnv(other)).toEqual({})
+    expect(getBuiltinAutoInstallEnv(collision)).toEqual({})
+    expect(getBuiltinAutoInstallEnv(prefix)).toEqual({})
+  })
 })
 
 describe('resolveBuiltinExternalMcpServer', () => {

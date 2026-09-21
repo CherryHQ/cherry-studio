@@ -11,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-commands'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
-import { SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-token-meter'
@@ -34,7 +34,16 @@ import {
 } from './protocol'
 
 export const name = 'cherry-bridge'
-export const inject = ['approval', 'agents', 'tools', 'tokenMeter', 'subagents', 'userQuestions', 'planMode']
+export const inject = [
+  'approval',
+  'agents',
+  'tools',
+  'tokenMeter',
+  'subagents',
+  'userQuestions',
+  'planMode',
+  'sessions'
+]
 
 /** Canonical value a bridged execute resolves; `output.schema` states the same contract. */
 interface BridgeToolOutputValue {
@@ -114,13 +123,10 @@ export function apply(ctx: Context): void {
   /** Host→plugin dispatch; a rejection becomes the JSON-RPC error response. */
   async function handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
     switch (method) {
-      case 'session/fork-snapshot': {
-        const { sessionId, boundary } = params as BridgeHostParams<'session/fork-snapshot'>
-        const session = requireAgent(sessionId).session
-        if (session.eventAt(SessionSeq(boundary))?.type !== 'turn/end') {
-          throw new Error('history_changed')
-        }
-        return { events: session.snapshotEvents(SessionLogOffset(0), SessionLogOffset(boundary + 1)) }
+      case 'session/flush': {
+        const { sessionId } = params as BridgeHostParams<'session/flush'>
+        await ctx.sessions.flush(requireAgent(sessionId).session)
+        return {}
       }
       case 'session/open':
         return openSession(params as BridgeHostParams<'session/open'>)

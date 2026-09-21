@@ -11,7 +11,7 @@ import { runForkWorker } from '../fork'
 import { parseDshForkCheckpoint } from './forkCheckpoint'
 import type { DshForkWorkerInput } from './forkWorker'
 
-export async function forkDshSession(input: RuntimeForkInput, snapshotEvents?: unknown[]): Promise<RuntimeForkResult> {
+export async function forkDshSession(input: RuntimeForkInput): Promise<RuntimeForkResult> {
   const checkpoint = parseDshForkCheckpoint(input.checkpoint)
   const sourceRoot = application.getPath('feature.agents.dsh.sessions')
   const targetRoot = path.join(input.artifactDirectory, 'dsh')
@@ -30,8 +30,7 @@ export async function forkDshSession(input: RuntimeForkInput, snapshotEvents?: u
     targetSessionId: input.targetSessionId,
     targetCwd: input.targetCwd,
     boundary: checkpoint.boundary,
-    checkpoints: checkpoints.map(({ boundary }) => ({ boundary })),
-    events: snapshotEvents
+    checkpoints: checkpoints.map(({ boundary }) => ({ boundary }))
   }
   const worker = createWorker({ workerData, env: { ...process.env } })
   const parsed = z.strictObject({ path: z.string().min(1) }).safeParse(await runForkWorker(worker, input.signal))
