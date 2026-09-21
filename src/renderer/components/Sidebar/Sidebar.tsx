@@ -19,7 +19,6 @@ export interface SidebarProps {
   entries: ResolvedSidebarEntry[]
   user?: SidebarUser
   isFloating?: boolean
-  isFullscreen?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions

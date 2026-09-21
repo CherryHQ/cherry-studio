@@ -373,6 +373,19 @@ describe('Sidebar resize handle', () => {
     expect(screen.getByRole('button', { name: 'User' })).not.toHaveTextContent('›')
   })
 
+  it('renders the full footer user action without a user identity', () => {
+    render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        entries={entries}
+        userAction={<button type="button">Open settings</button>}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Open settings' })).toBeVisible()
+  })
+
   it('wires context menu actions and keeps blank sidebar space clickable while the menu is open', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn()

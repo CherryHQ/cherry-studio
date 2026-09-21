@@ -94,7 +94,9 @@ function FullFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
           {renderUserTrigger?.(userButton) ?? userButton}
           <div className="ml-auto flex shrink-0 items-center">{userAction}</div>
         </div>
-      ) : null}
+      ) : (
+        userAction
+      )}
     </div>
   )
 }

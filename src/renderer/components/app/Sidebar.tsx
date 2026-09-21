@@ -55,13 +55,7 @@ function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly 
   ]
 }
 
-export default function Sidebar({
-  ref,
-  isFullscreen = false
-}: {
-  ref?: Ref<HTMLDivElement | null>
-  isFullscreen?: boolean
-}) {
+export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const { shortcuts, remove, reorder } = useSidebarShortcuts()
@@ -88,6 +82,10 @@ export default function Sidebar({
     const normalizedWidth = normalizeSidebarWidth(sidebarWidth)
     if (normalizedWidth !== sidebarWidth) setSidebarWidth(normalizedWidth)
   }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
+
+  useEffect(() => {
+    if (layout === 'hidden') setUserMenuOpen(false)
+  }, [layout])
 
   const avatar = useAvatar()
   const handleUserMenuOpenChange = useCallback(
@@ -219,7 +217,6 @@ export default function Sidebar({
   }, [])
 
   const sidebarProps = {
-    isFullscreen,
     entries,
     user: sidebarUser,
     userAction: (_footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (

@@ -16,11 +16,12 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   reorder: vi.fn(),
   resolutions: [] as any[],
+  sidebarWidth: 170,
   shortcuts: [] as any[],
   showUpdatePopup: vi.fn()
 }))
 
-vi.mock('@data/hooks/useCache', () => ({ usePersistCache: () => [170, vi.fn()] }))
+vi.mock('@data/hooks/useCache', () => ({ usePersistCache: () => [mocks.sidebarWidth, vi.fn()] }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => ['User', vi.fn()] }))
 vi.mock('@renderer/hooks/useAvatar', () => ({ default: () => null }))
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
@@ -60,11 +61,13 @@ vi.mock('../../layout/HelpMenu', () => ({
 }))
 vi.mock('../../Sidebar', () => ({
   getSidebarDisplayWidth: (width: number) => width,
-  getSidebarLayout: () => 'full',
+  getSidebarLayout: (width: number) => (width === 0 ? 'hidden' : 'full'),
   normalizeSidebarWidth: (width: number) => width,
   Sidebar: ({
     entries,
+    isFloating = false,
     onEntriesReorder,
+    onHoverChange,
     renderUserTrigger,
     user,
     userAction
@@ -76,7 +79,9 @@ vi.mock('../../Sidebar', () => ({
       onOpen: () => void
       contextMenuItems: Array<{ id: string; label: string; enabled?: boolean; onSelect: () => void }>
     }>
+    isFloating?: boolean
     onEntriesReorder: (event: { oldIndex: number; newIndex: number }) => void
+    onHoverChange?: (visible: boolean) => void
     renderUserTrigger?: (trigger: ReactElement) => ReactElement
     user?: { name: string; onClick?: () => void }
     userAction?: ReactNode | ((layout: 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
@@ -90,7 +95,7 @@ vi.mock('../../Sidebar', () => ({
     const resolvedUserAction = typeof userAction === 'function' ? userAction('full', vi.fn()) : userAction
 
     return (
-      <div>
+      <div data-testid={isFloating ? 'floating-sidebar' : 'docked-sidebar'} onMouseEnter={() => onHoverChange?.(true)}>
         <div data-testid="sidebar-footer-user">
           {accountTrigger}
           {resolvedUserAction}
@@ -139,6 +144,7 @@ describe('app Sidebar', () => {
     vi.clearAllMocks()
     mocks.shortcuts = []
     mocks.resolutions = []
+    mocks.sidebarWidth = 170
     mocks.registryResolve.mockReturnValue({ activate: mocks.activate })
     mocks.reorder.mockResolvedValue(undefined)
   })
@@ -153,6 +159,21 @@ describe('app Sidebar', () => {
     expect(screen.getByTestId('account-menu')).toBeVisible()
 
     await user.click(screen.getByTestId('account-menu'))
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
+  it('does not reopen the account menu after resizing the sidebar to hidden', async () => {
+    const user = userEvent.setup()
+    const view = render(<Sidebar />)
+
+    await user.click(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'User' }))
+    expect(screen.getByTestId('account-menu')).toBeVisible()
+
+    mocks.sidebarWidth = 0
+    view.rerender(<Sidebar />)
+    fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
+
+    expect(screen.getByTestId('floating-sidebar')).toBeVisible()
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
   })
 
