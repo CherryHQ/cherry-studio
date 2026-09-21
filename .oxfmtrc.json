@@ -8,6 +8,7 @@
     "**/*.md",
     ".claude/**",
     ".conductor/**",
+    ".kbd-orchestrator/**",
     ".yarn/**",
     "build/**",
     "coverage/**",

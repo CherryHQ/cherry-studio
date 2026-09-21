@@ -1,0 +1,109 @@
+{
+  "name": "CherryStudio",
+  "description": "A powerful AI assistant for producer — cross-platform desktop app (Electron + React + TypeScript).",
+  "activePhase": null,
+  "worktreeRoot": "${HOME}/.claude/worktrees",
+  "maxChildDepth": 4,
+  "ux_profile": "advanced",
+  "__ux_profile_note": "advanced → kbd-status is dense by default; beginner → kbd-status --explain is on by default (expands decision-log entries + next-and-why narrative). Verbosity only — never gates information.",
+  "focus_project_path": "/Users/gqadonis/Projects/prometheus/the-boss",
+  "spec_paths": ["openspec/specs/*.md", "docs/references/**/*.md"],
+  "openspec_available": true,
+  "constraint_file": ".kbd-orchestrator/constraints.md",
+  "__node_policy_note": "package.json engines requires node >=24.11.1 <24.16.0 and .npmrc sets engine-strict=true. v24.11.1 is installed under nvm and verified (pnpm install, docs:check, typecheck all pass). Every pnpm command keeps the explicit nvm prefix because the shell does not auto-select it: nvm is sourced only in ~/.bashrc and the repo-local .envrc needs a direnv hook that is not active. Do not weaken this prefix to whatever version happens to be on PATH.",
+  "node_version_required": "24.11.1",
+  "command_prefix": "source \"$HOME/.nvm/nvm.sh\" && nvm use 24.11.1 >/dev/null &&",
+  "build_health_command": "source \"$HOME/.nvm/nvm.sh\" && nvm use 24.11.1 >/dev/null && pnpm lint",
+  "test_command": "source \"$HOME/.nvm/nvm.sh\" && nvm use 24.11.1 >/dev/null && pnpm test",
+  "lint_command": "source \"$HOME/.nvm/nvm.sh\" && nvm use 24.11.1 >/dev/null && pnpm lint",
+  "dev_command": "source \"$HOME/.nvm/nvm.sh\" && nvm use 24.11.1 >/dev/null && pnpm dev",
+  "docs_check_command": "source \"$HOME/.nvm/nvm.sh\" && nvm use 24.11.1 >/dev/null && pnpm docs:check",
+  "full_gate_command": "source \"$HOME/.nvm/nvm.sh\" && nvm use 24.11.1 >/dev/null && pnpm build:check",
+  "__test_scope_note": "Never run `pnpm test <path>` — the script chains several vitest invocations with && and CLI args reach only the last one, so earlier projects run their full suites unfiltered. Use the per-project wrappers or `pnpm exec vitest run <file>`.",
+  "scoped_test_commands": {
+    "main": "pnpm test:main",
+    "renderer": "pnpm test:renderer",
+    "aicore": "pnpm test:aicore",
+    "shared": "pnpm test:shared",
+    "ui": "pnpm test:pkg:ui",
+    "scripts": "pnpm test:scripts",
+    "single_file": "pnpm exec vitest run <file>"
+  },
+  "preferred_planning_agent": "antigravity",
+  "preferred_execution_agents": [],
+  "model_policy": {
+    "registry": {
+      "small": { "local": "Qwen3.5-9B-Q8_0", "t4": "Qwen3.5-9B-Q8_0", "l4": "Qwen3.5-9B-Q8_0" },
+      "medium": { "local": null, "t4": "Qwen3.5-27B-Q4", "l4": "Qwen3.5-35B-A3B-Q4" },
+      "frontier": { "local": "claude-sonnet-4-6", "t4": "claude-sonnet-4-6", "l4": "claude-sonnet-4-6" }
+    },
+    "phases": {
+      "kbd-assess": "frontier",
+      "kbd-plan": "frontier",
+      "kbd-status": "small",
+      "kbd-reflect": "frontier",
+      "opsx-new": "small",
+      "opsx-apply-low": "small",
+      "opsx-apply-medium": "medium",
+      "opsx-apply-high": "frontier",
+      "opsx-verify": "medium",
+      "opsx-archive": "small",
+      "refiner-iterate": "small",
+      "refiner-evaluate": "medium",
+      "evolver-assess": "frontier",
+      "evolver-analyze": "frontier",
+      "evolver-plan": "frontier",
+      "evolver-execute-low": "small",
+      "evolver-execute-medium": "medium",
+      "evolver-execute-high": "frontier",
+      "evolver-reflect": "frontier",
+      "evolver-status": "small",
+      "creator-specify": "frontier",
+      "creator-plan": "frontier",
+      "creator-execute": "tiered",
+      "creator-reflect": "frontier",
+      "creator-persist": "small"
+    },
+    "active_environment": "local"
+  },
+  "agents_config": {
+    "antigravity": {
+      "entry": "SKILL.md slash commands",
+      "strengths": ["multi-file features", "browser verification", "planning"]
+    },
+    "codex": {
+      "entry": "OpenAI Codex CLI / app",
+      "strengths": ["parallel isolated tasks via git worktrees"]
+    },
+    "opencode": {
+      "entry": "OpenCode CLI",
+      "strengths": ["quick targeted edits", "file patches"]
+    }
+  },
+  "workspace": {
+    "workspace_file": null,
+    "__workspace_note": "/Users/gqadonis/Projects/the-boss.code-workspace exists but its first folder points at `cherry-studio`, which no longer exists on disk — this project now lives at prometheus/the-boss. No workspace file references the current path, so KBD runs in single-project mode. The two reference folders below were taken from that stale workspace and DO exist; re-point the workspace file and set workspace_file if you want multi-root mode.",
+    "folders": [
+      {
+        "path": "/Users/gqadonis/Projects/prometheus/the-boss",
+        "role": "focus",
+        "purpose": "Active project — all KBD operations target this directory",
+        "write_access": true
+      },
+      {
+        "path": "/Users/gqadonis/Projects/prometheus/universal-agent-runtime",
+        "role": "reference",
+        "write_access": false,
+        "purpose": "Rust agent runtime — read for runtime/protocol conventions",
+        "read_paths": ["AGENTS.md", "docs/**/*.md", "*.md"]
+      },
+      {
+        "path": "/Users/gqadonis/Projects/travisjames/skills/artifact-refiner",
+        "role": "reference",
+        "write_access": false,
+        "purpose": "Artifact refiner skill package — read for skill authoring conventions",
+        "read_paths": ["AGENTS.md", "CLAUDE.md", "docs/**/*.md", "*.md"]
+      }
+    ]
+  }
+}
