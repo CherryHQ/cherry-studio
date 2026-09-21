@@ -17,6 +17,7 @@ import {
   useResourceListActions,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
+import { ResourceListMoreAction } from '@renderer/components/chat/resourceList/ResourceListMoreAction'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -209,6 +210,12 @@ const SessionItem = ({
   )
 
   const { getActions: getMenuActions, handleMenuAction } = useSessionMenuActions(actionContext)
+  const moreMenuActions = useMemo(
+    () => getMenuActions().filter((action) => action.id !== 'session.delete'),
+    [getMenuActions]
+  )
+  const hasVisibleMoreMenuActions = moreMenuActions.some((action) => action.availability.visible)
+
   const deleteAction = useMemo(
     () => getMenuActions().find((action) => action.id === 'session.delete'),
     [getMenuActions]
@@ -310,7 +317,13 @@ const SessionItem = ({
         />
       )}
 
-      <ResourceList.ItemActions pinned={pinned && showPinAction}>
+      <ResourceList.ItemActions
+        pinned={pinned && showPinAction}
+        discoverable={!rowState.renaming && hasVisibleMoreMenuActions}
+        onClick={(event) => event.stopPropagation()}>
+        {!rowState.renaming && hasVisibleMoreMenuActions && (
+          <ResourceListMoreAction actions={moreMenuActions} onAction={handleMenuAction} />
+        )}
         {showPinAction && (
           <Tooltip title={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')} delay={500}>
             <ResourceList.ItemAction

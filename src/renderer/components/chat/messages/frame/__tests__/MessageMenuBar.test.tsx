@@ -146,4 +146,22 @@ describe('MessageMenuBar', () => {
 
     expect(container.querySelector('.message-tokens')).toHaveTextContent('42 Tokens')
   })
+
+  it('keeps copy and more stable for historical messages', () => {
+    const { container } = renderWithProvider(
+      <MessageMenuBar
+        message={assistantMessage}
+        isLastMessage={false}
+        isAssistantMessage
+        isProcessing={false}
+        messageContainerRef={{ current: null } as unknown as React.RefObject<HTMLDivElement>}
+      />
+    )
+
+    expect(container.querySelector('[data-message-action-id="copy"]')).toHaveClass('pointer-events-auto', 'opacity-100')
+    expect(container.querySelector('[data-message-action-id="more-menu"]')).toHaveClass(
+      'pointer-events-auto',
+      'opacity-100'
+    )
+  })
 })
