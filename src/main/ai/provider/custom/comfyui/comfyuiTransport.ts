@@ -275,32 +275,41 @@ class ComfyuiTransport implements ImageGenerationTransport {
     graph[target.nodeId].inputs[target.input] = input.prompt ?? ''
     applySeed(graph, input.seed, target.samplerId)
 
-    // The submit and the body it answers with share one deadline: a server that
-    // buffers a large graph can take a while to answer, but a body that never
-    // arrives must not hold the generation. The id only exists in that body, so a
-    // deadline that fires mid-answer leaves the server-side job uncancellable —
-    // accepted trade-off against a hanging generation, and the reason every
-    // id-bearing path cancels by id.
-    const promptId = await this.withDeadline(
-      input.signal,
-      SUBMIT_TIMEOUT_MS,
-      t('paintings.comfyui.request_timeout', { seconds: SUBMIT_TIMEOUT_MS / 1000 }),
-      async (deadlineSignal) => {
-        const response = await this.doFetch(`${this.baseURL}/prompt`, {
-          method: 'POST',
-          headers: { ...this.headers, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: graph, client_id: `cherry-studio-${Date.now()}` }),
-          signal: deadlineSignal
-        })
-        if (!response.ok) {
-          throw createPaintingGenerateError('REMOTE_ERROR', {
-            message: await describePromptError(response)
+    // The submit and its body share one deadline, and we name the prompt: a lost
+    // response still leaves the id ours to cancel.
+    const requestedPromptId = `cherry-studio-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    let promptId: string | undefined
+    try {
+      promptId = await this.withDeadline(
+        input.signal,
+        SUBMIT_TIMEOUT_MS,
+        t('paintings.comfyui.request_timeout', { seconds: SUBMIT_TIMEOUT_MS / 1000 }),
+        async (deadlineSignal) => {
+          const response = await this.doFetch(`${this.baseURL}/prompt`, {
+            method: 'POST',
+            headers: { ...this.headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: graph,
+              client_id: `cherry-studio-${Date.now()}`,
+              prompt_id: requestedPromptId
+            }),
+            signal: deadlineSignal
           })
+          if (!response.ok) {
+            throw createPaintingGenerateError('REMOTE_ERROR', {
+              message: await describePromptError(response)
+            })
+          }
+          const { prompt_id } = (await response.json()) as { prompt_id?: string }
+          return prompt_id
         }
-        const { prompt_id } = (await response.json()) as { prompt_id?: string }
-        return prompt_id
-      }
-    )
+      )
+    } catch (error) {
+      // The server queues the id we sent before it answers, so a submit that times out
+      // or is aborted may still own queued work: dequeue it before reporting failure.
+      await this.cancel(requestedPromptId).catch(() => undefined)
+      throw error
+    }
     if (!promptId) {
       throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.no_prompt_id') })
     }

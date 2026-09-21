@@ -632,7 +632,18 @@ class ModelService {
       })
     }
 
-    const removableCustomModelIds = new Set([...customModelIds].filter((id) => !userDefaultIds.has(id)))
+    // A provider whose fetched list is its own model set (ComfyUI: a model is a saved
+    // workflow) can only be reconciled against that list if its rows are removable at
+    // all, and they carry no preset id — the custom-model guard would keep every
+    // workflow deleted upstream forever. Every other provider keeps the guard.
+    // A provider whose fetched list is its own model set (ComfyUI: a model is a saved
+    // workflow) can only be reconciled against that list if its rows are removable at
+    // all, and they carry no preset id — the custom-model guard would keep every
+    // workflow deleted upstream forever. Every other provider keeps the guard.
+    const listIsAuthoritative = providerService.getByProviderId(providerId).modelListIsAuthoritative === true
+    const removableCustomModelIds = new Set(
+      listIsAuthoritative ? [] : [...customModelIds].filter((id) => !userDefaultIds.has(id))
+    )
 
     if (managedDefaultIds.size > 0) {
       logger.warn('Skipped managed CherryAI default model removal during reconcile', {

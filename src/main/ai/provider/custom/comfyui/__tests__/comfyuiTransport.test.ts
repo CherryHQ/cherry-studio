@@ -63,6 +63,53 @@ describe('ComfyuiTransport', () => {
     vi.useRealTimers()
   })
 
+  it('names the prompt it submits and dequeues it when the answer never arrives', async () => {
+    const posts: { url: string; body: Record<string, any> }[] = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      if (url.includes('/userdata/')) return respond(workflow)
+      if (init?.method === 'POST') {
+        posts.push({ url, body: JSON.parse(String(init.body)) as Record<string, any> })
+        if (url.includes('/prompt')) {
+          // Accepted by the server, answer never arrives.
+          return new Promise<Response>((_resolve, reject) => {
+            ;(init.signal as AbortSignal | undefined)?.addEventListener('abort', () => {
+              const error = new Error('The operation was aborted')
+              error.name = 'AbortError'
+              reject(error)
+            })
+          })
+        }
+        return respond({})
+      }
+      if (url.includes('/system_stats')) return respond({ system: { comfyui_version: '0.3.57' } })
+      return respond({ queue_running: [], queue_pending: [] })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const submission = transport.submit({
+      modelId: 'flow',
+      prompt: 'a cat',
+      n: 1,
+      size: undefined,
+      seed: 1,
+      files: [],
+      mask: undefined,
+      providerParams: {}
+    })
+    const rejected = expect(submission).rejects.toThrow(/request_timeout/)
+    await vi.advanceTimersByTimeAsync(60_000)
+    await rejected
+    await vi.advanceTimersByTimeAsync(50)
+
+    const promptPost = posts.find((post) => post.url.includes('/prompt'))
+    const requestedId = promptPost?.body.prompt_id as string
+    expect(requestedId).toMatch(/^cherry-studio-/)
+    const dequeued = posts.find((post) => post.url.includes('/queue') && Array.isArray(post.body.delete))
+    expect(dequeued?.body.delete).toEqual([requestedId])
+  })
+
   it('routes every request through the configured fetch and headers', async () => {
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(init?.headers).toMatchObject({ 'X-Test': '1' })
