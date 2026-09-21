@@ -1,5 +1,14 @@
 import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
-import { type ComponentType, type ReactNode, useEffect, useMemo, useState } from 'react'
+import {
+  type ComponentType,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
@@ -201,6 +210,21 @@ export function FilePreview({
   }, [filePath])
   const requestKey = file ? `${file.filePath}\0${refreshKey}` : ''
   const [resolution, setResolution] = useState<FilePreviewResolution>({ requestKey: '', status: 'loading' })
+  const selectionRequestRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    selectionRequestRef.current = requestKey
+    return () => {
+      selectionRequestRef.current = null
+    }
+  }, [requestKey])
+  const reportSelection = useCallback<NonNullable<FilePreviewPluginProps['onSelectionReference']>>(
+    (reference) => {
+      // A retained plugin can finish an old selection while new metadata is pending.
+      // Only the resolution belonging to the current request may publish results.
+      if (selectionRequestRef.current === resolution.requestKey) onSelectionReference?.(reference)
+    },
+    [onSelectionReference, resolution.requestKey]
+  )
 
   useEffect(() => {
     if (!file) return
@@ -289,7 +313,7 @@ export function FilePreview({
       <FilePreviewPluginRenderer
         {...resolution.file}
         metadata={resolution.metadata}
-        onSelectionReference={onSelectionReference}
+        onSelectionReference={onSelectionReference ? reportSelection : undefined}
         plugin={resolution.plugin}
         refreshKey={resolution.refreshKey}
         type={type}

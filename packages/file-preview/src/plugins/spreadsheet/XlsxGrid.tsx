@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -396,6 +396,14 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     estimateSize: (index) => colLayout.sizes[index] * zoom,
     overscan: OVERSCAN
   })
+  // Updating estimateSize alone does not invalidate cached measurements. Keep the
+  // mounted viewport, but refresh each axis before painting changed dimensions.
+  useLayoutEffect(() => {
+    rowVirtualizer.measure()
+  }, [rowVirtualizer, rowLayout, zoom])
+  useLayoutEffect(() => {
+    colVirtualizer.measure()
+  }, [colVirtualizer, colLayout, zoom])
   const virtualRows = rowVirtualizer.getVirtualItems()
   const virtualCols = colVirtualizer.getVirtualItems()
 
