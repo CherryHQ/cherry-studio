@@ -374,6 +374,94 @@ describe('useProviderModelPullReconcile', () => {
     expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.remove_skipped_default_in_use')
   })
 
+  it('drops models the authoritative list no longer contains when the drawer opens', async () => {
+    // ComfyUI's model list *is* its saved workflow list, so a local row the list
+    // no longer has is a leftover: the user deleted the workflow upstream.
+    const vanished = {
+      ...localModel,
+      id: 'comfyui::sample_workflow_removed',
+      providerId: 'comfyui',
+      apiModelId: 'sample_workflow_removed',
+      presetModelId: null,
+      name: 'sample_workflow_removed'
+    }
+    const kept = {
+      ...fetchedModel,
+      id: 'comfyui::sample_workflow_kept',
+      providerId: 'comfyui',
+      apiModelId: 'sample_workflow_kept'
+    }
+    useModelsMock.mockReturnValue({ models: [vanished, kept] })
+    useProviderMock.mockReturnValue({
+      provider: { id: 'comfyui', isEnabled: true, modelListIsAuthoritative: true },
+      enableProvider: enableProviderMock
+    })
+    fetchProviderCatalogModelsMock.mockResolvedValue([])
+    fetchResolvedProviderModelsMock.mockResolvedValue([kept])
+
+    const { result } = renderHook(() => useProviderModelPullReconcile('comfyui'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(deleteModelsMock).toHaveBeenCalledWith(['comfyui::sample_workflow_removed'])
+    })
+    expect(toast.success).toHaveBeenCalledWith('settings.models.manage.clean_stale_success')
+  })
+
+  it('leaves a vanished model alone when the user set it as a default', async () => {
+    const vanished = {
+      ...localModel,
+      id: 'comfyui::sample_workflow_removed',
+      providerId: 'comfyui',
+      apiModelId: 'sample_workflow_removed',
+      presetModelId: null
+    }
+    useModelsMock.mockReturnValue({ models: [vanished] })
+    useProviderMock.mockReturnValue({
+      provider: { id: 'comfyui', isEnabled: true, modelListIsAuthoritative: true },
+      enableProvider: enableProviderMock
+    })
+    fetchProviderCatalogModelsMock.mockResolvedValue([])
+    fetchResolvedProviderModelsMock.mockResolvedValue([])
+    deleteModelsMock.mockRejectedValueOnce(
+      DataApiErrorFactory.invalidOperation(
+        'delete model comfyui/sample_workflow_removed',
+        'model is in use as the default model'
+      )
+    )
+
+    const { result } = renderHook(() => useProviderModelPullReconcile('comfyui'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.remove_skipped_default_in_use')
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('keeps a hand-added model when the provider does not claim an authoritative list', async () => {
+    const handAdded = { ...localModel, id: 'openai::hand-added', apiModelId: 'hand-added', presetModelId: null }
+    useModelsMock.mockReturnValue({ models: [handAdded] })
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.allModels).toHaveLength(3)
+    })
+    expect(result.current.allModels).toContain(handAdded)
+    expect(deleteModelsMock).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('shows an operation failure toast when removing models fails for a non-default error', async () => {
     deleteModelsMock.mockRejectedValueOnce(new Error('delete failed'))
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))

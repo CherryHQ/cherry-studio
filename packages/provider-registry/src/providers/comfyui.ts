@@ -24,6 +24,11 @@ export default defineProvider({
       baseUrl: 'http://localhost:8188'
     }
   },
+  // A model *is* a saved workflow here, so the fetched list is the complete set:
+  // delete the workflow in ComfyUI and the row is a leftover the user cannot
+  // otherwise remove (it has no remote counterpart and no registry preset).
+  // The model-management drawer reconciles those away when it opens.
+  modelListIsAuthoritative: true,
   metadata: {
     website: {
       docs: 'https://docs.comfy.org',

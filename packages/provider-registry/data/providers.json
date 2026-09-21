@@ -2555,6 +2555,7 @@
           "baseUrl": "http://localhost:8188"
         }
       },
+      "modelListIsAuthoritative": true,
       "id": "comfyui",
       "metadata": {
         "website": {

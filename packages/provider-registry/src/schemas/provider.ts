@@ -219,6 +219,15 @@ export const ProviderConfigSchema = z
     /** Append registry-only models omitted by the API list. Absent means the API list is authoritative. */
     supplementModelsFromRegistry: z.boolean().optional(),
     /**
+     * The fetched list *is* this provider's model set: one of its models is a
+     * saved artifact upstream (a workflow, a voice), so a local row absent from
+     * a completely loaded list no longer exists and the model-management drawer
+     * drops it when it opens. Defaults to false — for an ordinary API-listed
+     * provider a model the user added by hand stays theirs even when the list
+     * omits it.
+     */
+    modelListIsAuthoritative: z.boolean().optional(),
+    /**
      * Which credential kinds the provider accepts — the auth UIs to surface and
      * the runtime credential semantics. A *set*, because a provider can offer
      * more than one (CherryIN takes both a user API key and an app-managed OAuth

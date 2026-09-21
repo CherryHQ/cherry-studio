@@ -335,6 +335,7 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
     defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
     modelListSource: presetMetadata.modelListSource,
     supplementModelsFromRegistry: presetMetadata.supplementModelsFromRegistry,
+    modelListIsAuthoritative: presetMetadata.modelListIsAuthoritative,
     authMethods: presetMetadata.authMethods,
     authOptional: presetMetadata.authOptional,
     serverTools: presetMetadata.serverTools ?? [],

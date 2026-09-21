@@ -106,16 +106,27 @@ export function useProviderModelPullReconcile(providerId: string) {
       ),
     [defaultModelId, quickAssistantModelId, translateModelId]
   )
+  // A provider whose fetched list is its whole model set — ComfyUI, where a model
+  // *is* a saved workflow — can be reconciled against that list: a local row the
+  // list no longer contains is a leftover, not a model the user typed in. Without
+  // this the row is neither removable nor stale and the drawer keeps showing it.
+  const listIsAuthoritative = provider?.modelListIsAuthoritative === true
+  const isVanished = useCallback(
+    (model: Model) => listIsAuthoritative && hasLoadedCompleteRemoteModels && !remoteModelIds.has(model.id),
+    [hasLoadedCompleteRemoteModels, listIsAuthoritative, remoteModelIds]
+  )
   const removableModelIds = useMemo(
     () =>
       models
         .filter(
           (model) =>
             !defaultModelIds.has(model.id) &&
-            (remoteModelIds.has(model.id) || (model.presetModelId != null && model.presetModelId !== ''))
+            (isVanished(model) ||
+              remoteModelIds.has(model.id) ||
+              (model.presetModelId != null && model.presetModelId !== ''))
         )
         .map((model) => model.id),
-    [defaultModelIds, models, remoteModelIds]
+    [defaultModelIds, isVanished, models, remoteModelIds]
   )
   const staleModels = useMemo(() => {
     if (!hasLoadedCompleteRemoteModels) {
@@ -123,9 +134,11 @@ export function useProviderModelPullReconcile(providerId: string) {
     }
 
     return models.filter(
-      (model) => !remoteModelIds.has(model.id) && model.presetModelId != null && model.presetModelId !== ''
+      (model) =>
+        !remoteModelIds.has(model.id) &&
+        (isVanished(model) || (model.presetModelId != null && model.presetModelId !== ''))
     )
-  }, [hasLoadedCompleteRemoteModels, models, remoteModelIds])
+  }, [hasLoadedCompleteRemoteModels, isVanished, models, remoteModelIds])
   const defaultModelIdList = useMemo(() => [...defaultModelIds], [defaultModelIds])
   const staleModelIds = useMemo(() => staleModels.map((model) => model.id), [staleModels])
 
@@ -183,10 +196,56 @@ export function useProviderModelPullReconcile(providerId: string) {
     }
   }, [providerId, t])
 
+  /**
+   * Drop the local rows the freshly loaded list no longer contains. Runs when the
+   * drawer opens, so a workflow deleted in ComfyUI stops being an unremovable
+   * leftover the next time the user looks at the list (see
+   * `modelListIsAuthoritative`). A model the user picked as their default is left
+   * alone: it cannot be deleted, and the warning names it.
+   */
+  const reconcileVanishedModels = useCallback(
+    async (remoteModels: Model[]) => {
+      if (!listIsAuthoritative) {
+        return
+      }
+
+      const remoteIds = new Set(remoteModels.map((model) => model.id))
+      const vanishedIds = models.filter((model) => !remoteIds.has(model.id)).map((model) => model.id)
+      if (vanishedIds.length === 0) {
+        return
+      }
+
+      try {
+        const skippedIds = await deleteModelsSkippingDefaults(vanishedIds, deleteModels)
+        const removedCount = vanishedIds.length - skippedIds.size
+        if (removedCount > 0) {
+          toast.success(t('settings.models.manage.clean_stale_success', { count: removedCount }))
+        }
+        if (skippedIds.size > 0) {
+          toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedIds.size }))
+        }
+      } catch (error) {
+        logger.error('Failed to reconcile models missing from the provider list', {
+          providerId,
+          count: vanishedIds.length,
+          error
+        })
+      }
+    },
+    [deleteModels, listIsAuthoritative, models, providerId, t]
+  )
+
   const openPullReconcile = useCallback(() => {
     setPullReconcileDrawerOpen(true)
-    void loadModels()
-  }, [loadModels])
+    void (async () => {
+      const result = await loadModels()
+      // A newer load superseded this one.
+      if (!result) {
+        return
+      }
+      await reconcileVanishedModels(result.models)
+    })()
+  }, [loadModels, reconcileVanishedModels])
 
   const closePullReconcile = useCallback(() => {
     setPullReconcileDrawerOpen(false)

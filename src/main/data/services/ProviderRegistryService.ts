@@ -81,6 +81,8 @@ export interface ProviderDisplayMetadata {
   modelListSource?: 'api' | 'registry'
   /** Registry-owned opt-in for incomplete API model lists. */
   supplementModelsFromRegistry?: boolean
+  /** Registry-owned claim that the fetched list is the provider's whole model set. */
+  modelListIsAuthoritative?: boolean
   /** Registry capability: accepted credential kinds (default `['api-key']`). */
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
@@ -790,6 +792,7 @@ class ProviderRegistryService {
         availableInEditions: provider?.availableInEditions,
         modelListSource: provider?.modelListSource,
         supplementModelsFromRegistry: provider?.supplementModelsFromRegistry,
+        modelListIsAuthoritative: provider?.modelListIsAuthoritative,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
         serverTools: provider?.serverTools,
