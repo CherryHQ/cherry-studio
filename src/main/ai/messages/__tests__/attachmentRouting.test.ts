@@ -8,13 +8,42 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { getByIdMock, ocrMock } = vi.hoisted(() => ({
-  getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
-  ocrMock: vi.fn<() => Promise<string>>()
-}))
+const { getByIdMock, ocrMock, transcribeMock, analyzeStructuredMock, probeMediaMock } = vi.hoisted(() => {
+  const transcribeMock = vi.fn<() => Promise<string>>()
+  return {
+    getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
+    ocrMock: vi.fn<() => Promise<string>>(),
+    transcribeMock,
+    analyzeStructuredMock: vi.fn(async () => {
+      const text = await transcribeMock()
+      return {
+        version: 1 as const,
+        source: { mime: 'audio/mpeg', durationMs: 1000, hasAudio: true, hasVideo: false },
+        audio: text ? { segments: [{ startMs: 0, endMs: 1000, text }] } : { segments: [] },
+        warnings: [] as string[]
+      }
+    }),
+    probeMediaMock: vi.fn(async () => ({
+      durationMs: 1000,
+      hasAudio: true,
+      hasVideo: false,
+      mime: 'audio/webm',
+      kind: 'audio' as const
+    }))
+  }
+})
 vi.mock('@application', () => ({
   application: {
-    get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
+    get: (name: string) =>
+      name === 'FileProcessingService'
+        ? {
+            ocrImage: ocrMock,
+            analyzeMedia: transcribeMock,
+            analyzeMediaStructured: analyzeStructuredMock,
+            probeMedia: probeMediaMock,
+            transcribeMedia: transcribeMock
+          }
+        : { getById: getByIdMock }
   }
 }))
 
@@ -222,12 +251,39 @@ describe('prepareChatMessages — routing', () => {
   it.each([
     ['audio', 'mp3', 'audio/mpeg'],
     ['video', 'mp4', 'video/mp4']
-  ] as const)('notes a managed %s part the endpoint cannot process', async (kind, ext, mediaType) => {
+  ] as const)('transcribes a managed %s part the endpoint cannot process', async (_kind, ext, mediaType) => {
     getByIdMock.mockResolvedValueOnce({ ext })
+    transcribeMock.mockResolvedValueOnce('spoken words')
 
     const [out] = await run([fileWithEntry('e1', `media.${ext}`, mediaType)], NONE)
 
-    expect(textOf(out.parts)[0]).toContain(`can't process the attached ${kind} file`)
+    expect(textOf(out.parts)[0]).toContain(`Attached file "media.${ext}":`)
+    expect(textOf(out.parts)[0]).toContain('## Audio transcript')
+    expect(textOf(out.parts)[0]).toContain('spoken words')
+    expect(analyzeStructuredMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+    expect(resolveMock).not.toHaveBeenCalled()
+  })
+
+  it('inlines a note when transcription finds no speech', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp3' })
+    transcribeMock.mockResolvedValueOnce('   ')
+
+    const [out] = await run([fileWithEntry('e1', 'silent.mp3', 'audio/mpeg')], NONE)
+
+    expect(textOf(out.parts)[0]).toContain('Attached file "silent.mp3":')
+    expect(textOf(out.parts)[0]).toContain('## Audio transcript')
+    expect(textOf(out.parts)[0]).toContain('(no speech)')
+  })
+
+  it('rejects before native materialization when transcription is unconfigured or fails', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp3' })
+    analyzeStructuredMock.mockRejectedValueOnce(new Error('Default file processor for audio_to_text is not configured'))
+
+    await expect(run([fileWithEntry('e1', 'talk.mp3', 'audio/mpeg')], NONE)).rejects.toMatchObject({
+      name: 'NonNativeMediaTranscriptionError',
+      i18nKey: 'media_unreadable_for_non_av_model'
+    })
+
     expect(resolveMock).not.toHaveBeenCalled()
   })
 

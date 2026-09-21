@@ -43,7 +43,7 @@ import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { imageExts } from '@shared/utils/file'
+import { audioExts, imageExts, videoExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
@@ -1135,8 +1135,10 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
  * current local paths so the Agent decides how to inspect them with its tools. Images
  * keep the capability-aware path: supported formats become native Anthropic image
  * blocks, while first-party images use shared OCR/native-fallback routing when vision
- * is unavailable. Assistant attachment handles remain an additional compatibility
- * interface; external files and images that cannot be materialized fall back to paths.
+ * is unavailable. First-party audio/video are transcribed through the same routing
+ * (Claude never takes native AV) and the original path is still listed for tools.
+ * Assistant attachment handles remain an additional compatibility interface; external
+ * files and images that cannot be materialized fall back to paths.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
@@ -1149,12 +1151,12 @@ async function materializeUserContent(
   const firstPartyFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId)
   )
-  const firstPartyImageParts = firstPartyFileParts.filter(isImageFilePart)
+  const firstPartyRoutedParts = firstPartyFileParts.filter(isRoutedMediaFilePart)
   const firstPartyPathParts = firstPartyFileParts.filter((part) => !isImageFilePart(part))
   const routedParts = parts.filter(
     (part) =>
       part.type === 'text' ||
-      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && isImageFilePart(part))
+      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && isRoutedMediaFilePart(part))
   )
   const externalFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
@@ -1170,7 +1172,7 @@ async function materializeUserContent(
   if (supportsAttachmentReads && firstPartyFileParts.length > 0) {
     turnAttachments = collectAssistantFileAttachments([{ id: message.id, role: 'user', parts: firstPartyFileParts }])
   }
-  if (firstPartyImageParts.length > 0) {
+  if (firstPartyRoutedParts.length > 0) {
     const userMessage = { id: message.id, role: 'user', parts: routedParts } as CherryUIMessage
     const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
     const [prepared] = await prepareChatMessages([userMessage], {
@@ -1309,6 +1311,24 @@ function isImageFilePart(part: FileUIPart): boolean {
   const filename = part.filename?.toLowerCase()
   const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
   return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
+}
+
+function isAudioFilePart(part: FileUIPart): boolean {
+  if (part.mediaType?.toLowerCase().startsWith('audio/')) return true
+  const filename = part.filename?.toLowerCase()
+  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
+  return audioExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
+}
+
+function isVideoFilePart(part: FileUIPart): boolean {
+  if (part.mediaType?.toLowerCase().startsWith('video/')) return true
+  const filename = part.filename?.toLowerCase()
+  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
+  return videoExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
+}
+
+function isRoutedMediaFilePart(part: FileUIPart): boolean {
+  return isImageFilePart(part) || isAudioFilePart(part) || isVideoFilePart(part)
 }
 
 function canBeClaudeImage(part: FileUIPart): boolean {

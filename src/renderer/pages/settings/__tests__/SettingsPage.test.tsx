@@ -96,7 +96,8 @@ vi.mock('react-i18next', () => ({
         'settings.skills.title': '技能',
         'settings.system.title': '系统',
         'settings.tool.file_processing.features.image_to_text.title': 'OCR',
-        'settings.tool.file_processing.features.document_to_markdown.title': '文档处理'
+        'settings.tool.file_processing.features.document_to_markdown.title': '文档处理',
+        'settings.tool.file_processing.features.audio_to_text.title': '音视频处理'
       })[key] ?? key
   })
 }))
@@ -178,15 +179,17 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/device-connections' })
   })
 
-  it('keeps document processing and OCR together in tools and dependencies in the system group', () => {
+  it('keeps document processing, OCR, and audio/video together in tools and dependencies in the system group', () => {
     render(<SettingsPage />)
 
     expect(screen.getByText('工具')).toBeInTheDocument()
 
     const documentProcessingItem = screen.getByRole('button', { name: '文档处理' })
     const ocrItem = screen.getByRole('button', { name: 'OCR' })
+    const audioItem = screen.getByRole('button', { name: '音视频处理' })
     expect(documentProcessingItem.nextElementSibling).toBe(ocrItem)
-    expect(ocrItem.nextElementSibling).toHaveAttribute('data-testid', 'menu-divider')
+    expect(ocrItem.nextElementSibling).toBe(audioItem)
+    expect(audioItem.nextElementSibling).toHaveAttribute('data-testid', 'menu-divider')
 
     const dependenciesItem = screen.getByRole('button', { name: '环境依赖' })
     expect(screen.queryByRole('button', { name: '系统' })).not.toBeInTheDocument()

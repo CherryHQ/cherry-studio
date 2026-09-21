@@ -1,5 +1,6 @@
 import {
   Activity,
+  AudioLines,
   Bell,
   CalendarClock,
   Cloud,
@@ -105,6 +106,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/ocr',
     titleKey: 'settings.tool.file_processing.features.image_to_text.title',
     icon: createElement(ScanText),
+    groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
+    route: '/settings/audio-processing',
+    titleKey: 'settings.tool.file_processing.features.audio_to_text.title',
+    icon: createElement(AudioLines),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {

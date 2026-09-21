@@ -5,11 +5,12 @@
  *     provider, audio/video→model + endpoint capable) → left in place and
  *     materialized as the real file via `materializeNativeFilePart`; or
  *   - **non-native** → replaced with its extracted text (office/pdf/text via
- *     `extractDocumentText`, image via OCR, audio/video/binary → a note),
- *     inlined and capped. Over the cap, the head is inlined + a `read_file`
- *     pointer. A non-vision image whose OCR yields no text (or whose OCR is
- *     unconfigured/failed) stops before the provider call with a user-facing
- *     error.
+ *     `extractDocumentText`, image via OCR, audio/video via transcription,
+ *     other binary → a note), inlined and capped. Over the cap, the head is
+ *     inlined + a `read_file` pointer. A non-vision image whose OCR yields no
+ *     text (or whose OCR is unconfigured/failed), or non-native audio/video
+ *     whose transcription is unconfigured/failed, stops before the provider
+ *     call with a user-facing error.
  *
  * Content is always inlined, so visibility never depends on the model choosing
  * to call `read_file` — weak and non-tool models see it too. Other failures
@@ -36,7 +37,8 @@ import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
-import { getFileTypeByExt } from '@shared/utils/file'
+import { ambiguousAvExts, getFileTypeByExt } from '@shared/utils/file'
+import { formatMediaAnalysisCompact, formatMediaAnalysisFull } from '@shared/utils/mediaAnalysis'
 
 import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
@@ -48,12 +50,24 @@ const logger = loggerService.withContext('ai:attachmentRouting')
 const NON_VISION_IMAGE_OCR_ERROR_MESSAGE =
   "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
 
+const NON_NATIVE_MEDIA_TRANSCRIPTION_ERROR_MESSAGE =
+  "The selected model isn't configured for audio or video input, and Cherry Studio couldn't transcribe the attachment. Choose an audio/video transcription processor in Settings, pick a model that accepts this media natively, or remove the file and try again."
+
 class NonVisionImageOcrError extends Error {
   readonly i18nKey = 'image_unreadable_for_non_vision_model'
 
   constructor() {
     super(NON_VISION_IMAGE_OCR_ERROR_MESSAGE)
     this.name = 'NonVisionImageOcrError'
+  }
+}
+
+class NonNativeMediaTranscriptionError extends Error {
+  readonly i18nKey = 'media_unreadable_for_non_av_model'
+
+  constructor() {
+    super(NON_NATIVE_MEDIA_TRANSCRIPTION_ERROR_MESSAGE)
+    this.name = 'NonNativeMediaTranscriptionError'
   }
 }
 
@@ -124,6 +138,37 @@ async function ocrNonVisionImage(entryId: string, signal?: AbortSignal): Promise
   }
 }
 
+async function transcribeNonNativeMedia(
+  entryId: string,
+  fileType: FileType,
+  handle: string,
+  signal?: AbortSignal,
+  isToolCapable = false
+): Promise<string> {
+  try {
+    const analysis = await application
+      .get('FileProcessingService')
+      .analyzeMediaStructured({ kind: 'entry', entryId }, signal)
+    const compact = formatMediaAnalysisCompact(analysis).trim()
+    const full = formatMediaAnalysisFull(analysis)
+    const body =
+      compact || `No usable audio or visual content could be extracted from the attached ${fileType} file "${handle}".`
+    // Compact is not a prefix of full — always restart read_file at offset 0.
+    if (isToolCapable && full.length > body.length) {
+      return `${body}\n\n[Full timestamped analysis available — call read_file("${handle}", offset=0) for the complete timeline.]`
+    }
+    return body
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) throw error
+    logger.warn('Audio/video media analysis unavailable or failed', {
+      fileType,
+      handle,
+      error: error instanceof Error ? error.message : String(error)
+    })
+    throw new NonNativeMediaTranscriptionError()
+  }
+}
+
 /** Extract a non-native attachment's model-visible text by file type. `handle`
  *  is the model-facing name used in any note. */
 async function extractNonNativeText(
@@ -131,10 +176,11 @@ async function extractNonNativeText(
   ext: string,
   fileType: FileType,
   handle: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  isToolCapable = false
 ): Promise<string> {
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
-    return `This model can't process the attached ${fileType} file "${handle}".`
+    return transcribeNonNativeMedia(entryId, fileType, handle, signal, isToolCapable)
   }
   if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || !ext) {
     const extracted = await extractDocumentText(entryId, { signal })
@@ -151,8 +197,14 @@ async function extractNonNativeText(
 function capInlineText(handle: string, text: string, isToolCapable: boolean, cap: number): string {
   if (text.length <= cap) return text
   const head = text.slice(0, surrogateSafeEnd(text, cap))
+  // Compact media summaries are not a prefix of the full timeline serialization.
+  // When the body already points at offset=0 for the full analysis, keep that
+  // contract under budget truncation instead of advertising head.length.
+  const mediaFullPointer = text.includes(`read_file("${handle}", offset=0)`)
   const more = isToolCapable
-    ? `\n\n[Truncated ${head.length}/${text.length} chars — call read_file("${handle}", offset=${head.length}) for the rest.]`
+    ? mediaFullPointer
+      ? `\n\n[Truncated inline summary ${head.length}/${text.length} chars — call read_file("${handle}", offset=0) for the complete timeline.]`
+      : `\n\n[Truncated ${head.length}/${text.length} chars — call read_file("${handle}", offset=${head.length}) for the rest.]`
     : `\n\n[Truncated ${head.length}/${text.length} chars.]`
   return head + more
 }
@@ -232,10 +284,26 @@ async function prepareChatMessage<T extends UIMessage>(
     const displayName = ref?.displayName ?? handle
     try {
       const bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? '').toLowerCase()
-      const fileType = getFileTypeByExt(bareExt)
+      let fileType = getFileTypeByExt(bareExt)
+      let nativePart = part
+      // Ambiguous containers (WebM) need a real probe before native vs analysis.
+      if (ambiguousAvExts.includes(`.${bareExt}` as (typeof ambiguousAvExts)[number])) {
+        try {
+          const probe = await application
+            .get('FileProcessingService')
+            .probeMedia({ kind: 'entry', entryId: fileEntryId }, ctx.signal)
+          fileType = probe.hasVideo ? FILE_TYPE.VIDEO : probe.hasAudio ? FILE_TYPE.AUDIO : fileType
+          if (probe.mime && part.mediaType !== probe.mime) {
+            nativePart = { ...part, mediaType: probe.mime }
+          }
+        } catch (error) {
+          if (ctx.signal?.aborted || isAbortError(error)) throw error
+          logger.warn('Media probe failed; falling back to extension classification', { error, bareExt })
+        }
+      }
 
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
-        if (!(await inlineNative(part))) {
+        if (!(await inlineNative(nativePart))) {
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
           kept.push(noteOf(handle))
         }
@@ -259,11 +327,12 @@ async function prepareChatMessage<T extends UIMessage>(
       }
 
       // Non-native first-party attachment → inline its (capped) text.
-      const body = await extractNonNativeText(fileEntryId, bareExt, fileType, handle, ctx.signal)
+      const body = await extractNonNativeText(fileEntryId, bareExt, fileType, handle, ctx.signal, ctx.isToolCapable)
       defer(kept, pending, handle, body)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
       if (error instanceof NonVisionImageOcrError) throw error
+      if (error instanceof NonNativeMediaTranscriptionError) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
       kept.push(noteOf(handle))
     }
@@ -274,8 +343,9 @@ async function prepareChatMessage<T extends UIMessage>(
 
 /**
  * Prepare chat messages for the model: native files stay inline, non-native
- * files become capped extracted text. A non-vision image with no OCR text
- * rejects before the provider call. Single pass, applied to every model.
+ * files become capped extracted text. A non-vision image with no OCR text, or
+ * non-native audio/video whose transcription is unconfigured/failed, rejects
+ * before the provider call. Single pass, applied to every model.
  */
 export async function prepareChatMessages<T extends UIMessage = UIMessage>(
   messages: T[],

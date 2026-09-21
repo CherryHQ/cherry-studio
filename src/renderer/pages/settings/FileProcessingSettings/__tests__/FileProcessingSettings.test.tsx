@@ -17,6 +17,7 @@ import {
   type LocalModelStatusSnapshot
 } from '@shared/data/presets/localModel'
 
+import AudioProcessingSettings from '../AudioProcessingSettings'
 import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOcrDeploymentInfo'
 import DocumentProcessingSettings from '../DocumentProcessingSettings'
 import OcrSettings from '../OcrSettings'
@@ -44,6 +45,7 @@ const selectMockState = vi.hoisted(() => ({
   value: undefined as string | undefined
 }))
 const preferencesMock = vi.hoisted(() => ({
+  defaultAudioProcessor: null as string | null,
   defaultDocumentProcessor: null as string | null,
   defaultImageProcessor: null as string | null
 }))
@@ -61,6 +63,35 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: [] })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: () => ({ model: undefined }),
+  useDefaultModel: () => ({
+    videoVisionModel: undefined,
+    setVideoVisionModel: vi.fn()
+  })
+}))
+
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({
+    trigger,
+    onSelect
+  }: {
+    trigger?: React.ReactNode
+    onSelect?: (value: string | undefined) => void
+  }) => (
+    <div>
+      {trigger}
+      <button type="button" onClick={() => onSelect?.('openai:gpt-4o-audio')}>
+        pick-media-model
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -273,6 +304,7 @@ describe('processing settings pages', () => {
 
   beforeEach(() => {
     MockCacheUtils.resetMocks()
+    preferencesMock.defaultAudioProcessor = null
     preferencesMock.defaultDocumentProcessor = null
     preferencesMock.defaultImageProcessor = null
     overridesMock.value = {}
@@ -969,6 +1001,72 @@ describe('processing settings pages', () => {
         tesseract: {
           options: {
             langs: []
+          }
+        }
+      })
+    })
+  })
+
+  it('selects an audio processor and makes it the audio-to-text default', async () => {
+    ipcRequestMock.mockResolvedValue({
+      processorIds: ['openai-transcription', 'provider-media']
+    })
+    const user = userEvent.setup()
+    render(<AudioProcessingSettings />)
+
+    expect(await screen.findByPlaceholderText('whisper-1')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toBeInTheDocument()
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.provider_media.name/ })
+    )
+
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({
+        defaultAudioProcessor: 'provider-media'
+      })
+    })
+  })
+
+  it('shows only audio processors on the audio/video settings page', async () => {
+    ipcRequestMock.mockResolvedValue({
+      processorIds: ['system', 'openai-transcription', 'provider-media', 'paddleocr']
+    })
+    render(<AudioProcessingSettings />)
+
+    expect(await screen.findByText('settings.tool.file_processing.features.audio_to_text.title')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.audio_to_text.tooltip')).toBeInTheDocument()
+    expect(screen.queryByText('settings.tool.file_processing.features.image_to_text.title')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('settings.tool.file_processing.features.document_to_markdown.title')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.system.name/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /settings.tool.file_processing.processors.provider_media.name/ })
+    ).toBeInTheDocument()
+  })
+
+  it('persists a provider-media transcription model', async () => {
+    ipcRequestMock.mockResolvedValue({
+      processorIds: ['openai-transcription', 'provider-media']
+    })
+    preferencesMock.defaultAudioProcessor = 'provider-media'
+    const user = userEvent.setup()
+    render(<AudioProcessingSettings />)
+
+    // Provider-media selector renders before the video-vision selector on this page.
+    const pickButtons = await screen.findAllByRole('button', { name: 'pick-media-model' })
+    await user.click(pickButtons[0])
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        'provider-media': {
+          capabilities: {
+            audio_to_text: {
+              modelId: 'openai:gpt-4o-audio'
+            }
           }
         }
       })

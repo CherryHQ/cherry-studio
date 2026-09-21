@@ -38,7 +38,8 @@ const UNREFERENCED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000
 const IMPACT = {
   uv: 'Python tooling and Dependencies presets',
   rg: 'in-app search',
-  mingit: 'the bundled git fallback (system git still works)'
+  mingit: 'the bundled git fallback (system git still works)',
+  ffmpeg: 'audio/video preprocessing (probe, ASR audio extract, frame sample)'
 }
 const STAGING_DIR = STAGING_PREFIX + crypto.createHash('sha256').update(REPO_ROOT).digest('hex').slice(0, 8)
 
@@ -224,6 +225,11 @@ const BUN_VERSION = '1.4.2'
 const UV_VERSION = '0.11.16'
 const RG_VERSION = '14.1.1'
 const MINGIT_VERSION = '2.54.0'
+// macOS: serversideup LGPL builds (ffmpeg+ffprobe+SOURCE). Linux/Windows: BtbN static LGPL.
+const FFMPEG_SERVERSIDEUP_VERSION = '8.1.2-27'
+const FFMPEG_BTBN_VERSION = 'N-126655-gbfac54a03b'
+const FFMPEG_BTBN_TAG = 'autobuild-2026-09-19-13-11'
+const FFMPEG_VERSION = `${FFMPEG_SERVERSIDEUP_VERSION}+${FFMPEG_BTBN_VERSION}`
 
 function miseUrl(file) {
   return `https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/${file}`
@@ -239,6 +245,12 @@ function rgUrl(asset, ext) {
 }
 function mingitUrl(asset) {
   return `https://github.com/git-for-windows/git/releases/download/v${MINGIT_VERSION}.windows.1/${asset}`
+}
+function serversideupFfmpegUrl(asset) {
+  return `https://github.com/serversideup/ffmpeg-lgpl-builds/releases/download/v${FFMPEG_SERVERSIDEUP_VERSION}/${asset}`
+}
+function btbnFfmpegUrl(asset) {
+  return `https://github.com/BtbN/FFmpeg-Builds/releases/download/${FFMPEG_BTBN_TAG}/${asset}`
 }
 
 const TOOLS = [
@@ -452,6 +464,69 @@ const TOOLS = [
         sha256: '68f6bdda5b58f4e40f431c0da48b05ba5596445314d5e491e7b4aebb1ec2e985'
       }
     }
+  },
+  {
+    // Bundled FFmpeg/ffprobe for AV hybrid preprocessing. macOS uses serversideup
+    // LGPL builds; Linux/Windows use pinned BtbN static LGPL (incl. winarm64).
+    // `members` are paths inside the archive (after stripComponents); copied to
+    // flat `binaries` names in the bundle. License/SOURCE notices ship alongside.
+    name: 'ffmpeg',
+    version: FFMPEG_VERSION,
+    versionFile: '.ffmpeg-version',
+    packages: {
+      'darwin-arm64': {
+        url: serversideupFfmpegUrl('ffmpeg-8.1.2-aarch64-apple-darwin.tar.gz'),
+        archive: 'tar.gz',
+        stripComponents: 0,
+        binaries: ['ffmpeg', 'ffprobe', 'COPYING.LGPLv2.1', 'SOURCE.txt', 'OPENSSL-LICENSE'],
+        sha256: 'ac0babf65798bf681da1dc81c4fe4ae049d0d26e161410174b0e120e3e783332'
+      },
+      'darwin-x64': {
+        url: serversideupFfmpegUrl('ffmpeg-8.1.2-x86_64-apple-darwin.tar.gz'),
+        archive: 'tar.gz',
+        stripComponents: 0,
+        binaries: ['ffmpeg', 'ffprobe', 'COPYING.LGPLv2.1', 'SOURCE.txt', 'OPENSSL-LICENSE'],
+        sha256: '51ac761dde58a600bb685a5d2510ae38d6ade1f62ef2ef556263c67cb69f2b00'
+      },
+      'linux-x64': {
+        url: btbnFfmpegUrl(`ffmpeg-${FFMPEG_BTBN_VERSION}-linux64-lgpl.tar.xz`),
+        archive: 'tar.xz',
+        stripComponents: 1,
+        binaries: ['ffmpeg', 'ffprobe', 'LICENSE.txt'],
+        members: ['bin/ffmpeg', 'bin/ffprobe', 'LICENSE.txt'],
+        sha256: '0b9919b44f47b881f07a87a6dfa1ec57d138bc59f6e32c38e8384ca5a6423368'
+      },
+      'linux-arm64': {
+        url: btbnFfmpegUrl(`ffmpeg-${FFMPEG_BTBN_VERSION}-linuxarm64-lgpl.tar.xz`),
+        archive: 'tar.xz',
+        stripComponents: 1,
+        binaries: ['ffmpeg', 'ffprobe', 'LICENSE.txt'],
+        members: ['bin/ffmpeg', 'bin/ffprobe', 'LICENSE.txt'],
+        sha256: '2638e762c7d841ac4bacb71853d89189a161c5e80e2a98ebf169e19f835d0d57'
+      },
+      'win32-x64': {
+        url: btbnFfmpegUrl(`ffmpeg-${FFMPEG_BTBN_VERSION}-win64-lgpl.zip`),
+        archive: 'zip',
+        binaries: ['ffmpeg.exe', 'ffprobe.exe', 'LICENSE.txt'],
+        members: [
+          `ffmpeg-${FFMPEG_BTBN_VERSION}-win64-lgpl/bin/ffmpeg.exe`,
+          `ffmpeg-${FFMPEG_BTBN_VERSION}-win64-lgpl/bin/ffprobe.exe`,
+          `ffmpeg-${FFMPEG_BTBN_VERSION}-win64-lgpl/LICENSE.txt`
+        ],
+        sha256: 'afebb47e6b85f7356e39ccb6e2ec10529dd3080115ebcb987a0fa4a5fcfb7ecc'
+      },
+      'win32-arm64': {
+        url: btbnFfmpegUrl(`ffmpeg-${FFMPEG_BTBN_VERSION}-winarm64-lgpl.zip`),
+        archive: 'zip',
+        binaries: ['ffmpeg.exe', 'ffprobe.exe', 'LICENSE.txt'],
+        members: [
+          `ffmpeg-${FFMPEG_BTBN_VERSION}-winarm64-lgpl/bin/ffmpeg.exe`,
+          `ffmpeg-${FFMPEG_BTBN_VERSION}-winarm64-lgpl/bin/ffprobe.exe`,
+          `ffmpeg-${FFMPEG_BTBN_VERSION}-winarm64-lgpl/LICENSE.txt`
+        ],
+        sha256: '5d32fd5db41753daa4cc9cbb8e77c6552b001202dc9ee37bf2faf550c6d60fde'
+      }
+    }
   }
 ]
 
@@ -496,27 +571,56 @@ function download(url, dest) {
   }
 }
 
+function archiveMembers(pkg) {
+  return pkg.members ?? pkg.binaries
+}
+
+function copyArchiveMembers(tmpExtract, outputDir, pkg) {
+  const members = archiveMembers(pkg)
+  if (members.length !== pkg.binaries.length) {
+    throw new Error(`Archive members (${members.length}) must match binaries (${pkg.binaries.length})`)
+  }
+  for (let i = 0; i < members.length; i++) {
+    const src = path.join(tmpExtract, members[i])
+    const dest = path.join(outputDir, pkg.binaries[i])
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.copyFileSync(src, dest)
+  }
+}
+
 function extract(archivePath, archive, outputDir, pkg) {
   if (archive === 'zip') {
-    if (process.platform === 'win32') {
-      const tmpExtract = path.join(outputDir, '__extract_tmp')
-      fs.mkdirSync(tmpExtract, { recursive: true })
-      try {
+    const tmpExtract = path.join(outputDir, '__extract_tmp')
+    fs.mkdirSync(tmpExtract, { recursive: true })
+    try {
+      if (process.platform === 'win32') {
         execFileSync(
           'powershell',
           ['-NoProfile', '-Command', `Expand-Archive -Path '${archivePath}' -DestinationPath '${tmpExtract}' -Force`],
           { stdio: 'inherit' }
         )
-        for (const b of pkg.binaries) {
-          const src = pkg.strip ? path.join(tmpExtract, pkg.strip, b) : path.join(tmpExtract, b)
-          fs.copyFileSync(src, path.join(outputDir, b))
+        if (pkg.members) {
+          copyArchiveMembers(tmpExtract, outputDir, pkg)
+        } else {
+          for (const b of pkg.binaries) {
+            const src = pkg.strip ? path.join(tmpExtract, pkg.strip, b) : path.join(tmpExtract, b)
+            fs.copyFileSync(src, path.join(outputDir, b))
+          }
         }
-      } finally {
-        fs.rmSync(tmpExtract, { recursive: true, force: true })
+      } else if (pkg.members) {
+        execFileSync('unzip', ['-o', '-j', archivePath, ...pkg.members, '-d', outputDir], { stdio: 'inherit' })
+        // unzip -j keeps basenames; rename when the declared binary name differs.
+        for (let i = 0; i < pkg.members.length; i++) {
+          const from = path.join(outputDir, path.basename(pkg.members[i]))
+          const to = path.join(outputDir, pkg.binaries[i])
+          if (from !== to) fs.renameSync(from, to)
+        }
+      } else {
+        const globs = pkg.binaries.map((b) => (pkg.strip ? `${pkg.strip}/${b}` : b))
+        execFileSync('unzip', ['-o', '-j', archivePath, ...globs, '-d', outputDir], { stdio: 'inherit' })
       }
-    } else {
-      const globs = pkg.binaries.map((b) => (pkg.strip ? `${pkg.strip}/${b}` : b))
-      execFileSync('unzip', ['-o', '-j', archivePath, ...globs, '-d', outputDir], { stdio: 'inherit' })
+    } finally {
+      fs.rmSync(tmpExtract, { recursive: true, force: true })
     }
   } else if (archive === 'zip-tree') {
     // Full-tree extraction (MinGit): preserve the whole directory layout under
@@ -534,20 +638,24 @@ function extract(archivePath, archive, outputDir, pkg) {
     } else {
       execFileSync('unzip', ['-o', '-q', archivePath, '-d', destDir], { stdio: 'inherit' })
     }
-  } else if (archive === 'tar.gz') {
+  } else if (archive === 'tar.gz' || archive === 'tar.xz') {
     // Extract to a tmp dir and copy only the listed binaries — tarballs often
     // ship LICENSE/README/man/completions that would otherwise bloat the bundle
     // and collide across tools when two of them share `outputDir`.
     const tmpExtract = path.join(outputDir, '__extract_tmp')
     fs.mkdirSync(tmpExtract, { recursive: true })
     try {
-      execFileSync('tar', ['xzf', archivePath, '-C', tmpExtract, '--strip-components=1'], { stdio: 'inherit' })
-      for (const b of pkg.binaries) {
-        fs.copyFileSync(path.join(tmpExtract, b), path.join(outputDir, b))
-      }
+      const strip = pkg.stripComponents == null ? 1 : pkg.stripComponents
+      const flag = archive === 'tar.xz' ? 'xJf' : 'xzf'
+      execFileSync('tar', [flag, archivePath, '-C', tmpExtract, `--strip-components=${strip}`], {
+        stdio: 'inherit'
+      })
+      copyArchiveMembers(tmpExtract, outputDir, pkg)
     } finally {
       fs.rmSync(tmpExtract, { recursive: true, force: true })
     }
+  } else {
+    throw new Error(`Unsupported archive type: ${archive}`)
   }
 }
 
@@ -597,7 +705,7 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null } = {})
     verifyHash(staged, pkg.sha256)
     fs.renameSync(staged, path.join(staging, pkg.binaries[0]))
   } else {
-    const ext = pkg.archive === 'tar.gz' ? 'tar.gz' : 'zip'
+    const ext = pkg.archive === 'tar.gz' ? 'tar.gz' : pkg.archive === 'tar.xz' ? 'tar.xz' : 'zip'
     const archivePath = path.join(staging, `${tool.name}-${tool.version}.${ext}`)
     download(pkg.url, archivePath)
     verifyHash(archivePath, pkg.sha256)

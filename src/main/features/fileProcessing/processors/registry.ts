@@ -134,5 +134,28 @@ export const processorRegistry = {
         )
       )
     }
+  },
+  // Local FunASR / Apple ASR land as later processors when #20734 / #20733 reach main.
+  'openai-transcription': {
+    runtime: 'remote',
+    isSupported: () => true,
+    capabilities: {
+      audio_to_text: lazyHandler('background', async () =>
+        import('./openaiTranscription/audioToText/handler').then(
+          ({ openaiTranscriptionAudioToTextHandler }) => openaiTranscriptionAudioToTextHandler
+        )
+      )
+    }
+  },
+  'provider-media': {
+    runtime: 'remote',
+    isSupported: () => true,
+    capabilities: {
+      audio_to_text: lazyHandler('background', async () =>
+        import('./providerMedia/audioToText/handler').then(
+          ({ providerMediaAudioToTextHandler }) => providerMediaAudioToTextHandler
+        )
+      )
+    }
   }
 } satisfies FileProcessingProcessorRegistry

@@ -9,11 +9,13 @@ import type {
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 
 const FILE_PROCESSING_KEYS = {
+  defaultAudioProcessor: 'feature.file_processing.default_audio_to_text',
   defaultDocumentProcessor: 'feature.file_processing.default_document_to_markdown',
   defaultImageProcessor: 'feature.file_processing.default_image_to_text'
 } as const
 
 const DEFAULT_KEY_BY_FEATURE = {
+  audio_to_text: 'defaultAudioProcessor',
   document_to_markdown: 'defaultDocumentProcessor',
   image_to_text: 'defaultImageProcessor'
 } as const satisfies Record<FileProcessorFeature, keyof typeof FILE_PROCESSING_KEYS>
@@ -93,6 +95,7 @@ export function useFileProcessingPreferences() {
   )
 
   return {
+    defaultAudioProcessor: preferences.defaultAudioProcessor,
     defaultDocumentProcessor: preferences.defaultDocumentProcessor,
     defaultImageProcessor: preferences.defaultImageProcessor,
     overrides,

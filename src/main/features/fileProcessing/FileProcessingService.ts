@@ -6,6 +6,7 @@ import type { EnqueueOptions } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 
@@ -108,8 +109,45 @@ export class FileProcessingService extends BaseService {
    * `ai/`. Throws on failure / no configured processor; callers turn that into a
    * model-facing note.
    */
-  ocrImage(file: FileHandle, signal?: AbortSignal): Promise<string> {
-    return ocrImageToText(file, signal)
+  ocrImage(
+    file: FileHandle,
+    signal?: AbortSignal,
+    processorId?: FileProcessorId,
+    config?: FileProcessorMerged
+  ): Promise<string> {
+    return ocrImageToText(file, { signal, processorId, config })
+  }
+
+  /**
+   * Analyze non-native audio/video into compact model-visible text via the
+   * hybrid media preprocessor (ASR on audio / extracted audio; OCR + vision on
+   * sampled video frames). Throws when every path fails.
+   */
+  analyzeMedia(file: FileHandle, signal?: AbortSignal): Promise<string> {
+    return application.get('MediaPreprocessingService').analyzeToCompactText(file, signal)
+  }
+
+  /** Full timeline serialization for `read_file` pagination. */
+  analyzeMediaFull(file: FileHandle, signal?: AbortSignal): Promise<string> {
+    return application.get('MediaPreprocessingService').analyzeToFullText(file, signal)
+  }
+
+  /** Structured analysis (shared by chat compact + read_file full projections). */
+  analyzeMediaStructured(file: FileHandle, signal?: AbortSignal) {
+    return application.get('MediaPreprocessingService').analyze(file, signal)
+  }
+
+  /** Lightweight probe for ambiguous containers (e.g. WebM) before native routing. */
+  probeMedia(file: FileHandle, signal?: AbortSignal) {
+    return application.get('MediaPreprocessingService').probe(file, signal)
+  }
+
+  /**
+   * @deprecated Prefer {@link analyzeMedia}. Kept as a thin alias while call
+   * sites migrate; still routes through hybrid preprocessing (not raw video ASR).
+   */
+  transcribeMedia(file: FileHandle, signal?: AbortSignal): Promise<string> {
+    return this.analyzeMedia(file, signal)
   }
 
   /**

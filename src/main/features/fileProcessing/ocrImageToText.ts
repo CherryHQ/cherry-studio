@@ -1,17 +1,17 @@
 /**
- * Inline OCR for the AI `read_file` tool — turns an image into text for models
- * that can't see it (non-vision) or providers that can't carry media in a tool
- * result.
+ * Inline OCR for the AI `read_file` tool and AV frame preprocessing.
  *
- * Reuses the file-processing resolution path (`resolveProcessorConfigByFeature`
- * → `getCapabilityHandler` → `prepare`) but invokes the handler **directly**
- * instead of going through `JobManager`: a chat tool call needs the text
- * synchronously, not a durable background job. Honors the user's configured
- * `image_to_text` processor (local Tesseract/System, or a remote OCR).
+ * Reuses file-processing resolution (`resolveProcessorConfigByFeature` →
+ * `getCapabilityHandler` → `prepare`) but invokes the handler directly.
+ * When a frozen {@link FileProcessorMerged} is supplied (hybrid media path),
+ * that config is used as-is and results are not separately cached here —
+ * MediaPreprocessingService owns the MediaAnalysis cache.
  */
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileHandle } from '@shared/data/types/file'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
@@ -36,33 +36,39 @@ const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
     signal?.addEventListener('abort', onAbort, { once: true })
   })
 
-/**
- * OCR an image referenced by `file` into plain text using the configured
- * `image_to_text` processor. Throws on failure / no configured processor (the
- * caller turns that into a model-facing note).
- *
- * Result is cached by content version for entry-backed handles, so the eager
- * chat path doesn't re-OCR the same image every turn (mirrors
- * {@link extractDocumentText}). Path handles have no version → no cache.
- */
-export async function ocrImageToText(file: FileHandle, signal?: AbortSignal): Promise<string> {
-  const cache = application.get('CacheService')
+export type OcrImageToTextOptions = {
+  signal?: AbortSignal
+  processorId?: FileProcessorId
+  /** Frozen config from MediaExecutionConfig — skips re-resolve and entry cache. */
+  config?: FileProcessorMerged
+}
+
+export async function ocrImageToText(
+  file: FileHandle,
+  signalOrOptions?: AbortSignal | OcrImageToTextOptions,
+  processorId?: FileProcessorId
+): Promise<string> {
+  const options = normalizeOptions(signalOrOptions, processorId)
+  const feature = 'image_to_text' as const
+  const config = options.config ?? resolveProcessorConfigByFeature(feature, options.processorId)
+
+  // Only cache opportunistic entry OCR when the caller did not pin a frozen config.
   let cacheKey: string | null = null
-  if (file.kind === 'entry') {
+  if (!options.config && file.kind === 'entry') {
+    const cache = application.get('CacheService')
     const version = await application.get('FileManager').getVersion(file.entryId)
-    cacheKey = `ocr-extraction:${file.entryId}:${version.mtime}:${version.size}`
+    cacheKey = `ocr-extraction:${file.entryId}:${version.mtime}:${version.size}:${config.id}`
     const cached = cache.get<string>(cacheKey)
     if (cached !== undefined) return cached
   }
 
-  const text = await runOcr(file, signal)
-  if (cacheKey) cache.set(cacheKey, text, CACHE_TTL_MS)
+  const text = await runOcr(file, config, options.signal)
+  if (cacheKey) application.get('CacheService').set(cacheKey, text, CACHE_TTL_MS)
   return text
 }
 
-async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
+async function runOcr(file: FileHandle, config: FileProcessorMerged, signal?: AbortSignal): Promise<string> {
   const feature = 'image_to_text' as const
-  const config = resolveProcessorConfigByFeature(feature)
   const handler = getCapabilityHandler(config.id, feature)
   const fileInfo = await resolveFileProcessingFileInfo(file)
   assertFileTypeSupported(fileInfo, feature, config)
@@ -75,7 +81,6 @@ async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
     return out.text
   }
 
-  // Remote processor: start + poll inline until terminal (bounded).
   const started = await prepared.startRemote(signal)
   let ref = { providerTaskId: started.providerTaskId, remoteContext: started.remoteContext }
   const deadline = Date.now() + REMOTE_POLL_TIMEOUT_MS
@@ -87,4 +92,15 @@ async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
     if (res.remoteContext) ref = { ...ref, remoteContext: res.remoteContext }
   }
   throw new Error('OCR timed out')
+}
+
+function normalizeOptions(
+  signalOrOptions?: AbortSignal | OcrImageToTextOptions,
+  processorId?: FileProcessorId
+): OcrImageToTextOptions {
+  if (!signalOrOptions) return { processorId }
+  if (typeof signalOrOptions === 'object' && 'aborted' in signalOrOptions) {
+    return { signal: signalOrOptions, processorId }
+  }
+  return { ...signalOrOptions, processorId: signalOrOptions.processorId ?? processorId }
 }

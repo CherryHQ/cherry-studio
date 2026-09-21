@@ -5,23 +5,20 @@
  * as extracted/OCR text.
  *
  * The first-party provider set + per-model PDF check are lifted from the retired
- * `pdfCompatibility` feature. Image input rides on the model capability alone.
- * Audio/video additionally require the resolved AI SDK converter to support the
- * modality; model metadata describes intrinsic capability, not wire compatibility.
+ * `pdfCompatibility` feature. Image input uses the shared `supportsVisionFileInput`
+ * gate (vision model + not force-text). Audio/video additionally require the
+ * resolved AI SDK converter to support the modality; model metadata describes
+ * intrinsic capability, not wire compatibility.
  */
 
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import {
-  isAnthropicModel,
-  isAudioModel,
-  isGeminiModel,
-  isOpenAILLMModel,
-  isVideoModel,
-  isVisionModel
-} from '@shared/utils/model'
+import { isAnthropicModel, isAudioModel, isGeminiModel, isOpenAILLMModel, isVideoModel } from '@shared/utils/model'
+import { isForceTextExtractionProvider, supportsVisionFileInput } from '@shared/utils/nativeFileSupport'
 
 import type { AppProviderId } from '../../../types'
+
+export { supportsVisionFileInput } from '@shared/utils/nativeFileSupport'
 
 /** What a (provider, model) accepts as a native user-message file part. */
 export interface NativeFileSupport {
@@ -60,9 +57,6 @@ const NATIVE_FILE_PROVIDER_IDS = new Set<AppProviderId>([
   'bedrock',
   'anthropic-vertex'
 ])
-
-/** Providers known to choke on native file parts; force text extraction (e.g. Qiniu, #15090). */
-const FORCE_TEXT_PROVIDER_IDS = new Set<string>(['qiniu'])
 
 /** AI SDK converters that reject or discard every audio/video file part. */
 const NO_NATIVE_AUDIO_VIDEO_PROVIDER_IDS = new Set<AppProviderId>([
@@ -126,12 +120,7 @@ function resolveNativeAudioVideoSupport(
 }
 
 function isFirstPartyFileProvider(provider: Provider, aiSdkProviderId: AppProviderId): boolean {
-  if (
-    FORCE_TEXT_PROVIDER_IDS.has(provider.id) ||
-    (provider.presetProviderId != null && FORCE_TEXT_PROVIDER_IDS.has(provider.presetProviderId))
-  ) {
-    return false
-  }
+  if (isForceTextExtractionProvider(provider)) return false
   return NATIVE_FILE_PROVIDER_IDS.has(aiSdkProviderId)
 }
 
@@ -156,7 +145,7 @@ export function resolveNativeFileSupport(
 ): NativeFileSupport {
   const mediaSupport = resolveNativeAudioVideoSupport(routing.runtimeProviderId, routing.endpointType)
   return {
-    image: isVisionModel(model),
+    image: supportsVisionFileInput(provider, model),
     pdf: supportsNativePdf(provider, model, routing.aiSdkProviderId),
     audio: mediaSupport.audio && isAudioModel(model),
     video: mediaSupport.video && isVideoModel(model)

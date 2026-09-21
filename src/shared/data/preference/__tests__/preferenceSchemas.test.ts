@@ -16,8 +16,10 @@ describe('DefaultPreferences', () => {
     expect(markdownConversionDefault).toBeNull()
     expect(DefaultPreferences.default['feature.file_processing.default_document_to_markdown']).toBeNull()
     expect(DefaultPreferences.default['feature.file_processing.default_image_to_text']).toBeNull()
+    expect(DefaultPreferences.default['feature.file_processing.default_audio_to_text']).toBeNull()
     expect('feature.file_processing.default.document_to_markdown' in DefaultPreferences.default).toBe(false)
     expect('feature.file_processing.default.image_to_text' in DefaultPreferences.default).toBe(false)
+    expect('feature.file_processing.default.audio_to_text' in DefaultPreferences.default).toBe(false)
   })
 
   it('defaults the URL fetch web search provider to jina', () => {

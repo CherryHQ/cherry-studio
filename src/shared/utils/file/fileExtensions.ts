@@ -1,8 +1,15 @@
 import { codeLanguages } from '@shared/utils/codeLanguages'
 
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
-export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
-export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
+export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm']
+export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a']
+/**
+ * Extensions that can be either audio or video containers. Extension-only
+ * classification is provisional (currently VIDEO via {@link videoExts}); media
+ * preprocessing must probe streams (and ignore attached_pic) before choosing
+ * native AV routing or ASR-only paths.
+ */
+export const ambiguousAvExts = ['.webm'] as const
 export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', '.odt', '.odp', '.ods']
 export const archiveExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2', '.xz'] as const
 export const knowledgeSupportedFileExts = [

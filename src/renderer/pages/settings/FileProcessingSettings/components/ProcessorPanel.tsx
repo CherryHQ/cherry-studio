@@ -45,9 +45,25 @@ import { FileProcessingApiKeyListPopup } from './FileProcessingApiKeyList'
 import { LocalModelRequirement } from './LocalModelRequirement'
 import { PaddleOcrDeploymentInfo } from './PaddleOcrDeploymentInfo'
 import { PaddleOcrModelSettings } from './PaddleOcrModelSettings'
+import { ProviderMediaModelSettings } from './ProviderMediaModelSettings'
 import { TesseractLanguagePacks } from './TesseractLanguagePacks'
 
 const logger = loggerService.withContext('ProcessorPanel')
+
+const FEATURE_COPY = {
+  image_to_text: {
+    title: 'settings.tool.file_processing.features.image_to_text.title',
+    tooltip: 'settings.tool.file_processing.features.image_to_text.tooltip'
+  },
+  document_to_markdown: {
+    title: 'settings.tool.file_processing.features.document_to_markdown.title',
+    tooltip: 'settings.tool.file_processing.features.document_to_markdown.tooltip'
+  },
+  audio_to_text: {
+    title: 'settings.tool.file_processing.features.audio_to_text.title',
+    tooltip: 'settings.tool.file_processing.features.audio_to_text.tooltip'
+  }
+} as const satisfies Record<FileProcessorFeature, { title: string; tooltip: string }>
 
 type ProcessorPanelProps = {
   entry: FileProcessingMenuEntry
@@ -83,14 +99,8 @@ export function ProcessorPanel({
   const processor = entry.processor
   const processorName = t(getProcessorNameKey(processor.id))
   const apiKeyWebsite = getProcessorApiKeyWebsite(processor.id)
-  const featureTitleKey =
-    entry.feature === 'image_to_text'
-      ? 'settings.tool.file_processing.features.image_to_text.title'
-      : 'settings.tool.file_processing.features.document_to_markdown.title'
-  const featureTooltipKey =
-    entry.feature === 'image_to_text'
-      ? 'settings.tool.file_processing.features.image_to_text.tooltip'
-      : 'settings.tool.file_processing.features.document_to_markdown.tooltip'
+  const featureTitleKey = FEATURE_COPY[entry.feature].title
+  const featureTooltipKey = FEATURE_COPY[entry.feature].tooltip
   const featureTitle = t(featureTitleKey)
   const showApiSettings = supportsApiSettings(processor)
   const showLanguageOptions = shouldShowLanguageOptions(processor.id)
@@ -99,6 +109,7 @@ export function ProcessorPanel({
     showApiSettings ||
     processor.id === 'paddleocr' ||
     processor.id === 'system' ||
+    processor.id === 'provider-media' ||
     Boolean(requiredLocalModel) ||
     showLanguageOptions
 
@@ -330,12 +341,33 @@ export function ProcessorPanel({
         </div>
       ) : null}
 
-      {processor.id === 'paddleocr' && entry.capability.modelId !== undefined ? (
+      {processor.id === 'paddleocr' &&
+      entry.capability.feature !== 'audio_to_text' &&
+      entry.capability.modelId !== undefined ? (
         <PaddleOcrModelSettings
           feature={entry.capability.feature}
           value={modelIdInput}
           onChange={(value) => void setModelIdInputAndPersist(value)}
         />
+      ) : null}
+
+      {processor.id === 'openai-transcription' && entry.capability.modelId !== undefined ? (
+        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
+          <SettingRowTitle className="font-medium">
+            {t('settings.tool.file_processing.fields.transcription_model')}
+          </SettingRowTitle>
+          <Input
+            value={modelIdInput}
+            onChange={(event) => setModelIdInput(event.target.value)}
+            onBlur={() => void setModelIdInputAndPersist(modelIdInput.trim() || 'whisper-1')}
+            placeholder="whisper-1"
+            spellCheck={false}
+          />
+        </div>
+      ) : null}
+
+      {processor.id === 'provider-media' ? (
+        <ProviderMediaModelSettings value={modelIdInput} onChange={(value) => void setModelIdInputAndPersist(value)} />
       ) : null}
 
       {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}

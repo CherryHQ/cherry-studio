@@ -1,4 +1,4 @@
-import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import { ArrowRight, Eye, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
 import type { FC, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,7 +27,9 @@ import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
+import { isVideoVisionSelectableModel } from '@shared/utils/nativeFileSupport'
 
 import { TopicNamingSettings } from './TopicNamingSettings'
 
@@ -130,10 +132,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     quickModel,
     translateModel,
     paintingModel,
+    videoVisionModel,
     setDefaultModel,
     setQuickModel,
     setTranslateModel,
-    setPaintingModel
+    setPaintingModel,
+    setVideoVisionModel
   } = useDefaultModel()
   const { providers } = useProviders({ enabled: true })
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
@@ -155,9 +159,19 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     [modelFilter]
   )
   const paintingModelFilter = useCallback((model: Model) => isGenerateImageModel(model), [])
+  const videoVisionModelFilter = useCallback(
+    (model: Model, provider?: Provider) => {
+      if (!(modelFilter?.(model) ?? true)) return false
+      const resolvedProvider = provider ?? providers.find((item) => item.id === model.providerId)
+      return isVideoVisionSelectableModel(model, resolvedProvider)
+    },
+    [modelFilter, providers]
+  )
   const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
   const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
   const selectableTranslateModel = translateModel && translateModelFilter(translateModel) ? translateModel : undefined
+  const selectableVideoVisionModel =
+    videoVisionModel && videoVisionModelFilter(videoVisionModel) ? videoVisionModel : undefined
   const shouldAutoFillEmptyModels =
     autoFillEmptyModels && !selectableDefaultModel && !selectableQuickModel && !selectableTranslateModel
 
@@ -200,6 +214,13 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       void setPaintingModel(selected)
     },
     [setPaintingModel]
+  )
+
+  const onSelectVideoVision = useCallback(
+    (selected: Model | undefined) => {
+      void setVideoVisionModel(selected ? { id: selected.id } : undefined)
+    },
+    [setVideoVisionModel]
   )
 
   const onResetTranslatePrompt = () => {
@@ -337,6 +358,24 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   filter={paintingModelFilter}
                   compact={compact}
                   onSelect={onSelectPainting}
+                  placeholder={t('settings.models.empty')}
+                />
+              </ModelSettingRow>
+            </>
+          )}
+          {!compact && (
+            <>
+              <SettingDivider />
+              <ModelSettingRow
+                id="setting-model-video-vision-model"
+                icon={<Eye size={16} className="lucide-custom shrink-0 text-foreground" />}
+                title={t('settings.models.video_vision_model')}
+                description={showDescription ? t('settings.models.video_vision_model_description') : undefined}>
+                <DefaultModelSelector
+                  model={selectableVideoVisionModel}
+                  providers={providers}
+                  filter={videoVisionModelFilter}
+                  onSelect={onSelectVideoVision}
                   placeholder={t('settings.models.empty')}
                 />
               </ModelSettingRow>

@@ -211,7 +211,13 @@ const BUNDLED_TOOLS: Array<{
   },
   { name: 'bun', binaries: ['bun'], versionFile: '.bun-version' },
   { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
-  { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
+  { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' },
+  {
+    name: 'ffmpeg',
+    binaries: ['ffmpeg', 'ffprobe'],
+    versionFile: '.ffmpeg-version',
+    internal: true
+  }
 ]
 
 export type ManagedCliStatus = 'ready' | 'not_installed' | 'installing' | 'removing' | 'failed' | 'unknown'

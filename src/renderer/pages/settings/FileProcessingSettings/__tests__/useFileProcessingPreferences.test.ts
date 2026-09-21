@@ -8,6 +8,7 @@ import { useFileProcessingPreferences } from '../hooks/useFileProcessingPreferen
 const setPreferencesMock = vi.hoisted(() => vi.fn())
 const setOverridesMock = vi.hoisted(() => vi.fn())
 const preferencesMock = vi.hoisted(() => ({
+  defaultAudioProcessor: null as string | null,
   defaultDocumentProcessor: null as string | null,
   defaultImageProcessor: null as string | null
 }))
@@ -20,6 +21,7 @@ vi.mock('@data/hooks/usePreference', () => ({
 
 describe('useFileProcessingPreferences', () => {
   beforeEach(() => {
+    preferencesMock.defaultAudioProcessor = null
     preferencesMock.defaultDocumentProcessor = null
     preferencesMock.defaultImageProcessor = null
     overridesMock.value = {}
@@ -107,6 +109,16 @@ describe('useFileProcessingPreferences', () => {
           langs: ['eng', 'chi_sim']
         }
       }
+    })
+  })
+
+  it('writes the audio-to-text default processor', async () => {
+    const { result } = renderHook(() => useFileProcessingPreferences())
+
+    await result.current.setDefaultProcessor('audio_to_text', 'openai-transcription')
+
+    expect(setPreferencesMock).toHaveBeenCalledWith({
+      defaultAudioProcessor: 'openai-transcription'
     })
   })
 })

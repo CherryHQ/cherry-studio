@@ -10,15 +10,19 @@ const harness = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
   quickModel: undefined as Model | undefined,
   translateModel: undefined as Model | undefined,
+  paintingModel: undefined as Model | undefined,
+  videoVisionModel: undefined as Model | undefined,
   setDefaultModel: vi.fn(),
   setQuickModel: vi.fn(),
   setTranslateModel: vi.fn(),
   setPaintingModel: vi.fn(),
+  setVideoVisionModel: vi.fn(),
   onDefaultModelSelected: vi.fn(),
   selectorCallbacks: [] as Array<(model: Model | undefined) => void>,
-  selectorFilters: [] as Array<((model: Model) => boolean) | undefined>,
+  selectorFilters: [] as Array<((model: Model, provider?: { id: string }) => boolean) | undefined>,
   preferenceValues: {} as Record<string, unknown>,
-  preferenceSetters: {} as Record<string, ReturnType<typeof vi.fn>>
+  preferenceSetters: {} as Record<string, ReturnType<typeof vi.fn>>,
+  providers: [] as Array<{ id: string; name: string }>
 }))
 
 const setTimeoutTimerMock = vi.hoisted(() => vi.fn())
@@ -75,7 +79,7 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }: {
     onSelect: (model: Model | undefined) => void
     trigger: ReactNode
-    filter?: (model: Model) => boolean
+    filter?: (model: Model, provider?: { id: string }) => boolean
   }) => {
     harness.selectorCallbacks.push(onSelect)
     harness.selectorFilters.push(filter)
@@ -88,16 +92,18 @@ vi.mock('@renderer/hooks/useModel', () => ({
     defaultModel: harness.defaultModel,
     quickModel: harness.quickModel,
     translateModel: harness.translateModel,
-    paintingModel: undefined,
+    paintingModel: harness.paintingModel,
+    videoVisionModel: harness.videoVisionModel,
     setDefaultModel: harness.setDefaultModel,
     setQuickModel: harness.setQuickModel,
     setTranslateModel: harness.setTranslateModel,
-    setPaintingModel: harness.setPaintingModel
+    setPaintingModel: harness.setPaintingModel,
+    setVideoVisionModel: harness.setVideoVisionModel
   })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] })
+  useProviders: () => ({ providers: harness.providers })
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -157,6 +163,9 @@ describe('ModelSettings', () => {
     harness.defaultModel = undefined
     harness.quickModel = undefined
     harness.translateModel = undefined
+    harness.paintingModel = undefined
+    harness.videoVisionModel = undefined
+    harness.providers = [{ id: 'openai', name: 'OpenAI' }]
     harness.selectorCallbacks = []
     harness.selectorFilters = []
     harness.preferenceValues = {}
@@ -239,6 +248,34 @@ describe('ModelSettings', () => {
         outputModalities: ['text']
       })
     ).toBe(false)
+  })
+
+  it('filters video vision models to vision chat models on non-force-text providers', () => {
+    harness.providers = [
+      { id: 'openai', name: 'OpenAI' },
+      { id: 'qiniu', name: 'Qiniu' }
+    ]
+
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    // Default / quick / translate / video-vision selectors (painting hidden).
+    const videoVisionFilter = harness.selectorFilters[3]!
+    const visionChat = {
+      ...createModel('openai', 'gpt-4o'),
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    }
+    const whisper = {
+      ...createModel('openai', 'whisper-1'),
+      capabilities: [MODEL_CAPABILITY.AUDIO_TRANSCRIPT]
+    }
+    const qiniuVision = {
+      ...createModel('qiniu', 'gpt-4o'),
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    }
+
+    expect(videoVisionFilter(visionChat, { id: 'openai' })).toBe(true)
+    expect(videoVisionFilter(whisper, { id: 'openai' })).toBe(false)
+    expect(videoVisionFilter(qiniuVision, { id: 'qiniu' })).toBe(false)
   })
 
   it.each([
