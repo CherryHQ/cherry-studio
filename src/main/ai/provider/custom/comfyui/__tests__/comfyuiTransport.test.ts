@@ -266,7 +266,7 @@ describe('body reads are bounded by the request deadline', () => {
 
   it('bounds a listing whose body never arrives', async () => {
     const doFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => stallingResponse(init))
-    const promise = listWorkflows('http://localhost:8188', undefined, { fetch: doFetch as never }).catch((e) => e)
+    const promise = listWorkflows('http://localhost:8188', undefined, { fetch: doFetch }).catch((e) => e)
     await vi.advanceTimersByTimeAsync(LIST_TIMEOUT_MS)
     const error = await promise
 
