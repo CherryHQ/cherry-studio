@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -112,6 +113,45 @@ describe('TrashItemRow', () => {
       />
     )
     expect(screen.getByText(/Less than 1 day left/)).toBeInTheDocument()
+  })
+
+  it('toggles selection from row content without toggling from row actions or while busy', async () => {
+    const user = userEvent.setup()
+    function SelectableRow({ busy = false, batch = true }) {
+      const [selected, setSelected] = useState(false)
+      return (
+        <TrashItemRow
+          item={{ id: 'topic-1', name: 'Topic', deletedAt: NOW }}
+          retentionDays={30}
+          isRestoring={false}
+          isSectionBusy={busy}
+          showSelection={batch}
+          selected={selected}
+          onSelectedChange={setSelected}
+          onRestore={() => {}}
+          onDelete={() => {}}
+        />
+      )
+    }
+    const { rerender } = render(<SelectableRow />)
+    const checkbox = screen.getByRole('checkbox', { name: 'Select Topic' })
+    await user.click(screen.getByText('Topic'))
+    expect(checkbox).toBeChecked()
+    await user.click(screen.getByText('Topic'))
+    expect(checkbox).not.toBeChecked()
+    await user.click(checkbox)
+    expect(checkbox).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+    expect(checkbox).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
+    expect(checkbox).toBeChecked()
+    rerender(<SelectableRow busy />)
+    await user.click(screen.getByText('Topic'))
+    expect(checkbox).toBeChecked()
+    rerender(<SelectableRow batch={false} />)
+    await user.click(screen.getByText('Topic'))
+    rerender(<SelectableRow />)
+    expect(screen.getByRole('checkbox', { name: 'Select Topic' })).toBeChecked()
   })
 
   it('exposes translated controlled selection and neutral restore actions', async () => {

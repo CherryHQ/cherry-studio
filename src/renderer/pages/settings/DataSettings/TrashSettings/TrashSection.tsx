@@ -1,6 +1,7 @@
 import { Loader, type LucideIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox, EmptyState } from '@cherrystudio/ui'
@@ -38,7 +39,9 @@ interface TrashSectionProps {
   error: Error | undefined
   onRetry: () => void
   pagination?: TrashSectionPagination
+  batchToolbarContainer?: HTMLDivElement | null
   isBatchMode: boolean
+  onBatchAvailabilityChange?: (available: boolean) => void
   retentionDays: number
   pendingRestoreId: string | null
   isPermanentDeleting: boolean
@@ -57,7 +60,9 @@ const TrashSection: FC<TrashSectionProps> = ({
   error,
   onRetry,
   pagination,
+  batchToolbarContainer,
   isBatchMode,
+  onBatchAvailabilityChange,
   retentionDays,
   pendingRestoreId,
   isPermanentDeleting,
@@ -75,6 +80,12 @@ const TrashSection: FC<TrashSectionProps> = ({
   const itemIds = useMemo(() => new Set(items.map((item) => item.id)), [items])
   const selectedItems = useMemo(() => items.filter((item) => selectedIds.has(item.id)), [items, selectedIds])
   const isSectionBusy = pendingRestoreId !== null || isBatchActionPending || isPermanentDeleting
+
+  const canBatchManage = !isLoading && !error && items.length > 0
+
+  useEffect(() => {
+    onBatchAvailabilityChange?.(canBatchManage)
+  }, [canBatchManage, onBatchAvailabilityChange])
 
   useEffect(
     () => () => {
@@ -171,49 +182,45 @@ const TrashSection: FC<TrashSectionProps> = ({
   const showOffsetControls = pagination?.kind === 'offset' && (pagination.totalPages > 1 || pagination.page > 1)
   const isBatchActionDisabled = selectedItems.length === 0 || isLoading || Boolean(error) || isSectionBusy
 
+  const batchToolbar = (
+    <div className="flex min-h-8 flex-wrap items-center justify-between gap-3 py-2">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          checked={selectedItems.length === 0 ? false : selectedItems.length === items.length ? true : 'indeterminate'}
+          disabled={items.length === 0 || isLoading || Boolean(error) || isSectionBusy}
+          aria-label={t('settings.data.trash.selection.select_all_visible')}
+          onCheckedChange={(checked) => setSelectedIds(checked === true ? new Set(itemIds) : new Set())}
+        />
+        {!isLoading && !error && selectedItems.length > 0 && (
+          <span className="text-muted-foreground text-sm">
+            {t('settings.data.trash.selection.count', { count: selectedItems.length })}
+          </span>
+        )}
+      </div>
+      <div className="ms-auto flex flex-wrap items-center justify-end gap-2">
+        <Button variant="outline" size="sm" disabled={isBatchActionDisabled} onClick={handleRestoreSelected}>
+          {t('settings.data.trash.restore.selected', { count: selectedItems.length })}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-destructive"
+          disabled={isBatchActionDisabled}
+          onClick={() => requestPermanentDelete(selectedItems, true)}>
+          {t('settings.data.trash.permanent_delete.selected', { count: selectedItems.length })}
+        </Button>
+        {selectedItems.length > 0 && (
+          <Button variant="ghost" size="sm" disabled={isBatchActionDisabled} onClick={() => setSelectedIds(new Set())}>
+            {t('settings.data.trash.selection.clear')}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+
   return (
     <>
-      {isBatchMode && (
-        <div className="flex min-h-8 flex-wrap items-center justify-between gap-3 border-border border-b py-3">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              checked={
-                selectedItems.length === 0 ? false : selectedItems.length === items.length ? true : 'indeterminate'
-              }
-              disabled={items.length === 0 || isLoading || Boolean(error) || isSectionBusy}
-              aria-label={t('settings.data.trash.selection.select_all_visible')}
-              onCheckedChange={(checked) => setSelectedIds(checked === true ? new Set(itemIds) : new Set())}
-            />
-            {!isLoading && !error && selectedItems.length > 0 && (
-              <span className="text-muted-foreground text-sm">
-                {t('settings.data.trash.selection.count', { count: selectedItems.length })}
-              </span>
-            )}
-          </div>
-          <div className="ms-auto flex flex-wrap items-center justify-end gap-2">
-            <Button variant="outline" size="sm" disabled={isBatchActionDisabled} onClick={handleRestoreSelected}>
-              {t('settings.data.trash.restore.selected', { count: selectedItems.length })}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-destructive"
-              disabled={isBatchActionDisabled}
-              onClick={() => requestPermanentDelete(selectedItems, true)}>
-              {t('settings.data.trash.permanent_delete.selected', { count: selectedItems.length })}
-            </Button>
-            {selectedItems.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={isBatchActionDisabled}
-                onClick={() => setSelectedIds(new Set())}>
-                {t('settings.data.trash.selection.clear')}
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
+      {isBatchMode && (batchToolbarContainer ? createPortal(batchToolbar, batchToolbarContainer) : batchToolbar)}
       {isLoading ? (
         <div className="flex min-h-16 items-center justify-center">
           <Loader size={16} className="animate-spin text-muted-foreground" />
@@ -230,30 +237,32 @@ const TrashSection: FC<TrashSectionProps> = ({
           {items.length === 0 ? (
             <EmptyState title={t('settings.data.trash.empty.section')} />
           ) : (
-            items.map((item) => (
-              <TrashItemRow
-                key={item.id}
-                icon={icon}
-                item={item}
-                retentionDays={retentionDays}
-                isRestoring={pendingRestoreId === item.id}
-                showSelection={isBatchMode}
-                selected={selectedIds.has(item.id)}
-                onSelectedChange={(selected) =>
-                  setSelectedIds((current) => {
-                    const next = new Set(current)
-                    if (selected) next.add(item.id)
-                    else next.delete(item.id)
-                    return next
-                  })
-                }
-                // One mutation instance backs every row, so a second in-flight action would
-                // share and clobber its state — freeze the whole section until this one lands.
-                isSectionBusy={isSectionBusy}
-                onRestore={onRestore}
-                onDelete={(target) => requestPermanentDelete([target], false)}
-              />
-            ))
+            <div>
+              {items.map((item) => (
+                <TrashItemRow
+                  key={item.id}
+                  icon={icon}
+                  item={item}
+                  retentionDays={retentionDays}
+                  isRestoring={pendingRestoreId === item.id}
+                  showSelection={isBatchMode}
+                  selected={selectedIds.has(item.id)}
+                  onSelectedChange={(selected) =>
+                    setSelectedIds((current) => {
+                      const next = new Set(current)
+                      if (selected) next.add(item.id)
+                      else next.delete(item.id)
+                      return next
+                    })
+                  }
+                  // One mutation instance backs every row, so a second in-flight action would
+                  // share and clobber its state — freeze the whole section until this one lands.
+                  isSectionBusy={isSectionBusy}
+                  onRestore={onRestore}
+                  onDelete={(target) => requestPermanentDelete([target], false)}
+                />
+              ))}
+            </div>
           )}
           {pagination?.kind === 'cursor' && items.length > 0 && pagination.hasMore && (
             <div className="flex items-center justify-center">

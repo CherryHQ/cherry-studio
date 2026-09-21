@@ -1,13 +1,12 @@
-import { Check, type LucideIcon, MessageSquare, MessagesSquare } from 'lucide-react'
+import { Check } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ConfirmDialog, SelectDropdown } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, SelectDropdown, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
-import { SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
@@ -29,13 +28,13 @@ const logger = loggerService.withContext('TrashSettings')
 
 type TrashCategory = 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
 
-const CATEGORIES: { id: TrashCategory; labelKey: string; Icon: LucideIcon }[] = [
-  { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants', Icon: SIDEBAR_ICON_COMPONENTS.assistants },
-  { id: 'topics', labelKey: 'settings.data.trash.domain.topics', Icon: MessageSquare },
-  { id: 'agents', labelKey: 'settings.data.trash.domain.agents', Icon: SIDEBAR_ICON_COMPONENTS.agents },
-  { id: 'sessions', labelKey: 'settings.data.trash.domain.sessions', Icon: MessagesSquare },
-  { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings', Icon: SIDEBAR_ICON_COMPONENTS.paintings },
-  { id: 'files', labelKey: 'settings.data.trash.domain.files', Icon: SIDEBAR_ICON_COMPONENTS.files }
+const CATEGORIES: { id: TrashCategory; labelKey: string }[] = [
+  { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants' },
+  { id: 'topics', labelKey: 'settings.data.trash.domain.topics' },
+  { id: 'agents', labelKey: 'settings.data.trash.domain.agents' },
+  { id: 'sessions', labelKey: 'settings.data.trash.domain.sessions' },
+  { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings' },
+  { id: 'files', labelKey: 'settings.data.trash.domain.files' }
 ]
 
 const SECTION_BY_CATEGORY: Record<TrashCategory, FC<TrashDomainSectionProps>> = {
@@ -99,10 +98,8 @@ const TrashSettings: FC = () => {
 
   const [category, setCategory] = useState<TrashCategory>('topics')
   const [isBatchMode, setIsBatchMode] = useState(false)
-  const categoryOptions = useMemo(
-    () => CATEGORIES.map(({ id, labelKey, Icon }) => ({ id, label: t(labelKey), Icon })),
-    [t]
-  )
+  const [batchToolbarContainer, setBatchToolbarContainer] = useState<HTMLDivElement | null>(null)
+  const [canBatchManage, setCanBatchManage] = useState(false)
   const ActiveSection = SECTION_BY_CATEGORY[category]
 
   const [pendingDelete, setPendingDelete] = useState<PendingPermanentDelete | null>(null)
@@ -204,8 +201,10 @@ const TrashSettings: FC = () => {
   }
 
   const sectionProps = {
+    onBatchAvailabilityChange: setCanBatchManage,
     retentionDays,
     isBatchMode,
+    batchToolbarContainer,
     isPermanentDeleting: isDeleting,
     onRequestDelete: handleRequestDelete
   }
@@ -242,67 +241,68 @@ const TrashSettings: FC = () => {
 
   return (
     <>
-      <SettingTitle className="flex-wrap gap-3 text-lg">
-        <span>{t('settings.data.trash.title')}</span>
-        <Button variant="outline" className="text-destructive" onClick={() => setEmptyTrashOpen(true)}>
-          {t('settings.data.trash.empty_trash.button')}
-        </Button>
-      </SettingTitle>
-      <div className="mt-6">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-border border-b pb-3">
-          <SelectDropdown
-            items={categoryOptions}
-            selectedId={category}
-            onSelect={(id) => {
-              closePendingDelete()
-              setCategory(id as TrashCategory)
-            }}
-            triggerClassName="h-8 w-auto max-w-full gap-3 border-transparent px-2"
-            renderSelected={({ label, Icon }) => (
-              <>
-                <Icon size={16} className="shrink-0 text-muted-foreground" />
-                <span className="truncate">{label}</span>
-              </>
-            )}
-            renderItem={({ label, Icon }, isSelected) => (
-              <div className="flex w-full items-center gap-2">
-                <Icon size={16} className="shrink-0 text-muted-foreground" />
-                <span className="flex-1 truncate">{label}</span>
-                {isSelected && <Check size={16} className="shrink-0 text-primary" />}
-              </div>
-            )}
-          />
-          <div className="ms-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+      <SettingGroup>
+        <SettingTitle className="flex-wrap gap-3">
+          <span>{t('settings.data.trash.title')}</span>
+          <Button variant="outline" className="text-destructive" onClick={() => setEmptyTrashOpen(true)}>
+            {t('settings.data.trash.empty_trash.button')}
+          </Button>
+        </SettingTitle>
+        <Tabs
+          className="mt-2"
+          variant="underline"
+          value={category}
+          onValueChange={(value) => {
+            closePendingDelete()
+            setCanBatchManage(false)
+            setCategory(value as TrashCategory)
+          }}>
+          <div className="flex items-center justify-between gap-4 border-border border-b">
             <div
-              role="group"
-              aria-label={t('settings.data.trash.retention.label')}
-              className="flex flex-wrap items-center gap-2">
-              <span className="text-muted-foreground text-xs">{t('settings.data.trash.retention.label')}</span>
-              <SelectDropdown
-                items={retentionOptions}
-                selectedId={String(retentionDays)}
-                onSelect={(id) => setRetentionDays(Number(id))}
-                triggerClassName="h-8 w-auto max-w-full gap-2 border-transparent px-2 text-xs"
-                renderSelected={({ label }) => <span className="truncate">{label}</span>}
-                renderItem={({ label }, isSelected) => (
-                  <div className="flex w-full items-center gap-2">
-                    <span className="flex-1 truncate">{label}</span>
-                    {isSelected && <Check size={16} className="shrink-0 text-primary" />}
-                  </div>
-                )}
-              />
+              hidden={isBatchMode}
+              className={isBatchMode ? 'hidden' : '-mb-px flex min-w-0 items-center overflow-x-auto'}>
+              <TabsList aria-label={t('settings.data.trash.title')}>
+                {CATEGORIES.map(({ id, labelKey }) => (
+                  <TabsTrigger key={id} value={id} className="py-3">
+                    {t(labelKey)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
             </div>
+            <div ref={setBatchToolbarContainer} className={isBatchMode ? 'min-w-0 flex-1' : 'hidden'} />
             <Button
               variant="outline"
               size="sm"
+              className="shrink-0"
+              disabled={!isBatchMode && !canBatchManage}
               aria-pressed={isBatchMode}
               onClick={() => setIsBatchMode((current) => !current)}>
               {t(isBatchMode ? 'settings.data.trash.selection.done' : 'settings.data.trash.selection.manage')}
             </Button>
           </div>
-        </div>
-        <ActiveSection {...sectionProps} />
-      </div>
+          <TabsContent key={category} value={category}>
+            <ActiveSection {...sectionProps} />
+          </TabsContent>
+        </Tabs>
+      </SettingGroup>
+      <SettingGroup>
+        <SettingRow role="group" aria-label={t('settings.data.trash.retention.label')}>
+          <SettingRowTitle>{t('settings.data.trash.retention.label')}</SettingRowTitle>
+          <SelectDropdown
+            items={retentionOptions}
+            selectedId={String(retentionDays)}
+            onSelect={(id) => setRetentionDays(Number(id))}
+            triggerClassName="h-8 w-28 max-w-full gap-2 px-2"
+            renderSelected={({ label }) => <span className="truncate">{label}</span>}
+            renderItem={({ label }, isSelected) => (
+              <div className="flex w-full items-center gap-2">
+                <span className="flex-1 truncate">{label}</span>
+                {isSelected && <Check size={16} className="shrink-0 text-primary" />}
+              </div>
+            )}
+          />
+        </SettingRow>
+      </SettingGroup>
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {
