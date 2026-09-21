@@ -25,7 +25,8 @@ const {
   mockListProviders,
   mockPairDevice,
   mockPreferenceGet,
-  mockProcessMessage
+  mockProcessMessage,
+  mockResolveGatewayModelAddress
 } = vi.hoisted(() => ({
   mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
   mockEstimateAnthropicRequestTokens: vi.fn(async () => 42),
@@ -53,7 +54,8 @@ const {
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
       new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
-  )
+  ),
+  mockResolveGatewayModelAddress: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -96,7 +98,8 @@ vi.mock('../../proxyStream', () => ({
 }))
 
 vi.mock('../../utils/models', () => ({
-  getModels: mockGetModels
+  getModels: mockGetModels,
+  resolveGatewayModelAddress: mockResolveGatewayModelAddress
 }))
 
 vi.mock('../../tokens/estimateAnthropicRequestTokens', () => ({
@@ -675,6 +678,16 @@ describe('API gateway routes (integration)', () => {
       expect(typeof body.totalTokens).toBe('number')
       expect(body.totalTokens).toBeGreaterThan(0)
       expect(mockProcessMessage).not.toHaveBeenCalled()
+    })
+
+    it('countTokens: preserves the internal Work identity for Cherry Cloud model resolution', async () => {
+      const response = await post(app, '/v1beta/models/cherryai-subscription:gemini-2.5:countTokens', geminiBody, {
+        ...AUTH,
+        'x-test-internal-agent': 'true'
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockResolveGatewayModelAddress).toHaveBeenCalledWith('cherryai-subscription:gemini-2.5', true)
     })
 
     // Media is now counted (converted → shared walker, or the provider's remote count) rather
