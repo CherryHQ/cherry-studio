@@ -85,6 +85,7 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
+import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
@@ -855,6 +856,7 @@ const AgentComposerInner = ({
     initialDraft.knowledgeBaseIds.length === 0
   )
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
+  const layerActive = useComposerLayerActive()
   const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
   const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
@@ -1108,14 +1110,16 @@ const AgentComposerInner = ({
   )
 
   useEffect(() => {
+    if (!layerActive) return
     return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, (payload) => {
       const topicId = typeof payload === 'object' && payload ? (payload as { topicId?: string }).topicId : undefined
       if (topicId !== sessionTopicId) return
       actionsRef.current.focus('end')
     })
-  }, [actionsRef, sessionTopicId])
+  }, [actionsRef, layerActive, sessionTopicId])
 
   useEffect(() => {
+    if (!layerActive) return
     return EventEmitter.on(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, (payload) => {
       const data =
         typeof payload === 'object' && payload
@@ -1124,7 +1128,7 @@ const AgentComposerInner = ({
       if (!data?.token || data.topicId !== sessionTopicId) return
       data.updateOnly ? actionsRef.current.insertToken(data.token, true) : actionsRef.current.insertToken(data.token)
     })
-  }, [actionsRef, sessionTopicId])
+  }, [actionsRef, layerActive, sessionTopicId])
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return
