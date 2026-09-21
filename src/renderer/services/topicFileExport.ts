@@ -47,6 +47,17 @@ interface InlineResult {
   skipped: number
 }
 
+// Base64 payload decodes to ~3 bytes per 4 chars; other data urls are measured
+// by payload length. Both over-estimate slightly, which is fine for a cap check.
+function estimatedDataUrlBytes(url: string): number {
+  const comma = url.indexOf(',')
+  const payload = comma >= 0 ? url.slice(comma + 1) : ''
+  if (comma >= 0 && url.slice(0, comma).endsWith(';base64')) {
+    return Math.floor((payload.length * 3) / 4)
+  }
+  return payload.length
+}
+
 // Rewrite `file://` attachment urls as `data:` urls so the topic file stays
 // self-contained across installs. Over-limit or unreadable attachments are
 // dropped and counted so the caller can say so instead of losing them silently.
@@ -59,7 +70,20 @@ async function inlineLocalAttachments(parts: unknown[]): Promise<InlineResult> {
       continue
     }
     const filePart = part as { url?: unknown; mediaType?: unknown }
-    if (typeof filePart.url !== 'string' || !filePart.url.startsWith('file://')) {
+    if (typeof filePart.url !== 'string') {
+      rewritten.push(part)
+      continue
+    }
+    // Already-embedded payloads count against the same cap as inlined files.
+    if (filePart.url.startsWith('data:')) {
+      if (estimatedDataUrlBytes(filePart.url) > MAX_EMBED_IMAGE_BYTES) {
+        skipped += 1
+        continue
+      }
+      rewritten.push(part)
+      continue
+    }
+    if (!filePart.url.startsWith('file://')) {
       rewritten.push(part)
       continue
     }

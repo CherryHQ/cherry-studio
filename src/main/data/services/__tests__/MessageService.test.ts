@@ -1792,6 +1792,78 @@ describe('MessageService', () => {
       ])
       expect(result.activeNodeId).toBe('a-second')
     })
+
+    it('keeps descendants of the inactive sibling at depth -1', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-inactive-deep', activeNodeId: 'a-active', orderKey: 'deep' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-inactive-deep', [
+          {
+            id: 'u-deep',
+            parentId: null,
+            topicId: 'topic-inactive-deep',
+            role: 'user',
+            data: mainText('branched prompt'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'a-inactive',
+            parentId: 'u-deep',
+            topicId: 'topic-inactive-deep',
+            role: 'assistant',
+            data: mainText('inactive answer'),
+            status: 'success',
+            siblingsGroupId: 5,
+            createdAt: 200,
+            updatedAt: 200
+          },
+          {
+            id: 'a-active',
+            parentId: 'u-deep',
+            topicId: 'topic-inactive-deep',
+            role: 'assistant',
+            data: mainText('active answer'),
+            status: 'success',
+            siblingsGroupId: 5,
+            createdAt: 300,
+            updatedAt: 300
+          },
+          {
+            id: 'u-follow',
+            parentId: 'a-inactive',
+            topicId: 'topic-inactive-deep',
+            role: 'user',
+            data: mainText('follow-up on the inactive branch'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 400,
+            updatedAt: 400
+          },
+          {
+            id: 'a-deep',
+            parentId: 'u-follow',
+            topicId: 'topic-inactive-deep',
+            role: 'assistant',
+            data: mainText('deep inactive answer'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 500,
+            updatedAt: 500
+          }
+        ])
+      )
+
+      const result = messageService.getTree('topic-inactive-deep', { depth: -1 })
+
+      expect(result.siblingsGroups).toHaveLength(1)
+      const ids = new Set([
+        ...result.nodes.map((node) => node.id),
+        ...result.siblingsGroups.flatMap((group) => group.nodes.map((node) => node.id))
+      ])
+      expect([...ids].sort()).toEqual(['a-active', 'a-deep', 'a-inactive', 'u-deep', 'u-follow'])
+    })
   })
 
   describe('update — partial data patches', () => {

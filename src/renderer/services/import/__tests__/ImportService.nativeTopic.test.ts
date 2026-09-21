@@ -130,6 +130,43 @@ describe('importService.importNativeTopic', () => {
     expect(puts).toEqual([{ path: '/topics/new-topic/active-node', body: { nodeId: 'msg_5' } }])
   })
 
+  it('lands mid-generation pending rows as error so they stay terminal and retryable', async () => {
+    const posts: { path: string; body: any }[] = []
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string, options: any) => {
+      const returnedId = path === '/topics' ? 'new-topic' : `msg_${posts.length}`
+      posts.push({ path, body: options?.body })
+      return { id: returnedId }
+    })
+    vi.mocked(dataApiService.put).mockResolvedValue({ activeNodeId: 'x' })
+    vi.mocked(dataApiService.patch).mockResolvedValue({})
+
+    const content = JSON.stringify(
+      buildCherryTopicFile({
+        topic: { name: 'Generating' },
+        messages: [
+          makeMessage({ id: 'u1', role: 'user', parentId: 'root-1', createdAt: '2026-01-01T00:00:01.000Z' }),
+          makeMessage({
+            id: 'a1',
+            role: 'assistant',
+            parentId: 'u1',
+            status: 'pending',
+            messageSnapshot: snapshot('Ast'),
+            createdAt: '2026-01-01T00:00:02.000Z'
+          })
+        ],
+        activeNodeId: 'a1',
+        rootId: 'root-1',
+        exportedAt: '2026-02-01T00:00:00.000Z'
+      })
+    )
+
+    const response = await importService.importNativeTopic(content)
+
+    expect(response).toMatchObject({ success: true, topicsCount: 1, messagesCount: 2 })
+    const messageCalls = posts.filter((call) => call.path.includes('/messages'))
+    expect(messageCalls.map((call) => call.body.status)).toEqual(['success', 'error'])
+  })
+
   it('skips the rename-flag patch for auto-named topics', async () => {
     const patches: unknown[] = []
     vi.mocked(dataApiService.post).mockImplementation(async (path: string) => ({

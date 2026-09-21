@@ -288,5 +288,41 @@ describe('topicFileExport', () => {
         restore()
       }
     })
+
+    it('drops pre-embedded data urls over the cap and warns', async () => {
+      const restore = withU1Parts([
+        {
+          type: 'file',
+          url: `data:image/png;base64,${'B'.repeat(15 * 1024 * 1024)}`,
+          filename: 'big.png',
+          mediaType: 'image/png'
+        }
+      ])
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        expect(ipcRequest).not.toHaveBeenCalled()
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts
+        expect(parts).toEqual([])
+        expect(toast.warning).toHaveBeenCalledWith('chat.topics.export.topic_file_skipped_attachments')
+      } finally {
+        restore()
+      }
+    })
+
+    it('keeps pre-embedded data urls within the cap', async () => {
+      const restore = withU1Parts([
+        { type: 'file', url: 'data:image/png;base64,AQID', filename: 'small.png', mediaType: 'image/png' }
+      ])
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts
+        expect(parts).toHaveLength(1)
+        expect(toast.warning).not.toHaveBeenCalled()
+      } finally {
+        restore()
+      }
+    })
   })
 })

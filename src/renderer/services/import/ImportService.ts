@@ -228,8 +228,11 @@ class ImportService {
 
   /**
    * Builds a v2 create-message DTO. Imported messages are historical, so they
-   * are persisted as `success`. For assistant rows the producing author is
-   * frozen into `messageSnapshot` so the header survives later rename/delete.
+   * are persisted as `success`. A `pending` source has no live stream on the
+   * destination to complete it, so it lands as `error` (same convention as the
+   * boot reconcile for crash-orphaned turns), keeping it terminal and retryable.
+   * For assistant rows the producing author is frozen into `messageSnapshot`
+   * so the header survives later rename/delete.
    * Native topic nodes carry their snapshot, status and sibling group verbatim;
    * external nodes synthesize them from the import assistant and tree position.
    */
@@ -244,7 +247,7 @@ class ImportService {
       parentId,
       role: message.role,
       data: message.turnOptions ? { parts: message.parts, turnOptions: message.turnOptions } : { parts: message.parts },
-      status: message.status ?? 'success',
+      status: message.status === 'pending' ? 'error' : (message.status ?? 'success'),
       setAsActive: false,
       ...(effectiveSiblingsGroupId ? { siblingsGroupId: effectiveSiblingsGroupId } : {})
     }
