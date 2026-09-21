@@ -897,6 +897,27 @@ describe('listModels — openRouterFetcher image models', () => {
     ])
     expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(apiKey)
   })
+
+  it('excludes Jev decision-only models from the chat listing', async () => {
+    const provider = makeOpenRouterProvider()
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/embeddings/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
+      if (url.endsWith('/images/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
+      return Promise.resolve({
+        value: {
+          data: [{ id: 'anthropic/claude-sonnet-4' }, { id: 'typesafe/jev-1.13' }, { id: '~typesafe/jev-latest' }]
+        }
+      })
+    })
+
+    const models = await listModels(provider)
+
+    expect(models.map((model) => model.apiModelId)).toEqual(['anthropic/claude-sonnet-4'])
+  })
 })
 
 describe('listModels — Radeon Cloud source header', () => {

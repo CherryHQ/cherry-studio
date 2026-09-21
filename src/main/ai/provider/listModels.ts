@@ -580,6 +580,14 @@ const tokenDanceFetcher: ModelFetcher = {
   }
 }
 
+// Jev serves decisions only via POST /api/alpha/decisions; chat/completions rejects it with 400 (#20806).
+const EXCLUDED_OPENROUTER_MODEL_KEYWORDS = ['/jev', 'jev-'] as const
+
+function isSupportedOpenRouterChatModel(modelId: string): boolean {
+  const id = modelId.toLowerCase()
+  return !EXCLUDED_OPENROUTER_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
+}
+
 const openRouterFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.openrouter,
   fetch: async (provider, signal, options) => {
@@ -617,7 +625,9 @@ const openRouterFetcher: ModelFetcher = {
     ])
     warnSkippedOpenAIModelEntries(provider.id, modelsResponse, embedModelsResponse, imageModelsResponse)
     const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
-    const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
+    const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data].filter((m) =>
+      isSupportedOpenRouterChatModel(m.id)
+    )
     return dedup(all, (m) => m.id).map((m) => {
       const imageModel = imageModelsById.get(m.id)
       return toModel(m.id, provider, {
