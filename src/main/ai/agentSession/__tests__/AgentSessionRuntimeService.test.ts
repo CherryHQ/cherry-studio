@@ -2490,9 +2490,119 @@ describe('AgentSessionRuntimeService', () => {
         expect(firstConnection.close).toHaveBeenCalledOnce()
         expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
         expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-          'Background work did not release within the grace period; forcing connection rebuild',
+          'Background work did not release within the grace period',
           { sessionId: 'session-1', graceMs: 120_000 }
         )
+        expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+          'Forcing connection rebuild after background work grace expiry',
+          { sessionId: 'session-1' }
+        )
+
+        await reader.cancel().catch(() => undefined)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not force the rebuild over an autonomous generation that began during the grace window', async () => {
+      vi.useFakeTimers()
+      try {
+        const firstConnection = {
+          events: createAsyncQueue<any>().iterable,
+          send: vi.fn(),
+          close: vi.fn(),
+          reconcile: vi.fn().mockResolvedValue('rebuild')
+        }
+        const secondConnection = {
+          events: createAsyncQueue<any>().iterable,
+          send: vi.fn(),
+          close: vi.fn(),
+          reconcile: vi.fn().mockResolvedValue('current')
+        }
+        const connect = vi.fn().mockResolvedValue(secondConnection)
+        runtimeDriverRegistry.register({
+          type: 'test-runtime',
+          capabilities: ['agent-session'],
+          connect,
+          validateSession: vi.fn(),
+          listAvailableTools: vi.fn().mockResolvedValue([])
+        })
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+        const entry = getEntry(service)
+        entry.connection = firstConnection
+        service.markTurnTerminal('session-1', 'success')
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, firstConnection)
+
+        const handle = service.beginTurn({
+          ...baseTurnInput,
+          modelId: switchedModelId,
+          userMessage: userMessage('user-2')
+        })
+        const stream = service.openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        const reader = stream.getReader()
+        await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+        await vi.waitFor(() => expect(firstConnection.reconcile).toHaveBeenCalledOnce())
+
+        // An autonomous generation starts on the same connection while the rebuild is deferred.
+        ;(service as any).handleRuntimeEvent(
+          entry,
+          { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+          firstConnection
+        )
+        // Its receive-only turn launches (the user turn stays deferred behind it).
+        await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+        // Grace expiry must not treat the live generation as a zombie occupancy: the connection
+        // it streams on stays alive, so the deferred user turn can still resume behind it.
+        vi.advanceTimersByTime(120_000)
+        await vi.waitFor(() =>
+          expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+            'Background work did not release within the grace period',
+            {
+              sessionId: 'session-1',
+              graceMs: 120_000
+            }
+          )
+        )
+        expect(firstConnection.close).not.toHaveBeenCalled()
+        expect(connect).not.toHaveBeenCalled()
+
+        // Once the generation finishes and releases the work, the deferred turn relaunches...
+        ;(service as any).handleRuntimeEvent(
+          entry,
+          { type: 'autonomous-turn-state', state: 'finished' },
+          firstConnection
+        )
+        ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' }, firstConnection)
+        terminalListener(mocks.startRuntimeTurn.mock.calls[0][0]).onDone()
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false }, firstConnection)
+        await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
+
+        // ...and opening its stream (as the stream manager does) rebuilds the connection with
+        // the turn's model and admits the user input.
+        const relaunched = service
+          .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+          .getReader()
+        await expect(relaunched.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+        await vi.waitFor(() =>
+          expect(secondConnection.send).toHaveBeenCalledWith(
+            expect.objectContaining({ message: userMessage('user-2') })
+          )
+        )
+        expect(firstConnection.close).toHaveBeenCalledOnce()
+        expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
+        await vi.waitFor(() =>
+          expect(secondConnection.send).toHaveBeenCalledWith(
+            expect.objectContaining({ message: userMessage('user-2') })
+          )
+        )
+        expect(firstConnection.close).toHaveBeenCalledOnce()
+        expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
 
         await reader.cancel().catch(() => undefined)
       } finally {
