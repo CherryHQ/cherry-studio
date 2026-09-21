@@ -1,5 +1,6 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -245,6 +246,38 @@ describe('HtmlFilePreview', () => {
       />
     )
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
+  })
+
+  it('reloads the iframe after an unchanged HTML read completes, retaining source mode on later refreshes', async () => {
+    const user = userEvent.setup()
+    const html = '<link rel="stylesheet" href="style.css"><h1>Hello</h1>'
+    mocks.readText.mockResolvedValue(html)
+    const view = renderPreview()
+    const original = await screen.findByTestId('html-frame')
+    let finishRead!: (content: string) => void
+    mocks.readText.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        finishRead = resolve
+      })
+    )
+    const props = { filePath, fileName: 'index.html', metadata: { size: 42, modifiedAt: 1 } }
+    view.rerender(<HtmlFilePreview {...props} refreshKey={1} />)
+    expect(screen.getByTestId('html-frame')).toBe(original)
+    await act(async () => {
+      finishRead(html)
+    })
+    expect(screen.getByTestId('html-frame')).not.toBe(original)
+    expect(screen.getByTestId('html-frame')).toHaveAttribute('srcdoc', html)
+
+    await user.click(screen.getByRole('button', { name: 'file_preview.html.mode.source' }))
+    await screen.findByTestId('code-viewer')
+    view.rerender(<HtmlFilePreview {...props} refreshKey={2} />)
+    await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
+    expect(screen.getByRole('button', { name: 'file_preview.html.mode.source' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
   })
 
   it('ignores a stale read after the path changes', async () => {

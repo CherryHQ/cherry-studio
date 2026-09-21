@@ -27,7 +27,7 @@ const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
 type HtmlFileLoadState =
   | { status: 'error'; error: Error }
   | { status: 'loading' }
-  | { status: 'ready'; content: string }
+  | { status: 'ready'; content: string; refreshKey: number }
   | { status: 'too_large' }
 
 function HtmlPreviewLoading() {
@@ -116,6 +116,7 @@ function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewC
   return (
     <div className="h-full bg-white [&_iframe]:bg-white [&>div]:bg-white">
       <HtmlPreviewFrame
+        key={loadState.refreshKey}
         html={loadState.content}
         title={fileName}
         baseUrl={baseUrl}
@@ -159,7 +160,8 @@ export default function HtmlFilePreview({
         }
 
         const content = await window.api.fs.readText(filePath)
-        if (!cancelled) setLoadState({ status: 'ready', content })
+        // Reload the restricted document even when only its referenced resources changed.
+        if (!cancelled) setLoadState({ status: 'ready', content, refreshKey })
       } catch (error) {
         if (cancelled) return
         const normalized = error instanceof Error ? error : new Error(String(error))
