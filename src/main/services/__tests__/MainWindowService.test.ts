@@ -1285,11 +1285,8 @@ describe('MainWindowService', () => {
       expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     })
 
-    // Regression guard for the uncaught "A JavaScript error occurred in the main
-    // process" dialog. While a window is being torn down (app quit, window close)
-    // render-process-gone can arrive after the window — or just its webContents — has
-    // already been destroyed, and Electron's reload() then throws
-    // "TypeError: Object has been destroyed" straight out of the handler.
+    // Regression guard for the "A JavaScript error occurred in the main process" dialog:
+    // render-process-gone can arrive after the window is already destroyed.
     it('neither reloads nor forceExits when the window is already destroyed', () => {
       attachCrashMonitor(svc, win)
       const listener = getCrashListener(win)
