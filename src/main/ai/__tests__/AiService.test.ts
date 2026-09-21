@@ -675,15 +675,18 @@ describe('AiService', () => {
   it('reports a billing-aware contract failure when a successful response cannot be processed', async () => {
     const service = createService()
     stubImageTransport(service)
-    mockGenerateImage.mockRejectedValueOnce(
-      new APICallError({
+    // Mirrors the executor wrap: the SDK's APICallError inside a generic error.
+    // The body must actually fail the image response schema (data must be an array).
+    const sdkFailure = new Error('Failed to generate image: Invalid JSON response', {
+      cause: new APICallError({
         message: 'Invalid JSON response',
         url: 'https://provider.example/v1/images/edits',
         requestBodyValues: {},
         statusCode: 200,
-        responseBody: '{"data":[{"unexpected":[]}]}'
+        responseBody: '{"data":"not-an-array"}'
       })
-    )
+    })
+    mockGenerateImage.mockRejectedValueOnce(sdkFailure)
 
     const rejection = await service
       .generateImage({
@@ -698,8 +701,9 @@ describe('AiService', () => {
     expect((rejection as Error).message).toMatch(
       /could not be processed.*test-provider.*test-model.*HTTP 200.*may still have been billed.*not retried automatically/s
     )
+    expect((rejection as Error).cause).toBe(sdkFailure)
     expect((rejection as { statusCode?: unknown }).statusCode).toBe(200)
-    expect((rejection as { responseBody?: unknown }).responseBody).toBe('{"data":[{"unexpected":[]}]}')
+    expect((rejection as { responseBody?: unknown }).responseBody).toBe('{"data":"not-an-array"}')
   })
 
   it('passes retryable image failures through without the contract message', async () => {

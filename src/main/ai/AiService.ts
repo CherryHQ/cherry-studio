@@ -330,9 +330,14 @@ function isEmptyImageResponseError(error: unknown): boolean {
   return false
 }
 
-/** True for an HTTP-success rejection the SDK could not use — a response-contract failure, never a retryable timeout. */
-function isUnusableSuccessResponseError(error: unknown): error is APICallError {
-  return APICallError.isInstance(error) && error.statusCode === 200
+/** Find an HTTP-success rejection the SDK could not use — a response-contract failure, never a retryable timeout. */
+function findUnusableSuccessResponseError(error: unknown): APICallError | undefined {
+  let current: unknown = error
+  for (let depth = 0; depth < MAX_IMAGE_ERROR_CAUSE_DEPTH && current instanceof Error; depth++) {
+    if (APICallError.isInstance(current) && current.statusCode === 200) return current
+    current = current.cause
+  }
+  return undefined
 }
 
 /**
@@ -1013,7 +1018,8 @@ export class AiService extends BaseService {
           { cause: error }
         )
       }
-      if (isUnusableSuccessResponseError(error)) {
+      const unusableError = findUnusableSuccessResponseError(error)
+      if (unusableError) {
         // The status/body fields are ones serializeError copies, so the contract detail survives IPC.
         throw Object.assign(
           new Error(
@@ -1021,9 +1027,9 @@ export class AiService extends BaseService {
             { cause: error }
           ),
           {
-            statusCode: error.statusCode,
-            ...(typeof error.responseBody === 'string' ? { responseBody: error.responseBody } : {}),
-            url: error.url
+            statusCode: unusableError.statusCode,
+            ...(typeof unusableError.responseBody === 'string' ? { responseBody: unusableError.responseBody } : {}),
+            url: unusableError.url
           }
         )
       }
