@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID } from '@shared/ai/localVoice'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { VoiceDomainError, VoiceService } from '../VoiceService'
@@ -44,6 +45,65 @@ function emitVoiceEvent(event: any): void {
 }
 
 describe('VoiceService state ownership', () => {
+  it('resolves exact speech parameters from the shared Preference store', async () => {
+    const readSpeechPreferences = vi.fn(async () => ({
+      modelId: APPLE_TTS_MODEL_ID,
+      voice: 'voice.exact',
+      language: 'zh-CN',
+      speed: 1.25
+    }))
+    const service = new VoiceService({
+      ipc: { request, on },
+      ownerWindow,
+      createId: () => ids[nextId++],
+      readSpeechPreferences
+    })
+
+    await expect(service.resolveSpeechPreferences()).resolves.toEqual({
+      modelId: APPLE_TTS_MODEL_ID,
+      voice: 'voice.exact',
+      language: 'zh-CN',
+      speed: 1.25
+    })
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('preserves an explicit recognition model and omits the automatic language sentinel', async () => {
+    const readTranscriptionPreferences = vi.fn(async () => ({ modelId: APPLE_ASR_MODEL_ID, language: 'auto' }))
+    const service = new VoiceService({
+      ipc: { request, on },
+      ownerWindow,
+      createId: () => ids[nextId++],
+      readTranscriptionPreferences
+    })
+
+    await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
+      modelId: APPLE_ASR_MODEL_ID
+    })
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid explicit model instead of replacing it with a platform default', async () => {
+    const readTranscriptionPreferences = vi.fn(async () => ({ modelId: 'unknown-asr', language: '' }))
+    const readSpeechPreferences = vi.fn(async () => ({
+      modelId: 'unknown-tts',
+      voice: 'voice.exact',
+      language: '',
+      speed: 1
+    }))
+    const service = new VoiceService({
+      ipc: { request, on },
+      ownerWindow,
+      createId: () => ids[nextId++],
+      readTranscriptionPreferences,
+      readSpeechPreferences
+    })
+
+    await expect(service.resolveTranscriptionPreferences()).rejects.toMatchObject({ reason: 'unsupported' })
+    await expect(service.resolveSpeechPreferences()).rejects.toMatchObject({ reason: 'unsupported' })
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('subscribes before reading state and ignores a stale initial snapshot', async () => {
     let resolveState!: (state: unknown) => void
     request.mockReturnValueOnce(new Promise((resolve) => (resolveState = resolve)))

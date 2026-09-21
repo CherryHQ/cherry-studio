@@ -15,7 +15,6 @@ export interface CapturedVoiceTarget {
   readonly targetId: string
   readonly owner: Window
   readonly sourceEntityId: string
-  readonly replaceRange: VoiceReplaceRange
   readonly bindingToken: symbol
 }
 
@@ -69,13 +68,11 @@ export class VoiceTargetManager {
   captureCurrent(): CapturedVoiceTarget | null {
     const target = this.current
     if (!target || this.targets.get(target.targetId) !== target || target.owner.closed) return null
-    const replaceRange = captureRange(target)
-    if (!replaceRange) return null
+    if (!captureRange(target)) return null
     return Object.freeze({
       targetId: target.targetId,
       owner: target.owner,
       sourceEntityId: target.sourceEntityId,
-      replaceRange,
       bindingToken: target.bindingToken
     })
   }
@@ -91,7 +88,8 @@ export class VoiceTargetManager {
     ) {
       return 'unavailable'
     }
-    return target.replaceRange(binding.replaceRange, text) ? 'inserted' : 'unavailable'
+    const liveRange = captureRange(target)
+    return liveRange && target.replaceRange(liveRange, text) ? 'inserted' : 'unavailable'
   }
 
   insertIntoCurrent(text: string, intent: 'user_recovery'): VoiceTargetInsertResult {

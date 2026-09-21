@@ -244,15 +244,6 @@ function VoiceSettings() {
   }, [dictation.error])
 
   useEffect(
-    () => () => {
-      const run = dictationRunRef.current
-      dictationRunRef.current = undefined
-      if (run) void run.cancel().catch(() => undefined)
-    },
-    []
-  )
-
-  useEffect(
     () =>
       voiceTargetManager.bind({
         targetId: 'voice-settings-transcription-test',
@@ -325,10 +316,7 @@ function VoiceSettings() {
       return
     }
     voiceTargetManager.markCurrent('voice-settings-transcription-test')
-    const run = dictationService.startScoped({
-      ...(effectiveRecognitionModel && { modelId: effectiveRecognitionModel }),
-      ...(languageValue(recognitionLanguage) && { language: languageValue(recognitionLanguage) })
-    })
+    const run = dictationService.startScoped()
     dictationRunRef.current = run
     void run.result.catch(() => {
       if (dictationRunRef.current === run) setActionFailed(true)
@@ -344,11 +332,9 @@ function VoiceSettings() {
     void speechPlaybackService
       .start({
         text: previewText,
-        voice: speechVoice,
-        ...(languageValue(speechLanguage) && { language: languageValue(speechLanguage) }),
-        speed: speechSpeed,
         trigger: 'manual',
-        sourceLabel: 'preview'
+        sourceLabel: 'preview',
+        sourceEntityId: 'voice-settings'
       })
       .catch(() => setActionFailed(true))
   }

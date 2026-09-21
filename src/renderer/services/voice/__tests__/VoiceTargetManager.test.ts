@@ -7,7 +7,7 @@ function owner(closed = false): Window {
 }
 
 describe('VoiceTargetManager exact binding', () => {
-  it('inserts a completion into the captured range instead of the live selection', () => {
+  it('inserts a completion into the original target at its live selection', () => {
     const manager = new VoiceTargetManager()
     const targetOwner = owner()
     let liveRange = { from: 3, to: 8 }
@@ -24,7 +24,7 @@ describe('VoiceTargetManager exact binding', () => {
     liveRange = { from: 20, to: 20 }
 
     expect(manager.insert(binding!, 'hello')).toBe('inserted')
-    expect(replaceRange).toHaveBeenCalledWith({ from: 3, to: 8 }, 'hello')
+    expect(replaceRange).toHaveBeenCalledWith({ from: 20, to: 20 }, 'hello')
   })
 
   it('rejects a captured completion after the same target is rebound to another entity', () => {

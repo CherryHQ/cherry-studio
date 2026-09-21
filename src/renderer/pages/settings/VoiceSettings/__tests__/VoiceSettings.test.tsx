@@ -146,7 +146,7 @@ describe('VoiceSettings', () => {
     await waitFor(() => expect(record).toBeEnabled())
     fireEvent.click(record)
 
-    expect(voice.dictationStartScoped).toHaveBeenCalledWith({ modelId: APPLE_ASR_MODEL_ID })
+    expect(voice.dictationStartScoped).toHaveBeenCalledWith()
     expect(screen.getByLabelText(/recognition model/i)).toHaveValue('')
     expect(MockUsePreferenceUtils.getAllPreferenceValues()).not.toHaveProperty('feature.voice.recognition.model_id')
     expect(voice.install).not.toHaveBeenCalled()
@@ -191,7 +191,7 @@ describe('VoiceSettings', () => {
     render(<VoiceSettings />)
 
     fireEvent.click(await screen.findByRole('button', { name: /record test/i }))
-    expect(voice.dictationStartScoped).toHaveBeenCalledWith({ modelId: APPLE_ASR_MODEL_ID, language: 'en-US' })
+    expect(voice.dictationStartScoped).toHaveBeenCalledWith()
 
     act(() => {
       voice.dictation = { phase: 'recording', elapsedMs: 1000, recoveryAvailable: false }
@@ -210,11 +210,9 @@ describe('VoiceSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: /play preview/i }))
     expect(voice.speechStart).toHaveBeenCalledWith({
       text: 'Read this exactly',
-      voice: 'voice.exact',
-      language: 'en-US',
-      speed: 1.25,
       trigger: 'manual',
-      sourceLabel: 'preview'
+      sourceLabel: 'preview',
+      sourceEntityId: 'voice-settings'
     })
   })
 
@@ -480,10 +478,10 @@ describe('VoiceSettings', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('')
     )
     fireEvent.click(screen.getByRole('button', { name: /record test/i }))
-    expect(voice.dictationStartScoped).toHaveBeenCalledWith({ modelId: APPLE_ASR_MODEL_ID })
+    expect(voice.dictationStartScoped).toHaveBeenCalledWith()
   })
 
-  it('keeps the current scoped dictation run after admission and cancels only it on unmount', async () => {
+  it('keeps the current scoped dictation run after its target unmounts', async () => {
     const first = deferred<void>()
     const firstCancel = vi.fn(async () => undefined)
     const second = deferred<void>()
@@ -503,6 +501,6 @@ describe('VoiceSettings', () => {
     view.unmount()
 
     expect(firstCancel).not.toHaveBeenCalled()
-    expect(secondCancel).toHaveBeenCalledOnce()
+    expect(secondCancel).not.toHaveBeenCalled()
   })
 })

@@ -30,6 +30,12 @@ class FakeAudio extends EventTarget {
 class FakeVoiceService {
   readonly events: string[] = []
   readonly initialize = vi.fn(async (): Promise<void> => undefined)
+  readonly resolveSpeechPreferences = vi.fn(async () => ({
+    modelId: 'local-voice::apple-system-tts' as const,
+    voice: 'configured-voice',
+    language: 'zh-CN',
+    speed: 0.75
+  }))
   readonly generateSpeech = vi.fn((input: any) => {
     const index = this.generateSpeech.mock.calls.length
     const id = input.sessionId ?? sessionId
@@ -73,11 +79,9 @@ class FakeVoiceService {
 
 const baseInput: SpeechPlaybackStartInput = {
   text: 'hello world',
-  voice: 'exact-voice',
-  language: 'en-US',
-  speed: 1.25,
   trigger: 'manual',
-  sourceLabel: 'message'
+  sourceLabel: 'message',
+  sourceEntityId: 'message-1'
 }
 
 function createHarness(options: { chunks?: string[]; objectUrl?: string; audio?: FakeAudio } = {}) {
@@ -111,6 +115,23 @@ function createHarness(options: { chunks?: string[]; objectUrl?: string; audio?:
 beforeEach(() => vi.restoreAllMocks())
 
 describe('SpeechPlaybackService planning and playback', () => {
+  it('uses centrally resolved speech preferences instead of caller parameters', async () => {
+    const { service, voice } = createHarness()
+
+    await service.start(baseInput)
+
+    expect(voice.resolveSpeechPreferences).toHaveBeenCalledOnce()
+    expect(voice.generateSpeech).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'local-voice::apple-system-tts',
+        voice: 'configured-voice',
+        language: 'zh-CN',
+        speed: 0.75,
+        sourceEntityId: 'message-1'
+      })
+    )
+  })
+
   it('requires confirmation for long manual text and skips long auto text without Voice IPC', async () => {
     const manual = createHarness()
     const text = 'x'.repeat(5_001)
@@ -357,7 +378,8 @@ describe('SpeechPlaybackService planning and playback', () => {
     await service.start(baseInput)
     const originalSnapshot = service.getSnapshot()
 
-    await expect(service.start({ ...baseInput, voice: undefined, sourceLabel: 'preview' })).rejects.toMatchObject({
+    voice.resolveSpeechPreferences.mockRejectedValueOnce(new VoiceDomainError('voice_unavailable'))
+    await expect(service.start({ ...baseInput, sourceLabel: 'preview' })).rejects.toMatchObject({
       reason: 'voice_unavailable'
     })
 
@@ -429,8 +451,9 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
 
   it('fails with the stable missing-voice error and never selects a fallback', async () => {
     const { service, voice } = createHarness()
+    voice.resolveSpeechPreferences.mockRejectedValueOnce(new VoiceDomainError('voice_unavailable'))
 
-    await expect(service.start({ ...baseInput, voice: undefined })).rejects.toMatchObject({
+    await expect(service.start(baseInput)).rejects.toMatchObject({
       reason: 'voice_unavailable'
     })
 

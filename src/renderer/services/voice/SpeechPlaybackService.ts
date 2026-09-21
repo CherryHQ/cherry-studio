@@ -9,6 +9,7 @@ import {
 } from './readableText'
 import {
   VoiceDomainError,
+  type ResolvedSpeechPreferences,
   type SpeechInput,
   type VoiceCommandEvent,
   type VoiceOperation,
@@ -34,13 +35,11 @@ export interface SpeechPlaybackSnapshot {
 
 export interface SpeechPlaybackStartInput {
   readonly text: string
-  readonly voice?: string
-  readonly language?: string
-  readonly speed?: number
   readonly trigger: ReadableTextTrigger
   readonly mode?: ReadableTextMode
   readonly confirmed?: boolean
   readonly sourceLabel: SpeechPlaybackSourceLabel
+  readonly sourceEntityId: string
 }
 
 export type SpeechPlaybackStartResult =
@@ -51,6 +50,7 @@ export type SpeechPlaybackStartResult =
 type PlaybackVoiceService = Pick<
   VoiceService,
   | 'initialize'
+  | 'resolveSpeechPreferences'
   | 'subscribeCommands'
   | 'generateSpeech'
   | 'abortSpeech'
@@ -75,6 +75,8 @@ interface PlaybackRun {
   readonly sessionId: string
   readonly sourceLabel: SpeechPlaybackSourceLabel
   readonly trigger: ReadableTextTrigger
+  readonly sourceEntityId: string
+  readonly modelId: ResolvedSpeechPreferences['modelId']
   readonly voice: string
   readonly language?: string
   readonly speed?: number
@@ -175,28 +177,34 @@ export class SpeechPlaybackService {
       this.publishStartFailure(undefined, plan.chunks.length, 'invalid_request')
       throw new VoiceDomainError('invalid_request')
     }
-    if (!input.voice?.trim()) {
-      this.publishStartFailure(input.sourceLabel, plan.chunks.length, 'voice_unavailable')
-      throw new VoiceDomainError('voice_unavailable')
-    }
     if (!plan.chunks.length) {
       this.publishStartFailure(input.sourceLabel, 0, 'invalid_request')
       throw new VoiceDomainError('invalid_request')
     }
 
     const generation = this.lifecycleGeneration
+    let preferences: ResolvedSpeechPreferences
+    try {
+      preferences = await this.voice.resolveSpeechPreferences()
+    } catch (error) {
+      const reason = errorReason(error)
+      this.publishStartFailure(input.sourceLabel, plan.chunks.length, reason)
+      throw new VoiceDomainError(reason)
+    }
     await this.initialize()
     if (generation !== this.lifecycleGeneration) throw new VoiceDomainError('aborted')
     const deferredVisibleRun = input.trigger === 'auto_read' ? this.visibleRun : undefined
-    const operation = this.voice.generateSpeech(this.speechInput(input, plan.chunks, 0))
+    const operation = this.voice.generateSpeech(this.speechInput(input, preferences, plan.chunks, 0))
     const run: PlaybackRun = {
       generation,
       sessionId: operation.sessionId,
       sourceLabel: input.sourceLabel,
       trigger: input.trigger,
-      voice: input.voice,
-      language: input.language,
-      speed: input.speed,
+      sourceEntityId: input.sourceEntityId,
+      modelId: preferences.modelId,
+      voice: preferences.voice,
+      language: preferences.language,
+      speed: preferences.speed,
       chunks: plan.chunks,
       index: 0,
       completed: 0,
@@ -291,17 +299,20 @@ export class SpeechPlaybackService {
 
   private speechInput(
     input: SpeechPlaybackStartInput,
+    preferences: ResolvedSpeechPreferences,
     chunks: readonly string[],
     index: number,
     sessionId?: string
   ): SpeechInput {
     return {
       ...(sessionId && { sessionId }),
+      modelId: preferences.modelId,
       text: chunks[index],
-      voice: input.voice!,
-      ...(input.language && { language: input.language }),
-      ...(input.speed !== undefined && { speed: input.speed }),
+      voice: preferences.voice,
+      ...(preferences.language && { language: preferences.language }),
+      speed: preferences.speed,
       source: 'playback',
+      sourceEntityId: input.sourceEntityId,
       trigger: input.trigger,
       chunkIndex: index,
       chunkCount: chunks.length
@@ -354,11 +365,13 @@ export class SpeechPlaybackService {
     this.publish(run, 'generating')
     const operation = this.voice.generateSpeech({
       sessionId: run.sessionId,
+      modelId: run.modelId,
       text: run.chunks[run.index],
       voice: run.voice,
       ...(run.language && { language: run.language }),
       ...(run.speed !== undefined && { speed: run.speed }),
       source: 'playback',
+      sourceEntityId: run.sourceEntityId,
       trigger: run.trigger,
       chunkIndex: run.index,
       chunkCount: run.chunks.length

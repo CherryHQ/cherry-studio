@@ -1,4 +1,14 @@
+import { preferenceService } from '@renderer/data/PreferenceService'
 import { ipcApi } from '@renderer/ipc'
+import {
+  APPLE_ASR_MODEL_ID,
+  APPLE_TTS_MODEL_ID,
+  FUNASR_MODEL_ID,
+  MAX_SPEECH_SPEED,
+  MIN_SPEECH_SPEED,
+  type LocalSpeechModelId,
+  type LocalTranscriptionModelId
+} from '@shared/ai/localVoice'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { voiceRequestSchemas, VoiceSessionEvent, VoiceSessionState } from '@shared/ipc/schemas/voice'
@@ -20,6 +30,8 @@ interface VoiceServiceOptions {
   ipc?: VoiceIpc
   ownerWindow?: Window
   createId?: () => string
+  readTranscriptionPreferences?: () => Promise<{ modelId: string; language: string }>
+  readSpeechPreferences?: () => Promise<{ modelId: string; voice: string; language: string; speed: number }>
 }
 
 type SessionReservationKind = 'install' | 'recording' | 'speech'
@@ -73,9 +85,25 @@ export type InstallTranscriptionAssetInput = Omit<
   requestId?: string
 }
 
+export interface ResolvedTranscriptionPreferences {
+  readonly modelId?: LocalTranscriptionModelId
+  readonly language?: string
+}
+
+export interface ResolvedSpeechPreferences {
+  readonly modelId: LocalSpeechModelId
+  readonly voice: string
+  readonly language?: string
+  readonly speed: number
+}
+
 const reasonByCode = new Map<string, VoiceErrorReason>(
   Object.entries(voiceErrorCodes).map(([reason, code]) => [code, reason as VoiceErrorReason])
 )
+
+function isTranscriptionModelId(value: string): value is LocalTranscriptionModelId {
+  return value === APPLE_ASR_MODEL_ID || value === FUNASR_MODEL_ID
+}
 
 export class VoiceDomainError extends Error {
   constructor(readonly reason: VoiceErrorReason) {
@@ -94,6 +122,8 @@ export class VoiceService {
   private readonly ipc: VoiceIpc
   private readonly ownerWindow: Window
   private readonly createId: () => string
+  private readonly readTranscriptionPreferences: NonNullable<VoiceServiceOptions['readTranscriptionPreferences']>
+  private readonly readSpeechPreferences: NonNullable<VoiceServiceOptions['readSpeechPreferences']>
   private readonly stateListeners = new Set<() => void>()
   private readonly commandListeners = new Set<(event: VoiceCommandEvent) => void>()
   private readonly reservations = new Map<string, SessionReservation>()
@@ -112,6 +142,59 @@ export class VoiceService {
     this.ipc = options.ipc ?? ipcApi
     this.ownerWindow = options.ownerWindow ?? window
     this.createId = options.createId ?? (() => crypto.randomUUID())
+    this.readTranscriptionPreferences =
+      options.readTranscriptionPreferences ??
+      (() =>
+        preferenceService.getMultiple({
+          modelId: 'feature.voice.recognition.model_id',
+          language: 'feature.voice.recognition.language'
+        }))
+    this.readSpeechPreferences =
+      options.readSpeechPreferences ??
+      (() =>
+        preferenceService.getMultiple({
+          modelId: 'feature.voice.speech.model_id',
+          voice: 'feature.voice.speech.voice_id',
+          language: 'feature.voice.speech.language',
+          speed: 'feature.voice.speech.speed'
+        }))
+  }
+
+  async resolveTranscriptionPreferences(): Promise<ResolvedTranscriptionPreferences> {
+    const preferences = await this.readTranscriptionPreferences()
+    const storedModelId = preferences.modelId.trim()
+    let modelId: LocalTranscriptionModelId | undefined
+    if (storedModelId) {
+      if (!isTranscriptionModelId(storedModelId)) throw new VoiceDomainError('unsupported')
+      modelId = storedModelId
+    }
+    const language = this.optionalLanguage(preferences.language)
+    return {
+      ...(modelId && { modelId }),
+      ...(language && { language })
+    }
+  }
+
+  async resolveSpeechPreferences(): Promise<ResolvedSpeechPreferences> {
+    const preferences = await this.readSpeechPreferences()
+    const modelId = preferences.modelId.trim()
+    if (!modelId) throw new VoiceDomainError('model_required')
+    if (modelId !== APPLE_TTS_MODEL_ID) throw new VoiceDomainError('unsupported')
+    if (!preferences.voice.trim()) throw new VoiceDomainError('voice_unavailable')
+    if (
+      !Number.isFinite(preferences.speed) ||
+      preferences.speed < MIN_SPEECH_SPEED ||
+      preferences.speed > MAX_SPEECH_SPEED
+    ) {
+      throw new VoiceDomainError('invalid_request')
+    }
+    const language = this.optionalLanguage(preferences.language)
+    return {
+      modelId,
+      voice: preferences.voice,
+      ...(language && { language }),
+      speed: preferences.speed
+    }
   }
 
   initialize(): Promise<void> {
@@ -574,6 +657,11 @@ export class VoiceService {
       .catch((error: unknown) => {
         throw toVoiceDomainError(error)
       })
+  }
+
+  private optionalLanguage(value: string): string | undefined {
+    const language = value.trim()
+    return language && language.toLowerCase() !== 'auto' ? language : undefined
   }
 }
 

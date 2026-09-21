@@ -1,5 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+import { APPLE_ASR_MODEL_ID } from '@shared/ai/localVoice'
+
 import { DictationService } from '../DictationService'
 import type { VoiceCommandEvent } from '../VoiceService'
 import { VoiceTargetManager } from '../VoiceTargetManager'
@@ -83,6 +85,10 @@ function createHarness(
       commandListeners.add(listener)
       return () => commandListeners.delete(listener)
     }),
+    resolveTranscriptionPreferences: vi.fn(async () => ({
+      modelId: 'local-voice::apple-system-asr' as const,
+      language: 'zh-CN'
+    })),
     startRecording: vi.fn(() => {
       events.push('start-recording')
       sessionNumber += 1
@@ -173,6 +179,21 @@ afterEach(() => {
 })
 
 describe('DictationService recording lifecycle', () => {
+  it('uses centrally resolved recognition preferences and the bound source entity', async () => {
+    const harness = createHarness()
+
+    await startAndStop(harness.service)
+
+    expect(harness.voice.resolveTranscriptionPreferences).toHaveBeenCalledOnce()
+    expect(harness.voice.startRecording).toHaveBeenCalledWith({ source: 'dictation', sourceEntityId: 'topic-a' })
+    expect(harness.voice.transcribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'local-voice::apple-system-asr',
+        language: 'zh-CN'
+      })
+    )
+  })
+
   it('waits for Main admission before requesting the microphone and uses the exact WebM recorder type', async () => {
     const admission = deferred<{ revision: number; phase: 'recording'; sessionId: string }>()
     const harness = createHarness()
@@ -217,7 +238,12 @@ describe('DictationService recording lifecycle', () => {
     expect(recording).toMatchObject({ sessionId: 'session-1', durationMs: 1_234 })
     expect(recording.audio).toEqual(new Uint8Array([...WEBM_HEADER, 0x42, 0x82]))
     expect(Array.from(recording.audio.slice(0, 4))).toEqual(Array.from(WEBM_HEADER))
-    expect(harness.voice.transcribe).toHaveBeenCalledWith({ sessionId: 'session-1', fileEntryId: 'file-1' })
+    expect(harness.voice.transcribe).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      fileEntryId: 'file-1',
+      modelId: APPLE_ASR_MODEL_ID,
+      language: 'zh-CN'
+    })
     expect(harness.replaceRange).toHaveBeenCalledWith({ from: 2, to: 5 }, 'hello world')
     expect(otherReplaceRange).not.toHaveBeenCalled()
     harness.tracks.forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
@@ -493,7 +519,9 @@ describe('DictationService failure and retry', () => {
 
     expect(harness.voice.retryTranscription).toHaveBeenCalledWith({
       sessionId: 'session-1',
-      fileEntryId: 'file-1'
+      fileEntryId: 'file-1',
+      modelId: APPLE_ASR_MODEL_ID,
+      language: 'zh-CN'
     })
     expect(harness.replaceRange).toHaveBeenCalledWith({ from: 2, to: 5 }, 'recovered text')
     expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')

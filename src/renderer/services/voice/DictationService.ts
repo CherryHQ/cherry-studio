@@ -3,6 +3,7 @@ import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice
 import {
   voiceService,
   type CreateRecordingInput,
+  type ResolvedTranscriptionPreferences,
   type StartRecordingInput,
   type TranscriptionInput,
   type VoiceCommandEvent,
@@ -31,8 +32,6 @@ export interface DictationSnapshot {
   readonly error?: DictationErrorCategory
 }
 
-export type DictationStartOptions = Pick<TranscriptionInput, 'language' | 'modelId'>
-
 export interface DictationRun {
   readonly result: Promise<void>
   cancel(): Promise<void>
@@ -48,6 +47,7 @@ interface TranscriptionResult {
 
 interface DictationVoiceService {
   initialize(): Promise<void>
+  resolveTranscriptionPreferences(): Promise<ResolvedTranscriptionPreferences>
   subscribeCommands(listener: (event: VoiceCommandEvent) => void): () => void
   startRecording(input: StartRecordingInput): VoiceOperation<unknown>
   createRecording(input: CreateRecordingInput): Promise<RecordingEntry>
@@ -93,7 +93,7 @@ interface ActiveDictation {
   readonly runToken: symbol
   readonly sessionId: string
   readonly target: CapturedVoiceTarget | null
-  readonly options: DictationStartOptions
+  readonly preferences: ResolvedTranscriptionPreferences
   readonly chunks: Blob[]
   stream?: MediaStream
   recorder?: DictationMediaRecorder
@@ -187,28 +187,23 @@ export class DictationService {
     return promise
   }
 
-  start(options: DictationStartOptions = {}): Promise<void> {
-    return this.startScoped(options).result
+  start(): Promise<void> {
+    return this.startScoped().result
   }
 
-  startScoped(options: DictationStartOptions = {}): DictationRun {
+  startScoped(): DictationRun {
     const target = this.targets.captureCurrent()
     const generation = ++this.generation
     const runToken = Symbol('dictation-run')
     this.currentRunToken = runToken
     this.recovery = undefined
     return {
-      result: this.startRun(runToken, generation, target, options),
+      result: this.startRun(runToken, generation, target),
       cancel: () => this.cancelRun(runToken)
     }
   }
 
-  private async startRun(
-    runToken: symbol,
-    generation: number,
-    target: CapturedVoiceTarget | null,
-    options: DictationStartOptions
-  ): Promise<void> {
+  private async startRun(runToken: symbol, generation: number, target: CapturedVoiceTarget | null): Promise<void> {
     if (await this.cleanupActive()) return
     if (!this.isRunCurrent(runToken, generation)) return
     this.publish('starting')
@@ -223,13 +218,27 @@ export class DictationService {
     }
     if (!this.isRunCurrent(runToken, generation)) return
 
-    const admission = this.voice.startRecording({ source: 'dictation' })
+    let preferences: ResolvedTranscriptionPreferences
+    try {
+      preferences = await this.voice.resolveTranscriptionPreferences()
+    } catch (error) {
+      if (this.isRunCurrent(runToken, generation)) {
+        this.publish('failed', 0, false, errorCategory(error, 'operation_failed'))
+      }
+      return
+    }
+    if (!this.isRunCurrent(runToken, generation)) return
+
+    const admission = this.voice.startRecording({
+      source: 'dictation',
+      ...(target?.sourceEntityId && { sourceEntityId: target.sourceEntityId })
+    })
     const active: ActiveDictation = {
       generation,
       runToken,
       sessionId: admission.sessionId,
       target,
-      options,
+      preferences,
       chunks: []
     }
     this.active = active
@@ -380,7 +389,7 @@ export class DictationService {
     const input: TranscriptionInput = {
       sessionId: active.sessionId,
       fileEntryId: active.fileEntryId,
-      ...active.options
+      ...active.preferences
     }
     const transcription = retry ? this.voice.retryTranscription(input) : this.voice.transcribe(input)
     active.transcription = transcription
