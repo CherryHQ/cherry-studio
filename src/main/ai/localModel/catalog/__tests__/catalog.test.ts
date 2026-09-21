@@ -90,12 +90,18 @@ describe('local model catalog', () => {
     expect(new Set(subdirs).size).toBe(subdirs.length)
   })
 
-  it('pins complete auditable provenance for FunASR and every downloaded file', () => {
+  it('pins official immutable FunASR provenance and every downloaded file', () => {
     const bundle = LOCAL_MODEL_BUNDLES['funasr-nano-int8']
 
     expect(bundle.provenance).toMatchObject({
-      license: { spdx: 'Apache-2.0' },
-      upstream: { revision: '272c57b82523ada6fd87095e955f8e29100979ab' },
+      license: {
+        spdx: 'Apache-2.0',
+        url: 'https://huggingface.co/FunAudioLLM/Fun-ASR-Nano-2512/blob/272c57b82523ada6fd87095e955f8e29100979ab/README.md'
+      },
+      upstream: {
+        url: 'https://huggingface.co/FunAudioLLM/Fun-ASR-Nano-2512/tree/272c57b82523ada6fd87095e955f8e29100979ab',
+        revision: '272c57b82523ada6fd87095e955f8e29100979ab'
+      },
       conversion: {
         revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
         license: { spdx: 'Apache-2.0' }

@@ -1,5 +1,4 @@
 export { VoiceDomainError, voiceService } from './VoiceService'
-export { useFunAsrModel } from './useFunAsrModel'
 export { voiceTargetManager } from './VoiceTargetManager'
 export type {
   CapturedVoiceTarget,

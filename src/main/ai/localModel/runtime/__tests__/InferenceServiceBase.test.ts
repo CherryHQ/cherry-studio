@@ -43,12 +43,11 @@ import {
 } from '@main/core/utilityProcess/__tests__/memoryProcessAdapter'
 import { SERVICE_NAME_PREFIX } from '@main/core/utilityProcess/protocol/constants'
 import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
-import type { UtilityProcessDefinition } from '@main/core/utilityProcess/types'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 
-import { asrInferenceProcess, embeddingInferenceProcess, ocrInferenceProcess } from '../inferenceProcess'
+import { asrInferenceProcess } from '../../capabilities/asr/AsrInferenceService'
+import { embeddingInferenceProcess, type InferenceProcessDefinition, ocrInferenceProcess } from '../inferenceProcess'
 import { InferenceServiceBase } from '../InferenceServiceBase'
-import type { InferenceInitData } from '../protocol'
 
 /**
  * The base owns three things after the process machinery moved into `core/utilityProcess`:
@@ -65,12 +64,11 @@ const HARDWARE_KEY = 'feature.local_model.hardware_acceleration.enabled'
 
 const initDataSeen: unknown[] = []
 let childStates: EchoChildState[]
-let definition: UtilityProcessDefinition<EchoContract, InferenceInitData>
-let cpuOnlyRuntime = false
+let definition: InferenceProcessDefinition<EchoContract>
 
 class TestInferenceService extends InferenceServiceBase<EchoContract> {
   constructor() {
-    super(definition, 'embedding', cpuOnlyRuntime)
+    super(definition, 'embedding')
   }
 
   ping(signal?: AbortSignal) {
@@ -90,10 +88,7 @@ class TestInferenceService extends InferenceServiceBase<EchoContract> {
   }
 }
 
-async function createService(
-  handlers: Partial<UtilityProcessHandlers<EchoContract>> = {},
-  cpuOnly = false
-): Promise<{
+async function createService(handlers: Partial<UtilityProcessHandlers<EchoContract>> = {}): Promise<{
   service: TestInferenceService
   adapter: ReturnType<typeof createMemoryProcessAdapter>
 }> {
@@ -116,7 +111,6 @@ async function createService(
   })
   await manager._doInit()
   utilityProcessManager.current = manager
-  cpuOnlyRuntime = cpuOnly
   const service = new TestInferenceService()
   await service._doInit()
   return { service, adapter }
@@ -127,10 +121,10 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, false)
   initDataSeen.length = 0
-  cpuOnlyRuntime = false
-  definition = echoDefinition({
-    createInitData: () => ({ appPath: '/app' })
-  }) as UtilityProcessDefinition<EchoContract, InferenceInitData>
+  definition = {
+    ...echoDefinition({ createInitData: () => ({ appPath: '/app' }) }),
+    resolveRuntimeProfile: embeddingInferenceProcess.resolveRuntimeProfile
+  } as InferenceProcessDefinition<EchoContract>
 })
 
 afterEach(() => {
@@ -289,8 +283,24 @@ describe('InferenceServiceBase runtime staleness', () => {
     }
   })
 
+  it('uses the process definition profile policy for staleness checks', async () => {
+    const profiles = await import('../inferenceAcceleration')
+    const hardwareProfile = profiles.resolveLocalInferenceProfile(true, { platform: 'darwin', arch: 'arm64' })
+    let profile = profiles.CPU_LOCAL_INFERENCE_PROFILE
+    definition = { ...definition, resolveRuntimeProfile: () => profile }
+    const { service, adapter } = await createService()
+
+    await service.ping()
+    profile = hardwareProfile
+    await service.ping()
+
+    expect(adapter.spawns).toHaveLength(2)
+  })
+
   it('keeps a CPU-only runtime alive when the acceleration preference changes', async () => {
-    const { service, adapter } = await createService({}, true)
+    const { CPU_LOCAL_INFERENCE_PROFILE } = await import('../inferenceAcceleration')
+    definition = { ...definition, resolveRuntimeProfile: () => CPU_LOCAL_INFERENCE_PROFILE }
+    const { service, adapter } = await createService()
 
     await service.ping()
     MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, true)

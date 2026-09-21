@@ -1,6 +1,10 @@
 import { application } from '@application'
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
-import type { UtilityProcessMethod } from '@main/core/utilityProcess/types'
+import type {
+  UtilityProcessContract,
+  UtilityProcessDefinition,
+  UtilityProcessMethod
+} from '@main/core/utilityProcess/types'
 import type { LocalModelCapability } from '@shared/data/presets/localModel'
 
 import type { AsrSegment, AsrTranscribePayload } from '../capabilities/asr/protocol'
@@ -8,8 +12,8 @@ import type { EmbeddingCountTokensPayload, EmbeddingEmbedPayload } from '../capa
 import type { OcrLine, OcrRecognizePayload } from '../capabilities/ocr/protocol'
 import { bundleForCapability } from '../catalog/catalog'
 import { localModelStorageService } from '../installation/LocalModelStorageService'
-import { CPU_LOCAL_INFERENCE_PROFILE, resolveLocalInferenceProfile } from './inferenceAcceleration'
-import type { InferenceInitData } from './protocol'
+import { resolveLocalInferenceProfile } from './inferenceAcceleration'
+import type { InferenceInitData, LocalInferenceRuntimeProfile } from './protocol'
 
 export type EmbeddingInferenceContract = {
   methods: {
@@ -32,40 +36,61 @@ export type AsrInferenceContract = {
 
 const INFERENCE_IDLE_TIMEOUT_MS = 60 * 1000
 
-function createInferenceInitData(capability: LocalModelCapability): InferenceInitData {
+type RuntimeProfileResolver = () => LocalInferenceRuntimeProfile
+
+export type InferenceProcessDefinition<Contract extends UtilityProcessContract> = UtilityProcessDefinition<
+  Contract,
+  InferenceInitData
+> &
+  Readonly<{ resolveRuntimeProfile: RuntimeProfileResolver }>
+
+function resolveConfiguredRuntimeProfile(): LocalInferenceRuntimeProfile {
+  return resolveLocalInferenceProfile(
+    application.get('PreferenceService').get('feature.local_model.hardware_acceleration.enabled')
+  )
+}
+
+function createInferenceInitData(
+  capability: LocalModelCapability,
+  resolveRuntimeProfile: RuntimeProfileResolver
+): InferenceInitData {
   const bundle = bundleForCapability(capability)
   return {
     appPath: application.getPath('app.root'),
     artifactPaths: Object.fromEntries(bundle.requires.map((id) => [id, localModelStorageService.artifactPath(id)])),
-    runtimeProfile:
-      capability === 'asr'
-        ? CPU_LOCAL_INFERENCE_PROFILE
-        : resolveLocalInferenceProfile(
-            application.get('PreferenceService').get('feature.local_model.hardware_acceleration.enabled')
-          )
+    runtimeProfile: resolveRuntimeProfile()
   }
 }
 
-export const embeddingInferenceProcess = defineUtilityProcess<EmbeddingInferenceContract, InferenceInitData>({
+export function defineInferenceProcess<Contract extends UtilityProcessContract>({
+  capability,
+  id,
+  entry,
+  resolveRuntimeProfile = resolveConfiguredRuntimeProfile
+}: {
+  capability: LocalModelCapability
+  id: string
+  entry: string
+  resolveRuntimeProfile?: RuntimeProfileResolver
+}): InferenceProcessDefinition<Contract> {
+  const definition = defineUtilityProcess<Contract, InferenceInitData>({
+    id,
+    entry,
+    cancellation: 'terminate',
+    idleTimeoutMs: INFERENCE_IDLE_TIMEOUT_MS,
+    createInitData: () => createInferenceInitData(capability, resolveRuntimeProfile)
+  })
+  return Object.freeze({ ...definition, resolveRuntimeProfile })
+}
+
+export const embeddingInferenceProcess = defineInferenceProcess<EmbeddingInferenceContract>({
+  capability: 'embedding',
   id: 'inference.embedding',
-  entry: 'inference-embedding',
-  cancellation: 'terminate',
-  idleTimeoutMs: INFERENCE_IDLE_TIMEOUT_MS,
-  createInitData: () => createInferenceInitData('embedding')
+  entry: 'inference-embedding'
 })
 
-export const ocrInferenceProcess = defineUtilityProcess<OcrInferenceContract, InferenceInitData>({
+export const ocrInferenceProcess = defineInferenceProcess<OcrInferenceContract>({
+  capability: 'ocr',
   id: 'inference.ocr',
-  entry: 'inference-ocr',
-  cancellation: 'terminate',
-  idleTimeoutMs: INFERENCE_IDLE_TIMEOUT_MS,
-  createInitData: () => createInferenceInitData('ocr')
-})
-
-export const asrInferenceProcess = defineUtilityProcess<AsrInferenceContract, InferenceInitData>({
-  id: 'inference.asr',
-  entry: 'inference-asr',
-  cancellation: 'terminate',
-  idleTimeoutMs: INFERENCE_IDLE_TIMEOUT_MS,
-  createInitData: () => createInferenceInitData('asr')
+  entry: 'inference-ocr'
 })

@@ -1256,6 +1256,39 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
   })
 
+  it('omits a stale language when the implicit platform default is FunASR', async () => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: 'linux' },
+        arch: { value: 'x64' }
+      })
+    )
+    const input = { ...(await recording()), modelId: undefined, language: 'en-US' }
+
+    await expect(service.transcribe(a, input)).resolves.toMatchObject({ text: 'private-transcript' })
+
+    expect(native.status).toHaveBeenCalledWith(
+      FUNASR_MODEL_ID,
+      { ...input, language: undefined },
+      expect.any(AbortSignal)
+    )
+    expect(native.transcribe).toHaveBeenCalledWith(
+      FUNASR_MODEL_ID,
+      webm,
+      { language: undefined },
+      expect.any(AbortSignal)
+    )
+    const operationLogs = mockMainLoggerService.debug.mock.calls.filter(([message]) =>
+      ['Voice operation started', 'Voice operation settled'].includes(message)
+    )
+    expect(operationLogs).toHaveLength(2)
+    expect(operationLogs.map(([, metadata]) => metadata)).toEqual([
+      expect.objectContaining({ modelId: FUNASR_MODEL_ID, locale: undefined }),
+      expect.objectContaining({ modelId: FUNASR_MODEL_ID, locale: undefined })
+    ])
+  })
+
   it('never logs source text, transcript, bytes or physical paths on success and failure', async () => {
     const input = await recording()
     await service.transcribe(a, input)

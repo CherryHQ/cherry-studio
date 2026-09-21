@@ -3,8 +3,10 @@ LOCAL VOICE AUDIO DEPENDENCY NOTICES
 LOCAL SPEECH RECOGNITION ARTIFACTS
 
 - Fun-ASR-Nano-2512, FunAudioLLM, Apache-2.0.
-  Upstream source and license, pinned at 272c57b82523ada6fd87095e955f8e29100979ab:
-  https://github.com/FunAudioLLM/Fun-ASR
+  Official upstream, pinned at 272c57b82523ada6fd87095e955f8e29100979ab:
+  https://huggingface.co/FunAudioLLM/Fun-ASR-Nano-2512/tree/272c57b82523ada6fd87095e955f8e29100979ab
+  License declaration in the model card at the same revision:
+  https://huggingface.co/FunAudioLLM/Fun-ASR-Nano-2512/blob/272c57b82523ada6fd87095e955f8e29100979ab/README.md
 - The ONNX conversion downloaded by Cherry Studio is pinned to ModelScope revision
   2f25d8e45c1534925cda6a4977d497f383b01535 and is declared Apache-2.0:
   https://www.modelscope.cn/models/zengshuishui/FunASR-nano-onnx
@@ -19,16 +21,64 @@ LOCAL SPEECH RECOGNITION ARTIFACTS
   https://huggingface.co/Qwen/Qwen3-0.6B
 - Silero VAD v4, Silero Team, MIT, pinned at
   915dd3d639b8333a52e001af095f87c5b7f1e0ac:
-  https://github.com/snakers4/silero-vad
+  https://github.com/snakers4/silero-vad/blob/915dd3d639b8333a52e001af095f87c5b7f1e0ac/LICENSE
 - sherpa-onnx 1.13.6, k2-fsa contributors, Apache-2.0, pinned at
   1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911:
   https://github.com/k2-fsa/sherpa-onnx
 - ONNX Runtime 1.27.1, Microsoft Corporation, MIT, pinned at
   df2ba1cf8108aa63627cf4cdf8f807880b938616:
-  https://github.com/microsoft/onnxruntime
+  https://github.com/microsoft/onnxruntime/blob/df2ba1cf8108aa63627cf4cdf8f807880b938616/LICENSE
 
 The model files and native runtime are downloaded only after an explicit user
 action. Cherry Studio does not bundle them in the installer.
+
+SILERO VAD V4
+
+MIT License
+
+Copyright (c) 2020-present Silero Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+ONNX RUNTIME
+
+MIT License
+
+Copyright (c) Microsoft Corporation
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 Cherry Studio uses these libraries without modifying their source:
 

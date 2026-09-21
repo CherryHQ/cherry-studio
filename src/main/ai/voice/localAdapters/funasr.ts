@@ -38,7 +38,7 @@ function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeErr
     return new VoiceRuntimeError('model_load_failed')
   if (
     error instanceof UtilityProcessError &&
-    ['PROCESS_START_FAILED', 'PROCESS_EXITED', 'PROCESS_CIRCUIT_OPEN'].includes(error.code)
+    ['PROCESS_START_FAILED', 'PROCESS_EXITED', 'PROCESS_PROTOCOL_ERROR', 'PROCESS_CIRCUIT_OPEN'].includes(error.code)
   )
     return new VoiceRuntimeError('worker_crashed')
   return new VoiceRuntimeError('operation_failed')

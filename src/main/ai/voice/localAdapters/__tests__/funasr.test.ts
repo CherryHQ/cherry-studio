@@ -108,6 +108,24 @@ describe('FunASR local adapter', () => {
     expect(await readdir(directory)).toEqual([])
   })
 
+  it('normalizes protocol failures as worker crashes without exposing native details', async () => {
+    const canary = 'PRIVATE_PROTOCOL_CANARY'
+    mocks.transcribe.mockRejectedValue(
+      new UtilityProcessError('PROCESS_PROTOCOL_ERROR', `${canary} at ${directory}/input.wav`, {
+        processId: 'inference.asr'
+      })
+    )
+
+    await expect(
+      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+        audio: new TextEncoder().encode(canary),
+        mediaType: 'audio/webm;codecs=opus'
+      })
+    ).rejects.toMatchObject({ reason: 'worker_crashed', message: 'worker_crashed' })
+    expect(JSON.stringify(mockMainLoggerService.debug.mock.calls)).not.toContain(canary)
+    expect(await readdir(directory)).toEqual([])
+  })
+
   it('maps model initialization failures to a stable non-sensitive reason', async () => {
     mocks.transcribe.mockRejectedValue(
       new UtilityProcessError('PROCESS_REMOTE_ERROR', 'private native model failure', {

@@ -1,6 +1,6 @@
 # Local voice production IPC smoke
 
-This manual harness connects to an **already running, tracked** Cherry Studio main window. It does not launch Electron, download assets, access the microphone, or select another window automatically. Use an isolated test profile with Apple speech assets and an installed voice for the chosen test language on macOS 26 or later.
+This manual harness connects to an **already running, tracked** Cherry Studio main window. It does not launch Electron, download assets, access the microphone, or select another window automatically. Use an isolated test profile with Apple speech assets, an installed voice for the chosen test language, and the FunASR Nano local model already installed and ready on macOS 26 or later.
 
 Pass the local CDP endpoint and the main window's complete URL explicitly; there must be exactly one matching page. Navigation between target discovery and execution also fails the check.
 
@@ -16,11 +16,11 @@ Use the URL from the tracked instance, not the example value. A packaged main wi
 
 The renderer function uses the real preload `window.api.ipcApi.request` routes to:
 
-1. List installed voices and select an exact voice ID matching the chosen language; inspect Apple ASR readiness without installing anything.
+1. List installed voices and select an exact voice ID matching the chosen language; inspect Apple ASR and FunASR readiness without installing anything.
 2. Generate a synthetic phrase with Apple TTS and read its FileEntry using binary `file.read`.
 3. Decode that WAV with `AudioContext`, route it to `MediaStreamDestination`, and produce actual WebM/Opus with `MediaRecorder`. The source is not connected to speakers.
 4. Upload the recording to a fresh session and explicitly run Apple ASR; require a nonempty transcript without exporting its contents.
-5. Upload the same WebM to another fresh session, explicitly choose FunASR Nano, and require `VOICE_LICENSE_UNVERIFIED`. Success or another error fails the check.
+5. Upload the same WebM to another fresh session, explicitly choose FunASR Nano without a language hint, and require a nonempty transcript with at least one timed segment. Only `transcriptNonEmpty`, segment count, and duration metadata enter the evidence.
 6. Stop audio resources and discard every allocated session, including on failure. A cleanup failure also fails the check.
 
 The output proves only the routes exercised in that particular run. It does not prove recognition accuracy, platform coverage, code signing, packaged ASAR/resource placement, offline operation, or model redistribution rights. Offline evidence requires the caller's external network restriction; the harness does not change host networking.
@@ -46,4 +46,4 @@ The caller remains responsible for selecting and verifying the expected main win
 pnpm exec vitest run --project scripts scripts/voice-runtime-smoke/__tests__/smoke.test.ts
 ```
 
-These tests check target selection, sensitive-output suppression, cleanup, empty transcription, and incorrect FunASR fallback. Their browser/IPC doubles validate the harness contract; only a real application run is voice-runtime evidence. This differs from the separate [utility-process smoke](../utility-process-smoke/README.md), which boots a throwaway engine test app.
+These tests check target selection, installed-model readiness, explicit model selection without fallback, sensitive-output suppression, cleanup, and empty transcription from either engine. Their browser/IPC doubles validate the harness contract; only a real application run is voice-runtime evidence. This differs from the separate [utility-process smoke](../utility-process-smoke/README.md), which boots a throwaway engine test app.

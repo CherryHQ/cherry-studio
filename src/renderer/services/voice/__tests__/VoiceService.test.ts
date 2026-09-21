@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { VoiceDomainError, VoiceService } from '../VoiceService'
@@ -80,6 +80,19 @@ describe('VoiceService state ownership', () => {
     await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({
       modelId: APPLE_ASR_MODEL_ID
     })
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('omits a stale stored language for FunASR preferences', async () => {
+    const readTranscriptionPreferences = vi.fn(async () => ({ modelId: FUNASR_MODEL_ID, language: 'en-US' }))
+    const service = new VoiceService({
+      ipc: { request, on },
+      ownerWindow,
+      createId: () => ids[nextId++],
+      readTranscriptionPreferences
+    })
+
+    await expect(service.resolveTranscriptionPreferences()).resolves.toEqual({ modelId: FUNASR_MODEL_ID })
     expect(request).not.toHaveBeenCalled()
   })
 

@@ -168,7 +168,7 @@ export class VoiceService {
       if (!isTranscriptionModelId(storedModelId)) throw new VoiceDomainError('unsupported')
       modelId = storedModelId
     }
-    const language = this.optionalLanguage(preferences.language)
+    const language = modelId === FUNASR_MODEL_ID ? undefined : this.optionalLanguage(preferences.language)
     return {
       ...(modelId && { modelId }),
       ...(language && { language })

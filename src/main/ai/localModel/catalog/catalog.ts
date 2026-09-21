@@ -247,10 +247,10 @@ export const LOCAL_MODEL_BUNDLES = {
     provenance: {
       license: {
         spdx: 'Apache-2.0',
-        url: 'https://github.com/FunAudioLLM/Fun-ASR/blob/272c57b82523ada6fd87095e955f8e29100979ab/LICENSE'
+        url: 'https://huggingface.co/FunAudioLLM/Fun-ASR-Nano-2512/blob/272c57b82523ada6fd87095e955f8e29100979ab/README.md'
       },
       upstream: {
-        url: 'https://github.com/FunAudioLLM/Fun-ASR',
+        url: 'https://huggingface.co/FunAudioLLM/Fun-ASR-Nano-2512/tree/272c57b82523ada6fd87095e955f8e29100979ab',
         revision: '272c57b82523ada6fd87095e955f8e29100979ab'
       },
       conversion: {

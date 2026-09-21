@@ -14,7 +14,7 @@ import {
   Switch,
   Textarea
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import {
   SettingDescription,
   SettingDivider,
@@ -24,13 +24,13 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useFunAsrModel } from '@renderer/hooks/useFunAsrModel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { popup } from '@renderer/services/popup'
 import {
   dictationService,
   type DictationPhase,
   speechPlaybackService,
-  useFunAsrModel,
   voiceService,
   voiceTargetManager
 } from '@renderer/services/voice'
@@ -51,7 +51,13 @@ interface StatusState {
   reason?: VoiceErrorReason
 }
 
+type FunAsrAction = 'download' | 'cancel' | 'remove'
+
 const EMPTY_VALUE = '__unconfigured__'
+const RECOGNITION_PREFERENCE_KEYS = {
+  modelId: 'feature.voice.recognition.model_id',
+  language: 'feature.voice.recognition.language'
+} as const
 const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [APPLE_ASR_MODEL_ID]: 'settings.voice.model.apple_asr',
   [APPLE_TTS_MODEL_ID]: 'settings.voice.model.apple_tts',
@@ -110,11 +116,27 @@ function transcriptionModelId(value: string | null | undefined): LocalTranscript
   return value === APPLE_ASR_MODEL_ID || value === FUNASR_MODEL_ID ? value : undefined
 }
 
+function funAsrStatusState(model: Pick<ReturnType<typeof useFunAsrModel>, 'isStatusResolved' | 'status'>): StatusState {
+  if (!model.isStatusResolved) return { status: 'unconfigured' }
+  switch (model.status) {
+    case 'not_downloaded':
+      return { status: 'not_installed', reason: 'model_required' }
+    case 'downloading':
+      return { status: 'installing', reason: 'model_required' }
+    case 'ready':
+      return { status: 'ready' }
+    case 'error':
+      return { status: 'failed', reason: 'download_failed' }
+    case 'unsupported':
+      return { status: 'unsupported', reason: 'unsupported' }
+  }
+}
+
 function VoiceSettings() {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const [recognitionModel, setRecognitionModel] = usePreference('feature.voice.recognition.model_id')
-  const [recognitionLanguage, setRecognitionLanguage] = usePreference('feature.voice.recognition.language')
+  const [recognitionPreferences, setRecognitionPreferences] = useMultiplePreferences(RECOGNITION_PREFERENCE_KEYS)
+  const { language: recognitionLanguage, modelId: recognitionModel } = recognitionPreferences
   const [speechModel, setSpeechModel] = usePreference('feature.voice.speech.model_id')
   const [speechVoice, setSpeechVoice] = usePreference('feature.voice.speech.voice_id')
   const [speechLanguage, setSpeechLanguage] = usePreference('feature.voice.speech.language')
@@ -135,12 +157,14 @@ function VoiceSettings() {
   const [models, setModels] = useState<readonly LocalVoiceModelFacts[]>([])
   const [defaultAsrModel, setDefaultAsrModel] = useState<LocalTranscriptionModelId>()
   const [voices, setVoices] = useState<readonly { id: string; name: string; language: string }[]>([])
-  const [recognitionStatus, setRecognitionStatus] = useState<StatusState>({ status: 'unconfigured' })
+  const [queriedRecognitionStatus, setQueriedRecognitionStatus] = useState<StatusState>({
+    status: 'unconfigured'
+  })
   const [speechStatus, setSpeechStatus] = useState<StatusState>({ status: 'unconfigured' })
   const [microphoneStatus, setMicrophoneStatus] =
     useState<Awaited<ReturnType<typeof voiceService.getMicrophoneStatus>>>('unknown')
   const [installing, setInstalling] = useState(false)
-  const [managingFunAsr, setManagingFunAsr] = useState(false)
+  const [pendingFunAsrAction, setPendingFunAsrAction] = useState<FunAsrAction>()
   const [actionFailed, setActionFailed] = useState<boolean | VoiceErrorReason>(false)
   const [transcript, setTranscript] = useState('')
   const [previewText, setPreviewText] = useState('')
@@ -181,45 +205,32 @@ function VoiceSettings() {
   const hasConfiguredRecognitionModel = optionalValue(recognitionModel) !== undefined
   const effectiveRecognitionModel = hasConfiguredRecognitionModel ? configuredRecognitionModel : defaultAsrModel
   const funAsrSelected = effectiveRecognitionModel === FUNASR_MODEL_ID
+  const recognitionStatus =
+    hasConfiguredRecognitionModel && !configuredRecognitionModel
+      ? ({ status: 'unsupported', reason: 'unsupported' } satisfies StatusState)
+      : !effectiveRecognitionModel
+        ? ({ status: 'unconfigured' } satisfies StatusState)
+        : funAsrSelected
+          ? funAsrStatusState(funAsrModel)
+          : queriedRecognitionStatus
+  const funAsrAction: FunAsrAction | undefined =
+    !funAsrSelected || !funAsrModel.isStatusResolved
+      ? undefined
+      : funAsrModel.status === 'not_downloaded' || funAsrModel.status === 'error'
+        ? 'download'
+        : funAsrModel.status === 'downloading'
+          ? 'cancel'
+          : funAsrModel.status === 'ready'
+            ? 'remove'
+            : undefined
 
   useEffect(() => {
-    if (!funAsrSelected || !languageValue(recognitionLanguage)) return
-    setActionFailed(false)
-    void setRecognitionLanguage('').catch(() => setActionFailed(true))
-  }, [funAsrSelected, recognitionLanguage, setRecognitionLanguage])
-
-  useEffect(() => {
-    if (hasConfiguredRecognitionModel && !configuredRecognitionModel) {
-      setRecognitionStatus({ status: 'unsupported', reason: 'unsupported' })
+    if (
+      (hasConfiguredRecognitionModel && !configuredRecognitionModel) ||
+      !effectiveRecognitionModel ||
+      effectiveRecognitionModel === FUNASR_MODEL_ID
+    )
       return
-    }
-    if (!effectiveRecognitionModel) {
-      setRecognitionStatus({ status: 'unconfigured' })
-      return
-    }
-    if (effectiveRecognitionModel === FUNASR_MODEL_ID) {
-      if (!funAsrModel.isStatusResolved) {
-        setRecognitionStatus({ status: 'unconfigured' })
-        return
-      }
-      switch (funAsrModel.status) {
-        case 'not_downloaded':
-          setRecognitionStatus({ status: 'not_installed', reason: 'model_required' })
-          return
-        case 'downloading':
-          setRecognitionStatus({ status: 'installing', reason: 'model_required' })
-          return
-        case 'ready':
-          setRecognitionStatus({ status: 'ready' })
-          return
-        case 'error':
-          setRecognitionStatus({ status: 'failed', reason: 'download_failed' })
-          return
-        case 'unsupported':
-          setRecognitionStatus({ status: 'unsupported', reason: 'unsupported' })
-          return
-      }
-    }
     let current = true
     void voiceService
       .getModelStatus({
@@ -227,22 +238,15 @@ function VoiceSettings() {
         ...(languageValue(recognitionLanguage) && { language: languageValue(recognitionLanguage) })
       })
       .then((status) => {
-        if (current) setRecognitionStatus(status)
+        if (current) setQueriedRecognitionStatus(status)
       })
       .catch(() => {
-        if (current) setRecognitionStatus({ status: 'failed', reason: 'operation_failed' })
+        if (current) setQueriedRecognitionStatus({ status: 'failed', reason: 'operation_failed' })
       })
     return () => {
       current = false
     }
-  }, [
-    configuredRecognitionModel,
-    effectiveRecognitionModel,
-    funAsrModel.isStatusResolved,
-    funAsrModel.status,
-    hasConfiguredRecognitionModel,
-    recognitionLanguage
-  ])
+  }, [configuredRecognitionModel, effectiveRecognitionModel, hasConfiguredRecognitionModel, recognitionLanguage])
 
   useEffect(() => {
     if (!speechModel) {
@@ -354,28 +358,32 @@ function VoiceSettings() {
     if (!language || !canInstallApple) return
     const previousStatus = recognitionStatus
     setInstalling(true)
-    setRecognitionStatus({ status: 'installing', reason: 'asset_required' })
+    setQueriedRecognitionStatus({ status: 'installing', reason: 'asset_required' })
     setActionFailed(false)
     try {
       await voiceService.installTranscriptionAsset({ language, source: 'settings' }).result
-      setRecognitionStatus(await voiceService.getModelStatus({ modelId: APPLE_ASR_MODEL_ID, language }))
+      setQueriedRecognitionStatus(await voiceService.getModelStatus({ modelId: APPLE_ASR_MODEL_ID, language }))
     } catch {
-      setRecognitionStatus(previousStatus)
+      setQueriedRecognitionStatus(previousStatus)
       setActionFailed(true)
     } finally {
       setInstalling(false)
     }
   }
 
-  const runFunAsrAction = async (action: () => Promise<unknown>, failureReason: VoiceErrorReason) => {
-    setManagingFunAsr(true)
+  const runFunAsrAction = async (
+    actionName: FunAsrAction,
+    action: () => Promise<unknown>,
+    failureReason: VoiceErrorReason
+  ) => {
+    setPendingFunAsrAction(actionName)
     setActionFailed(false)
     try {
       await action()
     } catch {
       setActionFailed(failureReason)
     } finally {
-      setManagingFunAsr(false)
+      setPendingFunAsrAction((current) => (current === actionName ? undefined : current))
     }
   }
 
@@ -456,8 +464,10 @@ function VoiceSettings() {
             onValueChange={(value) =>
               savePreference(async () => {
                 const modelId = value === EMPTY_VALUE ? '' : value
-                await setRecognitionModel(modelId)
-                if (modelId === FUNASR_MODEL_ID) await setRecognitionLanguage('')
+                await setRecognitionPreferences({
+                  modelId,
+                  ...(modelId === FUNASR_MODEL_ID && { language: '' })
+                })
               })
             }>
             <SelectTrigger className="w-64" aria-label={t('settings.voice.recognition.model')}>
@@ -484,7 +494,9 @@ function VoiceSettings() {
               funAsrSelected ? t('settings.voice.language.auto_detect') : (languageValue(recognitionLanguage) ?? '')
             }
             disabled={funAsrSelected}
-            onChange={(event) => savePreference(() => setRecognitionLanguage(storedLanguage(event.target.value)))}
+            onChange={(event) =>
+              savePreference(() => setRecognitionPreferences({ language: storedLanguage(event.target.value) }))
+            }
           />
         </SettingRow>
         <SettingDivider />
@@ -503,34 +515,37 @@ function VoiceSettings() {
               {t('settings.voice.action.install')}
             </Button>
           ) : null}
-          {funAsrSelected && ['not_downloaded', 'error'].includes(funAsrModel.status) ? (
+          {funAsrAction ? (
             <Button
-              disabled={managingFunAsr}
-              onClick={() => void runFunAsrAction(funAsrModel.download, 'download_failed')}>
-              <Download className="size-4" />
-              {t(
-                funAsrModel.status === 'error'
-                  ? 'settings.voice.action.retry_download'
-                  : 'settings.voice.action.download_model'
+              variant={funAsrAction === 'download' ? undefined : 'outline'}
+              disabled={
+                pendingFunAsrAction !== undefined && !(pendingFunAsrAction === 'download' && funAsrAction === 'cancel')
+              }
+              onClick={() => {
+                if (funAsrAction === 'download') {
+                  void runFunAsrAction('download', funAsrModel.download, 'download_failed')
+                } else if (funAsrAction === 'cancel') {
+                  void runFunAsrAction('cancel', funAsrModel.cancel, 'operation_failed')
+                } else {
+                  void runFunAsrAction('remove', funAsrModel.remove, 'operation_failed')
+                }
+              }}>
+              {funAsrAction === 'cancel' ? (
+                <X className="size-4" />
+              ) : funAsrAction === 'remove' ? (
+                <Trash2 className="size-4" />
+              ) : (
+                <Download className="size-4" />
               )}
-            </Button>
-          ) : null}
-          {funAsrSelected && funAsrModel.status === 'downloading' ? (
-            <Button
-              variant="outline"
-              disabled={managingFunAsr}
-              onClick={() => void runFunAsrAction(funAsrModel.cancel, 'operation_failed')}>
-              <X className="size-4" />
-              {t('settings.voice.action.cancel_download')}
-            </Button>
-          ) : null}
-          {funAsrSelected && funAsrModel.status === 'ready' ? (
-            <Button
-              variant="outline"
-              disabled={managingFunAsr}
-              onClick={() => void runFunAsrAction(funAsrModel.remove, 'operation_failed')}>
-              <Trash2 className="size-4" />
-              {t('settings.voice.action.remove_model')}
+              {t(
+                funAsrAction === 'cancel'
+                  ? 'settings.voice.action.cancel_download'
+                  : funAsrAction === 'remove'
+                    ? 'settings.voice.action.remove_model'
+                    : funAsrModel.status === 'error'
+                      ? 'settings.voice.action.retry_download'
+                      : 'settings.voice.action.download_model'
+              )}
             </Button>
           ) : null}
         </SettingRow>

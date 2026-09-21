@@ -10,7 +10,8 @@ vi.mock('../../installation/LocalModelStorageService', () => ({
   localModelStorageService: { artifactPath: (id: string) => `/bindings/${id}.node` }
 }))
 
-const { asrInferenceProcess, embeddingInferenceProcess, ocrInferenceProcess } = await import('../inferenceProcess')
+const { asrInferenceProcess } = await import('../../capabilities/asr/AsrInferenceService')
+const { embeddingInferenceProcess, ocrInferenceProcess } = await import('../inferenceProcess')
 
 const HARDWARE_KEY = 'feature.local_model.hardware_acceleration.enabled'
 
@@ -46,13 +47,14 @@ describe('inference process definitions', () => {
     expect(initData.runtimeProfile).toEqual(resolveLocalInferenceProfile(true))
   })
 
-  it('pins ASR to CPU and passes only its verified runtime path', async () => {
+  it('uses the capability-owned ASR profile policy for process initialization', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, true)
 
     const initData = await asrInferenceProcess.createInitData!()
 
     expect(Object.keys(initData).sort()).toEqual(['appPath', 'artifactPaths', 'runtimeProfile'])
     expect(initData.artifactPaths).toEqual({ 'sherpa-onnx': '/bindings/sherpa-onnx.node' })
+    expect(initData.runtimeProfile).toBe(asrInferenceProcess.resolveRuntimeProfile())
     expect(initData.runtimeProfile.id).toBe('cpu')
   })
 })
