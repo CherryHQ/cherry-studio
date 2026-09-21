@@ -1298,6 +1298,27 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('http://localhost:8188')
     })
 
+    it('keeps the bare host for an endpoint that declares the comfyui adapter family', async () => {
+      // A copied provider: the id carries no hint, the endpoint carries the family.
+      const provider = makeProvider({
+        id: '8f0a3d5e-9c1b-4a2f-8d3e-71c0b4a6e5d2',
+        presetProviderId: 'comfyui',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'http://localhost:8188/', adapterFamily: 'comfyui' }
+        }
+      })
+      const model = makeModel({
+        providerId: provider.id,
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('http://localhost:8188')
+    })
+
     it('routes ComfyUI without selecting or attributing a stored key', async () => {
       const provider = makeProvider({
         id: 'comfyui',

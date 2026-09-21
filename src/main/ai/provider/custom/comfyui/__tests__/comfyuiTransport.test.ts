@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
-import { applySeed, createComfyuiTransport, listWorkflows, parseVersion } from '../comfyuiTransport'
+import { createComfyuiTransport, listWorkflows, parseVersion } from '../comfyuiTransport'
+import { applySeed } from '../uiToApiPrompt'
 import type { ApiPromptNode, ObjectInfo } from '../uiToApiPrompt'
 
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))

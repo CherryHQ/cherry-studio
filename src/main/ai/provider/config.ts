@@ -115,18 +115,19 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   if (isOllamaProvider(provider)) return formatOllamaApiHost(baseURL)
   if (isGeminiProvider(provider)) return formatApiHost(baseURL, appendApiVersion, 'v1beta')
 
+  // An endpoint whose API sits at the ROOT of the host: ComfyUI serves `/prompt`,
+  // `/queue` and `/view` there, so an appended OpenAI `/v1` would 404 every call.
+  // The endpoint declares that itself (`adapterFamily`), rather than this formatter
+  // growing another provider id.
+  const family =
+    (endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined) ??
+    (provider.defaultChatEndpoint
+      ? provider.endpointConfigs?.[provider.defaultChatEndpoint]?.adapterFamily
+      : undefined)
+  if (family === 'comfyui') return formatApiHost(baseURL, false)
+
   // Providers that don't append API version
-  // ComfyUI serves its API at the root of the host (`/prompt`, `/queue`, `/view`),
-  // so appending the OpenAI `/v1` namespace would 404 every request.
-  const noVersionProviders = [
-    'copilot',
-    CHERRYAI_PROVIDER_ID,
-    'perplexity',
-    'newapi',
-    'new-api',
-    'azure-openai',
-    SystemProviderIds.comfyui
-  ]
+  const noVersionProviders = ['copilot', CHERRYAI_PROVIDER_ID, 'perplexity', 'newapi', 'new-api', 'azure-openai']
   if (noVersionProviders.includes(provider.id) || noVersionProviders.includes(provider.presetProviderId ?? '')) {
     return formatApiHost(baseURL, false)
   }

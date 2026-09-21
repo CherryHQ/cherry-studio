@@ -8,7 +8,7 @@ import { defineProvider } from './types'
  * with the bespoke `comfyui` adapter family, which is what routes the model to the
  * app's ComfyUI extension/provider (`extensions.ts`) instead of a generic
  * OpenAI-compatible adapter that would receive the server's web UI HTML. The host
- * takes no `/v1` namespace either (see `formatBaseURL` in `config.ts`).
+ * takes no `/v1` namespace: `formatBaseURL` keys that off this adapter family.
  *
  * Only the paintings (image generation) surface exists; chat and embeddings have no
  * endpoint here and the provider throws rather than guessing a host that answers them.

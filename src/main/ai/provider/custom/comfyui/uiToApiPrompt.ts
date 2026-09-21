@@ -676,3 +676,59 @@ export function findPromptTarget(
   }
   return undefined
 }
+
+/**
+ * ComfyUI seeds are integers, and a workflow usually pins one. Write the sampler that
+ * consumes the prompt, so two runs differ; a graph that keeps the seed on a shared node
+ * feeding that sampler instead gets it there. Regular samplers read `seed`; advanced
+ * variants (KSamplerAdvanced and friends, which schedule their own noise) read `noise_seed`.
+ */
+export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | undefined, samplerId?: string): void {
+  if (typeof seed !== 'number' || !Number.isFinite(seed)) return
+  const value = Math.trunc(seed)
+  const sampler = samplerId ? graph[samplerId] : undefined
+  if (sampler) {
+    const key = seedInputKey(sampler.inputs)
+    if (key) {
+      writeSeed(graph, sampler.inputs, key, value)
+      return
+    }
+  }
+  for (const node of Object.values(graph)) {
+    const key = seedInputKey(node.inputs)
+    if (key) {
+      writeSeed(graph, node.inputs, key, value)
+      return
+    }
+  }
+}
+
+const seedInputKey = (inputs: Record<string, unknown>): 'seed' | 'noise_seed' | undefined =>
+  'seed' in inputs ? 'seed' : 'noise_seed' in inputs ? 'noise_seed' : undefined
+
+/**
+ * Write the seed into `inputs[key]`. A linked seed input is rewritten at its
+ * source node — the node the sampler pulls the seed from usually holds the
+ * pinning widget (a seed generator, or PrimitiveInt's `value`) — so the
+ * connection is kept, not severed.
+ */
+function writeSeed(
+  graph: Record<string, ApiPromptNode>,
+  inputs: Record<string, unknown>,
+  key: 'seed' | 'noise_seed',
+  value: number
+): void {
+  const current = inputs[key]
+  if (isReference(current)) {
+    const source = graph[current[0]]
+    const sourceKey = source
+      ? (seedInputKey(source.inputs) ??
+        ('value' in source.inputs && !isReference(source.inputs.value) ? 'value' : undefined))
+      : undefined
+    if (sourceKey) {
+      source.inputs[sourceKey] = value
+      return
+    }
+  }
+  inputs[key] = value
+}
