@@ -53,8 +53,9 @@ The current implementation is split into four responsibility areas:
      search, document read/grep, tree browsing, and Concept ID-addressed
      delete/reindex.
    - `external/` owns connection authorization and scope preview/resolution,
-     admits Source creation/manual sync, and performs fenced incremental
-     publication and reconciliation.
+     admits Source creation and synchronization, coordinates daily schedules,
+     reauthorization, startup reconciliation, and disconnect, and performs
+     fenced incremental publication and reconciliation.
 4. Knowledge job handlers
    - Execute durable workflow stages through JobManager.
    - Use `KnowledgeIngestionService` for next-step scheduling.
@@ -85,7 +86,11 @@ caller
   -> preload external-source IPC
      -> KnowledgeService
         -> ExternalKnowledgeSyncAdmission
-           -> Source + initial/manual Job transaction
+           -> Source + initial/manual/scheduled/startup Job transaction
+        -> ExternalKnowledgeSourceLifecycle
+           -> Source state + JobManager schedule transaction
+        -> ExternalKnowledgeDisconnectService
+           -> schedule/work settlement + local ownership cleanup
         -> knowledge.sync-external-source
            -> ExternalKnowledgeSyncService
               -> fenced Document / KnowledgeItem publication
@@ -163,8 +168,9 @@ The schema enforces one document per `(sourceId, remoteObjectId)` and at most
 one document owner per knowledge item. Sources belong to one base and one
 connection; deleting a base cascades through the complete ownership graph,
 while deleting an independently owned item is rejected. Synchronization uses
-durable JobManager rows rather than a separate sync-run entity; automatic
-synchronization scheduling and UI remain out of scope. Public
+durable JobManager rows rather than a separate sync-run entity. Sources default
+to manual-only and may own one daily JobManager schedule; arbitrary intervals,
+custom Cron, and scheduling UI remain out of scope. Public
 `KnowledgeAddItemInput` also remains limited to user-owned source types; only
 the trusted external synchronization path may create an external item after
 its local snapshot is pinned.
@@ -177,6 +183,16 @@ deletes the Connection in one main-DB transaction. Only after that commit does
 the runtime best-effort revoke the provider token and remove the credential;
 startup reconciliation retires credential residue. The reference checks do not
 filter on Source state, so both active and paused Sources block removal.
+
+Disconnect removes only local ownership. Keep-local preserves completed external
+items as ownerless static content; remove-local routes every owned item through
+the durable deleting-row and `knowledge.delete-subtree` cleanup path. Both modes
+unregister the schedule, settle active work, delete Source/Document rows, preserve
+the shared Connection, and leave Feishu unchanged. Base deletion applies the same
+boundary in order: settle base jobs, remove schedules, remove Source/Document
+ownership, delete the complete base directory and item rows, then delete the base
+row. A later connection to the same scope does not reattach keep-local items and
+can create duplicate local content.
 
 The external synchronization writer first persists an invisible external item
 with status `deleting`, then stages provider-normalized Markdown and prepares its
@@ -212,8 +228,9 @@ The projection is false for an active document-owned external item and for a
 listed directory whose subtree contains one. It is advisory only; the workflow
 service remains the enforcement boundary.
 
-Base lifecycle, item workflow, source preview, external Source creation/manual
-synchronization, chunk inspection, and direct search operations go through
+Base lifecycle, item workflow, source preview, external Source creation and
+synchronization, schedule policy updates, disconnect, chunk inspection, and
+direct search operations go through
 `KnowledgeService` IPC. Agent read/list/manage operations call the same service
 from the AI tool layer rather than adding a second renderer IPC surface.
 
