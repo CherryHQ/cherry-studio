@@ -128,14 +128,20 @@ export class KnowledgeService extends BaseService {
     const cancellationResults = await Promise.allSettled(
       activeJobs.map((job) => application.get('JobManager').cancel(job.id, 'knowledge-service-stop'))
     )
-    for (const result of cancellationResults) {
-      if (result.status === 'rejected') failures.push(result.reason)
+    for (const [index, result] of cancellationResults.entries()) {
+      if (result.status === 'rejected') {
+        failures.push(result.reason)
+      } else if (result.value.outcome === 'timed-out') {
+        failures.push(new Error(`External sync job cancellation timed out: ${activeJobs[index].id}`))
+      }
     }
 
-    try {
-      await this.externalKnowledgeRuntime.stop()
-    } catch (error) {
-      failures.push(error)
+    if (failures.length === 0) {
+      try {
+        await this.externalKnowledgeRuntime.stop()
+      } catch (error) {
+        failures.push(error)
+      }
     }
 
     if (failures.length === 1) throw failures[0]

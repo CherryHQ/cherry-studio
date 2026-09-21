@@ -231,6 +231,7 @@ function finalizedSummary(summary: ExternalKnowledgeSourceSyncSummary): External
 
 export class ExternalKnowledgeSyncService {
   private readonly dependencies: ExternalKnowledgeSyncDependencies
+  private readonly activeStagingItemIds = new Set<string>()
 
   constructor(
     private readonly runtime: ExternalKnowledgeReadRuntime,
@@ -256,7 +257,7 @@ export class ExternalKnowledgeSyncService {
     } catch {
       throw new ExternalKnowledgeSourceSyncError('cancelled', finalizedSummary(summary))
     }
-    this.dependencies.recoverDeletingKnowledgeItems(input.fence.baseId)
+    this.dependencies.recoverDeletingKnowledgeItems(input.fence.baseId, this.activeStagingItemIds)
     const source = externalKnowledgeSourceService.getByIdTx(db, input.fence.sourceId)
     if (!matchesSourceFence(source, input.fence)) {
       throw new ExternalKnowledgeSourceSyncError('stale-publication', finalizedSummary(summary))
@@ -425,10 +426,11 @@ export class ExternalKnowledgeSyncService {
       title: input.reference.descriptor.title,
       relativePath
     })
-    if (item.type !== 'external') {
-      throw new Error(`Deleting external staging row has unexpected type: ${item.id}`)
-    }
+    this.activeStagingItemIds.add(item.id)
     try {
+      if (item.type !== 'external') {
+        throw new Error(`Deleting external staging row has unexpected type: ${item.id}`)
+      }
       const store = this.dependencies.getIndexStore(base)
       await this.dependencies.writeFileIntoKnowledgeBaseAt(input.fence.baseId, relativePath, markdown)
       const prepared = await this.dependencies.prepareKnowledgeMaterial({
@@ -454,7 +456,8 @@ export class ExternalKnowledgeSyncService {
         )
         if (
           !matchesSourceFence(latestSource, input.fence) ||
-          !sameDocumentVersion(documentVersion(latestDocument), expectedDocument)
+          !sameDocumentVersion(documentVersion(latestDocument), expectedDocument) ||
+          !knowledgeItemService.isDeletingExternalTx(txDb, input.fence.baseId, itemId)
         ) {
           throw new StaleExternalKnowledgePublicationError()
         }
@@ -517,6 +520,8 @@ export class ExternalKnowledgeSyncService {
         return { outcome: 'skipped', warnings: ['stale-publication'] }
       }
       throw error
+    } finally {
+      this.activeStagingItemIds.delete(item.id)
     }
   }
 

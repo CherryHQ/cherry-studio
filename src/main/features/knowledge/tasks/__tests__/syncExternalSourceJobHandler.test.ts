@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { JobContext, JobSettledEvent } from '@main/core/job/types'
+import { SERVICE_STOP_TIMEOUT_MS } from '@main/core/lifecycle'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
 import {
@@ -113,8 +114,11 @@ describe('sync-external-source job handler', () => {
         baseDelayMs: 1000,
         maxDelayMs: 30_000
       },
-      defaultTimeoutMs: 30 * 60 * 1000
+      defaultTimeoutMs: 30 * 60 * 1000,
+      cancelTimeoutMs: expect.any(Number)
     })
+    expect(handler.cancelTimeoutMs).toBeGreaterThan(0)
+    expect(handler.cancelTimeoutMs).toBeLessThanOrEqual(SERVICE_STOP_TIMEOUT_MS / 2)
     expect(handler.defaultQueue?.(payload)).toBe(`base.${BASE_ID}`)
   })
 

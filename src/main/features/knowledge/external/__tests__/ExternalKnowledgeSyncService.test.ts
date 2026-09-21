@@ -25,6 +25,7 @@ const CONNECTION_ID = '0198f3f2-7d10-7abc-8def-123456789abc'
 const OTHER_CONNECTION_ID = '0198f3f2-7d17-7abc-8def-123456789abc'
 const SOURCE_ID = '0198f3f2-7d11-7abc-8def-123456789abc'
 const OTHER_SOURCE_ID = '0198f3f2-7d18-7abc-8def-123456789abc'
+const OTHER_JOB_ID = '0198f3f2-7d19-7abc-8def-123456789abc'
 const JOB_ID = '0198f3f2-7d12-7abc-8def-123456789abc'
 const STAGED_ITEM_ID = '0198f3f2-7d13-7abc-8def-123456789abc'
 const OLD_ITEM_ID = '0198f3f2-7d14-7abc-8def-123456789abc'
@@ -292,8 +293,92 @@ describe('ExternalKnowledgeSyncService', () => {
 
     await service.syncSource(sourceSyncInput())
 
-    expect(recoverDeletingKnowledgeItemsMock).toHaveBeenCalledWith(BASE_ID)
+    expect(recoverDeletingKnowledgeItemsMock).toHaveBeenCalledWith(BASE_ID, expect.any(Set))
     expect(order).toEqual(['recover', 'scan'])
+  })
+
+  it('excludes live staging rows from concurrent same-base recovery', async () => {
+    dbh.db
+      .insert(externalKnowledgeConnectionTable)
+      .values({
+        id: OTHER_CONNECTION_ID,
+        provider: 'feishu',
+        appId: 'cli_other',
+        appCredentialSource: 'personal-agent',
+        authorizationStatus: 'pending-authorization',
+        credentialReference: 'cred-other'
+      })
+      .run()
+    dbh.db
+      .insert(externalKnowledgeSourceTable)
+      .values({
+        id: OTHER_SOURCE_ID,
+        baseId: BASE_ID,
+        connectionId: OTHER_CONNECTION_ID,
+        provider: 'feishu',
+        tenantId: 'tenant-other',
+        spaceId: 'space-other',
+        scope: { kind: 'space' },
+        name: 'Other Wiki',
+        state: 'active',
+        scheduleId: null,
+        revision: 3,
+        activeJobId: OTHER_JOB_ID
+      })
+      .run()
+
+    let markPreparationStarted!: () => void
+    const preparationStarted = new Promise<void>((resolve) => {
+      markPreparationStarted = resolve
+    })
+    let releasePreparation!: () => void
+    const preparationGate = new Promise<void>((resolve) => {
+      releasePreparation = resolve
+    })
+    const recoveryExclusions: ReadonlySet<string>[] = []
+    const recover = vi.fn((_baseId?: string, excludedRootItemIds: ReadonlySet<string> = new Set()) => {
+      recoveryExclusions.push(new Set(excludedRootItemIds))
+      const staged = dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, STAGED_ITEM_ID)).get()
+      if (staged?.status === 'deleting' && !excludedRootItemIds.has(STAGED_ITEM_ID)) {
+        dbh.db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, STAGED_ITEM_ID)).run()
+        snapshots.delete(`${BASE_ID}:external/${STAGED_ITEM_ID}.md`)
+      }
+    })
+    const service = createService(
+      'live staging body',
+      {
+        recoverDeletingKnowledgeItems: recover,
+        prepareKnowledgeMaterial: async ({ item }) => {
+          markPreparationStarted()
+          await preparationGate
+          return preparedMaterial(item, 'live staging body')
+        }
+      },
+      undefined,
+      async (connectionId) => (connectionId === OTHER_CONNECTION_ID ? scanResult([]) : scanResult([reference()]))
+    )
+
+    const firstSync = service.syncSource(sourceSyncInput())
+    await preparationStarted
+    await service.syncSource({
+      fence: {
+        baseId: BASE_ID,
+        sourceId: OTHER_SOURCE_ID,
+        expectedSourceRevision: 3,
+        activeJobId: OTHER_JOB_ID
+      },
+      signal: new AbortController().signal,
+      reportProgress: vi.fn()
+    })
+    releasePreparation()
+
+    await expect(firstSync).resolves.toMatchObject({ indexedCount: 1 })
+    expect(recover).toHaveBeenLastCalledWith(BASE_ID, expect.any(Set))
+    expect(recoveryExclusions.at(-1)?.has(STAGED_ITEM_ID)).toBe(true)
+    expect(
+      dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, STAGED_ITEM_ID)).get()
+    ).toMatchObject({ type: 'external', status: 'completed' })
+    expect(materials.has(STAGED_ITEM_ID)).toBe(true)
   })
 
   it('uses the persisted source selected by the fence even when a legacy caller supplies another source', async () => {
@@ -800,6 +885,20 @@ describe('ExternalKnowledgeSyncService', () => {
     expect(snapshots.has(`${BASE_ID}:external/${STAGED_ITEM_ID}.md`)).toBe(true)
     expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(true)
     expect([...materials.keys()]).toEqual([OLD_ITEM_ID, STAGED_ITEM_ID])
+  })
+
+  it('does not rebuild vectors after the deleting staging locator disappears', async () => {
+    const service = createService('changed body', {
+      prepareKnowledgeMaterial: async ({ item }) => {
+        dbh.db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, item.id)).run()
+        return preparedMaterial(item, 'changed body')
+      }
+    })
+
+    const result = await service.syncDocument(syncInput())
+
+    expect(result).toEqual({ outcome: 'skipped', warnings: ['stale-publication'] })
+    expect(materials.has(STAGED_ITEM_ID)).toBe(false)
   })
 
   it.each([

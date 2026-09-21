@@ -73,6 +73,28 @@ describe('delete-subtree job handler', () => {
     expect(reclaimSpaceMock).toHaveBeenCalledTimes(1)
   })
 
+  it('does not cancel an overlapping delete-subtree job and no-ops after that sibling wins the lock', async () => {
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const subtreeItems: KnowledgeItem[] = [createNoteItem('note-1', null, 'deleting')]
+    knowledgeItemGetSubtreeItemsMock
+      .mockReturnValueOnce(subtreeItems)
+      .mockReturnValueOnce(subtreeItems)
+      .mockReturnValueOnce([])
+    listMock.mockResolvedValue([
+      createJobSnapshot({
+        id: 'sibling-delete-job',
+        type: 'knowledge.delete-subtree',
+        input: { baseId: 'kb-1', rootItemIds: ['note-1', 'note-2'] }
+      })
+    ])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['note-1'] }, 'current-delete-job'))
+
+    expect(cancelMock).not.toHaveBeenCalledWith('sibling-delete-job', expect.anything())
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
+  })
+
   it('routes file cleanup through best-effort delete before hard-deleting rows', async () => {
     const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
     const subtreeItems: KnowledgeItem[] = [

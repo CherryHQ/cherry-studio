@@ -42,10 +42,12 @@ export function createDeleteSubtreeJobHandler(
         return
       }
 
-      // Stop active work touching deleting rows before removing vectors and rows.
+      // Stop active writers touching deleting rows. Cleanup jobs converge under the
+      // base lock and re-read deleting rows, so cancelling a sibling would deadlock them.
       await cancelActiveKnowledgeJobs(baseId, 'knowledge-delete-subtree', {
         rootItemIds: deletingSubtreeItemIds,
         excludeJobId: ctx.jobId,
+        excludeJobTypes: ['knowledge.delete-subtree'],
         onCancelTimeout: 'throw'
       })
 

@@ -181,7 +181,8 @@ filter on Source state, so both active and paused Sources block removal.
 The external synchronization writer first persists an invisible external item
 with status `deleting`, then stages provider-normalized Markdown and prepares its
 material outside the per-base mutation lock. Under the lock it rechecks the
-Source revision, active Job id, and current Document owner before one owner
+Source revision, active Job id, current Document owner, and exact deleting external
+staging row before rebuilding vectors. One owner
 transaction CAS-promotes the staging item to `completed`, publishes the content
 hash and remote revision, switches `ExternalKnowledgeDocument.knowledgeItemId`,
 marks the old owner `deleting`, and enqueues its subtree cleanup. Missing documents
@@ -306,9 +307,11 @@ Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispat
 
 External Source admission is owner-local and opens only after its runtime starts.
 Shutdown closes admission first, lists pending, delayed, and running
-`knowledge.sync-external-source` Jobs, individually cancels and settles them, and
-stops the runtime last. Listing, cancellation, and runtime-stop failures are
-reported after all shutdown steps are attempted. Job settlement projects timeout
+`knowledge.sync-external-source` Jobs, and individually cancels them with a grace
+bounded to half the lifecycle service-stop budget. It stops the runtime only when
+every listed Job settled or was no longer cancellable. A listing/cancellation error
+or timeout keeps the runtime alive with admission closed; a runtime-stop failure is
+reported after the Job set is proven settled. Job settlement projects timeout
 only from the structured `JOB_HANDLER_TIMEOUT` code; metadata cannot downgrade it
 to cancellation.
 
@@ -373,8 +376,8 @@ existing vector contract must be rebuilt in a new base.
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
 2. Under the base mutation lock, one DB transaction rejects the whole request if any selected root's recursive subtree has an active `ExternalKnowledgeDocument` owner, marks the accepted subtrees `deleting`, and enqueues `knowledge.delete-subtree`.
-3. The delete job cancels active jobs touching the subtree.
-4. Under the base mutation lock, the delete job deletes leaf vectors, strictly deletes external snapshots, best-effort deletes ordinary Knowledge-owned raw files, and hard-deletes item rows. Any strict external snapshot failure preserves every target row for retry.
+3. The delete job cancels active non-cleanup jobs touching the subtree. It does not cancel sibling `knowledge.delete-subtree` jobs.
+4. Under the base mutation lock, the delete job re-reads deleting rows, then deletes leaf vectors, strictly deletes external snapshots, best-effort deletes ordinary Knowledge-owned raw files, and hard-deletes item rows. Overlapping cleanup Jobs therefore converge to an idempotent no-op after another Job wins. Any strict external snapshot failure preserves every target row for retry.
 
 The ownership check is based on document availability, not source state, so
 pausing a source does not make its active documents independently deletable.
@@ -390,6 +393,9 @@ an active-owned descendant.
 Knowledge files are managed by the Knowledge workflow under the base `raw/` directory. The create/index path does not register FileManager refs, so delete has no separate FileManager ref cleanup step.
 
 If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls back the `deleting` status write and the items retain their previous visible state. Startup recovery and the beginning of each external Source sync scan committed `deleting` roots and re-enqueue cleanup jobs best-effort when already-durable cleanup was interrupted or failed. Recovery groups roots by base and admits at most 500 roots per transaction and Job so one failure does not stop other batches.
+An external sync excludes its in-process active staging ids from recovery; the
+committed deleting rows become recoverable again after completion or process
+failure.
 
 `reindex-items` currently runs:
 

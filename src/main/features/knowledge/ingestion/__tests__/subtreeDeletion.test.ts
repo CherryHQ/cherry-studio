@@ -68,6 +68,21 @@ describe('knowledge subtree deletion admission', () => {
     expect(mocks.enqueueTx.mock.calls[1][2]).toEqual({ baseId: 'kb-1', rootItemIds: roots.slice(500) })
   })
 
+  it('excludes in-process staging roots before partitioning recovery jobs', () => {
+    const roots = Array.from({ length: 501 }, (_, index) => `root-${index}`)
+    mocks.getDeletingRootGroups.mockReturnValue([{ baseId: 'kb-1', rootItemIds: roots }])
+
+    recoverDeletingKnowledgeItems('kb-1', new Set(['root-0']))
+
+    expect(mocks.withWriteTx).toHaveBeenCalledTimes(1)
+    expect(mocks.enqueueTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'knowledge.delete-subtree',
+      { baseId: 'kb-1', rootItemIds: roots.slice(1) },
+      expect.anything()
+    )
+  })
+
   it('logs a failed chunk and continues admitting later chunks', () => {
     const roots = Array.from({ length: 501 }, (_, index) => `root-${index}`)
     mocks.getDeletingRootGroups.mockReturnValue([{ baseId: 'kb-1', rootItemIds: roots }])

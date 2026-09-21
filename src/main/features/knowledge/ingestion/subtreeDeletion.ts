@@ -32,7 +32,10 @@ export function enqueueKnowledgeSubtreeDeletionTx(tx: DbOrTx, baseId: string, ro
   )
 }
 
-export function recoverDeletingKnowledgeItems(baseId?: string): void {
+export function recoverDeletingKnowledgeItems(
+  baseId?: string,
+  excludedRootItemIds: ReadonlySet<string> = new Set()
+): void {
   let deletingRootGroups: ReturnType<typeof knowledgeItemService.getDeletingRootGroups>
   try {
     deletingRootGroups = knowledgeItemService.getDeletingRootGroups()
@@ -45,8 +48,9 @@ export function recoverDeletingKnowledgeItems(baseId?: string): void {
     if (baseId && group.baseId !== baseId) {
       continue
     }
-    for (let index = 0; index < group.rootItemIds.length; index += DELETE_RECOVERY_ROOT_CHUNK_SIZE) {
-      const rootItemIds = group.rootItemIds.slice(index, index + DELETE_RECOVERY_ROOT_CHUNK_SIZE)
+    const recoverableRootItemIds = group.rootItemIds.filter((itemId) => !excludedRootItemIds.has(itemId))
+    for (let index = 0; index < recoverableRootItemIds.length; index += DELETE_RECOVERY_ROOT_CHUNK_SIZE) {
+      const rootItemIds = recoverableRootItemIds.slice(index, index + DELETE_RECOVERY_ROOT_CHUNK_SIZE)
       try {
         application
           .get('DbService')

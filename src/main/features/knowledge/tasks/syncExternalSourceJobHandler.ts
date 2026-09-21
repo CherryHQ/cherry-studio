@@ -4,6 +4,7 @@ import * as z from 'zod'
 import { application } from '@application'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import type { JobHandler } from '@main/core/job/types'
+import { SERVICE_STOP_TIMEOUT_MS } from '@main/core/lifecycle'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
 import {
@@ -108,6 +109,7 @@ export function createSyncExternalSourceJobHandler(
       maxDelayMs: 30_000
     },
     defaultTimeoutMs: 30 * 60 * 1000,
+    cancelTimeoutMs: Math.floor(SERVICE_STOP_TIMEOUT_MS / 2),
 
     async execute(ctx) {
       ctx.reportProgress(0, { stage: 'scanning' })

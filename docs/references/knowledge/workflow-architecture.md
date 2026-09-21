@@ -122,8 +122,8 @@ The implemented external writer preserves this visibility protocol:
    the durable locator for the distinct versioned snapshot path and new item id.
 2. Stage the provider-normalized snapshot and run slow preparation outside the
    base mutation lock.
-3. Acquire the base lock, then recheck the source revision and current document
-   owner before publishing anything.
+3. Acquire the base lock, then recheck the source revision, current document
+   owner, and exact deleting external staging row before rebuilding vectors.
 4. Write the prepared material under the new item id while its `deleting` row
    keeps the staged snapshot and material invisible.
 5. In one main-database transaction, CAS-promote that exact external staging row
@@ -136,7 +136,8 @@ Snapshot staging, material preparation, vector rebuilding, or publication failur
 leaves the new `deleting` row intact and attempts cleanup admission in a separate
 short transaction. Failure to admit cleanup is logged without replacing the
 original error; startup recovery and the beginning of later Source syncs rescan
-committed deleting roots and retry admission. Missing and permission-denied
+committed deleting roots, excluding staging ids active in this process, and retry
+admission. Missing and permission-denied
 reconciliation similarly withdraw ownership, mark the old owner deleting, and
 enqueue cleanup atomically.
 
@@ -158,7 +159,7 @@ Registered job types:
 
 - `knowledge.prepare-root`: expand a container and schedule each child.
 - `knowledge.index-documents`: call `indexKnowledgeItem` to read/chunk/embed/rebuild a concrete document source. Empty reader results or zero chunks fail the item without replacing the existing material.
-- `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, strictly delete external snapshots, best-effort delete ordinary base-directory files, then delete resolved item ids with `deleteItemsByIds`. A strict external deletion failure preserves every target row, including its `deleting` locator, so recovery can retry. The create/index path does not register FileManager refs, so there is no separate file-ref detach step; any historical `FileEntry` rows are left to the file module's no-reference policy.
+- `knowledge.delete-subtree`: cancel active non-cleanup subtree jobs, then under the base lock re-read deleting rows, delete vectors, strictly delete external snapshots, best-effort delete ordinary base-directory files, and delete resolved item ids with `deleteItemsByIds`. Sibling delete-subtree jobs are not cancelled; overlapping cleanup converges through the locked re-read and becomes an idempotent no-op after another job wins. A strict external deletion failure preserves every target row, including its `deleting` locator, so recovery can retry. The create/index path does not register FileManager refs, so there is no separate file-ref detach step; any historical `FileEntry` rows are left to the file module's no-reference policy.
 - `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf roots keep their source files on disk and are repaired by `index-documents` from `knowledge_item.data`.
 - `knowledge.check-file-processing-result`: poll or inspect the FileProcessing job, record the converted markdown's location on the item (via `updateIndexedRelativePath`) on success, then schedule indexing.
 - `knowledge.sync-external-source`: scan one persisted Source, publish supported
@@ -193,7 +194,9 @@ job enqueueing commit or roll back together. The renderer's subtree-aware
 
 The same subtree-deletion primitive admits external replacement, reconciliation,
 and staging cleanup. Recovery groups committed deleting roots by base, chunks
-each group into at most 500 roots per transaction and Job, and logs one failed
-scan or admission without preventing other groups from being attempted.
+each group into at most 500 roots per transaction and Job after excluding external
+staging ids active in this process, and logs one failed scan or admission without
+preventing other groups from being attempted. Process failure drops the in-memory
+exclusion, leaving the committed deleting row available to later recovery.
 
 User-triggered reindex is not a cancellation primitive. The service admits reindex only when the entire selected subtree is already `completed` or `failed`. Active states (`idle`, `preparing`, `processing`, `reading`, `embedding`) and `deleting` are rejected; delete remains the operation that can be requested at any time.

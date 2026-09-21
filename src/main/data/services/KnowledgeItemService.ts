@@ -404,6 +404,24 @@ export class KnowledgeItemService {
     return row ? rowToKnowledgeItem(row) : null
   }
 
+  isDeletingExternalTx(tx: Pick<DbType, 'select'>, baseId: string, id: string): boolean {
+    return Boolean(
+      tx
+        .select({ id: knowledgeItemTable.id })
+        .from(knowledgeItemTable)
+        .where(
+          and(
+            eq(knowledgeItemTable.id, id),
+            eq(knowledgeItemTable.baseId, baseId),
+            eq(knowledgeItemTable.type, 'external'),
+            eq(knowledgeItemTable.status, 'deleting')
+          )
+        )
+        .limit(1)
+        .get()
+    )
+  }
+
   updateCompletedExternalMetadataTx(
     tx: Pick<DbType, 'select' | 'update'>,
     id: string,

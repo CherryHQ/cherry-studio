@@ -50,7 +50,7 @@ All jobs run on the per-base queue `base.{baseId}`; idempotency keys prevent dou
 | `knowledge.prepare-root` | Expand a directory root into child items, then enqueue leaf indexing. | `ingestion` (add), reindex handler |
 | `knowledge.index-documents` | Adapt JobManager context to `indexKnowledgeItem`, which owns live lookup/status, URL/note capture, `prepareKnowledgeMaterial`, the base-locked store rebuild, and completion. | `ingestion`, prepare-root, fp-check |
 | `knowledge.check-file-processing-result` | Poll a FileProcessingService job (5s delay per round); on success enqueue indexing. | `ingestion` (files needing conversion) |
-| `knowledge.delete-subtree` | Cancel active jobs → delete vectors → strictly delete external snapshots and best-effort delete ordinary files → delete rows. | `ingestion` (delete), external replacement/reconciliation, recovery |
+| `knowledge.delete-subtree` | Cancel active non-cleanup jobs → delete vectors → strictly delete external snapshots and best-effort delete ordinary files → delete rows. | `ingestion` (delete), external replacement/reconciliation, recovery |
 | `knowledge.reindex-subtree` | Verify source → re-acquire it → delete vectors → reset statuses → re-enqueue indexing. | `ingestion` (reindex) |
 | `knowledge.sync-external-source` | Scan one persisted Source, incrementally publish supported documents, reconcile missing/denied documents, and settle the Source summary. | External Source creation and manual synchronization |
 
@@ -88,7 +88,8 @@ marks any previous owner `deleting`, and durably enqueues its subtree cleanup in
 therefore means the previous content is hidden and cleanup was accepted; it does not promise the old
 physical bytes are already gone. A failed stage keeps its `deleting` row as the durable artifact locator
 and best-effort admits the same cleanup job. Service startup and the start of each Source sync recover
-committed deleting roots in batches.
+committed deleting roots in batches, excluding staging ids still active in this process. Under the base
+lock, publication revalidates the exact deleting external staging row before rebuilding vectors.
 
 URL/note snapshot files contain Cherry OKF frontmatter, which their reader
 removes before chunking. External snapshots contain provider-normalized
@@ -122,8 +123,11 @@ Feishu reads reserve the documented endpoint budget before each individual HTTP 
 one page or body request does not replay completed traversal work. Preview is ephemeral and reads
 metadata only. The adapter holds no queue, token, limiter, or session state of its own.
 `KnowledgeService` opens its local admission gate only after the runtime starts. Shutdown closes that
-gate first, lists and individually cancels pending, delayed, and running external-sync Jobs and awaits
-their settlement, then stops the runtime last so cancellation remains the authoritative classification.
+gate first, lists and individually cancels pending, delayed, and running external-sync Jobs with a
+cancellation grace bounded to half the service-stop budget, and stops the runtime only after every
+listed Job is settled or no longer cancellable. A listing/cancellation error or timeout leaves the
+runtime running while admission remains closed, so an in-memory handler is never detached from its
+runtime.
 
 ## Related docs
 

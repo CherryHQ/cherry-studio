@@ -565,7 +565,7 @@ describe('KnowledgeService', () => {
     ).rejects.toMatchObject({ code: 'stopped' })
   })
 
-  it('stops the runtime after cancellation failures and rethrows one failure directly', async () => {
+  it('keeps the runtime alive after a cancellation failure and rethrows it directly', async () => {
     const service = new KnowledgeService()
     const cancelFailure = new Error('cancel failed')
     listMock.mockResolvedValueOnce([{ id: 'running-job', status: 'running' }])
@@ -573,13 +573,10 @@ describe('KnowledgeService', () => {
 
     await expect((service as unknown as { onStop: () => Promise<void> }).onStop()).rejects.toBe(cancelFailure)
 
-    expect(externalKnowledgeRuntimeStopMock).toHaveBeenCalledOnce()
-    expect(cancelMock.mock.invocationCallOrder[0]).toBeLessThan(
-      externalKnowledgeRuntimeStopMock.mock.invocationCallOrder[0]
-    )
+    expect(externalKnowledgeRuntimeStopMock).not.toHaveBeenCalled()
   })
 
-  it('stops the runtime after active-job listing fails and rethrows the listing failure', async () => {
+  it('keeps the runtime alive after active-job listing fails and rethrows the listing failure', async () => {
     const service = new KnowledgeService()
     const listFailure = new Error('list failed')
     listMock.mockRejectedValueOnce(listFailure)
@@ -587,21 +584,44 @@ describe('KnowledgeService', () => {
     await expect((service as unknown as { onStop: () => Promise<void> }).onStop()).rejects.toBe(listFailure)
 
     expect(cancelMock).not.toHaveBeenCalled()
-    expect(externalKnowledgeRuntimeStopMock).toHaveBeenCalledOnce()
+    expect(externalKnowledgeRuntimeStopMock).not.toHaveBeenCalled()
   })
 
-  it('aggregates cancellation and runtime stop failures', async () => {
+  it('rejects a timed-out cancellation without stopping the runtime', async () => {
     const service = new KnowledgeService()
-    const cancelFailure = new Error('cancel failed')
-    const stopFailure = new Error('runtime stop failed')
     listMock.mockResolvedValueOnce([{ id: 'running-job', status: 'running' }])
-    cancelMock.mockRejectedValueOnce(cancelFailure)
-    externalKnowledgeRuntimeStopMock.mockRejectedValueOnce(stopFailure)
+    cancelMock.mockResolvedValueOnce({ outcome: 'timed-out' })
+
+    await expect((service as unknown as { onStop: () => Promise<void> }).onStop()).rejects.toThrow(
+      'External sync job cancellation timed out: running-job'
+    )
+
+    expect(externalKnowledgeRuntimeStopMock).not.toHaveBeenCalled()
+  })
+
+  it('aggregates multiple cancellation failures without stopping the runtime', async () => {
+    const service = new KnowledgeService()
+    const firstFailure = new Error('first cancel failed')
+    const secondFailure = new Error('second cancel failed')
+    listMock.mockResolvedValueOnce([
+      { id: 'running-job-1', status: 'running' },
+      { id: 'running-job-2', status: 'running' }
+    ])
+    cancelMock.mockRejectedValueOnce(firstFailure).mockRejectedValueOnce(secondFailure)
 
     const error = await (service as unknown as { onStop: () => Promise<void> }).onStop().catch((cause) => cause)
 
     expect(error).toBeInstanceOf(AggregateError)
-    expect((error as AggregateError).errors).toEqual([cancelFailure, stopFailure])
+    expect((error as AggregateError).errors).toEqual([firstFailure, secondFailure])
+    expect(externalKnowledgeRuntimeStopMock).not.toHaveBeenCalled()
+  })
+
+  it('reports a runtime stop failure after every listed job is settled', async () => {
+    const service = new KnowledgeService()
+    const stopFailure = new Error('runtime stop failed')
+    externalKnowledgeRuntimeStopMock.mockRejectedValueOnce(stopFailure)
+
+    await expect((service as unknown as { onStop: () => Promise<void> }).onStop()).rejects.toBe(stopFailure)
   })
 
   it('delegates ephemeral Feishu scope resolution and preview to its owned runtime', async () => {
