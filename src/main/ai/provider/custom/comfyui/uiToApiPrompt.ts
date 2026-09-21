@@ -674,6 +674,28 @@ export function findPromptTarget(
       }
     }
   }
+
+  // A self-contained generator — one node that takes the prompt as a widget and
+  // samples it internally, e.g. MiniMaxH3MLXTurbo — has no `positive` edge to
+  // walk: the prompt and the seed are both its own widgets. Nothing better can
+  // be said about which text input a graph means, so take the highest-ranked
+  // prompt-like input on a node that also samples a seed, lowest node id first.
+  let standalone: { nodeId: string; input: string; rank: number } | undefined
+  for (const [nodeId, node] of Object.entries(prompt)) {
+    if (seedInputKey(node.inputs) === undefined) continue
+    for (const [name, value] of Object.entries(node.inputs)) {
+      if (typeof value !== 'string') continue
+      const rank = PROMPT_INPUT_PREFERENCE.indexOf(name)
+      if (rank === -1) continue
+      const better =
+        standalone === undefined || rank < standalone.rank || (rank === standalone.rank && nodeId < standalone.nodeId)
+      if (better) standalone = { nodeId, input: name, rank }
+    }
+  }
+  if (standalone) {
+    return { nodeId: standalone.nodeId, input: standalone.input, samplerId: standalone.nodeId }
+  }
+
   return undefined
 }
 

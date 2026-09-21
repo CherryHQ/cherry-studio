@@ -834,6 +834,22 @@ describe('findPromptTarget', () => {
     expect(target).toEqual({ nodeId: '1', input: 'text_g', samplerId: '3' })
   })
 
+  it('targets the node itself when a self-contained generator owns the prompt', () => {
+    // MiniMaxH3MLXTurbo takes the prompt as its own widget and schedules its own
+    // noise: there is no `positive` edge anywhere in the graph to walk.
+    const target = findPromptTarget({
+      '1': {
+        class_type: 'MiniMaxH3MLXTurbo',
+        inputs: { prompt: 'a red car', model_profile: '8-bit', seed: 42, width: 864 },
+        _meta: { title: 'MiniMaxH3MLXTurbo' }
+      },
+      '2': { class_type: 'CreateVideo', inputs: { images: ['1', 0], fps: 24 }, _meta: { title: 'video' } },
+      '3': { class_type: 'SaveVideo', inputs: { video: ['2', 0] }, _meta: { title: 'save' } }
+    })
+
+    expect(target).toEqual({ nodeId: '1', input: 'prompt', samplerId: '1' })
+  })
+
   it.each([
     ['CLIPTextEncodeFlux', { clip_l: 'kept', t5xxl: '' }, 't5xxl'],
     ['CLIPTextEncodeSD3', { clip_l: 'kept', clip_g: 'kept', t5xxl: '' }, 't5xxl'],
