@@ -104,6 +104,49 @@ export interface DeleteAgentSessionsResult {
   deletedIds: string[]
 }
 
+// ============================================================================
+// Interruption recovery (abnormal exit)
+// ============================================================================
+
+/**
+ * How the recorded interruption happened. Homogeneous per record: one exit is
+ * either graceful (all live turns aborted to `paused`, resume tokens kept) or a
+ * crash (rows left `pending`, boot reconcile flips them to `error` and discards
+ * resume tokens) — never both at once.
+ */
+export const INTERRUPTED_SESSION_RECOVERY_KIND = ['crash', 'graceful-exit'] as const
+export type InterruptedSessionRecoveryKind = (typeof INTERRUPTED_SESSION_RECOVERY_KIND)[number]
+
+/** One interrupted session, with display metadata joined at read time (not at
+ * snapshot time — the session or its agent may have been deleted since). */
+export interface InterruptedSessionItem {
+  sessionId: string
+  agentId: string | null
+  /** Agent display name snapshot-joined at read time; null when the agent is gone. */
+  agentName: string | null
+  /** Session display name; may be empty for an untitled placeholder session. */
+  sessionName: string
+  sessionType: 'conversation' | 'background'
+  /** Workspace path (cwd) the agent was working in, when bound to a real folder. */
+  workspacePath: string | null
+  /** When the interrupted turn's assistant message was created, if persisted. */
+  interruptedAt: string | null
+  /**
+   * Short human-readable interruption point extracted from the interrupted
+   * turn's parts (last tool name, subagent task title, or "awaiting approval"),
+   * or null when nothing more specific than "a response was in flight" is known.
+   */
+  summary: string | null
+}
+
+/** Response for `GET /agent-sessions/interrupted-recovery` — `null` when nothing
+ * interruptible happened, everything was already resumed, or the notice was dismissed. */
+export interface InterruptedSessionRecoveryResponse {
+  kind: InterruptedSessionRecoveryKind
+  detectedAt: string
+  items: InterruptedSessionItem[]
+}
+
 /** Response for `GET /agent-sessions/latest` — the most-recently-active session in the requested scope, or `null`. */
 export interface LatestAgentSessionResponse {
   session: AgentSessionEntity | null
@@ -145,6 +188,25 @@ export type AgentSessionSchemas = {
     GET: {
       query?: LatestAgentSessionQuery
       response: LatestAgentSessionResponse
+    }
+  }
+
+  /**
+   * Sessions whose work was interrupted by the previous exit (crash or graceful
+   * quit mid-turn). Declared before `/agent-sessions/:sessionId` and matched
+   * exactly by the server router, so `interrupted-recovery` is never mistaken
+   * for a session id.
+   *
+   * GET is read-time filtered: sessions deleted since, or already resumed with
+   * new messages after `detectedAt`, drop out silently. DELETE dismisses the
+   * notice permanently.
+   */
+  '/agent-sessions/interrupted-recovery': {
+    GET: {
+      response: InterruptedSessionRecoveryResponse | null
+    }
+    DELETE: {
+      response: { dismissed: true }
     }
   }
 

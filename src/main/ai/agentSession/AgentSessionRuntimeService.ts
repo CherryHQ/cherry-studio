@@ -428,6 +428,14 @@ export class AgentSessionRuntimeService extends BaseService {
         })),
         sessionIds
       )
+      // Record the interruption so the renderer can surface which sessions died
+      // mid-work (ids only; the recovery notice joins display metadata at read
+      // time). Never blocks the reconcile itself on failure.
+      try {
+        agentSessionService.recordInterruptedSessions('crash', sessionIds)
+      } catch (error) {
+        logger.warn('Failed to record crash-interrupted sessions for recovery', { error })
+      }
     } catch (error) {
       logger.error('Failed to reconcile stale pending agent-session messages', { error })
     }
@@ -1429,6 +1437,21 @@ export class AgentSessionRuntimeService extends BaseService {
     await this.forks.cancel()
     this.disposeWarmLeases()
     const streamManager = application.get('AiStreamManager')
+    // Graceful quit interrupts live turns to `paused` (resume tokens kept), so a
+    // follow-up message resumes them with full CLI context. Record which
+    // sessions had live work so the next launch can offer that one-click resume
+    // — pure in-memory inspection plus one synchronous key-value write, and it
+    // must never block teardown on failure.
+    try {
+      const liveSessionIds = [...this.entries.values()]
+        .filter((entry) => this.liveTurn(entry))
+        .map((entry) => entry.sessionId)
+      if (liveSessionIds.length > 0) {
+        agentSessionService.recordInterruptedSessions('graceful-exit', liveSessionIds)
+      }
+    } catch (error) {
+      logger.warn('Failed to record graceful-exit-interrupted sessions for recovery', { error })
+    }
     for (const entry of this.entries.values()) {
       if (this.liveTurn(entry)) streamManager.abort(entry.topicId, 'agent-session-runtime-stop')
     }

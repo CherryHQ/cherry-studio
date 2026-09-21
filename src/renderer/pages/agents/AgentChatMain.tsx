@@ -13,6 +13,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 
 import { useAgentRightPaneActions } from './components/AgentRightPane'
 import AgentSessionMessages from './components/AgentSessionMessages'
+import { InterruptedSessionRecoveryBanner } from './components/InterruptedSessionRecoveryBanner'
 
 interface AgentChatMainProps {
   placement: ConversationComposerPlacement
@@ -59,6 +60,7 @@ export default function AgentChatMain({
 
   return (
     <div className="relative flex min-h-0 w-full flex-1 translate-z-0 flex-col overflow-hidden">
+      <InterruptedSessionRecoveryBanner />
       <div className="min-h-0 flex-1">
         <AgentSessionMessagesWithAgentRightPaneAction
           agentId={agentId}

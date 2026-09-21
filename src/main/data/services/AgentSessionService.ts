@@ -13,6 +13,7 @@ import {
 } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { appStateTable } from '@data/db/schemas/appState'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
@@ -30,15 +31,20 @@ import type {
   AgentSessionEntity,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
+  InterruptedSessionRecoveryKind,
+  InterruptedSessionRecoveryResponse,
   LatestAgentSessionQuery,
   ListAgentSessionsQuery,
   ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionDto,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
+import { INTERRUPTED_SESSION_RECOVERY_KIND } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
@@ -53,6 +59,43 @@ const logger = loggerService.withContext('AgentSessionService')
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 const conversationFilter = eq(sessionsTable.type, 'conversation')
+
+/** app_state key holding the interruption recovery record. */
+const INTERRUPTED_RECOVERY_STATE_KEY = 'agentSessions.interruptedRecovery'
+
+/** Shape persisted in app_state — ids only; metadata is joined at read time. */
+interface InterruptedRecoveryState {
+  kind: InterruptedSessionRecoveryKind
+  detectedAt: string
+  sessionIds: string[]
+}
+
+/**
+ * Short interruption-point label for the recovery notice, extracted from the
+ * interrupted turn's (already terminalized) parts. Most specific signal wins:
+ * an interrupted subagent task's title/description, else the last tool that
+ * died mid-flight. Null means only "a response was in flight" is known.
+ */
+export function extractInterruptionSummary(parts: CherryMessagePart[] | undefined | null): string | null {
+  if (!parts || parts.length === 0) return null
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i]
+    if (part.type !== 'data-agent-task-event') continue
+    const data = (part as CherryMessagePart & { data: AgentTaskEventPartData }).data
+    if (data.status === 'error' || data.status === 'in_progress' || data.status === 'pending') {
+      return data.title ?? data.description ?? data.lastToolName ?? null
+    }
+  }
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i] as CherryMessagePart & { state?: string }
+    // Tool identity lives in the part type itself (`tool-<name>`); `toolName` is
+    // only Cherry metadata that the approval bridge may not have finalized.
+    if (part.type.startsWith('tool-') && part.state === 'output-error') {
+      return part.type.slice('tool-'.length)
+    }
+  }
+  return null
+}
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 export type SessionMetadataSearchMatch = {
   field: 'name' | 'description'
@@ -1411,6 +1454,100 @@ export class AgentSessionService {
 
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {
     applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id, scope: isNull(sessionsTable.deletedAt) })
+  }
+
+  // ── Interruption recovery (abnormal exit) ────────────────────────────────
+  //
+  // One `app_state` row records which sessions had live work interrupted by the
+  // previous exit (crash detected at boot reconcile, or graceful quit detected
+  // in the runtime service's `onStop`). Only session ids are snapshotted —
+  // display metadata is joined at read time so deletions never leave stale
+  // names behind, and a single overwrite-write per exit keeps the record
+  // homogeneous by construction (one exit is either a crash or graceful).
+
+  recordInterruptedSessions(kind: InterruptedSessionRecoveryKind, sessionIds: string[]): void {
+    if (sessionIds.length === 0) return
+    const db = application.get('DbService').getDb()
+    const payload: InterruptedRecoveryState = { kind, detectedAt: new Date().toISOString(), sessionIds }
+    db.insert(appStateTable)
+      .values({
+        key: INTERRUPTED_RECOVERY_STATE_KEY,
+        value: payload,
+        description: 'Agent sessions whose work was interrupted by the previous app exit'
+      })
+      .onConflictDoUpdate({
+        target: appStateTable.key,
+        set: { value: payload, updatedAt: Date.now() }
+      })
+      .run()
+  }
+
+  getInterruptionRecovery(): InterruptedSessionRecoveryResponse | null {
+    const db = application.get('DbService').getDb()
+    const [row] = db
+      .select()
+      .from(appStateTable)
+      .where(eq(appStateTable.key, INTERRUPTED_RECOVERY_STATE_KEY))
+      .limit(1)
+      .all()
+    if (!row) return null
+    const stored = row.value as InterruptedRecoveryState | undefined
+    if (!stored || !INTERRUPTED_SESSION_RECOVERY_KIND.includes(stored.kind) || stored.sessionIds.length === 0) {
+      return null
+    }
+    const detectedAtMs = Date.parse(stored.detectedAt)
+    if (!Number.isFinite(detectedAtMs)) return null
+
+    // Background sessions are included: interrupted background work is exactly
+    // the case the user is least likely to remember.
+    const rows = db
+      .select({ session: sessionsTable, workspacePath: agentWorkspaceTable.path, agentName: agentsTable.name })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+      .where(and(inArray(sessionsTable.id, stored.sessionIds), isNull(sessionsTable.deletedAt)))
+      .all()
+
+    const items: InterruptedSessionRecoveryResponse['items'] = []
+    for (const { session, workspacePath, agentName } of rows) {
+      // Already resumed on its own: any message newer than the interruption
+      // means the user continued this session and the notice would be noise.
+      const [resumed] = db
+        .select({ id: agentSessionMessageTable.id })
+        .from(agentSessionMessageTable)
+        .where(
+          and(eq(agentSessionMessageTable.sessionId, session.id), gt(agentSessionMessageTable.createdAt, detectedAtMs))
+        )
+        .limit(1)
+        .all()
+      if (resumed) continue
+
+      const [lastAssistant] = db
+        .select({ data: agentSessionMessageTable.data, createdAt: agentSessionMessageTable.createdAt })
+        .from(agentSessionMessageTable)
+        .where(and(eq(agentSessionMessageTable.sessionId, session.id), eq(agentSessionMessageTable.role, 'assistant')))
+        .orderBy(desc(agentSessionMessageTable.createdAt), asc(agentSessionMessageTable.id))
+        .limit(1)
+        .all()
+
+      items.push({
+        sessionId: session.id,
+        agentId: session.agentId,
+        agentName: agentName ?? null,
+        sessionName: session.name,
+        sessionType: session.type,
+        workspacePath,
+        interruptedAt: lastAssistant ? timestampToISO(lastAssistant.createdAt) : null,
+        summary: extractInterruptionSummary(lastAssistant?.data?.parts)
+      })
+    }
+    if (items.length === 0) return null
+    return { kind: stored.kind, detectedAt: stored.detectedAt, items }
+  }
+
+  dismissInterruptionRecovery(): void {
+    const db = application.get('DbService').getDb()
+    db.delete(appStateTable).where(eq(appStateTable.key, INTERRUPTED_RECOVERY_STATE_KEY)).run()
   }
 }
 

@@ -43,6 +43,17 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     }
   },
 
+  '/agent-sessions/interrupted-recovery': {
+    GET: async () => {
+      return agentSessionService.getInterruptionRecovery()
+    },
+
+    DELETE: async () => {
+      agentSessionService.dismissInterruptionRecovery()
+      return { dismissed: true as const }
+    }
+  },
+
   '/agent-sessions/:sessionId': {
     GET: async ({ params }) => {
       return agentSessionService.getConversationById(params.sessionId)
