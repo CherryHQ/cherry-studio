@@ -13,12 +13,7 @@ import type {
 } from '../imageGenerationModel'
 import { readErrorMessage } from '../readErrorMessage'
 import { createAbortError, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
-import {
-  applySeed,
-  convertUiWorkflowToPrompt,
-  findPromptTarget,
-  type ObjectInfo
-} from './uiToApiPrompt'
+import { applySeed, convertUiWorkflowToPrompt, findPromptTarget, type ObjectInfo } from './uiToApiPrompt'
 
 /**
  * ComfyUI transport: list the user's saved workflows, expand one into a prompt,

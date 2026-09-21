@@ -121,9 +121,7 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   // growing another provider id.
   const family =
     (endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined) ??
-    (provider.defaultChatEndpoint
-      ? provider.endpointConfigs?.[provider.defaultChatEndpoint]?.adapterFamily
-      : undefined)
+    (provider.defaultChatEndpoint ? provider.endpointConfigs?.[provider.defaultChatEndpoint]?.adapterFamily : undefined)
   if (family === 'comfyui') return formatApiHost(baseURL, false)
 
   // Providers that don't append API version
