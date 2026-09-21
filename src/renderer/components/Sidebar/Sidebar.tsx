@@ -10,14 +10,13 @@ import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarList } from './SidebarList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser } from './types'
+import type { ResolvedSidebarEntry, SidebarUser } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
 export interface SidebarProps {
   width: number
   setWidth: (width: number) => void
   entries: ResolvedSidebarEntry[]
-  active: SidebarActiveState
   user?: SidebarUser
   isFloating?: boolean
   isFullscreen?: boolean
@@ -38,7 +37,6 @@ export function Sidebar({
   width,
   setWidth,
   entries,
-  active,
   user,
   isFloating = false,
   searchLabel = '',
@@ -117,7 +115,6 @@ export function Sidebar({
 
   const listProps = {
     entries,
-    active,
     onReorder: onEntriesReorder,
     onContextMenuOpenChange: handleContextMenuOpenChange
   }

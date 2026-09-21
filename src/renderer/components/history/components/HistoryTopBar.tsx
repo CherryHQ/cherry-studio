@@ -66,7 +66,6 @@ const HistoryTopBar = ({
   onBulkMove
 }: HistoryTopBarProps) => {
   const { t } = useTranslation()
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [moveDialogOpen, setMoveDialogOpen] = useState(false)
   const [moveTargetId, setMoveTargetId] = useState('')
   const moveTargets = useMemo(() => Array.from(bulkMoveTargets), [bulkMoveTargets])
@@ -76,12 +75,6 @@ const HistoryTopBar = ({
   )
   const canBulkDelete = bulkDeleteCount > 0 && !!onBulkDelete
   const canBulkMove = mode === 'assistant' && selectedCount > 0 && moveTargets.length > 0 && !!onBulkMove
-  const deleteTitle =
-    mode === 'assistant' ? t('history.records.bulkDeleteTopics.title') : t('history.records.bulkDeleteSessions.title')
-  const deleteDescription =
-    mode === 'assistant'
-      ? t('history.records.bulkDeleteTopics.description', { count: bulkDeleteCount })
-      : t('history.records.bulkDeleteSessions.description', { count: bulkDeleteCount })
 
   useEffect(() => {
     if (!moveDialogOpen) return
@@ -182,7 +175,7 @@ const HistoryTopBar = ({
           variant="outline"
           className="h-8 gap-1.5 rounded-md px-2.5 text-xs text-destructive shadow-none hover:text-destructive"
           disabled={!canBulkDelete}
-          onClick={() => setDeleteDialogOpen(true)}>
+          onClick={() => void onBulkDelete?.()}>
           <Trash2 className="size-3.5" />
           <span>
             {t('history.records.bulkDelete')}
@@ -191,19 +184,6 @@ const HistoryTopBar = ({
         </Button>
       </div>
 
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        title={deleteTitle}
-        description={deleteDescription}
-        confirmText={t('common.delete')}
-        cancelText={t('common.cancel')}
-        destructive
-        onConfirm={async () => {
-          await onBulkDelete?.()
-          setDeleteDialogOpen(false)
-        }}
-      />
       <ConfirmDialog
         open={moveDialogOpen}
         onOpenChange={setMoveDialogOpen}

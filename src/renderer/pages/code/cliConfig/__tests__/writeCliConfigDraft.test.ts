@@ -56,6 +56,19 @@ const ollamaProvider = {
   defaultChatEndpoint: 'ollama-chat'
 } as unknown as Provider
 
+/** Keyless local server (authOptional) exposing both Anthropic and chat endpoints. */
+const omlxProvider = {
+  id: 'omlx',
+  presetProviderId: 'omlx',
+  name: 'oMLX',
+  authOptional: true,
+  endpointConfigs: {
+    'anthropic-messages': { baseUrl: 'http://localhost:8000' },
+    'openai-chat-completions': { baseUrl: 'http://localhost:8000' }
+  },
+  defaultChatEndpoint: 'openai-chat-completions'
+} as unknown as Provider
+
 const openaiCompatProvider = {
   id: 'deepseek',
   name: 'DeepSeek',
@@ -308,6 +321,42 @@ describe('writeCliConfigDraft', () => {
         ANTHROPIC_AUTH_TOKEN: 'ollama',
         ANTHROPIC_MODEL: 'llama3'
       })
+    })
+
+    it('injects a per-provider placeholder auth token for a keyless local provider', async () => {
+      mockGet({
+        '/providers/omlx': () => omlxProvider,
+        '/providers/omlx/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'omlx::qwen3-coder-30b'
+      })
+
+      expect(written).not.toBeNull()
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env).toEqual({
+        ANTHROPIC_BASE_URL: 'http://localhost:8000',
+        ANTHROPIC_AUTH_TOKEN: 'omlx',
+        ANTHROPIC_MODEL: 'qwen3-coder-30b'
+      })
+    })
+
+    it('writes a keyless local provider through the Qwen Code writer without an API key', async () => {
+      mockGet({
+        '/providers/omlx': () => omlxProvider,
+        '/providers/omlx/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.QWEN_CODE,
+        modelId: 'omlx::qwen3-coder-30b'
+      })
+
+      expect(written).not.toBeNull()
     })
 
     it('omits ANTHROPIC_MODEL for detailed Claude model config', async () => {

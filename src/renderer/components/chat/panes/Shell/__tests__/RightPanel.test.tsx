@@ -1,10 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ErrorInfo, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getRightPaneWidthPolicy } from '../../../shell/paneLayout'
-import { createResourcePaneCapability, type ResourcePaneConfig } from '../resourcePane'
 import {
   RightPanel,
   type RightPanelCapability,
@@ -484,7 +484,8 @@ describe('RightPanel', () => {
     consoleError.mockRestore()
   })
 
-  it('sizes the pane from the presented panel, so a list and an artifact never share a width', () => {
+  it('keeps inspector sizing uncapped when switching to a width-limited list and back', async () => {
+    const user = userEvent.setup()
     render(
       <Harness defaultOpen>
         <RightPanelViewport>
@@ -495,13 +496,18 @@ describe('RightPanel', () => {
 
     const host = screen.getByTestId('right-pane-host')
     expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
-    expect(host).toHaveAttribute('data-max-width', String(INSPECTOR_POLICY.maxWidth))
+    expect(host).not.toHaveAttribute('data-max-width')
 
-    fireEvent.click(screen.getByRole('button', { name: 'open second' }))
+    await user.click(screen.getByRole('button', { name: 'open second' }))
 
     expect(host).toHaveAttribute('data-cache-key', LIST_POLICY.cacheKey)
     expect(host).toHaveAttribute('data-max-width', String(LIST_POLICY.maxWidth))
     expect(host).toHaveAttribute('data-min-width', String(LIST_POLICY.minWidth))
+
+    await user.click(screen.getByRole('button', { name: 'open first' }))
+
+    expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
+    expect(host).not.toHaveAttribute('data-max-width')
   })
 
   it('rejects duplicate panel ids', () => {
@@ -515,13 +521,5 @@ describe('RightPanel', () => {
         </RightPanelProvider>
       )
     ).toThrow('Duplicate right-panel id: first')
-  })
-})
-
-describe('createResourcePaneCapability', () => {
-  it('sizes by the navigation-list preset, so the list never inherits the inspector envelope', () => {
-    const capability = createResourcePaneCapability<{ resourcePane: ResourcePaneConfig | null }>()
-
-    expect(capability.widthPreset).toBe('navigation-list')
   })
 })

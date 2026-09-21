@@ -26,12 +26,16 @@ interface ConfirmDialogProps {
   confirmText?: string
   /** Cancel button text */
   cancelText?: string
-  /** Callback when confirm button is clicked */
-  onConfirm?: () => void | Promise<void>
+  /** Disabled state for cancel button */
+  cancelDisabled?: boolean
+  /** Return false to keep the dialog open; void or true closes it. */
+  onConfirm?: () => boolean | void | Promise<boolean | void>
   /** Whether this is a destructive action (e.g., delete) */
   destructive?: boolean
   /** Loading state for confirm button */
   confirmLoading?: boolean
+  /** Disabled state for confirm button */
+  confirmDisabled?: boolean
   /** Optional className for DialogContent */
   contentClassName?: string
   /** Optional className for DialogOverlay */
@@ -46,15 +50,17 @@ function ConfirmDialog({
   content,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
+  cancelDisabled = false,
   onConfirm,
   destructive = false,
   confirmLoading = false,
+  confirmDisabled = false,
   contentClassName,
   overlayClassName
 }: ConfirmDialogProps) {
   const handleConfirm = React.useCallback(async () => {
-    await onConfirm?.()
-    onOpenChange?.(false)
+    const result = await onConfirm?.()
+    if (result !== false) onOpenChange?.(false)
   }, [onConfirm, onOpenChange])
 
   return (
@@ -71,9 +77,15 @@ function ConfirmDialog({
         {content}
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline">{cancelText}</Button>
+            <Button variant="outline" disabled={cancelDisabled}>
+              {cancelText}
+            </Button>
           </DialogClose>
-          <Button variant={destructive ? 'destructive' : 'default'} onClick={handleConfirm} loading={confirmLoading}>
+          <Button
+            variant={destructive ? 'destructive' : 'default'}
+            onClick={handleConfirm}
+            loading={confirmLoading}
+            disabled={confirmDisabled}>
             {confirmText}
           </Button>
         </DialogFooter>

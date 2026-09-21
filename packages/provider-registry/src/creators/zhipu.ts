@@ -61,6 +61,12 @@ export default defineCreator({
     { id: 'glm-z1-airx', name: 'GLM-Z1-AirX', capabilities: ['reasoning'], contextWindow: 131072 },
     { id: 'glm-z1-flash', name: 'GLM-Z1-Flash', capabilities: ['reasoning'], contextWindow: 131072 },
     {
+      id: 'glm-5-3',
+      name: 'GLM 5.3',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      maxOutputTokens: 131072
+    },
+    {
       id: 'glm-5-3-flash',
       name: 'GLM-5.3-Flash',
       family: 'glm',

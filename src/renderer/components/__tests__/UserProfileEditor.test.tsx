@@ -53,7 +53,7 @@ vi.mock('@cherrystudio/ui', () => {
       children?: ReactNode
       onOpenChange?: (open: boolean) => void
       open?: boolean
-    }) => <PopoverContext.Provider value={{ open: Boolean(open), onOpenChange }}>{children}</PopoverContext.Provider>,
+    }) => <PopoverContext value={{ open: Boolean(open), onOpenChange }}>{children}</PopoverContext>,
     PopoverContent: ({ children }: { children?: ReactNode }) => {
       const context = React.use(PopoverContext)
       return context.open ? <div data-testid="popover-content">{children}</div> : null
