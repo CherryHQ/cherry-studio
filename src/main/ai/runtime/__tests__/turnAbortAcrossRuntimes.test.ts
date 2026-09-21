@@ -38,8 +38,11 @@ describe('runtime turn abort without session teardown', () => {
   it('cancels an in-flight manual Pi /compact turn instead of reporting a no-op stop', async () => {
     const connection = new PiRuntimeConnection(input)
     const session = {
-      // pi settles an aborted compaction with an aborted compaction_end, which clears the flag.
-      abort: vi.fn(async () => {
+      // Faithful to pi 0.80.3: `abort()` only aborts the agent loop and never touches the
+      // compaction controller; only `abortCompaction()` settles it (aborted compaction_end,
+      // which clears the in-flight flag).
+      abort: vi.fn(async () => {}),
+      abortCompaction: vi.fn(() => {
         ;(connection as any).manualCompactInFlight = false
       })
     }
@@ -47,10 +50,12 @@ describe('runtime turn abort without session teardown', () => {
     ;(connection as any).promptRunActive = false
     ;(connection as any).manualCompactInFlight = true
 
-    // A /compact turn is live without an active prompt run: the stop must reach pi's abort and
-    // wait for the compaction to settle, not succeed while compaction keeps running.
+    // A /compact turn is live without an active prompt run: the stop must target pi's
+    // compaction controller and wait for the compaction to settle, not succeed while
+    // compaction keeps running.
     await expect(connection.abortTurn()).resolves.toBe(true)
-    expect(session.abort).toHaveBeenCalledOnce()
+    expect(session.abortCompaction).toHaveBeenCalledOnce()
+    expect(session.abort).not.toHaveBeenCalled()
     expect((connection as any).manualCompactInFlight).toBe(false)
     expect((connection as any).closed).toBe(false)
   })

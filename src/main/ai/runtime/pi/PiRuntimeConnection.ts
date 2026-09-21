@@ -574,21 +574,35 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // A warm connection whose turn already settled has nothing to interrupt: report success so
     // the stop keeps the preserved runtime instead of falling back to the teardown.
     if (!this.promptRunActive) {
-      // A manual `/compact` is a live host turn that never goes through `prompt()`: route its
-      // stop into pi's abort so the compaction is cancelled, not outliving the stop.
+      // A manual `/compact` is a live host turn that never goes through `prompt()`. pi's
+      // `abort()` only aborts the agent loop — it never touches the compaction controller —
+      // so the stop must go through `abortCompaction()`, else the compaction keeps running
+      // and can commit behind a successful-looking stop.
       if (!this.manualCompactInFlight) return true
-      return this.abortPiWork(session, () => this.manualCompactInFlight, 'compact')
+      return this.abortPiWork(
+        () => this.manualCompactInFlight,
+        'compact',
+        () => session.abortCompaction()
+      )
     }
     this.stopRequested = true
-    return this.abortPiWork(session, () => this.promptRunActive, 'turn')
+    return this.abortPiWork(
+      () => this.promptRunActive,
+      'turn',
+      () => session.abort()
+    )
   }
 
   /** Abort pi's in-flight work (prompt turn or manual compaction) and wait for it to settle. */
-  private async abortPiWork(session: AgentSession, workActive: () => boolean, label: string): Promise<boolean> {
+  private async abortPiWork(
+    workActive: () => boolean,
+    label: string,
+    abortWork: () => void | Promise<void>
+  ): Promise<boolean> {
     try {
       let timeout: ReturnType<typeof setTimeout> | undefined
       await Promise.race([
-        session.abort(),
+        abortWork(),
         new Promise<never>((_, reject) => {
           timeout = setTimeout(() => reject(new Error(`Pi ${label} abort timed out`)), 5_000)
         })
