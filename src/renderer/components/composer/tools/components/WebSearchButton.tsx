@@ -19,6 +19,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
+import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
@@ -88,6 +89,8 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     : undefined
   const clientSearchAvailable = Boolean(effectiveSearchProvider)
   const clientFetchAvailable = Boolean(effectiveFetchProvider)
+  const effectiveEndpointType =
+    model && modelProvider ? resolveCanonicalEndpoint(modelProvider, model).endpointType : undefined
   // Same resolver as the main process; MCP mode stands in for the request's
   // eventual function tools, which only exist at build time.
   const { webSearch: webSearchRoute, reasons } =
@@ -97,7 +100,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           clientSearchAvailable,
           clientFetchAvailable,
           modelToolsPreferred,
-          endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
+          endpointType: effectiveEndpointType,
           hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
           reasoningEffort: assistant.settings.reasoning_effort
         })

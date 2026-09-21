@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import WebSearchButton from '../WebSearchButton'
 
@@ -421,6 +421,34 @@ describe('WebSearchButton', () => {
     mocks.model = { ...mocks.model, providerId: 'gemini', apiModelId: 'gemini-2.5-pro' }
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')
+  })
+
+  it('predicts built-in search from the supported provider default endpoint', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.model_tools_preferred', false)
+    mocks.provider = {
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' }
+      },
+      serverTools: [
+        {
+          id: 'web-search',
+          modelScope: 'all-chat-models',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        }
+      ]
+    }
+    mocks.model = {
+      ...mocks.model!,
+      providerId: 'new-api',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
+    }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
     expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')
   })
 
