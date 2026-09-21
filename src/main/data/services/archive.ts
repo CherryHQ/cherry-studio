@@ -28,7 +28,7 @@ export function listArchives(query: { cursor?: string; limit: number }): CursorP
       FROM ${agentTable} WHERE deleted_at IS NOT NULL
       UNION ALL
       SELECT 'sessions:' || id, id, 'sessions', name, deleted_at
-      FROM ${agentSessionTable} WHERE deleted_at IS NOT NULL
+      FROM ${agentSessionTable} WHERE deleted_at IS NOT NULL AND type = 'conversation'
       UNION ALL
       SELECT 'paintings:' || id, id, 'paintings', prompt, deleted_at
       FROM ${paintingTable} WHERE deleted_at IS NOT NULL

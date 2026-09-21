@@ -60,8 +60,19 @@ function seedArchive() {
 }
 
 describe('archive list', () => {
-  it('pages across all six domains in archive-time order without including active content', async () => {
+  it('pages across all six domains without including active content or background sessions', () => {
     seedArchive()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: 'heartbeat',
+        type: 'background',
+        name: 'Heartbeat',
+        workspaceId: 'workspace',
+        orderKey: 'a1',
+        deletedAt: 550
+      })
+      .run()
     const first = listArchives({ limit: 2 })
     const second = listArchives({ limit: 2, cursor: first.nextCursor })
     const third = listArchives({ limit: 2, cursor: second.nextCursor })
