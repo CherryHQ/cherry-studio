@@ -1,13 +1,14 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { validate as isUuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
-const { initMock, makeElectronTransportMock, sendMock, flushMock, preferences, preferenceState } = vi.hoisted(() => ({
+const { initMock, makeElectronTransportMock, sendMock, flushMock, preferenceState } = vi.hoisted(() => ({
   initMock: vi.fn(),
   makeElectronTransportMock: vi.fn(),
   sendMock: vi.fn(async () => ({ statusCode: 200 })),
   flushMock: vi.fn(async () => true),
-  preferences: {} as Record<string, unknown>,
   preferenceState: { ready: true }
 }))
 
@@ -37,12 +38,13 @@ vi.mock('@sentry/electron/main', () => {
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   return mockApplicationFactory({
     PreferenceService: {
+      ...MockMainPreferenceServiceExport.preferenceService,
       get isReady() {
         return preferenceState.ready
-      },
-      get: (key: string) => preferences[key]
+      }
     }
   })
 })
@@ -52,8 +54,8 @@ import { application } from '@application'
 import { initSentry } from '../sentry'
 
 function grantConsent() {
-  preferences['app.privacy.data_collection.enabled'] = true
-  preferences['app.privacy.policy_version'] = LATEST_PRIVACY_POLICY_VERSION
+  MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
+  MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
 }
 
 function initOptions() {
@@ -63,11 +65,12 @@ function initOptions() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  MockMainPreferenceServiceUtils.resetMocks()
   vi.stubEnv('DEV', false)
   vi.stubGlobal('__APP_EDITION__', 'global')
   makeElectronTransportMock.mockReturnValue({ send: sendMock, flush: flushMock })
-  preferences['app.privacy.data_collection.enabled'] = false
-  preferences['app.privacy.policy_version'] = ''
+  MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+  MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.policy_version', '')
   preferenceState.ready = true
 })
 
@@ -97,14 +100,14 @@ describe('Sentry consent gate', () => {
     await transport.send(envelope)
     expect(sendMock).toHaveBeenCalledExactlyOnceWith(envelope)
 
-    preferences['app.privacy.data_collection.enabled'] = false
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
     await transport.send(envelope)
     expect(sendMock).toHaveBeenCalledTimes(1)
   })
 
   it('treats consent under a superseded privacy policy as no consent', () => {
-    preferences['app.privacy.data_collection.enabled'] = true
-    preferences['app.privacy.policy_version'] = '20200101'
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.policy_version', '20200101')
 
     expect(initOptions().beforeSend({ message: 'boom' })).toBeNull()
   })
@@ -177,5 +180,42 @@ describe('Sentry instrumentation surface', () => {
 
   it('preserves the default uncaught-exception handler without a custom fatal-error callback', () => {
     expect(initOptions().onFatalError).toBeUndefined()
+  })
+})
+
+describe('Sentry client identity', () => {
+  it.each(['main', 'renderer'])('identifies %s errors with the existing client ID', (process) => {
+    const clientId = '91f06c3a-1776-4e98-a76f-18e03e1e6f96'
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.id', clientId)
+    grantConsent()
+
+    const event = initOptions().beforeSend({
+      message: 'boom',
+      tags: { 'event.process': process },
+      user: { id: 'stale-user-id' }
+    })
+
+    expect(event.user.id).toBe(clientId)
+    expect(event.tags['event.process']).toBe(process)
+  })
+
+  it('uses the same persisted client ID across events for a new installation', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.id', '')
+    grantConsent()
+    const options = initOptions()
+
+    const first = options.beforeSend({ message: 'first error' })
+    const second = options.beforeSend({ message: 'second error' })
+
+    expect(isUuid(first.user.id)).toBe(true)
+    expect(second.user.id).toBe(first.user.id)
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue('app.user.id')).toBe(first.user.id)
+  })
+
+  it('does not generate a client ID for an event without consent', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.id', '')
+
+    expect(initOptions().beforeSend({ message: 'boom' })).toBeNull()
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue('app.user.id')).toBe('')
   })
 })

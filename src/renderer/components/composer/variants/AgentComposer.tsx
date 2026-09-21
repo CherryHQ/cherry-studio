@@ -402,7 +402,10 @@ const AgentComposerRoot = ({
       // discard whatever the user has written into it. Files stay behind: they belong to the
       // workspace being left.
       const seed = launchIdentityRef.current.consumed ? actionsRef.current.getDraft() : launchInitialDraft
-      const edited = launchOptions?.initialParts ? createEditableMessageDraft(launchOptions.initialParts) : undefined
+      const edited =
+        launchOptions?.initialParts && launchOptions.editing
+          ? createEditableMessageDraft(launchOptions.initialParts, launchOptions.editing.messageId)
+          : undefined
       launchIdentityRef.current.consumed = true
       draft = {
         text: edited?.text ?? seed.text,

@@ -1246,10 +1246,10 @@ export class AiService extends BaseService {
         presetProviderId: provider.presetProviderId ?? null
       })
     }
-    // Union the live API list with the registry catalog so vendor-exclusive models
-    // the upstream `/models` never returns (ppio image models, Claude-on-Vertex)
-    // still surface for the user to enable.
     const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    if (!provider.supplementModelsFromRegistry) {
+      return remoteModels
+    }
     const registryModels = providerRegistryService.listProviderRegistryModels({
       providerId,
       presetProviderId: provider.presetProviderId ?? null

@@ -656,7 +656,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  async snapshotForFork(boundary: number, signal?: AbortSignal): Promise<unknown[] | undefined> {
+  async flushForFork(signal?: AbortSignal): Promise<void> {
     if (this.startPromise) await this.waitForForkTransition(this.startPromise, signal)
     signal?.throwIfAborted()
     if (this.closePromise) {
@@ -665,12 +665,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       return undefined
     }
     if (!this.bridge || this.closed) throw new Error('DSH connection is closed')
-    const result = await this.bridge.request(
-      'session/fork-snapshot',
-      { sessionId: this.runtimeSessionId, boundary },
-      { timeoutMs: 60_000, signal }
-    )
-    return result.events
+    await this.bridge.request('session/flush', { sessionId: this.runtimeSessionId }, { timeoutMs: 60_000, signal })
   }
 
   private async waitForForkTransition(transition: Promise<unknown>, signal?: AbortSignal): Promise<void> {
