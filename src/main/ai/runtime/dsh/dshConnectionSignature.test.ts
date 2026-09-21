@@ -252,4 +252,18 @@ describe('captureDshConnectionSnapshot', () => {
       disabled.signature
     )
   })
+
+  it('serves a session model override after the agent default is cleared', async () => {
+    mocks.getAgent.mockReturnValue({ ...agent, model: null })
+
+    const snapshot = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+
+    expect(snapshot.model).toMatchObject({ id: 'provider::model' })
+  })
+
+  it('still rejects a modelless agent when no session override is passed', async () => {
+    mocks.getAgent.mockReturnValue({ ...agent, model: null })
+
+    await expect(captureDshConnectionSnapshot('session-1', agent.id)).rejects.toThrow('Invalid dsh session snapshot')
+  })
 })
