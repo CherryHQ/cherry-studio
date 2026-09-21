@@ -124,7 +124,6 @@ export function acceptHello(value: unknown, identity: { instanceId: string; secr
   expanded.fill(0)
   return {
     channel,
-    clientPublicKey: hello.publicKey,
     ready: {
       type: 'ready' as const,
       version: 1,
