@@ -40,6 +40,7 @@ import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@share
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { redactSecretText } from '@shared/utils/redaction'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
@@ -473,7 +474,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       return this
     } catch (error) {
       await this.disposeRuntime()
-      throw error
+      throw mapDshStartupError(error)
     }
   }
 
@@ -703,7 +704,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   /** Best-effort teardown shared by close() and start() failure cleanup. */
   private async disposeRuntime(): Promise<void> {
-    this.traceRecorder?.close('dsh connection closed')
+    try {
+      this.traceRecorder?.close('dsh connection closed')
+    } catch (error) {
+      logger.warn('dsh trace close failed', { error })
+    }
     this.traceRecorder = undefined
     try {
       await this.client?.close()
@@ -977,4 +982,74 @@ function assertValidDshResumeToken(resumeToken: string): void {
   ) {
     throw new Error('dsh resume token must be a valid session id')
   }
+}
+
+const DSH_MAPPED_PREFIX = 'DSH runtime failed to start while loading the plugin tree'
+const DSH_BOOT_FAILURE_PATTERN = /plugin tree failed to load|failed to apply loader entry/i
+const DSH_FAILED_PLUGINS_PATTERN = /plugins?(\(s\))? failed to load: ([^\n;]+)/i
+const DSH_LOADER_ENTRY_PATTERN = /failed to apply loader entry ["']?([^\s("'\n,;]+)["']?(?: \(([^()\n]+)\))?/i
+
+/**
+ * Map a boot-time plugin-tree/include failure to an actionable startup error.
+ * The per-connection composition is regenerated on retry; sessions and plugins stay untouched.
+ */
+export function mapDshStartupError<T>(error: T): T | Error {
+  if (typeof error !== 'object' || error === null) return error
+  const message = readDshFailureText(error)
+  if (message.startsWith(DSH_MAPPED_PREFIX) || !DSH_BOOT_FAILURE_PATTERN.test(message)) return error
+  const failedList = DSH_FAILED_PLUGINS_PATTERN.exec(message)?.[2]?.trim() || ''
+  const loaderMatch = DSH_LOADER_ENTRY_PATTERN.exec(message)
+  const loaderName = cleanDshEntryName(loaderMatch?.[1] ?? '')
+  const loaderQualifier = cleanDshEntryName(loaderMatch?.[2] ?? '')
+  const loaderEntry = loaderName ? `${loaderName}${loaderQualifier ? ` (${loaderQualifier})` : ''}` : ''
+  const failingEntry = failedList || loaderEntry
+  const entryClause = failingEntry ? ` (failing entry: ${failingEntry})` : ''
+  return new Error(
+    `${DSH_MAPPED_PREFIX}${entryClause}. ` +
+      `The per-connection composition is regenerated on retry and your sessions and plugins were left untouched. ` +
+      `If this persists, reinstall Cherry Studio and try again. Detail: ${shortDshDetail(message)}`,
+    { cause: error }
+  )
+}
+
+// Gate text across cause/AggregateError nesting; capped against cycles.
+function readDshFailureText(error: object, seen = new Set<unknown>(), depth = 0): string {
+  if (seen.has(error) || depth > 5) return ''
+  seen.add(error)
+  const parts = [readDshMessage(error)]
+  const cause = (error as { cause?: unknown }).cause
+  if (typeof cause === 'object' && cause !== null) parts.push(readDshFailureText(cause, seen, depth + 1))
+  const errors = (error as { errors?: unknown }).errors
+  if (Array.isArray(errors)) {
+    for (const nested of errors) {
+      if (typeof nested === 'object' && nested !== null) parts.push(readDshFailureText(nested, seen, depth + 1))
+    }
+  }
+  return parts.filter(Boolean).join('\n')
+}
+
+function readDshMessage(error: object): string {
+  const message = (error as { message?: unknown }).message
+  if (typeof message === 'string') return message
+  return message === undefined || message === null ? '' : String(message)
+}
+
+// Strip quoting and trailing sentence punctuation from a parsed entry name.
+function cleanDshEntryName(name: string): string {
+  return name
+    .trim()
+    .replace(/^["'({[]+/, '')
+    .replace(/["'.,;:!?]+$/, '')
+}
+
+// First line plus the exit-code line when present; redacted and bounded for surfacing.
+function shortDshDetail(message: string): string {
+  const lines = message
+    .split('\n')
+    .map((line) => line.replace(/\r$/, '').trim())
+    .filter(Boolean)
+  const first = lines[0] ?? ''
+  const exit = lines.find((line) => line !== first && /exit code/i.test(line))
+  const redacted = redactSecretText([first, exit].filter(Boolean).join(' | '))
+  return redacted.length > 300 ? `${redacted.slice(0, 300)}…` : redacted
 }
