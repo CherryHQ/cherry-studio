@@ -35,9 +35,13 @@ const logger = loggerService.withContext('GatewayTokenEstimate')
  * all-media capabilities, and if the loosely-validated body defeats the converter it
  * degrades further to a bounded raw-body estimate — count_tokens must not 500 a client.
  */
-export async function estimateAnthropicRequestTokens(body: MessageCreateParams, signal?: AbortSignal): Promise<number> {
+export async function estimateAnthropicRequestTokens(
+  body: MessageCreateParams,
+  signal?: AbortSignal,
+  allowAgentOnly = false
+): Promise<number> {
   try {
-    return await estimateConvertedRequest(body, signal)
+    return await estimateConvertedRequest(body, signal, allowAgentOnly)
   } catch (error) {
     // The body is only loosely validated (`content: z.unknown()`, `tools` untyped), so
     // conversion can throw on malformed blocks — degrade instead of surfacing a 500.
@@ -46,7 +50,11 @@ export async function estimateAnthropicRequestTokens(body: MessageCreateParams, 
   }
 }
 
-async function estimateConvertedRequest(body: MessageCreateParams, signal?: AbortSignal): Promise<number> {
+async function estimateConvertedRequest(
+  body: MessageCreateParams,
+  signal?: AbortSignal,
+  allowAgentOnly = false
+): Promise<number> {
   const converter = MessageConverterFactory.create('anthropic')
   const uiMessages = converter.toUIMessages(body)
   const tools = converter.toAiSdkTools?.(body)
@@ -56,7 +64,7 @@ async function estimateConvertedRequest(body: MessageCreateParams, signal?: Abor
   let caps = ALL_MEDIA
   let resolved: ResolvedGatewayModelAddress | undefined
   try {
-    resolved = resolveGatewayModelAddress(body.model)
+    resolved = resolveGatewayModelAddress(body.model, allowAgentOnly)
     dialect = resolveModelTokenDialect(resolved.provider, resolved.model)
     caps = resolveMediaCapabilities(resolved.model)
   } catch (error) {

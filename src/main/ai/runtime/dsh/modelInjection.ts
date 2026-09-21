@@ -263,6 +263,13 @@ export function buildDshGatewayInjection(
   gateway: { baseUrl: string; apiKey: string; usageHeaders: Record<string, string> },
   reasoningEffort: ReasoningEffortOption = 'default'
 ): DshProviderInjection {
+  const modelAddress = `${provider.id}:${getRawModelId(model)}`
+  if (provider.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: provider "${provider.id}" is disabled.`)
+  }
+  if (model.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: the model is disabled.`)
+  }
   if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(provider.id)
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
@@ -353,6 +360,14 @@ export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Pro
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
+
+  const modelAddress = `${providerId}:${model.apiModelId ?? modelId}`
+  if (provider.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: provider "${providerId}" is disabled.`)
+  }
+  if (model.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: the model is disabled.`)
+  }
 
   // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
   if (requiresAgentGateway(provider.id)) {

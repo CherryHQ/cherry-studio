@@ -679,6 +679,17 @@ describe('Cherry Cloud Pi injection', () => {
     expect(serviceMocks.resolveApiGatewayRuntime).toHaveBeenCalledWith('session-1')
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
   })
+
+  // #20285: stale gateway models fail fast with a configuration error, not a late gateway 400.
+  it('rejects disabled or unroutable gateway models before materialization', () => {
+    expect(() => buildPiGatewayInjection({ ...provider, isEnabled: false }, model, GATEWAY)).toThrow('is disabled')
+    expect(() => buildPiGatewayInjection(provider, { ...model, isEnabled: false }, GATEWAY)).toThrow(
+      'the model is disabled'
+    )
+    expect(() => buildPiGatewayInjection(provider, { ...model, capabilities: ['embedding'] }, GATEWAY)).toThrow(
+      PiUnsupportedProviderError
+    )
+  })
 })
 
 function stubGrokCliServices(): void {
@@ -783,6 +794,16 @@ describe('modelInjection service resolution', () => {
       endpointConfigs: { 'ollama-chat': { adapterFamily: 'ollama', baseUrl: 'http://localhost:11434' } }
     })
     await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
+  })
+
+  // #20285: a disabled provider/model must surface as a configuration error before generation,
+  // not a late gateway 400.
+  it('rejects disabled providers and models with an actionable error', async () => {
+    serviceMocks.getByProviderId.mockReturnValueOnce({ id: 'p', isEnabled: false })
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow('provider "p" is disabled')
+
+    serviceMocks.getByKey.mockReturnValueOnce({ id: 'p::m', providerId: 'p', apiModelId: 'm', isEnabled: false })
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow('the model is disabled')
   })
 
   it('validates app-managed OAuth through its live session', async () => {
