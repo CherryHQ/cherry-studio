@@ -14,6 +14,7 @@
 * [Karpathy session a08c1b4e25c2](/karpathy-session-a08c1b4e25c254b1.md)
 * [Karpathy session a603f116ce2e](/karpathy-session-a603f116ce2ea198.md)
 * [Karpathy session aeb143eb57ed](/karpathy-session-aeb143eb57ed342b.md)
+* [Karpathy session aed5663faa0f](/karpathy-session-aed5663faa0f4f75.md)
 * [Karpathy session c4b22a71f796](/karpathy-session-c4b22a71f7964a54.md)
 * [Karpathy session c4bfb68f97a8](/karpathy-session-c4bfb68f97a85369.md)
 * [Karpathy session d8dec666640e](/karpathy-session-d8dec666640e7d1f.md)
