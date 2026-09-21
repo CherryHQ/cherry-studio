@@ -410,4 +410,69 @@ describe('topicFileExport', () => {
       }
     })
   })
+
+  describe('generated images', () => {
+    const imagePart = {
+      type: 'tool-generate_image',
+      toolCallId: 'call-1',
+      state: 'output-available',
+      input: {},
+      output: [{ id: 'gen-1', name: 'painting.png' }]
+    } as const
+
+    function withImagePart() {
+      const original = messagesById.u1
+      messagesById.u1 = {
+        ...original,
+        data: { parts: [{ type: 'text', text: 'draw' } as const, imagePart] }
+      }
+      return () => {
+        messagesById.u1 = original
+      }
+    }
+
+    beforeEach(() => {
+      ipcRequest.mockReset()
+    })
+
+    it('inlines generated image bytes so the file renders without source rows', async () => {
+      ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.batch_get_physical_paths') return { 'gen-1': '/tmp/gen-1.png' }
+        if (route === 'file.get_metadata') return { kind: 'file', size: 3 }
+        return { content: new Uint8Array([1, 2, 3]), mime: 'image/png' }
+      })
+      const restore = withImagePart()
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
+        expect(parts[1]).toMatchObject({
+          toolCallId: 'call-1',
+          output: { content: [{ type: 'image', data: 'AQID', mimeType: 'image/png' }] }
+        })
+        expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
+        expect(toast.warning).not.toHaveBeenCalled()
+      } finally {
+        restore()
+      }
+    })
+
+    it('drops unresolvable generated images and warns instead of leaving dangling ids', async () => {
+      ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.batch_get_physical_paths') return {}
+        throw new Error(`unexpected ${route}`)
+      })
+      const restore = withImagePart()
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
+        expect(parts[1]).toMatchObject({ toolCallId: 'call-1', output: { content: [] } })
+        expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
+        expect(toast.warning).toHaveBeenCalledWith('chat.topics.export.topic_file_skipped_attachments')
+      } finally {
+        restore()
+      }
+    })
+  })
 })

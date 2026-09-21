@@ -11,6 +11,9 @@ vi.mock('@renderer/i18n/resolver', () => ({
   }
 }))
 
+const ipcRequest = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest } }))
+
 import { buildCherryTopicFile } from '../cherryTopicFormat'
 import { importService } from '../ImportService'
 
@@ -185,7 +188,6 @@ describe('importService.importNativeTopic', () => {
   })
 
   it('removes the created topic when persisting fails midway', async () => {
-    const deletes: { path: string; options: any }[] = []
     let messageCalls = 0
     vi.mocked(dataApiService.post).mockImplementation(async (path: string) => {
       if (path === '/topics') return { id: 'new-topic' }
@@ -193,10 +195,7 @@ describe('importService.importNativeTopic', () => {
       if (messageCalls > 1) throw new Error('db gone')
       return { id: `msg_${messageCalls}` }
     })
-    vi.mocked(dataApiService.delete).mockImplementation(async (path: string, options: any) => {
-      deletes.push({ path, options })
-      return {}
-    })
+    ipcRequest.mockResolvedValue({ deletedIds: ['new-topic'], deletedCount: 1 })
     vi.mocked(dataApiService.put).mockResolvedValue({ activeNodeId: 'x' })
     vi.mocked(dataApiService.patch).mockResolvedValue({})
 
@@ -204,7 +203,7 @@ describe('importService.importNativeTopic', () => {
 
     expect(response.success).toBe(false)
     expect(response.topicsCount).toBe(0)
-    expect(deletes).toEqual([{ path: '/topics/new-topic', options: { query: { permanent: true } } }])
+    expect(ipcRequest).toHaveBeenCalledWith('trash.topic.delete_permanently', { topicIds: ['new-topic'] })
   })
 
   it('fails invalid files without writing anything', async () => {

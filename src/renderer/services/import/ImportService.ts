@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 
@@ -301,10 +302,10 @@ class ImportService {
       try {
         await this.persistConversation(conversation, createdTopic.id, assistant, completeStep)
       } catch (error) {
-        // Never report failure while leaving a partial topic behind: remove
-        // what this pass created, then surface the original error.
+        // Fresh topics are still active, so purge them through the trash
+        // lifecycle (DataApi purge only covers trashed topics).
         try {
-          await dataApiService.delete(`/topics/${createdTopic.id}`, { query: { permanent: true } })
+          await ipcApi.request('trash.topic.delete_permanently', { topicIds: [createdTopic.id] })
         } catch (cleanupError) {
           logger.warn('Failed to clean up a partially imported topic', { topicId: createdTopic.id, cleanupError })
         }

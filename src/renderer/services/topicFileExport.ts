@@ -1,4 +1,4 @@
-import { isToolUIPart } from 'ai'
+import { getToolName, isToolUIPart } from 'ai'
 
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
@@ -9,6 +9,8 @@ import { MAX_EMBED_IMAGE_BYTES } from '@renderer/services/markdownImageExport'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { isPersistedToolOutput } from '@shared/ai/transport'
 import type { TreeResponse } from '@shared/data/types/message'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
@@ -150,6 +152,61 @@ async function hydratePersistedToolOutputs(messages: CherryTopicFile['messages']
   return skipped
 }
 
+// Generated images are FileEntry references, so inline them as MCP image
+// content the destination renders without source-install rows.
+async function inlineGeneratedImages(messages: CherryTopicFile['messages']): Promise<number> {
+  let skipped = 0
+  for (const message of messages) {
+    let parts: unknown[] | undefined
+    for (const [index, part] of message.parts.entries()) {
+      if (!isToolUIPart(part as never)) continue
+      const toolPart = part as { state?: unknown; output?: unknown }
+      if (toolPart.state !== 'output-available') continue
+      let toolName = ''
+      try {
+        toolName = getToolName(part as never).trim()
+      } catch {
+        continue
+      }
+      if (toolName !== GENERATE_IMAGE_TOOL_NAME && toolName !== `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`) {
+        continue
+      }
+      const parsed = generateImageOutputSchema.safeParse(toolPart.output)
+      if (!parsed.success || parsed.data.length === 0) continue
+      const inline: { type: 'image'; data: string; mimeType: string }[] = []
+      for (const item of parsed.data) {
+        try {
+          const paths = await ipcApi.request('file.batch_get_physical_paths', { ids: [item.id] })
+          const physicalPath = paths[item.id]
+          if (!physicalPath) throw new Error(`File entry ${item.id} has no physical path`)
+          const handle = createFilePathHandle(AbsoluteFilePathSchema.parse(physicalPath))
+          const metadata = await ipcApi.request('file.get_metadata', handle)
+          if (metadata?.kind === 'file' && metadata.size > MAX_EMBED_IMAGE_BYTES) {
+            skipped += 1
+            continue
+          }
+          const { content, mime } = await ipcApi.request('file.read', {
+            handle,
+            options: { mode: 'full', encoding: 'binary' }
+          })
+          if (content.length > MAX_EMBED_IMAGE_BYTES) {
+            skipped += 1
+            continue
+          }
+          inline.push({ type: 'image', data: bytesToBase64(content), mimeType: mime ?? 'image/png' })
+        } catch (error) {
+          skipped += 1
+          logger.warn('Dropped an unresolvable generated image from the topic file export', { error })
+        }
+      }
+      parts ??= [...message.parts]
+      parts[index] = { ...(part as Record<string, unknown>), output: { content: inline } }
+    }
+    if (parts) message.parts = parts
+  }
+  return skipped
+}
+
 export async function collectTopicFileData(topicId: string): Promise<CherryTopicFile> {
   const topic = await dataApiService.get(`/topics/${topicId}`)
   const treeResponse = await dataApiService.get(`/topics/${topicId}/tree`, {
@@ -178,6 +235,7 @@ export async function collectTopicFileData(topicId: string): Promise<CherryTopic
     message.parts = inlined.parts
     skippedAttachments += inlined.skipped
   }
+  skippedAttachments += await inlineGeneratedImages(file.messages)
   if (skippedAttachments > 0) {
     logger.warn('Skipped unreadable attachments during topic file export', { skippedAttachments })
     toast.warning(i18n.t('chat.topics.export.topic_file_skipped_attachments', { count: skippedAttachments }))
