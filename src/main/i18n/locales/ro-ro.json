@@ -122,6 +122,7 @@
   "paintings.comfyui.no_image": "ComfyUI s-a încheiat fără a produce o imagine",
   "paintings.comfyui.no_prompt_id": "ComfyUI a acceptat fluxul de lucru, dar nu a returnat niciun ID de prompt",
   "paintings.comfyui.no_prompt_node": "Fluxul de lucru ComfyUI „{{workflow}}” nu are niciun nod de text pe care samplerul să îl folosească drept condiționare pozitivă, deci nu există unde să se pună promptul",
+  "paintings.comfyui.not_served": "ComfyUI nu oferă {{surface}}. Folosește în schimb un flux de lucru salvat din pagina de desen.",
   "paintings.comfyui.poll_timeout": "ComfyUI nu s-a finalizat în {{seconds}}s",
   "paintings.comfyui.request_failed": "Cererea către serverul ComfyUI a eșuat",
   "paintings.comfyui.request_timeout": "ComfyUI nu a răspuns în {{seconds}}s",

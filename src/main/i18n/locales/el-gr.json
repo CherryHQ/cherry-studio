@@ -122,6 +122,7 @@
   "paintings.comfyui.no_image": "Το ComfyUI ολοκληρώθηκε χωρίς να παράξει εικόνα",
   "paintings.comfyui.no_prompt_id": "Το ComfyUI δέχτηκε τη ροή εργασίας αλλά δεν επέστρεψε αναγνωριστικό prompt",
   "paintings.comfyui.no_prompt_node": "Η ροή εργασίας ComfyUI «{{workflow}}» δεν έχει κόμβο κειμένου που ο δειγματολήπτης χρησιμοποιεί ως θετική συνθήκη, οπότε δεν υπάρχει σημείο για το prompt",
+  "paintings.comfyui.not_served": "Το ComfyUI δεν παρέχει {{surface}}. Χρησιμοποιήστε μια ροή εργασίας από τη σελίδα ζωγραφικής.",
   "paintings.comfyui.poll_timeout": "Το ComfyUI δεν ολοκληρώθηκε μέσα σε {{seconds}}s",
   "paintings.comfyui.request_failed": "Το αίτημα στον διακομιστή ComfyUI απέτυχε",
   "paintings.comfyui.request_timeout": "Το ComfyUI δεν απάντησε μέσα σε {{seconds}}s",

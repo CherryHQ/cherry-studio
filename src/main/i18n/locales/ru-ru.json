@@ -122,6 +122,7 @@
   "paintings.comfyui.no_image": "ComfyUI завершил работу, но не создал изображение",
   "paintings.comfyui.no_prompt_id": "ComfyUI принял рабочий процесс, но не вернул ID промпта",
   "paintings.comfyui.no_prompt_node": "В рабочем процессе ComfyUI «{{workflow}}» нет текстового узла, который сэмплер использует как позитивное условие, поэтому некуда записать промпт",
+  "paintings.comfyui.not_served": "ComfyUI не предоставляет {{surface}}. Используйте рабочий процесс, сохранённый на странице рисования.",
   "paintings.comfyui.poll_timeout": "ComfyUI не завершился за {{seconds}} с",
   "paintings.comfyui.request_failed": "Не удалось выполнить запрос к серверу ComfyUI",
   "paintings.comfyui.request_timeout": "ComfyUI не ответил за {{seconds}} с",

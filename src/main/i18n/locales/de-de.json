@@ -122,6 +122,7 @@
   "paintings.comfyui.no_image": "ComfyUI ist fertig, hat aber kein Bild erzeugt",
   "paintings.comfyui.no_prompt_id": "ComfyUI hat den Workflow akzeptiert, aber keine Prompt-ID zurückgegeben",
   "paintings.comfyui.no_prompt_node": "Der ComfyUI-Workflow „{{workflow}}“ hat keinen Textknoten, den der Sampler als positive Konditionierung verwendet, sodass es keinen Ort für den Prompt gibt",
+  "paintings.comfyui.not_served": "ComfyUI bietet {{surface}} nicht an. Verwende stattdessen einen Workflow von der Malen-Seite.",
   "paintings.comfyui.poll_timeout": "ComfyUI wurde nicht innerhalb von {{seconds}}s fertig",
   "paintings.comfyui.request_failed": "Die Anfrage an den ComfyUI-Server ist fehlgeschlagen",
   "paintings.comfyui.request_timeout": "ComfyUI hat nicht innerhalb von {{seconds}}s geantwortet",

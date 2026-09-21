@@ -122,6 +122,7 @@
   "paintings.comfyui.no_image": "ComfyUI terminó sin producir una imagen",
   "paintings.comfyui.no_prompt_id": "ComfyUI aceptó el flujo de trabajo pero no devolvió ningún ID de prompt",
   "paintings.comfyui.no_prompt_node": "El flujo de trabajo de ComfyUI «{{workflow}}» no tiene ningún nodo de texto que el sampler consuma como condicionamiento positivo, por lo que no hay dónde poner el prompt",
+  "paintings.comfyui.not_served": "ComfyUI no ofrece {{surface}}. Usa un flujo de trabajo de la página de pintura en su lugar.",
   "paintings.comfyui.poll_timeout": "ComfyUI no terminó en {{seconds}}s",
   "paintings.comfyui.request_failed": "La solicitud al servidor de ComfyUI falló",
   "paintings.comfyui.request_timeout": "ComfyUI no respondió en {{seconds}}s",

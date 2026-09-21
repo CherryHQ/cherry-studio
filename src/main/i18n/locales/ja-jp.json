@@ -122,6 +122,7 @@
   "paintings.comfyui.no_image": "ComfyUI は完了しましたが画像を生成しませんでした",
   "paintings.comfyui.no_prompt_id": "ComfyUI はワークフローを受け付けましたがプロンプト ID を返しませんでした",
   "paintings.comfyui.no_prompt_node": "ComfyUI ワークフロー「{{workflow}}」にはサンプラーがポジティブ条件として参照するテキストノードがなく、プロンプトを書き込む場所がありません",
+  "paintings.comfyui.not_served": "ComfyUI は {{surface}} を提供していません。代わりに描画ページで保存したワークフローを使用してください。",
   "paintings.comfyui.poll_timeout": "ComfyUI は {{seconds}} 秒以内に完了しませんでした",
   "paintings.comfyui.request_failed": "ComfyUI サーバーへのリクエストに失敗しました",
   "paintings.comfyui.request_timeout": "ComfyUI は {{seconds}} 秒以内に応答しませんでした",

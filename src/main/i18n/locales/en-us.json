@@ -122,6 +122,7 @@
   "paintings.comfyui.no_image": "ComfyUI finished without producing an image",
   "paintings.comfyui.no_prompt_id": "ComfyUI accepted the workflow but returned no prompt id",
   "paintings.comfyui.no_prompt_node": "ComfyUI workflow \"{{workflow}}\" has no text node the sampler consumes as positive conditioning, so there is nowhere to put the prompt",
+  "paintings.comfyui.not_served": "ComfyUI does not serve {{surface}}. Use a workflow from the paintings page instead.",
   "paintings.comfyui.poll_timeout": "ComfyUI did not finish within {{seconds}}s",
   "paintings.comfyui.request_failed": "The request to the ComfyUI server failed",
   "paintings.comfyui.request_timeout": "ComfyUI did not answer within {{seconds}}s",

@@ -1,6 +1,6 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
@@ -1544,5 +1544,36 @@ describe('listModels — oMLX', () => {
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
     expect(call.url).toBe('http://127.0.0.1:8000/v1/models/status')
     expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-coder'])
+  })
+})
+
+describe('listModels — ComfyUI credentials', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('lists saved workflows without sending the stored API key to the server', async () => {
+    getRotatedApiKeyMock.mockReturnValue('sk-secret-key')
+    const fetchMock = vi.fn<typeof fetch>(async () => Response.json([]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const provider = makeProvider({
+      id: 'comfyui',
+      presetProviderId: 'comfyui',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'http://localhost:8188' }
+      },
+      settings: { extraHeaders: { 'X-Custom': 'on' } }
+    })
+
+    await listModels(provider)
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe('http://localhost:8188/v2/userdata?path=workflows')
+    const headers = new Headers(fetchMock.mock.calls[0][1]?.headers)
+    // The server takes no credentials, and the saved key belongs to another host.
+    expect(headers.get('authorization')).toBeNull()
+    expect(headers.get('x-api-key')).toBeNull()
+    expect(headers.get('x-custom')).toBe('on')
   })
 })

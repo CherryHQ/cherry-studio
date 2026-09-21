@@ -105,7 +105,8 @@ describe('ComfyuiTransport', () => {
 
     const promptPost = posts.find((post) => post.url.includes('/prompt'))
     const requestedId = promptPost?.body.prompt_id as string
-    expect(requestedId).toMatch(/^cherry-studio-/)
+    // ComfyUI v0.37+ rejects a `prompt_id` that is not a canonical UUID.
+    expect(requestedId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
     const dequeued = posts.find((post) => post.url.includes('/queue') && Array.isArray(post.body.delete))
     expect(dequeued?.body.delete).toEqual([requestedId])
   })

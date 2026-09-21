@@ -40,7 +40,13 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
-import { getBaseUrl, getExtraHeaders, getProviderAppHeaders, routeToEndpoint } from '../utils/provider'
+import {
+  getBaseUrl,
+  getExtraHeaders,
+  getProviderAppHeaders,
+  headersWithoutCredentials,
+  routeToEndpoint
+} from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCherryCloudProviderConfig } from './cherryCloud'
@@ -619,15 +625,10 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
  * the transport appends its own paths (`/prompt`, `/history/{id}`, `/view?…`).
  */
 function buildComfyuiConfig(ctx: BuilderContext): ProviderConfig<'comfyui'> {
-  const headers: Record<string, string> = {
-    ...getProviderAppHeaders(ctx.actualProvider),
-    ...getExtraHeaders(ctx.actualProvider)
-  }
-
   return {
     providerId: 'comfyui',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, headers }
+    providerSettings: { ...ctx.baseConfig, headers: headersWithoutCredentials(ctx.actualProvider) }
   }
 }
 

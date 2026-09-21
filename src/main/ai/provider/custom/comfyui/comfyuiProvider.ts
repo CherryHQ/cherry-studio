@@ -1,6 +1,8 @@
 import type { ImageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 
+import { t } from '@main/i18n'
+
 import { createImageGenerationModel } from '../imageGenerationModel'
 import { createComfyuiTransport, DEFAULT_COMFYUI_BASE_URL } from './comfyuiTransport'
 
@@ -28,7 +30,7 @@ export interface ComfyuiProvider extends ProviderV3 {
  */
 export function createComfyuiProvider(settings: ComfyuiProviderSettings = {}): ComfyuiProvider {
   const unsupported = (surface: string): never => {
-    throw new Error(`ComfyUI does not serve ${surface}. Use a workflow from the paintings page instead.`)
+    throw new Error(t('paintings.comfyui.not_served', { surface }))
   }
 
   const transport = createComfyuiTransport({

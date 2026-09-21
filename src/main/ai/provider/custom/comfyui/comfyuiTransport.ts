@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 
 import { loggerService } from '@logger'
@@ -276,8 +278,9 @@ class ComfyuiTransport implements ImageGenerationTransport {
     applySeed(graph, input.seed, target.samplerId)
 
     // The submit and its body share one deadline, and we name the prompt: a lost
-    // response still leaves the id ours to cancel.
-    const requestedPromptId = `cherry-studio-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    // response still leaves the id ours to cancel. ComfyUI v0.37+ rejects a
+    // `prompt_id` that is not a canonical UUID before it queues anything.
+    const requestedPromptId = randomUUID()
     let promptId: string | undefined
     try {
       promptId = await this.withDeadline(

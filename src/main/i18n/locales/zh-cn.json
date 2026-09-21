@@ -122,6 +122,7 @@
   "paintings.comfyui.no_image": "ComfyUI 已完成但没有生成图像",
   "paintings.comfyui.no_prompt_id": "ComfyUI 已接受工作流但未返回提示词 ID",
   "paintings.comfyui.no_prompt_node": "ComfyUI 工作流“{{workflow}}”没有采样器用作正向条件输入的文本节点，因此无处写入提示词",
+  "paintings.comfyui.not_served": "ComfyUI 不提供 {{surface}} 服务。请改用绘画页面中保存的工作流。",
   "paintings.comfyui.poll_timeout": "ComfyUI 未能在 {{seconds}} 秒内完成",
   "paintings.comfyui.request_failed": "请求 ComfyUI 服务器失败",
   "paintings.comfyui.request_timeout": "ComfyUI 未能在 {{seconds}} 秒内响应",

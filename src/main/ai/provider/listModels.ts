@@ -38,7 +38,13 @@ import {
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-import { defaultHeaders, getBaseUrl, getExtraHeaders, getProviderAppHeaders } from '../utils/provider'
+import {
+  defaultHeaders,
+  getBaseUrl,
+  getExtraHeaders,
+  getProviderAppHeaders,
+  headersWithoutCredentials
+} from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { listWorkflows } from './custom/comfyui/comfyuiTransport'
 import {
@@ -463,7 +469,9 @@ const comfyuiFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.comfyui),
   fetch: async (provider, signal) => {
     const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
-    const workflows = await listWorkflows(baseUrl, signal, { headers: defaultHeaders(provider) })
+    // The ComfyUI server takes no credentials, and the stored key belongs to
+    // some other provider's host: `defaultHeaders` would hand it to this one.
+    const workflows = await listWorkflows(baseUrl, signal, { headers: headersWithoutCredentials(provider) })
     return dedup(workflows, (workflow) => workflow).map((workflow) =>
       toModel(workflow, provider, {
         name: workflow.split('/').pop() ?? workflow,
