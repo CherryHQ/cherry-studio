@@ -1551,7 +1551,7 @@
   "help.title": "Помощь",
   "help.whats_new": "Что нового",
   "history.records.agentTitle": "История агента",
-  "history.records.bulkDelete": "Пакетное удаление",
+  "history.records.bulkArchive": "Пакетное архивирование",
   "history.records.bulkDeleteSessions.description": "Удалить выбранное задание ({{count}})?",
   "history.records.bulkDeleteSessions.title": "Удалить выбранные задачи",
   "history.records.bulkDeleteTopics.description": "Удалить {{count}} выбранный(-е/-ых) диалог(а/ов)?",

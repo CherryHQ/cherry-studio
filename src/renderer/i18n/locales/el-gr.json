@@ -1551,7 +1551,7 @@
   "help.title": "Βοήθεια",
   "help.whats_new": "Τι νέο υπάρχει",
   "history.records.agentTitle": "Ιστορικό Πράκτορα",
-  "history.records.bulkDelete": "Διαγραφή Παρτίδας",
+  "history.records.bulkArchive": "Μαζική αρχειοθέτηση",
   "history.records.bulkDeleteSessions.description": "Διαγραφή {{count}} επιλεγμένης(-ών) εργασίας(-ών);",
   "history.records.bulkDeleteSessions.title": "Διαγραφή επιλεγμένων εργασιών",
   "history.records.bulkDeleteTopics.description": "Διαγραφή {{count}} επιλεγμένης συνομιλίας(-ών);",

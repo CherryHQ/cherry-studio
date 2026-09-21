@@ -1551,7 +1551,7 @@
   "help.title": "幫助",
   "help.whats_new": "新功能",
   "history.records.agentTitle": "Agent 歷史",
-  "history.records.bulkDelete": "批次刪除",
+  "history.records.bulkArchive": "批次封存",
   "history.records.bulkDeleteSessions.description": "要刪除選中的 {{count}} 個任務嗎？",
   "history.records.bulkDeleteSessions.title": "刪除選中的任務",
   "history.records.bulkDeleteTopics.description": "要刪除選中的 {{count}} 個對話嗎？",

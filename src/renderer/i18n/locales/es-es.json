@@ -1551,7 +1551,7 @@
   "help.title": "Ayuda",
   "help.whats_new": "Novedades",
   "history.records.agentTitle": "Historial del Agente",
-  "history.records.bulkDelete": "Eliminación por lotes",
+  "history.records.bulkArchive": "Archivar en lote",
   "history.records.bulkDeleteSessions.description": "¿Eliminar {{count}} tarea(s) seleccionada(s)?",
   "history.records.bulkDeleteSessions.title": "Eliminar tareas seleccionadas",
   "history.records.bulkDeleteTopics.description": "¿Eliminar {{count}} conversación(es) seleccionada(s)?",

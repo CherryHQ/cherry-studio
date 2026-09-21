@@ -1551,7 +1551,7 @@
   "help.title": "Help",
   "help.whats_new": "What's new",
   "history.records.agentTitle": "Agent History",
-  "history.records.bulkDelete": "Batch Delete",
+  "history.records.bulkArchive": "Batch Archive",
   "history.records.bulkDeleteSessions.description": "Delete {{count}} selected task(s)?",
   "history.records.bulkDeleteSessions.title": "Delete selected tasks",
   "history.records.bulkDeleteTopics.description": "Delete {{count}} selected conversation(s)?",

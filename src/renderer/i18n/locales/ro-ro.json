@@ -1551,7 +1551,7 @@
   "help.title": "Ajutor",
   "help.whats_new": "Noutăți",
   "history.records.agentTitle": "Istoric agent",
-  "history.records.bulkDelete": "Ștergere în lot",
+  "history.records.bulkArchive": "Arhivare în lot",
   "history.records.bulkDeleteSessions.description": "Ștergi cele {{count}} sarcini selectate?",
   "history.records.bulkDeleteSessions.title": "Șterge sarcinile selectate",
   "history.records.bulkDeleteTopics.description": "Ștergi cele {{count}} conversații selectate?",

@@ -1551,7 +1551,7 @@
   "help.title": "Hilfe",
   "help.whats_new": "Neuigkeiten",
   "history.records.agentTitle": "Agentenhistorie",
-  "history.records.bulkDelete": "Stapel löschen",
+  "history.records.bulkArchive": "Stapelweise archivieren",
   "history.records.bulkDeleteSessions.description": "{{count}} ausgewählte Aufgabe(n) löschen?",
   "history.records.bulkDeleteSessions.title": "Ausgewählte Aufgaben löschen",
   "history.records.bulkDeleteTopics.description": "{{count}} ausgewählte Konversation(en) löschen?",

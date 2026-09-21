@@ -1551,7 +1551,7 @@
   "help.title": "ヘルプ",
   "help.whats_new": "新機能",
   "history.records.agentTitle": "エージェント履歴",
-  "history.records.bulkDelete": "バッチ削除",
+  "history.records.bulkArchive": "一括アーカイブ",
   "history.records.bulkDeleteSessions.description": "選択したタスク {{count}} 件を削除しますか？",
   "history.records.bulkDeleteSessions.title": "選択したタスクを削除",
   "history.records.bulkDeleteTopics.description": "選択した{{count}}件の会話を削除しますか？",

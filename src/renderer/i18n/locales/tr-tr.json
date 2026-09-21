@@ -1551,7 +1551,7 @@
   "help.title": "Yardım",
   "help.whats_new": "Yenilikler",
   "history.records.agentTitle": "Ajan Geçmişi",
-  "history.records.bulkDelete": "Toplu Sil",
+  "history.records.bulkArchive": "Toplu Arşivle",
   "history.records.bulkDeleteSessions.description": "Seçilen {{count}} görev silinsin mi?",
   "history.records.bulkDeleteSessions.title": "Seçili görevleri sil",
   "history.records.bulkDeleteTopics.description": "Seçilen {{count}} konuşma silinsin mi?",

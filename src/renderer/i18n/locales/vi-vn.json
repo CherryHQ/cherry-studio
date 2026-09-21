@@ -1551,7 +1551,7 @@
   "help.title": "Trợ giúp",
   "help.whats_new": "Có gì mới",
   "history.records.agentTitle": "Lịch sử Agent",
-  "history.records.bulkDelete": "Xóa hàng loạt",
+  "history.records.bulkArchive": "Lưu trữ hàng loạt",
   "history.records.bulkDeleteSessions.description": "Xóa {{count}} công việc đã chọn?",
   "history.records.bulkDeleteSessions.title": "Xóa các tác vụ đã chọn",
   "history.records.bulkDeleteTopics.description": "Xóa {{count}} cuộc trò chuyện đã chọn?",

@@ -1551,7 +1551,7 @@
   "help.title": "帮助",
   "help.whats_new": "新功能",
   "history.records.agentTitle": "智能体历史记录",
-  "history.records.bulkDelete": "批量删除",
+  "history.records.bulkArchive": "批量归档",
   "history.records.bulkDeleteSessions.description": "将删除选中的 {{count}} 个任务。",
   "history.records.bulkDeleteSessions.title": "删除选中的任务",
   "history.records.bulkDeleteTopics.description": "将删除选中的 {{count}} 个对话。",
