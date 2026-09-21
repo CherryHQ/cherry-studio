@@ -1549,6 +1549,25 @@ export class AgentSessionService {
     const db = application.get('DbService').getDb()
     db.delete(appStateTable).where(eq(appStateTable.key, INTERRUPTED_RECOVERY_STATE_KEY)).run()
   }
+
+  /** Text of the session's most recent user message, truncated — the task anchor
+   * for a crash-resume prompt whose fresh runtime connection has no history. */
+  getLastUserMessageText(sessionId: string, maxChars: number): string | null {
+    const db = application.get('DbService').getDb()
+    const [row] = db
+      .select({ data: agentSessionMessageTable.data })
+      .from(agentSessionMessageTable)
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), eq(agentSessionMessageTable.role, 'user')))
+      .orderBy(desc(agentSessionMessageTable.createdAt), asc(agentSessionMessageTable.id))
+      .limit(1)
+      .all()
+    const text = (row?.data?.parts ?? [])
+      .filter((part) => part.type === 'text')
+      .map((part) => (part as { text?: string }).text ?? '')
+      .join(' ')
+      .trim()
+    return text ? text.slice(0, maxChars) : null
+  }
 }
 
 export const agentSessionService = new AgentSessionService()

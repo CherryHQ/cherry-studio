@@ -1,17 +1,40 @@
 import { application } from '@application'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { InterruptedSessionRecoveryKind } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 import { agentChatContextProvider, finalizeInterruptedParts, type StreamListener } from '../streamManager'
 import { buildAgentSessionTopicId } from './topic'
 
 const logger = loggerService.withContext('AgentSessionDeliveryService')
+
+/** Sender identity stamped on interruption-recovery self-deliveries. */
+const RECOVERY_SENDER_AGENT_ID = 'app-recovery'
+
+/**
+ * Resume prompt for an interrupted session. Graceful-exit sessions keep their
+ * runtime resume token, so the CLI still holds the full task context and the
+ * prompt only has to redirect. Crashed sessions lost theirs (#18289), so the
+ * fresh connection sees a single message — the prompt must be self-contained
+ * and anchor the task from the last persisted user message.
+ */
+export function buildInterruptionResumeContent(
+  kind: InterruptedSessionRecoveryKind,
+  taskExcerpt: string | null
+): string {
+  if (kind === 'graceful-exit') {
+    return '(The app quit while this session was still working and interrupted the last turn. Continue the task from where it stopped; do not redo steps that already completed.)'
+  }
+  const anchor = taskExcerpt ? ` The interrupted task was: "${taskExcerpt}".` : ''
+  return `(The app crashed while this session was working; this fresh session does not carry the prior conversation.${anchor} Inspect the workspace state first, then resume the task from what is already there; do not redo work that is already complete.)`
+}
 // Filesystem availability has no app event (for example, an external workspace volume remount).
 // Keep this low-frequency fallback; move to path-specific events if the platform exposes them.
 const DELIVERY_RETRY_SWEEP_MS = 60_000
@@ -87,6 +110,40 @@ export class AgentSessionDeliveryService extends BaseService {
     const message = agentSessionMessageService.acceptSessionDelivery(input)
     this.kick(message.sessionId)
     return message
+  }
+
+  /**
+   * Queue a resume message for each still-interrupted session. Rides the normal
+   * delivery pipeline — per-session busy guards, durable rows, headless turn
+   * execution — so concurrent resumes behave exactly like the user sending a
+   * message in every session at once. Ids no longer interrupted (deleted or
+   * already resumed) are skipped silently; a per-session accept failure is
+   * logged and does not block the rest.
+   */
+  resumeInterruptedSessions(sessionIds: string[]): { resumedIds: string[] } {
+    this.assertWritesAvailable()
+    const recovery = agentSessionService.getInterruptionRecovery()
+    if (!recovery) return { resumedIds: [] }
+    const wanted = new Set(sessionIds)
+    const resumedIds: string[] = []
+    for (const item of recovery.items) {
+      if (!wanted.has(item.sessionId)) continue
+      const taskExcerpt =
+        recovery.kind === 'crash' ? agentSessionService.getLastUserMessageText(item.sessionId, 600) : null
+      try {
+        this.accept({
+          senderAgentId: item.agentId ?? RECOVERY_SENDER_AGENT_ID,
+          senderSessionId: item.sessionId,
+          receiverSessionId: item.sessionId,
+          content: buildInterruptionResumeContent(recovery.kind, taskExcerpt),
+          replyPolicy: 'none'
+        })
+        resumedIds.push(item.sessionId)
+      } catch (error) {
+        logger.warn('Failed to queue interruption-resume delivery', { sessionId: item.sessionId, error })
+      }
+    }
+    return { resumedIds }
   }
 
   acceptWithNewSession(input: CreateSessionDeliveryInput): {

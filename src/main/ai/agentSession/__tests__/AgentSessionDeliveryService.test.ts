@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   deleteByAgentId: vi.fn(),
   deleteAgent: vi.fn<typeof agentService.deleteAgentStateTx>(),
   deleteWorkspace: vi.fn(),
+  getInterruptionRecovery: vi.fn(),
+  getLastUserMessageText: vi.fn(),
   validateDispatch: vi.fn(),
   persistDispatchTx: vi.fn(),
   activateDispatch: vi.fn(),
@@ -106,7 +108,9 @@ vi.mock('@data/services/AgentSessionService', () => ({
     listExpiredTrashIds: mocks.listExpiredTrashIds,
     purgeExpiredByIdsTx: mocks.purgeExpiredByIdsTx,
     deleteByAgentIdWithImpact: mocks.deleteByAgentId,
-    deleteWorkspaceCascadeWithImpact: mocks.deleteWorkspace
+    deleteWorkspaceCascadeWithImpact: mocks.deleteWorkspace,
+    getInterruptionRecovery: mocks.getInterruptionRecovery,
+    getLastUserMessageText: mocks.getLastUserMessageText
   }
 }))
 
@@ -178,7 +182,7 @@ vi.mock('@application', () => ({
   }
 }))
 
-const { AgentSessionDeliveryService } = await import('../AgentSessionDeliveryService')
+const { AgentSessionDeliveryService, buildInterruptionResumeContent } = await import('../AgentSessionDeliveryService')
 const { AgentLifecycleService } = await import('../../agents/AgentLifecycleService')
 let deliveryOwner: InstanceType<typeof AgentSessionDeliveryService>
 
@@ -1258,5 +1262,70 @@ describe('AgentSessionDeliveryService', () => {
     releaseClose()
     await Promise.all([archive, stop])
     expect((await service.drainIngress({ timeoutMs: 100 })).stragglerIds).toEqual([])
+  })
+})
+
+describe('interruption resume', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    vi.clearAllMocks()
+    mocks.accept.mockImplementation((input: { receiverSessionId: string }) => ({
+      sessionId: input.receiverSessionId
+    }))
+    mocks.withDispatchLock.mockImplementation((_topic: string, fn: () => Promise<void>) => fn())
+  })
+
+  it('anchors crash resumes on the last user message and skips no-longer-interrupted ids', async () => {
+    mocks.getInterruptionRecovery.mockReturnValue({
+      kind: 'crash',
+      detectedAt: new Date(0).toISOString(),
+      items: [{ sessionId: 'session-crash', agentId: 'agent-1' }]
+    })
+    mocks.getLastUserMessageText.mockReturnValue('refactor the pipeline')
+
+    const service = new AgentSessionDeliveryService()
+    const { resumedIds } = service.resumeInterruptedSessions(['session-crash', 'session-gone'])
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(resumedIds).toEqual(['session-crash'])
+    expect(mocks.accept).toHaveBeenCalledOnce()
+    expect(mocks.accept).toHaveBeenCalledWith({
+      senderAgentId: 'agent-1',
+      senderSessionId: 'session-crash',
+      receiverSessionId: 'session-crash',
+      content: expect.stringContaining('refactor the pipeline'),
+      replyPolicy: 'none'
+    })
+  })
+
+  it('sends a redirect-only prompt to graceful-exit sessions with intact resume tokens', () => {
+    mocks.getInterruptionRecovery.mockReturnValue({
+      kind: 'graceful-exit',
+      detectedAt: new Date(0).toISOString(),
+      items: [{ sessionId: 'session-paused', agentId: null }]
+    })
+
+    const service = new AgentSessionDeliveryService()
+    service.resumeInterruptedSessions(['session-paused'])
+
+    expect(mocks.getLastUserMessageText).not.toHaveBeenCalled()
+    expect(mocks.accept).toHaveBeenCalledWith(
+      expect.objectContaining({
+        senderAgentId: 'app-recovery',
+        receiverSessionId: 'session-paused',
+        content: expect.stringContaining('Continue the task')
+      })
+    )
+  })
+
+  it('builds self-contained prompts only for crashed sessions', () => {
+    const crash = buildInterruptionResumeContent('crash', 'the task')
+    const crashBare = buildInterruptionResumeContent('crash', null)
+    const graceful = buildInterruptionResumeContent('graceful-exit', 'the task')
+    expect(crash).toContain('the task')
+    expect(crash).toContain('does not carry the prior conversation')
+    expect(crashBare).not.toContain('The interrupted task was')
+    expect(graceful).toContain('Continue the task')
+    expect(graceful).not.toContain('The interrupted task was')
   })
 })

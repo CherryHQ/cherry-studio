@@ -117,6 +117,12 @@ export interface DeleteAgentSessionsResult {
 export const INTERRUPTED_SESSION_RECOVERY_KIND = ['crash', 'graceful-exit'] as const
 export type InterruptedSessionRecoveryKind = (typeof INTERRUPTED_SESSION_RECOVERY_KIND)[number]
 
+/** Sessions to auto-resume via `POST /agent-sessions/interrupted-recovery/resume`. */
+export const ResumeInterruptedSessionsSchema = z.strictObject({
+  sessionIds: z.array(z.string().min(1)).min(1)
+})
+export type ResumeInterruptedSessionsDto = z.infer<typeof ResumeInterruptedSessionsSchema>
+
 /** One interrupted session, with display metadata joined at read time (not at
  * snapshot time — the session or its agent may have been deleted since). */
 export interface InterruptedSessionItem {
@@ -145,6 +151,11 @@ export interface InterruptedSessionRecoveryResponse {
   kind: InterruptedSessionRecoveryKind
   detectedAt: string
   items: InterruptedSessionItem[]
+}
+
+/** Sessions whose resume message was queued; absent ids were no longer interrupted. */
+export interface ResumeInterruptedSessionsResponse {
+  resumedIds: string[]
 }
 
 /** Response for `GET /agent-sessions/latest` — the most-recently-active session in the requested scope, or `null`. */
@@ -207,6 +218,20 @@ export type AgentSessionSchemas = {
     }
     DELETE: {
       response: { dismissed: true }
+    }
+  }
+
+  /**
+   * Auto-resume selected interrupted sessions by delivering a resume message to
+   * each. Declared before the parameterized two-segment templates (e.g.
+   * `/agent-sessions/:sessionId/workspace`) so `interrupted-recovery/resume`
+   * is matched exactly. Ids that are no longer interrupted (deleted or already
+   * resumed) are ignored silently; the response lists what was actually queued.
+   */
+  '/agent-sessions/interrupted-recovery/resume': {
+    POST: {
+      body: ResumeInterruptedSessionsDto
+      response: ResumeInterruptedSessionsResponse
     }
   }
 

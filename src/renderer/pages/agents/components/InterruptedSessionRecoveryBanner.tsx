@@ -1,24 +1,29 @@
 /**
- * One-shot recovery notice for agent sessions whose work was interrupted by
- * the previous app exit (crash or graceful quit mid-turn).
+ * Recovery notice for agent sessions whose work was interrupted by the
+ * previous app exit (crash or graceful quit mid-turn).
  *
  * The record is written main-side (ids only) at boot reconcile for crashes and
  * at runtime `onStop` for graceful quits; this component joins nothing — it
  * renders whatever `GET /agent-sessions/interrupted-recovery` still considers
  * interrupted (deleted or already-resumed sessions are filtered out
  * server-side). It renders nothing until that response arrives, so the agent
- * page layout is unaffected in the common case.
+ * page layout is unaffected in the common case, and it stays up — across
+ * session switches and page navigation — until every item is resumed or the
+ * notice is dismissed.
  *
- * Actions are deliberately navigational only: opening a session shows the full
- * interrupted turn (terminalized tools, subagent tasks, partial output), and
- * the user decides how to continue. Graceful-quit sessions keep their resume
- * token, so any follow-up message continues with full CLI context — auto-sent
- * "continue" messages are intentionally out of scope here.
+ * Two actions per selection: `Open` navigates to the interrupted turn, and
+ * `Continue` delivers a resume message to each selected session through the
+ * durable delivery pipeline (busy-guarded, headless). Graceful-quit sessions
+ * keep their resume token, so the CLI holds the full task context and the
+ * resume prompt only redirects; crashed sessions lost theirs (#18289), so
+ * their prompt is self-contained and anchored on the last user message. A
+ * resumed session gains a message newer than the interruption, so it drops
+ * out of the notice on the next read.
  */
 
 import { useNavigate } from '@tanstack/react-router'
-import { AlertTriangle, ArrowRight, X } from 'lucide-react'
-import { useCallback } from 'react'
+import { AlertTriangle, ArrowRight, Play, X } from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
@@ -27,12 +32,19 @@ import { cn } from '@renderer/utils/style'
 export const InterruptedSessionRecoveryBanner = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { data, isLoading, mutate } = useQuery('/agent-sessions/interrupted-recovery')
+  const { data, isLoading, refetch, mutate } = useQuery('/agent-sessions/interrupted-recovery')
   const { trigger: dismiss } = useMutation('DELETE', '/agent-sessions/interrupted-recovery', {
     onSuccess: () => void mutate(undefined, { revalidate: false })
   })
+  const { trigger: resume, isLoading: isResuming } = useMutation(
+    'POST',
+    '/agent-sessions/interrupted-recovery/resume',
+    { onSuccess: () => void refetch() }
+  )
 
   const recovery = data ?? null
+  const items = recovery?.items ?? []
+  const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(new Set())
 
   const handleOpen = useCallback(
     (sessionId: string, agentId: string | null) => {
@@ -44,12 +56,27 @@ export const InterruptedSessionRecoveryBanner = () => {
     [navigate]
   )
 
-  if (isLoading || !recovery || recovery.items.length === 0) return null
+  const toggleChecked = useCallback((sessionId: string, checked: boolean) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(sessionId)
+      else next.delete(sessionId)
+      return next
+    })
+  }, [])
+
+  const handleContinue = useCallback(() => {
+    if (checkedIds.size === 0) return
+    void resume({ body: { sessionIds: [...checkedIds] } })
+    setCheckedIds(new Set())
+  }, [checkedIds, resume])
+
+  if (isLoading || !recovery || items.length === 0) return null
 
   const title =
     recovery.kind === 'crash'
-      ? t('agent.recovery.noticeTitle.crash', { count: recovery.items.length })
-      : t('agent.recovery.noticeTitle.gracefulExit', { count: recovery.items.length })
+      ? t('agent.recovery.noticeTitle.crash', { count: items.length })
+      : t('agent.recovery.noticeTitle.gracefulExit', { count: items.length })
 
   return (
     <div
@@ -67,8 +94,17 @@ export const InterruptedSessionRecoveryBanner = () => {
         </button>
       </div>
       <ul className="flex flex-col">
-        {recovery.items.map((item) => (
+        {items.map((item) => (
           <li key={item.sessionId} className="flex min-w-0 items-center gap-2 py-1 text-[13px]">
+            <input
+              type="checkbox"
+              className="size-3.5 shrink-0 cursor-pointer accent-current"
+              aria-label={t('agent.recovery.selectItem', {
+                name: item.sessionName || item.agentName || t('agent.recovery.untitledSession')
+              })}
+              checked={checkedIds.has(item.sessionId)}
+              onChange={(event) => toggleChecked(item.sessionId, event.target.checked)}
+            />
             <button
               type="button"
               className={cn(
@@ -108,6 +144,21 @@ export const InterruptedSessionRecoveryBanner = () => {
           </li>
         ))}
       </ul>
+      <div className="flex items-center gap-2 pt-0.5">
+        <button
+          type="button"
+          disabled={checkedIds.size === 0 || isResuming}
+          className={cn(
+            'flex cursor-pointer items-center gap-1.5 rounded-md bg-warning-border px-2.5 py-1 text-[12px] font-medium text-warning-subtle-foreground',
+            'disabled:cursor-not-allowed disabled:opacity-50'
+          )}
+          title={t('agent.recovery.continueHint')}
+          onClick={handleContinue}>
+          <Play size={12} />
+          {t('agent.recovery.continue', { count: checkedIds.size })}
+        </button>
+        <span className="text-[11px] text-muted">{t('agent.recovery.continueHint')}</span>
+      </div>
     </div>
   )
 }

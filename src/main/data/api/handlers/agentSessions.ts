@@ -7,6 +7,7 @@
  * session relation.
  */
 
+import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -15,6 +16,7 @@ import {
   CreateAgentSessionSchema,
   LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
+  ResumeInterruptedSessionsSchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -51,6 +53,14 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     DELETE: async () => {
       agentSessionService.dismissInterruptionRecovery()
       return { dismissed: true as const }
+    }
+  },
+
+  '/agent-sessions/interrupted-recovery/resume': {
+    POST: async ({ body }) => {
+      const parsed = ResumeInterruptedSessionsSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return application.get('AgentSessionDeliveryService').resumeInterruptedSessions(parsed.data.sessionIds)
     }
   },
 

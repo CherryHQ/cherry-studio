@@ -19,10 +19,15 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 
 const dismissTrigger = vi.fn()
+const resumeTrigger = vi.fn()
 
 function setupQueryResponse(data: unknown, isLoading = false) {
-  useQueryMock.mockReturnValue({ data, isLoading, mutate: vi.fn() })
-  useMutationMock.mockReturnValue({ trigger: dismissTrigger, isLoading: false, error: undefined })
+  useQueryMock.mockReturnValue({ data, isLoading, mutate: vi.fn(), refetch: vi.fn() })
+  useMutationMock.mockImplementation((_method: string, path: string) =>
+    path.endsWith('/resume')
+      ? { trigger: resumeTrigger, isLoading: false, error: undefined }
+      : { trigger: dismissTrigger, isLoading: false, error: undefined }
+  )
 }
 
 const recovery = {
@@ -56,6 +61,7 @@ describe('InterruptedSessionRecoveryBanner', () => {
   beforeEach(() => {
     navigateMock.mockReset()
     dismissTrigger.mockReset()
+    resumeTrigger.mockReset()
   })
 
   it('renders nothing without a recovery record', () => {
@@ -94,5 +100,26 @@ describe('InterruptedSessionRecoveryBanner', () => {
 
     await user.click(screen.getByRole('button', { name: i18n.t('agent.recovery.dismiss') }))
     expect(dismissTrigger).toHaveBeenCalledOnce()
+  })
+
+  it('continues checked sessions via POST with their ids', async () => {
+    const user = userEvent.setup()
+    setupQueryResponse(recovery)
+    render(<InterruptedSessionRecoveryBanner />)
+
+    const banner = screen.getByTestId('interrupted-session-recovery-banner')
+    const checkboxes = banner.querySelectorAll('input[type="checkbox"]')
+    expect(checkboxes).toHaveLength(2)
+
+    const continueButton = screen.getByRole('button', {
+      name: i18n.t('agent.recovery.continue', { count: 0 })
+    })
+    expect(continueButton).toBeDisabled()
+
+    await user.click(checkboxes[0])
+    await user.click(screen.getByRole('button', { name: i18n.t('agent.recovery.continue', { count: 1 }) }))
+    expect(resumeTrigger).toHaveBeenCalledWith({
+      body: { sessionIds: ['session-1'] }
+    })
   })
 })
