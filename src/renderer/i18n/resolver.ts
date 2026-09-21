@@ -6,6 +6,7 @@ import 'dayjs/locale/ja'
 import 'dayjs/locale/pt'
 import 'dayjs/locale/ro'
 import 'dayjs/locale/ru'
+import 'dayjs/locale/th'
 import 'dayjs/locale/tr'
 import 'dayjs/locale/vi'
 import 'dayjs/locale/zh-cn'
@@ -37,6 +38,7 @@ const localeLoaders = {
   'pt-PT': () => import('./locales/pt-pt.json'),
   'ro-RO': () => import('./locales/ro-ro.json'),
   'ru-RU': () => import('./locales/ru-ru.json'),
+  'th-TH': () => import('./locales/th-th.json'),
   'vi-VN': () => import('./locales/vi-vn.json'),
   'tr-TR': () => import('./locales/tr-tr.json')
 } satisfies Record<LanguageVarious, () => Promise<unknown>>
@@ -62,6 +64,7 @@ const dayjsLocaleMap: Record<string, string> = {
   'fr-FR': 'fr',
   'pt-PT': 'pt',
   'ro-RO': 'ro',
+  'th-TH': 'th',
   'vi-VN': 'vi',
   'tr-TR': 'tr'
 }
