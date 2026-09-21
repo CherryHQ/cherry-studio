@@ -1,5 +1,5 @@
 import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import { type ComponentType, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
@@ -92,7 +92,7 @@ function FilePreviewLoading() {
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
-        <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
           <LoaderCircle className="size-4 animate-spin" aria-hidden />
           <span>{t('file_preview.loading')}</span>
         </div>
@@ -110,7 +110,7 @@ interface FilePreviewPluginRendererProps {
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
-  plugin: PreloadedFilePreviewPlugin
+  plugin: { descriptor: FilePreviewPlugin; component: ComponentType<FilePreviewPluginProps> }
   refreshKey: number
   type: FilePreviewType
 }
@@ -122,7 +122,7 @@ interface PreloadedFilePreviewPlugin {
 
 function preloadFilePreviewPlugin(descriptor: FilePreviewPlugin): PreloadedFilePreviewPlugin {
   const modulePromise = Promise.resolve().then(() => descriptor.load())
-  // React.lazy observes the original rejection only when metadata accepts this candidate.
+  // Metadata may reject the candidate before its module settles.
   void modulePromise.catch(() => {})
   return { descriptor, modulePromise }
 }
@@ -136,23 +136,22 @@ function FilePreviewPluginRenderer({
   refreshKey,
   type
 }: FilePreviewPluginRendererProps) {
-  const PluginPreview = useMemo(() => lazy(() => plugin.modulePromise), [plugin])
+  const PluginPreview = plugin.component
 
   return (
     <ErrorBoundary
-      key={`${plugin.descriptor.id}:${filePath}:${refreshKey}`}
+      key={`${plugin.descriptor.id}:${filePath}`}
+      resetKeys={[refreshKey]}
       FallbackComponent={PluginErrorFallback}
       onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error)}>
-      <Suspense fallback={<FilePreviewLoading />}>
-        <PluginPreview
-          filePath={filePath}
-          fileName={fileName}
-          metadata={metadata}
-          onSelectionReference={onSelectionReference}
-          refreshKey={refreshKey}
-          type={type}
-        />
-      </Suspense>
+      <PluginPreview
+        filePath={filePath}
+        fileName={fileName}
+        metadata={metadata}
+        onSelectionReference={onSelectionReference}
+        refreshKey={refreshKey}
+        type={type}
+      />
     </ErrorBoundary>
   )
 }
@@ -175,10 +174,12 @@ type FilePreviewResolution =
   | { requestKey: string; status: 'directory' }
   | { requestKey: string; status: 'loading' }
   | { requestKey: string; status: 'unavailable' }
+  | { requestKey: string; status: 'load_error' }
   | {
       file: NormalizedFilePreviewTarget
       metadata: FilePreviewFileMetadata
-      plugin: PreloadedFilePreviewPlugin | null
+      plugin: FilePreviewPluginRendererProps['plugin'] | null
+      refreshKey: number
       requestKey: string
       status: 'ready'
     }
@@ -205,7 +206,6 @@ export function FilePreview({
     if (!file) return
 
     let cancelled = false
-    setResolution({ requestKey, status: 'loading' })
 
     void (async () => {
       try {
@@ -236,7 +236,28 @@ export function FilePreview({
           }
         }
 
-        setResolution({ file, metadata, plugin, requestKey, status: 'ready' })
+        const module = plugin
+          ? await plugin.modulePromise.catch((error: unknown) => {
+              logger.error(
+                `Failed to load file preview plugin: ${plugin.descriptor.id}`,
+                error instanceof Error ? error : new Error(String(error))
+              )
+              return null
+            })
+          : null
+        if (cancelled) return
+        if (plugin && !module) {
+          setResolution({ requestKey, status: 'load_error' })
+          return
+        }
+        setResolution({
+          file,
+          metadata,
+          requestKey,
+          refreshKey,
+          status: 'ready',
+          plugin: plugin && module ? { descriptor: plugin.descriptor, component: module.default } : null
+        })
       } catch {
         if (!cancelled) setResolution({ requestKey, status: 'unavailable' })
       }
@@ -245,18 +266,24 @@ export function FilePreview({
     return () => {
       cancelled = true
     }
-  }, [file, requestKey])
+  }, [file, requestKey, refreshKey])
 
   let preview: ReactNode
 
   if (!file) {
     preview = <FilePreviewState kind="invalid_path" />
-  } else if (resolution.requestKey !== requestKey || resolution.status === 'loading') {
+  } else if (
+    resolution.status === 'loading' ||
+    (resolution.requestKey !== requestKey &&
+      !(resolution.status === 'ready' && resolution.file.filePath === file.filePath))
+  ) {
     preview = <FilePreviewLoading />
   } else if (resolution.status === 'directory') {
     preview = <FilePreviewState kind="directory" />
   } else if (resolution.status === 'unavailable') {
     preview = <FilePreviewState kind="unavailable" />
+  } else if (resolution.status === 'load_error') {
+    preview = <FilePreviewState kind="load_error" />
   } else if (resolution.plugin) {
     preview = (
       <FilePreviewPluginRenderer
@@ -264,7 +291,7 @@ export function FilePreview({
         metadata={resolution.metadata}
         onSelectionReference={onSelectionReference}
         plugin={resolution.plugin}
-        refreshKey={refreshKey}
+        refreshKey={resolution.refreshKey}
         type={type}
       />
     )

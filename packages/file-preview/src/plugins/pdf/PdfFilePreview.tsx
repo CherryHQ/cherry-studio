@@ -2,7 +2,7 @@ import './pdfViewer.css'
 import { AlertCircle, FileWarning, LoaderCircle } from 'lucide-react'
 import { AnnotationMode, getDocument, PDFWorker, type PDFDocumentLoadingTask, type PDFDocumentProxy } from 'pdfjs-dist'
 import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
-import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog, DialogContent, DialogTitle, EmptyState } from '@cherrystudio/ui'
@@ -126,6 +126,20 @@ export default function PdfFilePreview({
   const viewerRef = useRef<HTMLDivElement>(null)
   const pdfViewerRef = useRef<PdfJsViewer | null>(null)
   const linkServiceRef = useRef<PdfJsLinkService | null>(null)
+  const readingPositionRef = useRef<{ scale: string; page: number; top: number; left: number } | null>(null)
+  const captureReadingPosition = useCallback(() => {
+    const viewer = pdfViewerRef.current
+    const container = containerRef.current
+    if (!viewer || !container || container.clientHeight === 0 || viewer.currentScale <= 0) return
+    readingPositionRef.current = {
+      scale: String(viewer.currentScale),
+      page: viewer.currentPageNumber,
+      top: container.scrollTop,
+      left: container.scrollLeft
+    }
+  }, [])
+  // Activity disconnects layout effects before hiding the DOM; passive cleanup sees a zero-sized viewport.
+  useLayoutEffect(() => captureReadingPosition, [captureReadingPosition])
   const [background, setBackground] = useState(() => resolveThemeBackground(null))
   const backgroundRef = useRef(background)
   backgroundRef.current = background
@@ -406,8 +420,6 @@ export default function PdfFilePreview({
     setStatus('loading')
     setCurrentPage(0)
     setPageCount(0)
-    setZoom(DEFAULT_ZOOM)
-    setIsOutlineOpen(false)
     setOutlineItems([])
     setOutlineStatus('loading')
 
@@ -454,7 +466,7 @@ export default function PdfFilePreview({
   }, [sourceId, previewDocument, resources, failDocument, logger])
 
   useEffect(() => {
-    if (!documentProxy) return
+    if (!documentProxy || documentProxy.loadingTask.destroyed) return
 
     let cancelled = false
     setOutlineItems([])
@@ -482,12 +494,13 @@ export default function PdfFilePreview({
   useEffect(() => {
     const container = containerRef.current
     const viewerElement = viewerRef.current
-    if (!documentProxy || !container || !viewerElement) return
+    if (!documentProxy || documentProxy.loadingTask.destroyed || !container || !viewerElement) return
 
     const eventBus = new EventBus()
     const linkService = new PDFLinkService({ eventBus })
     const viewerAbortController = new AbortController()
     let pdfViewer: PdfJsViewer
+    let initialized = false
 
     try {
       const viewerOptions: PdfViewerOptionsWithAbortSignal = {
@@ -649,7 +662,14 @@ export default function PdfFilePreview({
       void pdfViewer.firstPagePromise
         .then(() => {
           if (pdfViewerRef.current !== pdfViewer) return
-          pdfViewer.currentScaleValue = DEFAULT_PDF_SCALE
+          const position = readingPositionRef.current
+          pdfViewer.currentScaleValue = position?.scale ?? DEFAULT_PDF_SCALE
+          if (position) {
+            pdfViewer.currentPageNumber = clamp(position.page, 1, documentProxy.numPages)
+            container.scrollTop = position.top
+            container.scrollLeft = position.left
+          }
+          initialized = true
           syncBackground()
           syncPreviewControls()
           setStatus('ready')
@@ -677,6 +697,7 @@ export default function PdfFilePreview({
     }
 
     return () => {
+      if (initialized) captureReadingPosition()
       viewerAbortController.abort()
       eventBus.off('pagesinit', handlePagesInit)
       eventBus.off('pagerendered', syncBackground)
@@ -764,7 +785,7 @@ export default function PdfFilePreview({
               {status === 'loading' ? (
                 <div
                   role="status"
-                  className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+                  className="text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm">
                   <LoaderCircle className="size-4 animate-spin" aria-hidden />
                   <span>{t('file_preview.loading')}</span>
                 </div>

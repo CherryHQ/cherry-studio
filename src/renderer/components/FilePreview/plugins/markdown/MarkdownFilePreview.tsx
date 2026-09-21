@@ -176,7 +176,7 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
 
   useEffect(() => {
     let cancelled = false
-    setLoadState({ status: 'loading' })
+    setLoadState((current) => (current.status === 'ready' ? current : { status: 'loading' }))
 
     void (async () => {
       try {

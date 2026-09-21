@@ -10,7 +10,7 @@ export const XLSX_PREVIEW_MAX_SIZE_BYTES = 20 * 1024 * 1024
 
 export type XlsxWorkbookState =
   | { status: 'idle' }
-  | { status: 'loading' }
+  | { status: 'loading'; model?: WorkbookRenderModel }
   | { status: 'ready'; model: WorkbookRenderModel }
   | { status: 'error'; message: string }
   | { status: 'oversize'; sizeBytes: number }
@@ -40,7 +40,7 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
       return
     }
 
-    setState({ status: 'loading' })
+    setState((current) => ({ status: 'loading', model: 'model' in current ? current.model : undefined }))
 
     void (async () => {
       let bytes: ArrayBuffer
