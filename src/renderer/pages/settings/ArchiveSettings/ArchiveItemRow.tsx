@@ -14,12 +14,12 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 
-import type { TrashItem } from './trashUtils'
-import { computeDaysRemaining, formatDeletedTime } from './trashUtils'
+import type { ArchiveItem } from './archive'
+import { computeDaysRemaining, formatDeletedTime } from './archive'
 
-interface TrashItemRowProps {
+interface ArchiveItemRowProps {
   icon?: LucideIcon
-  item: TrashItem
+  item: ArchiveItem
   retentionDays: number
   isRestoring: boolean
   showSelection: boolean
@@ -27,11 +27,11 @@ interface TrashItemRowProps {
   onSelectedChange: (selected: boolean) => void
   /** Any row in this section has a mutation in flight — they share one instance. */
   isSectionBusy?: boolean
-  onRestore: (item: TrashItem) => void
-  onDelete: (item: TrashItem) => void
+  onRestore: (item: ArchiveItem) => void
+  onDelete: (item: ArchiveItem) => void
 }
 
-const TrashItemRow: FC<TrashItemRowProps> = ({
+const ArchiveItemRow: FC<ArchiveItemRowProps> = ({
   icon: Icon,
   item,
   retentionDays,
@@ -82,6 +82,7 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
           {displayName}
         </ItemTitle>
         <ItemDescription className="line-clamp-none flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
+          {item.categoryLabel && <span>{item.categoryLabel} · </span>}
           <span title={deletedAtLabel} aria-label={deletedAtLabel}>
             {deletedTime}
           </span>
@@ -131,4 +132,4 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
   )
 }
 
-export default TrashItemRow
+export default ArchiveItemRow

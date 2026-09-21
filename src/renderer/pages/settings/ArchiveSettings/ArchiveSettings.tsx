@@ -1,52 +1,74 @@
-import { Check } from 'lucide-react'
+import { Check, MoreHorizontal, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ConfirmDialog, SelectDropdown, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import {
+  Button,
+  ConfirmDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  SelectDropdown,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import {
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { type FileEntryRefCount, REF_COUNTS_MAX_ENTRY_IDS } from '@shared/data/api/schemas/files'
 
+import AllArchiveSection from './AllArchiveSection'
 import {
-  AgentTrashSection,
-  AssistantTrashSection,
-  FileTrashSection,
-  PaintingTrashSection,
-  SessionTrashSection,
-  TopicTrashSection,
-  type TrashDomainSectionProps
-} from './TrashDomainSections'
-import type { PendingPermanentDelete } from './TrashSection'
+  AgentArchiveSection,
+  AssistantArchiveSection,
+  FileArchiveSection,
+  PaintingArchiveSection,
+  SessionArchiveSection,
+  TopicArchiveSection,
+  type ArchiveDomainSectionProps
+} from './ArchiveDomainSections'
+import type { PendingPermanentDelete } from './ArchiveSection'
 
-const logger = loggerService.withContext('TrashSettings')
+const logger = loggerService.withContext('ArchiveSettings')
 
-type TrashCategory = 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
+type ArchiveCategory = 'all' | 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
 
-const CATEGORIES: { id: TrashCategory; labelKey: string }[] = [
+const CATEGORIES: { id: ArchiveCategory; labelKey: string }[] = [
+  { id: 'all', labelKey: 'common.all' },
   { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants' },
-  { id: 'topics', labelKey: 'settings.data.trash.domain.topics' },
   { id: 'agents', labelKey: 'settings.data.trash.domain.agents' },
+  { id: 'topics', labelKey: 'settings.data.trash.domain.topics' },
   { id: 'sessions', labelKey: 'settings.data.trash.domain.sessions' },
   { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings' },
   { id: 'files', labelKey: 'settings.data.trash.domain.files' }
 ]
 
-const SECTION_BY_CATEGORY: Record<TrashCategory, FC<TrashDomainSectionProps>> = {
-  topics: TopicTrashSection,
-  agents: AgentTrashSection,
-  sessions: SessionTrashSection,
-  assistants: AssistantTrashSection,
-  paintings: PaintingTrashSection,
-  files: FileTrashSection
+const SECTION_BY_CATEGORY: Record<ArchiveCategory, FC<ArchiveDomainSectionProps>> = {
+  all: AllArchiveSection,
+  topics: TopicArchiveSection,
+  agents: AgentArchiveSection,
+  sessions: SessionArchiveSection,
+  assistants: AssistantArchiveSection,
+  paintings: PaintingArchiveSection,
+  files: FileArchiveSection
 }
 
 const PURGE_INVALIDATE_PATHS = [
+  '/archives',
   '/topics',
   '/topics/*',
   '/agents',
@@ -80,7 +102,7 @@ function getFileReferenceBlockedKey(fileCount: number, referenceCount: number) {
 /** `0` = keep forever. */
 const RETENTION_DAY_OPTIONS = [7, 30, 90, 0]
 
-const TrashSettings: FC = () => {
+const ArchiveSettings: FC = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const [retentionDays, setRetentionDays] = usePreference('data.trash.retention_days')
@@ -96,7 +118,7 @@ const TrashSettings: FC = () => {
     [t]
   )
 
-  const [category, setCategory] = useState<TrashCategory>('topics')
+  const [category, setCategory] = useState<ArchiveCategory>('all')
   const [isBatchMode, setIsBatchMode] = useState(false)
   const [batchToolbarContainer, setBatchToolbarContainer] = useState<HTMLDivElement | null>(null)
   const [canBatchManage, setCanBatchManage] = useState(false)
@@ -106,7 +128,7 @@ const TrashSettings: FC = () => {
   const [isDeleting, setIsDeleting] = useState(false)
   const [fileReferencePreview, setFileReferencePreview] = useState<FileReferencePreview>({ status: 'idle' })
   const referenceRequestToken = useRef(0)
-  const [emptyTrashOpen, setEmptyTrashOpen] = useState(false)
+  const [emptyArchiveOpen, setEmptyArchiveOpen] = useState(false)
   const [isEmptying, setIsEmptying] = useState(false)
 
   const closePendingDelete = useCallback(() => {
@@ -170,7 +192,7 @@ const TrashSettings: FC = () => {
     }
   }
 
-  const handleEmptyTrash = async () => {
+  const handleEmptyArchive = async () => {
     setIsEmptying(true)
     try {
       const { status, reclaimed, deletedCount, retainedReferencedFileCount } = await ipcApi.request('trash.purge_now')
@@ -196,7 +218,7 @@ const TrashSettings: FC = () => {
       toast.error(t('settings.data.trash.empty_trash.error'))
     } finally {
       setIsEmptying(false)
-      setEmptyTrashOpen(false)
+      setEmptyArchiveOpen(false)
     }
   }
 
@@ -240,13 +262,23 @@ const TrashSettings: FC = () => {
   ) : undefined
 
   return (
-    <>
+    <SettingsContentColumn>
       <SettingGroup>
         <SettingTitle className="flex-wrap gap-3">
           <span>{t('settings.data.trash.title')}</span>
-          <Button variant="outline" className="text-destructive" onClick={() => setEmptyTrashOpen(true)}>
-            {t('settings.data.trash.empty_trash.button')}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label={t('common.more')} title={t('common.more')}>
+                <MoreHorizontal size={16} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem variant="destructive" onSelect={() => setEmptyArchiveOpen(true)}>
+                <Trash2 />
+                {t('settings.data.trash.empty_trash.button')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </SettingTitle>
         <Tabs
           className="mt-2"
@@ -255,7 +287,7 @@ const TrashSettings: FC = () => {
           onValueChange={(value) => {
             closePendingDelete()
             setCanBatchManage(false)
-            setCategory(value as TrashCategory)
+            setCategory(value as ArchiveCategory)
           }}>
           <div className="flex items-center justify-between gap-4 border-border border-b">
             <div
@@ -323,9 +355,9 @@ const TrashSettings: FC = () => {
         onConfirm={handleConfirmDelete}
       />
       <ConfirmDialog
-        open={emptyTrashOpen}
+        open={emptyArchiveOpen}
         onOpenChange={(open) => {
-          if (!open && !isEmptying) setEmptyTrashOpen(false)
+          if (!open && !isEmptying) setEmptyArchiveOpen(false)
         }}
         destructive
         title={t('settings.data.trash.empty_trash.confirm_title')}
@@ -333,10 +365,10 @@ const TrashSettings: FC = () => {
         confirmText={t('settings.data.trash.empty_trash.button')}
         cancelText={t('common.cancel')}
         confirmLoading={isEmptying}
-        onConfirm={handleEmptyTrash}
+        onConfirm={handleEmptyArchive}
       />
-    </>
+    </SettingsContentColumn>
   )
 }
 
-export default TrashSettings
+export default ArchiveSettings

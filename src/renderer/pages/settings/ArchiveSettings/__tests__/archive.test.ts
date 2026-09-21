@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { computeDaysRemaining, formatDeletedTime, runPerItem, toEpochMs } from '../trashUtils'
+import { computeDaysRemaining, formatDeletedTime, runPerItem, toEpochMs } from '../archive'
 
 const DAY = 24 * 60 * 60 * 1000
 

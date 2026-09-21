@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 
-import TrashItemRow from '../TrashItemRow'
+import ArchiveItemRow from '../ArchiveItemRow'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
@@ -24,11 +24,11 @@ beforeEach(async () => {
   await i18n.changeLanguage('en-US')
 })
 
-describe('TrashItemRow', () => {
+describe('ArchiveItemRow', () => {
   it('disables permanent delete while restore is in flight', () => {
     const onDelete = vi.fn()
     render(
-      <TrashItemRow
+      <ArchiveItemRow
         item={{ id: 'topic-1', name: 'Topic', deletedAt: NOW }}
         retentionDays={30}
         isRestoring
@@ -53,7 +53,7 @@ describe('TrashItemRow', () => {
     const onRestore = vi.fn()
     const onDelete = vi.fn()
     render(
-      <TrashItemRow
+      <ArchiveItemRow
         item={{ id: 'topic-2', name: 'Other topic', deletedAt: NOW }}
         retentionDays={30}
         isRestoring={false}
@@ -101,13 +101,13 @@ describe('TrashItemRow', () => {
       onDelete: vi.fn()
     }
     const { rerender } = render(
-      <TrashItemRow {...commonProps} item={{ id: 'expired', name: 'Old topic', deletedAt: NOW - 31 * DAY }} />
+      <ArchiveItemRow {...commonProps} item={{ id: 'expired', name: 'Old topic', deletedAt: NOW - 31 * DAY }} />
     )
 
     expect(screen.getByText(/Expired/)).toBeInTheDocument()
 
     rerender(
-      <TrashItemRow
+      <ArchiveItemRow
         {...commonProps}
         item={{ id: 'nearly-expired', name: 'Nearly expired', deletedAt: NOW - 30 * DAY + DAY / 2 }}
       />
@@ -120,7 +120,7 @@ describe('TrashItemRow', () => {
     function SelectableRow({ busy = false, batch = true }) {
       const [selected, setSelected] = useState(false)
       return (
-        <TrashItemRow
+        <ArchiveItemRow
           item={{ id: 'topic-1', name: 'Topic', deletedAt: NOW }}
           retentionDays={30}
           isRestoring={false}
@@ -158,7 +158,7 @@ describe('TrashItemRow', () => {
     const user = userEvent.setup()
     const onSelectedChange = vi.fn()
     render(
-      <TrashItemRow
+      <ArchiveItemRow
         item={{ id: 'topic-1', name: 'Topic', deletedAt: NOW }}
         retentionDays={30}
         isRestoring={false}

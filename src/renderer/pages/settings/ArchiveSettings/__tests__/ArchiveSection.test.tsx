@@ -9,17 +9,17 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 
-import TrashSection, { type PendingPermanentDelete } from '../TrashSection'
-import type { TrashBatchOutcome, TrashItem } from '../trashUtils'
+import type { ArchiveBatchOutcome, ArchiveItem } from '../archive'
+import ArchiveSection, { type PendingPermanentDelete } from '../ArchiveSection'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
-const first: TrashItem = { id: 'first', name: 'First topic', deletedAt: 1_750_000_000_000 }
-const second: TrashItem = { id: 'second', name: 'Second topic', deletedAt: 1_750_000_000_001 }
+const first: ArchiveItem = { id: 'first', name: 'First topic', deletedAt: 1_750_000_000_000 }
+const second: ArchiveItem = { id: 'second', name: 'Second topic', deletedAt: 1_750_000_000_001 }
 
 function createProps(
-  overrides: Partial<ComponentProps<typeof TrashSection>> = {}
-): ComponentProps<typeof TrashSection> {
+  overrides: Partial<ComponentProps<typeof ArchiveSection>> = {}
+): ComponentProps<typeof ArchiveSection> {
   return {
     items: [first, second],
     isLoading: false,
@@ -50,14 +50,14 @@ beforeEach(async () => {
   await i18n.changeLanguage('en-US')
 })
 
-describe('TrashSection selection and batch actions', () => {
+describe('ArchiveSection selection and batch actions', () => {
   it('restores selected current-page rows once and keeps only failures selected', async () => {
     const user = userEvent.setup()
-    const onRestoreMany = vi.fn<(_: TrashItem[]) => Promise<TrashBatchOutcome>>().mockResolvedValue({
+    const onRestoreMany = vi.fn<(_: ArchiveItem[]) => Promise<ArchiveBatchOutcome>>().mockResolvedValue({
       succeeded: ['first'],
       failed: [{ id: 'second', error: 'restored elsewhere' }]
     })
-    render(<TrashSection {...createProps({ onRestoreMany })} />)
+    render(<ArchiveSection {...createProps({ onRestoreMany })} />)
 
     await selectRows(user, first.name, second.name)
     await user.click(screen.getByRole('button', { name: 'Restore 2' }))
@@ -79,7 +79,7 @@ describe('TrashSection selection and batch actions', () => {
       succeeded: ['first'],
       failed: [{ id: 'second', error: 'restored elsewhere' }]
     })
-    render(<TrashSection {...createProps({ onRequestDelete, onPermanentDeleteMany })} />)
+    render(<ArchiveSection {...createProps({ onRequestDelete, onPermanentDeleteMany })} />)
 
     await selectRows(user, first.name, second.name)
     await user.click(screen.getByRole('button', { name: 'Delete Permanently 2' }))
@@ -98,7 +98,7 @@ describe('TrashSection selection and batch actions', () => {
 
   it('selects all visible rows and supports clearing them', async () => {
     const user = userEvent.setup()
-    render(<TrashSection {...createProps()} />)
+    render(<ArchiveSection {...createProps()} />)
 
     await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
     expect(screen.getByText('2 selected')).toBeInTheDocument()
@@ -111,11 +111,11 @@ describe('TrashSection selection and batch actions', () => {
 
   it('drops selection ids when rows disappear from the loaded items', async () => {
     const user = userEvent.setup()
-    const { rerender } = render(<TrashSection {...createProps()} />)
+    const { rerender } = render(<ArchiveSection {...createProps()} />)
     await selectRows(user, first.name, second.name)
     expect(screen.getByText('2 selected')).toBeInTheDocument()
 
-    rerender(<TrashSection {...createProps({ items: [second] })} />)
+    rerender(<ArchiveSection {...createProps({ items: [second] })} />)
 
     expect(await screen.findByText('1 selected')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: `Select ${second.name}` })).toBeChecked()
@@ -123,14 +123,14 @@ describe('TrashSection selection and batch actions', () => {
 
   it('keeps row actions visible but disabled while a batch mutation is pending', async () => {
     const user = userEvent.setup()
-    let resolveRestore!: (outcome: TrashBatchOutcome) => void
+    let resolveRestore!: (outcome: ArchiveBatchOutcome) => void
     const onRestoreMany = vi.fn(
       () =>
-        new Promise<TrashBatchOutcome>((resolve) => {
+        new Promise<ArchiveBatchOutcome>((resolve) => {
           resolveRestore = resolve
         })
     )
-    render(<TrashSection {...createProps({ onRestoreMany })} />)
+    render(<ArchiveSection {...createProps({ onRestoreMany })} />)
     await selectRows(user, first.name)
     await user.click(screen.getByRole('button', { name: 'Restore 1' }))
 
