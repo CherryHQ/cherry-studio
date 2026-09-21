@@ -5,6 +5,7 @@ import * as z from 'zod'
 
 import { getAppLanguage, SUPPORTED_LANGUAGES, t } from '@main/i18n'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import { PRODUCT_NAME } from '@shared/utils/branding'
 import { languageNativeNameMap } from '@shared/utils/languages'
 
 /** Path under which OpenAPI docs (UI) and the JSON spec (`${OPENAPI_PATH}/json`) are served. */
@@ -146,7 +147,7 @@ export function buildOpenApiDocument(app: AnyElysia, lang: LanguageVarious, serv
   return {
     openapi: '3.0.3',
     info: {
-      title: 'Cherry Studio API',
+      title: `${PRODUCT_NAME} API`,
       version: '1.0.0',
       description: t('apiGateway.docs.description', undefined, lang)
     },
@@ -269,7 +270,7 @@ const DOCS_CSS = `<style>
 export function renderDocsPage(lang: LanguageVarious, specUrl: string): string {
   const html = ScalarRender(
     {
-      title: 'Cherry Studio API',
+      title: `${PRODUCT_NAME} API`,
       version: '1.0.0',
       description: t('apiGateway.docs.description', undefined, lang)
     },

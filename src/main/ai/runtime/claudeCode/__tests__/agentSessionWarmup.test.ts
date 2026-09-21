@@ -4,6 +4,7 @@ import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { ATTRIBUTION_NAME, ATTRIBUTION_URL } from '@shared/utils/branding'
 
 const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
@@ -656,7 +657,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      'HTTP-Referer: https://cherry-ai.com\nX-Title: Cherry Studio'
+      `HTTP-Referer: ${ATTRIBUTION_URL}\nX-Title: ${ATTRIBUTION_NAME}`
     )
   })
 

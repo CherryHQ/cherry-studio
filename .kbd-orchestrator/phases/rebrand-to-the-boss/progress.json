@@ -2,7 +2,7 @@
   "phase": "rebrand-to-the-boss",
   "status": "applying",
   "createdAt": "2026-09-21T09:27:39Z",
-  "updatedAt": "2026-09-21T10:10:31Z",
+  "updatedAt": "2026-09-21T10:42:59Z",
   "previousPhase": null,
   "goals": [
     "G1",
@@ -26,7 +26,8 @@
     "rebrand-009-upstream-merge-discipline"
   ],
   "completedChanges": [
-    "rebrand-001-sync-upstream"
+    "rebrand-001-sync-upstream",
+    "rebrand-002-branding-module"
   ],
   "depth": 0,
   "parentPhase": null,
@@ -46,11 +47,16 @@
       "at": "2026-09-21T09:58:17Z",
       "decision": "Plan: 10 OpenSpec changes. D1 start-clean (no migration), D2 separate branding module, D3 defer updater (the-boss.know-me.tools serves marketing site but latest-mac.yml 404s). Adversarial vet added rebrand-0075 for 15 files of hardcoded OS-level identity.",
       "by": "kbd-plan"
+    },
+    {
+      "at": "2026-09-21T10:42:59Z",
+      "decision": "Branding module at src/shared/utils/branding.ts, not src/shared/branding/ (closed-set rule). CHERRY_HOME_DIRNAME left duplicated in preboot: paths/constants.ts forbids @shared imports before app.whenReady(); user chose option 1 (preserve invariant).",
+      "by": "opsx-apply"
     }
   ],
   "completion": {
     "implementation": {
-      "completed": 1,
+      "completed": 2,
       "total": 10
     }
   }

@@ -1,6 +1,8 @@
 # Update Log
 
 ## 2026-09-21
+* **Ingest**: [Karpathy session edf621011f60](/karpathy-session-edf621011f60b5f6.md)
+* **Ingest**: [Karpathy session 32bc4558dfe5](/karpathy-session-32bc4558dfe5928d.md)
 * **Ingest**: [Karpathy session f3daf6bddad4](/karpathy-session-f3daf6bddad46125.md)
 * **Ingest**: [Karpathy session f14762c8751d](/karpathy-session-f14762c8751da9ee.md)
 * **Ingest**: [Karpathy session f6ce98418a74](/karpathy-session-f6ce98418a7488f8.md)

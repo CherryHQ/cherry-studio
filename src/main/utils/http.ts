@@ -1,9 +1,11 @@
 import { normalizeHeaders } from '@ai-sdk/provider-utils'
 
+import { ATTRIBUTION_NAME, ATTRIBUTION_URL } from '@shared/utils/branding'
+
 export const defaultAppHeaders = () => {
   return {
-    'HTTP-Referer': 'https://cherry-ai.com',
-    'X-Title': 'Cherry Studio'
+    'HTTP-Referer': ATTRIBUTION_URL,
+    'X-Title': ATTRIBUTION_NAME
   }
 }
 
