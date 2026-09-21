@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
-import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useWriteCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { requestBatchedFileMutation } from '@renderer/services/fileBatchMutation'
 import { toast } from '@renderer/services/toast'
@@ -252,6 +252,7 @@ export function useAgentArchiveActions(refresh: () => Promise<unknown>) {
 }
 
 export function useSessionArchiveActions(refresh: () => Promise<unknown>) {
+  const writeCache = useWriteCache()
   const { t } = useTranslation()
   const runAction = useArchiveActionRunner()
   const invalidate = useInvalidateCache()
@@ -262,6 +263,7 @@ export function useSessionArchiveActions(refresh: () => Promise<unknown>) {
       async () => {
         const restored = await ipcApi.request('ai.agent.session.restore', { sessionId: item.id })
         try {
+          await writeCache(`/agent-sessions/${item.id}`, restored)
           await invalidate(['/agent-sessions', `/agent-sessions/${item.id}`, '/agents/*'])
         } catch (error) {
           logger.warn('failed to refresh sessions after restore', error as Error)

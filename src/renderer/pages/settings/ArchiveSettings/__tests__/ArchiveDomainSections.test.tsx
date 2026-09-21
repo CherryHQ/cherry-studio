@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { dataApiService } from '@renderer/data/DataApiService'
+import type * as DataApiHooks from '@renderer/data/hooks/useDataApi'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -52,6 +53,7 @@ vi.mock('@renderer/data/hooks/useDataApi', async () => ({
   }),
   useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
   useInvalidateCache: () => mocks.invalidate,
+  useWriteCache: (await vi.importActual<typeof DataApiHooks>('@renderer/data/hooks/useDataApi')).useWriteCache,
   useMutation: (method: string, path: string) => ({
     trigger: (args?: unknown) => mocks.mutate(method, path, args)
   })
