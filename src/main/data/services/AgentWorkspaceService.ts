@@ -4,8 +4,6 @@ import { and, asc, count, desc, eq, exists, ne, notExists, or, sql } from 'drizz
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
-import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -143,56 +141,6 @@ export class AgentWorkspaceService {
       .orderBy(asc(agentWorkspaceTable.orderKey), asc(agentWorkspaceTable.id))
       .all()
     return rows.map(rowToAgentWorkspace)
-  }
-
-  private getAgentDataWorkspaceIds(db: DbOrTx): Set<string> {
-    const root = path.normalize(application.getPath('feature.agents.data'))
-    const agentIds = new Set(
-      db
-        .select({ id: agentTable.id })
-        .from(agentTable)
-        .all()
-        .map((agent) => agent.id)
-    )
-    const workspaces = db
-      .select()
-      .from(agentWorkspaceTable)
-      .where(eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER))
-      .all()
-    return new Set(
-      workspaces
-        .filter((workspace) => {
-          const directory = path.normalize(workspace.path)
-          return path.dirname(directory) === root && agentIds.has(path.basename(directory))
-        })
-        .map((workspace) => workspace.id)
-    )
-  }
-
-  retireLegacyAgentDataWorkspaces(): void {
-    const { workspaceIds, sessionIds } = application.get('DbService').withWriteTx((tx) => {
-      const workspaceIds = [...this.getAgentDataWorkspaceIds(tx)]
-      const sessionIds: string[] = []
-      for (const id of workspaceIds) {
-        const workspace = this.getRowByIdTx(tx, id)
-        sessionIds.push(
-          ...getDataService('AgentSessionService').hideLegacyHeartbeatSessionsTx(tx, path.basename(workspace.path), id)
-        )
-        this.deleteIfUnreferencedTx(tx, id)
-      }
-      return { workspaceIds, sessionIds }
-    })
-    if (workspaceIds.length === 0) return
-    notifyDataApiDataChange([
-      { endpoint: '/agent-workspaces', kind: 'membership', entityIds: workspaceIds },
-      ...(sessionIds.length > 0
-        ? [
-            { endpoint: '/agent-sessions' as const, kind: 'membership' as const, entityIds: sessionIds },
-            { endpoint: '/agent-sessions/:sessionId' as const, entityIds: sessionIds },
-            { endpoint: '/agent-sessions/latest' as const }
-          ]
-        : [])
-    ])
   }
 
   getById(id: string, options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity {

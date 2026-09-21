@@ -20,10 +20,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import '@data/services/AgentSessionMessageService'
@@ -1399,191 +1397,28 @@ describe('heartbeatSchedule', () => {
     }
   })
 
-  it.each(['background', 'conversation'] as const)(
-    'hides an old Agent data workspace without deleting its %s session',
-    async (type) => {
-      seedAgent(AGENT_ID)
-      await syncHeartbeatSchedule(AGENT_ID)
-      const [row] = heartbeatRows(AGENT_ID)
-      const workspace = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, AGENT_ID))
-      const session = agentSessionService.create(
-        {
-          agentId: AGENT_ID,
-          name: `heartbeat_${AGENT_ID}`,
-          workspace: { type: 'user', workspaceId: workspace.id }
-        },
-        type
-      )
-      jobScheduleService.update(row.id, {
-        jobInputTemplate: {
-          ...(row.jobInputTemplate as object),
-          workspace: { type: 'user', workspaceId: workspace.id }
-        }
-      })
-
-      await repairHeartbeatSchedules()
-
-      expect(agentWorkspaceService.list()).toEqual([])
-      expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()).toMatchObject({
-        workspaceId: workspace.id,
-        type: 'background'
-      })
-    }
-  )
-
-  it('cleans unused Agent data workspaces after their schedule bindings are already gone', async () => {
-    seedAgent(AGENT_ID, { heartbeat_enabled: false })
-    const directory = path.join(agentsRoot, AGENT_ID)
-    await writeFile(path.join(directory, 'heartbeat.md'), 'Keep this checklist')
-    const unused = agentWorkspaceService.findOrCreateByPath(directory)
-    const project = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, 'project'), {
-      name: '心跳 — Project'
-    })
-
-    await repairHeartbeatSchedules()
-
-    expect(agentWorkspaceService.list({ includeSystem: true }).map((workspace) => workspace.id)).toEqual([project.id])
-    expect(() => agentWorkspaceService.getById(unused.id)).toThrow()
-    expect(await readFile(path.join(directory, 'heartbeat.md'), 'utf8')).toBe('Keep this checklist')
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ endpoint: '/agent-workspaces', kind: 'membership', entityIds: [unused.id] })
-      ])
-    )
-  })
-
-  it('hides retained Agent data workspaces without requiring a surviving heartbeat schedule', async () => {
-    seedAgent(AGENT_ID, { heartbeat_enabled: false })
+  it('hides an old background-only workspace without deleting its session', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
     const workspace = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, AGENT_ID))
-    const session = agentSessionService.create({
-      agentId: AGENT_ID,
-      name: `heartbeat_${AGENT_ID}`,
-      workspace: { type: 'user', workspaceId: workspace.id }
+    const session = agentSessionService.create(
+      {
+        agentId: AGENT_ID,
+        name: 'Previous heartbeat',
+        workspace: { type: 'user', workspaceId: workspace.id }
+      },
+      'background'
+    )
+    jobScheduleService.update(row.id, {
+      jobInputTemplate: { ...(row.jobInputTemplate as object), workspace: { type: 'user', workspaceId: workspace.id } }
     })
 
-    await repairHeartbeatSchedules()
+    await syncHeartbeatSchedule(AGENT_ID)
 
     expect(agentWorkspaceService.list()).toEqual([])
-    expect(agentWorkspaceService.list({ includeSystem: true }).map((row) => row.id)).toEqual([workspace.id])
-    expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()).toMatchObject({
-      workspaceId: workspace.id,
-      type: 'background'
-    })
+    expect(agentSessionService.getById(session.id).workspaceId).toBe(workspace.id)
   })
-
-  it.each(['metadata', 'output', 'orphaned'] as const)(
-    'classifies historical heartbeat sessions with %s provenance without losing messages',
-    async (source) => {
-      seedAgent(AGENT_ID, { heartbeat_enabled: false })
-      const workspace = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, AGENT_ID))
-      const session = agentSessionService.create({
-        agentId: AGENT_ID,
-        name: source === 'orphaned' ? `heartbeat_${AGENT_ID}` : 'task_legacy',
-        workspace: { type: 'user', workspaceId: workspace.id }
-      })
-      const data = {
-        parts: [
-          {
-            type: 'text' as const,
-            text: '[Heartbeat]\nThis is a periodic heartbeat. The instructions below are from your heartbeat.md file.\nCheck tasks'
-          }
-        ]
-      }
-      const [message] = dbh.db
-        .insert(agentSessionMessageTable)
-        .values({ sessionId: session.id, role: 'user', status: 'success', data })
-        .returning()
-        .all()
-      if (source !== 'orphaned') {
-        dbh.db
-          .insert(jobTable)
-          .values({
-            type: 'agent.task',
-            status: 'completed',
-            queue: 'agent',
-            scheduledAt: 0,
-            input: { agentId: AGENT_ID, prompt: '__heartbeat__' },
-            [source]: { sessionId: session.id }
-          })
-          .run()
-      }
-
-      await repairHeartbeatSchedules()
-      await repairHeartbeatSchedules()
-
-      expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()).toMatchObject({
-        type: 'background',
-        workspaceId: workspace.id
-      })
-      expect(agentWorkspaceService.list()).toEqual([])
-      expect(
-        dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, message.id)).get()
-      ).toMatchObject({ id: message.id, sessionId: session.id, role: 'user', status: 'success', data })
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({ endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] })
-        ])
-      )
-    }
-  )
-
-  it.each(['ordinary-message', 'manual-name', 'ordinary-job', 'other-agent-job', 'external-workspace'] as const)(
-    'preserves ordinary conversation and workspace with %s evidence',
-    async (evidence) => {
-      seedAgent(AGENT_ID, { heartbeat_enabled: false })
-      const workspace = agentWorkspaceService.findOrCreateByPath(
-        path.join(agentsRoot, evidence === 'external-workspace' ? 'project' : AGENT_ID)
-      )
-      const session = agentSessionService.create({
-        agentId: AGENT_ID,
-        name: `heartbeat_${AGENT_ID}`,
-        workspace: { type: 'user', workspaceId: workspace.id }
-      })
-      if (evidence === 'manual-name') agentSessionService.update(session.id, { name: 'My heartbeat notes' })
-      if (evidence === 'ordinary-message') {
-        dbh.db
-          .insert(agentSessionMessageTable)
-          .values([
-            {
-              sessionId: session.id,
-              role: 'user',
-              status: 'success',
-              data: { parts: [{ type: 'text', text: '__heartbeat__' }] }
-            },
-            {
-              sessionId: session.id,
-              role: 'user',
-              status: 'success',
-              data: { parts: [{ type: 'text', text: 'Explain these results' }] }
-            }
-          ])
-          .run()
-      }
-      if (evidence === 'ordinary-job' || evidence === 'other-agent-job') {
-        dbh.db
-          .insert(jobTable)
-          .values({
-            type: 'agent.task',
-            status: 'completed',
-            queue: 'agent',
-            scheduledAt: 0,
-            input: {
-              agentId: evidence === 'other-agent-job' ? OTHER_AGENT_ID : AGENT_ID,
-              prompt: evidence === 'ordinary-job' ? 'Summarize this project' : '__heartbeat__'
-            },
-            metadata: { sessionId: session.id }
-          })
-          .run()
-      }
-
-      await repairHeartbeatSchedules()
-
-      expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()?.type).toBe(
-        'conversation'
-      )
-      expect(agentWorkspaceService.list().map((row) => row.id)).toEqual([workspace.id])
-    }
-  )
 
   it('does not delete a user project referenced by an old heartbeat', async () => {
     seedAgent(AGENT_ID)
