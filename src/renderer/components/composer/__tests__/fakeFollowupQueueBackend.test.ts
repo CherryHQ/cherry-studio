@@ -44,6 +44,31 @@ describe('fakeFollowupQueueBackend', () => {
     })
   })
 
+  it('keeps claim:head in FIFO order past ten enqueues like production', async () => {
+    const post = triggerFor('POST', '/followup-queues')
+    const ids: string[] = []
+    for (let i = 0; i < 11; i++) {
+      const created = (await post({ body: { scopeKey: 's', draft: draft(`m${i}`), payload: payload(`m${i}`) } })) as {
+        id: string
+      }
+      ids.push(created.id)
+    }
+
+    // Lexical orderKey sort must match insertion order: unpadded keys would
+    // select the tenth row before the second.
+    const claimHead = triggerFor('POST', '/followup-queues/claim:head')
+    const del = triggerFor('DELETE', '/followup-queues/:id')
+    const claimed: string[] = []
+    for (let i = 0; i < 11; i++) {
+      const won = (await claimHead({ body: { scopeKey: 's' } })) as { claimed: boolean; id: string }
+      expect(won.claimed).toBe(true)
+      claimed.push(won.id)
+      await del({ params: { id: won.id } })
+    }
+
+    expect(claimed).toEqual(ids)
+  })
+
   it('rejects enqueues past the per-scope limit like production', async () => {
     const post = triggerFor('POST', '/followup-queues')
     for (let i = 0; i < FOLLOWUP_QUEUE_LIMIT; i++) {
