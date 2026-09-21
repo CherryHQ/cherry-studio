@@ -420,6 +420,8 @@ export interface MessageListActions {
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
+  canEditMessage?: (message: MessageListItem) => boolean
+  editLabel?: string
   editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
   /** Open the inline editor for a message. Absent = editing unavailable (read-only embeds). */
   startEditing?: (

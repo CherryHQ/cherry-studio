@@ -14,12 +14,12 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 
-import type { TrashItem } from './trashUtils'
-import { computeDaysRemaining, formatDeletedTime } from './trashUtils'
+import type { ArchiveItem } from './archive'
+import { computeDaysRemaining, formatDeletedTime } from './archive'
 
-interface TrashItemRowProps {
+interface ArchiveItemRowProps {
   icon?: LucideIcon
-  item: TrashItem
+  item: ArchiveItem
   retentionDays: number
   isRestoring: boolean
   showSelection: boolean
@@ -27,11 +27,11 @@ interface TrashItemRowProps {
   onSelectedChange: (selected: boolean) => void
   /** Any row in this section has a mutation in flight — they share one instance. */
   isSectionBusy?: boolean
-  onRestore: (item: TrashItem) => void
-  onDelete: (item: TrashItem) => void
+  onRestore: (item: ArchiveItem) => void
+  onDelete: (item: ArchiveItem) => void
 }
 
-const TrashItemRow: FC<TrashItemRowProps> = ({
+const ArchiveItemRow: FC<ArchiveItemRowProps> = ({
   icon: Icon,
   item,
   retentionDays,
@@ -52,7 +52,15 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
   const isBatchBlocked = isSectionBusy && !isRestoring
 
   return (
-    <Item className="flex-nowrap gap-3 rounded-none border-0 border-border border-b px-0">
+    <Item
+      size="sm"
+      className="flex-nowrap gap-3 rounded-none border-0 border-border-subtle border-b px-0 py-2 last:border-b-0 data-[selectable=true]:cursor-pointer"
+      data-selectable={showSelection && !isSectionBusy}
+      onClick={(event) => {
+        if (showSelection && !isSectionBusy && !(event.target as Element).closest('button')) {
+          onSelectedChange(!selected)
+        }
+      }}>
       {showSelection && (
         <Checkbox
           checked={selected}
@@ -74,6 +82,7 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
           {displayName}
         </ItemTitle>
         <ItemDescription className="line-clamp-none flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
+          {item.categoryLabel && <span>{item.categoryLabel} · </span>}
           <span title={deletedAtLabel} aria-label={deletedAtLabel}>
             {deletedTime}
           </span>
@@ -89,27 +98,26 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
           )}
         </ItemDescription>
       </ItemContent>
-      <ItemActions className="shrink-0">
+      <ItemActions className="shrink-0 gap-1">
         <Tooltip title={t('settings.data.trash.restore.label')}>
           <Button
-            variant="outline"
-            size="sm"
-            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-40 dark:text-muted-foreground"
             aria-label={t('settings.data.trash.restore.label')}
             aria-disabled={isBatchBlocked || undefined}
             loading={isRestoring}
             onClick={() => {
               if (!isBatchBlocked) onRestore(item)
             }}>
-            {!isRestoring && <RotateCcw size={16} />}
-            {t('settings.data.trash.restore.label')}
+            {!isRestoring && <RotateCcw size={16} className="text-muted-foreground" />}
           </Button>
         </Tooltip>
         <Tooltip title={t('settings.data.trash.permanent_delete.label')}>
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-destructive hover:text-destructive focus-visible:text-destructive aria-disabled:cursor-not-allowed aria-disabled:opacity-40 dark:text-destructive"
+            className="text-muted-foreground hover:text-destructive focus-visible:text-destructive dark:text-muted-foreground dark:hover:text-destructive dark:focus-visible:text-destructive aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
             aria-label={t('settings.data.trash.permanent_delete.label')}
             aria-disabled={isBatchBlocked || undefined}
             disabled={isRestoring}
@@ -124,4 +132,4 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
   )
 }
 
-export default TrashItemRow
+export default ArchiveItemRow

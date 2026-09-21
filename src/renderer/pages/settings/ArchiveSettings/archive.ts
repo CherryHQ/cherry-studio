@@ -1,5 +1,5 @@
 /**
- * Pure helpers for the trash ("Recently Deleted") settings page.
+ * Pure helpers for the archive settings page.
  */
 
 import dayjs from 'dayjs'
@@ -7,14 +7,15 @@ import type { ReactNode } from 'react'
 
 import { formatErrorMessage } from '@renderer/utils/error'
 
-export interface TrashItem {
+export interface ArchiveItem {
   id: string
   name: string
   deletedAt: number | undefined
+  categoryLabel?: string
   icon?: ReactNode
 }
 
-export interface TrashBatchOutcome {
+export interface ArchiveBatchOutcome {
   succeeded: string[]
   failed: Array<{
     id: string
@@ -24,11 +25,11 @@ export interface TrashBatchOutcome {
 }
 
 export async function runPerItem(
-  items: TrashItem[],
-  mutate: (item: TrashItem) => Promise<unknown>
-): Promise<TrashBatchOutcome> {
+  items: ArchiveItem[],
+  mutate: (item: ArchiveItem) => Promise<unknown>
+): Promise<ArchiveBatchOutcome> {
   const succeeded: string[] = []
-  const failed: TrashBatchOutcome['failed'] = []
+  const failed: ArchiveBatchOutcome['failed'] = []
 
   for (const item of items) {
     try {

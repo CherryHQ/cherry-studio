@@ -182,92 +182,68 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.0 - System Doctor, Browser Control, and Office Transform
+    Cherry Studio 2.1.2 - Stability and User Experience Improvements
 
     ✨ New Features
-    - [Doctor] Add System Doctor with AI diagnosis, system checks, guided fixes, diagnostic export, and feedback. Checks cover installation, permissions, storage, providers, MCP, managed tools, and recent errors. Diagnose individual chats or Agent sessions separately from full system reports; opening feedback or export does not start a health check.
-    - [Browser] Agents and chat assistants can use the built-in browser, with an animated pointer showing Agent actions. Agents can find page elements, recover them after page updates, inspect console and network activity, and use website WebMCP tools. Also supports browsing history search, browser data import, and separate history or cache clearing.
-    - [Office] Add the office-transform skill: agents can extract worksheet ranges, document paragraphs, PDF pages, and slide shapes into new files.
-    - [Selection] Turn on “Select region” to pick a worksheet range, Word paragraph, PDF page, or slide and quote it as a precise structural reference.
-    - [Web Search] Add Serply as a web search provider.
-    - [Models] Add DeepSeek V4.1 Flash model with reasoning effort control and web search support.
-    - [Agent] Agents can opt out of Claude Code commit attribution in Settings → General.
-    - [Sidebar] Pin Apps, Mini Apps, Agents, Assistants, Knowledge Bases, Topics, Agent Sessions, Files, and Code CLI tools as shortcuts.
-    - [Chat] Add conversation link context menus for opening in built-in or external browser.
-    - [History] Add Ctrl+A/Cmd+A select-all, Shift-click range selection, and partial-selection indicator.
-    - [Mobile] Device Connections now visible to all users with a localized mobile app download card.
-    - [Trash] Deleting topics, agents, assistants, or files now moves them to Settings → Data → Recycle Bin for restore or permanent deletion.
-    - [Markdown] LaTeX code blocks now show formula previews by default.
-    - [Markdown] Bare local file and folder paths in assistant responses are now clickable.
-    - [Logs] Add log retention setting (7/14/30/90 days) with automatic cleanup.
+    - [Model] Add oMLX as a built-in local provider, with its base URL preset and no API key required.
+    - [Model] Add Moonshot AI global endpoint for users of the international Moonshot console.
+    - [Settings] Renamed Recycle Bin to Archive and promoted it to a standalone settings page with improved layout and navigation.
+    - [MCP] The built-in mcp-auto-install server now keeps its Registry cache and config writes inside Cherry's config directory.
+    - [Sign-in] CherryIN sign-in now uses a local HTTP callback instead of the system custom-protocol handler.
+    - [Agents] Return to the original chat from a link at the fork boundary.
+    - [WebView] The browser pane's “Annotate page” picker now uses a consistent icon and follows your primary color.
+    - [Painting] Honor model-declared maxInputImages for generate_image references.
 
     🐛 Bug Fixes
-    - [Code Block] Fixed edits being saved to wrong code block or lost; toolbar stays visible on scroll.
-    - [Composer] Fixed paste silently doing nothing when file could not be read.
-    - [Composer] Preserve input focus when sending messages.
-    - [Conversation List] Show more now expands all remaining conversations.
-    - [History] Keep history open after deleting conversations.
-    - [Markdown] Prevent raw message flashes during lazy loading.
-    - [Markdown] Fix display math rendering across blank lines.
-    - [Windows] Fixed repeated “fsync(dir) failed” warnings in log.
-    - [Models] Enable web search for tool-capable LMStudio/Ollama models.
-    - [Models] List LM Studio models from /api/v0/models.
-    - [Provider] Cap DeepSeek V4 output at 384000 tokens; correct GLM-5.3 and MiMo V2.5 limits.
-    - [DSH] Launch DSH with bundled Bun; preserve OpenCode session headers.
-    - [DSH] Fail fast on incompatible upgraded DSH home.
-    - [Error] Classify Chromium net::ERR_* transport failures; preserve structured provider failure messages.
-    - [Image] Restore HDR reference image compatibility; fix image rotation flip.
-    - [Migration] Keep malformed MCP server record from aborting v2 migration.
-    - [Shortcuts] Warn when shortcut collides with main-process shortcut.
-    - [Chat] Restore bottom-follow after sending; preserve sidebar state when switching tabs.
-    - [Chat] Show multi-model scrollbar on hover; prevent scroll rebound.
-    - [Knowledge] Show file reader scrollbars.
-    - [Smooth Stream] Flush buffered text on completion.
-    - [Claude Code] Treat dangling symlinks as workspace escapes; preserve Linux desktop session bus.
-    - [Copilot] Route GPT-6 Astra through Responses API.
+    - [Sidebar] Clicking an app icon in the sidebar replaces the active tab again instead of jumping to another tab.
+    - [Sidebar] All resource shortcuts can now be removed via context menus.
+    - [Settings] Fixed settings, authorization, billing, and feedback links opening in the internal browser instead of the system browser.
+    - [Settings] English search terms now find the V2 serif-font setting.
+    - [Agents] Fixed timeouts when forking long DSH conversations.
+    - [Models] Fix outdated DeepSeek model listings and refresh the bundled catalog and pricing.
+    - [Models] Keep valid LM Studio models when one catalog entry is malformed.
+    - [Tools] Fixed skill installation, Skill tool dependency check, and Windows binary management failing when command lookup times out or errors.
+    - [Input] AskUserQuestion answers now wrap and grow, and keep selected options when a custom note is typed.
+    - [AI] Fixed Gemini requests failing with HTTP 400 when a tool's parameters declare numeric or boolean enum values.
+    - [AI] Fix Gemini requests failing with HTTP 400 when the built-in browser tools are enabled.
+    - [Markdown] Fixed KaTeX-stretched symbols (e.g., square roots) disappearing from rendered formulas.
+    - [Markdown] Keep the UI responsive during long agent streams by avoiding full markdown re-parse on each tick.
+    - [Markdown] Fixed emphasis formatting being lost after saving notes with adjacent punctuation.
+    - [Windows] Fixed agent-session trace history never being saved.
+    - [Chat] Fixed AI replies involving tool or MCP calls having no Edit option; their text is now editable.
+    - [Privacy] Fixed analytics events still being sent after disabling data collection.
+    - [macOS] Warn Apple Silicon users running the Intel build and link to the correct edition's download page.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.0 - 系统诊断、浏览器控制与 Office 转换
+    Cherry Studio 2.1.2 - 稳定性与用户体验改进
 
     ✨ 新功能
-    - [诊断] 新增系统诊断，支持 AI 诊断、系统检查、引导修复、导出诊断信息和问题反馈，涵盖安装、权限、存储、服务商、MCP、托管工具及最近错误。可单独诊断对话或智能体会话，与全系统报告分离；打开反馈或导出不会自动启动健康检查。
-    - [浏览器] 智能体和对话助手均可使用内置浏览器，并以动画指针展示智能体操作。智能体支持查找页面元素、在页面更新后恢复元素、检查控制台和网络活动，以及调用网站的 WebMCP 工具；同时支持搜索浏览历史、导入浏览器数据和单独清理历史或缓存。
-    - [Office] 新增 office-transform 技能：智能体可将工作表范围、文档段落、PDF 页面和幻灯片形状提取为新文件。
-    - [选择] 开启”选择区域”可选取工作表范围、Word 段落、PDF 页面或幻灯片，作为精确的结构化引用。
-    - [网络搜索] 新增 Serply 网络搜索服务商。
-    - [模型] 新增 DeepSeek V4.1 Flash 模型，支持推理力度控制和网络搜索。
-    - [智能体] 智能体可在设置 → 通用中关闭 Claude Code 提交署名。
-    - [侧边栏] 可将应用、小程序、智能体、助手、知识库、话题、智能体会话、文件和代码 CLI 工具固定为快捷方式。
-    - [对话] 新增对话链接右键菜单，可在内置或外部浏览器中打开。
-    - [历史] 支持 Ctrl+A/Cmd+A 全选、Shift 点击范围选择、部分选择指示器。
-    - [移动端] 设备连接对所有用户可见，新增本地化的移动端下载卡片。
-    - [回收站] 删除话题、智能体、助手或文件现在移入设置 → 数据 → 回收站，支持恢复或永久删除。
-    - [Markdown] LaTeX 代码块默认显示公式预览。
-    - [Markdown] 助手回复中的本地文件和文件夹路径现在可点击。
-    - [日志] 新增日志保留时间设置（7/14/30/90 天），支持自动清理。
+    - [模型] 新增 oMLX 内置本地服务商，预设 base URL，无需 API 密钥。
+    - [模型] 新增 Moonshot AI 全球端点，方便使用国际版 Moonshot 控制台的用户连接。
+    - [设置] 将回收站重命名为归档，并提升为独立设置页面，改进布局和导航。
+    - [MCP] 内置 mcp-auto-install 服务器将 Registry 缓存和配置写入保持在 Cherry 的配置目录。
+    - [登录] CherryIN 登录使用本地 HTTP 回调，不再依赖系统自定义协议处理程序。
+    - [智能体] 从分叉边界链接返回原始对话。
+    - [WebView] 浏览器窗格的”标注页面”选择器现在使用一致的图标并跟随主题色。
+    - [绘图] 生成图像时遵守模型声明的最大输入图片数限制。
 
     🐛 问题修复
-    - [代码块] 修复编辑保存到错误代码块或丢失的问题；滚动时工具栏保持可见。
-    - [输入框] 修复粘贴文件读取失败时静默无反应的问题。
-    - [输入框] 发送消息时保持输入焦点。
-    - [对话列表] 点击”显示更多”现在展开所有剩余对话。
-    - [历史] 删除对话后保持历史窗口打开。
-    - [Markdown] 防止懒加载时的原始消息闪烁。
-    - [Markdown] 修复跨空行的显示公式渲染。
-    - [Windows] 修复日志中重复出现的”fsync(dir) failed”警告。
-    - [模型] 为支持工具的 LMStudio/Ollama 模型启用网络搜索。
-    - [模型] 从 /api/v0/models 列出 LM Studio 模型。
-    - [服务商] 将 DeepSeek V4 输出限制为 384000 tokens；修正 GLM-5.3 和 MiMo V2.5 限制。
-    - [DSH] 使用内置 Bun 启动 DSH；保留 OpenCode 会话头。
-    - [DSH] 对不兼容的升级版 DSH 主目录快速失败。
-    - [错误] 分类 Chromium net::ERR_* 传输失败；保留结构化服务商失败消息。
-    - [图片] 恢复 HDR 参考图片兼容性；修复图片旋转翻转。
-    - [迁移] 防止格式错误的 MCP 服务器记录中断 v2 迁移。
-    - [快捷键] 当快捷键与主进程快捷键冲突时发出警告。
-    - [对话] 发送后恢复底部跟随；切换标签时保持侧边栏状态。
-    - [对话] 悬停时显示多模型滚动条；防止滚动回弹。
-    - [知识库] 显示文件阅读器滚动条。
-    - [流畅流] 完成时刷新缓冲文本。
-    - [Claude Code] 将悬空符号链接视为工作区转义；保留 Linux 桌面会话总线。
-    - [Copilot] 通过 Responses API 路由 GPT-6 Astra。
+    - [侧边栏] 点击侧边栏的应用图标再次替换当前标签页，而非跳转到同一应用的其他标签页。
+    - [侧边栏] 所有资源快捷方式现在可以通过右键菜单移除。
+    - [设置] 修复设置、授权、账单和反馈链接在内置浏览器打开而非系统浏览器的问题。
+    - [设置] 英文搜索词现在可以找到 V2 衬线字体设置。
+    - [智能体] 修复分叉长时间 DSH 对话时的超时问题。
+    - [模型] 修复 DeepSeek 模型列表过时的问题，刷新内置目录和定价。
+    - [模型] 当单个目录条目格式错误时保留有效的 LM Studio 模型。
+    - [工具] 修复技能安装、Skill 工具依赖检查和 Windows 二进制管理在命令查找超时或出错时失败的问题。
+    - [输入] AskUserQuestion 回答现在可以换行和增长，并在输入自定义说明时保留已选选项。
+    - [AI] 修复工具参数声明数字或布尔枚举值时 Gemini 请求返回 400 错误的问题。
+    - [AI] 修复启用内置浏览器工具时 Gemini 请求返回 400 错误的问题。
+    - [Markdown] 修复 KaTeX 拉伸符号（如平方根）在渲染公式中消失的问题。
+    - [Markdown] 长 agent 流式输出时避免已稳定段落每 tick 全量重解析，降低界面卡顿。
+    - [Markdown] 修复保存笔记时相邻标点导致强调格式丢失的问题。
+    - [Windows] 修复智能体会话跟踪历史从未保存的问题。
+    - [对话] 修复涉及工具或 MCP 调用的 AI 回复没有编辑选项的问题，现在可以编辑文本。
+    - [隐私] 修复禁用数据收集后仍发送分析事件的问题。
+    - [macOS] 提醒在 Apple Silicon 上运行 Intel 版本的用户，并链接到正确版本的下载页面。
     <!--LANG:END-->
