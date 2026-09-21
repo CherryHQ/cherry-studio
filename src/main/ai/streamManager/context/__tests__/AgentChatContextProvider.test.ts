@@ -565,4 +565,82 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
   })
+
+  it('rejects a busy follow-up when the agent default changes during validation', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: null,
+      workspace: { path: '/tmp' }
+    })
+    mocks.getAgent
+      .mockReturnValueOnce({
+        id: 'agent-1',
+        name: 'My Agent',
+        type: 'claude-code',
+        model: 'anthropic::claude-sonnet',
+        modelName: 'Claude Sonnet',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      })
+      .mockReturnValue({
+        id: 'agent-1',
+        name: 'My Agent',
+        type: 'claude-code',
+        model: 'openai::gpt-4o',
+        modelName: 'GPT-4o',
+        updatedAt: '2026-01-02T00:00:00.000Z'
+      })
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toMatchObject({
+      code: 'CONCURRENT_MODIFICATION'
+    })
+
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
+  })
+
+  it('enforces the validation snapshot for a caller-supplied owner on idle dispatch', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+    mocks.runtimeIsSessionBusy.mockReturnValue(false)
+
+    await provider.prepareAgentSessionDispatch(
+      makeSubscriber(),
+      openReq(),
+      {},
+      { hasLiveStream: false, expectedAgentId: 'agent-1' }
+    )
+
+    expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+    expect(mocks.saveMessagesTx.mock.calls[0][2]).toMatchObject({
+      id: 'agent-1',
+      sessionModelId: 'openai::gpt-4o'
+    })
+  })
+
+  it('forwards a disagreed caller owner so the write boundary refuses the turn', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: null,
+      workspace: { path: '/tmp' }
+    })
+    mocks.runtimeIsSessionBusy.mockReturnValue(false)
+
+    await provider.prepareAgentSessionDispatch(
+      makeSubscriber(),
+      openReq(),
+      {},
+      { hasLiveStream: false, expectedAgentId: 'other-agent' }
+    )
+
+    expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+    expect(mocks.saveMessagesTx.mock.calls[0][2]).toBe('other-agent')
+  })
 })

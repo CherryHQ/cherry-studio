@@ -328,11 +328,20 @@ export class AgentChatContextProvider implements ChatContextProvider {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
-      // Validation crossed an async boundary; recheck the row so a changed
-      // override fails closed instead of persisting/enqueueing the stale model.
+      // Validation crossed an async boundary; recheck both rows so a changed
+      // override or agent default fails closed instead of enqueueing the stale model.
       const current = agentSessionService.getById(validated.sessionId)
       if (current.agentId !== validated.agentId || (current.modelId ?? null) !== validated.sessionModelId) {
         throw DataApiErrorFactory.concurrentModification('Session', validated.sessionId)
+      }
+      const liveAgent = agentService.getAgent(validated.agentId)
+      if (
+        !liveAgent ||
+        liveAgent.updatedAt !== validated.agentUpdatedAt ||
+        (liveAgent.model ?? null) !== validated.agentModel ||
+        liveAgent.type !== validated.agentType
+      ) {
+        throw DataApiErrorFactory.concurrentModification('Agent', validated.agentId)
       }
       const savedUserMessage = agentSessionMessageService.saveMessage({
         sessionId: validated.sessionId,
@@ -362,21 +371,22 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     }
 
-    const persisted = application.get('DbService').withWriteTx((tx) =>
-      this.persistDispatchTx(
-        tx,
-        validated,
-        // Without a caller-supplied requirement, enforce the validation snapshot
-        // so a mid-validation override change fails closed in-transaction.
-        ctx?.expectedAgentId ?? {
-          id: validated.agentId,
-          updatedAt: validated.agentUpdatedAt,
-          model: validated.agentModel,
-          type: validated.agentType,
-          sessionModelId: validated.sessionModelId
-        }
-      )
-    )
+    // A caller owner string skips drift checks; upgrade it to the snapshot while
+    // it agrees so channel/scheduled dispatches fail closed like interactive ones.
+    const callerOwner = ctx?.expectedAgentId
+    const expectedAgent =
+      callerOwner === undefined || callerOwner === validated.agentId
+        ? {
+            id: validated.agentId,
+            updatedAt: validated.agentUpdatedAt,
+            model: validated.agentModel,
+            type: validated.agentType,
+            sessionModelId: validated.sessionModelId
+          }
+        : callerOwner
+    const persisted = application
+      .get('DbService')
+      .withWriteTx((tx) => this.persistDispatchTx(tx, validated, expectedAgent))
     return this.activateDispatch(persisted, subscriber)
   }
 }
