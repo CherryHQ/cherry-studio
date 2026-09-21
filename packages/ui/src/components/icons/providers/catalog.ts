@@ -39,6 +39,7 @@ import { CherryinIcon } from './cherryin'
 import { ClaudeCodeIcon } from './claude-code'
 import { CloudflareIcon } from './cloudflare'
 import { CohereIcon } from './cohere'
+import { ComfyuiIcon } from './comfyui'
 import { ComposioIcon } from './composio'
 import { CozeIcon } from './coze'
 import { DangbeiIcon } from './dangbei'
@@ -204,6 +205,7 @@ export const PROVIDER_ICON_CATALOG = {
   'claude-code': ClaudeCodeIcon,
   cloudflare: CloudflareIcon,
   cohere: CohereIcon,
+  comfyui: ComfyuiIcon,
   composio: ComposioIcon,
   coze: CozeIcon,
   dangbei: DangbeiIcon,
