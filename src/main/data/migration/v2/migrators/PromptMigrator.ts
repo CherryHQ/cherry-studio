@@ -6,6 +6,10 @@
  *   Redux assistants.assistants[].regularPhrases       → restricted prompts + Assistant bindings
  *   Redux assistants.presets[].regularPhrases          → restricted prompts + Assistant bindings
  *   Redux assistants.defaultAssistant.regularPhrases   → restricted prompts + Assistant bindings
+ *   ChatMigrator topic prompts (v1 `assistants[].topics[].prompt`,
+ *     merged with Dexie topic rows)                    → restricted prompts + Assistant
+ *                                                        bindings (global when the owning
+ *                                                        Assistant did not migrate)
  *
  * Mapping:
  *   QuickPhrase.id        → prompt.id (preserve unique UUIDs; regenerate invalid/conflicting IDs)
@@ -14,6 +18,11 @@
  *   QuickPhrase.order     → drives global relative order; stamped as fractional-indexing `orderKey`
  *   QuickPhrase timestamps → prompt timestamps (preserve valid date values; repair missing/invalid values)
  *   Source assistant id   → prompt_binding target (after AssistantMigrator remapping)
+ *   Topic prompt          → prompt.title from the topic name (`Topic <id>` fallback);
+ *                           prompt.content from the topic prompt; each topic migrates
+ *                           exactly once under a fresh UUID so V2 prompts are never
+ *                           overwritten; unsupported entries are skipped with a
+ *                           recovery warning in the migration report
  */
 
 import { sql } from 'drizzle-orm'
@@ -31,10 +40,12 @@ import {
   PromptSchema,
   PromptTitleSchema
 } from '@shared/data/types/prompt'
+import { clampSurrogateBoundary } from '@shared/utils/text'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
+import { TOPIC_PROMPT_CANDIDATES_KEY, type TopicPromptCandidate } from './ChatMigrator'
 
 const logger = loggerService.withContext('PromptMigrator')
 const INSERT_BATCH_SIZE = 100
@@ -121,8 +132,7 @@ export class PromptMigrator extends BaseMigrator {
         ...orderedGlobalPhrases,
         ...collectAssistantPhraseCandidates(assistantState, assistantIdRemap)
       ]
-
-      this.sourceCount = candidates.length
+      const topicWarnings: string[] = []
       this.preparedPhrases = []
       this.preparedBindings = []
 
@@ -132,6 +142,17 @@ export class PromptMigrator extends BaseMigrator {
       const bindingKeys = new Set<string>()
       const preparedBindings: PreparedPromptBinding[] = []
       const validAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string> | undefined) ?? new Set<string>()
+      // Topic prompts come last as recovery data after the quick-phrase stores.
+      for (const topicCandidate of collectTopicPromptCandidates(
+        ctx.sharedData.get(TOPIC_PROMPT_CANDIDATES_KEY),
+        assistantIdRemap,
+        validAssistantIds,
+        topicWarnings
+      )) {
+        candidates.push(topicCandidate)
+      }
+
+      this.sourceCount = candidates.length
       let invalidCount = 0
       let reassignedIdCount = 0
       let regeneratedIdCount = 0
@@ -219,7 +240,8 @@ export class PromptMigrator extends BaseMigrator {
 
       return {
         success: true,
-        itemCount: this.promptCount
+        itemCount: this.promptCount,
+        ...(topicWarnings.length > 0 ? { warnings: topicWarnings } : {})
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -432,6 +454,122 @@ function collectAssistantPhraseCandidates(
   return candidates
 }
 
+/**
+ * Convert ChatMigrator's merged topic prompts into prompt candidates.
+ *
+ * Each topic migrates exactly once (deduped by topic id) under a fresh UUID,
+ * so existing V2 prompts are never overwritten. The prompt keeps the topic's
+ * name as its title for recovery; when the owning assistant migrated, the
+ * prompt is restricted to it, otherwise it stays globally visible. Entries
+ * whose content cannot satisfy the v2 prompt contract are reported as invalid
+ * (counted in source/skipped) with a recovery warning naming the topic.
+ */
+function collectTopicPromptCandidates(
+  raw: unknown,
+  assistantIdRemap: ReadonlyMap<string, string>,
+  validAssistantIds: ReadonlySet<string>,
+  warnings: string[]
+): LegacyPhraseCandidate[] {
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) {
+    warnings.push(
+      'Topic prompts were not migrated (unexpected handoff shape). Copy them manually from the V1 backup to keep using them.'
+    )
+    return [
+      {
+        phrase: raw,
+        source: 'topicPromptCandidates',
+        visibility: 'global',
+        invalidReason: 'handoff is not an array'
+      }
+    ]
+  }
+
+  const candidates: LegacyPhraseCandidate[] = []
+  const seenTopicIds = new Set<string>()
+  for (let index = 0; index < raw.length; index++) {
+    const entry = raw[index]
+    const topicId = isRecord(entry) && typeof entry.topicId === 'string' ? entry.topicId : undefined
+    const source = topicId !== undefined ? `topic:${topicId}` : `topic[${index}]`
+    if (topicId === undefined || topicId.trim().length === 0) {
+      warnings.push(
+        'A topic prompt without a topic id was not migrated. Copy it manually from the V1 backup to keep using it.'
+      )
+      candidates.push({ phrase: entry, source, visibility: 'global', invalidReason: 'missing topic id' })
+      continue
+    }
+
+    const candidate = entry as unknown as TopicPromptCandidate
+    const displayName = topicDisplayName(candidate.topicName, topicId)
+    if (seenTopicIds.has(topicId)) {
+      warnings.push(`Duplicate prompt for topic "${displayName}" was skipped (already migrated). No action needed.`)
+      candidates.push({ phrase: candidate.prompt, source, visibility: 'global', invalidReason: 'duplicate topic id' })
+      continue
+    }
+    seenTopicIds.add(topicId)
+
+    if (typeof candidate.prompt !== 'string' || candidate.prompt.trim().length === 0) continue
+
+    if (!PromptContentSchema.safeParse(candidate.prompt).success) {
+      const reason = promptContentRejectionReason(candidate.prompt)
+      warnings.push(
+        `Topic prompt for "${displayName}" was not migrated (${reason}). Copy it manually from the V1 backup to keep using it.`
+      )
+      candidates.push({ phrase: candidate.prompt, source, visibility: 'global', invalidReason: reason })
+      continue
+    }
+
+    const targetId =
+      typeof candidate.assistantId === 'string' && candidate.assistantId.length > 0
+        ? (assistantIdRemap.get(candidate.assistantId) ?? candidate.assistantId)
+        : undefined
+    // Resolve once: visibility and binding derive from the same remapped id.
+    const bindingAssistantId = targetId !== undefined && validAssistantIds.has(targetId) ? targetId : undefined
+    candidates.push({
+      phrase: {
+        title: topicPromptTitle(candidate.topicName, topicId),
+        content: candidate.prompt,
+        createdAt: candidate.createdAt,
+        updatedAt: candidate.updatedAt
+      },
+      source,
+      visibility: bindingAssistantId !== undefined ? 'restricted' : 'global',
+      ...(bindingAssistantId !== undefined ? { bindingAssistantId } : {})
+    })
+  }
+
+  return candidates
+}
+
+/** Warning label keeping the topic association recoverable; raw ids are sanitized, names preserved. */
+function topicDisplayName(name: unknown, topicId: string): string {
+  const trimmed = typeof name === 'string' ? name.trim() : ''
+  return trimmed || stripControlChars(topicId)
+}
+
+/** Title keeps the topic association recoverable; normalized (trim/truncate) with the phrase flow. */
+function topicPromptTitle(name: unknown, topicId: string): string {
+  const trimmed = typeof name === 'string' ? name.trim() : ''
+  return trimmed || `Topic ${stripControlChars(topicId)}`
+}
+
+/** Opaque ids can carry control characters; never interpolate them raw into user-visible text. */
+function stripControlChars(value: string): string {
+  let out = ''
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 32
+    if (code >= 32 && code !== 127) out += char
+  }
+  return out
+}
+
+/** Labels for prompt content the v2 contract rejects; shared with normalizeLegacyPhrase. */
+function promptContentRejectionReason(content: string): string {
+  return content.length > PROMPT_CONTENT_MAX
+    ? `content exceeds ${PROMPT_CONTENT_MAX} characters`
+    : 'content violates the v2 prompt contract'
+}
+
 function appendPreparedBinding(
   bindings: PreparedPromptBinding[],
   bindingKeys: Set<string>,
@@ -463,9 +601,7 @@ function normalizeLegacyPhrase(
         ? 'content is not a string'
         : phrase.content.length === 0
           ? 'content is empty'
-          : phrase.content.length > PROMPT_CONTENT_MAX
-            ? `content exceeds ${PROMPT_CONTENT_MAX} characters`
-            : 'content violates the v2 prompt contract'
+          : promptContentRejectionReason(phrase.content)
     return { success: false, reason }
   }
 
@@ -528,14 +664,7 @@ function normalizeTitle(title: unknown): string {
 }
 
 function truncateAtCodePointBoundary(value: string, maxLength: number): string {
-  if (value.length <= maxLength) return value
-
-  const bounded = value.slice(0, maxLength)
-  const lastCodeUnit = bounded.charCodeAt(bounded.length - 1)
-  const nextCodeUnit = value.charCodeAt(bounded.length)
-  const splitsSurrogatePair =
-    lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff && nextCodeUnit >= 0xdc00 && nextCodeUnit <= 0xdfff
-  return splitsSurrogatePair ? bounded.slice(0, -1) : bounded
+  return value.slice(0, clampSurrogateBoundary(value, maxLength))
 }
 
 function appendInvalidDetail(details: InvalidPhraseDetail[], source: string, reason: string): void {
