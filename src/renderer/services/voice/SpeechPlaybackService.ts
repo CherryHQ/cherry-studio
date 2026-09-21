@@ -256,6 +256,13 @@ export class SpeechPlaybackService {
     await this.terminate(run, true)
   }
 
+  async stopAutoRead(): Promise<boolean> {
+    const run = this.visibleRun
+    if (!run || run.trigger !== 'auto_read') return false
+    await this.stop(run.sessionId)
+    return true
+  }
+
   async control(sessionId: string | undefined, command: VoiceSessionCommand): Promise<void> {
     const target = sessionId ?? this.visibleRun?.sessionId
     if (!target) throw new VoiceDomainError('invalid_request')

@@ -17,16 +17,18 @@ import type {
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
   type ConversationHistoryAdapter,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
-import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
+import { autoReadCoordinator } from '@renderer/services/voice'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
@@ -134,6 +136,10 @@ export function useAgentChatRuntimeState({
   sessionHistoryFetchOnMount,
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
+  const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
+  useEffect(() => {
+    void autoReadCoordinator.setEnabled(autoReadEnabled)
+  }, [autoReadEnabled])
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const {
     messages: uiMessages,
@@ -148,6 +154,8 @@ export function useAgentChatRuntimeState({
     enabled: sessionMessagesEnabled,
     fetchOnMount: sessionHistoryFetchOnMount
   })
+  const latestUiMessagesRef = useRef(uiMessages)
+  latestUiMessagesRef.current = uiMessages
 
   useLayoutEffect(() => {
     if (!sessionMessagesEnabled || reservedMessages.length === 0) return
@@ -196,11 +204,26 @@ export function useAgentChatRuntimeState({
     [deleteSessionMessage, setMessages]
   )
 
+  const handleExecutionFinish = useCallback(
+    (_executionId: string, event: ExecutionFinishEvent) => {
+      const projectedMessage = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
+      const turnOrigin = projectedMessage?.metadata?.turnOrigin ?? event.message.metadata?.turnOrigin
+      void autoReadCoordinator.consume({
+        enabled: autoReadEnabled,
+        message: event.message,
+        attemptId: event.attemptId,
+        isAbort: event.isAbort,
+        isError: event.isError,
+        eligible: !turnOrigin
+      })
+    },
+    [autoReadEnabled]
+  )
   const {
     overlay,
     liveAssistants,
     reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages)
+  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages, { onFinish: handleExecutionFinish })
   const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
     messages: uiMessages,
     overlay,

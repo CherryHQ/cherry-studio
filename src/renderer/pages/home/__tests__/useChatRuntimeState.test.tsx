@@ -18,7 +18,10 @@ const mocks = vi.hoisted(() => ({
   liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
-  sendTurn: vi.fn()
+  sendTurn: vi.fn(),
+  autoReadConsume: vi.fn(async () => ({ status: 'started' })),
+  autoReadSetEnabled: vi.fn(async () => undefined),
+  autoReadEnabled: true
 }))
 
 vi.mock('@logger', () => ({
@@ -32,6 +35,17 @@ vi.mock('@logger', () => ({
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => vi.fn()
+}))
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => [mocks.autoReadEnabled, vi.fn()]
+}))
+
+vi.mock('@renderer/services/voice', () => ({
+  autoReadCoordinator: {
+    consume: mocks.autoReadConsume,
+    setEnabled: mocks.autoReadSetEnabled
+  }
 }))
 
 // The live-state builder is the guard's observable output surface: the test
@@ -196,6 +210,9 @@ describe('useChatRuntimeState', () => {
     mocks.overlayOnFinish = null
     mocks.sendTurn.mockReset()
     mocks.sendTurn.mockResolvedValue(true)
+    mocks.autoReadConsume.mockClear()
+    mocks.autoReadSetEnabled.mockClear()
+    mocks.autoReadEnabled = true
     latestRuntime = null
   })
 
@@ -240,6 +257,19 @@ describe('useChatRuntimeState', () => {
     view.rerender(<RuntimeHost topicId="topic-1" />)
 
     expect(latestRuntime?.sendMessage).toBe(sendMessage)
+  })
+
+  it('does not infer auto-read from hydrated or rerendered message history', () => {
+    const completed = {
+      id: 'persisted-assistant',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'already completed' }]
+    } as CherryUIMessage
+    const view = render(<RuntimeHost topicId="topic-1" activeNodeId="persisted-assistant" messages={[completed]} />)
+
+    view.rerender(<RuntimeHost topicId="topic-1" activeNodeId="persisted-assistant" messages={[completed]} />)
+
+    expect(mocks.autoReadConsume).not.toHaveBeenCalled()
   })
 
   it('keeps branch-live state across an <Activity> hide/show and clears it when the topic changes', async () => {
@@ -390,5 +420,53 @@ describe('useChatRuntimeState', () => {
     view.rerender(<RuntimeHost topicId="topic-1" />)
 
     expect(mocks.overlayExecutions).toEqual([])
+  })
+
+  it('forwards only the branch that is active at the real finish event to auto-read', async () => {
+    const activeMessage = {
+      id: 'active-assistant',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'active answer' }]
+    } as CherryUIMessage
+    const inactiveMessage = {
+      id: 'inactive-assistant',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'inactive answer' }]
+    } as CherryUIMessage
+    render(<RuntimeHost topicId="topic-1" activeNodeId="active-assistant" />)
+
+    await act(async () => {
+      mocks.overlayOnFinish?.('provider::active', {
+        attemptId: 11,
+        message: activeMessage,
+        isAbort: false,
+        isError: false
+      })
+      mocks.overlayOnFinish?.('provider::inactive', {
+        attemptId: 12,
+        message: inactiveMessage,
+        isAbort: false,
+        isError: false
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.autoReadConsume).toHaveBeenNthCalledWith(1, {
+      enabled: true,
+      message: activeMessage,
+      attemptId: 11,
+      isAbort: false,
+      isError: false,
+      eligible: true
+    })
+    expect(mocks.autoReadConsume).toHaveBeenNthCalledWith(2, {
+      enabled: true,
+      message: inactiveMessage,
+      attemptId: 12,
+      isAbort: false,
+      isError: false,
+      eligible: false
+    })
   })
 })

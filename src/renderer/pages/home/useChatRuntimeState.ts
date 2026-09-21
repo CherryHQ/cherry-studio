@@ -15,6 +15,7 @@ import type { MessageListRuntime } from '@renderer/components/chat/messages/type
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
   type ConversationHistoryAdapter,
@@ -28,6 +29,7 @@ import {
   useTopicOverlayHandoffOnTerminal,
   useTopicStreamStatus
 } from '@renderer/hooks/useTopicStreamStatus'
+import { autoReadCoordinator } from '@renderer/services/voice'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
@@ -114,6 +116,10 @@ export function useChatRuntimeState({
   assistant,
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
+  const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
+  useEffect(() => {
+    void autoReadCoordinator.setEnabled(autoReadEnabled)
+  }, [autoReadEnabled])
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
   const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
@@ -339,6 +345,8 @@ export function useChatRuntimeState({
     branchLiveActiveNodeOverride?.previousActiveNodeId === activeNodeId
       ? branchLiveActiveNodeOverride.activeNodeId
       : activeNodeId
+  const branchFlowActiveNodeIdRef = useRef(branchFlowActiveNodeId)
+  branchFlowActiveNodeIdRef.current = branchFlowActiveNodeId
 
   useEffect(() => {
     if (!onBranchLiveStateChange) return
@@ -383,7 +391,15 @@ export function useChatRuntimeState({
   ])
 
   const handleExecutionFinish = useCallback(
-    (executionId: string, { attemptId, message, isError }: ExecutionFinishEvent) => {
+    (executionId: string, { attemptId, message, isAbort, isError }: ExecutionFinishEvent) => {
+      void autoReadCoordinator.consume({
+        enabled: autoReadEnabled,
+        message,
+        attemptId,
+        isAbort,
+        isError,
+        eligible: message.id === branchFlowActiveNodeIdRef.current
+      })
       const finishedKey = attemptId
       const treeCachePath = `/topics/${topic.id}/tree`
       void (async () => {
@@ -429,7 +445,7 @@ export function useChatRuntimeState({
         }
       })()
     },
-    [cache, disposeOverlay, invalidateCache, onBranchLiveStateChange, refresh, topic.id]
+    [autoReadEnabled, cache, disposeOverlay, invalidateCache, onBranchLiveStateChange, refresh, topic.id]
   )
   finishRef.current = handleExecutionFinish
 

@@ -373,6 +373,23 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(voice.controlPlayback).toHaveBeenNthCalledWith(2, { sessionId, command: 'stop' })
   })
 
+  it('stops only the currently visible auto-read run', async () => {
+    const automatic = createHarness()
+    await automatic.service.start({ ...baseInput, trigger: 'auto_read' })
+
+    await expect(automatic.service.stopAutoRead()).resolves.toBe(true)
+    expect(automatic.voice.controlPlayback).toHaveBeenCalledWith({ sessionId, command: 'stop' })
+    expect(automatic.voice.discardSession).toHaveBeenCalledWith(sessionId)
+
+    const manual = createHarness()
+    await manual.service.start(baseInput)
+
+    await expect(manual.service.stopAutoRead()).resolves.toBe(false)
+    expect(manual.voice.controlPlayback).not.toHaveBeenCalled()
+    expect(manual.voice.discardSession).not.toHaveBeenCalled()
+    expect(manual.service.getSnapshot().phase).toBe('playing')
+  })
+
   it('does not replace a visible snapshot when a new start fails local validation', async () => {
     const { service, voice } = createHarness()
     await service.start(baseInput)
