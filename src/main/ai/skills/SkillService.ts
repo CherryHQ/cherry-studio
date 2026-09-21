@@ -541,8 +541,8 @@ export class SkillService {
             `refusing to overwrite it with a ${source} install.`
         )
       }
-      // A bare repo URL names the repo, not the skill: only an exact folder plus a
-      // case-insensitive name match proves the same directory. Anything else may be a sibling.
+      // A bare repo URL names the repo, not the skill, so an exact folder plus a
+      // case-insensitive name is the strongest same-directory proof available here.
       if (
         folderMatch &&
         reservedFolderNameStem(folderName) &&
