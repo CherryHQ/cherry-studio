@@ -270,6 +270,33 @@ export class SkillInstaller {
   }
 
   /**
+   * Drop stale migration markers naming an uninstalled folder. A marker left behind by a warned
+   * retire would otherwise let startup recovery resurrect the old folder after the row is gone.
+   */
+  async removeMigrationMarkers(storageRoot: string, folderName: string): Promise<void> {
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+    const key = folderName.toLowerCase()
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const name = entry.name.toLowerCase()
+      const isMarker =
+        name === `.${key}.bak` ||
+        name === `.${key}.cleanup` ||
+        (name.startsWith(`.${key}.migrating-to.`) && name.endsWith('.bak')) ||
+        name.endsWith(`.migrating-to.${key}.bak`)
+      if (isMarker) {
+        await this.safeRemoveDirectory(path.join(storageRoot, entry.name), 'stale skill migration marker')
+      }
+    }
+  }
+
+  /**
    * Remove a skill folder.
    */
   async uninstall(skillPath: string): Promise<void> {
