@@ -375,16 +375,20 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
       className={cn(
         // no-drag punches the popup's area out of any titlebar drag region it overlaps,
         // so hover/click reach the items instead of the window-drag hit test (Electron).
-        'pointer-events-auto flex max-w-[min(420px,calc(100vw-2rem))] min-w-72 items-start gap-3 [-webkit-app-region:no-drag]',
+        'pointer-events-auto flex w-[min(420px,calc(100vw-2rem))] items-start gap-3 [-webkit-app-region:no-drag]',
         'rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg',
         toast.className
       )}
       style={toast.style}
       onClick={toast.onClick}>
-      <div className={cn('flex shrink-0 items-center justify-center', action ? 'min-h-7' : 'mt-0.5')}>{icon}</div>
+      <div className="flex min-h-7 shrink-0 items-center justify-center">{icon}</div>
       <div className="min-w-0 flex-1">
         {toast.title && (
-          <div className={cn('text-sm leading-5 font-medium break-words', action && 'min-h-7 py-1')}>{toast.title}</div>
+          <div
+            title={typeof toast.title === 'string' ? toast.title : undefined}
+            className="min-h-7 truncate py-1 text-sm leading-5 font-medium">
+            {toast.title}
+          </div>
         )}
         {toast.description && (
           <div
@@ -411,7 +415,7 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
           {action.label}
         </Button>
       )}
-      <div className={cn('flex shrink-0 items-center', action && 'min-h-7')}>
+      <div className="flex min-h-7 shrink-0 items-center">
         <button
           type="button"
           aria-label={labels.close}
