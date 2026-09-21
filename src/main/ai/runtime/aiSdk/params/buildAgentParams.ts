@@ -603,6 +603,10 @@ function buildAgentOptions(
   // `profile < assistant customParameters < serviceTier < callOverrides`.
   const rawBodyLayers: Record<string, unknown>[] = []
   if (hasReasoningBody) rawBodyLayers.push(reasoningBodyParams)
+  // Top-level keys the wire routes to the raw HTTP body (e.g.
+  // `chat_template_kwargs` for self-hosted). Declared once so extraction,
+  // stripping, and the custom-parameter split below cannot drift apart.
+  const requestBodyKeys = collectRequestBodyKeys(reasoningProfile.wire)
   let customBodyParams: Record<string, unknown> = {}
   if (assistant) {
     const temperature = getTemperature(assistant.settings, model, reasoning)
@@ -615,9 +619,18 @@ function buildAgentOptions(
 
     if (Object.keys(customParameters.providerParams).length > 0) {
       customBodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
+      // Wire-declared body keys travel only through the raw-body layer: a Chat
+      // adapter would echo them from providerOptions into the SDK body, where
+      // the fetch merge lets SDK fields win and a stale custom value would
+      // overwrite a call-level override.
+      const providerParamsForOptions = Object.fromEntries(
+        Object.entries(customParameters.providerParams).filter(
+          ([key]) => resolveBodyRoutedTopLevelKey(key, requestBodyKeys) === null
+        )
+      )
       providerOptions = mergeCustomProviderParameters(
         providerOptions,
-        customParameters.providerParams,
+        providerParamsForOptions,
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
@@ -653,7 +666,6 @@ function buildAgentOptions(
   // providers' overrides must not leak across endpoints. Only wire-declared
   // body keys move — a provider-option wire (e.g. NVIDIA NIM) keeps its
   // overrides in providerOptions.
-  const requestBodyKeys = collectRequestBodyKeys(reasoningProfile.wire)
   const callOverridesBodyParams = extractCallOverridesBodyParams(
     request.callOverrides,
     sdkConfig.providerOptionsKey,
@@ -751,6 +763,18 @@ function resolveEffectiveThinkingBudget(
 }
 
 /**
+ * Top-level raw-body key a providerOptions key routes to when the wire
+ * declares it with `request-body` delivery (`chat_template_kwargs.foo` →
+ * `chat_template_kwargs`), or null when it stays in providerOptions. The
+ * single classification behind extraction, stripping, and the custom
+ * parameter split above.
+ */
+function resolveBodyRoutedTopLevelKey(key: string, requestBodyKeys: Set<string>): string | null {
+  const topLevel = key.split('.')[0]
+  return requestBodyKeys.has(topLevel) ? topLevel : null
+}
+
+/**
  * Split per-request providerOptions overrides into raw-body params. Only
  * wire-declared body keys move — everything else stays for the SDK to
  * forward. Exported for unit testing.
@@ -775,15 +799,9 @@ export function extractCallOverridesBodyParams(
       // expand to a nested object, not a flat key, so the later deep-merge preserves
       // sibling fields like `foo`. Only wire-declared body keys move — anything
       // else stays in providerOptions for the SDK to forward.
-      if (key.startsWith('chat_template_kwargs.')) {
-        if (!requestBodyKeys.has('chat_template_kwargs')) continue
-        const rest = key.slice('chat_template_kwargs.'.length)
-        const bag = (body['chat_template_kwargs'] ??= {}) as Record<string, unknown>
-        bag[rest] = value
-        continue
-      }
-      if (key === 'chat_template_kwargs') {
-        if (!requestBodyKeys.has('chat_template_kwargs')) continue
+      const topLevel = resolveBodyRoutedTopLevelKey(key, requestBodyKeys)
+      if (topLevel === null) continue
+      if (key === topLevel) {
         if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
           body[key] = merge(
             {},
@@ -795,38 +813,14 @@ export function extractCallOverridesBodyParams(
         }
         continue
       }
-      if (key.startsWith('extra_body.')) {
-        if (!requestBodyKeys.has('extra_body')) continue
-        const rest = key.slice('extra_body.'.length)
-        const bag = (body['extra_body'] ??= {}) as Record<string, unknown>
-        bag[rest] = value
-        continue
+      // Expand dotted segments to nested objects, mirroring the emission
+      // encoding, so sibling fields merge by path instead of colliding.
+      const segments = key.split('.')
+      let cursor = (body[topLevel] ??= {}) as Record<string, unknown>
+      for (let index = 1; index < segments.length - 1; index += 1) {
+        cursor = (cursor[segments[index]] ??= {}) as Record<string, unknown>
       }
-      if (key === 'extra_body') {
-        if (!requestBodyKeys.has('extra_body')) continue
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-          body[key] = merge(
-            {},
-            (body[key] as Record<string, unknown> | undefined) ?? {},
-            value as Record<string, unknown>
-          )
-        } else {
-          body[key] = value
-        }
-        continue
-      }
-      // Generic body-routed targets declared with explicit delivery.
-      if (requestBodyKeys.has(key)) {
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-          body[key] = merge(
-            {},
-            (body[key] as Record<string, unknown> | undefined) ?? {},
-            value as Record<string, unknown>
-          )
-        } else {
-          body[key] = value
-        }
-      }
+      cursor[segments[segments.length - 1]] = value
     }
   }
   return body
@@ -861,9 +855,7 @@ export function stripRequestBodyFromCallOverrides(
     // keeps its overrides here for the SDK to forward.
     const isBodyRouted = (key: string): boolean => {
       if (bodyKeys.has(key)) return true
-      if (key.startsWith('chat_template_kwargs.')) return requestBodyKeys.has('chat_template_kwargs')
-      if (key.startsWith('extra_body.')) return requestBodyKeys.has('extra_body')
-      return requestBodyKeys.has(key)
+      return resolveBodyRoutedTopLevelKey(key, requestBodyKeys) !== null
     }
     const filtered = Object.fromEntries(
       Object.entries(opts as Record<string, unknown>).filter(([k]) => !isBodyRouted(k))
