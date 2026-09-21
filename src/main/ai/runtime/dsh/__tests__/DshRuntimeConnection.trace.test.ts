@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises'
 import path from 'node:path'
 
 import { SessionSeq } from '@deepseek-ai/dsh-session'
@@ -173,6 +174,7 @@ vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: v
 vi.mock('@main/ai/steerReminder', () => ({ wrapSteerReminder: vi.fn((text: string) => text) }))
 
 const { DshBridgeServer } = await import('../DshBridgeServer')
+const { buildDshCherryToolBridge } = await import('../DshCherryToolBridge')
 const { DshRuntimeConnection } = await import('../DshRuntimeConnection')
 const { DshRuntimeDriver } = await import('../DshRuntimeDriver')
 
@@ -456,14 +458,25 @@ describe('DshRuntimeConnection tracing', () => {
     }
   })
 
-  it('reports a bridge disconnect and closes the runtime event stream', async () => {
-    const connection = await new DshRuntimeConnection(connectInput).start()
+  it.each([false, true])('cleans up after a bridge disconnect (client close fails: %s)', async (closeFails) => {
+    const onClosed = vi.fn()
+    const connection = await new DshRuntimeConnection(connectInput, onClosed).start()
+    const toolBridge = await vi.mocked(buildDshCherryToolBridge).mock.results.at(-1)!.value
+    vi.mocked(toolBridge.close).mockClear()
+    vi.mocked(rm).mockClear()
+    const failure = new Error('client close failed')
+    if (closeFails) runtimeMocks.clientClose.mockRejectedValueOnce(failure)
     const events: AgentRuntimeEvent[] = []
     const consume = (async () => {
       for await (const event of connection.events) events.push(event)
     })()
     vi.mocked(DshBridgeServer).mock.calls[0][0].onDisconnect!()
-    await connection.close()
+    if (closeFails) await expect(connection.close()).rejects.toBe(failure)
+    else await connection.close()
+    expect(vi.mocked(DshBridgeServer).mock.results[0].value.close).toHaveBeenCalledOnce()
+    expect(toolBridge.close).toHaveBeenCalled()
+    expect(rm).toHaveBeenCalledWith(expect.any(String), { force: true })
+    expect(onClosed).toHaveBeenCalledOnce()
     await consume
     expect(events).toContainEqual({
       type: 'error',

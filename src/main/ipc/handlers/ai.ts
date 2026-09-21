@@ -3,12 +3,10 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/agentSessionEdit'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { validateEditedInput } from '@main/ai/agentSession/editInput'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
@@ -254,15 +252,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
 
   'ai.agent.session.edit_target': ({ sessionId, messageId }) =>
-    exposeAiStreamAdmission(async () => {
-      application.get('AgentSessionRuntimeService').assertSessionEditable(sessionId)
-      const snapshot = application
-        .get('DbService')
-        .withWriteTx((tx) => agentSessionMessageService.readEditSnapshotTx(tx, sessionId, messageId))
-      const parts = snapshot.user.data.parts ?? []
-      await validateEditedInput(parts)
-      return { messageId, version: snapshot.version, parts }
-    }),
+    exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').getEditTarget(sessionId, messageId)),
   'ai.agent.session.set_pending_input_count': async ({ sessionId, count }, { senderId }) => {
     const wc = senderWebContents(senderId)
     if (!wc) return

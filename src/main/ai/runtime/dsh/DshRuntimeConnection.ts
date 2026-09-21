@@ -706,12 +706,15 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     } catch (error) {
       logger.warn('dsh cancel during close failed', { error })
     }
-    await this.disposeRuntime()
-    this.eventQueue.close()
-    this.onClosed()
+    try {
+      await this.disposeRuntime()
+    } finally {
+      this.eventQueue.close()
+      this.onClosed()
+    }
   }
 
-  /** Best-effort teardown shared by close() and start() failure cleanup. */
+  /** Cleans up owned resources even when closing the client fails. */
   private async disposeRuntime(): Promise<void> {
     this.traceRecorder?.close('dsh connection closed')
     this.traceRecorder = undefined
@@ -720,16 +723,17 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     } catch (error) {
       logger.warn('dsh client close failed', { error })
       throw error
-    }
-    this.client = undefined
-    await this.bridge?.close().catch((error) => logger.warn('dsh bridge close failed', { error }))
-    this.bridge = undefined
-    const toolBridge = this.toolBridge
-    this.toolBridge = undefined
-    await toolBridge?.close().catch((error) => logger.warn('dsh Cherry tool bridge close failed', { error }))
-    if (this.compositionPath) {
-      await rm(this.compositionPath, { force: true }).catch(() => undefined)
-      this.compositionPath = undefined
+    } finally {
+      this.client = undefined
+      await this.bridge?.close().catch((error) => logger.warn('dsh bridge close failed', { error }))
+      this.bridge = undefined
+      const toolBridge = this.toolBridge
+      this.toolBridge = undefined
+      await toolBridge?.close().catch((error) => logger.warn('dsh Cherry tool bridge close failed', { error }))
+      if (this.compositionPath) {
+        await rm(this.compositionPath, { force: true }).catch(() => undefined)
+        this.compositionPath = undefined
+      }
     }
   }
 

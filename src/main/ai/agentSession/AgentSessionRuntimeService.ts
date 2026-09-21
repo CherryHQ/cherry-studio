@@ -42,7 +42,7 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
-import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
@@ -106,6 +106,7 @@ import {
   transitionAgentSessionRuntime,
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
+import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
@@ -377,6 +378,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.isWriteQuiesced ||
       this.closingSessions.has(sessionId) ||
       this.connectionAttempts.has(sessionId) ||
+      [...this.forks.pending.values()].some((operation) => operation.sourceSessionId === sessionId) ||
       toolApprovalRegistry.hasSession(sessionId) ||
       [...this.pendingEditInputs.values()].some(({ counts }) => counts.has(sessionId)) ||
       [...this.inFlightBackgroundFlowFlushes.values()].includes(sessionId) ||
@@ -385,6 +387,16 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       throw new AgentSessionEditError('busy')
     }
+  }
+
+  async getEditTarget(sessionId: string, messageId: string): Promise<AgentSessionEditDraft> {
+    this.assertSessionEditable(sessionId)
+    const snapshot = application
+      .get('DbService')
+      .withWriteTx((tx) => agentSessionMessageService.readEditSnapshotTx(tx, sessionId, messageId))
+    const parts = snapshot.user.data.parts ?? []
+    await validateEditedInput(parts)
+    return { messageId, version: snapshot.version, parts }
   }
 
   editSession<T>(

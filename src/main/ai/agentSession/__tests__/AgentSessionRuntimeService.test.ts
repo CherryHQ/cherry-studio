@@ -525,6 +525,19 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('blocks edits only on the source session until its fork settles', async () => {
+    const service = new AgentSessionRuntimeService()
+    forkRecoveryMocks.read.mockReturnValueOnce({
+      messages: [{ role: 'assistant', status: 'success', data: {} }]
+    })
+    const fork = service.forkSession('session-1', 'assistant-1')
+    const settled = expect(fork).rejects.toMatchObject({ reason: 'legacy_history' })
+    expect(() => service.assertSessionEditable('session-1')).toThrow('busy')
+    expect(() => service.assertSessionEditable('session-2')).not.toThrow()
+    await settled
+    expect(() => service.assertSessionEditable('session-1')).not.toThrow()
+  })
+
   describe('respondToolApproval', () => {
     it('clears the live awaiting-approval anchor as soon as the decision is dispatched', () => {
       const resolve = vi.fn()
