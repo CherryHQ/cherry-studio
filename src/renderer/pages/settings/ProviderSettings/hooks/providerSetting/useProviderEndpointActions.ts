@@ -219,8 +219,9 @@ export function useProviderEndpointActions({
         }
 
         // Serialize with the drawer's save: it holds a snapshot that may predate
-        // this host value, so writing first would let it clobber the host.
-        return serializeEndpointConfigsWrite(provider.id, async () => {
+        // this host value, so writing first would let it clobber the host. Await
+        // inside the try so a queued write failure reaches the catch below.
+        const saved = await serializeEndpointConfigsWrite(provider.id, async () => {
           const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
           if (!nextEndpointConfigs) {
             return false
@@ -239,6 +240,7 @@ export function useProviderEndpointActions({
 
           return true
         })
+        return saved
       } catch (error) {
         logger.error('Failed to commit provider API host', { providerId: provider?.id, error })
         toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
@@ -267,8 +269,9 @@ export function useProviderEndpointActions({
       const trimmedHost = trim(rawHost)
       try {
         // Serialize with the drawer's save so this whole-snapshot write doesn't
-        // drop its values before re-render.
-        return serializeEndpointConfigsWrite(provider.id, async () => {
+        // drop its values before re-render. Await inside the try so a queued
+        // write failure reaches the catch below.
+        const saved = await serializeEndpointConfigsWrite(provider.id, async () => {
           const baseConfigs = getBaseEndpointConfigs()
           if (trimmedHost) {
             const nextEndpointConfigs = {
@@ -293,6 +296,7 @@ export function useProviderEndpointActions({
           setAnthropicApiHost('')
           return true
         })
+        return saved
       } catch (error) {
         logger.error('Failed to commit Anthropic API host', { providerId: provider?.id, error })
         toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
