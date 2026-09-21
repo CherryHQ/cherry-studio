@@ -50,6 +50,29 @@ describe('JsonFileStorage round-trip', () => {
     await expect(reader.getTokens()).resolves.toEqual(tokens)
   })
 
+  it('preserves migrated credentials on the first read and subsequent writes', async () => {
+    const tokens = { access_token: 'legacy-access', token_type: 'Bearer', refresh_token: 'legacy-refresh' }
+    const clientInfo = { client_id: 'legacy-client', client_secret: 'legacy-secret' }
+    const filePath = path.join(configDir, `${serverUrlHash}_oauth.json`)
+    await fs.writeFile(
+      filePath,
+      JSON.stringify({ tokens, clientInfo, codeVerifier: 'legacy-verifier', lastUpdated: 1 })
+    )
+
+    const storage = new JsonFileStorage(serverUrlHash, configDir, cipher)
+    await expect(storage.getTokens()).resolves.toEqual(tokens)
+    await storage.saveState('next-state')
+
+    const reader = new JsonFileStorage(serverUrlHash, configDir, cipher)
+    await expect(reader.getTokens()).resolves.toEqual(tokens)
+    await expect(reader.getClientInformation()).resolves.toEqual(clientInfo)
+    await expect(reader.getCodeVerifier()).resolves.toBe('legacy-verifier')
+    await expect(reader.getState()).resolves.toBe('next-state')
+    const persisted = await fs.readFile(filePath, 'utf8')
+    expect(persisted).not.toContain('legacy-access')
+    expect(persisted).not.toContain('legacy-secret')
+  })
+
   it('round-trips client information', async () => {
     const clientInfo: StoredOAuthClientInformation = {
       client_id: 'client-id-123',

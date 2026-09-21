@@ -230,7 +230,7 @@ export async function createExternalMcpConnection({
       const params = await callback.waitForAuthCallback(300_000, lease.signal)
       await authProvider.validateCallbackState(params)
       lease.signal.throwIfAborted()
-      await transport.finishAuth(params)
+      await authProvider.withAuthorizationCallback(() => transport.finishAuth(params))
       await callback.close()
       callbackServer = undefined
       lease.finish()
@@ -253,31 +253,33 @@ export async function createExternalMcpConnection({
       const operation: AuthOperation = {
         signal: AbortSignal.any([lifetime.signal, ...(options?.requestSignal ? [options.requestSignal] : [])])
       }
-      return authOperations.run(operation, async () => {
-        for (let attempt = 0; ; attempt++) {
-          operation.signal.throwIfAborted()
-          try {
-            return await send(message, options)
-          } catch (error) {
-            // These errors arise from a rejected HTTP auth challenge, before the tool was accepted.
-            if (attempt < 2 && error instanceof McpAuthorizationCompleted) {
-              authProvider.reloadCredentials()
-              continue
+      return authOperations.run(operation, () =>
+        authProvider.withAuthorizationFlow(async () => {
+          for (let attempt = 0; ; attempt++) {
+            operation.signal.throwIfAborted()
+            try {
+              return await send(message, options)
+            } catch (error) {
+              // These errors arise from a rejected HTTP auth challenge, before the tool was accepted.
+              if (attempt < 2 && error instanceof McpAuthorizationCompleted) {
+                authProvider.reloadCredentials()
+                continue
+              }
+              if (attempt < 2 && UnauthorizedError.isInstance(error) && operation.lease) {
+                await authenticate(transport, operation)
+                continue
+              }
+              if (operation.lease) {
+                await callbackServer?.close().catch(() => undefined)
+                callbackServer = undefined
+                operation.lease.finish(error)
+                operation.lease = undefined
+              }
+              throw error
             }
-            if (attempt < 2 && UnauthorizedError.isInstance(error) && operation.lease) {
-              await authenticate(transport, operation)
-              continue
-            }
-            if (operation.lease) {
-              await callbackServer?.close().catch(() => undefined)
-              callbackServer = undefined
-              operation.lease.finish(error)
-              operation.lease = undefined
-            }
-            throw error
           }
-        }
-      })
+        })
+      )
     }
     return transport
   }
@@ -304,7 +306,9 @@ export async function createExternalMcpConnection({
       activeConnection = connection
       let transport = await createTransport(candidate)
       try {
-        await connection.connect(transport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
+        await authProvider.withAuthorizationFlow(() =>
+          connection.connect(transport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
+        )
         log.info('Server connected', { era: connection.era, serverVersion: connection.serverVersion })
         return finishConnection(connection)
       } catch (error) {
@@ -321,7 +325,9 @@ export async function createExternalMcpConnection({
             connection = createClient(appVersion, events)
             activeConnection = connection
             transport = await createTransport(candidate)
-            await connection.connect(transport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
+            await authProvider.withAuthorizationFlow(() =>
+              connection.connect(transport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
+            )
             log.info('Server authenticated', { era: connection.era })
             return finishConnection(connection)
           } catch (oauthError) {

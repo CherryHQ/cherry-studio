@@ -26,9 +26,11 @@ vi.mock('@application', async () => {
 })
 
 const getByIdMock = vi.fn<(id: string) => McpServer>()
+const deleteServerMock = vi.fn()
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: {
-    getById: (id: string) => getByIdMock(id)
+    getById: (id: string) => getByIdMock(id),
+    delete: (id: string) => deleteServerMock(id)
   }
 }))
 
@@ -48,13 +50,14 @@ function serverKeyFor(id: string): string {
   })
 }
 
-/** A deferred whose resolution mirrors the real connect: it lands the connection in the table. */
-function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (reason: unknown) => void } {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((res) => {
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
     resolve = res
+    reject = rej
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 describe('McpRuntimeService.setServerStatus', () => {
@@ -175,6 +178,42 @@ describe('McpRuntimeService embedded interaction authorization', () => {
     ).resolves.toBe(false)
   })
 
+  it.each([undefined, 'legacy-id'])('authorizes URL elicitation with protocol ID %s', async (elicitationId) => {
+    const service = new McpRuntimeService()
+    const payload = {
+      method: 'elicitation/create',
+      params: {
+        mode: 'url',
+        message: 'Authorize access',
+        url: 'https://example.com/authorize',
+        ...(elicitationId ? { elicitationId } : {})
+      }
+    }
+    const pending = service.requestInteraction({
+      serverId: 'server-1',
+      windowId: 'window-1',
+      topicId: 'topic-1',
+      kind: 'elicitation',
+      payload,
+      signal: new AbortController().signal
+    })
+    const requestId = interactionMocks.send.mock.calls[0][2].requestId
+    expect(interactionMocks.send.mock.calls[0][2].payload).toEqual(payload)
+    await service.respondInteraction({ requestId, decision: 'accept' }, 'window-1')
+    await expect(pending).resolves.toEqual({ requestId, decision: 'accept' })
+
+    expect(() =>
+      service.requestInteraction({
+        serverId: 'server-1',
+        windowId: 'window-1',
+        topicId: 'topic-1',
+        kind: 'elicitation',
+        payload: { ...payload, params: { ...payload.params, url: 'invalid URL' } },
+        signal: new AbortController().signal
+      })
+    ).toThrow()
+  })
+
   it('rejects without an active window and cancels a pending authorization with its tool call', async () => {
     const service = new McpRuntimeService()
     interactionMocks.getWindow.mockReturnValueOnce(undefined)
@@ -203,6 +242,106 @@ describe('McpRuntimeService embedded interaction authorization', () => {
     })
     controller.abort(new Error('tool call cancelled'))
     await expect(pending).rejects.toThrow('tool call cancelled')
+  })
+})
+
+describe('McpRuntimeService connection ownership', () => {
+  const server = { id: 'server-1', name: 'docs', isActive: true } as McpServer
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReturnValue(server)
+    deleteServerMock.mockReset()
+  })
+
+  it('shares a failed health probe and creates one replacement for concurrent callers', async () => {
+    const service = new McpRuntimeService()
+    const health = createDeferred<void>()
+    const stale = { health: vi.fn(() => health.promise), close: vi.fn().mockResolvedValue(undefined) }
+    const tools = [{ name: 'ready', inputSchema: { type: 'object' } }]
+    const connection = { era: 'modern', listTools: vi.fn().mockResolvedValue(tools) }
+    ;(service as any).connections.set(service.getServerKey(server), stale)
+    const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue(connection)
+
+    const first = service.listTools(server.id)
+    const second = service.listTools(server.id)
+    health.reject(new Error('connection is stale'))
+
+    await expect(Promise.all([first, second])).resolves.toEqual([tools, tools])
+    expect(stale.health).toHaveBeenCalledTimes(1)
+    expect(stale.close).toHaveBeenCalledTimes(1)
+    expect(create).toHaveBeenCalledTimes(1)
+    expect((service as any).connections.get(service.getServerKey(server))).toBe(connection)
+  })
+
+  it('cancels only the caller waiting on shared initialization', async () => {
+    const service = new McpRuntimeService()
+    const activation = createDeferred<unknown>()
+    let activationSignal!: AbortSignal
+    vi.spyOn(service as any, 'createConnection').mockImplementation((_server, _context, signal) => {
+      activationSignal = signal as AbortSignal
+      activationSignal.addEventListener('abort', () => activation.reject(activationSignal.reason), { once: true })
+      return activation.promise
+    })
+    const caller = new AbortController()
+    const first = service.getPrompt({ serverId: server.id, name: 'ready', signal: caller.signal })
+    const second = service.getPrompt({ serverId: server.id, name: 'ready' })
+    const cancelled = expect(first).rejects.toThrow('cancel first caller')
+    caller.abort(new Error('cancel first caller'))
+    await cancelled
+    expect(activationSignal.aborted).toBe(false)
+
+    const result = { messages: [{ role: 'user', content: { type: 'text', text: 'ready' } }] }
+    activation.resolve({ era: 'modern', getPrompt: vi.fn().mockResolvedValue(result) })
+    await expect(second).resolves.toEqual(result)
+    expect((service as any).pendingConnections.size).toBe(0)
+  })
+
+  it.each(['stop', 'remove', 'shutdown'])('cancels initialization and awaits cleanup on %s', async (operation) => {
+    const service = new McpRuntimeService()
+    const cleanup = createDeferred<void>()
+    let activationSignal!: AbortSignal
+    vi.spyOn(service as any, 'createConnection').mockImplementation((_server, _context, signal) => {
+      activationSignal = signal as AbortSignal
+      return new Promise((_resolve, reject) => {
+        activationSignal.addEventListener('abort', () => cleanup.promise.then(() => reject(activationSignal.reason)), {
+          once: true
+        })
+      })
+    })
+    const pending = service.listTools(server.id)
+    const cancelled = expect(pending).rejects.toThrow(/abort/i)
+    const closing =
+      operation === 'stop'
+        ? service.stopServer(server.id)
+        : operation === 'remove'
+          ? service.removeServer(server.id)
+          : (service as any).onStop()
+
+    expect(activationSignal.aborted).toBe(true)
+    expect(deleteServerMock).not.toHaveBeenCalled()
+    cleanup.resolve()
+    await Promise.all([closing, cancelled])
+    expect((service as any).pendingConnections.size).toBe(0)
+    expect((service as any).connections.size).toBe(0)
+    if (operation === 'remove') expect(deleteServerMock).toHaveBeenCalledWith(server.id)
+  })
+
+  it('removes a server without waiting for its pending health probe or reconnecting afterward', async () => {
+    const service = new McpRuntimeService()
+    const health = createDeferred<void>()
+    const close = vi.fn().mockResolvedValue(undefined)
+    ;(service as any).connections.set(service.getServerKey(server), { health: () => health.promise, close })
+    const create = vi.spyOn(service as any, 'createConnection')
+    const pending = service.listTools(server.id)
+    const removed = expect(pending).rejects.toThrow(/removed/)
+
+    await service.removeServer(server.id)
+    expect(close).toHaveBeenCalledTimes(1)
+    health.resolve()
+    await removed
+    expect(create).not.toHaveBeenCalled()
   })
 })
 

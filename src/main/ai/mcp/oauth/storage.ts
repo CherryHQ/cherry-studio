@@ -102,6 +102,8 @@ export class JsonFileStorage implements IOAuthStorage {
     }
 
     const data = await this.readStorage()
+    // Reading a legacy file may already have migrated its credentials into this cache.
+    if (this.secretCache) return this.secretCache
     if (data.encryptedCredentials && this.cipher.isAvailable()) {
       try {
         const decrypted: unknown = JSON.parse(this.cipher.decrypt(data.encryptedCredentials))

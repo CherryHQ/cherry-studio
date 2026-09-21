@@ -2,7 +2,14 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 
-import type { StoredOAuthClientInformation, StoredOAuthTokens } from '@modelcontextprotocol/client'
+import {
+  IssuerMismatchError,
+  StreamableHTTPClientTransport,
+  UnauthorizedError,
+  type OAuthDiscoveryState,
+  type StoredOAuthClientInformation,
+  type StoredOAuthTokens
+} from '@modelcontextprotocol/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The provider constructor reads application.getPath('feature.mcp.oauth'); the
@@ -145,17 +152,21 @@ describe('McpOAuthClientProvider.saveDiscoveryState', () => {
     await fs.rm(configDir, { recursive: true, force: true })
   })
 
-  it('clears the stale client when the authorization server has changed', async () => {
+  it('keeps credentials isolated when the authorization server changes', async () => {
     const seed = makeProvider()
-    await seed.saveDiscoveryState({ authorizationServerUrl: 'https://old-auth.example.com' })
-    await seed.saveClientInformation(CLIENT_INFO)
-    await seed.saveTokens(TOKENS)
+    const oldIssuer = { issuer: 'https://old-auth.example.com' }
+    const newIssuer = { issuer: 'https://new-auth.example.com' }
+    await seed.saveDiscoveryState({ authorizationServerUrl: oldIssuer.issuer })
+    await seed.saveClientInformation(CLIENT_INFO, oldIssuer)
+    await seed.saveTokens(TOKENS, oldIssuer)
 
     const provider = makeProvider()
-    await provider.saveDiscoveryState({ authorizationServerUrl: 'https://new-auth.example.com' })
+    await provider.saveDiscoveryState({ authorizationServerUrl: newIssuer.issuer })
 
-    expect(await provider.clientInformation()).toBeUndefined()
-    expect(await provider.tokens()).toBeUndefined()
+    expect(await provider.clientInformation(newIssuer)).toBeUndefined()
+    expect(await provider.tokens(newIssuer)).toBeUndefined()
+    expect(await provider.clientInformation(oldIssuer)).toEqual(CLIENT_INFO)
+    expect(await provider.tokens(oldIssuer)).toEqual(TOKENS)
   })
 
   it('keeps the client when the authorization server is unchanged', async () => {
@@ -182,4 +193,117 @@ describe('McpOAuthClientProvider.saveDiscoveryState', () => {
     expect(await provider.clientInformation()).toMatchObject({ client_id: 'cid' })
     expect(await provider.tokens()).toMatchObject({ access_token: 'at' })
   })
+
+  it.each(['issuer', 'endpoints'] as const)(
+    'rediscovers changed %s on a challenge and pins the callback to the redirect issuer',
+    async (change) => {
+      const serverUrl = 'https://resource.example.com/mcp'
+      const oldIssuer = 'https://old-auth.example.com'
+      const issuer = change === 'issuer' ? 'https://new-auth.example.com' : oldIssuer
+      const oldMetadataUrl = 'https://resource.example.com/old-metadata'
+      const resourceMetadataUrl = change === 'issuer' ? 'https://resource.example.com/new-metadata' : oldMetadataUrl
+      const metadata = (authIssuer: string, version: string) => ({
+        issuer: authIssuer,
+        authorization_endpoint: `${authIssuer}/${version}/authorize`,
+        token_endpoint: `${authIssuer}/${version}/token`,
+        registration_endpoint: `${authIssuer}/${version}/register`,
+        response_types_supported: ['code'],
+        code_challenge_methods_supported: ['S256'],
+        token_endpoint_auth_methods_supported: ['none'],
+        authorization_response_iss_parameter_supported: true
+      })
+      const oldDiscovery: OAuthDiscoveryState = {
+        authorizationServerUrl: oldIssuer,
+        resourceMetadataUrl: oldMetadataUrl,
+        resourceMetadata: { resource: serverUrl, authorization_servers: [oldIssuer] },
+        authorizationServerMetadata: metadata(oldIssuer, 'old')
+      }
+      const seed = makeProvider()
+      await seed.saveDiscoveryState(oldDiscovery)
+      await seed.saveClientInformation({ client_id: 'old-client', issuer: oldIssuer }, { issuer: oldIssuer })
+      await seed.saveTokens(
+        { access_token: 'old-token', token_type: 'Bearer', issuer: oldIssuer },
+        { issuer: oldIssuer }
+      )
+
+      const provider = makeProvider()
+      const redirect = vi.spyOn(provider, 'redirectToAuthorization').mockResolvedValue()
+      const requests: string[] = []
+      const tokenRequests: URLSearchParams[] = []
+      let callbackPending = false
+      let endpointVersion = 'new'
+      const transport = new StreamableHTTPClientTransport(new URL(serverUrl), {
+        authProvider: provider,
+        fetch: async (input, init) => {
+          const url = input.toString()
+          requests.push(url)
+          if (url === serverUrl) {
+            if (new Headers(init?.headers).get('authorization') === 'Bearer renewed-token') {
+              return Response.json({ jsonrpc: '2.0', id: 1, result: {} })
+            }
+            return new Response(null, {
+              status: 401,
+              headers: { 'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadataUrl}"` }
+            })
+          }
+          if (url === `${issuer}/${endpointVersion}/token`) {
+            tokenRequests.push(new URLSearchParams(String(init?.body)))
+            return Response.json({ access_token: 'renewed-token', token_type: 'Bearer', refresh_token: 'new-refresh' })
+          }
+          if (callbackPending) throw new Error(`Callback unexpectedly rediscovered ${url}`)
+          if (url === resourceMetadataUrl) {
+            return Response.json({ resource: serverUrl, authorization_servers: [issuer] })
+          }
+          if (url === `${issuer}/.well-known/oauth-authorization-server`) {
+            return Response.json(metadata(issuer, endpointVersion))
+          }
+          if (url === `${issuer}/new/register`) {
+            return Response.json({ ...provider.clientMetadata, client_id: 'new-client' })
+          }
+          throw new Error(`Unexpected OAuth request: ${url}`)
+        }
+      })
+
+      await expect(
+        provider.withAuthorizationFlow(() => transport.send({ jsonrpc: '2.0', id: 1, method: 'ping' }))
+      ).rejects.toBeInstanceOf(UnauthorizedError)
+      expect(redirect.mock.calls[0]?.[0].toString()).toContain(`${issuer}/new/authorize`)
+      expect(requests).toContain(resourceMetadataUrl)
+      if (change === 'issuer') {
+        expect(await provider.tokens({ issuer })).toBeUndefined()
+        expect(await provider.clientInformation({ issuer: oldIssuer })).toMatchObject({ client_id: 'old-client' })
+      }
+
+      // Another challenge cannot overwrite an in-flight redirect's persisted binding.
+      await provider.withAuthorizationFlow(() => provider.saveDiscoveryState(oldDiscovery))
+      callbackPending = true
+      await expect(
+        provider.withAuthorizationCallback(() =>
+          transport.finishAuth(
+            new URLSearchParams({ code: 'authorization-code', iss: 'https://wrong-issuer.example.com' })
+          )
+        )
+      ).rejects.toBeInstanceOf(IssuerMismatchError)
+      expect(tokenRequests).toHaveLength(0)
+      await provider.withAuthorizationCallback(() =>
+        transport.finishAuth(new URLSearchParams({ code: 'authorization-code', iss: issuer }))
+      )
+      expect(tokenRequests[0]?.get('client_id')).toBe(change === 'issuer' ? 'new-client' : 'old-client')
+      expect(tokenRequests[0]?.get('grant_type')).toBe('authorization_code')
+      expect(await provider.tokens({ issuer })).toMatchObject({ access_token: 'renewed-token', issuer })
+
+      // A later refresh needs no window, and rediscovers endpoints at the same issuer.
+      callbackPending = false
+      endpointVersion = 'latest'
+      await provider.saveTokens(
+        { access_token: 'expired-token', token_type: 'Bearer', refresh_token: 'new-refresh', issuer },
+        { issuer }
+      )
+      await provider.withAuthorizationFlow(() => transport.send({ jsonrpc: '2.0', id: 1, method: 'ping' }))
+      expect(tokenRequests[1]?.get('grant_type')).toBe('refresh_token')
+      expect(requests).toContain(`${issuer}/latest/token`)
+      expect(redirect).toHaveBeenCalledTimes(1)
+      await transport.close()
+    }
+  )
 })

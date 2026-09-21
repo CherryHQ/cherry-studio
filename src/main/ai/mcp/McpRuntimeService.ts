@@ -10,7 +10,12 @@ import {
   type Tool
 } from '@modelcontextprotocol/client'
 import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
-import { ElicitRequestSchema, ElicitResultSchema } from '@modelcontextprotocol/core'
+import {
+  ElicitRequestFormParamsSchema,
+  ElicitRequestSchema,
+  ElicitRequestURLParamsSchema,
+  ElicitResultSchema
+} from '@modelcontextprotocol/core'
 import { app } from 'electron'
 import { nanoid } from 'nanoid'
 import { v4 as uuidv4 } from 'uuid'
@@ -72,6 +77,28 @@ function toolCallKey(callId: string, scope?: string): string {
 function getAbortReason(signal: AbortSignal): Error {
   return signal.reason instanceof Error ? signal.reason : new DOMException('MCP tool call aborted', 'AbortError')
 }
+
+async function waitForConnection<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return pending
+  let handleAbort: (() => void) | undefined
+  try {
+    return await Promise.race([
+      pending,
+      new Promise<never>((_, reject) => {
+        handleAbort = () => reject(getAbortReason(signal))
+        if (signal.aborted) return handleAbort()
+        signal.addEventListener('abort', handleAbort, { once: true })
+      })
+    ])
+  } finally {
+    if (handleAbort) signal.removeEventListener('abort', handleAbort)
+  }
+}
+
+// The shared SDK schema retains the legacy ID; modern URL requests no longer carry it.
+const InteractionElicitRequestSchema = ElicitRequestSchema.extend({
+  params: z.union([ElicitRequestFormParamsSchema, ElicitRequestURLParamsSchema.partial({ elicitationId: true })])
+})
 
 const NonEmptyStringSchema = z.string().min(1)
 export const McpCallToolPayloadSchema = z.object({
@@ -177,6 +204,9 @@ async function clampToolResultImages(
 export class McpRuntimeService extends BaseService {
   private connections = new Map<string, McpConnection>()
   private pendingConnections = new Map<string, Promise<McpConnection>>()
+  private pendingConnectionControllers = new Map<string, AbortController>()
+  // Removal waits for initialization cleanup, but must not wait out a liveness probe.
+  private pendingProbes = new Map<string, Promise<McpConnection | undefined>>()
   private removedServerIds = new Set<string>()
   private pendingRemovals = new Map<string, Promise<void>>()
   private activeToolCalls = new Map<string, Set<ActiveToolCall>>()
@@ -202,9 +232,12 @@ export class McpRuntimeService extends BaseService {
     this.abortActiveToolCalls()
     for (const controller of this.desktopRequests.values()) controller.abort()
     this.cancelPendingInteractions()
+    for (const controller of this.pendingConnectionControllers.values()) controller.abort()
     await this.waitForPendingConnections()
     await this.closeAllConnections()
     this.pendingConnections.clear()
+    this.pendingConnectionControllers.clear()
+    this.pendingProbes.clear()
     this.connections.clear()
     this.serverLogs.clear()
   }
@@ -355,38 +388,40 @@ export class McpRuntimeService extends BaseService {
     const pending = this.pendingConnections.get(serverKey)
     if (pending) {
       this.setServerStatus(server.id, 'connecting')
-      return pending
+      return waitForConnection(pending, signal)
     }
 
     const existing = this.connections.get(serverKey)
-    if (existing) {
-      try {
-        await existing.health()
-        const current = this.connections.get(serverKey)
-        if (current !== existing) {
-          if (current && !this.removedServerIds.has(server.id)) return current
-          throw new Error(`MCP server ${server.name} connection changed during health check`)
-        }
-        if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
-        this.setServerStatus(server.id, 'connected')
-        return existing
-      } catch (error) {
-        getServerLogger(server).warn('Existing MCP connection failed health check', { error })
-        await this.closeConnection(serverKey, existing).catch(() => undefined)
-      }
+    const pendingProbe = this.pendingProbes.get(serverKey)
+    if (pendingProbe || existing) {
+      const reused = await waitForConnection(pendingProbe ?? this.probeConnection(server, serverKey, existing!), signal)
+      if (reused) return reused
     }
 
+    signal?.throwIfAborted()
+    if (this.stopping || this.isStopped || this.isDestroyed) throw new Error('MCP runtime is stopping')
     if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
+    const pendingAfterProbe = this.pendingConnections.get(serverKey)
+    if (pendingAfterProbe) return waitForConnection(pendingAfterProbe, signal)
 
     this.setServerStatus(server.id, 'connecting')
+    const controller = new AbortController()
+    this.pendingConnectionControllers.set(serverKey, controller)
     const initialize = (async () => {
       try {
-        const connection = await this.createConnection(server, requestContext, signal)
-        if (this.stopping || this.isStopped || this.isDestroyed || this.removedServerIds.has(server.id)) {
+        const connection = await this.createConnection(server, requestContext, controller.signal)
+        if (
+          controller.signal.aborted ||
+          this.stopping ||
+          this.isStopped ||
+          this.isDestroyed ||
+          this.removedServerIds.has(server.id)
+        ) {
           await connection.close()
           if (this.removedServerIds.has(server.id)) {
             throw new Error(`MCP server ${server.name} was removed during connect`)
           }
+          controller.signal.throwIfAborted()
           throw new Error('MCP runtime is stopping')
         }
         this.connections.set(serverKey, connection)
@@ -408,13 +443,43 @@ export class McpRuntimeService extends BaseService {
           source: 'client'
         })
         throw error
-      } finally {
-        this.pendingConnections.delete(serverKey)
       }
-    })()
+    })().finally(() => {
+      if (this.pendingConnections.get(serverKey) === initialize) this.pendingConnections.delete(serverKey)
+      if (this.pendingConnectionControllers.get(serverKey) === controller) {
+        this.pendingConnectionControllers.delete(serverKey)
+      }
+    })
 
     this.pendingConnections.set(serverKey, initialize)
-    return initialize
+    return waitForConnection(initialize, signal)
+  }
+
+  private probeConnection(
+    server: McpServer,
+    serverKey: string,
+    existing: McpConnection
+  ): Promise<McpConnection | undefined> {
+    const pending = this.pendingProbes.get(serverKey)
+    if (pending) return pending
+    const probe = (async () => {
+      try {
+        await existing.health()
+      } catch (error) {
+        getServerLogger(server).warn('Existing MCP connection failed health check', { error })
+        await this.closeConnection(serverKey, existing).catch(() => undefined)
+        return undefined
+      }
+      if (this.stopping || this.isStopped || this.isDestroyed) throw new Error('MCP runtime is stopping')
+      if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
+      if (this.connections.get(serverKey) !== existing) return undefined
+      this.setServerStatus(server.id, 'connected')
+      return existing
+    })().finally(() => {
+      if (this.pendingProbes.get(serverKey) === probe) this.pendingProbes.delete(serverKey)
+    })
+    this.pendingProbes.set(serverKey, probe)
+    return probe
   }
 
   public async listTools(serverId: string, cacheMode: CacheMode = 'use'): Promise<Tool[]> {
@@ -499,18 +564,8 @@ export class McpRuntimeService extends BaseService {
         getServerLogger(server, { tool: name, callId: toolCallId }).debug('Calling tool', {
           args: redactSensitive(normalizedArgs)
         })
-        let handleAbort: (() => void) | undefined
         const host = this.resolveInteractionContext(server.id, { ...interactionContext, requestId: toolCallId })
-        const connection = await Promise.race([
-          this.getOrCreateConnection(server, host ?? null, effectiveSignal),
-          new Promise<never>((_, reject) => {
-            handleAbort = () => reject(getAbortReason(effectiveSignal))
-            if (effectiveSignal.aborted) return handleAbort()
-            effectiveSignal.addEventListener('abort', handleAbort, { once: true })
-          })
-        ]).finally(() => {
-          if (handleAbort) effectiveSignal.removeEventListener('abort', handleAbort)
-        })
+        const connection = await this.getOrCreateConnection(server, host ?? null, effectiveSignal)
         const policy = resolveMcpRequestOptions(server)
         const response = await connection.callTool(name, normalizedArgs, {
           signal: effectiveSignal,
@@ -814,7 +869,7 @@ export class McpRuntimeService extends BaseService {
     const server = this.getServerById(serverId)
     let validate: PendingInteraction['validate']
     if (kind === 'elicitation') {
-      const request = ElicitRequestSchema.parse(payload)
+      const request = InteractionElicitRequestSchema.parse(payload)
       if (request.params.mode !== 'url') {
         const validator = new CfWorkerJsonSchemaValidator().getValidator(request.params.requestedSchema)
         validate = (value) => validator(value).valid
@@ -919,6 +974,7 @@ export class McpRuntimeService extends BaseService {
   private async closeConnectionsForServer(serverId: string): Promise<void> {
     this.abortActiveToolCalls(serverId)
     const pendingKeys = [...this.pendingConnections.keys()].filter((key) => this.isServerKeyForId(key, serverId))
+    for (const key of pendingKeys) this.pendingConnectionControllers.get(key)?.abort()
     const pendingConnections = pendingKeys.flatMap((key) => {
       const pending = this.pendingConnections.get(key)
       return pending ? [pending.catch(() => undefined)] : []

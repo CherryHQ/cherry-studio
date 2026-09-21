@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto'
+import { AsyncLocalStorage } from 'node:async_hooks'
 
 import type {
   OAuthClientInformationContext,
@@ -21,6 +22,7 @@ const logger = loggerService.withContext('Mcp:OAuthClientProvider')
 
 export class McpOAuthClientProvider implements OAuthClientProvider {
   private storage: JsonFileStorage
+  private readonly authorizationFlow = new AsyncLocalStorage<{ discovery?: OAuthDiscoveryState; callback: boolean }>()
   public readonly config: Required<OAuthProviderOptions>
   public prepareAuthorization?: () => Promise<void>
   public beginAuthorization?: () => Promise<void>
@@ -55,6 +57,8 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 
   async state(): Promise<string> {
     await this.beginAuthorization?.()
+    const discovery = this.authorizationFlow.getStore()?.discovery
+    if (discovery) await this.storage.saveDiscoveryState(discovery)
     const state = randomUUID()
     await this.storage.saveState(state)
     return state
@@ -62,6 +66,15 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 
   reloadCredentials(): void {
     this.storage = new JsonFileStorage(this.config.serverUrlHash, this.config.configDir)
+  }
+
+  withAuthorizationFlow<T>(callback: () => Promise<T>): Promise<T> {
+    return this.authorizationFlow.run({ callback: false }, callback)
+  }
+
+  async withAuthorizationCallback<T>(callback: () => Promise<T>): Promise<T> {
+    const discovery = this.authorizationFlow.getStore()?.discovery ?? (await this.storage.getDiscoveryState())
+    return this.authorizationFlow.run({ discovery, callback: true }, callback)
   }
 
   async validateCallbackState(params: URLSearchParams): Promise<void> {
@@ -113,20 +126,16 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   }
 
   async saveDiscoveryState(state: OAuthDiscoveryState): Promise<void> {
-    const previous = await this.storage.getDiscoveryState()
-    if (previous?.authorizationServerUrl && previous.authorizationServerUrl !== state.authorizationServerUrl) {
-      logger.warn('OAuth authorization server changed, clearing stale client registration', {
-        oldAuthServerUrl: previous.authorizationServerUrl,
-        newAuthServerUrl: state.authorizationServerUrl
-      })
-      await this.storage.clear('client')
-      await this.storage.clear('tokens')
-    }
-    await this.storage.saveDiscoveryState(state)
+    const flow = this.authorizationFlow.getStore()
+    // Persist the redirect binding only after state() acquires the authorization lease.
+    if (flow) flow.discovery = state
+    else await this.storage.saveDiscoveryState(state)
   }
 
   async discoveryState(): Promise<OAuthDiscoveryState | undefined> {
-    return this.storage.getDiscoveryState()
+    const flow = this.authorizationFlow.getStore()
+    // New challenges must rediscover endpoints; callbacks stay bound to the redirect's issuer.
+    return flow?.callback ? flow.discovery : undefined
   }
 
   async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
