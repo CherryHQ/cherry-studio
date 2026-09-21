@@ -105,7 +105,7 @@ export function installFakeFollowupQueueBackend() {
               payload: body.payload,
               status: 'pending',
               sentAt: null,
-              orderKey: `a${counter}`,
+              orderKey: `a${String(counter).padStart(6, '0')}`,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
             }

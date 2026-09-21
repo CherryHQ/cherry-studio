@@ -604,11 +604,11 @@ describe('useFollowupQueue', () => {
     expect(deleteTrigger).not.toHaveBeenCalled()
   })
 
-  it('releases the take back to the queue when its delete fails', async () => {
+  it('releases the take back to the queue when its delete keeps failing', async () => {
     wireQuery([row('h', 'head')])
     const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: true })
-    deleteTrigger.mockRejectedValueOnce(new Error('db down'))
+    deleteTrigger.mockRejectedValue(new Error('db down'))
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
 
@@ -618,8 +618,50 @@ describe('useFollowupQueue', () => {
     })
 
     expect(taken).toBeUndefined()
+    expect(deleteTrigger).toHaveBeenCalledTimes(2)
     expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
+  it('retries the take delete once before releasing it', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    deleteTrigger.mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(undefined)
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let taken: unknown = 'unset'
+    await act(async () => {
+      taken = await result.current.takeForEdit('h')
+    })
+
+    expect((taken as { draft: { text: string } }).draft.text).toBe('head')
+    expect(deleteTrigger).toHaveBeenCalledTimes(2)
+    expect(failTrigger).not.toHaveBeenCalled()
+  })
+
+  it('returns the take when the delete commits but its response is lost', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    // First DELETE commits server-side but times out; the retry then reports
+    // NOT_FOUND, proving the row is already gone — the draft must be handed
+    // to the editor instead of dropped.
+    deleteTrigger
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockRejectedValueOnce(new DataApiError(ErrorCode.NOT_FOUND, 'fake queue: missing id h', 404))
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let taken: unknown = 'unset'
+    await act(async () => {
+      taken = await result.current.takeForEdit('h')
+    })
+
+    expect((taken as { draft: { text: string } }).draft.text).toBe('head')
+    expect(deleteTrigger).toHaveBeenCalledTimes(2)
+    expect(failTrigger).not.toHaveBeenCalled()
   })
 
   it('returns the draft to its scope when the scope moves during the take delete', async () => {

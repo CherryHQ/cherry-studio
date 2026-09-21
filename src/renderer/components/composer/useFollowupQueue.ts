@@ -351,18 +351,28 @@ export function useFollowupQueue({
         }
         return undefined
       }
-      try {
-        await removeTrigger({ params: { id } })
-      } catch {
-        toast.error(t('message.error.operation_unavailable'))
-        // Release the won claim so the item returns to the queue instead of
-        // sitting `sending` until the reclaim lease expires.
+      // A committed DELETE can still time out: retry once and treat NOT_FOUND
+      // as deleted, so a lost response cannot drop the draft.
+      let deleted = false
+      for (let attempt = 0; attempt < 2 && !deleted; attempt++) {
         try {
-          await markFailedTrigger({ params: { id } })
-        } catch {
-          // Crash-orphan path: the reclaim lease still bounds the stall.
+          await removeTrigger({ params: { id } })
+          deleted = true
+        } catch (error) {
+          if (isAlreadyResolved(error)) {
+            deleted = true
+          } else if (attempt === 1) {
+            toast.error(t('message.error.operation_unavailable'))
+            // Release the won claim so the item returns to the queue instead of
+            // sitting `sending` until the reclaim lease expires.
+            try {
+              await markFailedTrigger({ params: { id } })
+            } catch {
+              // Crash-orphan path: the reclaim lease still bounds the stall.
+            }
+            return undefined
+          }
         }
-        return undefined
       }
       if (claim.alreadySent) {
         // The content was already sent before a crash: the delete above is the
