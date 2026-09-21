@@ -171,13 +171,19 @@ describe('cancel', () => {
       .filter(([, init]) => init?.method === 'POST')
       .map(([input, init]) => ({ url: String(input), body: JSON.parse(init?.body as string) }))
 
-  it('interrupts a running prompt by id and leaves the queue alone', async () => {
+  it('interrupts a running prompt by id and also dequeues it', async () => {
     const doFetch = queueFetch([[1, 'pid-1', {}, {}, []]], [[2, 'other', {}, {}, []]])
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await transport.cancel('pid-1')
 
-    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }])
+    // Both writes are id-scoped, so neither needs the snapshot to authorise it:
+    // the dequeue is a no-op for a prompt that already left the queue, and the
+    // interrupt carries `prompt_id`.
+    expect(postWrites(doFetch)).toEqual([
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
+    ])
   })
 
   it('dequeues a pending prompt and also interrupts to cover the TOCTOU race', async () => {
@@ -196,23 +202,94 @@ describe('cancel', () => {
     ])
   })
 
-  it('sends no write for an id that is neither running nor pending', async () => {
+  it('dequeues by id even when the snapshot does not list the prompt', async () => {
     const doFetch = queueFetch([[1, 'other', {}, {}, []]], [])
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await transport.cancel('pid-1')
 
-    expect(postWrites(doFetch)).toEqual([])
+    // The snapshot is a hint, not an authorisation: a prompt that is missing
+    // from it has usually already finished, and the dequeue is a no-op then.
+    // The interrupt still goes out, because this server scopes it to the id.
+    expect(postWrites(doFetch)).toEqual([
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
+    ])
   })
 
-  it('stays silent when the queue read fails', async () => {
+  it('cancels anyway when the queue read fails', async () => {
     const doFetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => {
       throw new Error('server down')
     })
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await expect(transport.cancel('pid-1')).resolves.toBeUndefined()
-    expect(doFetch).toHaveBeenCalledTimes(1)
+    // The failed GET cannot silence the cancellation: the id-scoped dequeue is
+    // still sent (and the capability probe fails closed, so no interrupt).
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+  })
+})
+
+describe('body reads are bounded by the request deadline', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const LIST_TIMEOUT_MS = 30_000
+  const SUBMIT_TIMEOUT_MS = 60_000
+
+  /** Headers arrive immediately; the body never does until the signal aborts. */
+  const stallingBody = (signal: AbortSignal | undefined) =>
+    new ReadableStream({
+      start(controller) {
+        signal?.addEventListener(
+          'abort',
+          () => {
+            const e = new Error('The operation was aborted')
+            e.name = 'AbortError'
+            controller.error(e)
+          },
+          { once: true }
+        )
+      }
+    })
+
+  const stallingResponse = (init?: RequestInit, contentType = 'application/json') =>
+    new Response(stallingBody(init?.signal as AbortSignal | undefined), {
+      status: 200,
+      headers: { 'Content-Type': contentType }
+    })
+
+  it('bounds a listing whose body never arrives', async () => {
+    const doFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => stallingResponse(init))
+    const promise = listWorkflows('http://localhost:8188', undefined, { fetch: doFetch as never }).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(LIST_TIMEOUT_MS)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(PaintingGenerateError)
+    expect((error as PaintingGenerateError).code).toBe('REMOTE_ERROR')
+    expect((error as Error).message).toContain('request_timeout')
+  })
+
+  it('bounds a submit whose /prompt body never arrives', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      if (url.endsWith('/prompt')) return stallingResponse(init)
+      return respond(workflow)
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+    const promise = transport.submit(submitInput as never).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(SUBMIT_TIMEOUT_MS)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(PaintingGenerateError)
+    expect((error as PaintingGenerateError).code).toBe('REMOTE_ERROR')
+    expect((error as Error).message).toContain('request_timeout')
   })
 })
 
@@ -597,7 +674,10 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('pid-1')
 
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }])
+    expect(collectPosts(doFetch)).toEqual([
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
+    ])
   })
 
   // ------------------------------------------------------------------
@@ -610,7 +690,9 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('pid-1')
 
-    expect(collectPosts(doFetch)).toEqual([])
+    // The id-scoped dequeue is still sent — it is the only cancellation these
+    // servers offer that cannot touch an unrelated prompt.
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   // ------------------------------------------------------------------
@@ -628,13 +710,16 @@ describe('cancel (capability-based)', () => {
   // ------------------------------------------------------------------
   // Test 4 — already finished
   // ------------------------------------------------------------------
-  it('is a no-op when the prompt is not in the queue', async () => {
+  it('still dequeues by id when the prompt is not in the queue', async () => {
     const doFetch = createCapsFetch('0.3.57', [[1, 'other', {}, {}, []]], [])
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await transport.cancel('pid-1')
 
-    expect(collectPosts(doFetch)).toEqual([])
+    expect(collectPosts(doFetch)).toEqual([
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
+    ])
   })
 
   // ------------------------------------------------------------------
@@ -655,7 +740,10 @@ describe('cancel (capability-based)', () => {
     // Client still sends the interrupt request, but the server (v0.3.57)
     // will re-check the running set and skip it because A is no longer
     // executing.  The client cannot know this race in advance.
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/interrupt', body: { prompt_id: 'A' } }])
+    expect(collectPosts(doFetch)).toEqual([
+      { url: 'http://localhost:8188/queue', body: { delete: ['A'] } },
+      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'A' } }
+    ])
   })
 
   // ------------------------------------------------------------------
@@ -679,8 +767,9 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('A')
 
-    // Zero /interrupt POSTs → B cannot be killed by a global interrupt.
-    expect(collectPosts(doFetch)).toEqual([])
+    // Zero /interrupt POSTs → B cannot be killed by a global interrupt. Only
+    // the id-scoped dequeue for A goes out.
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['A'] } }])
     // Verify the race actually occurred: state changed from A to B.
     expect(getCurrentState()).toEqual([[2, 'B', {}, {}, []]])
   })
@@ -726,7 +815,13 @@ describe('cancel (capability-based)', () => {
     await transport.cancel('pid-1') // probes again, succeeds → interrupt is sent
 
     expect(statsCalls).toBe(2)
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }])
+    // First cancel: probe failed → dequeue only. Second: the retry succeeds →
+    // dequeue *and* interrupt.
+    expect(collectPosts(doFetch)).toEqual([
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
+    ])
   })
 
   // ------------------------------------------------------------------
@@ -741,8 +836,9 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('pid-1')
 
-    // The server is unknown → fail closed (no interrupt sent).
-    expect(collectPosts(doFetch)).toEqual([])
+    // The server is unknown → fail closed for the interrupt, which would be a
+    // global kill there. The id-scoped dequeue is still sent.
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   // ------------------------------------------------------------------
@@ -754,7 +850,8 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('pid-1')
 
-    expect(collectPosts(doFetch)).toEqual([])
+    // No interrupt (fail closed), but the id-scoped dequeue still goes out.
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   it('fails closed for a dev version (0.3.58-dev)', async () => {
@@ -763,7 +860,8 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('pid-1')
 
-    expect(collectPosts(doFetch)).toEqual([])
+    // No interrupt (fail closed), but the id-scoped dequeue still goes out.
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   it('fails closed for a version with build metadata (0.3.57+build)', async () => {
@@ -772,7 +870,8 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('pid-1')
 
-    expect(collectPosts(doFetch)).toEqual([])
+    // No interrupt (fail closed), but the id-scoped dequeue still goes out.
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   it('fails closed when /system_stats returns valid JSON but missing the version field', async () => {
@@ -784,7 +883,8 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('pid-1')
 
-    expect(collectPosts(doFetch)).toEqual([])
+    // No interrupt (fail closed), but the id-scoped dequeue still goes out.
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   it('fails closed when /system_stats returns invalid JSON', async () => {
@@ -797,6 +897,7 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('pid-1')
 
-    expect(collectPosts(doFetch)).toEqual([])
+    // No interrupt (fail closed), but the id-scoped dequeue still goes out.
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 })

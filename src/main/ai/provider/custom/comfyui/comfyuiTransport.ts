@@ -37,6 +37,10 @@ const POLL_INTERVAL_MS = 1500
 const POLL_TIMEOUT_MS = 10 * 60 * 1000
 const IMAGE_TIMEOUT_MS = 60 * 1000
 const CAPABILITY_TIMEOUT_MS = 5000
+/** Reading a listing. Small body, but a large install can be slow to enumerate. */
+const LIST_TIMEOUT_MS = 30 * 1000
+/** `/object_info` and the `/prompt` submit on an install with many custom nodes. */
+const SUBMIT_TIMEOUT_MS = 60 * 1000
 
 /** Minimum ComfyUI version where `/interrupt` honours `prompt_id`.
  *  Upstream: commit 464ba1d6 (#9607), first shipped in v0.3.57.
@@ -139,16 +143,35 @@ async function requestJson<T>(
   url: string,
   fallback: string,
   signal?: AbortSignal,
-  options: ComfyuiRequestOptions = {}
+  options: ComfyuiRequestOptions = {},
+  timeoutMs: number = LIST_TIMEOUT_MS
 ): Promise<T> {
   const doFetch = options.fetch ?? fetch
-  const response = await doFetch(url, { signal, headers: options.headers })
-  if (!response.ok) {
-    throw createPaintingGenerateError('REMOTE_ERROR', {
-      message: await readErrorMessage(response, fallback)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), Math.max(0, timeoutMs))
+  const timeoutMessage = t('paintings.comfyui.request_timeout', { seconds: timeoutMs / 1000 })
+  try {
+    const response = await doFetch(url, {
+      signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
+      headers: options.headers
     })
+    if (!response.ok) {
+      // Inside the deadline: the error body is a read like any other.
+      throw createPaintingGenerateError('REMOTE_ERROR', {
+        message: await readErrorMessage(response, fallback)
+      })
+    }
+    return (await response.json()) as T
+  } catch (error) {
+    // Only this request's own budget produces a timeout message; a caller
+    // cancellation or a network error is rethrown untouched.
+    if (controller.signal.aborted && !signal?.aborted) {
+      throw createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
   }
-  return (await response.json()) as T
 }
 
 /**
@@ -207,13 +230,15 @@ class ComfyuiTransport implements ImageGenerationTransport {
         `${this.baseURL}/userdata/${encodeURIComponent(workflowPath)}`,
         t('paintings.comfyui.request_failed'),
         input.signal,
-        requestOptions
+        requestOptions,
+        SUBMIT_TIMEOUT_MS
       ),
       requestJson<ObjectInfo>(
         `${this.baseURL}/object_info`,
         t('paintings.comfyui.request_failed'),
         input.signal,
-        requestOptions
+        requestOptions,
+        SUBMIT_TIMEOUT_MS
       )
     ])
 
@@ -229,16 +254,29 @@ class ComfyuiTransport implements ImageGenerationTransport {
     graph[target.nodeId].inputs[target.input] = input.prompt ?? ''
     applySeed(graph, input.seed, target.samplerId)
 
-    const response = await this.doFetch(`${this.baseURL}/prompt`, {
-      method: 'POST',
-      headers: { ...this.headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: graph, client_id: `cherry-studio-${Date.now()}` }),
-      signal: input.signal
-    })
-    if (!response.ok) {
-      throw createPaintingGenerateError('REMOTE_ERROR', { message: await describePromptError(response) })
-    }
-    const { prompt_id: promptId } = (await response.json()) as { prompt_id?: string }
+    // The submit and the body it answers with share one deadline: a server that
+    // buffers a large graph can take a while to answer, but a body that never
+    // arrives must not hold the generation.
+    const promptId = await this.withDeadline(
+      input.signal,
+      SUBMIT_TIMEOUT_MS,
+      t('paintings.comfyui.request_timeout', { seconds: SUBMIT_TIMEOUT_MS / 1000 }),
+      async (deadlineSignal) => {
+        const response = await this.doFetch(`${this.baseURL}/prompt`, {
+          method: 'POST',
+          headers: { ...this.headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: graph, client_id: `cherry-studio-${Date.now()}` }),
+          signal: deadlineSignal
+        })
+        if (!response.ok) {
+          throw createPaintingGenerateError('REMOTE_ERROR', {
+            message: await describePromptError(response)
+          })
+        }
+        const { prompt_id } = (await response.json()) as { prompt_id?: string }
+        return prompt_id
+      }
+    )
     if (!promptId) {
       throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.no_prompt_id') })
     }
@@ -318,33 +356,38 @@ class ComfyuiTransport implements ImageGenerationTransport {
     if (this.capabilitiesPromise) return this.capabilitiesPromise
 
     this.capabilitiesPromise = (async () => {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), CAPABILITY_TIMEOUT_MS)
       try {
-        const response = await this.doFetch(`${this.baseURL}/system_stats`, {
-          headers: this.headers,
-          signal: controller.signal
-        })
-        if (!response.ok) {
-          // A non-OK probe is transient in practice — the server may be starting
-          // up or restarting — so it is not cached either: caching it would
-          // disable targeted cancellation for the rest of this transport's life.
-          this.capabilitiesPromise = undefined
-          return { targetedInterrupt: false }
-        }
-        const stats = (await response.json()) as Record<string, unknown>
-        const verStr = (stats.system as Record<string, unknown>)?.comfyui_version as string | undefined
-        if (!verStr) return { targetedInterrupt: false }
+        return await this.withDeadline(
+          undefined,
+          CAPABILITY_TIMEOUT_MS,
+          t('paintings.comfyui.request_timeout', { seconds: CAPABILITY_TIMEOUT_MS / 1000 }),
+          async (deadlineSignal) => {
+            const response = await this.doFetch(`${this.baseURL}/system_stats`, {
+              headers: this.headers,
+              signal: deadlineSignal
+            })
+            if (!response.ok) {
+              // A non-OK probe is transient in practice — the server may be
+              // starting up or restarting — so it is not cached either: caching
+              // it would disable targeted cancellation for the rest of this
+              // transport's life.
+              throw new Error(`ComfyUI /system_stats answered ${response.status}`)
+            }
+            const stats = (await response.json()) as Record<string, unknown>
+            const verStr = (stats.system as Record<string, unknown>)?.comfyui_version as string | undefined
+            if (!verStr) return { targetedInterrupt: false }
 
-        const ver = parseVersion(verStr)
-        return { targetedInterrupt: ver ? isAtLeastVersion(ver, MIN_TARGETED_INTERRUPT_VERSION) : false }
+            const ver = parseVersion(verStr)
+            return {
+              targetedInterrupt: ver ? isAtLeastVersion(ver, MIN_TARGETED_INTERRUPT_VERSION) : false
+            }
+          }
+        )
       } catch {
         // Any failure — timeout, network error, JSON parse — is NOT cached.
         // Clear so the next cancel() retries instead of reusing a stale false.
         this.capabilitiesPromise = undefined
         return { targetedInterrupt: false }
-      } finally {
-        clearTimeout(timer)
       }
     })()
 
@@ -370,50 +413,49 @@ class ComfyuiTransport implements ImageGenerationTransport {
    * [...]}` is inherently id-scoped and unaffected by the race.
    */
   async cancel(taskId: string): Promise<void> {
-    const action = await this.cancelAction(taskId)
     const headers = { ...this.headers, 'Content-Type': 'application/json' }
+    // The queue snapshot informs the log, it does not gate the writes: both are
+    // id-scoped, so neither needs proof that the prompt is still queued.
+    // `POST /queue {"delete": [id]}` is a no-op for an unknown id, and the
+    // interrupt is only sent when the server scopes it to `prompt_id`. Gating on
+    // a successful read made Cancel a silent no-op whenever that one GET timed
+    // out or 503'd, while ComfyUI kept the graph on the GPU.
+    const snapshot = await this.cancelAction(taskId)
+    const promises: Promise<unknown>[] = [
+      // Dequeue (safe even if the prompt already moved to running).
+      this.doFetch(`${this.baseURL}/queue`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ delete: [taskId] })
+      }).catch(() => undefined)
+    ]
 
-    // TOCTOU safety: between reading the queue snapshot and acting on it a
-    // pending prompt can start running.  When the snapshot says 'pending' we
-    // send *both* the queue-delete (idempotent — harmless if already removed)
-    // and the interrupt (scoped to `prompt_id` — only touches this prompt if
-    // it has since started).  This closes the race window without risking a
-    // global kill on older servers, because the interrupt path is still gated
-    // on `targetedInterrupt`.
-    //
+    // Interrupt if the server supports prompt_id-scoped cancellation. The
+    // snapshot cannot close this race on its own: a prompt that reads as
+    // 'pending' can start running before the dequeue lands, and one that reads
+    // as 'running' is exactly what the interrupt is for.
+    const caps = await this.getCancelCapabilities()
+    if (caps.targetedInterrupt) {
+      promises.push(
+        this.doFetch(`${this.baseURL}/interrupt`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ prompt_id: taskId })
+        }).catch(() => undefined)
+      )
+    } else {
+      // Pre-0.3.57: `/interrupt` ignores `prompt_id` and stops whatever is
+      // running, so it is never sent. The id-scoped dequeue above is the only
+      // safe cancellation these servers offer.
+      logger.warn(
+        `ComfyUI ${this.baseURL} cannot interrupt a single prompt (needs v0.3.57+); ` +
+          `queued prompt ${taskId} was removed but a running one keeps going`
+      )
+    }
     // Both requests are fired in parallel so a stalled queue-delete cannot
     // prevent the interrupt from reaching the server.
-    if (action === 'running' || action === 'pending') {
-      const promises: Promise<unknown>[] = []
-
-      // Dequeue (safe even if the prompt already moved to running).
-      if (action === 'pending') {
-        promises.push(
-          this.doFetch(`${this.baseURL}/queue`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ delete: [taskId] })
-          }).catch(() => undefined)
-        )
-      }
-
-      // Interrupt if the server supports prompt_id-scoped cancellation.
-      const caps = await this.getCancelCapabilities()
-      if (caps.targetedInterrupt) {
-        promises.push(
-          this.doFetch(`${this.baseURL}/interrupt`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ prompt_id: taskId })
-          }).catch(() => undefined)
-        )
-      }
-      // otherwise on a pre-0.3.57 server: intentionally no-op for the
-      // interrupt path.  The queue-delete is still sent (it is id-scoped
-      // and safe), but we must not issue a global /interrupt.
-
-      await Promise.all(promises)
-    }
+    await Promise.all(promises)
+    logger.debug(`ComfyUI cancel for ${taskId}: queue snapshot said '${snapshot}'`)
   }
 
   /**
@@ -451,25 +493,25 @@ class ComfyuiTransport implements ImageGenerationTransport {
   }
 
   /**
-   * GET `url`, bounded by `timeoutMs` and combined with the caller's signal.
-   * When this request's own deadline fires the failure is structured, with
-   * `timeoutMessage`; every other rejection — the caller's cancellation, a
-   * network error — is rethrown untouched, so a caller that needs to tell the
-   * two apart can still inspect its own signal.
+   * Run one exchange under an absolute deadline, combined with the caller's
+   * signal, and report this request's own timeout as a structured failure.
+   *
+   * `run` receives the combined signal, so everything it awaits — the fetch, the
+   * body read, a second read of an error body — is bounded by the same budget
+   * and is actually aborted when it fires. Racing a read without aborting it,
+   * which is what a bare `Promise.race` does, leaves the response buffering
+   * behind the failure.
    */
-  private async fetchWithDeadline(
-    url: string,
+  private async withDeadline<T>(
     signal: AbortSignal | undefined,
     timeoutMs: number,
-    timeoutMessage: string
-  ): Promise<Response> {
+    timeoutMessage: string,
+    run: (deadlineSignal: AbortSignal) => Promise<T>
+  ): Promise<T> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), Math.max(0, timeoutMs))
     try {
-      return await this.doFetch(url, {
-        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
-        headers: this.headers
-      })
+      return await run(signal ? AbortSignal.any([signal, controller.signal]) : controller.signal)
     } catch (error) {
       // The combined signal aborts for the caller's cancellation AND for this
       // request's own budget; only the latter is a deadline failure.
@@ -480,25 +522,6 @@ class ComfyuiTransport implements ImageGenerationTransport {
     } finally {
       clearTimeout(timer)
     }
-  }
-
-  /**
-   * Wrap a read operation (e.g. `response.arrayBuffer()`) with a timeout.
-   * If the timeout fires the failure is a structured `REMOTE_ERROR`; an
-   * `AbortError` that comes from the caller's own signal is rethrown
-   * untouched so user cancellation is never confused with a timeout.
-   */
-  private async readWithTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
-    let timer: ReturnType<typeof setTimeout>
-    return Promise.race([
-      promise.finally(() => clearTimeout(timer)),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })),
-          timeoutMs
-        )
-      })
-    ])
   }
 
   /**
@@ -513,31 +536,31 @@ class ComfyuiTransport implements ImageGenerationTransport {
     signal: AbortSignal | undefined,
     remainingMs: number
   ): Promise<Record<string, HistoryEntry>> {
-    const response = await this.fetchWithDeadline(
-      `${this.baseURL}/history/${taskId}`,
+    // The error path (readErrorMessage → response.text()) and the success path
+    // (response.json()) share the poll's remaining budget, and the deadline
+    // aborts the body read rather than only racing it: a server that returns
+    // headers and then stalls the body would otherwise leave the read pending
+    // behind the failure.
+    return this.withDeadline(
       signal,
       remainingMs,
-      t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
-    )
-    // Both the error path (readErrorMessage → response.text()) and the
-    // success path (response.json()) must be bounded by the remaining poll
-    // budget.  fetchWithDeadline only covers the HTTP exchange (headers);
-    // after the timer is cleared a stalled body can hang indefinitely.
-    // readWithTimeout reuses the remaining deadline for both paths.
-    const timeoutMsg = t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
-    if (!response.ok) {
-      const message = await this.readWithTimeout(
-        readErrorMessage(response, t('paintings.comfyui.request_failed')),
-        remainingMs,
-        timeoutMsg
-      )
-      if (isTerminalHttpStatus(response.status)) {
-        throw createPaintingGenerateError('REMOTE_ERROR', { message })
+      t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 }),
+      async (deadlineSignal) => {
+        const response = await this.doFetch(`${this.baseURL}/history/${taskId}`, {
+          headers: this.headers,
+          signal: deadlineSignal
+        })
+        if (!response.ok) {
+          const message = await readErrorMessage(response, t('paintings.comfyui.request_failed'))
+          if (isTerminalHttpStatus(response.status)) {
+            throw createPaintingGenerateError('REMOTE_ERROR', { message })
+          }
+          // A plain error, not a structured one: the poll loop retries it.
+          throw new Error(message)
+        }
+        return (await response.json()) as Record<string, HistoryEntry>
       }
-      // A plain error, not a structured one: the poll loop retries it.
-      throw new Error(message)
-    }
-    return this.readWithTimeout(response.json() as Promise<Record<string, HistoryEntry>>, remainingMs, timeoutMsg)
+    )
   }
 
   /** The AI SDK downloads returned URLs itself, so hand back inline data. */
@@ -550,13 +573,28 @@ class ComfyuiTransport implements ImageGenerationTransport {
       subfolder: image.subfolder ?? '',
       type: image.type ?? 'output'
     })
-    let response: Response
     try {
-      response = await this.fetchWithDeadline(
-        `${this.baseURL}/view?${query}`,
+      // One budget covers the headers, the error body and the image bytes: the
+      // deadline aborts the read, so a `/view` that answers and then stalls
+      // cannot hold the download (or the poll that awaits it).
+      return await this.withDeadline(
         signal,
         IMAGE_TIMEOUT_MS,
-        t('paintings.comfyui.image_download_timeout', { seconds: IMAGE_TIMEOUT_MS / 1000 })
+        t('paintings.comfyui.image_download_timeout', { seconds: IMAGE_TIMEOUT_MS / 1000 }),
+        async (deadlineSignal) => {
+          const response = await this.doFetch(`${this.baseURL}/view?${query}`, {
+            headers: this.headers,
+            signal: deadlineSignal
+          })
+          if (!response.ok) {
+            throw createPaintingGenerateError('REMOTE_ERROR', {
+              message: await readErrorMessage(response, t('paintings.comfyui.image_fetch_failed'))
+            })
+          }
+          const buffer = Buffer.from(await response.arrayBuffer())
+          const contentType = response.headers.get('content-type') || 'image/png'
+          return `data:${contentType};base64,${buffer.toString('base64')}`
+        }
       )
     } catch (error) {
       // The helper already reported this download's own timeout as a structured
@@ -567,20 +605,6 @@ class ComfyuiTransport implements ImageGenerationTransport {
       }
       throw error
     }
-    if (!response.ok) {
-      throw createPaintingGenerateError('REMOTE_ERROR', {
-        message: await readErrorMessage(response, t('paintings.comfyui.image_fetch_failed'))
-      })
-    }
-    const buffer = Buffer.from(
-      await this.readWithTimeout(
-        response.arrayBuffer(),
-        IMAGE_TIMEOUT_MS,
-        t('paintings.comfyui.image_fetch_timeout', { seconds: IMAGE_TIMEOUT_MS / 1000 })
-      )
-    )
-    const contentType = response.headers.get('content-type') || 'image/png'
-    return `data:${contentType};base64,${buffer.toString('base64')}`
   }
 }
 
