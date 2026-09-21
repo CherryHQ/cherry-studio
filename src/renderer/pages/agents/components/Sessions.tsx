@@ -638,6 +638,7 @@ const Sessions = ({
     isRefreshing: isWorkspacesRefreshing,
     refetch: refetchWorkspaces
   } = useQuery('/agent-workspaces', { enabled: displayMode === 'workdir' })
+  useDataChange(displayMode === 'workdir' ? '/agent-workspaces' : [], () => void refetchWorkspaces())
   const workspaceRows = workspaces ?? EMPTY_WORKSPACE_ROWS
   const isWorkdirMetadataLoading = displayMode === 'workdir' && isWorkspacesLoading
   const isWorkdirMetadataRefreshing = displayMode === 'workdir' && isWorkspacesRefreshing

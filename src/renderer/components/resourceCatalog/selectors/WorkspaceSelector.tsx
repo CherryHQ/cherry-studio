@@ -12,7 +12,7 @@ import {
   type SelectorShellMountStrategy,
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -72,6 +72,7 @@ export function WorkspaceSelector({
   const listRef = useRef<HTMLDivElement>(null)
 
   const { data: workspaces, isLoading, refetch } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetch())
   const { trigger: createWorkspace, isLoading: isCreatingWorkspace } = useMutation('POST', '/agent-workspaces', {
     refresh: ['/agent-workspaces']
   })

@@ -295,8 +295,8 @@
       "metadata": {
         "website": {
           "apiKey": "https://platform.deepseek.com/api_keys",
-          "docs": "https://platform.deepseek.com/api-docs/",
-          "models": "https://platform.deepseek.com/api-docs/",
+          "docs": "https://api-docs.deepseek.com/",
+          "models": "https://api-docs.deepseek.com/",
           "official": "https://deepseek.com/"
         }
       },
@@ -508,7 +508,8 @@
           "official": "https://ppio.com/"
         }
       },
-      "name": "PPIO"
+      "name": "PPIO",
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -1445,7 +1446,8 @@
           "modelScope": "model-dependent",
           "vendors": ["gemini"]
         }
-      ]
+      ],
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global"],
@@ -1961,7 +1963,8 @@
           "official": "https://fireworks.ai/"
         }
       },
-      "name": "Fireworks"
+      "name": "Fireworks",
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global"],
@@ -2633,5 +2636,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "2435ad1032e8114c"
+  "version": "2707d81b155c6c98"
 }
