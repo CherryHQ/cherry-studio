@@ -267,22 +267,30 @@ describe('api gateway model listing', () => {
       ])
       mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) =>
         providerId === CHERRY_CLOUD_PROVIDER_ID
-          ? mocks.syncEntitledModelsIfStale.mock.calls.length > 0
-            ? [cloudModel]
-            : []
+          ? [cloudModel]
           : [{ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', ownedBy: 'OpenAI', capabilities: [] }]
       )
       mocks.getProvider.mockReturnValue({ id: CHERRY_CLOUD_PROVIDER_ID, name: 'CherryAI', isEnabled: true })
     })
 
-    it('keeps Cherry Cloud out of the public gateway and refreshes permissions for Work requests', async () => {
-      mocks.availableCloudModelIds.agent.add(cloudModel.id)
+    it('keeps listed Cherry Cloud models out of the public gateway', async () => {
       const response = await getModels()
       expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
 
       await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`)).rejects.toThrow(
         'not available through the API gateway'
       )
+      expect(mocks.syncEntitledModelsIfStale).not.toHaveBeenCalled()
+    })
+
+    it('refreshes permissions before loading Cherry Cloud models for Work requests', async () => {
+      mocks.availableCloudModelIds.agent.add(cloudModel.id)
+      mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) =>
+        providerId === CHERRY_CLOUD_PROVIDER_ID && mocks.syncEntitledModelsIfStale.mock.calls.length > 0
+          ? [cloudModel]
+          : []
+      )
+
       await expect(
         resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, true)
       ).resolves.toMatchObject({
@@ -291,14 +299,13 @@ describe('api gateway model listing', () => {
       expect(mocks.syncEntitledModelsIfStale).toHaveBeenCalledOnce()
     })
 
-    it('does not treat conversation availability as Code Mate availability', async () => {
+    it('does not treat conversation availability as Work availability', async () => {
       mocks.availableCloudModelIds.chat.add(cloudModel.id)
 
-      const response = await getModels()
-      expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
-      await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`)).rejects.toThrow(
+      await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, true)).rejects.toThrow(
         'not available through the API gateway'
       )
+      expect(mocks.syncEntitledModelsIfStale).toHaveBeenCalledOnce()
     })
   })
 })
