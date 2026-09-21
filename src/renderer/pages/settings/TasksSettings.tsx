@@ -97,7 +97,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import {
   useAllTasks,
@@ -963,7 +963,8 @@ const TaskDetail: FC<{
   const hasUndeliverableChannel = selectedChannels.some((channel) => !channel.hasActiveChatIds)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const { data: workspaces } = useQuery('/agent-workspaces')
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
   const workspaceId = task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
   const workspaceLabel =
@@ -1200,7 +1201,8 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
   const wasOpenRef = useRef(false)
   const initialDraftRef = useRef<TaskDraftSnapshot | null>(null)
-  const { data: workspaces } = useQuery('/agent-workspaces')
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {

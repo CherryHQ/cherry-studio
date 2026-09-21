@@ -214,13 +214,13 @@ export async function syncHeartbeatSchedule(
   }
 
   const changedWorkspaceIds: string[] = []
-  for (const row of rows) {
-    if (!matchesHeartbeatIdentity(row, agentId)) continue
-    application.get('DbService').withWriteTx((tx) => {
+  application.get('DbService').withWriteTx((tx) => {
+    for (const row of rows) {
+      if (!matchesHeartbeatIdentity(row, agentId)) continue
       const current = jobScheduleService.getByIdTx(tx, row.id)
-      if (!current || !matchesHeartbeatIdentity(current, agentId)) return
+      if (!current || !matchesHeartbeatIdentity(current, agentId)) continue
       const input = current.jobInputTemplate as Record<string, unknown>
-      if (!Object.hasOwn(input, 'workspace')) return
+      if (!Object.hasOwn(input, 'workspace')) continue
       const { workspace, ...template } = input
       application.get('JobManager').updateJobScheduleTx(tx, current.id, { jobInputTemplate: template })
       const source = AgentSessionWorkspaceSourceSchema.safeParse(workspace)
@@ -230,8 +230,8 @@ export async function syncHeartbeatSchedule(
         changedWorkspaceIds.push(source.data.workspaceId)
       }
       touchedScheduleIds.push(current.id)
-    })
-  }
+    }
+  })
   if (changedWorkspaceIds.length > 0) {
     notifyDataApiDataChange([{ endpoint: '/agent-workspaces', kind: 'membership', entityIds: changedWorkspaceIds }])
   }

@@ -1336,6 +1336,37 @@ describe('heartbeatSchedule', () => {
     )
   })
 
+  it('rolls back every legacy binding when a later cleanup fails', async () => {
+    seedAgent(AGENT_ID)
+    const workspace = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, AGENT_ID))
+    const input = { agentId: AGENT_ID, prompt: '__heartbeat__', workspace: { type: 'user', workspaceId: workspace.id } }
+    const rows = ['first', 'second'].map((name) =>
+      jobScheduleService.create({
+        type: 'agent.task',
+        name,
+        trigger: { kind: 'interval', ms: 60000 },
+        jobInputTemplate: input,
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+    )
+    const original = agentWorkspaceService.deleteIfUnreferencedTx.bind(agentWorkspaceService)
+    const failure = vi
+      .spyOn(agentWorkspaceService, 'deleteIfUnreferencedTx')
+      .mockImplementationOnce(original)
+      .mockImplementationOnce(() => {
+        throw new Error('cleanup failed')
+      })
+    notifyDataApiDataChangeMock.mockClear()
+    try {
+      await expect(syncHeartbeatSchedule(AGENT_ID, rows)).rejects.toThrow('cleanup failed')
+      for (const row of rows) expect(jobScheduleService.getById(row.id)?.jobInputTemplate).toEqual(input)
+      expect(agentWorkspaceService.getById(workspace.id).id).toBe(workspace.id)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    } finally {
+      failure.mockRestore()
+    }
+  })
+
   it('hides an old background-only workspace without deleting its session', async () => {
     seedAgent(AGENT_ID)
     await syncHeartbeatSchedule(AGENT_ID)

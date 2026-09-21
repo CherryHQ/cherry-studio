@@ -272,6 +272,7 @@ export class AgentJobsService extends BaseService {
       }
       return created
     })
+    agentTaskService.notifyReadModelChange([id], 'membership')
     jobManager.syncJobScheduleTimerById(id)
 
     const entity = agentTaskService.getTask(agentId, id)
@@ -352,10 +353,11 @@ export class AgentJobsService extends BaseService {
         agentChannelService.replaceTaskSubscriptionsTx(tx, taskId, patch.channelIds)
       }
     })
+    if (reuseConfigChanged || bindingCleared || patch.workspace !== undefined)
+      agentTaskService.notifyReadModelChange([taskId])
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }
-    if (reuseConfigChanged || bindingCleared) agentTaskService.notifyReadModelChange([taskId])
 
     logger.info('Task updated', { taskId, agentId })
     return this.getActiveTask(agentId, taskId)
@@ -392,7 +394,10 @@ export class AgentJobsService extends BaseService {
     // Channel subscriptions cascade via the agentChannelTaskTable FK; historical
     // jobs keep their rows with scheduleId set NULL (ON DELETE SET NULL).
     const deleted = await application.get('JobManager').unregisterJobScheduleById(taskId)
-    if (deleted) logger.info('Task deleted', { taskId, agentId })
+    if (deleted) {
+      agentTaskService.notifyReadModelChange([taskId], 'membership')
+      logger.info('Task deleted', { taskId, agentId })
+    }
     return deleted
   }
 
