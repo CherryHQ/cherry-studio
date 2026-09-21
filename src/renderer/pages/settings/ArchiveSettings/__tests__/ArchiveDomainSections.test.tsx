@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -9,11 +10,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { dataApiService } from '@renderer/data/DataApiService'
+import type * as DataApiHooks from '@renderer/data/hooks/useDataApi'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 
-import type { PendingPermanentDelete } from '../TrashSection'
+import type { PendingPermanentDelete } from '../ArchiveSection'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
@@ -21,13 +23,12 @@ const mocks = vi.hoisted(() => ({
   pagesByPath: new Map<string, Array<{ items: unknown[]; nextCursor?: string }>>(),
   paginatedItemsByPath: new Map<string, unknown[]>(),
   mutate: vi.fn(),
-  mutationOptions: new Map<string, { refresh?: (context: { args?: any }) => string[] }>(),
   refresh: vi.fn().mockResolvedValue(undefined),
   invalidate: vi.fn().mockResolvedValue(undefined),
   ipcRequest: vi.fn()
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
   useInfiniteQuery: (path: string) => ({
     pages: mocks.pagesByPath.get(path) ?? [],
     isLoading: false,
@@ -50,12 +51,12 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
     prevPage: vi.fn(),
     refresh: mocks.refresh
   }),
-  useDataChange: vi.fn(),
+  useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
   useInvalidateCache: () => mocks.invalidate,
-  useMutation: (method: string, path: string, options?: { refresh?: (context: { args?: any }) => string[] }) => {
-    mocks.mutationOptions.set(`${method} ${path}`, options ?? {})
-    return { trigger: (args?: unknown) => mocks.mutate(method, path, args) }
-  }
+  useWriteCache: (await vi.importActual<typeof DataApiHooks>('@renderer/data/hooks/useDataApi')).useWriteCache,
+  useMutation: (method: string, path: string) => ({
+    trigger: (args?: unknown) => mocks.mutate(method, path, args)
+  })
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -63,13 +64,13 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 const {
-  AgentTrashSection,
-  AssistantTrashSection,
-  FileTrashSection,
-  PaintingTrashSection,
-  SessionTrashSection,
-  TopicTrashSection
-} = await import('../TrashDomainSections')
+  AgentArchiveSection,
+  AssistantArchiveSection,
+  FileArchiveSection,
+  PaintingArchiveSection,
+  SessionArchiveSection,
+  TopicArchiveSection
+} = await import('../ArchiveDomainSections')
 
 function deletedTopic(id: string, name: string) {
   return { id, name, deletedAt: '2026-08-01T00:00:00.000Z' }
@@ -104,7 +105,7 @@ interface DataDomainCase {
 const dataDomainCases: DataDomainCase[] = [
   {
     label: 'Topic',
-    Component: TopicTrashSection,
+    Component: TopicArchiveSection,
     listPath: '/topics',
     deletePath: '/topics/:id',
     paginated: false,
@@ -112,7 +113,7 @@ const dataDomainCases: DataDomainCase[] = [
   },
   {
     label: 'Assistant',
-    Component: AssistantTrashSection,
+    Component: AssistantArchiveSection,
     listPath: '/assistants',
     deletePath: '/assistants/:id',
     paginated: true,
@@ -120,7 +121,7 @@ const dataDomainCases: DataDomainCase[] = [
   },
   {
     label: 'Painting',
-    Component: PaintingTrashSection,
+    Component: PaintingArchiveSection,
     listPath: '/paintings',
     deletePath: '/paintings/:id',
     paginated: false,
@@ -155,27 +156,27 @@ afterEach(() => {
 beforeEach(async () => {
   await i18n.changeLanguage('en-US')
   MockUsePreferenceUtils.resetMocks()
+  MockDataApiUtils.resetMocks()
   mocks.pagesByPath.clear()
   mocks.paginatedItemsByPath.clear()
   mocks.mutate.mockReset().mockResolvedValue(undefined)
-  mocks.mutationOptions.clear()
   mocks.refresh.mockReset().mockResolvedValue(undefined)
   mocks.invalidate.mockReset().mockResolvedValue(undefined)
   mocks.ipcRequest.mockReset()
   vi.mocked(dataApiService.get).mockReset()
 })
 
-describe('Trash domain batch adapters', () => {
+describe('Archive domain batch adapters', () => {
   it.each([
     {
       path: '/assistants',
-      Component: AssistantTrashSection,
+      Component: AssistantArchiveSection,
       preference: 'assistant.icon_type',
       fields: { emoji: '🔭' }
     },
     {
       path: '/agents',
-      Component: AgentTrashSection,
+      Component: AgentArchiveSection,
       preference: 'agent.icon_type',
       fields: { configuration: { avatar: '🔭' } }
     }
@@ -208,7 +209,7 @@ describe('Trash domain batch adapters', () => {
 
     render(
       <SWRConfig value={{ provider: () => new Map() }}>
-        <PaintingTrashSection
+        <PaintingArchiveSection
           retentionDays={30}
           isBatchMode={false}
           isPermanentDeleting={false}
@@ -240,7 +241,7 @@ describe('Trash domain batch adapters', () => {
 
     render(
       <SWRConfig value={{ provider: () => new Map(), shouldRetryOnError: false }}>
-        <PaintingTrashSection
+        <PaintingArchiveSection
           retentionDays={30}
           isBatchMode={false}
           isPermanentDeleting={false}
@@ -260,28 +261,18 @@ describe('Trash domain batch adapters', () => {
     )
   })
 
-  it('refreshes only assistant resources when restoring an assistant', () => {
-    render(
-      <AssistantTrashSection
-        retentionDays={30}
-        isBatchMode={false}
-        isPermanentDeleting={false}
-        onRequestDelete={vi.fn()}
-      />
-    )
-
-    const refresh = mocks.mutationOptions.get('POST /assistants/:id/restore')?.refresh
-
-    expect(refresh?.({ args: { params: { id: 'assistant-1' } } })).toEqual(['/assistants', '/assistants/assistant-1'])
-  })
-
   it('restores an Agent through lifecycle IPC and refreshes its resources', async () => {
     const user = userEvent.setup()
     mocks.paginatedItemsByPath.set('/agents', [
       { id: 'agent-1', name: 'Agent one', deletedAt: '2026-08-01T00:00:00.000Z' }
     ])
     render(
-      <AgentTrashSection retentionDays={30} isBatchMode={false} isPermanentDeleting={false} onRequestDelete={vi.fn()} />
+      <AgentArchiveSection
+        retentionDays={30}
+        isBatchMode={false}
+        isPermanentDeleting={false}
+        onRequestDelete={vi.fn()}
+      />
     )
     await user.click(screen.getByRole('button', { name: 'Restore' }))
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.restore', { agentId: 'agent-1' }))
@@ -296,7 +287,7 @@ describe('Trash domain batch adapters', () => {
     mocks.ipcRequest.mockResolvedValue({ id: 'session-1' })
 
     render(
-      <SessionTrashSection
+      <SessionArchiveSection
         retentionDays={30}
         isBatchMode={false}
         isPermanentDeleting={false}
@@ -354,7 +345,7 @@ describe('Trash domain batch adapters', () => {
         failed: [
           {
             id: staleId,
-            error: 'No longer in the Recycle Bin. Refresh and try again.',
+            error: 'No longer in the Archive. Refresh and try again.',
             reason: 'no-longer-in-recycle-bin'
           },
           { id: failedId, error: 'permission denied' }
@@ -366,7 +357,7 @@ describe('Trash domain batch adapters', () => {
       expect(screen.getByRole('checkbox', { name: `Select Failed ${testCase.label}` })).toBeChecked()
       expect(toast.warning).toHaveBeenCalledOnce()
       expect(toast.warning).toHaveBeenCalledWith(
-        'Permanently deleted: 1; no longer in the Recycle Bin: 1; other failures: 1'
+        'Permanently deleted: 1; no longer in the Archive: 1; other failures: 1'
       )
       expect(toast.info).not.toHaveBeenCalled()
       expect(toast.error).not.toHaveBeenCalled()
@@ -406,7 +397,7 @@ describe('Trash domain batch adapters', () => {
         failed: [
           {
             id: staleId,
-            error: 'No longer in the Recycle Bin. Refresh and try again.',
+            error: 'No longer in the Archive. Refresh and try again.',
             reason: 'no-longer-in-recycle-bin'
           }
         ]
@@ -414,7 +405,7 @@ describe('Trash domain batch adapters', () => {
       expect(mocks.refresh).toHaveBeenCalledTimes(1)
       expect(screen.getByRole('checkbox', { name: `Select Stale ${testCase.label}` })).toBeChecked()
       expect(toast.info).toHaveBeenCalledOnce()
-      expect(toast.info).toHaveBeenCalledWith('No longer in the Recycle Bin. Refresh and try again.')
+      expect(toast.info).toHaveBeenCalledWith('No longer in the Archive. Refresh and try again.')
       expect(toast.warning).not.toHaveBeenCalled()
       expect(toast.error).not.toHaveBeenCalled()
       expect(toast.success).not.toHaveBeenCalled()
@@ -431,7 +422,7 @@ describe('Trash domain batch adapters', () => {
     })
     let pending: PendingPermanentDelete | undefined
     render(
-      <TopicTrashSection
+      <TopicArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}
@@ -447,9 +438,7 @@ describe('Trash domain batch adapters', () => {
 
     expect(screen.getByText('2 selected')).toBeInTheDocument()
     expect(toast.warning).toHaveBeenCalledOnce()
-    expect(toast.warning).toHaveBeenCalledWith(
-      'Permanently deleted: 0; no longer in the Recycle Bin: 2; other failures: 0'
-    )
+    expect(toast.warning).toHaveBeenCalledWith('Permanently deleted: 0; no longer in the Archive: 2; other failures: 0')
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
@@ -468,7 +457,7 @@ describe('Trash domain batch adapters', () => {
     })
     let pending: PendingPermanentDelete | undefined
     render(
-      <AgentTrashSection
+      <AgentArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}
@@ -492,7 +481,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: 'agent-2',
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         },
         { id: 'agent-3', error: 'agent failed' }
@@ -504,9 +493,7 @@ describe('Trash domain batch adapters', () => {
     expect(screen.getByRole('checkbox', { name: 'Select Second agent' })).toBeChecked()
     expect(screen.getByRole('checkbox', { name: 'Select Third agent' })).toBeChecked()
     expect(toast.warning).toHaveBeenCalledOnce()
-    expect(toast.warning).toHaveBeenCalledWith(
-      'Permanently deleted: 1; no longer in the Recycle Bin: 1; other failures: 1'
-    )
+    expect(toast.warning).toHaveBeenCalledWith('Permanently deleted: 1; no longer in the Archive: 1; other failures: 1')
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
@@ -529,7 +516,7 @@ describe('Trash domain batch adapters', () => {
     })
     let pending: PendingPermanentDelete | undefined
     render(
-      <SessionTrashSection
+      <SessionArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}
@@ -553,7 +540,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: 'session-2',
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         },
         { id: 'session-3', error: 'session failed' }
@@ -565,9 +552,7 @@ describe('Trash domain batch adapters', () => {
     expect(screen.getByRole('checkbox', { name: 'Select Second session' })).toBeChecked()
     expect(screen.getByRole('checkbox', { name: 'Select Third session' })).toBeChecked()
     expect(toast.warning).toHaveBeenCalledOnce()
-    expect(toast.warning).toHaveBeenCalledWith(
-      'Permanently deleted: 1; no longer in the Recycle Bin: 1; other failures: 1'
-    )
+    expect(toast.warning).toHaveBeenCalledWith('Permanently deleted: 1; no longer in the Archive: 1; other failures: 1')
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
@@ -576,7 +561,7 @@ describe('Trash domain batch adapters', () => {
   it.each([
     {
       label: 'Agent',
-      Component: AgentTrashSection,
+      Component: AgentArchiveSection,
       listPath: '/agents',
       record: { id: 'agent-stale', name: 'Stale agent', deletedAt: '2026-08-01T00:00:00.000Z' },
       request: ['ai.agent.delete', { agentId: 'agent-stale', deleteSessions: false, permanent: true }] as const,
@@ -586,7 +571,7 @@ describe('Trash domain batch adapters', () => {
     },
     {
       label: 'Session',
-      Component: SessionTrashSection,
+      Component: SessionArchiveSection,
       listPath: '/agent-sessions',
       record: { id: 'session-stale', name: 'Stale session', deletedAt: '2026-08-01T00:00:00.000Z' },
       request: ['ai.agent.session.delete', { sessionIds: ['session-stale'], permanent: true }] as const,
@@ -621,7 +606,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: testCase.record.id,
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         }
       ]
@@ -630,7 +615,7 @@ describe('Trash domain batch adapters', () => {
     expect(mocks.invalidate).toHaveBeenCalledWith(testCase.invalidatePaths)
     expect(screen.getByRole('checkbox', { name: testCase.checkboxName })).toBeChecked()
     expect(toast.info).toHaveBeenCalledOnce()
-    expect(toast.info).toHaveBeenCalledWith('No longer in the Recycle Bin. Refresh and try again.')
+    expect(toast.info).toHaveBeenCalledWith('No longer in the Archive. Refresh and try again.')
     expect(toast.warning).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
@@ -643,7 +628,7 @@ describe('Trash domain batch adapters', () => {
       if (method === 'POST') throw DataApiErrorFactory.notFound('Topic', 'topic-1')
     })
     vi.mocked(dataApiService.get).mockResolvedValueOnce(deletedTopic('topic-1', 'First topic'))
-    render(<TopicTrashSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+    render(<TopicArchiveSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
@@ -667,7 +652,7 @@ describe('Trash domain batch adapters', () => {
     vi.mocked(dataApiService.get).mockRejectedValue(DataApiErrorFactory.notFound('FileEntry', ids[500]))
     let pending: PendingPermanentDelete | undefined
     render(
-      <FileTrashSection
+      <FileArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}
@@ -694,7 +679,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: ids[500],
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         }
       ]
@@ -705,14 +690,14 @@ describe('Trash domain batch adapters', () => {
     expect(screen.getByRole('checkbox', { name: 'Select File 500.md' })).toBeChecked()
     expect(toast.warning).toHaveBeenCalledOnce()
     expect(toast.warning).toHaveBeenCalledWith(
-      'Permanently deleted: 500; no longer in the Recycle Bin: 1; other failures: 0'
+      'Permanently deleted: 500; no longer in the Archive: 1; other failures: 0'
     )
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('reports a single missing File permanent-delete failure as no longer in the Recycle Bin', async () => {
+  it('reports a single missing File permanent-delete failure as no longer in the Archive', async () => {
     const user = userEvent.setup()
     const file = deletedFile('file-missing', 'Missing')
     mocks.pagesByPath.set('/files/entries', [{ items: [file] }])
@@ -723,7 +708,7 @@ describe('Trash domain batch adapters', () => {
     vi.mocked(dataApiService.get).mockRejectedValueOnce(DataApiErrorFactory.notFound('FileEntry', file.id))
     let pending: PendingPermanentDelete | undefined
     render(
-      <FileTrashSection
+      <FileArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}
@@ -742,7 +727,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: file.id,
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         }
       ]
@@ -752,7 +737,7 @@ describe('Trash domain batch adapters', () => {
       vi.mocked(dataApiService.get).mock.invocationCallOrder[0]
     )
     expect(toast.info).toHaveBeenCalledOnce()
-    expect(toast.info).toHaveBeenCalledWith('No longer in the Recycle Bin. Refresh and try again.')
+    expect(toast.info).toHaveBeenCalledWith('No longer in the Archive. Refresh and try again.')
     expect(toast.error).not.toHaveBeenCalled()
   })
 
@@ -769,7 +754,7 @@ describe('Trash domain batch adapters', () => {
         : { succeeded: chunkIds, failed: [] }
     })
     vi.mocked(dataApiService.get).mockResolvedValue({ ...files[500], deletedAt: undefined })
-    render(<FileTrashSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+    render(<FileArchiveSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
     await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
 
     await user.click(screen.getByRole('button', { name: 'Restore 501' }))
@@ -798,7 +783,7 @@ describe('Trash domain batch adapters', () => {
       failed: [{ id: file.id, error: 'not found' }]
     })
     vi.mocked(dataApiService.get).mockRejectedValueOnce(DataApiErrorFactory.notFound('FileEntry', file.id))
-    render(<FileTrashSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+    render(<FileArchiveSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
@@ -830,7 +815,7 @@ describe('Trash domain batch adapters', () => {
     )
     let pending: PendingPermanentDelete | undefined
     render(
-      <FileTrashSection
+      <FileArchiveSection
         retentionDays={30}
         isBatchMode
         isPermanentDeleting={false}
@@ -849,7 +834,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: active.id,
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         },
         { id: referenced.id, error: 'still referenced' }
@@ -860,11 +845,123 @@ describe('Trash domain batch adapters', () => {
     )
     expect(screen.getByText('2 selected')).toBeInTheDocument()
     expect(toast.warning).toHaveBeenCalledOnce()
-    expect(toast.warning).toHaveBeenCalledWith(
-      'Permanently deleted: 0; no longer in the Recycle Bin: 1; other failures: 1'
-    )
+    expect(toast.warning).toHaveBeenCalledWith('Permanently deleted: 0; no longer in the Archive: 1; other failures: 1')
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
+  })
+})
+
+const { default: AllArchiveSection } = await import('../AllArchiveSection')
+
+describe('All archive actions', () => {
+  function seedMixedArchive() {
+    mocks.pagesByPath.set('/archives', [
+      {
+        items: [
+          { id: 'topics:same', entityId: 'same', domain: 'topics', name: 'Archived topic', deletedAt: 200 },
+          { id: 'files:same', entityId: 'same', domain: 'files', name: 'Archived file', deletedAt: 100 }
+        ]
+      }
+    ])
+  }
+
+  it('routes a mixed restore by domain and retains only failed selections even when entity IDs match', async () => {
+    seedMixedArchive()
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockResolvedValue({ succeeded: [], failed: [{ id: 'same', error: 'File unavailable' }] })
+    vi.mocked(dataApiService.get).mockResolvedValue({ origin: 'internal', deletedAt: 100 })
+    render(<AllArchiveSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+    await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
+    await user.click(screen.getByRole('button', { name: 'Restore 2' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Restore 1' })).toBeEnabled())
+    expect(screen.getByRole('checkbox', { name: 'Select Archived topic' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select Archived file' })).toBeChecked()
+    expect(mocks.mutate).toHaveBeenCalledWith('POST', '/topics/:id/restore', { params: { id: 'same' } })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('file.batch_restore', { ids: ['same'] })
+    expect(toast.warning).toHaveBeenCalledWith('Restored 1 item; 1 failed')
+  })
+
+  it('refreshes once per external notification batch and stops listening after unmount', async () => {
+    const { unmount } = render(
+      <AllArchiveSection retentionDays={30} isBatchMode={false} isPermanentDeleting={false} onRequestDelete={vi.fn()} />
+    )
+    const changes = [
+      { endpoint: '/topics', kind: 'membership' },
+      { endpoint: '/assistants', kind: 'membership' }
+    ] as const
+    await act(async () => MockDataApiUtils.emitDataChange([...changes]))
+    expect(mocks.refresh).toHaveBeenCalledTimes(1)
+    unmount()
+    MockDataApiUtils.emitDataChange([...changes])
+    expect(mocks.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('coalesces mutation refreshes and notifications through a failed batch, then resumes external updates', async () => {
+    seedMixedArchive()
+    vi.mocked(dataApiService.get).mockResolvedValue(deletedFile('same', 'Archived file'))
+    const user = userEvent.setup()
+    let pending: PendingPermanentDelete | undefined
+    mocks.mutate.mockImplementation(async () => {
+      MockDataApiUtils.emitDataChange([
+        { endpoint: '/topics', kind: 'membership' },
+        { endpoint: '/assistants', kind: 'membership' }
+      ])
+      expect(mocks.refresh).not.toHaveBeenCalled()
+    })
+    mocks.ipcRequest.mockImplementation(async () => {
+      MockDataApiUtils.emitDataChange([{ endpoint: '/files/entries', kind: 'membership' }])
+      expect(mocks.refresh).not.toHaveBeenCalled()
+      throw new Error('File unavailable')
+    })
+    render(
+      <AllArchiveSection
+        retentionDays={30}
+        isBatchMode
+        isPermanentDeleting={false}
+        onRequestDelete={(request) => {
+          pending = request
+        }}
+      />
+    )
+    await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently 2' }))
+    expect(await runPendingRequest(pending)).toEqual({
+      succeeded: ['topics:same'],
+      failed: [{ id: 'files:same', error: 'File unavailable' }]
+    })
+    expect(mocks.refresh).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('checkbox', { name: 'Select Archived topic' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select Archived file' })).toBeChecked()
+    await act(async () => MockDataApiUtils.emitDataChange([{ endpoint: '/files/entries', kind: 'membership' }]))
+    expect(mocks.refresh).toHaveBeenCalledTimes(2)
+  })
+
+  it('passes only raw file IDs to the reference check before a mixed permanent delete', async () => {
+    seedMixedArchive()
+    const user = userEvent.setup()
+    let pending: PendingPermanentDelete | undefined
+    mocks.ipcRequest.mockResolvedValue({ succeeded: ['same'], failed: [] })
+    render(
+      <AllArchiveSection
+        retentionDays={30}
+        isBatchMode
+        isPermanentDeleting={false}
+        onRequestDelete={(request) => {
+          pending = request
+        }}
+      />
+    )
+    await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently 2' }))
+    expect(pending?.fileEntryIds).toEqual(['same'])
+    expect(mocks.mutate).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    expect(await runPendingRequest(pending)).toEqual({ succeeded: ['topics:same', 'files:same'], failed: [] })
+    expect(mocks.mutate).toHaveBeenCalledWith('DELETE', '/topics/:id', {
+      params: { id: 'same' },
+      query: { permanent: true }
+    })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('file.batch_permanent_delete_from_trash', { ids: ['same'] })
   })
 })

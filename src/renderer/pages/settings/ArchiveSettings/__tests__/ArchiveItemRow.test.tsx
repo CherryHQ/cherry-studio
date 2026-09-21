@@ -2,12 +2,13 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 
-import TrashItemRow from '../TrashItemRow'
+import ArchiveItemRow from '../ArchiveItemRow'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
@@ -23,11 +24,11 @@ beforeEach(async () => {
   await i18n.changeLanguage('en-US')
 })
 
-describe('TrashItemRow', () => {
+describe('ArchiveItemRow', () => {
   it('disables permanent delete while restore is in flight', () => {
     const onDelete = vi.fn()
     render(
-      <TrashItemRow
+      <ArchiveItemRow
         item={{ id: 'topic-1', name: 'Topic', deletedAt: NOW }}
         retentionDays={30}
         isRestoring
@@ -52,7 +53,7 @@ describe('TrashItemRow', () => {
     const onRestore = vi.fn()
     const onDelete = vi.fn()
     render(
-      <TrashItemRow
+      <ArchiveItemRow
         item={{ id: 'topic-2', name: 'Other topic', deletedAt: NOW }}
         retentionDays={30}
         isRestoring={false}
@@ -100,13 +101,13 @@ describe('TrashItemRow', () => {
       onDelete: vi.fn()
     }
     const { rerender } = render(
-      <TrashItemRow {...commonProps} item={{ id: 'expired', name: 'Old topic', deletedAt: NOW - 31 * DAY }} />
+      <ArchiveItemRow {...commonProps} item={{ id: 'expired', name: 'Old topic', deletedAt: NOW - 31 * DAY }} />
     )
 
     expect(screen.getByText(/Expired/)).toBeInTheDocument()
 
     rerender(
-      <TrashItemRow
+      <ArchiveItemRow
         {...commonProps}
         item={{ id: 'nearly-expired', name: 'Nearly expired', deletedAt: NOW - 30 * DAY + DAY / 2 }}
       />
@@ -114,11 +115,50 @@ describe('TrashItemRow', () => {
     expect(screen.getByText(/Less than 1 day left/)).toBeInTheDocument()
   })
 
+  it('toggles selection from row content without toggling from row actions or while busy', async () => {
+    const user = userEvent.setup()
+    function SelectableRow({ busy = false, batch = true }) {
+      const [selected, setSelected] = useState(false)
+      return (
+        <ArchiveItemRow
+          item={{ id: 'topic-1', name: 'Topic', deletedAt: NOW }}
+          retentionDays={30}
+          isRestoring={false}
+          isSectionBusy={busy}
+          showSelection={batch}
+          selected={selected}
+          onSelectedChange={setSelected}
+          onRestore={() => {}}
+          onDelete={() => {}}
+        />
+      )
+    }
+    const { rerender } = render(<SelectableRow />)
+    const checkbox = screen.getByRole('checkbox', { name: 'Select Topic' })
+    await user.click(screen.getByText('Topic'))
+    expect(checkbox).toBeChecked()
+    await user.click(screen.getByText('Topic'))
+    expect(checkbox).not.toBeChecked()
+    await user.click(checkbox)
+    expect(checkbox).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+    expect(checkbox).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
+    expect(checkbox).toBeChecked()
+    rerender(<SelectableRow busy />)
+    await user.click(screen.getByText('Topic'))
+    expect(checkbox).toBeChecked()
+    rerender(<SelectableRow batch={false} />)
+    await user.click(screen.getByText('Topic'))
+    rerender(<SelectableRow />)
+    expect(screen.getByRole('checkbox', { name: 'Select Topic' })).toBeChecked()
+  })
+
   it('exposes translated controlled selection and neutral restore actions', async () => {
     const user = userEvent.setup()
     const onSelectedChange = vi.fn()
     render(
-      <TrashItemRow
+      <ArchiveItemRow
         item={{ id: 'topic-1', name: 'Topic', deletedAt: NOW }}
         retentionDays={30}
         isRestoring={false}

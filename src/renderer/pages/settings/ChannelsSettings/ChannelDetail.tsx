@@ -34,7 +34,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -198,7 +198,8 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
   const lastChannelRef = useRef<ChannelData | null>(channel)
   // `null` = "No work directory" (system workspace); a string binds the channel to that user workspace.
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
-  const { data: workspaces } = useQuery('/agent-workspaces')
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
   if (channel) {
     lastChannelRef.current = channel

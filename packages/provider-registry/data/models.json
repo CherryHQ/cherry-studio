@@ -7321,15 +7321,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.014
+          "perMillionTokens": 0.006
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.44
+          "perMillionTokens": 0.3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.32
+          "perMillionTokens": 1.2
         }
       },
       "reasoning": {
@@ -22098,5 +22098,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "ace7f3040da21e71"
+  "version": "11174ce97b90176e"
 }

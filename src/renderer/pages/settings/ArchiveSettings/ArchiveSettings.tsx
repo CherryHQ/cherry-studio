@@ -1,53 +1,74 @@
-import { Check, type LucideIcon, MessageSquare, MessagesSquare } from 'lucide-react'
+import { Check, MoreHorizontal, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ConfirmDialog, SelectDropdown } from '@cherrystudio/ui'
+import {
+  Button,
+  ConfirmDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  SelectDropdown,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
-import { SettingTitle } from '@renderer/components/SettingsPrimitives'
+import {
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { type FileEntryRefCount, REF_COUNTS_MAX_ENTRY_IDS } from '@shared/data/api/schemas/files'
 
+import AllArchiveSection from './AllArchiveSection'
 import {
-  AgentTrashSection,
-  AssistantTrashSection,
-  FileTrashSection,
-  PaintingTrashSection,
-  SessionTrashSection,
-  TopicTrashSection,
-  type TrashDomainSectionProps
-} from './TrashDomainSections'
-import type { PendingPermanentDelete } from './TrashSection'
+  AgentArchiveSection,
+  AssistantArchiveSection,
+  FileArchiveSection,
+  PaintingArchiveSection,
+  SessionArchiveSection,
+  TopicArchiveSection,
+  type ArchiveDomainSectionProps
+} from './ArchiveDomainSections'
+import type { PendingPermanentDelete } from './ArchiveSection'
 
-const logger = loggerService.withContext('TrashSettings')
+const logger = loggerService.withContext('ArchiveSettings')
 
-type TrashCategory = 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
+type ArchiveCategory = 'all' | 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
 
-const CATEGORIES: { id: TrashCategory; labelKey: string; Icon: LucideIcon }[] = [
-  { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants', Icon: SIDEBAR_ICON_COMPONENTS.assistants },
-  { id: 'topics', labelKey: 'settings.data.trash.domain.topics', Icon: MessageSquare },
-  { id: 'agents', labelKey: 'settings.data.trash.domain.agents', Icon: SIDEBAR_ICON_COMPONENTS.agents },
-  { id: 'sessions', labelKey: 'settings.data.trash.domain.sessions', Icon: MessagesSquare },
-  { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings', Icon: SIDEBAR_ICON_COMPONENTS.paintings },
-  { id: 'files', labelKey: 'settings.data.trash.domain.files', Icon: SIDEBAR_ICON_COMPONENTS.files }
+const CATEGORIES: { id: ArchiveCategory; labelKey: string }[] = [
+  { id: 'all', labelKey: 'common.all' },
+  { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants' },
+  { id: 'agents', labelKey: 'settings.data.trash.domain.agents' },
+  { id: 'topics', labelKey: 'settings.data.trash.domain.topics' },
+  { id: 'sessions', labelKey: 'settings.data.trash.domain.sessions' },
+  { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings' },
+  { id: 'files', labelKey: 'settings.data.trash.domain.files' }
 ]
 
-const SECTION_BY_CATEGORY: Record<TrashCategory, FC<TrashDomainSectionProps>> = {
-  topics: TopicTrashSection,
-  agents: AgentTrashSection,
-  sessions: SessionTrashSection,
-  assistants: AssistantTrashSection,
-  paintings: PaintingTrashSection,
-  files: FileTrashSection
+const SECTION_BY_CATEGORY: Record<ArchiveCategory, FC<ArchiveDomainSectionProps>> = {
+  all: AllArchiveSection,
+  topics: TopicArchiveSection,
+  agents: AgentArchiveSection,
+  sessions: SessionArchiveSection,
+  assistants: AssistantArchiveSection,
+  paintings: PaintingArchiveSection,
+  files: FileArchiveSection
 }
 
 const PURGE_INVALIDATE_PATHS = [
+  '/archives',
   '/topics',
   '/topics/*',
   '/agents',
@@ -81,7 +102,7 @@ function getFileReferenceBlockedKey(fileCount: number, referenceCount: number) {
 /** `0` = keep forever. */
 const RETENTION_DAY_OPTIONS = [7, 30, 90, 0]
 
-const TrashSettings: FC = () => {
+const ArchiveSettings: FC = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const [retentionDays, setRetentionDays] = usePreference('data.trash.retention_days')
@@ -97,19 +118,17 @@ const TrashSettings: FC = () => {
     [t]
   )
 
-  const [category, setCategory] = useState<TrashCategory>('topics')
+  const [category, setCategory] = useState<ArchiveCategory>('all')
   const [isBatchMode, setIsBatchMode] = useState(false)
-  const categoryOptions = useMemo(
-    () => CATEGORIES.map(({ id, labelKey, Icon }) => ({ id, label: t(labelKey), Icon })),
-    [t]
-  )
+  const [batchToolbarContainer, setBatchToolbarContainer] = useState<HTMLDivElement | null>(null)
+  const [canBatchManage, setCanBatchManage] = useState(false)
   const ActiveSection = SECTION_BY_CATEGORY[category]
 
   const [pendingDelete, setPendingDelete] = useState<PendingPermanentDelete | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [fileReferencePreview, setFileReferencePreview] = useState<FileReferencePreview>({ status: 'idle' })
   const referenceRequestToken = useRef(0)
-  const [emptyTrashOpen, setEmptyTrashOpen] = useState(false)
+  const [emptyArchiveOpen, setEmptyArchiveOpen] = useState(false)
   const [isEmptying, setIsEmptying] = useState(false)
 
   const closePendingDelete = useCallback(() => {
@@ -173,7 +192,7 @@ const TrashSettings: FC = () => {
     }
   }
 
-  const handleEmptyTrash = async () => {
+  const handleEmptyArchive = async () => {
     setIsEmptying(true)
     try {
       const { status, reclaimed, deletedCount, retainedReferencedFileCount } = await ipcApi.request('trash.purge_now')
@@ -199,13 +218,15 @@ const TrashSettings: FC = () => {
       toast.error(t('settings.data.trash.empty_trash.error'))
     } finally {
       setIsEmptying(false)
-      setEmptyTrashOpen(false)
+      setEmptyArchiveOpen(false)
     }
   }
 
   const sectionProps = {
+    onBatchAvailabilityChange: setCanBatchManage,
     retentionDays,
     isBatchMode,
+    batchToolbarContainer,
     isPermanentDeleting: isDeleting,
     onRequestDelete: handleRequestDelete
   }
@@ -241,68 +262,79 @@ const TrashSettings: FC = () => {
   ) : undefined
 
   return (
-    <>
-      <SettingTitle className="flex-wrap gap-3 text-lg">
-        <span>{t('settings.data.trash.title')}</span>
-        <Button variant="outline" className="text-destructive" onClick={() => setEmptyTrashOpen(true)}>
-          {t('settings.data.trash.empty_trash.button')}
-        </Button>
-      </SettingTitle>
-      <div className="mt-6">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-border border-b pb-3">
-          <SelectDropdown
-            items={categoryOptions}
-            selectedId={category}
-            onSelect={(id) => {
-              closePendingDelete()
-              setCategory(id as TrashCategory)
-            }}
-            triggerClassName="h-8 w-auto max-w-full gap-3 border-transparent px-2"
-            renderSelected={({ label, Icon }) => (
-              <>
-                <Icon size={16} className="shrink-0 text-muted-foreground" />
-                <span className="truncate">{label}</span>
-              </>
-            )}
-            renderItem={({ label, Icon }, isSelected) => (
-              <div className="flex w-full items-center gap-2">
-                <Icon size={16} className="shrink-0 text-muted-foreground" />
-                <span className="flex-1 truncate">{label}</span>
-                {isSelected && <Check size={16} className="shrink-0 text-primary" />}
-              </div>
-            )}
-          />
-          <div className="ms-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+    <SettingsContentColumn>
+      <SettingGroup>
+        <SettingTitle className="flex-wrap gap-3">
+          <span>{t('settings.data.trash.title')}</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label={t('common.more')} title={t('common.more')}>
+                <MoreHorizontal size={16} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem variant="destructive" onSelect={() => setEmptyArchiveOpen(true)}>
+                <Trash2 />
+                {t('settings.data.trash.empty_trash.button')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SettingTitle>
+        <Tabs
+          className="mt-2"
+          variant="underline"
+          value={category}
+          onValueChange={(value) => {
+            closePendingDelete()
+            setCanBatchManage(false)
+            setCategory(value as ArchiveCategory)
+          }}>
+          <div className="flex items-center justify-between gap-4 border-border border-b">
             <div
-              role="group"
-              aria-label={t('settings.data.trash.retention.label')}
-              className="flex flex-wrap items-center gap-2">
-              <span className="text-muted-foreground text-xs">{t('settings.data.trash.retention.label')}</span>
-              <SelectDropdown
-                items={retentionOptions}
-                selectedId={String(retentionDays)}
-                onSelect={(id) => setRetentionDays(Number(id))}
-                triggerClassName="h-8 w-auto max-w-full gap-2 border-transparent px-2 text-xs"
-                renderSelected={({ label }) => <span className="truncate">{label}</span>}
-                renderItem={({ label }, isSelected) => (
-                  <div className="flex w-full items-center gap-2">
-                    <span className="flex-1 truncate">{label}</span>
-                    {isSelected && <Check size={16} className="shrink-0 text-primary" />}
-                  </div>
-                )}
-              />
+              hidden={isBatchMode}
+              className={isBatchMode ? 'hidden' : '-mb-px flex min-w-0 items-center overflow-x-auto'}>
+              <TabsList aria-label={t('settings.data.trash.title')}>
+                {CATEGORIES.map(({ id, labelKey }) => (
+                  <TabsTrigger key={id} value={id} className="py-3">
+                    {t(labelKey)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
             </div>
+            <div ref={setBatchToolbarContainer} className={isBatchMode ? 'min-w-0 flex-1' : 'hidden'} />
             <Button
               variant="outline"
               size="sm"
+              className="shrink-0"
+              disabled={!isBatchMode && !canBatchManage}
               aria-pressed={isBatchMode}
               onClick={() => setIsBatchMode((current) => !current)}>
               {t(isBatchMode ? 'settings.data.trash.selection.done' : 'settings.data.trash.selection.manage')}
             </Button>
           </div>
-        </div>
-        <ActiveSection {...sectionProps} />
-      </div>
+          <TabsContent key={category} value={category}>
+            <ActiveSection {...sectionProps} />
+          </TabsContent>
+        </Tabs>
+      </SettingGroup>
+      <SettingGroup>
+        <SettingRow role="group" aria-label={t('settings.data.trash.retention.label')}>
+          <SettingRowTitle>{t('settings.data.trash.retention.label')}</SettingRowTitle>
+          <SelectDropdown
+            items={retentionOptions}
+            selectedId={String(retentionDays)}
+            onSelect={(id) => setRetentionDays(Number(id))}
+            triggerClassName="h-8 w-28 max-w-full gap-2 px-2"
+            renderSelected={({ label }) => <span className="truncate">{label}</span>}
+            renderItem={({ label }, isSelected) => (
+              <div className="flex w-full items-center gap-2">
+                <span className="flex-1 truncate">{label}</span>
+                {isSelected && <Check size={16} className="shrink-0 text-primary" />}
+              </div>
+            )}
+          />
+        </SettingRow>
+      </SettingGroup>
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {
@@ -323,9 +355,9 @@ const TrashSettings: FC = () => {
         onConfirm={handleConfirmDelete}
       />
       <ConfirmDialog
-        open={emptyTrashOpen}
+        open={emptyArchiveOpen}
         onOpenChange={(open) => {
-          if (!open && !isEmptying) setEmptyTrashOpen(false)
+          if (!open && !isEmptying) setEmptyArchiveOpen(false)
         }}
         destructive
         title={t('settings.data.trash.empty_trash.confirm_title')}
@@ -333,10 +365,10 @@ const TrashSettings: FC = () => {
         confirmText={t('settings.data.trash.empty_trash.button')}
         cancelText={t('common.cancel')}
         confirmLoading={isEmptying}
-        onConfirm={handleEmptyTrash}
+        onConfirm={handleEmptyArchive}
       />
-    </>
+    </SettingsContentColumn>
   )
 }
 
-export default TrashSettings
+export default ArchiveSettings

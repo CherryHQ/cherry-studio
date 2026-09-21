@@ -95,7 +95,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isAssistantMessage = message.role === 'assistant'
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
   const canStartEditing =
-    canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating))
+    actions.canEditMessage?.(message) ??
+    (canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating)))
   const isEditing = editingMessageId === message.id
   const handleStartEditing = useCallback(
     (messageId: string) => {
@@ -236,7 +237,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           variant="header"
         />
@@ -263,7 +264,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onMenuOpenChange={setIsMessageMenuOpen}
           onSelectContext={onSelectContext}
         />
@@ -294,7 +295,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           messageFont={messageFont}
           fontSize={fontSize}
