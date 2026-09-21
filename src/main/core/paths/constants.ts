@@ -18,10 +18,10 @@ import path from 'node:path'
 
 import { app } from 'electron'
 
-// Duplicated from APP_SLUG/HOME_DIRNAME in @shared/utils/branding: this layer
-// loads before app.whenReady() and may not import business modules (see
-// CONSTRAINTS above). Change both together.
-export const CHERRY_HOME_DIRNAME = '.cherrystudio'
+// Duplicated from HOME_DIRNAME in @shared/utils/branding: this layer loads
+// before app.whenReady() and may not import business modules (see CONSTRAINTS
+// above). Change both together.
+export const CHERRY_HOME_DIRNAME = '.the-boss'
 export const CHERRY_HOME = path.join(os.homedir(), CHERRY_HOME_DIRNAME)
 export const BOOT_CONFIG_PATH = path.join(CHERRY_HOME, 'boot-config.json')
 

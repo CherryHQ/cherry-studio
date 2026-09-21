@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PRODUCT_DIRNAME } from '@shared/utils/branding'
+
 /**
  * Tests for src/main/core/preboot/userDataLocation.ts
  *
@@ -28,6 +30,7 @@ interface ElectronStubOptions {
   isPackaged?: boolean
   exePath?: string
   userData?: string
+  appData?: string
 }
 
 interface FsStubOptions {
@@ -61,10 +64,11 @@ const bootConfigPersistMock = vi.fn()
 const TASK_ID = '11111111-1111-4111-8111-111111111111'
 
 function stubElectron(opts: ElectronStubOptions = {}) {
-  const { isPackaged = true, exePath = '/mock/exe', userData = '/mock/userData' } = opts
+  const { isPackaged = true, exePath = '/mock/exe', userData = '/mock/userData', appData = '/mock/appData' } = opts
   const getPath = vi.fn((key: string) => {
     if (key === 'exe') return exePath
     if (key === 'userData') return userData
+    if (key === 'appData') return appData
     return '/mock/unknown'
   })
   vi.doMock('electron', () => ({
@@ -331,7 +335,7 @@ describe('resolveUserDataLocation', () => {
       expect(setPathMock).toHaveBeenCalledTimes(1)
     })
 
-    it('BootConfig has matching exe but path is missing (statSync throws): falls through, no setPath', async () => {
+    it('BootConfig has matching exe but path is missing (statSync throws): falls through to the branded path', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
       stubElectron({ exePath: '/mock/exe' })
       stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
@@ -342,20 +346,20 @@ describe('resolveUserDataLocation', () => {
       })
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).not.toHaveBeenCalled()
+      expect(setPathMock).toHaveBeenCalledWith('userData', `/mock/appData/${PRODUCT_DIRNAME}`)
     })
 
-    it('BootConfig has matching exe but path is a file, not a directory: falls through, no setPath', async () => {
+    it('BootConfig has matching exe but path is a file, not a directory: falls through to the branded path', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
       stubElectron({ exePath: '/mock/exe' })
       stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
       stubFs({ statSyncImpl: () => ({ isDirectory: () => false, isFile: () => true }) })
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).not.toHaveBeenCalled()
+      expect(setPathMock).toHaveBeenCalledWith('userData', `/mock/appData/${PRODUCT_DIRNAME}`)
     })
 
-    it('BootConfig has matching exe but path is not writable (accessSync throws): falls through, no setPath', async () => {
+    it('BootConfig has matching exe but path is not writable (accessSync throws): falls through to the branded path', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
       stubElectron({ exePath: '/mock/exe' })
       stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
@@ -367,17 +371,17 @@ describe('resolveUserDataLocation', () => {
       })
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).not.toHaveBeenCalled()
+      expect(setPathMock).toHaveBeenCalledWith('userData', `/mock/appData/${PRODUCT_DIRNAME}`)
     })
 
-    it('BootConfig has no matching exe key: falls through, no setPath', async () => {
+    it('BootConfig has no matching exe key: falls through to the branded path', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
       stubElectron({ exePath: '/mock/exe' })
       stubBootConfig({ 'app.user_data_path': { '/other/exe': '/custom/data' } })
       stubFs()
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).not.toHaveBeenCalled()
+      expect(setPathMock).toHaveBeenCalledWith('userData', `/mock/appData/${PRODUCT_DIRNAME}`)
     })
 
     it('BootConfig empty + isPortable=true: setPath called with portableDir/data', async () => {
@@ -392,14 +396,41 @@ describe('resolveUserDataLocation', () => {
       expect(setPathMock).toHaveBeenCalledTimes(1)
     })
 
-    it('BootConfig empty + non-portable: no-op (falls through to Electron default)', async () => {
+    it('BootConfig empty + non-portable: setPath called with the branded appData path', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
       stubElectron({ exePath: '/mock/exe' })
       stubBootConfig({ 'app.user_data_path': {} })
       stubFs()
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).not.toHaveBeenCalled()
+      expect(setPathMock).toHaveBeenCalledWith('userData', `/mock/appData/${PRODUCT_DIRNAME}`)
+    })
+
+    it('an existing upstream Cherry Studio directory is never adopted as userData', async () => {
+      stubConstants({ isLinux: false, isWin: false, isPortable: false })
+      stubElectron({ exePath: '/mock/exe' })
+      stubBootConfig({ 'app.user_data_path': {} })
+      // Default stubFs reports every path as a usable directory, so the legacy
+      // upstream directory exists and is adoptable — and must still be ignored.
+      stubFs()
+      const { resolveUserDataLocation } = await loadModule()
+      resolveUserDataLocation()
+
+      expect(setPathMock).toHaveBeenCalledTimes(1)
+      expect(setPathMock).not.toHaveBeenCalledWith('userData', '/mock/appData/CherryStudio')
+    })
+
+    it('the branded userData path does not depend on the display name', async () => {
+      stubConstants({ isLinux: false, isWin: false, isPortable: false })
+      stubElectron({ exePath: '/mock/exe', userData: '/mock/appData/Some Renamed App' })
+      stubBootConfig({ 'app.user_data_path': {} })
+      stubFs()
+      const { resolveUserDataLocation } = await loadModule()
+      resolveUserDataLocation()
+
+      // Electron's own default (app.getPath('userData')) moves when the app is
+      // renamed; the explicit path must not follow it.
+      expect(setPathMock).toHaveBeenCalledWith('userData', `/mock/appData/${PRODUCT_DIRNAME}`)
     })
 
     it('AppImage normalized key matches in BootConfig: setPath called', async () => {

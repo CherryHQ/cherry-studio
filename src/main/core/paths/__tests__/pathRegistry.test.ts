@@ -14,6 +14,8 @@ vi.mock('electron', () => ({
   }
 }))
 
+import { PRODUCT_DIRNAME } from '@shared/utils/branding'
+
 import { buildPathRegistry, shouldAutoEnsure } from '../pathRegistry'
 
 // Pure data-rule tests for `shouldAutoEnsure`. Decoupled from
@@ -95,7 +97,7 @@ describe('buildPathRegistry', () => {
     const registry = buildPathRegistry()
 
     expect(registry['feature.mcp.resource_results.temp']).toBe(
-      path.join('/mock/temp', 'CherryStudio', 'mcp-resource-results')
+      path.join('/mock/temp', PRODUCT_DIRNAME, 'mcp-resource-results')
     )
   })
 

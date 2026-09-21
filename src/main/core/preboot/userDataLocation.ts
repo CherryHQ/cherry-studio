@@ -7,8 +7,12 @@ import { loggerService } from '@logger'
 import { resolveDevUserDataPath } from '@main/core/paths/constants'
 import { isLinux, isPortable, isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
+import { PRODUCT_DIRNAME } from '@shared/utils/branding'
 
 const logger = loggerService.withContext('Preboot')
+
+/** Upstream's userData directory name, detected only to report it, never adopted. */
+const LEGACY_UPSTREAM_DIRNAME = 'CherryStudio'
 
 /**
  * "userData" in this module means Electron's complete OS-level userData
@@ -68,7 +72,30 @@ export function resolveUserDataLocation(): void {
     const portablePath = path.join(portableDir || app.getPath('exe'), 'data')
     app.setPath('userData', portablePath)
     logger.info('userData set for portable build', { portablePath })
+    return
   }
+
+  const brandedPath = path.join(app.getPath('appData'), PRODUCT_DIRNAME)
+  app.setPath('userData', brandedPath)
+  logger.info('userData set from branding', { brandedPath })
+  warnOnUnadoptedLegacyDataDir(brandedPath)
+}
+
+/**
+ * This fork deliberately starts with an empty profile rather than adopting an
+ * upstream Cherry Studio one: the directory layouts are only coincidentally
+ * compatible, and silently importing another app's data is worse than starting
+ * clean. Log it so an operator can find the old directory instead of concluding
+ * their data vanished.
+ */
+function warnOnUnadoptedLegacyDataDir(brandedPath: string): void {
+  const legacyPath = path.join(app.getPath('appData'), LEGACY_UPSTREAM_DIRNAME)
+  if (legacyPath === brandedPath || !isUsableDataDir(legacyPath)) return
+
+  logger.warn('Legacy Cherry Studio data directory found and deliberately not adopted', {
+    legacyPath,
+    brandedPath
+  })
 }
 
 /**

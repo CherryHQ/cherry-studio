@@ -2,7 +2,7 @@
   "phase": "rebrand-to-the-boss",
   "status": "applying",
   "createdAt": "2026-09-21T09:27:39Z",
-  "updatedAt": "2026-09-21T10:42:59Z",
+  "updatedAt": "2026-09-21T11:02:13Z",
   "previousPhase": null,
   "goals": [
     "G1",
@@ -27,7 +27,8 @@
   ],
   "completedChanges": [
     "rebrand-001-sync-upstream",
-    "rebrand-002-branding-module"
+    "rebrand-002-branding-module",
+    "rebrand-003-explicit-userdata"
   ],
   "depth": 0,
   "parentPhase": null,
@@ -52,11 +53,16 @@
       "at": "2026-09-21T10:42:59Z",
       "decision": "Branding module at src/shared/utils/branding.ts, not src/shared/branding/ (closed-set rule). CHERRY_HOME_DIRNAME left duplicated in preboot: paths/constants.ts forbids @shared imports before app.whenReady(); user chose option 1 (preserve invariant).",
       "by": "opsx-apply"
+    },
+    {
+      "at": "2026-09-21T11:02:13Z",
+      "decision": "userData now pinned explicitly to <appData>/TheBoss; CHERRY_HOME_DIRNAME -> .the-boss; temp dir via PRODUCT_DIRNAME. D1 start-clean: legacy Cherry dir detected and logged, never adopted. Mutation-checked: reverting the fix fails 7 tests.",
+      "by": "opsx-apply"
     }
   ],
   "completion": {
     "implementation": {
-      "completed": 2,
+      "completed": 3,
       "total": 10
     }
   }

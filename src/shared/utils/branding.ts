@@ -38,6 +38,17 @@ export const APP_SLUG = 'the-boss'
  */
 export const HOME_DIRNAME = `.${APP_SLUG}`
 
+/**
+ * Directory name for app-owned data under an OS root — `userData` beneath
+ * `appData`, and the scratch directory beneath the system temp dir.
+ *
+ * Electron derives `userData` as `<appData>/<app name>` when nothing calls
+ * `setPath`. Preboot sets it explicitly from this constant so the location is
+ * pinned by configuration and cannot drift when the display name changes.
+ * Kept space-free because it becomes a real directory on every platform.
+ */
+export const PRODUCT_DIRNAME = 'TheBoss'
+
 /** Identifier sent to third-party AI providers for attribution. */
 export const ATTRIBUTION_NAME = PRODUCT_NAME
 

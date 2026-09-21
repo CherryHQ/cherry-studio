@@ -2,6 +2,7 @@ import fs from 'node:fs'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CHERRY_HOME_DIRNAME } from '@main/core/paths/constants'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 
 vi.mock('node:fs', async () => {
@@ -12,7 +13,7 @@ vi.mock('node:fs', async () => {
 const mockFs = vi.mocked(fs)
 const mockRenameSync = mockFs.renameSync
 
-const CONFIG_PATH = '/mock/home/.cherrystudio/boot-config.json'
+const CONFIG_PATH = `/mock/home/${CHERRY_HOME_DIRNAME}/boot-config.json`
 const TEMP_PATH = `${CONFIG_PATH}.tmp`
 
 async function createService() {
