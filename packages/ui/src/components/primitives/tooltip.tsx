@@ -15,6 +15,17 @@ import { usePortalContainer } from './portal-container'
 type Side = 'top' | 'bottom' | 'left' | 'right'
 type Align = 'start' | 'center' | 'end'
 
+/**
+ * Tooltips anchored in a surface hidden via display:none (<Activity>) never see the leave events
+ * that would close them and park at the viewport origin; an inactive surface drops them at once.
+ */
+const TooltipSurfaceContext = React.createContext(true)
+
+/** Marks a subtree as the anchoring surface for tooltips; inactive surfaces disable their tooltips. */
+export const TooltipSurface = ({ active = true, children }: { active?: boolean; children?: React.ReactNode }) => {
+  return <TooltipSurfaceContext value={active}>{children}</TooltipSurfaceContext>
+}
+
 function parsePlacement(placement?: string): { side: Side; align: Align } {
   const mapping: Record<string, { side: Side; align: Align }> = {
     top: { side: 'top', align: 'center' },
@@ -144,13 +155,14 @@ export const Tooltip = ({
 }: TooltipProps) => {
   const tooltipContent = content ?? title
   const defaultPortalContainer = usePortalContainer()
+  const surfaceActive = React.use(TooltipSurfaceContext)
   const triggerWrapperClassName = cn(
     'relative z-10',
     fullWidthTrigger ? 'block w-full max-w-full min-w-0' : 'inline-block',
     classNames?.placeholder
   )
 
-  if (!tooltipContent || isDisabled) {
+  if (!tooltipContent || isDisabled || !surfaceActive) {
     if (asChild) return children
 
     return (

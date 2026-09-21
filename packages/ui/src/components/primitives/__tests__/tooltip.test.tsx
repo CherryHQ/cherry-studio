@@ -2,9 +2,10 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
+import { Activity } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { NormalTooltip, Tooltip, TooltipContent, TooltipRoot, TooltipTrigger } from '../tooltip'
+import { NormalTooltip, Tooltip, TooltipContent, TooltipRoot, TooltipSurface, TooltipTrigger } from '../tooltip'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -90,6 +91,33 @@ describe('Tooltip', () => {
       // Anchors hidden via display:none leave Radix tooltips parked at the viewport
       // origin during their exit animation; disabling must drop the content at once.
       expect(document.querySelector('[data-slot="tooltip-content"]')).not.toBeInTheDocument()
+    })
+
+    it('drops an open tooltip when its TooltipSurface turns inactive, including under <Activity>', () => {
+      // Mirrors RightPanel: the surface provider sits outside the Activity that hides the anchor.
+      function Harness({ active }: { active: boolean }) {
+        return (
+          <TooltipSurface active={active}>
+            <Activity mode={active ? 'visible' : 'hidden'}>
+              <Tooltip content="surface-tip" isOpen>
+                <button type="button">Trigger</button>
+              </Tooltip>
+            </Activity>
+          </TooltipSurface>
+        )
+      }
+
+      const { rerender } = render(<Harness active />)
+      expect(getTooltipContentElement('surface-tip')).toBeInTheDocument()
+
+      rerender(<Harness active={false} />)
+
+      // The context update must reach the Activity-hidden subtree and drop the content at
+      // once; a tooltip kept open over a display:none anchor parks at the viewport origin.
+      expect(document.querySelector('[data-slot="tooltip-content"]')).not.toBeInTheDocument()
+
+      rerender(<Harness active />)
+      expect(getTooltipContentElement('surface-tip')).toBeInTheDocument()
     })
 
     it('uses title as fallback when content is not provided', () => {
