@@ -92,8 +92,7 @@
           "official": "https://www.siliconflow.cn"
         }
       },
-      "name": "Silicon",
-      "supportsBalance": true
+      "name": "Silicon"
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -514,7 +513,8 @@
           "official": "https://ppio.com/"
         }
       },
-      "name": "PPIO"
+      "name": "PPIO",
+      "supportsBalance": true
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2292,7 +2292,8 @@
           "official": "https://vercel.com/ai-gateway"
         }
       },
-      "name": "Vercel AI Gateway"
+      "name": "Vercel AI Gateway",
+      "supportsBalance": true
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2418,5 +2419,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "3639e214dd13325b"
+  "version": "b035d774efc85522"
 }

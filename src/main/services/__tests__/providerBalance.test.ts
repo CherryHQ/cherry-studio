@@ -134,7 +134,6 @@ describe('provider balance queries', () => {
         { currency: 'USD', amount: -0.1 }
       ]
     ],
-    ['silicon', { status: true, data: { totalBalance: '20.50' } }, 'v1/user/info', [{ currency: 'CNY', amount: 20.5 }]],
     ['moonshot', { data: { available_balance: 0 } }, 'v1/users/me/balance', [{ currency: 'CNY', amount: 0 }]]
   ] as const)(
     'queries %s preset copies using the configured host and native schema',
@@ -155,6 +154,81 @@ describe('provider balance queries', () => {
       expect(net.fetch).toHaveBeenCalledWith(`https://proxy.example/prefix/${path}`, expect.anything())
     }
   )
+
+  it.each([
+    [
+      'ppio',
+      { availableBalance: '1000000', cashBalance: '800000', creditLimit: '200000' },
+      100,
+      'CNY',
+      'https://api.ppio.com/openapi/v1/billing/balance/detail'
+    ],
+    ['ppio', { availableBalance: '0' }, 0, 'CNY', 'https://api.ppio.com/openapi/v1/billing/balance/detail'],
+    ['ppio', { availableBalance: '-12345' }, -1.2345, 'CNY', 'https://api.ppio.com/openapi/v1/billing/balance/detail'],
+    ['gateway', { balance: '95.50', total_used: '4.50' }, 95.5, 'USD', 'https://ai-gateway.vercel.sh/v1/credits'],
+    ['gateway', { balance: '0', total_used: '100' }, 0, 'USD', 'https://ai-gateway.vercel.sh/v1/credits']
+  ] as const)(
+    'queries %s account balance without confusing units or spending',
+    async (preset, body, amount, currency, endpoint) => {
+      providerService.create(
+        CreateProviderSchema.parse({
+          providerId: `${preset}-copy`,
+          presetProviderId: preset,
+          name: preset,
+          apiKeys: [{ id: 'key', key: 'secret', isEnabled: true }]
+        })
+      )
+      vi.mocked(net.fetch).mockResolvedValue(Response.json(body))
+      const result = await queryProviderBalance(`${preset}-copy`, 'key')
+      expect(result.balances).toEqual([{ currency, amount }])
+      expect(net.fetch).toHaveBeenCalledWith(endpoint, expect.objectContaining({ method: 'GET' }))
+      expect(new Headers(vi.mocked(net.fetch).mock.calls[0][1]!.headers).get('Authorization')).toBe('Bearer secret')
+    }
+  )
+
+  it('preserves the Gateway proxy prefix without appending credits to the inference path', async () => {
+    providerService.create(
+      CreateProviderSchema.parse({
+        providerId: 'gateway-copy',
+        presetProviderId: 'gateway',
+        name: 'Gateway proxy',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://proxy.example/prefix/v1/ai/' } },
+        apiKeys: [{ id: 'key', key: 'secret', isEnabled: true }]
+      })
+    )
+    vi.mocked(net.fetch).mockResolvedValue(Response.json({ balance: '10.50' }))
+    expect((await queryProviderBalance('gateway-copy', 'key')).balances).toEqual([{ currency: 'USD', amount: 10.5 }])
+    expect(net.fetch).toHaveBeenCalledWith('https://proxy.example/prefix/v1/credits', expect.anything())
+  })
+
+  it.each(['ppio', 'gateway'])('rejects malformed %s balance responses instead of showing zero', async (preset) => {
+    providerService.create(
+      CreateProviderSchema.parse({
+        providerId: `${preset}-copy`,
+        presetProviderId: preset,
+        name: preset,
+        apiKeys: [{ id: 'key', key: 'secret', isEnabled: true }]
+      })
+    )
+    for (const amount of [null, '', 'NaN', true, undefined]) {
+      vi.mocked(net.fetch).mockResolvedValue(Response.json({ balance: amount, availableBalance: amount }))
+      await expect(queryProviderBalance(`${preset}-copy`, 'key')).rejects.toMatchObject({ code: Code.RESPONSE })
+    }
+  })
+
+  it('does not advertise or call the retired SiliconFlow balance endpoint', async () => {
+    providerService.create(
+      CreateProviderSchema.parse({
+        providerId: 'silicon-copy',
+        presetProviderId: 'silicon',
+        name: 'SiliconFlow',
+        apiKeys: [{ id: 'key', key: 'secret', isEnabled: true }]
+      })
+    )
+    expect(providerService.getByProviderId('silicon-copy').supportsBalance).not.toBe(true)
+    await expect(queryProviderBalance('silicon-copy', 'key')).rejects.toMatchObject({ code: Code.UNSUPPORTED })
+    expect(net.fetch).not.toHaveBeenCalled()
+  })
 
   it('provides a main implementation for every advertised balance capability', () => {
     const registry = JSON.parse(readFileSync(resolve('packages/provider-registry/data/providers.json'), 'utf8')) as {

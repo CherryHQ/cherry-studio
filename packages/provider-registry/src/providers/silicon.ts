@@ -48,7 +48,6 @@ const siliconReasoningModels = [
 
 export default openaiCompatible({
   id: 'silicon',
-  supportsBalance: true,
   name: 'Silicon',
   baseUrl: 'https://api.siliconflow.cn/v1',
   reasoningFormat: { type: 'openai-chat' },

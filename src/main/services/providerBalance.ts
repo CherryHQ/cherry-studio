@@ -26,11 +26,9 @@ const AmountSchema = z.union([
 const DeepSeekResponseSchema = z.object({
   balance_infos: z.array(z.object({ currency: z.string(), total_balance: AmountSchema })).min(1)
 })
-const SiliconFlowResponseSchema = z.object({
-  status: z.literal(true),
-  data: z.object({ totalBalance: AmountSchema })
-})
 const MoonshotResponseSchema = z.object({ data: z.object({ available_balance: AmountSchema }) })
+const PpioResponseSchema = z.object({ availableBalance: AmountSchema })
+const GatewayResponseSchema = z.object({ balance: AmountSchema })
 
 const builtInQueries = {
   deepseek: {
@@ -42,17 +40,26 @@ const builtInQueries = {
         amount: total_balance
       }))
   },
-  silicon: {
-    path: 'v1/user/info',
-    rechargeUrl: 'https://cloud.siliconflow.cn',
-    parse: (body: unknown) => [{ currency: 'CNY', amount: SiliconFlowResponseSchema.parse(body).data.totalBalance }]
-  },
   moonshot: {
     path: 'v1/users/me/balance',
     rechargeUrl: 'https://platform.moonshot.cn/console/account',
     parse: (body: unknown) => [{ currency: 'CNY', amount: MoonshotResponseSchema.parse(body).data.available_balance }]
+  },
+  ppio: {
+    // Billing has a separate host from PPIO's inference endpoints.
+    path: 'https://api.ppio.com/openapi/v1/billing/balance/detail',
+    rechargeUrl: undefined,
+    parse: (body: unknown) => [{ currency: 'CNY', amount: PpioResponseSchema.parse(body).availableBalance / 10000 }]
+  },
+  gateway: {
+    path: 'v1/credits',
+    rechargeUrl: undefined,
+    parse: (body: unknown) => [{ currency: 'USD', amount: GatewayResponseSchema.parse(body).balance }]
   }
-} satisfies Record<string, { path: string; rechargeUrl: string; parse: (body: unknown) => ProviderBalance['balances'] }>
+} satisfies Record<
+  string,
+  { path: string; rechargeUrl?: string; parse: (body: unknown) => ProviderBalance['balances'] }
+>
 
 export const BALANCE_PROVIDER_IDS = Object.keys(builtInQueries)
 
@@ -65,7 +72,7 @@ function resolveQuery(provider: Provider, draft?: ProviderBalanceConfig) {
     if (!query) throw new IpcError(Code.UNSUPPORTED)
     const baseUrl = provider.endpointConfigs?.['openai-chat-completions']?.baseUrl
     if (!baseUrl) throw new IpcError(Code.CONFIG)
-    const endpoint = new URL(query.path, `${baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '')}/`).href
+    const endpoint = new URL(query.path, `${baseUrl.replace(/\/+$/, '').replace(/\/v1(?:\/ai)?$/, '')}/`).href
     return { ...query, endpoint }
   }
 
