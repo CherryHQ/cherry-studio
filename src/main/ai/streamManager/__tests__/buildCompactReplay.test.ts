@@ -260,10 +260,10 @@ describe('buildCompactReplay', () => {
       const result = buildCompactReplay([
         {
           topicId: 'topic-1',
-          chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'orphan' } as UIMessageChunk
+          chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'orphan' }
         },
-        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
-        { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'ok' } as UIMessageChunk }
+        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } },
+        { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'ok' } }
       ])
 
       expect(result).toEqual([
@@ -313,10 +313,10 @@ describe('buildCompactReplay', () => {
       const buffer: StreamChunkPayload[] = [
         {
           topicId: 't',
-          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
         },
-        { topicId: 't', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
-        { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'hi' } as UIMessageChunk }
+        { topicId: 't', chunk: { type: 'text-start', id: 'p1' } },
+        { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'hi' } }
       ]
 
       expect(evictOldestReplayEntry(buffer, new Set(['tc1']))).toBe(true)
@@ -334,9 +334,9 @@ describe('buildCompactReplay', () => {
       const buffer: StreamChunkPayload[] = [
         {
           topicId: 't',
-          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
         },
-        { topicId: 't', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk }
+        { topicId: 't', chunk: { type: 'text-start', id: 'p1' } }
       ]
 
       evictOldestReplayEntry(buffer, new Set())
@@ -348,7 +348,7 @@ describe('buildCompactReplay', () => {
       const buffer: StreamChunkPayload[] = [
         {
           topicId: 't',
-          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
         }
       ]
 
