@@ -90,3 +90,33 @@ export function replaceEndpointConfigDomain(
   }
   return result
 }
+
+/**
+ * Write `nextBaseUrl` onto the primary endpoint and every sibling whose baseUrl
+ * still exactly matches the previous primary baseUrl.
+ *
+ * Providers such as Xiaomi MiMo ship the same host on chat-completions and
+ * openai-responses. The settings UI edits only the primary host; without this
+ * sync, Codex/Responses connection checks keep the stale sibling URL.
+ * Independently configured siblings (different baseUrl) are left alone.
+ */
+export function applyPrimaryBaseUrlToMatchingEndpoints(
+  endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | undefined,
+  primaryEndpoint: EndpointType,
+  nextBaseUrl: string
+): Partial<Record<EndpointType, EndpointConfig>> {
+  const configs = endpointConfigs ?? {}
+  const previousBaseUrl = configs[primaryEndpoint]?.baseUrl
+  const result: Partial<Record<EndpointType, EndpointConfig>> = { ...configs }
+
+  for (const [key, config] of Object.entries(configs)) {
+    if (!config) continue
+    const ep = key as EndpointType
+    if (ep === primaryEndpoint || (previousBaseUrl !== undefined && config.baseUrl === previousBaseUrl)) {
+      result[ep] = { ...config, baseUrl: nextBaseUrl }
+    }
+  }
+
+  result[primaryEndpoint] = { ...result[primaryEndpoint], baseUrl: nextBaseUrl }
+  return result
+}
