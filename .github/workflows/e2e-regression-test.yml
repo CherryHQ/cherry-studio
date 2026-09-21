@@ -84,7 +84,7 @@ jobs:
           REQUESTED_REF: ${{ inputs.ref }}
           REQUESTED_TASK: ${{ inputs.task }}
         run: |
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts resolve-ref \
+          pnpm exec tsx scripts/e2e/regression/cli.ts resolve-ref \
             --requested "$REQUESTED_REF" \
             --repository "${{ github.repository }}"
           echo "task=$REQUESTED_TASK" >> "$GITHUB_OUTPUT"
@@ -178,7 +178,7 @@ jobs:
           TEST_RUNNER: ${{ matrix.runner }}
           TEST_TASK: ${{ needs.resolve.outputs.task }}
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts initialize
+          pnpm exec tsx scripts/e2e/regression/cli.ts initialize
           --run-dir "$RUN_DIR"
           --mode "$TEST_MODE"
           --platform "${{ matrix.platform }}"
@@ -201,7 +201,7 @@ jobs:
           CHERRY_TEST_CHERRYIN_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE_MODEL }}
           CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
           CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts preflight
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight
 
       - name: Install application dependencies
         if: needs.resolve.outputs.mode == 'branch'
@@ -224,7 +224,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts release
+          pnpm exec tsx scripts/e2e/regression/cli.ts release
           --run-dir "$RUN_DIR"
           --repository "${{ github.repository }}"
           --arch "${{ runner.arch }}"
@@ -233,7 +233,7 @@ jobs:
         id: launch
         shell: bash
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts launch
+          pnpm exec tsx scripts/e2e/regression/cli.ts launch
           --run-dir "$RUN_DIR"
           --target-root "$TARGET_DIR"
           --run-key "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}"
@@ -276,7 +276,7 @@ jobs:
         timeout-minutes: 10
         shell: bash
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase 01-startup
 
@@ -286,7 +286,7 @@ jobs:
         timeout-minutes: 20
         shell: bash
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase 02-basic-features
 
@@ -296,7 +296,7 @@ jobs:
         timeout-minutes: 25
         shell: bash
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase 03-models-and-assistants
 
@@ -306,7 +306,7 @@ jobs:
         timeout-minutes: 20
         shell: bash
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase 04-translation
 
@@ -316,7 +316,7 @@ jobs:
         timeout-minutes: 25
         shell: bash
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase 05-desktop-assistants
 
@@ -326,7 +326,7 @@ jobs:
         timeout-minutes: 35
         shell: bash
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase 06-knowledge
 
@@ -336,7 +336,7 @@ jobs:
         timeout-minutes: 35
         shell: bash
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase 07-integrations
 
@@ -346,7 +346,7 @@ jobs:
         timeout-minutes: 30
         shell: bash
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase 08-code-tools
 
@@ -356,7 +356,7 @@ jobs:
         timeout-minutes: 45
         shell: bash
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase 09-cherryin-and-images
 
@@ -366,7 +366,7 @@ jobs:
         timeout-minutes: 55
         shell: bash
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
           --run-dir "$RUN_DIR"
           --phase 10-agent-runtimes
 
@@ -394,7 +394,7 @@ jobs:
       - name: Stop controlled application
         if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
-        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts cleanup --run-dir "$RUN_DIR"
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts cleanup --run-dir "$RUN_DIR"
 
       - name: Generate platform report
         if: always() && steps.controller-dependencies.outcome == 'success'
@@ -404,7 +404,7 @@ jobs:
           CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
           CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
           CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts finalize --run-dir "$RUN_DIR"
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts finalize --run-dir "$RUN_DIR"
 
       - name: Upload platform report and evidence
         if: always()
@@ -425,7 +425,7 @@ jobs:
       - name: Validate platform result
         if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
-        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts gate --run-dir "$RUN_DIR"
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts gate --run-dir "$RUN_DIR"
 
   aggregate:
     needs: [resolve, test]
@@ -486,7 +486,7 @@ jobs:
 
       - name: Generate aggregate report
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts aggregate
+          pnpm exec tsx scripts/e2e/regression/cli.ts aggregate
           --input platform-reports
           --output combined-report
           --mode "${{ needs.resolve.outputs.mode }}"
@@ -499,7 +499,7 @@ jobs:
         run: |
           mkdir -p merged-blobs
           find platform-reports -path '*/blob-*/*.zip' -exec cp {} merged-blobs/ \;
-          pnpm exec playwright merge-reports --config cherry-regression.playwright.config.ts --reporter html merged-blobs
+          pnpm exec playwright merge-reports --config playwright.regression.config.ts --reporter html merged-blobs
 
       - name: Assemble complete report
         id: assemble-report
@@ -536,5 +536,5 @@ jobs:
       - name: Validate aggregate result
         if: always()
         run: >-
-          pnpm exec tsx scripts/cherry-regression-test/cli.ts aggregate-gate
+          pnpm exec tsx scripts/e2e/regression/cli.ts aggregate-gate
           --report combined-report/combined-results.json
