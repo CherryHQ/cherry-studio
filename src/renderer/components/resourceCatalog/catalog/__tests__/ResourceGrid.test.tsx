@@ -858,7 +858,7 @@ describe('ResourceGrid card actions', () => {
   })
 
   it.each([createAssistantResource, createAgentResource])(
-    'offers both lifecycle choices for owner cards',
+    'offers only archiving for owner cards',
     async (createResource) => {
       const user = userEvent.setup()
       const resource = createResource()
@@ -867,8 +867,9 @@ describe('ResourceGrid card actions', () => {
 
       await user.click(screen.getByRole('button', { name: /common.more/ }))
       expect(screen.getByRole('menuitem', { name: 'common.archive' })).toBeInTheDocument()
-      await user.click(screen.getByRole('menuitem', { name: 'common.delete_permanently' }))
-      await waitFor(() => expect(onDelete).toHaveBeenCalledExactlyOnceWith(resource, true))
+      expect(screen.queryByRole('menuitem', { name: 'common.delete_permanently' })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('menuitem', { name: 'common.archive' }))
+      await waitFor(() => expect(onDelete).toHaveBeenCalledExactlyOnceWith(resource))
       expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
     }
   )
@@ -1122,7 +1123,7 @@ describe('ResourceCardMenu group binding', () => {
     expect(screen.queryByTestId('menu-divider')).not.toBeInTheDocument()
   })
 
-  it('separates archive from permanent deletion for assistant resources', async () => {
+  it('offers archive without permanent deletion for assistant resources', async () => {
     const user = userEvent.setup()
     const resource = createAssistantResource()
     const onDelete = vi.fn()
@@ -1141,10 +1142,8 @@ describe('ResourceCardMenu group binding', () => {
     await user.click(screen.getByRole('button', { name: /common.more/ }))
     expect(screen.queryByRole('button', { name: /common.edit/ })).not.toBeInTheDocument()
     expect(screen.getByTestId('menu-divider')).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'common.delete_permanently' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('menuitem', { name: 'common.archive' }))
     await waitFor(() => expect(onDelete).toHaveBeenLastCalledWith(resource))
-    await user.click(screen.getByRole('button', { name: /common.more/ }))
-    await user.click(screen.getByRole('menuitem', { name: 'common.delete_permanently' }))
-    await waitFor(() => expect(onDelete).toHaveBeenLastCalledWith(resource, true))
   })
 })

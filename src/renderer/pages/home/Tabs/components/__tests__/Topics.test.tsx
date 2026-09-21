@@ -3694,6 +3694,7 @@ describe('Topics', () => {
 
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.click(moreButton)
+    expect(screen.queryByRole('button', { name: 'Delete Permanently' })).not.toBeInTheDocument()
     const deleteAssistantButton = within(assistantHeader as HTMLElement).getByRole('button', {
       name: 'Archive'
     })
