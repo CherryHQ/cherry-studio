@@ -541,13 +541,16 @@ export class SkillService {
             `refusing to overwrite it with a ${source} install.`
         )
       }
-      // A bare repo URL names the repo, not the skill, so an exact folder plus a
-      // case-insensitive name is the strongest same-directory proof available here.
+      // A bare repo URL names the repo, not the skill: a case-only name match only proves the same
+      // skill when the raw directory differs from the folder (the suffixed original, not a sibling).
       if (
         folderMatch &&
         reservedFolderNameStem(folderName) &&
         isBareGithubRepoUrl(sourceUrl) &&
-        (folderMatch.folderName !== folderName || folderMatch.name.toLowerCase() !== metadata.name.toLowerCase())
+        (folderMatch.folderName !== folderName ||
+          folderMatch.name.toLowerCase() !== metadata.name.toLowerCase() ||
+          (folderMatch.name !== metadata.name &&
+            metadata.filename.toLowerCase() === folderMatch.folderName.toLowerCase()))
       ) {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
@@ -1656,6 +1659,9 @@ export class SkillService {
   private async uninstallLocked(skill: InstalledSkill): Promise<void> {
     const skillPath = this.getSkillStoragePath(skill.folderName)
     await this.installer.uninstall(skillPath)
+    // A warned marker retire can leave a migration marker behind; without the row, startup
+    // recovery would restore the old folder and reconcile would adopt it as a duplicate skill.
+    await this.installer.removeMigrationMarkers(application.getPath('feature.agents.skills'), skill.folderName)
     await this.unlinkMirror(skill.folderName)
     agentGlobalSkillService.deleteById(skill.id)
     logger.info('Skill uninstalled', { skillId: skill.id, folderName: skill.folderName })

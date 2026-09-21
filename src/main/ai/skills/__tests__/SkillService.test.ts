@@ -2213,6 +2213,62 @@ describe('SkillService', () => {
       }
     })
 
+    it('refuses a bare-URL sibling whose case-only name match comes from the suffixed directory', async () => {
+      const root = await createTempDir('github-reserved-sibling-dir-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      // Directories `CON` and `CON-skill` with frontmatter names `CON` and `con` both derive
+      // `CON-skill` and match case-insensitively, but the raw directory IS the stored folder,
+      // so this is the sibling overwriting the original — refuse it instead of allowing it.
+      const sourceUrl = 'https://github.com/owner/repo'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'CON',
+        folderName: 'CON-skill',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      const sourceDir = await createTempDir('reserved-sibling-dir-source-')
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# new')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'CON-skill',
+        name: 'con',
+        description: 'Sibling skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory: string) => path.join(directory, 'SKILL.md'))
+      const skillService = new SkillService()
+
+      try {
+        await expect(skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)).rejects.toThrow(
+          /already used/
+        )
+        const rows = await dbh.db.select().from(agentGlobalSkillTable)
+        expect(rows).toHaveLength(1)
+        expect(rows.find((row) => row.id === SKILL_ID_1)).toMatchObject({
+          folderName: 'CON-skill',
+          contentHash: 'old-hash'
+        })
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+        vi.mocked(findSkillMdPath).mockReset()
+      }
+    })
+
     it('uses an explicit tag namespace when a branch has the same name', async () => {
       const tagOid = 'b'.repeat(40)
       const { skillService, installSpy, gitCalls } = await setupGithubInstall({
@@ -3216,6 +3272,47 @@ describe('SkillService', () => {
       await skillService.uninstall(SKILL_ID_1)
 
       expect(unlinkSpy).toHaveBeenCalledWith('skill-one')
+    })
+
+    it('uninstall drops a stale migration marker so recovery cannot resurrect the skill', async () => {
+      const root = await createTempDir('uninstall-marker-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        if (key === 'feature.agents.skills') return filename ? path.join(dataSkillsRoot, filename) : dataSkillsRoot
+        if (key === 'feature.agents.claude.skills') return filename ? path.join(mirrorRoot, filename) : mirrorRoot
+        return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+      })
+      // A warned marker retire leaves `.content.migrating-to.my-skill.bak` behind a committed row.
+      // Uninstalling must remove it: without the row, recovery would restore `content` and adopt it.
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'my-skill',
+        folderName: 'my-skill',
+        source: 'marketplace',
+        sourceUrl: 'https://github.com/owner/repo/tree/main/my-skill',
+        contentHash: 'hash',
+        isEnabled: false
+      })
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'my-skill'), { recursive: true })
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'my-skill', 'SKILL.md'), '# my skill')
+      const marker = path.join(dataSkillsRoot, '.content.migrating-to.my-skill.bak')
+      await fs.promises.mkdir(marker, { recursive: true })
+      await fs.promises.writeFile(path.join(marker, 'SKILL.md'), '# old skill')
+      const skillService = new SkillService()
+
+      try {
+        await skillService.uninstall(SKILL_ID_1)
+
+        await expect(fs.promises.access(marker)).rejects.toMatchObject({ code: 'ENOENT' })
+        await skillService.reconcileSkills()
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(0)
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'content'))).rejects.toMatchObject({
+          code: 'ENOENT'
+        })
+      } finally {
+        getPathSpy.mockRestore()
+      }
     })
 
     it('persists and updates the SKILL.md version when reinstalling the same origin', async () => {
