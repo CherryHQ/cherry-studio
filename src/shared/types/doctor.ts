@@ -34,16 +34,9 @@ export type DoctorAttribution = 'user-fixable' | 'app-bug' | 'transient'
  */
 export type DoctorDataClass = 'public' | 'local_only' | 'consent_required'
 
-/**
- * `low` runs on click and is idempotent + reversible; irreversible cleanup uses `confirm`.
- * Destructive recovery flows are not fixes and navigate to their own guarded UI.
- */
-export type DoctorFixRisk = 'low' | 'confirm'
-
 export interface DoctorFixMeta {
   readonly id: string
   readonly targeted?: true
-  readonly risk: DoctorFixRisk
   readonly reversible: boolean
   /** The fix only takes effect after `app.relaunch`. */
   readonly relaunch: boolean
@@ -68,10 +61,21 @@ export type DoctorSubjectKey = keyof DoctorSubject
 export type DoctorSubjectRef =
   | { readonly kind: 'global' }
   | { readonly kind: 'chat'; readonly providerId: string; readonly modelId: string }
-  | { readonly kind: 'agent'; readonly agentId: string }
+  | ({ readonly kind: 'agent'; readonly agentId: string } & (
+      | { readonly providerId?: never; readonly modelId?: never }
+      | { readonly providerId: string; readonly modelId: string }
+    ))
 
 /** Identity of a run's context; suffixes the shared cache key so contexts never share state. */
 export type DoctorScopeKey = 'global' | `chat:${string}` | `agent:${string}`
+
+/**
+ * Where a check runs. Three distinct types, not three shapes of one array:
+ * - `'global'` — only in a global run
+ * - `'any'` — in every run; reads no facts
+ * - `[k, ...]` — when the subject carries every listed fact; in a global run it falls back to defaults
+ */
+export type DoctorCheckScope = 'global' | 'any' | readonly [DoctorSubjectKey, ...DoctorSubjectKey[]]
 
 export const DOCTOR_CHECK_IDS = [
   'install-architecture-match',
@@ -85,7 +89,7 @@ export const DOCTOR_CHECK_IDS = [
   'storage-diagnostic-data-size',
   'config-boot-config-valid',
   'config-hardware-acceleration',
-  'provider-default-model',
+  'provider-model',
   'provider-api-key-present',
   'provider-cherry-account',
   'network-model-endpoint',
@@ -99,6 +103,7 @@ export const DOCTOR_CHECK_IDS = [
   'network-endpoint-registry',
   'network-endpoint-cloud',
   'network-endpoint-diagnostics',
+  'network-provider-endpoint',
   'mcp-servers-connected',
   'mcp-launch-commands',
   'runtime-managed-tools',
@@ -113,6 +118,7 @@ type DomainOfId<Id extends string> = Id extends `${infer Domain}-${string}` ? Do
 export interface DoctorCheckMeta<Id extends DoctorCheckId> {
   readonly domain: DomainOfId<Id> & DoctorDomain
   readonly tier: DoctorTier
+  readonly scope: DoctorCheckScope
   readonly execution?: 'automatic' | 'confirmation'
   /** Checks enabled through an explicit request, not the default system sweep. */
   readonly includeByDefault?: false
@@ -130,6 +136,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'install-architecture-match': {
     domain: 'install',
     tier: 'quick',
+    scope: 'global',
     fixes: [],
     details: ['translated'],
     requires: []
@@ -137,6 +144,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'install-version-channel': {
     domain: 'install',
     tier: 'quick',
+    scope: 'global',
     fixes: [],
     details: ['mismatch'],
     requires: []
@@ -144,6 +152,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'install-update-available': {
     domain: 'install',
     tier: 'live',
+    scope: 'global',
     fixes: [],
     details: ['available', 'unsupported'],
     requires: ['network-endpoint-update']
@@ -151,6 +160,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'install-native-modules': {
     domain: 'install',
     tier: 'quick',
+    scope: 'global',
     fixes: [],
     details: ['unavailable'],
     requires: []
@@ -158,20 +168,23 @@ export const DOCTOR_CHECK_CATALOG = {
   'permission-screen-capture': {
     domain: 'permission',
     tier: 'quick',
-    fixes: [{ id: 'request', risk: 'low', reversible: true, relaunch: false }],
+    scope: 'global',
+    fixes: [{ id: 'request', reversible: true, relaunch: false }],
     details: ['denied', 'restricted'],
     requires: []
   },
   'permission-accessibility': {
     domain: 'permission',
     tier: 'quick',
-    fixes: [{ id: 'request', risk: 'low', reversible: true, relaunch: false }],
+    scope: 'global',
+    fixes: [{ id: 'request', reversible: true, relaunch: false }],
     details: ['denied'],
     requires: []
   },
   'storage-userdata-location': {
     domain: 'storage',
     tier: 'quick',
+    scope: 'global',
     fixes: [],
     details: ['fallback_to_default'],
     requires: []
@@ -179,6 +192,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'storage-disk-space': {
     domain: 'storage',
     tier: 'quick',
+    scope: 'global',
     fixes: [],
     details: ['critical', 'low'],
     requires: []
@@ -186,6 +200,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'storage-diagnostic-data-size': {
     domain: 'storage',
     tier: 'quick',
+    scope: 'global',
     fixes: [],
     details: ['large', 'large_partial'],
     requires: []
@@ -193,20 +208,23 @@ export const DOCTOR_CHECK_CATALOG = {
   'config-boot-config-valid': {
     domain: 'config',
     tier: 'quick',
-    fixes: [{ id: 'repair', risk: 'low', reversible: true, relaunch: true }],
+    scope: 'global',
+    fixes: [{ id: 'repair', reversible: true, relaunch: true }],
     details: ['invalid_keys', 'parse_error', 'read_error'],
     requires: []
   },
   'config-hardware-acceleration': {
     domain: 'config',
     tier: 'quick',
+    scope: 'global',
     fixes: [],
     details: ['disabled_without_recent_crash'],
     requires: []
   },
-  'provider-default-model': {
+  'provider-model': {
     domain: 'provider',
     tier: 'quick',
+    scope: ['providerId', 'modelId'],
     fixes: [],
     details: ['not_configured', 'invalid_id', 'provider_unavailable', 'provider_disabled', 'model_unavailable'],
     requires: []
@@ -214,18 +232,22 @@ export const DOCTOR_CHECK_CATALOG = {
   'provider-api-key-present': {
     domain: 'provider',
     tier: 'quick',
+    scope: ['providerId'],
     fixes: [],
     details: ['missing', 'provider_unavailable'],
-    requires: ['provider-default-model']
+    requires: ['provider-model']
   },
   'provider-cherry-account': {
     domain: 'provider',
     tier: 'quick',
+    scope: 'global',
     fixes: [],
     details: ['signed_out'],
     requires: []
   },
+  'network-online': { domain: 'network', tier: 'quick', scope: 'any', fixes: [], details: ['offline'], requires: [] },
   'network-model-endpoint': {
+    scope: ['providerId', 'modelId'],
     domain: 'network',
     tier: 'live',
     execution: 'automatic',
@@ -235,6 +257,7 @@ export const DOCTOR_CHECK_CATALOG = {
     requires: []
   },
   'provider-model-list': {
+    scope: ['providerId', 'modelId'],
     domain: 'provider',
     tier: 'live',
     execution: 'automatic',
@@ -244,6 +267,7 @@ export const DOCTOR_CHECK_CATALOG = {
     requires: []
   },
   'provider-model-conversation': {
+    scope: ['providerId', 'modelId'],
     domain: 'provider',
     tier: 'live',
     execution: 'confirmation',
@@ -252,31 +276,34 @@ export const DOCTOR_CHECK_CATALOG = {
     details: ['external_cli', 'not_chat_model', 'request_failed'],
     requires: []
   },
-  'network-online': { domain: 'network', tier: 'quick', fixes: [], details: ['offline'], requires: [] },
   'network-dns-resolution': {
     domain: 'network',
     tier: 'live',
+    scope: ['providerId'],
     fixes: [],
-    details: ['resolved', 'via_proxy', 'unresolved', 'no_response'],
+    details: ['resolved', 'via_proxy', 'unresolved', 'no_response', 'provider_unavailable'],
     requires: ['network-online']
   },
   'network-tls-handshake': {
     domain: 'network',
     tier: 'live',
+    scope: ['providerId'],
     fixes: [],
-    details: ['ok', 'skipped_proxy', 'certificate', 'unreachable'],
+    details: ['ok', 'skipped_proxy', 'certificate', 'unreachable', 'provider_unavailable'],
     requires: ['network-dns-resolution']
   },
   'network-proxy-applied': {
     domain: 'network',
     tier: 'live',
+    scope: ['providerId'],
     fixes: [],
-    details: ['direct', 'proxy', 'custom_without_url', 'system_read_failed', 'apply_failed'],
+    details: ['direct', 'proxy', 'custom_without_url', 'system_read_failed', 'apply_failed', 'provider_unavailable'],
     requires: []
   },
   'network-endpoint-update': {
     domain: 'network',
     tier: 'live',
+    scope: 'global',
     fixes: [],
     details: ENDPOINT_DETAILS,
     requires: ['network-online']
@@ -284,6 +311,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'network-endpoint-registry': {
     domain: 'network',
     tier: 'live',
+    scope: 'global',
     fixes: [],
     details: ENDPOINT_DETAILS,
     requires: ['network-online']
@@ -291,6 +319,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'network-endpoint-cloud': {
     domain: 'network',
     tier: 'live',
+    scope: 'global',
     fixes: [],
     details: ENDPOINT_DETAILS,
     requires: ['network-online']
@@ -298,20 +327,31 @@ export const DOCTOR_CHECK_CATALOG = {
   'network-endpoint-diagnostics': {
     domain: 'network',
     tier: 'live',
+    scope: 'global',
     fixes: [],
     details: ENDPOINT_DETAILS,
     requires: ['network-online']
   },
+  'network-provider-endpoint': {
+    domain: 'network',
+    tier: 'live',
+    scope: ['providerId'],
+    fixes: [],
+    details: ENDPOINT_DETAILS,
+    requires: ['network-online', 'provider-model']
+  },
   'mcp-servers-connected': {
     domain: 'mcp',
     tier: 'quick',
-    fixes: [{ id: 'restart', risk: 'low', reversible: true, relaunch: false, targeted: true }],
+    scope: ['mcpServerIds'],
+    fixes: [{ id: 'restart', reversible: true, relaunch: false, targeted: true }],
     details: ['server_errors'],
     requires: []
   },
   'mcp-launch-commands': {
     domain: 'mcp',
     tier: 'quick',
+    scope: ['mcpServerIds'],
     fixes: [],
     details: ['unresolved', 'query_failed'],
     requires: []
@@ -319,6 +359,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'runtime-managed-tools': {
     domain: 'runtime',
     tier: 'quick',
+    scope: 'global',
     fixes: [],
     details: ['failed'],
     requires: []
@@ -326,6 +367,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'runtime-claude-login': {
     domain: 'runtime',
     tier: 'quick',
+    scope: 'global',
     fixes: [],
     details: ['not_logged_in'],
     requires: []
@@ -333,6 +375,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'logs-recent-findings': {
     domain: 'logs',
     tier: 'quick',
+    scope: 'global',
     fixes: [],
     details: ['findings'],
     requires: []
@@ -353,6 +396,16 @@ export type DoctorDetailVariant<Id extends DoctorCheckId> = DoctorCheckCatalog[I
 export type DoctorFixableCheckId = {
   [Id in DoctorCheckId]: [DoctorFixId<Id>] extends [never] ? never : Id
 }[DoctorCheckId]
+
+/**
+ * The subject a check's `run` receives, derived from its catalog `scope` so the body cannot
+ * read a fact the declaration never asked for. `null` is a global run: fall back to defaults.
+ * `'global'` and `'any'` checks read no facts at all, so they get nothing.
+ */
+export type DoctorSubjectFor<Id extends DoctorCheckId> =
+  DoctorCheckCatalog[Id]['scope'] extends readonly (infer K extends DoctorSubjectKey)[]
+    ? Pick<Required<DoctorSubject>, K> | null
+    : undefined
 
 /** Settings routes a finding may deep-link to. Keep in sync with the renderer settings menu. */
 export type DoctorNavigateTarget =
@@ -465,7 +518,10 @@ export interface DoctorReport {
   readonly schemaVersion: 1
   /** Identity of the run that produced it; every event and fix request is bound to it. */
   readonly runId: string
+  readonly scope: DoctorScopeKey
   readonly tier: DoctorRunTier
+  /** Checks selected by Main for this subject, including transitive prerequisites. */
+  readonly selectedCheckIds: readonly DoctorCheckId[]
   readonly startedAt: string
   readonly finishedAt: string
   readonly expiresAt: string
@@ -476,9 +532,9 @@ export interface DoctorReport {
 }
 
 /**
- * Live state of the doctor, published on the shared cache (`doctor.state`) so every window
- * renders the same run without an IPC subscription. Runs never coexist; a completed run
- * replaces the previous report wholesale (a live run is a superset of quick).
+ * Live state of one scope, published through `doctorStateCacheKey(scope)` so every
+ * window renders the same run without an IPC subscription. Runs in one scope never coexist;
+ * a completed run replaces the previous report wholesale (a live run is a superset of quick).
  */
 export type DoctorState =
   | { readonly status: 'idle' }
@@ -486,11 +542,17 @@ export type DoctorState =
       readonly status: 'running'
       readonly runId: string
       readonly tier: DoctorRunTier
+      readonly selectedCheckIds: readonly DoctorCheckId[]
       readonly startedAt: string
       readonly results: readonly DoctorCheckResult[]
+      readonly activeCheckIds: readonly DoctorCheckId[]
     }
   | { readonly status: 'completed'; readonly report: DoctorReport }
-  | { readonly status: 'canceled'; readonly runId: string }
+  | {
+      readonly status: 'canceled' | 'failed'
+      readonly runId: string
+      readonly selectedCheckIds: readonly DoctorCheckId[]
+    }
 
 /** `busy` carries the in-flight run's id so the caller can cancel it. */
 export type DoctorRunResult =
@@ -503,6 +565,7 @@ export type DoctorCancelResult = { readonly status: 'canceled' | 'not_running' }
 export type DoctorFixRequest = {
   [Id in DoctorFixableCheckId]: {
     [Fix in DoctorFixId<Id>]: {
+      readonly scope: DoctorScopeKey
       readonly runId: string
       readonly checkId: Id
       readonly fixId: Fix

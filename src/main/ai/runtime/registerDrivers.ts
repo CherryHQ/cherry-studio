@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { application } from '@application'
+import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '@main/ai/runtime/fork'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -32,6 +33,14 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
 
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
     return this.loadImplementation().then((driver) => driver.connect(input))
+  }
+
+  async fork(input: RuntimeForkInput): Promise<RuntimeForkResult> {
+    input.signal.throwIfAborted()
+    const driver = await this.loadImplementation()
+    input.signal.throwIfAborted()
+    if (!driver.fork) throw new AgentSessionForkError('unsupported_checkpoint')
+    return driver.fork(input)
   }
 
   onSessionIdle(sessionId: string): void {

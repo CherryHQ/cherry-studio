@@ -74,6 +74,8 @@ export function getExtraHeaders(provider: Provider, destinationBaseUrl?: string)
   const isTokenDance = matchesPreset(provider, SystemProviderIds.tokendance)
   const isRadeonCloud = matchesPreset(provider, SystemProviderIds['radeon-cloud'])
   const isAimlapi = isAimlapiDestination(provider, destinationBaseUrl)
+  const isPerplexity = matchesPreset(provider, SystemProviderIds.perplexity)
+  const hasPerplexityIntegration = Object.keys(headers).some((name) => name.toLowerCase() === 'x-pplx-integration')
 
   for (const name of Object.keys(headers)) {
     const normalizedName = name.toLowerCase()
@@ -86,6 +88,7 @@ export function getExtraHeaders(provider: Provider, destinationBaseUrl?: string)
     }
   }
   return {
+    ...(isPerplexity && !hasPerplexityIntegration ? { 'X-Pplx-Integration': 'cherry-studio' } : {}),
     ...headers,
     ...(isTokenDance ? { 'X-App-URL': TOKEN_DANCE_APP_URL } : {}),
     ...(isRadeonCloud ? { 'X-Source': 'cherry-studio' } : {}),

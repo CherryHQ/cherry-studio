@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
+import { application } from '@application'
 import {
   DOCTOR_CHECK_CATALOG,
   type DoctorCheckId,
@@ -26,7 +27,12 @@ export class DoctorExecution {
     private readonly ids: readonly DoctorCheckId[],
     private readonly subject: DoctorSubject | null,
     private readonly isSubjectCurrent: () => boolean
-  ) {}
+  ) {
+    this.memo.set(
+      'provider:default-model-id',
+      Promise.resolve(application.get('PreferenceService').get('chat.default_model_id'))
+    )
+  }
 
   snapshot(): DoctorExecutionSnapshot {
     const pendingChecks: DoctorPendingCheck[] = [...this.pending].map(([checkId, { requestId, confirmation }]) => ({
@@ -39,6 +45,10 @@ export class DoctorExecution {
 
   updateResults(results: readonly DoctorCheckResult[]): void {
     this.results = results
+  }
+
+  isCurrent(): boolean {
+    return this.isSubjectCurrent()
   }
 
   claim(requestId: string): { checkId: DoctorCheckId; isCurrent: () => boolean } | undefined {

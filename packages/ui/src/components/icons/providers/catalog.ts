@@ -116,6 +116,7 @@ import { NousresearchIcon } from './nousresearch'
 import { NvidiaIcon } from './nvidia'
 import { OcoolaiIcon } from './ocoolai'
 import { OllamaIcon } from './ollama'
+import { OmlxIcon } from './omlx/omlx'
 import { OpenaiIcon } from './openai'
 import { OpenclawIcon } from './openclaw'
 import { OpenCodeGoIcon } from './opencode'
@@ -280,6 +281,7 @@ export const PROVIDER_ICON_CATALOG = {
   nvidia: NvidiaIcon,
   ocoolai: OcoolaiIcon,
   ollama: OllamaIcon,
+  omlx: OmlxIcon,
   openai: OpenaiIcon,
   openclaw: OpenclawIcon,
   opencode: OpenCodeGoIcon,

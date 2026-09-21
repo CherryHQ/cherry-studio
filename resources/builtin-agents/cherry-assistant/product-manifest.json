@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.14",
+    "version": "2.1.1",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -62,6 +62,7 @@
       "/settings/about",
       "/settings/api-gateway",
       "/settings/appearance",
+      "/settings/archive",
       "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
@@ -465,8 +466,8 @@
     }
   ],
   "providers": {
-    "version": "26c644d4b271adca",
-    "count": 63,
+    "version": "9c1cdd0618d079ee",
+    "count": 65,
     "entries": [
       {
         "id": "cherryin",
@@ -581,6 +582,10 @@
         "name": "Grok CLI"
       },
       {
+        "id": "omlx",
+        "name": "oMLX"
+      },
+      {
         "id": "openai",
         "name": "OpenAI"
       },
@@ -607,6 +612,10 @@
       {
         "id": "moonshot",
         "name": "Moonshot AI"
+      },
+      {
+        "id": "moonshot-global",
+        "name": "Moonshot"
       },
       {
         "id": "baichuan",

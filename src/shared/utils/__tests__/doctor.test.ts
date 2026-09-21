@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DOCTOR_CHECK_CATALOG, type DoctorCheckId, type DoctorReport } from '../../types/doctor'
-import { isDoctorFixRequest, projectDoctorReport } from '../doctor'
+import { doctorScopeKey, doctorStateCacheKey, isDoctorFixRequest, projectDoctorReport } from '../doctor'
 
 describe('DOCTOR_CHECK_CATALOG', () => {
   it('has no prerequisite cycles', () => {
@@ -20,7 +20,7 @@ describe('DOCTOR_CHECK_CATALOG', () => {
 })
 
 describe('isDoctorFixRequest', () => {
-  const valid = { runId: 'run-1', checkId: 'config-boot-config-valid', fixId: 'repair' }
+  const valid = { scope: 'global' as const, runId: 'run-1', checkId: 'config-boot-config-valid', fixId: 'repair' }
   it('requires targets only for targeted fixes and rejects retired destructive fixes', () => {
     expect(isDoctorFixRequest({ ...valid, target: 'unexpected' })).toBe(false)
     expect(isDoctorFixRequest({ ...valid, target: undefined })).toBe(false)
@@ -33,7 +33,13 @@ describe('isDoctorFixRequest', () => {
   it('accepts a fix the catalog declares for that check, bound to a run', () => {
     expect(isDoctorFixRequest(valid)).toBe(true)
     expect(
-      isDoctorFixRequest({ runId: 'run-1', checkId: 'mcp-servers-connected', fixId: 'restart', target: 'server-1' })
+      isDoctorFixRequest({
+        scope: 'global',
+        runId: 'run-1',
+        checkId: 'mcp-servers-connected',
+        fixId: 'restart',
+        target: 'server-1'
+      })
     ).toBe(true)
   })
 
@@ -43,6 +49,8 @@ describe('isDoctorFixRequest', () => {
 
   it('rejects requests without a run identity, unknown checks and malformed payloads', () => {
     expect(isDoctorFixRequest({ checkId: valid.checkId, fixId: valid.fixId })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, scope: undefined })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, scope: 'elsewhere' })).toBe(false)
     expect(isDoctorFixRequest({ ...valid, runId: '' })).toBe(false)
     expect(isDoctorFixRequest({ ...valid, checkId: 'nope' })).toBe(false)
     expect(isDoctorFixRequest({ ...valid, target: '' })).toBe(false)
@@ -55,8 +63,10 @@ describe('isDoctorFixRequest', () => {
 describe('projectDoctorReport', () => {
   const report: DoctorReport = {
     schemaVersion: 1,
+    scope: 'global',
     runId: 'run-1',
     tier: 'quick',
+    selectedCheckIds: ['config-boot-config-valid', 'logs-recent-findings'],
     startedAt: '2026-09-04T00:00:00.000Z',
     finishedAt: '2026-09-04T00:00:01.000Z',
     expiresAt: '2026-09-04T00:10:01.000Z',
@@ -156,5 +166,28 @@ describe('projectDoctorReport', () => {
     const [warned, errored] = projectDoctorReport(report, view, { consentToSensitive: true }).results
     expect(warned).toMatchObject({ devMessage: 'developer trace at /Users/alice/private.log' })
     expect(errored).toMatchObject({ message: expect.stringContaining('private-runtime') })
+  })
+})
+
+describe('doctorScopeKey', () => {
+  // Main publishes under this key and the renderer subscribes to it; a drift between the two is a blank dialog.
+  it('derives one key per subject and a fixed key for the global doctor', () => {
+    expect(doctorScopeKey({ kind: 'global' })).toBe('global')
+    expect(doctorScopeKey({ kind: 'chat', providerId: 'openai', modelId: 'gpt-4o' })).toBe('chat:openai/gpt-4o')
+    expect(doctorScopeKey({ kind: 'agent', agentId: 'a1' })).toBe('agent:a1')
+    expect(doctorScopeKey({ kind: 'agent', agentId: 'a1', providerId: 'deepseek', modelId: 'deepseek-v4-flash' })).toBe(
+      'agent:a1:deepseek/deepseek-v4-flash'
+    )
+  })
+
+  it('encodes every scope as one legal collision-safe cache-template segment', () => {
+    const keys = [
+      doctorStateCacheKey('global'),
+      doctorStateCacheKey('chat:openai/gpt-4o'),
+      doctorStateCacheKey('agent:a1:deepseek/deepseek-v4-flash'),
+      doctorStateCacheKey('chat:openai:gpt-4o')
+    ]
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys.every((key) => /^doctor\.state\.[\w-]+$/.test(key))).toBe(true)
   })
 })

@@ -6,37 +6,45 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
-import { defineDoctorCheck } from '../types'
+import { defaultChatModel, defaultChatModelId } from '../subjectDefaults'
+import { defineDoctorCheck, type DoctorContextBase, type DoctorProbeOutcome } from '../types'
 
 const PROVIDER_SETTINGS_ACTION = [{ kind: 'navigate', target: '/settings/provider' }] as const
 
-export const defaultModel = defineDoctorCheck({
-  id: 'provider-default-model',
-  async run() {
-    const defaultModelId = application.get('PreferenceService').get('chat.default_model_id')
-    if (!defaultModelId) {
-      return {
-        status: 'fail',
-        attribution: 'user-fixable',
-        detail: { variant: 'not_configured' },
-        actions: PROVIDER_SETTINGS_ACTION,
-        devMessage: 'No default model is configured'
-      }
-    }
+type ModelTarget = { readonly providerId: string; readonly modelId: string }
 
-    const parsed = UniqueModelIdSchema.safeParse(defaultModelId)
-    if (!parsed.success) {
-      return {
-        status: 'fail',
-        attribution: 'user-fixable',
-        detail: { variant: 'invalid_id' },
-        actions: PROVIDER_SETTINGS_ACTION,
-        devMessage: 'The default model id is malformed',
-        evidence: [{ key: 'defaultModelId', value: defaultModelId, dataClass: 'local_only' }]
-      }
+/** A global run judges the chat default; only there can the model be unset or malformed. */
+async function defaultModelTarget(ctx: DoctorContextBase): Promise<ModelTarget | DoctorProbeOutcome<'provider-model'>> {
+  const defaultModelId = await defaultChatModelId(ctx)
+  if (!defaultModelId) {
+    return {
+      status: 'fail',
+      attribution: 'user-fixable',
+      detail: { variant: 'not_configured' },
+      actions: PROVIDER_SETTINGS_ACTION,
+      devMessage: 'No default model is configured'
     }
+  }
+  const parsed = UniqueModelIdSchema.safeParse(defaultModelId)
+  if (!parsed.success) {
+    return {
+      status: 'fail',
+      attribution: 'user-fixable',
+      detail: { variant: 'invalid_id' },
+      actions: PROVIDER_SETTINGS_ACTION,
+      devMessage: 'The default model id is malformed',
+      evidence: [{ key: 'defaultModelId', value: defaultModelId, dataClass: 'local_only' }]
+    }
+  }
+  return parseUniqueModelId(parsed.data)
+}
 
-    const { providerId, modelId } = parseUniqueModelId(parsed.data)
+export const providerModel = defineDoctorCheck({
+  id: 'provider-model',
+  async run(ctx) {
+    const target = ctx.subject ?? (await defaultModelTarget(ctx))
+    if ('status' in target) return target
+    const { providerId, modelId } = target
     let provider
     try {
       provider = providerService.getByProviderId(providerId)
@@ -47,7 +55,7 @@ export const defaultModel = defineDoctorCheck({
         attribution: 'user-fixable',
         detail: { variant: 'provider_unavailable' },
         actions: PROVIDER_SETTINGS_ACTION,
-        devMessage: 'The default model provider is unavailable',
+        devMessage: 'The model provider is unavailable',
         evidence: [{ key: 'providerId', value: providerId, dataClass: 'local_only' }]
       }
     }
@@ -58,7 +66,7 @@ export const defaultModel = defineDoctorCheck({
         attribution: 'user-fixable',
         detail: { variant: 'provider_disabled' },
         actions: PROVIDER_SETTINGS_ACTION,
-        devMessage: 'The default model provider is disabled',
+        devMessage: 'The model provider is disabled',
         evidence: [{ key: 'providerId', value: providerId, dataClass: 'local_only' }]
       }
     }
@@ -72,7 +80,7 @@ export const defaultModel = defineDoctorCheck({
         attribution: 'user-fixable',
         detail: { variant: 'model_unavailable' },
         actions: PROVIDER_SETTINGS_ACTION,
-        devMessage: 'The configured default model is unavailable',
+        devMessage: 'The model is unavailable',
         evidence: [
           { key: 'providerId', value: providerId, dataClass: 'local_only' },
           { key: 'modelId', value: modelId, dataClass: 'local_only' }
@@ -85,14 +93,12 @@ export const defaultModel = defineDoctorCheck({
   fixes: {}
 })
 
-export const defaultProviderApiKey = defineDoctorCheck({
+export const providerApiKey = defineDoctorCheck({
   id: 'provider-api-key-present',
-  async run() {
-    const defaultModelId = application.get('PreferenceService').get('chat.default_model_id')
-    const parsed = UniqueModelIdSchema.safeParse(defaultModelId)
-    if (!parsed.success) throw new Error('Default model configuration changed; rerun the default-model check')
+  async run(ctx) {
+    const providerId = ctx.subject?.providerId ?? (await defaultChatModel(ctx))?.providerId
+    if (!providerId) throw new Error('Default model configuration changed; rerun the provider-model check')
 
-    const { providerId } = parseUniqueModelId(parsed.data)
     let provider
     try {
       provider = providerService.getByProviderId(providerId)
@@ -101,7 +107,7 @@ export const defaultProviderApiKey = defineDoctorCheck({
       return {
         status: 'fail',
         attribution: 'user-fixable',
-        detail: { variant: 'provider_unavailable' },
+        detail: { variant: 'provider_unavailable', params: { provider: providerId } },
         actions: PROVIDER_SETTINGS_ACTION
       }
     }
@@ -113,9 +119,9 @@ export const defaultProviderApiKey = defineDoctorCheck({
     return {
       status: 'fail',
       attribution: 'user-fixable',
-      detail: { variant: 'missing' },
+      detail: { variant: 'missing', params: { provider: provider.name } },
       actions: PROVIDER_SETTINGS_ACTION,
-      devMessage: 'The default model provider has no enabled API key',
+      devMessage: 'The model provider has no enabled API key',
       evidence: [{ key: 'providerId', value: providerId, dataClass: 'local_only' }]
     }
   },

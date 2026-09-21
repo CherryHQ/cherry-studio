@@ -25,12 +25,7 @@ import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import {
-  canRemoveSidebarShortcut,
-  createSidebarShortcutTarget,
-  getSidebarMenuPath,
-  SIDEBAR_SHORTCUT_PROVIDER_IDS
-} from '@renderer/utils/sidebar'
+import { createSidebarShortcutTarget, getSidebarMenuPath, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 const BASE_URL = 'https://www.cherry-ai.com/'
@@ -186,12 +181,11 @@ export default function LaunchpadPage() {
           id: `launchpad.${pinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
           label: t(pinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
           icon: <SidebarShortcutIcon size={14} pinned={pinned} />,
-          enabled: !pinned || canRemoveSidebarShortcut(shortcuts, target),
           onSelect: () => (pinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
         }
       ]
     },
-    [isPinned, pinToSidebar, shortcuts, t, unpinFromSidebar]
+    [isPinned, pinToSidebar, t, unpinFromSidebar]
   )
 
   // Sidebar-backed app tiles keep their existing launchpad order. The direct

@@ -786,7 +786,7 @@ describe('diagnose doctor', () => {
       ).diagnoseDoctor('quick')
     ).content[0].text
 
-    expect(mocks.doctorRun).toHaveBeenCalledWith({ tier: 'quick' })
+    expect(mocks.doctorRun).toHaveBeenCalledWith({ tier: 'quick', subject: { kind: 'global' } })
     expect(JSON.parse(text)).toMatchObject({ summary: { warn: 1 } })
     expect(text).not.toContain('/Users/alice/secret')
     expect(text).not.toContain('/Users/alice/private-action')

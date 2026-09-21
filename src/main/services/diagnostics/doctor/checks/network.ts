@@ -1,17 +1,31 @@
 import { application } from '@application'
-import { RELEASE_HISTORY_URL } from '@main/services/AppUpdaterService'
+import { providerService } from '@main/data/services/ProviderService'
 import type {
   EndpointDiagnosis,
   NetworkEndpointId,
   NetworkFailureKind,
   NetworkLayerResult
 } from '@main/services/network'
-import type { DoctorCheckId, DoctorEvidenceItem } from '@shared/types/doctor'
+import { providerChatBaseUrl } from '@main/utils/providerEndpoint'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import type { DoctorCheckId, DoctorEvidenceItem, DoctorNavigateTarget } from '@shared/types/doctor'
 
-import { defineDoctorCheck, type DoctorContext, type DoctorProbeOutcome } from '../types'
+import { defaultChatModel } from '../subjectDefaults'
+import { defineDoctorCheck, type DoctorContextBase, type DoctorProbeOutcome } from '../types'
 
 /** One diagnosis pass per run: every network check reads it instead of resolving the same hosts again. */
-function diagnoseAll(ctx: DoctorContext): Promise<readonly EndpointDiagnosis[]> {
+async function diagnoseAll(
+  ctx: DoctorContextBase & { readonly subject?: { readonly providerId: string } | null }
+): Promise<readonly EndpointDiagnosis[] | null> {
+  if (ctx.subject) {
+    try {
+      const diagnosis = await diagnoseProvider(ctx, ctx.subject.providerId)
+      return diagnosis ? [diagnosis] : []
+    } catch (error) {
+      if (!isDataApiNotFoundError(error)) throw error
+      return null
+    }
+  }
   return ctx.share('network:diagnoses', async (signal) => {
     const network = application.get('NetworkService')
     const endpoints = await network.builtinEndpoints()
@@ -45,6 +59,8 @@ export const dnsResolution = defineDoctorCheck({
   id: 'network-dns-resolution',
   async run(ctx): Promise<DoctorProbeOutcome<'network-dns-resolution'>> {
     const diagnoses = await diagnoseAll(ctx)
+    if (!diagnoses) return { status: 'skip', detail: { variant: 'provider_unavailable' } }
+    if (diagnoses.length === 0) return { status: 'pass' }
     const failing = diagnoses.filter((d) => d.dns.status === 'failed')
     const evidence = layerEvidence(diagnoses, 'dns')
     if (failing.length === 0) {
@@ -68,6 +84,8 @@ export const tlsHandshake = defineDoctorCheck({
   id: 'network-tls-handshake',
   async run(ctx): Promise<DoctorProbeOutcome<'network-tls-handshake'>> {
     const diagnoses = await diagnoseAll(ctx)
+    if (!diagnoses) return { status: 'skip', detail: { variant: 'provider_unavailable' } }
+    if (diagnoses.length === 0) return { status: 'pass' }
     const evidence = layerEvidence(diagnoses, 'tls')
     if (diagnoses.every((d) => d.tls.status === 'skipped' && d.tls.skippedBecause === 'proxy_in_use')) {
       return { status: 'pass', detail: { variant: 'skipped_proxy' }, evidence }
@@ -101,9 +119,11 @@ export const tlsHandshake = defineDoctorCheck({
 
 export const proxyApplied = defineDoctorCheck({
   id: 'network-proxy-applied',
-  async run(): Promise<DoctorProbeOutcome<'network-proxy-applied'>> {
-    const network = application.get('NetworkService')
-    const proxy = await network.effectiveProxy(RELEASE_HISTORY_URL)
+  async run(ctx): Promise<DoctorProbeOutcome<'network-proxy-applied'>> {
+    const diagnoses = await diagnoseAll(ctx)
+    if (!diagnoses) return { status: 'skip', detail: { variant: 'provider_unavailable' } }
+    const proxy = diagnoses.find((diagnosis) => diagnosis.proxy.mismatch)?.proxy ?? diagnoses[0]?.proxy
+    if (!proxy) return { status: 'pass' }
     const evidence: DoctorEvidenceItem[] = [
       { key: 'effective', value: proxy.effective, dataClass: 'local_only' },
       { key: 'configuredMode', value: proxy.configuredMode, dataClass: 'public' }
@@ -128,6 +148,37 @@ const HTTP_VARIANT: Partial<Record<NetworkFailureKind, 'proxy_auth' | 'server_er
   timeout: 'timeout'
 }
 
+type EndpointCheckId = Extract<DoctorCheckId, `network-endpoint-${string}` | 'network-provider-endpoint'>
+
+/** The HTTP layer is the verdict; the other layers already reported through their own checks. */
+function endpointOutcome<Id extends EndpointCheckId>(
+  diagnosis: EndpointDiagnosis,
+  settingsTarget: DoctorNavigateTarget
+): DoctorProbeOutcome<Id> {
+  const evidence = layerEvidence([diagnosis], 'http')
+  if (diagnosis.http.status === 'ok') {
+    return {
+      status: 'pass',
+      detail: { variant: diagnosis.verdict === 'reachable_untrusted_tls' ? 'untrusted_tls' : 'reachable' },
+      evidence
+    }
+  }
+  const failure = diagnosis.http.status === 'failed' ? diagnosis.http : undefined
+  const variant = (failure && HTTP_VARIANT[failure.kind]) ?? 'unreachable'
+  return {
+    status: variant === 'server_error' ? 'warn' : 'fail',
+    attribution: variant === 'server_error' ? 'transient' : 'user-fixable',
+    detail: { variant, params: { code: failure?.code ?? '' } },
+    actions: [
+      failure?.kind === 'proxy_auth' || failure?.kind === 'proxy_unreachable'
+        ? NAVIGATE_PROXY
+        : { kind: 'navigate', target: settingsTarget }
+    ],
+    devMessage: `${diagnosis.endpointId} (${diagnosis.host}) ${failure?.kind ?? 'skipped'}: ${failure?.code}`,
+    evidence
+  }
+}
+
 function endpointCheck<Id extends Extract<DoctorCheckId, `network-endpoint-${string}`>>(
   id: Id,
   endpointId: NetworkEndpointId
@@ -135,26 +186,9 @@ function endpointCheck<Id extends Extract<DoctorCheckId, `network-endpoint-${str
   return defineDoctorCheck({
     id,
     async run(ctx): Promise<DoctorProbeOutcome<Id>> {
-      const diagnosis = (await diagnoseAll(ctx)).find((d) => d.endpointId === endpointId)
+      const diagnosis = (await diagnoseAll(ctx))?.find((d) => d.endpointId === endpointId)
       if (!diagnosis) throw new Error(`Endpoint "${endpointId}" was not probed`)
-      const evidence = layerEvidence([diagnosis], 'http')
-      if (diagnosis.http.status === 'ok') {
-        return {
-          status: 'pass',
-          detail: { variant: diagnosis.verdict === 'reachable_untrusted_tls' ? 'untrusted_tls' : 'reachable' },
-          evidence
-        }
-      }
-      const failure = diagnosis.http.status === 'failed' ? diagnosis.http : undefined
-      const variant = (failure && HTTP_VARIANT[failure.kind]) ?? 'unreachable'
-      return {
-        status: variant === 'server_error' ? 'warn' : 'fail',
-        attribution: variant === 'server_error' ? 'transient' : 'user-fixable',
-        detail: { variant, params: { code: failure?.code ?? '' } },
-        actions: [NAVIGATE_PROXY],
-        devMessage: `${endpointId} (${diagnosis.host}) ${failure?.kind ?? 'skipped'}: ${failure?.code}`,
-        evidence
-      }
+      return endpointOutcome(diagnosis, '/settings/general')
     },
     fixes: {}
   })
@@ -164,3 +198,25 @@ export const endpointUpdate = endpointCheck('network-endpoint-update', 'update')
 export const endpointRegistry = endpointCheck('network-endpoint-registry', 'registry')
 export const endpointCloud = endpointCheck('network-endpoint-cloud', 'cloud')
 export const endpointDiagnostics = endpointCheck('network-endpoint-diagnostics', 'diagnostics')
+
+function diagnoseProvider(ctx: DoctorContextBase, providerId: string): Promise<EndpointDiagnosis | null> {
+  return ctx.share(`network:provider:${providerId}`, (signal) => {
+    const url = providerChatBaseUrl(providerService.getByProviderId(providerId))
+    if (!url) return Promise.resolve(null)
+    return application.get('NetworkService').diagnoseEndpoint({ id: `provider:${providerId}`, url }, signal)
+  })
+}
+
+/** The one endpoint a failing chat actually talks to: its provider's chat base URL. */
+export const providerEndpoint = defineDoctorCheck({
+  id: 'network-provider-endpoint',
+  async run(ctx): Promise<DoctorProbeOutcome<'network-provider-endpoint'>> {
+    const providerId = ctx.subject?.providerId ?? (await defaultChatModel(ctx))?.providerId
+    if (!providerId) throw new Error('Default model configuration changed; rerun the provider-model check')
+    const diagnosis = await diagnoseProvider(ctx, providerId)
+    // A provider without a configured base URL (login-based, cloud SDKs) has nothing to reach.
+    if (!diagnosis) return { status: 'pass' }
+    return endpointOutcome(diagnosis, '/settings/provider')
+  },
+  fixes: {}
+})

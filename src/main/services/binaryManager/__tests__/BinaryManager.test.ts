@@ -209,6 +209,15 @@ describe('BinaryManager', () => {
     expect(findExecutable).not.toHaveBeenCalled()
   })
 
+  it('initializes with binary management disabled when the Windows mise lookup fails', async () => {
+    platformMock.isWin = true
+    vi.mocked(findMiseExecutable).mockRejectedValue(new Error("Timed out resolving command 'mise' on Windows"))
+    const service = new BinaryManager()
+
+    await expect((service as any).onInit()).resolves.toBeUndefined()
+    expect((service as any).miseBin).toBeNull()
+  })
+
   it('starts the process-wide shell environment capture without awaiting it', async () => {
     vi.mocked(getRawShellEnv).mockReturnValue(new Promise<never>(() => {}))
     const service = new BinaryManager()

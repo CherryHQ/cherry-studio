@@ -31,7 +31,6 @@ import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature,
 import { getMachineCode } from './machineCode'
 
 const logger = loggerService.withContext('CherryCloudService')
-const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'
 const PRODUCTION_API_ORIGINS = {
   cn: 'https://cloud.cherryai.com.cn',
   global: 'https://cloud.cherryai.com'
@@ -75,7 +74,7 @@ function emptyState(): CherryCloudState {
 export function resolveCherryCloudApiOrigin(): string {
   const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
   if (configuredOrigin) return new URL(configuredOrigin).origin
-  return app.isPackaged ? PRODUCTION_API_ORIGINS[getAppEdition()] : DEVELOPMENT_API_ORIGIN
+  return PRODUCTION_API_ORIGINS[getAppEdition()]
 }
 
 function platformName(): 'darwin' | 'windows' | 'linux' {
