@@ -87,6 +87,7 @@ describe('heartbeat commands', () => {
       status: 'pending',
       input: { agentId: 'a1', prompt: '__heartbeat__' }
     })
+    expect(latest?.input).not.toHaveProperty('workspace')
     expect(agentTaskService.getHeartbeatSchedule('a1')?.nextRun).toBe(schedule.nextRun)
     expect(agentTaskService.listTasks('a1').tasks).toEqual([])
     expect(await service.runHeartbeat('a1')).toBe('busy')

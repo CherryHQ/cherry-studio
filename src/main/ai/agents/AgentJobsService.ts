@@ -27,6 +27,7 @@ import {
 import { triggersEqual, type JobScheduleSnapshot, type UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import type { AgentTaskForm, AgentTaskPatch, HeartbeatDocument, HeartbeatRunResult } from '@shared/ipc/schemas/ai'
 
+import { agentDataDirectoryPath, assertAgentStorageDirectory } from './agentDataDirectory'
 import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from './agentTaskDefaults'
 import { agentTaskJobHandler } from './agentTaskJobHandler'
 import { readHeartbeat } from './heartbeat'
@@ -494,10 +495,10 @@ export class AgentJobsService extends BaseService {
     if (!agent || !isHeartbeatEnabled(agent.configuration ?? {})) return 'disabled'
     const schedule = agentTaskService.getHeartbeatSchedule(agentId)
     if (!schedule?.enabled) return 'paused'
-    const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
-    if (template?.workspace.type !== 'user') return 'paused'
-    const workspace = agentWorkspaceService.getById(template.workspace.workspaceId)
-    if (!workspace?.path || !(await readHeartbeat(workspace.path))) return 'empty'
+    const agentsDataRoot = application.getPath('feature.agents.data')
+    const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
+    await assertAgentStorageDirectory(agentsDataRoot, agentDataPath)
+    if (!(await readHeartbeat(agentDataPath))) return 'empty'
     this.assertHeartbeatAvailable()
     if (jobService.list({ scheduleId: schedule.id, status: ['pending', 'delayed', 'running'], limit: 1 }).length) {
       return 'busy'
