@@ -1378,7 +1378,7 @@ export class AiService extends BaseService {
             if (!transport) {
               throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
             }
-            await transport.submit({
+            const { taskId } = await transport.submit({
               modelId: wireModelId,
               prompt: 'a red circle',
               n: 1,
@@ -1397,6 +1397,12 @@ export class AiService extends BaseService {
               providerParams: probeParams,
               signal
             })
+            // Accepting the request already proves the credential, the endpoint
+            // and the model; a job left queued would run a whole generation on
+            // the user's machine (ComfyUI submits a real workflow here).
+            if (taskId && transport.cancel) {
+              await transport.cancel(taskId).catch(() => undefined)
+            }
           })()
         } else {
           probe = this.generateImage({

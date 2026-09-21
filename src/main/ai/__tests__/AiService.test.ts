@@ -2048,6 +2048,40 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('cancels the job an image probe queued', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'ppio', name: 'PPIO' }))
+    mockModelGetByKey.mockReturnValue({
+      id: 'ppio::qwen-image-edit',
+      providerId: 'ppio',
+      apiModelId: 'qwen-image-edit',
+      name: 'Qwen Image Edit',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: {
+        edit: {
+          supports: { sourceLang: { default: 'auto', options: ['auto', 'en'], type: 'enum' } },
+          vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: false }
+        }
+      }
+    })
+    const cancel = vi.fn().mockResolvedValue(undefined)
+    const submit = vi.fn().mockResolvedValue({ taskId: 'queued-1' })
+    mockResolveImageTransport.mockReturnValueOnce({ submit, cancel })
+
+    await service.checkModel({
+      uniqueModelId: 'ppio::qwen-image-edit',
+      apiKeyOverride: 'sk-selected'
+    })
+
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(cancel).toHaveBeenCalledWith('queued-1')
+  })
+
   it('keeps generate-capable image probes mode-less', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })

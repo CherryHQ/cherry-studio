@@ -406,9 +406,37 @@ describe('useProviderModelPullReconcile', () => {
     })
 
     await waitFor(() => {
-      expect(deleteModelsMock).toHaveBeenCalledWith(['comfyui::sample_workflow_removed'])
+      expect(reconcileTriggerMock).toHaveBeenCalledWith({
+        params: { providerId: 'comfyui' },
+        body: { toAdd: [], toRemove: ['comfyui::sample_workflow_removed'] }
+      })
     })
     expect(toast.success).toHaveBeenCalledWith('settings.models.manage.clean_stale_success')
+  })
+
+  it('deletes nothing when the provider list does not load', async () => {
+    // ComfyUI unreachable: an empty result is not "every model is gone".
+    const saved = { ...localModel, id: 'comfyui::sample_workflow_removed', providerId: 'comfyui' }
+    useModelsMock.mockReturnValue({ models: [saved] })
+    useProviderMock.mockReturnValue({
+      provider: { id: 'comfyui', isEnabled: true, modelListIsAuthoritative: true },
+      enableProvider: enableProviderMock
+    })
+    fetchProviderCatalogModelsMock.mockRejectedValue(new Error('offline'))
+    fetchResolvedProviderModelsMock.mockRejectedValue(new Error('offline'))
+
+    const { result } = renderHook(() => useProviderModelPullReconcile('comfyui'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    await waitFor(() => {
+      expect(result.current.loadErrorMessage).toBeTruthy()
+    })
+    expect(reconcileTriggerMock).not.toHaveBeenCalled()
+    expect(deleteModelsMock).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('leaves a vanished model alone when the user set it as a default', async () => {
@@ -426,12 +454,8 @@ describe('useProviderModelPullReconcile', () => {
     })
     fetchProviderCatalogModelsMock.mockResolvedValue([])
     fetchResolvedProviderModelsMock.mockResolvedValue([])
-    deleteModelsMock.mockRejectedValueOnce(
-      DataApiErrorFactory.invalidOperation(
-        'delete model comfyui/sample_workflow_removed',
-        'model is in use as the default model'
-      )
-    )
+    // The API keeps a row it may not drop — a default model — instead of failing.
+    reconcileTriggerMock.mockResolvedValueOnce([vanished])
 
     const { result } = renderHook(() => useProviderModelPullReconcile('comfyui'))
 
@@ -458,7 +482,7 @@ describe('useProviderModelPullReconcile', () => {
       expect(result.current.allModels).toHaveLength(3)
     })
     expect(result.current.allModels).toContain(handAdded)
-    expect(deleteModelsMock).not.toHaveBeenCalled()
+    expect(reconcileTriggerMock).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
   })
 

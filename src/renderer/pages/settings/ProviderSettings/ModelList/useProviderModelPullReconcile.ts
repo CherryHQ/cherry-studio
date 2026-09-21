@@ -216,13 +216,23 @@ export function useProviderModelPullReconcile(providerId: string) {
       }
 
       try {
-        const skippedIds = await deleteModelsSkippingDefaults(vanishedIds, deleteModels)
-        const removedCount = vanishedIds.length - skippedIds.size
+        // The same API the manual cleanup uses, so a model the reconciliation is
+        // not allowed to drop (a default) is skipped identically in both.
+        const reconciled = await reconcileModels({
+          params: { providerId },
+          body: { toAdd: [], toRemove: vanishedIds }
+        })
+        const survivors = new Set(reconciled.map((model) => model.id))
+        const removedCount = vanishedIds.filter((id) => !survivors.has(id)).length
         if (removedCount > 0) {
           toast.success(t('settings.models.manage.clean_stale_success', { count: removedCount }))
         }
-        if (skippedIds.size > 0) {
-          toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedIds.size }))
+        if (vanishedIds.length > removedCount) {
+          toast.warning(
+            t('settings.models.manage.remove_skipped_default_in_use', {
+              count: vanishedIds.length - removedCount
+            })
+          )
         }
       } catch (error) {
         logger.error('Failed to reconcile models missing from the provider list', {
@@ -232,15 +242,17 @@ export function useProviderModelPullReconcile(providerId: string) {
         })
       }
     },
-    [deleteModels, listIsAuthoritative, models, providerId, t]
+    [listIsAuthoritative, models, providerId, reconcileModels, t]
   )
 
   const openPullReconcile = useCallback(() => {
     setPullReconcileDrawerOpen(true)
     void (async () => {
       const result = await loadModels()
-      // A newer load superseded this one.
-      if (!result) {
+      // A newer load superseded this one, and an incomplete list is not the
+      // provider's model set: with ComfyUI unreachable every row would look
+      // vanished and the reconciliation would drop the whole library.
+      if (!result || result.error) {
         return
       }
       await reconcileVanishedModels(result.models)

@@ -277,7 +277,10 @@ class ComfyuiTransport implements ImageGenerationTransport {
 
     // The submit and the body it answers with share one deadline: a server that
     // buffers a large graph can take a while to answer, but a body that never
-    // arrives must not hold the generation.
+    // arrives must not hold the generation. The id only exists in that body, so a
+    // deadline that fires mid-answer leaves the server-side job uncancellable —
+    // accepted trade-off against a hanging generation, and the reason every
+    // id-bearing path cancels by id.
     const promptId = await this.withDeadline(
       input.signal,
       SUBMIT_TIMEOUT_MS,
