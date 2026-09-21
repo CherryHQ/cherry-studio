@@ -664,6 +664,26 @@ describe('useFollowupQueue', () => {
     expect(failTrigger).not.toHaveBeenCalled()
   })
 
+  it('returns the take when the first delete attempt reports the row already gone', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    // The transport retries a timed-out DELETE and surfaces the retry's
+    // NOT_FOUND on the first attempt — our own commit, so hand over the draft.
+    deleteTrigger.mockRejectedValue(new DataApiError(ErrorCode.NOT_FOUND, 'fake queue: missing id h', 404))
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let taken: unknown = 'unset'
+    await act(async () => {
+      taken = await result.current.takeForEdit('h')
+    })
+
+    expect((taken as { draft: { text: string } }).draft.text).toBe('head')
+    expect(deleteTrigger).toHaveBeenCalledTimes(1)
+    expect(failTrigger).not.toHaveBeenCalled()
+  })
+
   it('returns the draft to its scope when the scope moves during the take delete', async () => {
     wireQuery([row('h', 'head')])
     const { claimTrigger, deleteTrigger, postTrigger } = wireMutations()
