@@ -220,6 +220,7 @@ const dictationTool = defineTool({
   key: 'dictation',
   label: DICTATION_TOOLBAR_MANIFEST.label,
   visibleInScopes: [TopicType.Chat, TopicType.Session, 'painting'],
+  availableWithoutModel: true,
   composer: {
     runtime: ({ context }) => <DictationComposerRuntime context={context} />
   }

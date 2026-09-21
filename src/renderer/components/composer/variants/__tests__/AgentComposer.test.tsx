@@ -1239,6 +1239,10 @@ describe('AgentComposer', () => {
 
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
+    expect(mocks.runtimeHostProps).toMatchObject({
+      model: undefined,
+      session: expect.objectContaining({ agentId: 'agent-1', sessionId: 'session-1' })
+    })
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
 

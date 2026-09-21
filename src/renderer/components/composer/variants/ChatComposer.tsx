@@ -1865,9 +1865,7 @@ const ChatComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      {displayAssistant && runtimeModel && (
-        <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
-      )}
+      <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface

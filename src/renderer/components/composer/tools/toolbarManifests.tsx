@@ -29,7 +29,8 @@ export const DICTATION_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {
     id: 'dictation',
     kind: 'command',
     order: 60,
-    icon: <Mic />
+    icon: <Mic />,
+    availableWithoutModel: true
   },
   label: (t) => t('chat.input.dictation.title'),
   visibleInScopes: [TopicType.Chat, TopicType.Session, 'painting']
