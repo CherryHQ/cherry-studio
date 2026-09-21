@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { FUNASR_SUPPORTED_PLATFORM_KEYS } from '@shared/ai/localVoice'
 import {
   LOCAL_MODEL_BUNDLE_BY_CAPABILITY,
   LOCAL_MODEL_BUNDLE_IDS,
@@ -72,6 +73,7 @@ describe('local model catalog', () => {
 
   it.each(artifacts)('$id ships a complete file set for each platform it supports', (artifact) => {
     for (const [platform, files] of Object.entries(artifact.platforms)) {
+      expect(files.packageName, `${artifact.id}/${platform} has no npm package`).toBeTruthy()
       expect(files.entryFile, `${artifact.id}/${platform} has no entry file`).toBeTruthy()
       expect(files.installSubdir, `${artifact.id}/${platform} has no install subdir`).toBeTruthy()
       // The entry file is installed separately from the support files; listing it twice
@@ -79,8 +81,59 @@ describe('local model catalog', () => {
       expect(files.supportFiles).not.toContain(files.entryFile)
       // Flattening relies on the prefix ending at a directory boundary.
       expect(files.tarballPrefix.endsWith('/')).toBe(true)
+      expect(files.tarballSha256, `${artifact.id}/${platform} has no tarball digest`).toMatch(/^[0-9a-f]{64}$/)
     }
-    expect(artifact.tarballSha256).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it.each(artifacts)('$id installs each platform into its own directory', (artifact) => {
+    const subdirs = Object.values(artifact.platforms).map((files) => files.installSubdir)
+    expect(new Set(subdirs).size).toBe(subdirs.length)
+  })
+
+  it('pins complete auditable provenance for FunASR and every downloaded file', () => {
+    const bundle = LOCAL_MODEL_BUNDLES['funasr-nano-int8']
+
+    expect(bundle.provenance).toMatchObject({
+      license: { spdx: 'Apache-2.0' },
+      upstream: { revision: '272c57b82523ada6fd87095e955f8e29100979ab' },
+      conversion: {
+        revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
+        license: { spdx: 'Apache-2.0' }
+      }
+    })
+    expect(bundle.files).toHaveLength(7)
+    for (const file of bundle.files) {
+      expect(file.sha256).toMatch(/^[0-9a-f]{64}$/)
+      expect(file.sizeBytes).toBeGreaterThan(0)
+      expect(file.minBytes).toBeGreaterThan(0)
+      expect(file.sources.length).toBeGreaterThan(0)
+      for (const source of file.sources) {
+        expect(source.revision).toMatch(/^[0-9a-f]{40}$/)
+        expect(source.repo).toBeTruthy()
+        expect(source.remoteFile).toBeTruthy()
+      }
+    }
+  })
+
+  it('derives the FunASR platform contract from the sherpa artifact matrix', () => {
+    const sherpa = SHARED_ARTIFACTS['sherpa-onnx']
+
+    expect(sherpa.provenance).toMatchObject({
+      license: { spdx: 'Apache-2.0' },
+      upstream: { revision: '1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911' }
+    })
+    expect(Object.keys(sherpa.platforms).sort()).toEqual([...FUNASR_SUPPORTED_PLATFORM_KEYS].sort())
+    expect(sherpa.platforms['win32-arm64']).toBeUndefined()
+    expect(sherpa.platforms['win32-x64']).toMatchObject({
+      packageName: 'sherpa-onnx-win-x64',
+      entryFile: 'sherpa-onnx.node',
+      supportFiles: expect.arrayContaining([
+        'onnxruntime_providers_shared.dll',
+        'onnxruntime.dll',
+        'sherpa-onnx-c-api.dll',
+        'sherpa-onnx-cxx-api.dll'
+      ])
+    })
   })
 
   it('throws on an unknown file key rather than yielding an undefined path', () => {

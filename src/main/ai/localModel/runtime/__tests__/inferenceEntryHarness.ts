@@ -1,8 +1,8 @@
-import type { EmbeddingInferenceContract, OcrInferenceContract } from '../inferenceProcess'
+import type { AsrInferenceContract, EmbeddingInferenceContract, OcrInferenceContract } from '../inferenceProcess'
 import type { InferenceInitData } from '../protocol'
 
 /**
- * Runs the two entry modules' handlers in-process, the way a real utility process runs
+ * Runs the inference entry handlers in-process, the way a real utility process runs
  * them: one shared runtime module (so the CPU fallback is sticky across both), init data
  * applied once, and a logger that records what the child would have relayed to the host.
  *
@@ -21,9 +21,16 @@ export interface OcrHandlers {
   ): Promise<OcrInferenceContract['methods']['recognize']['output']>
 }
 
+export interface AsrHandlers {
+  transcribe(
+    input: AsrInferenceContract['methods']['transcribe']['input']
+  ): Promise<AsrInferenceContract['methods']['transcribe']['output']>
+}
+
 export interface LoadedInferenceEntries {
   embedding: EmbeddingHandlers
   ocr: OcrHandlers
+  asr: AsrHandlers
   /** `level: message` lines, in order. */
   logs: string[]
 }
@@ -43,6 +50,7 @@ export async function loadInferenceEntries(initData: InferenceInitData): Promise
   const runtime = await import('../utilityEntries/inferenceRuntime')
   const { embeddingHandlers } = await import('../utilityEntries/inferenceEmbeddingHandlers')
   const { ocrHandlers } = await import('../utilityEntries/inferenceOcrHandlers')
+  const { asrHandlers } = await import('../utilityEntries/inferenceAsrHandlers')
   runtime.applyInitData(initData)
 
   const context = <Event>(emit: (event: Event) => void = () => {}) => ({
@@ -59,6 +67,9 @@ export async function loadInferenceEntries(initData: InferenceInitData): Promise
     },
     ocr: {
       recognize: async (input) => ocrHandlers.recognize(input, context())
+    },
+    asr: {
+      transcribe: async (input) => asrHandlers.transcribe(input, context())
     }
   }
 }

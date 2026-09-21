@@ -46,7 +46,7 @@ import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/s
 import type { UtilityProcessDefinition } from '@main/core/utilityProcess/types'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 
-import { embeddingInferenceProcess, ocrInferenceProcess } from '../inferenceProcess'
+import { asrInferenceProcess, embeddingInferenceProcess, ocrInferenceProcess } from '../inferenceProcess'
 import { InferenceServiceBase } from '../InferenceServiceBase'
 import type { InferenceInitData } from '../protocol'
 
@@ -66,10 +66,11 @@ const HARDWARE_KEY = 'feature.local_model.hardware_acceleration.enabled'
 const initDataSeen: unknown[] = []
 let childStates: EchoChildState[]
 let definition: UtilityProcessDefinition<EchoContract, InferenceInitData>
+let cpuOnlyRuntime = false
 
 class TestInferenceService extends InferenceServiceBase<EchoContract> {
   constructor() {
-    super(definition, 'embedding')
+    super(definition, 'embedding', cpuOnlyRuntime)
   }
 
   ping(signal?: AbortSignal) {
@@ -89,7 +90,10 @@ class TestInferenceService extends InferenceServiceBase<EchoContract> {
   }
 }
 
-async function createService(handlers: Partial<UtilityProcessHandlers<EchoContract>> = {}): Promise<{
+async function createService(
+  handlers: Partial<UtilityProcessHandlers<EchoContract>> = {},
+  cpuOnly = false
+): Promise<{
   service: TestInferenceService
   adapter: ReturnType<typeof createMemoryProcessAdapter>
 }> {
@@ -112,6 +116,7 @@ async function createService(handlers: Partial<UtilityProcessHandlers<EchoContra
   })
   await manager._doInit()
   utilityProcessManager.current = manager
+  cpuOnlyRuntime = cpuOnly
   const service = new TestInferenceService()
   await service._doInit()
   return { service, adapter }
@@ -122,6 +127,7 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, false)
   initDataSeen.length = 0
+  cpuOnlyRuntime = false
   definition = echoDefinition({
     createInitData: () => ({ appPath: '/app' })
   }) as UtilityProcessDefinition<EchoContract, InferenceInitData>
@@ -156,7 +162,7 @@ describe('InferenceServiceBase dispatch', () => {
     await expect(second).resolves.toBe('pong')
   })
 
-  it.each([embeddingInferenceProcess, ocrInferenceProcess])(
+  it.each([embeddingInferenceProcess, ocrInferenceProcess, asrInferenceProcess])(
     '$id cancellation waits for exit before dispatching the next native operation',
     async (processDefinition) => {
       definition = { ...definition, cancellation: processDefinition.cancellation }
@@ -207,7 +213,7 @@ describe('InferenceServiceBase dispatch', () => {
     }
   )
 
-  it.each([embeddingInferenceProcess, ocrInferenceProcess])(
+  it.each([embeddingInferenceProcess, ocrInferenceProcess, asrInferenceProcess])(
     '$id skips a cancelled queued request without killing the active process',
     async (processDefinition) => {
       definition = { ...definition, cancellation: processDefinition.cancellation }
@@ -281,6 +287,16 @@ describe('InferenceServiceBase runtime staleness', () => {
       resolveProfile.mockRestore()
       await service.terminate()
     }
+  })
+
+  it('keeps a CPU-only runtime alive when the acceleration preference changes', async () => {
+    const { service, adapter } = await createService({}, true)
+
+    await service.ping()
+    MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, true)
+    await service.ping()
+
+    expect(adapter.spawns).toHaveLength(1)
   })
 })
 

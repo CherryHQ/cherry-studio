@@ -1,5 +1,35 @@
 LOCAL VOICE AUDIO DEPENDENCY NOTICES
 
+LOCAL SPEECH RECOGNITION ARTIFACTS
+
+- Fun-ASR-Nano-2512, FunAudioLLM, Apache-2.0.
+  Upstream source and license, pinned at 272c57b82523ada6fd87095e955f8e29100979ab:
+  https://github.com/FunAudioLLM/Fun-ASR
+- The ONNX conversion downloaded by Cherry Studio is pinned to ModelScope revision
+  2f25d8e45c1534925cda6a4977d497f383b01535 and is declared Apache-2.0:
+  https://www.modelscope.cn/models/zengshuishui/FunASR-nano-onnx
+  The byte-identical Hugging Face transport mirror is pinned at
+  6f16bd378457e13f36ccf3910df9017f96c346fb. Every downloaded file is checked
+  against the SHA-256 digest recorded in Cherry Studio's local-model catalog.
+- The conversion procedure is documented by Wasser1462/FunASR-nano-onnx at
+  revision 174747919a0c465f36f58d87ee2a2e1d46ce1206. That repository has no
+  declared license; Cherry Studio does not copy or distribute its source code.
+- Qwen3-0.6B tokenizer data, Alibaba Cloud, Apache-2.0, pinned at
+  167b8104f88905a951069f5f95f9776908da5f68:
+  https://huggingface.co/Qwen/Qwen3-0.6B
+- Silero VAD v4, Silero Team, MIT, pinned at
+  915dd3d639b8333a52e001af095f87c5b7f1e0ac:
+  https://github.com/snakers4/silero-vad
+- sherpa-onnx 1.13.6, k2-fsa contributors, Apache-2.0, pinned at
+  1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911:
+  https://github.com/k2-fsa/sherpa-onnx
+- ONNX Runtime 1.27.1, Microsoft Corporation, MIT, pinned at
+  df2ba1cf8108aa63627cf4cdf8f807880b938616:
+  https://github.com/microsoft/onnxruntime
+
+The model files and native runtime are downloaded only after an explicit user
+action. Cherry Studio does not bundle them in the installer.
+
 Cherry Studio uses these libraries without modifying their source:
 
 - Mediabunny 1.58.0, Vanilagy and contributors, MPL-2.0.
@@ -20,8 +50,7 @@ Cherry Studio uses these libraries without modifying their source:
 - puff, Mark Adler, zlib license, included by wasm-audio-decoders to inflate WASM.
   Source: https://github.com/madler/zlib/tree/master/contrib/puff
 
-The runtime has no CDN, download, network or platform-codec dependency.
-These notices concern audio decoding libraries, not the FunASR model license.
+The WebM decoding runtime has no CDN, download, network or platform-codec dependency.
 
 MIT (Ethan Halsall; also the license stated by ts-ebml)
 

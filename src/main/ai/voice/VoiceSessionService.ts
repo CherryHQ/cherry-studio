@@ -472,6 +472,7 @@ export class VoiceSessionService extends BaseService {
   private defaultAsrModel() {
     return resolveDefaultAsrModel({
       platform: process.platform,
+      arch: process.arch,
       majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion(), 10) : undefined
     })
   }

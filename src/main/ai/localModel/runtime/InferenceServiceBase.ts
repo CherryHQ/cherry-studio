@@ -14,7 +14,7 @@ import type { LocalModelCapability } from '@shared/data/presets/localModel'
 
 import { bundleForCapability } from '../catalog/catalog'
 import { localModelStorageService } from '../installation/LocalModelStorageService'
-import { resolveLocalInferenceProfile } from './inferenceAcceleration'
+import { CPU_LOCAL_INFERENCE_PROFILE, resolveLocalInferenceProfile } from './inferenceAcceleration'
 import type { InferenceInitData } from './protocol'
 
 /**
@@ -34,7 +34,8 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
 
   protected constructor(
     private readonly definition: UtilityProcessDefinition<Contract, InferenceInitData>,
-    private readonly capability: LocalModelCapability
+    private readonly capability: LocalModelCapability,
+    private readonly cpuOnly = false
   ) {
     super()
     this.logger = loggerService.withContext(`InferenceService:${capability}`)
@@ -85,9 +86,11 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
   }
 
   private async restartIfRuntimeChanged(): Promise<void> {
-    const profile = resolveLocalInferenceProfile(
-      application.get('PreferenceService').get('feature.local_model.hardware_acceleration.enabled')
-    )
+    const profile = this.cpuOnly
+      ? CPU_LOCAL_INFERENCE_PROFILE
+      : resolveLocalInferenceProfile(
+          application.get('PreferenceService').get('feature.local_model.hardware_acceleration.enabled')
+        )
     if (this.launchedProfileId !== null && this.launchedProfileId !== profile.id) {
       this.logger.info('inference runtime configuration changed; restarting process')
       await this.client.stop()

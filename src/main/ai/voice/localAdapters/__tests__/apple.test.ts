@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID } from '@shared/ai/localVoice'
 
 import {
   createLocalSpeechModel,
@@ -197,11 +197,6 @@ describe('local Apple adapters', () => {
       })
     ).rejects.toMatchObject({ reason: 'asset_required' })
     expect(mocks.nativeRequest.mock.calls.every(([request]) => request.operation === 'capabilities')).toBe(true)
-  })
-
-  it('fails explicit FunASR selection closed before probing Apple', () => {
-    expect(() => createLocalTranscriptionModel(FUNASR_MODEL_ID, {})).toThrow('license_unverified')
-    expect(mocks.nativeRequest.mock.calls).toEqual([])
   })
 
   it('rejects an unknown model instead of treating it as Apple TTS', async () => {

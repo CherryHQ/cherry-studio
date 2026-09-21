@@ -18,7 +18,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { BaseService } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
 
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 import { VoiceSessionService, type VoiceOwner } from '../VoiceSessionService'
@@ -1231,12 +1231,28 @@ describe('VoiceSessionService file and admission contract', () => {
   })
 
   it('missing resources retain input without invoking inference or substituting another model', async () => {
-    const input = await recording()
-    native.status.mockResolvedValue({ status: 'not_installed', reason: 'asset_required' })
-    await expect(service.transcribe(a, input)).rejects.toMatchObject({ reason: 'asset_required' })
+    const input = { ...(await recording()), modelId: FUNASR_MODEL_ID, language: undefined }
+    native.status.mockResolvedValue({ status: 'not_installed', reason: 'model_required' })
+    await expect(service.transcribe(a, input)).rejects.toMatchObject({ reason: 'model_required' })
     expect(native.transcribe).not.toHaveBeenCalled()
+    expect(native.status).toHaveBeenCalledWith(FUNASR_MODEL_ID, input, expect.any(AbortSignal))
     expect((await files.read(input.fileEntryId, { encoding: 'binary' })).content).toEqual(webm)
     await service.discard(a, input.sessionId)
+    expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+  })
+
+  it('runs ready FunASR through AiService with the same owned FileEntry and no fallback', async () => {
+    const input = { ...(await recording()), modelId: FUNASR_MODEL_ID, language: undefined }
+
+    await expect(service.transcribe(a, input)).resolves.toMatchObject({ text: 'private-transcript' })
+
+    expect(native.transcribe).toHaveBeenCalledOnce()
+    expect(native.transcribe).toHaveBeenCalledWith(
+      FUNASR_MODEL_ID,
+      webm,
+      { language: undefined },
+      expect.any(AbortSignal)
+    )
     expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
   })
 
