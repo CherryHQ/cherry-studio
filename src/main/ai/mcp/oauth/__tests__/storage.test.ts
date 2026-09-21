@@ -3,7 +3,7 @@ import os from 'os'
 import path from 'path'
 
 import type { StoredOAuthClientInformation, StoredOAuthTokens } from '@modelcontextprotocol/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { JsonFileStorage, type OAuthSecretCipher } from '../storage'
 
@@ -22,6 +22,7 @@ describe('JsonFileStorage round-trip', () => {
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
     await fs.rm(configDir, { recursive: true, force: true })
   })
 
@@ -132,6 +133,42 @@ describe('JsonFileStorage round-trip', () => {
       access_token: 'issuer-b-token'
     })
   })
+
+  it.each(['cached', 'fresh', 'legacy'])(
+    'clears discovery without redundant writes or credential loss (%s)',
+    async (mode) => {
+      const tokens = { access_token: 'stored-access', token_type: 'Bearer' }
+      const clientInfo = { client_id: 'stored-client', client_secret: 'stored-secret' }
+      const discoveryState = { authorizationServerUrl: 'https://auth.example.com' }
+      const filePath = path.join(configDir, `${serverUrlHash}_oauth.json`)
+      const writer = new JsonFileStorage(serverUrlHash, configDir, cipher)
+      if (mode === 'legacy') {
+        await fs.writeFile(
+          filePath,
+          JSON.stringify({ tokens, clientInfo, codeVerifier: 'verifier', discoveryState, lastUpdated: 1 })
+        )
+      } else {
+        await writer.saveTokens(tokens)
+        await writer.saveClientInformation(clientInfo)
+        await writer.saveCodeVerifier('verifier')
+        await writer.saveDiscoveryState(discoveryState)
+      }
+
+      const storage = mode === 'fresh' ? new JsonFileStorage(serverUrlHash, configDir, cipher) : writer
+      const writes = vi.spyOn(fs, 'writeFile')
+      await storage.clear('discovery')
+      expect(writes).toHaveBeenCalledTimes(mode === 'legacy' ? 2 : 1)
+
+      const reader = new JsonFileStorage(serverUrlHash, configDir, cipher)
+      await expect(reader.getDiscoveryState()).resolves.toBeUndefined()
+      await expect(reader.getTokens()).resolves.toEqual(tokens)
+      await expect(reader.getClientInformation()).resolves.toEqual(clientInfo)
+      await expect(reader.getCodeVerifier()).resolves.toBe('verifier')
+      const persisted = await fs.readFile(filePath, 'utf8')
+      expect(persisted).not.toContain('stored-access')
+      expect(persisted).not.toContain('stored-secret')
+    }
+  )
 
   it('does not write credentials in plaintext when encryption is unavailable', async () => {
     const unavailable: OAuthSecretCipher = {
