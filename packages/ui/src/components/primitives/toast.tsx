@@ -1,6 +1,6 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, LoaderCircle, X } from 'lucide-react'
 import type React from 'react'
-import { createContext, use, useMemo, useSyncExternalStore } from 'react'
+import { createContext, use, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import { cn } from '../../lib/utils'
 import { Button } from './button'
@@ -78,6 +78,9 @@ const createToastStore = () => {
   let toastQueue: ToastRecord[] = []
   const listeners = new Set<() => void>()
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
+  const deadlines = new Map<string, number>()
+  const remaining = new Map<string, number>()
+  let paused = false
   const loadingTokens = new Map<string, symbol>()
 
   const notify = () => {
@@ -112,6 +115,8 @@ const createToastStore = () => {
     const toast = toastQueue.find((item) => item.key === key)
     clearTimer(key)
     loadingTokens.delete(key)
+    deadlines.delete(key)
+    remaining.delete(key)
     toastQueue = toastQueue.filter((item) => item.key !== key)
     toast?.onClose?.()
     notify()
@@ -119,18 +124,48 @@ const createToastStore = () => {
 
   const schedule = (toast: ToastRecord) => {
     clearTimer(toast.key)
+    deadlines.delete(toast.key)
+    remaining.delete(toast.key)
 
     if (toast.timeout === 0 || toast.type === 'loading') {
       return
     }
 
     const timeout = toast.timeout ?? DEFAULT_TIMEOUT
+    if (paused) {
+      remaining.set(toast.key, timeout)
+      return
+    }
+    deadlines.set(toast.key, Date.now() + timeout)
     timers.set(
       toast.key,
       setTimeout(() => {
         remove(toast.key)
       }, timeout)
     )
+  }
+
+  const setPaused = (value: boolean) => {
+    if (paused === value) return
+    paused = value
+    if (paused) {
+      deadlines.forEach((deadline, key) => {
+        remaining.set(key, Math.max(0, deadline - Date.now()))
+        clearTimer(key)
+      })
+      deadlines.clear()
+    } else {
+      toastQueue.forEach((toast) => {
+        const timeout = remaining.get(toast.key)
+        if (timeout === undefined) return
+        deadlines.set(toast.key, Date.now() + timeout)
+        timers.set(
+          toast.key,
+          setTimeout(() => remove(toast.key), timeout)
+        )
+      })
+      remaining.clear()
+    }
   }
 
   const upsert = (toast: ToastRecord) => {
@@ -152,6 +187,8 @@ const createToastStore = () => {
       loadingTokens.delete(toast.key)
       toast.onClose?.()
     })
+    deadlines.clear()
+    remaining.clear()
     toastQueue = []
     notify()
   }
@@ -161,6 +198,7 @@ const createToastStore = () => {
     getLoadingToken: (key: string) => loadingTokens.get(key),
     getSnapshot,
     remove,
+    setPaused,
     setLoadingToken: (key: string, token: symbol) => loadingTokens.set(key, token),
     subscribe,
     unsetLoadingToken: (key: string) => loadingTokens.delete(key),
@@ -397,6 +435,22 @@ export const ToastViewport = ({
 }) => {
   const toasts = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const toastLabels = getToastLabels(labels)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const expanded = hovered || focused
+
+  useEffect(() => {
+    store.setPaused(expanded && toasts.length > 0)
+    return () => store.setPaused(false)
+  }, [expanded, store, toasts.length])
+
+  useEffect(() => {
+    setFocused(viewportRef.current?.contains(document.activeElement) ?? false)
+    if (toasts.length === 0) {
+      setHovered(false)
+    }
+  }, [toasts.length])
 
   if (toasts.length === 0) {
     return null
@@ -404,11 +458,31 @@ export const ToastViewport = ({
 
   return (
     <div
+      ref={viewportRef}
       aria-label="notifications"
-      className="pointer-events-none fixed top-5 left-1/2 z-[10000] flex -translate-x-1/2 flex-col items-center gap-2"
+      className={cn(
+        'pointer-events-auto fixed top-5 left-1/2 z-[10000] -translate-x-1/2 [-webkit-app-region:no-drag]',
+        expanded ? 'flex max-h-[calc(100vh-2.5rem)] flex-col items-center gap-2 overflow-y-auto p-2' : 'grid pb-4'
+      )}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
+      }}
       role="region">
-      {toasts.map((toast) => (
-        <ToastItem key={toast.key} labels={toastLabels} store={store} toast={toast} />
+      {toasts.toReversed().map((toast, index) => (
+        <div
+          key={toast.key}
+          inert={!expanded && index > 0}
+          className={cn(!expanded && 'col-start-1 row-start-1 origin-top', !expanded && index >= 3 && 'hidden')}
+          style={
+            expanded
+              ? undefined
+              : { zIndex: toasts.length - index, transform: `translateY(${index * 8}px) scale(${1 - index * 0.04})` }
+          }>
+          <ToastItem labels={toastLabels} store={store} toast={toast} />
+        </div>
       ))}
     </div>
   )
