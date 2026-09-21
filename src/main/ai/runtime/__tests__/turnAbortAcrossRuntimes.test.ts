@@ -35,6 +35,26 @@ describe('runtime turn abort without session teardown', () => {
     expect((connection as any).closed).toBe(false)
   })
 
+  it('cancels an in-flight manual Pi /compact turn instead of reporting a no-op stop', async () => {
+    const connection = new PiRuntimeConnection(input)
+    const session = {
+      // pi settles an aborted compaction with an aborted compaction_end, which clears the flag.
+      abort: vi.fn(async () => {
+        ;(connection as any).manualCompactInFlight = false
+      })
+    }
+    ;(connection as any).session = session
+    ;(connection as any).promptRunActive = false
+    ;(connection as any).manualCompactInFlight = true
+
+    // A /compact turn is live without an active prompt run: the stop must reach pi's abort and
+    // wait for the compaction to settle, not succeed while compaction keeps running.
+    await expect(connection.abortTurn()).resolves.toBe(true)
+    expect(session.abort).toHaveBeenCalledOnce()
+    expect((connection as any).manualCompactInFlight).toBe(false)
+    expect((connection as any).closed).toBe(false)
+  })
+
   it('cancels only DSH main session and retains its bridge', async () => {
     const connection = new DshRuntimeConnection(input)
     const bridge = {

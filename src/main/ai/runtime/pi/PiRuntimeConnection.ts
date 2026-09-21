@@ -573,20 +573,30 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.closed || !session) return false
     // A warm connection whose turn already settled has nothing to interrupt: report success so
     // the stop keeps the preserved runtime instead of falling back to the teardown.
-    if (!this.promptRunActive) return true
+    if (!this.promptRunActive) {
+      // A manual `/compact` is a live host turn that never goes through `prompt()`: route its
+      // stop into pi's abort so the compaction is cancelled, not outliving the stop.
+      if (!this.manualCompactInFlight) return true
+      return this.abortPiWork(session, () => this.manualCompactInFlight, 'compact')
+    }
     this.stopRequested = true
+    return this.abortPiWork(session, () => this.promptRunActive, 'turn')
+  }
+
+  /** Abort pi's in-flight work (prompt turn or manual compaction) and wait for it to settle. */
+  private async abortPiWork(session: AgentSession, workActive: () => boolean, label: string): Promise<boolean> {
     try {
       let timeout: ReturnType<typeof setTimeout> | undefined
       await Promise.race([
         session.abort(),
         new Promise<never>((_, reject) => {
-          timeout = setTimeout(() => reject(new Error('Pi turn abort timed out')), 5_000)
+          timeout = setTimeout(() => reject(new Error(`Pi ${label} abort timed out`)), 5_000)
         })
       ]).finally(() => clearTimeout(timeout))
-      if (!this.promptRunActive) return true
+      if (!workActive()) return true
       const settled = await new Promise<boolean>((resolve) => {
         const poll = setInterval(() => {
-          if (this.promptRunActive && !this.closed) return
+          if (workActive() && !this.closed) return
           clearInterval(poll)
           clearTimeout(settleTimeout)
           resolve(!this.closed)
@@ -600,7 +610,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       return settled
     } catch (error) {
       this.stopRequested = false
-      logger.warn('pi turn abort failed', { sessionId: this.input.sessionId, error })
+      logger.warn(`pi ${label} abort failed`, { sessionId: this.input.sessionId, error })
       return false
     }
   }
