@@ -1,0 +1,20 @@
+{
+  "stage": "assess",
+  "phase": "rebrand-to-the-boss",
+  "at": "2026-09-21T09:47:29Z",
+  "artifact": "assessment.md",
+  "summary": "Fork is branding-virgin (zero Boss identity) and only 3 commits behind upstream; all 4 fork-only commits are agent tooling, so there is no fork-unique product code to protect yet. Two critical gaps: userData is name-derived (renaming the app silently orphans user profiles) and no data-migration policy exists. Menus already route through t() and app.name, so the real i18n surface is 89 user-visible values across 13 locales x 2 trees, not the 4306 raw occurrences goals.md implied.",
+  "warnings": [
+    "goals.md is factually wrong on two points (10 vs 13 locales; implied existing Boss branding). Plan must size from assessment.md.",
+    "Hooks subsystem unavailable (KBD_ORCHESTRATOR_ROOT unset; only archived/worktree copies of hooks.sh and stage-gate.sh found). assess:before/after were NOT fired.",
+    "Upstream was fetched into a throwaway ref refs/remotes/_probe/main for measurement; a permanent upstream remote is still a G5 deliverable."
+  ],
+  "openQuestions": [
+    "Data migration policy: adopt existing Cherry profile, start clean, or prompt? (irreversible)",
+    "Is CHERRY_EDITION the right branding carrier, or a separate branding module?",
+    "Does the-boss.know-me.tools exist and serve v2.x artifacts?",
+    "Telemetry: disable or re-target?",
+    "Built-in cherry_assistant/cherry_support agents: remove or rebrand?"
+  ],
+  "nextStage": "plan"
+}

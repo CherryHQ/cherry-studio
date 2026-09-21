@@ -1,0 +1,35 @@
+{
+  "status": "ok",
+  "gateway": "http://localhost:4000/v1",
+  "roles": {
+    "judge": {
+      "model": "gpt-5.5",
+      "source": "/Users/gqadonis/.prometheus/kbd/models.toml"
+    },
+    "critic": {
+      "model": "MiniMax-M3",
+      "source": "/Users/gqadonis/.prometheus/kbd/models.toml"
+    },
+    "generator": {
+      "model": "kbd-frontier",
+      "source": "/Users/gqadonis/.prometheus/kbd/models.toml"
+    }
+  },
+  "providers_detected": [
+    "openai",
+    "gemini",
+    "groq",
+    "fireworks",
+    "openrouter"
+  ],
+  "classes_available": [
+    "small",
+    "medium",
+    "frontier"
+  ],
+  "distinct_models": 2,
+  "config_path": "/Users/gqadonis/.config/liter-llm/liter-llm-proxy.toml",
+  "config_exists": true,
+  "config_defects": [],
+  "checked_at": "2026-09-21T09:33:08Z"
+}

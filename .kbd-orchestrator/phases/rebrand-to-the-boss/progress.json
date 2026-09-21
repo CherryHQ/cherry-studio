@@ -1,10 +1,17 @@
 {
   "phase": "rebrand-to-the-boss",
-  "status": "assessment_ready",
+  "status": "assessment_complete",
   "createdAt": "2026-09-21T09:27:39Z",
-  "updatedAt": "2026-09-21T09:27:39Z",
+  "updatedAt": "2026-09-21T09:48:02Z",
   "previousPhase": null,
-  "goals": ["G1","G2","G3","G4","G5","G6"],
+  "goals": [
+    "G1",
+    "G2",
+    "G3",
+    "G4",
+    "G5",
+    "G6"
+  ],
   "goalsFile": "goals.md",
   "changes": [],
   "completedChanges": [],
@@ -16,6 +23,11 @@
       "at": "2026-09-21T09:27:39Z",
       "decision": "Phase seeded from user request; prior rebrand art found at references/baseline/cherry-studio (v1.9.11) including productName 'The Boss', appId tools.know-me.the-boss, and an upstream-1.9.x-merge-strategy playbook.",
       "by": "kbd-new-phase"
+    },
+    {
+      "at": "2026-09-21T09:48:02Z",
+      "decision": "Assessment found fork is branding-virgin and only 3 commits behind upstream; userData name-derivation flagged CRITICAL (silent profile orphaning). Real i18n surface is 89 values, not 4306 occurrences.",
+      "by": "kbd-assess"
     }
   ]
 }
