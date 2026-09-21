@@ -293,6 +293,63 @@ describe('body reads are bounded by the request deadline', () => {
   })
 })
 
+describe('cancel is not gated on the queue snapshot', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const stallingUntilAborted = (init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      ;(init?.signal as AbortSignal | undefined)?.addEventListener('abort', () => {
+        const e = new Error('The operation was aborted')
+        e.name = 'AbortError'
+        reject(e)
+      })
+    })
+
+  it('sends the dequeue before it reads the snapshot', async () => {
+    const order: string[] = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/system_stats')) {
+        order.push('GET /system_stats')
+        return respond({ system: { comfyui_version: '0.3.57' } })
+      }
+      if (init?.method === 'POST') {
+        order.push(`POST ${url.replace('http://localhost:8188', '')}`)
+        return respond({})
+      }
+      order.push('GET /queue')
+      return respond({ queue_running: [[1, 'pid-1', {}, {}, []]], queue_pending: [] })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1')
+
+    // The snapshot is log-only: the writes must not wait behind it.
+    expect(order).toEqual(['POST /queue', 'GET /system_stats', 'POST /interrupt', 'GET /queue'])
+  })
+
+  it('bounds the cancellation writes so a stalled POST cannot hold cancel open', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/system_stats')) {
+        return respond({ system: { comfyui_version: '0.3.57' } })
+      }
+      if (init?.method === 'POST') return stallingUntilAborted(init)
+      return respond({ queue_running: [], queue_pending: [] })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const promise = transport.cancel('pid-1')
+    await vi.advanceTimersByTimeAsync(5000)
+    await expect(promise).resolves.toBeUndefined()
+  })
+})
+
 describe('poll', () => {
   const POLL_INTERVAL_MS = 1500
   const POLL_TIMEOUT_MS = 10 * 60 * 1000

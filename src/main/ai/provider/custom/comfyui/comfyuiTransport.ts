@@ -139,6 +139,37 @@ export async function listWorkflows(
  * have a single owner. The caller resolves its own fallback message: the i18n
  * gate only accepts a key written literally where the helper is called.
  */
+/**
+ * Run one exchange under an absolute deadline, combined with the caller's
+ * signal, and report this request's own timeout as a structured failure.
+ *
+ * `run` receives the combined signal, so everything it awaits — the fetch, the
+ * body read, a second read of an error body — is bounded by the same budget and
+ * is actually aborted when it fires. This is the transport's only deadline
+ * implementation; the one on the class delegates here.
+ */
+async function withDeadline<T>(
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
+  timeoutMessage: string,
+  run: (deadlineSignal: AbortSignal) => Promise<T>
+): Promise<T> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), Math.max(0, timeoutMs))
+  try {
+    return await run(signal ? AbortSignal.any([signal, controller.signal]) : controller.signal)
+  } catch (error) {
+    // The combined signal aborts for the caller's cancellation AND for this
+    // request's own budget; only the latter is a deadline failure.
+    if (controller.signal.aborted && !signal?.aborted) {
+      throw createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function requestJson<T>(
   url: string,
   fallback: string,
@@ -147,31 +178,21 @@ async function requestJson<T>(
   timeoutMs: number = LIST_TIMEOUT_MS
 ): Promise<T> {
   const doFetch = options.fetch ?? fetch
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), Math.max(0, timeoutMs))
-  const timeoutMessage = t('paintings.comfyui.request_timeout', { seconds: timeoutMs / 1000 })
-  try {
-    const response = await doFetch(url, {
-      signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
-      headers: options.headers
-    })
-    if (!response.ok) {
-      // Inside the deadline: the error body is a read like any other.
-      throw createPaintingGenerateError('REMOTE_ERROR', {
-        message: await readErrorMessage(response, fallback)
-      })
+  return withDeadline(
+    signal,
+    timeoutMs,
+    t('paintings.comfyui.request_timeout', { seconds: timeoutMs / 1000 }),
+    async (deadlineSignal) => {
+      const response = await doFetch(url, { signal: deadlineSignal, headers: options.headers })
+      if (!response.ok) {
+        // Inside the deadline: the error body is a read like any other.
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message: await readErrorMessage(response, fallback)
+        })
+      }
+      return (await response.json()) as T
     }
-    return (await response.json()) as T
-  } catch (error) {
-    // Only this request's own budget produces a timeout message; a caller
-    // cancellation or a network error is rethrown untouched.
-    if (controller.signal.aborted && !signal?.aborted) {
-      throw createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })
-    }
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
+  )
 }
 
 /**
@@ -414,48 +435,53 @@ class ComfyuiTransport implements ImageGenerationTransport {
    */
   async cancel(taskId: string): Promise<void> {
     const headers = { ...this.headers, 'Content-Type': 'application/json' }
-    // The queue snapshot informs the log, it does not gate the writes: both are
-    // id-scoped, so neither needs proof that the prompt is still queued.
-    // `POST /queue {"delete": [id]}` is a no-op for an unknown id, and the
-    // interrupt is only sent when the server scopes it to `prompt_id`. Gating on
-    // a successful read made Cancel a silent no-op whenever that one GET timed
-    // out or 503'd, while ComfyUI kept the graph on the GPU.
-    const snapshot = await this.cancelAction(taskId)
-    const promises: Promise<unknown>[] = [
-      // Dequeue (safe even if the prompt already moved to running).
-      this.doFetch(`${this.baseURL}/queue`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ delete: [taskId] })
-      }).catch(() => undefined)
-    ]
 
-    // Interrupt if the server supports prompt_id-scoped cancellation. The
-    // snapshot cannot close this race on its own: a prompt that reads as
-    // 'pending' can start running before the dequeue lands, and one that reads
-    // as 'running' is exactly what the interrupt is for.
+    // The dequeue goes out first and nothing else gates it. Both writes are
+    // id-scoped — `POST /queue {"delete": [id]}` is a no-op for an unknown id,
+    // and the interrupt is only sent when the server scopes it to `prompt_id` —
+    // so neither needs the queue snapshot, and a snapshot that stalls (or fails)
+    // must not delay the cancellation or turn it into a silent no-op.
+    const writes: Promise<unknown>[] = [this.cancelWrite(`${this.baseURL}/queue`, { delete: [taskId] }, headers)]
+
+    // Interrupt if the server supports prompt_id-scoped cancellation; on a
+    // pre-0.3.57 server `/interrupt` ignores `prompt_id` and stops whatever is
+    // running, so it is never sent there.
     const caps = await this.getCancelCapabilities()
     if (caps.targetedInterrupt) {
-      promises.push(
-        this.doFetch(`${this.baseURL}/interrupt`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ prompt_id: taskId })
-        }).catch(() => undefined)
-      )
+      writes.push(this.cancelWrite(`${this.baseURL}/interrupt`, { prompt_id: taskId }, headers))
     } else {
-      // Pre-0.3.57: `/interrupt` ignores `prompt_id` and stops whatever is
-      // running, so it is never sent. The id-scoped dequeue above is the only
-      // safe cancellation these servers offer.
       logger.warn(
         `ComfyUI ${this.baseURL} cannot interrupt a single prompt (needs v0.3.57+); ` +
           `queued prompt ${taskId} was removed but a running one keeps going`
       )
     }
-    // Both requests are fired in parallel so a stalled queue-delete cannot
-    // prevent the interrupt from reaching the server.
-    await Promise.all(promises)
-    logger.debug(`ComfyUI cancel for ${taskId}: queue snapshot said '${snapshot}'`)
+
+    await Promise.all(writes)
+    logger.debug(`ComfyUI cancel for ${taskId}: queue snapshot said '${await this.cancelAction(taskId)}'`)
+  }
+
+  /**
+   * One cancellation write, bounded like every other request the transport makes
+   * and best-effort: a stalled or failed POST must not hold `cancel()` open.
+   */
+  private async cancelWrite(
+    url: string,
+    body: Record<string, unknown>,
+    headers: Record<string, string>
+  ): Promise<void> {
+    await this.withDeadline(
+      undefined,
+      CANCEL_QUEUE_TIMEOUT_MS,
+      t('paintings.comfyui.request_timeout', { seconds: CANCEL_QUEUE_TIMEOUT_MS / 1000 }),
+      async (deadlineSignal) => {
+        await this.doFetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: deadlineSignal
+        })
+      }
+    ).catch(() => undefined)
   }
 
   /**
@@ -502,26 +528,13 @@ class ComfyuiTransport implements ImageGenerationTransport {
    * which is what a bare `Promise.race` does, leaves the response buffering
    * behind the failure.
    */
-  private async withDeadline<T>(
+  private withDeadline<T>(
     signal: AbortSignal | undefined,
     timeoutMs: number,
     timeoutMessage: string,
     run: (deadlineSignal: AbortSignal) => Promise<T>
   ): Promise<T> {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), Math.max(0, timeoutMs))
-    try {
-      return await run(signal ? AbortSignal.any([signal, controller.signal]) : controller.signal)
-    } catch (error) {
-      // The combined signal aborts for the caller's cancellation AND for this
-      // request's own budget; only the latter is a deadline failure.
-      if (controller.signal.aborted && !signal?.aborted) {
-        throw createPaintingGenerateError('REMOTE_ERROR', { message: timeoutMessage })
-      }
-      throw error
-    } finally {
-      clearTimeout(timer)
-    }
+    return withDeadline(signal, timeoutMs, timeoutMessage, run)
   }
 
   /**
