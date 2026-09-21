@@ -183,6 +183,10 @@ exports.default = async function (context) {
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
 
+  if (platform === 'darwin') {
+    require('../packages/system-speech/scripts/build-native.cjs').buildNativeHelper(arch)
+  }
+
   await prepareNativeModulesForElectron(context)
   assertPrebuiltPackages(platform, arch)
 
