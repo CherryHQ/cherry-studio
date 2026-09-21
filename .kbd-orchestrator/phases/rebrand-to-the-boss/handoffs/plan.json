@@ -1,0 +1,15 @@
+{
+  "stage": "plan",
+  "phase": "rebrand-to-the-boss",
+  "at": "2026-09-21T09:59:02Z",
+  "artifact": "plan.md",
+  "summary": "10 OpenSpec changes ordered so upstream sync lands first (provably conflict-free today) and userData is pinned before the app rename (otherwise profiles are silently orphaned). Three decisions taken: start-clean with no migration, a separate branding module rather than CHERRY_EDITION, and the updater deliberately not repointed because the-boss.know-me.tools has no release feed.",
+  "warnings": [
+    "Adversarial vet widened scope: hardcoded 'CherryStudio' appears in 15 non-test files under src/main, including OAuth client name shown on third-party consent screens. Change rebrand-0075 added to cover them.",
+    "65 test files assert the Cherry brand and will break during rebrand-006; apply the no-behavior-pinning rule rather than mechanically re-greening.",
+    "Two decisions remain open and must not be guessed during execution: telemetry destination, and remove-vs-rebrand for the built-in Cherry support agents.",
+    "Hooks subsystem unavailable (KBD_ORCHESTRATOR_ROOT unset); plan:before/after were NOT fired and stage-gate.sh was unavailable, so the gate took the legacy warn-and-pass path."
+  ],
+  "firstChange": "rebrand-001-sync-upstream",
+  "nextStage": "execute"
+}

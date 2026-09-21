@@ -1,8 +1,8 @@
 {
   "phase": "rebrand-to-the-boss",
-  "status": "assessment_complete",
+  "status": "planned",
   "createdAt": "2026-09-21T09:27:39Z",
-  "updatedAt": "2026-09-21T09:48:02Z",
+  "updatedAt": "2026-09-21T09:58:17Z",
   "previousPhase": null,
   "goals": [
     "G1",
@@ -13,7 +13,18 @@
     "G6"
   ],
   "goalsFile": "goals.md",
-  "changes": [],
+  "changes": [
+    "rebrand-001-sync-upstream",
+    "rebrand-002-branding-module",
+    "rebrand-003-explicit-userdata",
+    "rebrand-004-app-identity",
+    "rebrand-005-visual-assets",
+    "rebrand-006-i18n-strings",
+    "rebrand-007-outbound-attribution",
+    "rebrand-0075-preboot-identity",
+    "rebrand-008-service-endpoints",
+    "rebrand-009-upstream-merge-discipline"
+  ],
   "completedChanges": [],
   "depth": 0,
   "parentPhase": null,
@@ -28,6 +39,17 @@
       "at": "2026-09-21T09:48:02Z",
       "decision": "Assessment found fork is branding-virgin and only 3 commits behind upstream; userData name-derivation flagged CRITICAL (silent profile orphaning). Real i18n surface is 89 values, not 4306 occurrences.",
       "by": "kbd-assess"
+    },
+    {
+      "at": "2026-09-21T09:58:17Z",
+      "decision": "Plan: 10 OpenSpec changes. D1 start-clean (no migration), D2 separate branding module, D3 defer updater (the-boss.know-me.tools serves marketing site but latest-mac.yml 404s). Adversarial vet added rebrand-0075 for 15 files of hardcoded OS-level identity.",
+      "by": "kbd-plan"
     }
-  ]
+  ],
+  "completion": {
+    "implementation": {
+      "completed": 0,
+      "total": 10
+    }
+  }
 }
