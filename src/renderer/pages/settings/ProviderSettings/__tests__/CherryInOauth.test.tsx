@@ -276,7 +276,9 @@ describe('CherryInOauth', () => {
     })
 
     await waitFor(() =>
-      expect(initializeOfficialAssistantsMock).toHaveBeenCalledWith('/assistants:initialize-cherryin-official', {})
+      expect(initializeOfficialAssistantsMock).toHaveBeenCalledWith('/assistants:initialize-cherryin-official', {
+        body: {}
+      })
     )
     expect(addApiKey).toHaveBeenCalledWith('sk-one', 'OAuth')
     expect(updateProvider).toHaveBeenCalledWith({ isEnabled: true })

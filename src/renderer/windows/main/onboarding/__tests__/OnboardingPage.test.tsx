@@ -948,7 +948,7 @@ describe('OnboardingPage', () => {
     expect(addApiKeyMock).toHaveBeenCalledWith('sk-one', 'OAuth')
     expect(addApiKeyMock).toHaveBeenCalledWith('sk-two', 'OAuth')
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
-    expect(dataApiMocks.post).toHaveBeenCalledWith('/assistants:initialize-cherryin-official', {})
+    expect(dataApiMocks.post).toHaveBeenCalledWith('/assistants:initialize-cherryin-official', { body: {} })
     expect(toastSuccessMock).toHaveBeenCalledWith('onboarding.toast.connected')
   })
 

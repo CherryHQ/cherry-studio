@@ -114,6 +114,7 @@ function rethrowAssistantOrderError(error: unknown): never {
 function isPreferredCherryInChatTier(
   vendor: CherryInOfficialAssistantVendor,
   model: Model,
+  rawModelId: string,
   canonicalModelId: string
 ): boolean {
   switch (vendor) {
@@ -127,7 +128,11 @@ function isPreferredCherryInChatTier(
       if (model.family) return model.family === 'deepseek-flash'
       return /^deepseek-(?:v\d+(?:[.-]\d+)?-)?flash(?:-|$)/.test(canonicalModelId)
     case 'kimi':
-      return canonicalModelId.startsWith('kimi-k2') && !canonicalModelId.includes('thinking')
+      return (
+        canonicalModelId.startsWith('kimi-k2') &&
+        model.family !== 'kimi-thinking' &&
+        !rawModelId.toLowerCase().includes('thinking')
+      )
     case 'doubao':
       return true
   }
@@ -440,16 +445,18 @@ export class AssistantDataService {
     defaultModelId: string | null
   ): Model | undefined {
     const candidates = models.flatMap((model) => {
-      const canonicalModelId = normalizeModelId(model.presetModelId ?? getRawModelId(model))
-      return matchVendor(canonicalModelId) === vendor ? [{ model, canonicalModelId }] : []
+      const rawModelId = getRawModelId(model)
+      const canonicalModelId = normalizeModelId(model.presetModelId ?? rawModelId)
+      return matchVendor(canonicalModelId) === vendor ? [{ model, rawModelId, canonicalModelId }] : []
     })
 
     const preferredDefault = candidates.find(({ model }) => model.id === defaultModelId)
     if (preferredDefault) return preferredDefault.model
 
     return (
-      candidates.find(({ model, canonicalModelId }) => isPreferredCherryInChatTier(vendor, model, canonicalModelId))
-        ?.model ?? candidates[0]?.model
+      candidates.find(({ model, rawModelId, canonicalModelId }) =>
+        isPreferredCherryInChatTier(vendor, model, rawModelId, canonicalModelId)
+      )?.model ?? candidates[0]?.model
     )
   }
 

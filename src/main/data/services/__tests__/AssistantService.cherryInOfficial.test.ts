@@ -129,6 +129,32 @@ describe('AssistantDataService CherryIN official assistants', () => {
     expect(chatGpt.modelId).toBe(defaultModelId)
   })
 
+  it('prefers a non-thinking Kimi chat model when a thinking variant is ordered first', async () => {
+    await seedModels([{ modelId: 'kimi-k2-thinking' }, { modelId: 'kimi-k2-0905-preview' }])
+
+    assistantDataService.initializeCherryInOfficialAssistants()
+
+    const [kimi] = await dbh.db
+      .select({ modelId: assistantTable.modelId })
+      .from(assistantTable)
+      .where(eq(assistantTable.id, 'b76d4a0f-09a7-48e9-894f-681552a9bca3'))
+    expect(kimi.modelId).toBe(createUniqueModelId('cherryin', 'kimi-k2-0905-preview'))
+  })
+
+  it('still prefers an explicitly selected same-brand Kimi global default', async () => {
+    const defaultModelId = createUniqueModelId('cherryin', 'kimi-k2-thinking')
+    await seedModels([{ modelId: 'kimi-k2-0905-preview' }, { modelId: 'kimi-k2-thinking' }])
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', defaultModelId)
+
+    assistantDataService.initializeCherryInOfficialAssistants()
+
+    const [kimi] = await dbh.db
+      .select({ modelId: assistantTable.modelId })
+      .from(assistantTable)
+      .where(eq(assistantTable.id, 'b76d4a0f-09a7-48e9-894f-681552a9bca3'))
+    expect(kimi.modelId).toBe(defaultModelId)
+  })
+
   it('filters disabled, hidden, deprecated, and non-chat models', async () => {
     await seedModels([
       { modelId: 'claude-sonnet-disabled', isEnabled: false },

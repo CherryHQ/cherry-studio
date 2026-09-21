@@ -142,7 +142,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
       await syncProviderModels()
       if (providerId === SystemProviderIds.cherryin) {
         try {
-          await dataApiService.post('/assistants:initialize-cherryin-official', {})
+          await dataApiService.post('/assistants:initialize-cherryin-official', { body: {} })
         } catch (error) {
           logger.error('Failed to initialize CherryIN official assistants', error as Error)
         }
@@ -305,7 +305,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
               {t('settings.provider.oauth.topup')}
             </Button>
             <Button
-              className={cn(oauthCardClasses.logoutCompact, 'h-7 px-2 py-0 text-muted-foreground')}
+              className={cn(oauthCardClasses.logoutCompact, 'text-muted-foreground h-7 px-2 py-0')}
               disabled={isLoggingOut}
               onClick={handleLogout}
               variant="ghost">
