@@ -174,7 +174,7 @@ export function replaceEditedMessageParts(
     const text = trimTextBoundaryBlankLines(value)
     if (!text) return
     const template = body.some((part) => part.type === 'text') ? undefined : textTemplate
-    body.push(template?.type === 'text' ? { ...template, text } : ({ type: 'text', text } as CherryMessagePart))
+    body.push(template?.type === 'text' ? { ...template, text } : { type: 'text', text })
   }
 
   for (const anchor of anchors) {
@@ -214,7 +214,7 @@ function findEditableFileToken(
 }
 
 function readFileTokenPayload(payload: unknown): ComposerMessageTokenPayload | undefined {
-  return typeof payload === 'object' && payload !== null ? (payload as ComposerMessageTokenPayload) : undefined
+  return typeof payload === 'object' && payload !== null ? payload : undefined
 }
 
 function getFileExtension(value: string | undefined, mediaType: string | undefined) {

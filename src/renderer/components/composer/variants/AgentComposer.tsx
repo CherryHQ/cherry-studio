@@ -1,3 +1,7 @@
+import { Settings2, Terminal, ToolCase } from 'lucide-react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
@@ -20,7 +24,7 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
@@ -77,9 +81,6 @@ import type { OutputFor } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Settings2, Terminal, ToolCase } from 'lucide-react'
-import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { excludeComposerDraftTokens } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
@@ -124,6 +125,7 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
+import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
@@ -772,7 +774,7 @@ const AgentComposerInner = ({
     isDefault: pinnedToolsAtDefault,
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
-    customizePanelItem
+    customizeFooterAction
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter(agent?.type)
@@ -916,6 +918,7 @@ const AgentComposerInner = ({
     )
     setShouldValidateSkills(false)
   }, [
+    actionsRef,
     availableSkillsError,
     draftTokens,
     isAvailableSkillsLoading,
@@ -1106,6 +1109,17 @@ const AgentComposerInner = ({
   }, [actionsRef, sessionTopicId])
 
   useEffect(() => {
+    return EventEmitter.on(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, (payload) => {
+      const data =
+        typeof payload === 'object' && payload
+          ? (payload as { topicId?: string; token?: ComposerDraftToken; updateOnly?: boolean })
+          : null
+      if (!data?.token || data.topicId !== sessionTopicId) return
+      data.updateOnly ? actionsRef.current.insertToken(data.token, true) : actionsRef.current.insertToken(data.token)
+    })
+  }, [actionsRef, sessionTopicId])
+
+  useEffect(() => {
     if (!launchOptions?.initialDraft) return
     const frameId = window.requestAnimationFrame(() => actionsRef.current.focus('end'))
     return () => window.cancelAnimationFrame(frameId)
@@ -1128,18 +1142,19 @@ const AgentComposerInner = ({
     [selectedSkills]
   )
 
-  // Skills live in their own submenu (opened as the `agent-skills` launcher), with a pinned footer
-  // that opens the agent's skills config. The customize-toolbar action stays in the root panel.
-  const skillManageFooterItem = useMemo<QuickPanelListItem>(
-    () => ({
+  const skillManageFooterAction = useMemo<ComposerToolFooterAction>(() => {
+    const label = t('plugins.manage_skills')
+    return {
       id: 'agent-skills:manage',
-      label: t('plugins.manage_skills'),
+      panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
+      order: 10,
+      label,
+      ariaLabel: label,
+      tooltip: label,
       icon: <Settings2 size={16} />,
-      fixedToBottom: true,
       action: () => openResourceEditDialog({ kind: 'agent', id: agentId, initialTab: 'tools.skills' })
-    }),
-    [agentId, t]
-  )
+    }
+  }, [agentId, t])
 
   const skillLabel = t('plugins.skills')
   const skillItems = useMemo<QuickPanelListItem[]>(
@@ -1150,8 +1165,6 @@ const AgentComposerInner = ({
       }),
     [availableSkills, insertSkillToken, skillLabel]
   )
-  const skillPanelItems = useMemo(() => [...skillItems, skillManageFooterItem], [skillItems, skillManageFooterItem])
-
   const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
     return {
       id: AGENT_SKILLS_LAUNCHER_ID,
@@ -1169,7 +1182,7 @@ const AgentComposerInner = ({
         })
         quickPanel.open({
           title: skillLabel,
-          list: skillPanelItems,
+          list: skillItems,
           symbol: AGENT_SKILLS_LAUNCHER_ID,
           parentPanel,
           queryAnchor,
@@ -1178,11 +1191,11 @@ const AgentComposerInner = ({
         })
       }
     }
-  }, [refreshAvailableSkills, skillItems, skillLabel, skillPanelItems])
+  }, [refreshAvailableSkills, skillItems, skillLabel])
 
   useEffect(
-    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
-    [skillsLauncher, toolsRegistry]
+    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),
+    [skillManageFooterAction, skillsLauncher, toolsRegistry]
   )
 
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
@@ -1191,10 +1204,13 @@ const AgentComposerInner = ({
   const updateQuickPanelList = quickPanel?.updateList
   useEffect(() => {
     if (!skillsPanelVisible || !updateQuickPanelList) return
-    updateQuickPanelList(skillPanelItems)
-  }, [skillsPanelVisible, skillPanelItems, updateQuickPanelList])
+    updateQuickPanelList(skillItems)
+  }, [skillsPanelVisible, skillItems, updateQuickPanelList])
 
-  const rootPanelTrailingItems = useMemo(() => [customizePanelItem], [customizePanelItem])
+  useEffect(
+    () => toolsRegistry.registerLaunchers('composer-toolbar-settings', [], [customizeFooterAction]),
+    [customizeFooterAction, toolsRegistry]
+  )
 
   const handleRootPanelOpen = useCallback(() => {
     void refreshAvailableSkills().catch((error) => {
@@ -1203,6 +1219,7 @@ const AgentComposerInner = ({
   }, [refreshAvailableSkills])
 
   useComposerQuoteInsertion(actionsRef)
+  useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })
@@ -1801,7 +1818,6 @@ const AgentComposerInner = ({
           toolLaunchersVersion={toolLaunchersVersion}
           suggestionSources={resourceMentionSources}
           rootPanelLeadingItems={rootPanelNewSessionItems}
-          rootPanelAdditionalItems={rootPanelTrailingItems}
           onRootPanelOpen={handleRootPanelOpen}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           sendAccessory={sendAccessory}

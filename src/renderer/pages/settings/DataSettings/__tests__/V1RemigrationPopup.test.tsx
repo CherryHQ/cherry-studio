@@ -1,9 +1,10 @@
-import { PopupHost } from '@renderer/components/PopupHost'
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { PopupHost } from '@renderer/components/PopupHost'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 
 const mocks = vi.hoisted(() => ({
   backupShow: vi.fn(),

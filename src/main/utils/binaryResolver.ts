@@ -1,7 +1,8 @@
-import { application } from '@application'
-import { isWin } from '@main/core/platform'
 import fs from 'fs'
 import path from 'path'
+
+import { application } from '@application'
+import { isWin } from '@main/core/platform'
 
 import { getBinarySearchDirs } from './binaryEnv'
 

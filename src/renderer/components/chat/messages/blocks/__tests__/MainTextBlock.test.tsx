@@ -1,3 +1,8 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryUI from '@cherrystudio/ui'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import type { Citation } from '@renderer/types/message'
@@ -5,10 +10,6 @@ import type { Model } from '@renderer/types/model'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import type * as CitationUtils from '@renderer/utils/citation'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MainTextBlock from '../MainTextBlock'
 
@@ -290,7 +291,7 @@ describe('MainTextBlock', () => {
     isStreaming?: boolean
     citations?: Citation[]
     citationReferences?: { citationBlockId?: string; citationBlockSource?: any }[]
-    role: 'user' | 'assistant'
+    role: 'user' | 'assistant' | 'system'
     mentions?: Model[]
     composer?: ComposerMessageSnapshot
     readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
@@ -323,6 +324,22 @@ describe('MainTextBlock', () => {
       expect(getRenderedMarkdown()).toBeInTheDocument()
       expect(screen.getByText('Markdown: Assistant response')).toBeInTheDocument()
       expect(getRenderedPlainText()).not.toBeInTheDocument()
+    })
+
+    it('enables bare file paths only for assistant markdown', () => {
+      const assistant = renderMainTextBlock({ content: '/Users/lee/report.pdf', role: 'assistant' })
+      expect(capturedChatMarkdownProps.at(-1)?.linkifyFilePaths).toBe(true)
+
+      assistant.unmount()
+      capturedChatMarkdownProps.length = 0
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({ content: '/Users/lee/report.pdf', role: 'user' })
+
+      expect(capturedChatMarkdownProps.at(-1)?.linkifyFilePaths).toBeUndefined()
+
+      capturedChatMarkdownProps.length = 0
+      renderMainTextBlock({ content: '/Users/lee/report.pdf', role: 'system' })
+      expect(capturedChatMarkdownProps.at(-1)?.linkifyFilePaths).toBe(false)
     })
 
     it('keeps inline HTML generating until smoothed content reaches the completed source', () => {

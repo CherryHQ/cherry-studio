@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.11",
+    "version": "2.1.0",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -49,6 +49,7 @@
       "/app",
       "/settings",
       "/app/agents",
+      "/app/browser",
       "/app/chat",
       "/app/code",
       "/app/file-preview",
@@ -61,10 +62,12 @@
       "/settings/about",
       "/settings/api-gateway",
       "/settings/appearance",
+      "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
       "/settings/data",
       "/settings/dependencies",
+      "/settings/device-connections",
       "/settings/file-processing",
       "/settings/general",
       "/settings/local-models",
@@ -226,6 +229,19 @@
           "0"
         ],
         "editable": false
+      }
+    },
+    {
+      "id": "chat.input.focus",
+      "titleKey": "settings.shortcuts.focus_input",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "I"
+        ],
+        "when": "!webview.focused"
       }
     },
     {
@@ -449,16 +465,12 @@
     }
   ],
   "providers": {
-    "version": "edaf6c7d22e41cb9",
-    "count": 61,
+    "version": "2435ad1032e8114c",
+    "count": 64,
     "entries": [
       {
         "id": "cherryin",
         "name": "CherryIN"
-      },
-      {
-        "id": "radeon-cloud",
-        "name": "AMD GPU Cloud"
       },
       {
         "id": "silicon",
@@ -533,6 +545,14 @@
         "name": "Ollama"
       },
       {
+        "id": "radeon-cloud",
+        "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "tokendance",
+        "name": "TokenDance"
+      },
+      {
         "id": "new-api",
         "name": "New API"
       },
@@ -555,6 +575,10 @@
       {
         "id": "grok-cli",
         "name": "Grok CLI"
+      },
+      {
+        "id": "omlx",
+        "name": "oMLX"
       },
       {
         "id": "openai",
@@ -583,6 +607,10 @@
       {
         "id": "moonshot",
         "name": "Moonshot AI"
+      },
+      {
+        "id": "moonshot-global",
+        "name": "Moonshot"
       },
       {
         "id": "baichuan",

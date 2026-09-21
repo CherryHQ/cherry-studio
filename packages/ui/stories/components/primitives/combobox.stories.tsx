@@ -1,7 +1,8 @@
-import { Combobox } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { ChevronDown, User } from 'lucide-react'
 import { useState } from 'react'
+
+import { Combobox } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Combobox> = {
   title: 'Components/Primitives/Combobox',
@@ -55,7 +56,7 @@ const userOptions = [
     label: 'Rachel Meyers',
     description: '@rachel',
     icon: (
-      <div className="flex size-6 items-center justify-center rounded-full bg-red-500 text-white text-xs font-medium">
+      <div className="flex size-6 items-center justify-center rounded-full bg-red-500 text-xs font-medium text-white">
         RM
       </div>
     )
@@ -65,7 +66,7 @@ const userOptions = [
     label: 'John Doe',
     description: '@john',
     icon: (
-      <div className="flex size-6 items-center justify-center rounded-full bg-blue-500 text-white text-xs font-medium">
+      <div className="flex size-6 items-center justify-center rounded-full bg-blue-500 text-xs font-medium text-white">
         JD
       </div>
     )
@@ -75,7 +76,7 @@ const userOptions = [
     label: 'Jane Smith',
     description: '@jane',
     icon: (
-      <div className="flex size-6 items-center justify-center rounded-full bg-green-500 text-white text-xs font-medium">
+      <div className="flex size-6 items-center justify-center rounded-full bg-green-500 text-xs font-medium text-white">
         JS
       </div>
     )
@@ -85,7 +86,7 @@ const userOptions = [
     label: 'Alex Chen',
     description: '@alex',
     icon: (
-      <div className="flex size-6 items-center justify-center rounded-full bg-purple-500 text-white text-xs font-medium">
+      <div className="flex size-6 items-center justify-center rounded-full bg-purple-500 text-xs font-medium text-white">
         AC
       </div>
     )
@@ -514,14 +515,14 @@ export const TriggerSearchFontList: Story = {
                 <div className="truncate" style={{ fontFamily: option.fontFamily }}>
                   {option.label}
                 </div>
-                <div className="truncate text-muted-foreground text-xs">{option.description}</div>
+                <div className="truncate text-xs text-muted-foreground">{option.description}</div>
               </div>
-              <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">{option.category}</span>
+              <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{option.category}</span>
             </div>
           )}
         />
         <div className="rounded-md border bg-muted/40 px-3 py-2">
-          <div className="text-muted-foreground text-xs">Selected font</div>
+          <div className="text-xs text-muted-foreground">Selected font</div>
           <div className="mt-1 truncate text-sm" style={{ fontFamily: selectedFont?.fontFamily }}>
             {selectedFont?.label}
           </div>
@@ -555,9 +556,9 @@ export const CustomFilterOption: Story = {
           <div className="flex w-full items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="truncate">{option.label}</div>
-              <div className="truncate text-muted-foreground text-xs">{option.description}</div>
+              <div className="truncate text-xs text-muted-foreground">{option.description}</div>
             </div>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">{option.category}</span>
+            <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{option.category}</span>
           </div>
         )}
       />

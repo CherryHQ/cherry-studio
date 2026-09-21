@@ -1,7 +1,8 @@
-import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
-import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
+
+import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import {
   cancelMock,

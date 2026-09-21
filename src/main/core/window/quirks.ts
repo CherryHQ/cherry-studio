@@ -1,6 +1,7 @@
+import { BrowserWindow } from 'electron'
+
 import { isMac } from '@main/core/platform'
 import type { AlwaysOnTopLevel, WindowBehavior, WindowQuirks } from '@main/core/window/types'
-import { BrowserWindow } from 'electron'
 
 /**
  * Apply declarative OS quirks to a freshly-created window by monkey-patching

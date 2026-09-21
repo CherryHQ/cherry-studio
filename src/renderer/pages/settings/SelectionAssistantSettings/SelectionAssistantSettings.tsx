@@ -1,3 +1,10 @@
+import { Link } from '@tanstack/react-router'
+import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
@@ -13,15 +20,10 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getSelectionDescriptionLabelKey } from '@renderer/i18n/label'
 import { ipcApi } from '@renderer/ipc'
+import { openExternalWebsite } from '@renderer/services/website'
 import { isLinux, isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { Link } from '@tanstack/react-router'
-import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import MacProcessTrustHintModal from './components/MacProcessTrustHintModal'
 import SelectionActionsList from './components/SelectionActionsList'
@@ -96,14 +98,12 @@ const SelectionAssistantSettings: FC = () => {
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>
-          <span className="font-semibold text-[15px]">{t('selection.name')}</span>
+          <span className="text-[15px] font-semibold">{t('selection.name')}</span>
           <div className="flex items-center">
             <button
               type="button"
-              className="cursor-pointer border-0 bg-transparent p-0 font-normal text-link text-xs hover:underline"
-              onClick={() =>
-                ipcApi.request('system.shell.open_website', 'https://github.com/CherryHQ/cherry-studio/issues/6505')
-              }>
+              className="cursor-pointer border-0 bg-transparent p-0 text-xs font-normal text-link hover:underline"
+              onClick={() => openExternalWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}>
               {'FAQ & ' + t('settings.about.feedback.button')}
             </button>
           </div>
@@ -373,7 +373,7 @@ const QuestionIcon = ({ className, ...props }: React.ComponentProps<typeof Circl
   <CircleHelp className={cn('cursor-pointer text-muted-foreground', className)} {...props} />
 )
 const ChecklistItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-0.5 flex items-center text-foreground-tertiary text-xs', className)} {...props} />
+  <div className={cn('mb-0.5 flex items-center text-xs text-foreground-tertiary', className)} {...props} />
 )
 
 export default SelectionAssistantSettings

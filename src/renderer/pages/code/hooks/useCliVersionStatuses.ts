@@ -1,10 +1,11 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import type { CodeCli } from '@shared/types/codeCli'
-import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { VersionStatus } from '../types'
 

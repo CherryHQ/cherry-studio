@@ -42,7 +42,9 @@ function renderSession() {
   return renderHook(() => useFileEditSession(handle), { wrapper })
 }
 
-beforeEach(() => ipcMocks.request.mockReset())
+beforeEach(() => {
+  ipcMocks.request.mockReset()
+})
 
 afterEach(() => {
   cleanup()

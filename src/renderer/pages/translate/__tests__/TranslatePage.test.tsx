@@ -1,14 +1,16 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type React from 'react'
+import { useEffect, useState } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as TranslateHooks from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type React from 'react'
-import { useEffect, useState } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { TranslationFiles } from '../translationFiles'
 
@@ -58,6 +60,14 @@ const translateCoreMock = vi.hoisted(() => ({
   translateText: vi.fn(),
   isAbortError: vi.fn(),
   formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
+}))
+const smoothStreamMock = vi.hoisted(() => ({
+  queued: null as string | null,
+  onUpdate: null as ((text: string) => void) | null,
+  /** The real hook keeps re-emitting queued text on later frames until `reset` clears it. */
+  replay: () => {
+    if (smoothStreamMock.queued !== null) smoothStreamMock.onUpdate?.(smoothStreamMock.queued)
+  }
 }))
 const loggerWarnMock = vi.hoisted(() => vi.fn())
 const loggerErrorMock = vi.hoisted(() => vi.fn())
@@ -112,12 +122,6 @@ vi.mock('@renderer/components/ModelSelector', () => ({
     modelSelectorMock(props)
     return <>{props.trigger}</>
   }
-}))
-
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({
-    shikiMarkdownIt: vi.fn().mockResolvedValue('')
-  })
 }))
 
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
@@ -181,19 +185,24 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTemporaryValue', () => ({
-  useTemporaryValue: () => [false, vi.fn()]
-}))
-
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: translateCoreMock.setTimeoutTimer })
 }))
 
 vi.mock('@renderer/hooks/useSmoothStream', () => ({
-  useSmoothStream: ({ onUpdate }: { onUpdate: (text: string) => void }) => ({
-    reset: (text = '') => onUpdate(text),
-    update: (text: string) => onUpdate(text)
-  })
+  useSmoothStream: (options: { onUpdate: (text: string) => void }) => {
+    smoothStreamMock.onUpdate = options.onUpdate
+    return {
+      reset: (text = '') => {
+        smoothStreamMock.queued = null
+        options.onUpdate(text)
+      },
+      update: (text: string) => {
+        smoothStreamMock.queued = text
+        options.onUpdate(text)
+      }
+    }
+  }
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
@@ -324,6 +333,8 @@ vi.mock('../components/TranslateInputPane', () => ({
     onSelectFile,
     onDrop,
     onCancelOcr,
+    copied,
+    onCopy,
     disabled,
     ocrProcessing
   }: {
@@ -334,6 +345,8 @@ vi.mock('../components/TranslateInputPane', () => ({
     onSelectFile: () => void
     onDrop: (event: React.DragEvent<HTMLDivElement>) => void
     onCancelOcr: () => void
+    copied: boolean
+    onCopy: () => void
     disabled?: boolean
     ocrProcessing?: boolean
   }) => {
@@ -349,6 +362,8 @@ vi.mock('../components/TranslateInputPane', () => ({
           onPaste={onPaste}
         />
         <button type="button" aria-label="translate.files.upload" onClick={onSelectFile} />
+        <button type="button" aria-label="input.copy" onClick={onCopy} />
+        <span data-testid="translate-input-copied">{String(copied)}</span>
         {ocrProcessing && (
           <div data-testid="translate-input-ocr-processing">
             ocr.processing
@@ -373,7 +388,13 @@ vi.mock('../components/TranslateLanguageBar', () => ({
     return (
       <div>
         {!props.isBidirectional && props.showSourceControls && (
-          <button type="button" aria-label="translate.source_language" onClick={() => props.onSourceChange('zh-cn')} />
+          <>
+            <button
+              type="button"
+              aria-label="translate.source_language"
+              onClick={() => props.onSourceChange('zh-cn')}
+            />
+          </>
         )}
         <button type="button" aria-label="translate.target_language" onClick={() => props.onTargetChange('en-us')} />
       </div>
@@ -385,15 +406,21 @@ vi.mock('../components/TranslateOutputPane', () => ({
   default: ({
     translating,
     translatedContent,
+    copied,
+    onCopy,
     onExportToNotes
   }: {
     translating: boolean
     translatedContent: string
+    copied: boolean
+    onCopy: () => void
     onExportToNotes?: () => void | Promise<void>
   }) => (
     <div data-testid="translate-output-pane">
       {translating && <span>translate.processing</span>}
       <span data-testid="translate-output-content">{translatedContent}</span>
+      <button type="button" aria-label="output.copy" onClick={onCopy} />
+      <span data-testid="translate-output-copied">{String(copied)}</span>
       <button type="button" aria-label="notes.save" onClick={() => void onExportToNotes?.()} />
     </div>
   )
@@ -519,6 +546,7 @@ describe('TranslatePage', () => {
     translateCoreMock.historyHookOptions.mockClear()
     translateCoreMock.isAbortError.mockReset()
     translateCoreMock.isAbortError.mockReturnValue(false)
+    smoothStreamMock.queued = null
     translateCoreMock.formatErrorMessageWithPrefix.mockReset()
     translateCoreMock.formatErrorMessageWithPrefix.mockImplementation((_: unknown, prefix: string) => prefix)
     loggerWarnMock.mockReset()
@@ -854,6 +882,8 @@ describe('TranslatePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.close' }))
     expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+    act(() => smoothStreamMock.replay())
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
   })
 
@@ -1661,6 +1691,18 @@ describe('TranslatePage', () => {
     expect(clipboardWriteTextMock).toHaveBeenCalledWith('translated text')
   })
 
+  it('shows the copied feedback on the input pane rather than the output pane', async () => {
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'input.copy' }))
+
+    await waitFor(() => expect(screen.getByTestId('translate-input-copied')).toHaveTextContent('true'))
+    expect(clipboardWriteTextMock).toHaveBeenCalledWith('hello')
+    expect(screen.getByTestId('translate-output-copied')).toHaveTextContent('false')
+  })
+
   it('keeps the current target language when reusing history with a null target language', async () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.target_language', 'ja-jp')
 
@@ -1699,6 +1741,175 @@ describe('TranslatePage', () => {
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('en-us')
     })
+  })
+
+  it('cancels the in-flight translation when reusing text history so its output cannot overwrite the restored entry', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    const abortError = new Error('aborted')
+    let signal: AbortSignal | undefined
+    let emit: ((text: string, isComplete: boolean) => void) | undefined
+    translateCoreMock.translateText.mockImplementationOnce(
+      (
+        _text: string,
+        _targetLanguage: string,
+        onResponse?: (text: string, isComplete: boolean) => void,
+        abortSignal?: AbortSignal
+      ) => {
+        signal = abortSignal
+        emit = onResponse
+        onResponse?.('partial text', false)
+
+        return new Promise<string>((_resolve, reject) => {
+          abortSignal?.addEventListener('abort', () => reject(abortError), { once: true })
+        })
+      }
+    )
+    translateCoreMock.isAbortError.mockImplementation((error: unknown) => error === abortError)
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'source A' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-null-target-history' }))
+
+    expect(signal?.aborted).toBe(true)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeInTheDocument())
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('hello')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
+    act(() => smoothStreamMock.replay())
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
+
+    await act(async () => {
+      emit?.('partial text continued', false)
+    })
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
+  })
+
+  it('drops a pending bidirectional detection when text history is reused so the old text cannot translate over the restored entry', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.bidirectional_enabled': true,
+      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
+    })
+    let resolveDetection!: (language: string) => void
+    translateCoreMock.detectLanguage.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetection = resolve
+      })
+    )
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'source A' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('source A'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-null-target-history' }))
+    await act(async () => resolveDetection('zh-cn'))
+
+    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('hello')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
+    expect(MockUseCacheUtils.getCacheValue('translate.detecting')).toBe(false)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeInTheDocument())
+  })
+
+  it('clears queued text when opening PDF history and keeps it cleared after closing the PDF', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    const abortError = new Error('aborted')
+    let signal: AbortSignal | undefined
+    let emit: ((text: string, isComplete: boolean) => void) | undefined
+    translateCoreMock.translateText.mockImplementationOnce(
+      (
+        _text: string,
+        _targetLanguage: string,
+        onResponse?: (text: string, isComplete: boolean) => void,
+        abortSignal?: AbortSignal
+      ) => {
+        signal = abortSignal
+        emit = onResponse
+        onResponse?.('partial text', false)
+
+        return new Promise<string>((_resolve, reject) => {
+          abortSignal?.addEventListener('abort', () => reject(abortError), { once: true })
+        })
+      }
+    )
+    translateCoreMock.isAbortError.mockImplementation((error: unknown) => error === abortError)
+
+    const { rerender } = render(<TranslatePage />)
+    await user.type(screen.getByLabelText('translate.input.placeholder'), 'source A')
+    rerender(<TranslatePage />)
+    await user.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
+
+    await user.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    await user.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+
+    expect(signal?.aborted).toBe(true)
+    await screen.findByRole('button', { name: 'translate.pdf.action.close' })
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+    act(() => smoothStreamMock.replay())
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+
+    await user.click(screen.getByRole('button', { name: 'translate.pdf.action.close' }))
+    await act(async () => {
+      emit?.('partial text continued', false)
+      smoothStreamMock.replay()
+    })
+    expect(screen.getByTestId('translate-output-content')).toBeEmptyDOMElement()
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
+  })
+
+  it('keeps the output cleared after emptying the input while a stopped stream is still draining', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    const abortError = new Error('aborted')
+    translateCoreMock.translateText.mockImplementationOnce(
+      (
+        _text: string,
+        _targetLanguage: string,
+        onResponse?: (text: string, isComplete: boolean) => void,
+        abortSignal?: AbortSignal
+      ) => {
+        onResponse?.('partial text', false)
+        return new Promise<string>((_resolve, reject) => {
+          abortSignal?.addEventListener('abort', () => reject(abortError), { once: true })
+        })
+      }
+    )
+    translateCoreMock.isAbortError.mockImplementation((error: unknown) => error === abortError)
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
+    fireEvent.click(screen.getByRole('button', { name: 'common.stop' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: '' } })
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+    act(() => smoothStreamMock.replay())
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
   })
 
   it('restores the side-by-side preview when reusing a PDF history entry', async () => {

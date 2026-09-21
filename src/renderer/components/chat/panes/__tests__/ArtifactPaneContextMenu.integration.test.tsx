@@ -1,10 +1,11 @@
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import type * as ExternalOpenTargetServiceModule from '@renderer/services/externalOpenTargetService'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ArtifactPaneView } from '../ArtifactPane'
 import type { ArtifactFileTreeModel } from '../useArtifactFileTreeModel'
@@ -47,7 +48,8 @@ vi.mock('@renderer/services/externalOpenTargetService', async (importOriginal) =
 })
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: null })
+  useCodeStyle: () => ({ activeCmTheme: null }),
+  useCmTheme: () => null
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({

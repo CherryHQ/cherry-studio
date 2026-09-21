@@ -1,7 +1,8 @@
-import { application } from '@application'
-import { BaseService } from '@main/core/lifecycle'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+import { application } from '@application'
+import { BaseService } from '@main/core/lifecycle'
 
 const PREF_KEY = 'app.power.prevent_sleep_when_busy'
 
@@ -81,11 +82,13 @@ vi.mock('electron', () => ({
     removeListener: vi.fn(),
     removeAllListeners: vi.fn()
   },
-  BrowserWindow: vi.fn(() => ({
-    destroy: windowDestroy,
-    isDestroyed: windowIsDestroyed,
-    getNativeWindowHandle
-  })),
+  BrowserWindow: vi.fn(function BrowserWindowMock() {
+    return {
+      destroy: windowDestroy,
+      isDestroyed: windowIsDestroyed,
+      getNativeWindowHandle
+    }
+  }),
   powerMonitor: {
     on: powerMonitorOn,
     removeListener: powerMonitorRemoveListener,

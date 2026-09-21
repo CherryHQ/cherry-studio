@@ -1,5 +1,6 @@
-import type { ImageGenerationSupport, ImageModeDef } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ImageGenerationSupport, ImageModeDef } from '@shared/data/types/model'
 
 import { computeModelFieldReset } from '../computeModelFieldReset'
 

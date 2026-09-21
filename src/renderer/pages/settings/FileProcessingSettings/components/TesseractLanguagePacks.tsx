@@ -1,7 +1,8 @@
-import { Combobox, type ComboboxOption } from '@cherrystudio/ui'
-import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Combobox, type ComboboxOption } from '@cherrystudio/ui'
+import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 
 type TesseractLanguagePacksProps = {
   options: ComboboxOption[]
@@ -21,11 +22,11 @@ export function TesseractLanguagePacks({ options, selectedLanguages, onChange }:
 
       return (
         <div className="flex min-w-0 items-center gap-1">
-          <span className="truncate rounded bg-primary/10 px-2 py-0.5 text-primary text-xs">
+          <span className="truncate rounded bg-primary/10 px-2 py-0.5 text-xs text-primary">
             {firstOption?.label ?? firstValue}
           </span>
           {selectedValues.length > 1 && (
-            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
               +{selectedValues.length - 1}
             </span>
           )}
@@ -36,7 +37,7 @@ export function TesseractLanguagePacks({ options, selectedLanguages, onChange }:
   )
 
   return (
-    <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
+    <div className="flex flex-col gap-3 border-t border-border-subtle pt-4">
       <SettingRow className="items-center gap-4 py-0">
         <SettingRowTitle className="w-24 shrink-0">
           {t('settings.tool.file_processing.fields.languages')}

@@ -1,8 +1,9 @@
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { popup } from '@renderer/services/popup'
 import { FILE_TYPE, type FileType } from '@renderer/types/file'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('FileAction')
 

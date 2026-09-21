@@ -1,0 +1,39 @@
+diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
+--- a/dist/core/agent-session.js
++++ b/dist/core/agent-session.js
+@@ -313,7 +313,7 @@
+             if (event.message.role === "assistant") {
+                 this._lastAssistantMessage = event.message;
+                 const assistantMsg = event.message;
+-                if (assistantMsg.stopReason !== "error") {
++                if (assistantMsg.stopReason !== "error" && assistantMsg.stopReason !== "length") {
+                     this._overflowRecoveryAttempted = false;
+                 }
+                 // Reset retry counter immediately on successful assistant response
+@@ -1449,11 +1449,12 @@
+         if (assistantIsFromBeforeCompaction) {
+             return false;
+         }
+-        // Case 1: Overflow - LLM returned context overflow error, or reported usage exceeded
+-        // the configured window. A successful response over the configured window should compact
+-        // but must not retry: the assistant answer already completed and agent.continue() cannot
+-        // continue from an assistant message.
+-        if (sameModel && isContextOverflow(assistantMessage, contextWindow)) {
++        // Backport earendil-works/pi#7540: recover context-clamped length stops once,
++        // but do not retry a response that reached the model's configured output limit.
++        const desiredMaxOutput = this.model?.maxTokens ?? 0;
++        const recoverableLength = assistantMessage.stopReason === "length" &&
++            desiredMaxOutput > 0 && assistantMessage.usage.output < desiredMaxOutput;
++        if (sameModel && (isContextOverflow(assistantMessage, contextWindow) || recoverableLength)) {
+             const willRetry = assistantMessage.stopReason !== "stop";
+             if (!willRetry) {
+                 return await this._runAutoCompaction("overflow", false);
+@@ -1622,7 +1623,7 @@
+             if (willRetry) {
+                 const messages = this.agent.state.messages;
+                 const lastMsg = messages[messages.length - 1];
+-                if (lastMsg?.role === "assistant" && lastMsg.stopReason === "error") {
++                if (lastMsg?.role === "assistant" && (lastMsg.stopReason === "error" || lastMsg.stopReason === "length")) {
+                     this.agent.state.messages = messages.slice(0, -1);
+                 }
+                 return true;

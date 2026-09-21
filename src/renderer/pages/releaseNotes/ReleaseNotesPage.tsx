@@ -1,11 +1,12 @@
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, PageHeader, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
 import { ipcApi } from '@renderer/ipc'
 import type { ReleaseNotesEntry } from '@shared/utils/releaseNotes'
 import { localizeReleaseNotes, mergeReleaseHistory, mergeReleaseNotes } from '@shared/utils/releaseNotes'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ReleaseNotesPage')
 

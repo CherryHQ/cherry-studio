@@ -1,10 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ErrorInfo, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getRightPaneWidthPolicy } from '../../../shell/paneLayout'
-import { createResourcePaneCapability, type ResourcePaneConfig } from '../resourcePane'
 import {
   RightPanel,
   type RightPanelCapability,
@@ -26,7 +26,14 @@ const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
 const commandMock = vi.hoisted(() => ({ handler: undefined as (() => void) | undefined }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  Tooltip: ({ children, content, isDisabled }: PropsWithChildren<{ content?: unknown; isDisabled?: boolean }>) => (
+    <div
+      data-testid="tooltip-trigger"
+      data-content={typeof content === 'string' ? content : undefined}
+      data-disabled={isDisabled ? 'true' : undefined}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/ErrorBoundary', async () => {
@@ -420,6 +427,30 @@ describe('RightPanel', () => {
     expect(screen.getByText('first:0')).toBeInTheDocument()
   })
 
+  it('drops the close tooltip once the panel closes, so it cannot park at the viewport origin', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    const findCloseTooltip = () =>
+      screen
+        .getAllByTestId('tooltip-trigger')
+        .find((node) => node.getAttribute('data-content') === 'common.close_sidebar')
+    expect(findCloseTooltip()).not.toHaveAttribute('data-disabled')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
+
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'false')
+    // Re-query after the close rather than reusing the pre-close node: the
+    // tooltip wrapper may remount on state change, which would make an
+    // assertion against the stale reference flaky even when behavior is right.
+    expect(findCloseTooltip()).toHaveAttribute('data-disabled', 'true')
+  })
+
   it('keeps shell controls available when a content-composed panel fails to render', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const scope = { ...readyScope, firstHeaderMode: 'content' as const }
@@ -453,7 +484,8 @@ describe('RightPanel', () => {
     consoleError.mockRestore()
   })
 
-  it('sizes the pane from the presented panel, so a list and an artifact never share a width', () => {
+  it('keeps inspector sizing uncapped when switching to a width-limited list and back', async () => {
+    const user = userEvent.setup()
     render(
       <Harness defaultOpen>
         <RightPanelViewport>
@@ -464,13 +496,18 @@ describe('RightPanel', () => {
 
     const host = screen.getByTestId('right-pane-host')
     expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
-    expect(host).toHaveAttribute('data-max-width', String(INSPECTOR_POLICY.maxWidth))
+    expect(host).not.toHaveAttribute('data-max-width')
 
-    fireEvent.click(screen.getByRole('button', { name: 'open second' }))
+    await user.click(screen.getByRole('button', { name: 'open second' }))
 
     expect(host).toHaveAttribute('data-cache-key', LIST_POLICY.cacheKey)
     expect(host).toHaveAttribute('data-max-width', String(LIST_POLICY.maxWidth))
     expect(host).toHaveAttribute('data-min-width', String(LIST_POLICY.minWidth))
+
+    await user.click(screen.getByRole('button', { name: 'open first' }))
+
+    expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
+    expect(host).not.toHaveAttribute('data-max-width')
   })
 
   it('rejects duplicate panel ids', () => {
@@ -484,13 +521,5 @@ describe('RightPanel', () => {
         </RightPanelProvider>
       )
     ).toThrow('Duplicate right-panel id: first')
-  })
-})
-
-describe('createResourcePaneCapability', () => {
-  it('sizes by the navigation-list preset, so the list never inherits the inspector envelope', () => {
-    const capability = createResourcePaneCapability<{ resourcePane: ResourcePaneConfig | null }>()
-
-    expect(capability.widthPreset).toBe('navigation-list')
   })
 })

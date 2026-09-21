@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom/vitest'
-
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'

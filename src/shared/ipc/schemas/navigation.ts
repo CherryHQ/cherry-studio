@@ -1,5 +1,6 @@
-import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import * as z from 'zod'
+
+import type { ConversationNavigationTarget } from '@shared/types/navigation'
 
 import { defineRoute } from '../define'
 

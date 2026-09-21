@@ -1,3 +1,6 @@
+import type { IpcMainEvent } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Tests for the shared-tier TTL synchronization contract (issue #17050).
  *
@@ -17,8 +20,6 @@
  */
 import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { IpcMainEvent } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Undo the global mock from main.setup.ts — we want the REAL CacheService
 vi.unmock('@main/data/CacheService')
@@ -85,7 +86,7 @@ const TTL = 60_000
 
 describe('CacheService shared-tier TTL sync', () => {
   let service: any
-  let send: ReturnType<typeof vi.fn>
+  let send: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   let now: number
 
   const lastMessage = (): CacheSyncMessage => send.mock.calls.at(-1)![1] as CacheSyncMessage

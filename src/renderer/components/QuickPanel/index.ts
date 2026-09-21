@@ -15,6 +15,7 @@ export type {
   QuickPanelCloseAction,
   QuickPanelContextType,
   QuickPanelFilterFn,
+  QuickPanelFooterAction,
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
   QuickPanelInsertTextOptions,

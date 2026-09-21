@@ -10,7 +10,7 @@ function makeEntry(overrides: Partial<ToolEntry> & Pick<ToolEntry, 'name'>): Too
     namespace: 'mcp:s1',
     description: `${overrides.name} description`,
     defer: 'auto',
-    tool: { description: 'inner', inputSchema: jsonSchema({ type: 'object' }) } as unknown as Tool,
+    tool: { description: 'inner', inputSchema: jsonSchema({ type: 'object' }) },
     ...overrides
   }
 }
@@ -30,7 +30,7 @@ async function callExecute(tool: Tool, args: { query?: string; namespace?: strin
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
-  } as Parameters<NonNullable<Tool['execute']>>[1])
+  })
 }
 
 describe('tool_search meta-tool', () => {
@@ -106,6 +106,26 @@ describe('tool_search meta-tool', () => {
     }
     expect(out.type).toBe('text')
     expect(out.value).toMatch(/No tools matched/)
+  })
+
+  it.each([
+    ['undefined output', undefined],
+    ['null output', null],
+    ['an unrelated MCP result', { content: [{ type: 'text', text: 'Process started' }], metadata: {} }],
+    ['a non-array namespace value', { matchedNamespaces: {} }],
+    ['a malformed nested namespace', { matchedNamespaces: [{ namespace: 'mcp:s1', tools: null }] }]
+  ])('toModelOutput safely falls back for %s', (_name, output) => {
+    const reg = setup()
+    const tool = createToolSearchTool(reg, new Set(), new Set())
+    const out = tool.toModelOutput!({ toolCallId: 'tc-1', input: {}, output }) as {
+      type: string
+      value: string
+    }
+
+    expect(out).toEqual({
+      type: 'text',
+      value: 'The stored tool search result could not be read. Ignore it and run `tool_search` again.'
+    })
   })
 
   it('advertises inputExamples', () => {

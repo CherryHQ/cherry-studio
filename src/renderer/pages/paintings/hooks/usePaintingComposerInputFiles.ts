@@ -1,3 +1,6 @@
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -5,8 +8,6 @@ import { createComposerFileTokenSourceId } from '@renderer/utils/message/compose
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('usePaintingComposerInputFiles')
 

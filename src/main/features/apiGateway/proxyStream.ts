@@ -17,6 +17,9 @@
  */
 
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import type { UIMessageChunk } from 'ai'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
@@ -24,8 +27,6 @@ import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
 import type { Provider } from '@shared/data/types/provider'
-import type { UIMessageChunk } from 'ai'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'

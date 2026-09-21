@@ -15,10 +15,6 @@ export enum IpcChannel {
   App_LogToMain = 'app:log-to-main',
   App_QuoteToMain = 'app:quote-to-main',
 
-  // StorageMonitor: main-process disk-space watcher for the user-data volume
-  StorageMonitor_GetHealth = 'storage-monitor:get-health',
-  StorageMonitor_HealthChanged = 'storage-monitor:health-changed',
-
   // Python: main→renderer(pyodide)→main reverse RPC
   Python_ExecutionRequest = 'python:execution-request',
   Python_ExecutionResponse = 'python:execution-response',
@@ -77,7 +73,6 @@ export enum IpcChannel {
   File_CreateInternalEntry = 'file:createInternalEntry',
   File_EnsureExternalEntry = 'file:ensureExternalEntry',
   File_GetPhysicalPath = 'file:getPhysicalPath',
-  File_PermanentDelete = 'file:permanentDelete',
   File_RunSweep = 'file:runSweep',
 
   // backup

@@ -1,9 +1,10 @@
-import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
-import type { McpServer } from '@shared/data/types/mcpServer'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 import AddMcpServerModal from '../AddMcpServerModal'
 
@@ -34,7 +35,8 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({

@@ -1,3 +1,9 @@
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server, Trash2 } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { type FC, lazy, Suspense } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
 import { NutstoreIcon } from '@renderer/components/icons/NutstoreIcons'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons/SvgIcon'
@@ -12,14 +18,12 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
-import { useNavigate, useSearch } from '@tanstack/react-router'
-import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { type FC, lazy, Suspense } from 'react'
-import { useTranslation } from 'react-i18next'
+import type { AppRouter } from '@renderer/types/router'
 
 import BasicDataSettings from './BasicDataSettings'
 import { DATA_PANEL_KEYS, type DataPanelKey, DEFAULT_DATA_PANEL } from './dataPanels'
+
+const dataRouteApi = getRouteApi('/settings/data')
 
 const ExportMenuOptions = lazy(() => import('./ExportMenuSettings'))
 const JoplinSettings = lazy(() => import('./JoplinSettings'))
@@ -30,6 +34,7 @@ const NutstoreSettings = lazy(() => import('./NutstoreSettings'))
 const ObsidianSettings = lazy(() => import('./ObsidianSettings'))
 const S3Settings = lazy(() => import('./S3Settings'))
 const SiyuanSettings = lazy(() => import('./SiyuanSettings'))
+const TrashSettings = lazy(() => import('./TrashSettings/TrashSettings'))
 const WebDavSettings = lazy(() => import('./WebDavSettings'))
 const YuqueSettings = lazy(() => import('./YuqueSettings'))
 const ImportMenuOptions = lazy(() => import('./ImportMenuSettings'))
@@ -45,14 +50,14 @@ const DataSettings: FC = () => {
   // The URL is the single source of truth for the active panel (search jumps
   // arrive as /settings/data?panel=<key>; menu clicks write it back with
   // replace). Unknown values were already dropped by the route schema.
-  const search = useSearch({ strict: false })
+  const search = dataRouteApi.useSearch<AppRouter>()
   const rawPanel = typeof search.panel === 'string' ? search.panel : undefined
-  const panelParam =
-    rawPanel && (DATA_PANEL_KEYS as readonly string[]).includes(rawPanel) ? (rawPanel as DataPanelKey) : undefined
+  const panelParam = rawPanel && (DATA_PANEL_KEYS as readonly string[]).includes(rawPanel) ? rawPanel : undefined
   const menu = panelParam ?? DEFAULT_DATA_PANEL
 
   const menuItems: DataMenuItem[] = [
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
+    { key: 'trash', title: t('settings.data.trash.title'), icon: <Trash2 size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'local_backup', title: t('settings.data.local.title'), icon: <FolderCog size={16} /> },
     { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudUpload size={16} /> },
@@ -116,6 +121,7 @@ const DataSettings: FC = () => {
           <BasicDataSettings />
         ) : (
           <Suspense fallback={null}>
+            {menu === 'trash' && <TrashSettings />}
             {menu === 'webdav' && <WebDavSettings />}
             {menu === 'nutstore' && <NutstoreSettings />}
             {menu === 's3' && <S3Settings />}

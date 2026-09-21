@@ -1,8 +1,9 @@
-import { SearchInput } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { useLocation, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { SearchInput } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 import { useSettingsSearchDomIds } from './SettingsSearchDomIds'
 import { moveActiveIndex, requestJump, setLiveQuery, useSettingsSearchKeyboard } from './store'

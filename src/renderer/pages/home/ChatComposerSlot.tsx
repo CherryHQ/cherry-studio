@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
@@ -12,7 +14,6 @@ import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { memo } from 'react'
 
 import type { AddNewTopicPayload } from './types'
 

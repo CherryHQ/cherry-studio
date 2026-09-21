@@ -1,5 +1,6 @@
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { describe, expect, it } from 'vitest'
+
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 import {
   COMPLEX_PREFERENCE_MAPPINGS,

@@ -1,15 +1,17 @@
 import type { SettingsSearchEntry } from '../settingsSearch/types'
 
 // Indexed rows = statically visible actionable rows (D8): conditional rows
-// (custom-proxy inputs, developer client id, context-management children behind
-// their master switch) stay out — their anchors may not exist on jump.
+// (custom-proxy inputs, developer client id, context-management and retry
+// children behind their master switches) stay out — their anchors may not
+// exist on jump.
 export const route = '/settings/general'
 
 export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'launch-onboot',
     titleKey: 'settings.launch.onboot',
-    groupKey: 'settings.launch.title'
+    groupKey: 'settings.launch.title',
+    aliases: ['auto start', '开机自启', '开机启动', '自启动']
   },
   {
     anchorId: 'launch-totray',
@@ -49,6 +51,12 @@ export const entries: SettingsSearchEntry[] = [
     aliases: ['gpu']
   },
   {
+    anchorId: 'commit-attribution',
+    titleKey: 'settings.general.commit_attribution.title',
+    descriptionKey: 'settings.general.commit_attribution.description',
+    aliases: ['attribution', 'Co-Authored-By', 'Claude Code', '署名', '共同作者']
+  },
+  {
     anchorId: 'enable-developer-mode',
     titleKey: 'settings.developer.enable_developer_mode',
     groupKey: 'settings.developer.title'
@@ -56,11 +64,19 @@ export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'context-max-messages',
     titleKey: 'settings.models.context_management.max_messages',
-    groupKey: 'settings.models.context_management.title'
+    groupKey: 'settings.models.context_management.title',
+    aliases: ['context count', '上下文数量']
   },
   {
     anchorId: 'context-enabled',
     titleKey: 'settings.models.context_management.enabled',
     groupKey: 'settings.models.context_management.title'
+  },
+  {
+    anchorId: 'retry-enabled',
+    titleKey: 'settings.models.retry.label',
+    groupKey: 'settings.models.retry.label',
+    descriptionKey: 'settings.models.retry.description',
+    aliases: ['retry', '重试']
   }
 ]

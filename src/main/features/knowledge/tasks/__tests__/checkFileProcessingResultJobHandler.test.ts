@@ -1,8 +1,9 @@
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { describe, expect, it } from 'vitest'
+
 import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { describe, expect, it } from 'vitest'
 
 import type { KnowledgeCheckFileProcessingResultPayload } from '../jobTypes'
 import {

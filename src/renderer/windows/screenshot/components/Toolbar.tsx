@@ -5,12 +5,13 @@
  * Groups, left to right: annotation tools · undo/redo · OCR affordance · save/cancel/ok.
  */
 
-import { Button, NormalTooltip } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Check, Download, MoveUpRight, Pencil, Redo2, Square, Type, Undo2, X } from 'lucide-react'
 import type { ComponentType, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { memo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, NormalTooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { PROPERTY_PANEL_HEIGHT, Z_INDEX } from '../constants'
 import type { AnnotationTool, SelectionRect } from '../types'

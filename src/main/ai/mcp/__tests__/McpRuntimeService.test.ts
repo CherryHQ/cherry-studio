@@ -1,11 +1,16 @@
 import crypto from 'node:crypto'
 
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import open from 'open'
+import sharp from 'sharp'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('open', () => ({ default: vi.fn().mockResolvedValue(undefined) }))
 
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
@@ -66,15 +71,17 @@ const mcpSdkMock = vi.hoisted(() => {
     kind = 'streamableHttp' as const
     close = vi.fn().mockResolvedValue(undefined)
     finishAuth = vi.fn().mockResolvedValue(undefined)
-    constructor(url: unknown, opts?: unknown) {
+    authProvider?: { redirectToAuthorization(url: URL): Promise<void> }
+    constructor(url: unknown, opts?: { authProvider?: StreamableHTTPClientTransport['authProvider'] }) {
+      this.authProvider = opts?.authProvider
       streamableHttpTransports.push({ url, opts })
     }
   }
   const clients: Array<{
     connectCalls: Array<{ kind: string }>
-    close: ReturnType<typeof vi.fn>
-    listPrompts: ReturnType<typeof vi.fn>
-    listResources: ReturnType<typeof vi.fn>
+    close: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    listPrompts: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    listResources: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }> = []
   class Client {
     setNotificationHandler = vi.fn()
@@ -90,7 +97,7 @@ const mcpSdkMock = vi.hoisted(() => {
     constructor() {
       clients.push(this)
     }
-    async connect(transport: { kind: string }) {
+    async connect(transport: { kind: string; authProvider?: StreamableHTTPClientTransport['authProvider'] }) {
       // Mirror MCP SDK Protocol.connect: _transport is set before start() runs, and a failed
       // start() leaves it set. This is what makes the fallback retry fail unless client.close()
       // resets it — the test would not catch that regression otherwise.
@@ -104,6 +111,7 @@ const mcpSdkMock = vi.hoisted(() => {
       }
       if (mcpSdkMock.state.failStreamable) {
         if (mcpSdkMock.state.failStreamableUnauthorized) {
+          await transport.authProvider?.redirectToAuthorization(new URL('https://auth.example.com/authorize'))
           const error = new Error('Unauthorized')
           error.name = 'UnauthorizedError'
           throw error
@@ -147,11 +155,19 @@ const mcpSdkMock = vi.hoisted(() => {
   }
 })
 
-const callbackServerMock = vi.hoisted(() => ({ waitForAuthCode: vi.fn().mockResolvedValue('auth-code') }))
+const callbackServerMock = vi.hoisted(() => ({
+  waitForAuthCode: vi.fn().mockResolvedValue('auth-code'),
+  getServer: Promise.resolve(undefined as unknown),
+  instances: [] as Array<{ close: ReturnType<typeof vi.fn> }>
+}))
 vi.mock('../oauth/callback', () => ({
   CallBackServer: class {
     waitForAuthCode = callbackServerMock.waitForAuthCode
+    getServer = callbackServerMock.getServer
     close = vi.fn().mockResolvedValue(undefined)
+    constructor() {
+      callbackServerMock.instances.push(this)
+    }
   }
 }))
 
@@ -170,9 +186,8 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
   StdioClientTransport: mcpSdkMock.StdioClientTransport
 }))
 
-const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
-  '../McpRuntimeService'
-)
+const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } =
+  await import('../McpRuntimeService')
 
 /** Build the JSON server key shape the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
@@ -317,13 +332,13 @@ describe('McpRuntimeService QVeris hosted transport', () => {
       name: BuiltinMcpServerNames.qveris,
       env: { QVERIS_API_KEY: 'first-key' },
       isActive: true
-    } as McpServer)
+    })
     const second = service.getServerKey({
       id: 'qveris-server',
       name: BuiltinMcpServerNames.qveris,
       env: { QVERIS_API_KEY: 'second-key' },
       isActive: true
-    } as McpServer)
+    })
 
     expect(first).not.toContain('first-key')
     expect(second).not.toContain('second-key')
@@ -865,6 +880,60 @@ describe('McpRuntimeService.callTool cancellation', () => {
   })
 })
 
+describe('McpRuntimeService.callTool tool-result images', () => {
+  const server = { id: 'server-1', name: 'srv', isActive: true } as McpServer
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+    getByIdMock.mockReturnValue(server)
+  })
+
+  function serviceReturning(content: unknown[], isError?: boolean) {
+    const service = new McpRuntimeService()
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({
+      callTool: vi.fn().mockResolvedValue({ content, isError })
+    })
+    return service
+  }
+
+  it('shrinks an oversized image before any runtime sees it, preserving format and mime type', async () => {
+    // A full-page browser screenshot's shape: far taller than the per-edge limit vision providers reject.
+    const tall = await sharp({ create: { width: 100, height: 3000, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const service = serviceReturning([{ type: 'image', data: tall.toString('base64'), mimeType: 'image/png' }])
+
+    const { content } = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
+
+    expect(content[0].type).toBe('image')
+    expect(content[0].mimeType).toBe('image/png')
+    const meta = await sharp(Buffer.from(content[0].data!, 'base64')).metadata()
+    expect(meta.format).toBe('png')
+    expect(Math.max(meta.width, meta.height)).toBeLessThanOrEqual(2000)
+  })
+
+  it('degrades an undecodable image to text instead of failing the tool call', async () => {
+    const service = serviceReturning([{ type: 'image', data: 'bm90IGFuIGltYWdl', mimeType: 'image/png' }])
+
+    const { content } = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
+
+    expect(content).toEqual([{ type: 'text', text: '[image (image/png) could not be processed]' }])
+  })
+
+  it('leaves error results untouched, even when they carry image-typed content', async () => {
+    const service = serviceReturning([{ type: 'image', data: 'bm90IGFuIGltYWdl', mimeType: 'image/png' }], true)
+
+    const result = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
+
+    expect(result).toEqual({
+      content: [{ type: 'image', data: 'bm90IGFuIGltYWdl', mimeType: 'image/png' }],
+      isError: true
+    })
+  })
+})
+
 describe('MCP IPC payload validation (mcp-services-5)', () => {
   it('rejects a malformed callTool payload (missing serverId/name)', () => {
     expect(McpCallToolPayloadSchema.safeParse({}).success).toBe(false)
@@ -976,7 +1045,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
     getByIdMock.mockReset()
     mcpCatalogMock.clearSharedToolsCache.mockReset()
     mcpCatalogMock.refreshTools.mockReset().mockResolvedValue(undefined)
-    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true } as McpServer)
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true })
   })
 
   // listTools is cache-only, so a failed restart must clear the shared tools cache —
@@ -1010,6 +1079,11 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     mcpSdkMock.state.failStreamableUnauthorized = false
     mcpSdkMock.state.failStreamableCode = 503
     callbackServerMock.waitForAuthCode.mockReset().mockResolvedValue('auth-code')
+    callbackServerMock.getServer = Promise.resolve(undefined as unknown)
+    callbackServerMock.instances.length = 0
+    vi.mocked(open)
+      .mockReset()
+      .mockResolvedValue(undefined as never)
   })
 
   function urlServer(type: 'sse' | 'streamableHttp'): McpServer {
@@ -1019,7 +1093,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
       type,
       baseUrl: 'https://mcp.actuary.meridianbridgegroup.com/mcp',
       isActive: true
-    } as unknown as McpServer
+    }
   }
 
   type MockClient = InstanceType<typeof mcpSdkMock.Client>
@@ -1076,6 +1150,120 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     const client = (await (service as any).getOrCreateClient(urlServer('streamableHttp'))) as unknown as MockClient
 
     expect(client.connectCalls.map((c) => c.kind)).toEqual(['streamableHttp', 'streamableHttp'])
+  })
+
+  it.each([false, true])(
+    'reauthorizes through a fresh connection after credentials expire (initial OAuth: %s)',
+    async (initialOAuth) => {
+      mcpSdkMock.state.failStreamable = initialOAuth
+      mcpSdkMock.state.failStreamableUnauthorized = initialOAuth
+      callbackServerMock.waitForAuthCode.mockImplementation(async () => {
+        mcpSdkMock.state.failStreamable = false
+        mcpSdkMock.state.failStreamableUnauthorized = false
+        return 'auth-code'
+      })
+      const service = new McpRuntimeService()
+      const server = urlServer('streamableHttp')
+      const client = (await (service as any).getOrCreateClient(server)) as MockClient
+      const authProvider = mcpSdkMock.streamableHttpTransports.at(-1)!.opts.authProvider
+      const callbacksBefore = callbackServerMock.instances.length
+      vi.mocked(open).mockClear()
+
+      await expect(authProvider.redirectToAuthorization(new URL('https://auth.example.com/expired'))).rejects.toThrow(
+        'Unauthorized'
+      )
+      expect(callbackServerMock.instances).toHaveLength(callbacksBefore)
+      expect(open).not.toHaveBeenCalled()
+
+      client.ping.mockImplementation(async () => {
+        await authProvider.redirectToAuthorization(new URL('https://auth.example.com/expired'))
+        throw new Error('Unauthorized')
+      })
+      mcpSdkMock.state.failStreamable = true
+      mcpSdkMock.state.failStreamableUnauthorized = true
+      const replacement = (await (service as any).getOrCreateClient(server)) as MockClient
+
+      expect(replacement).not.toBe(client)
+      expect(replacement.connectCalls.map((call) => call.kind)).toEqual(['streamableHttp', 'streamableHttp'])
+      expect(callbackServerMock.instances).toHaveLength(callbacksBefore + 1)
+      expect(callbackServerMock.instances.every((callback) => callback.close.mock.calls.length === 1)).toBe(true)
+      expect(open).toHaveBeenCalledExactlyOnceWith('https://auth.example.com/authorize')
+    }
+  )
+
+  it('waits for the OAuth callback to listen before opening the browser', async () => {
+    let resolveListen!: (value: unknown) => void
+    callbackServerMock.getServer = new Promise((resolve) => {
+      resolveListen = resolve
+    })
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.waitForAuthCode.mockImplementation(async () => {
+      mcpSdkMock.state.failStreamable = false
+      mcpSdkMock.state.failStreamableUnauthorized = false
+      return 'auth-code'
+    })
+
+    const service = new McpRuntimeService()
+    const connectPromise = (service as any).getOrCreateClient(urlServer('streamableHttp'))
+
+    await vi.waitFor(() => expect(callbackServerMock.instances).toHaveLength(1))
+    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+    expect(open).not.toHaveBeenCalled()
+
+    resolveListen(undefined)
+    const client = (await connectPromise) as unknown as MockClient
+    expect(client.connectCalls.map((c) => c.kind)).toEqual(['streamableHttp', 'streamableHttp'])
+    expect(open).toHaveBeenCalledWith('https://auth.example.com/authorize')
+    expect(callbackServerMock.instances[0]?.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails fast when the OAuth callback port is busy (issue #20624)', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.getServer = Promise.reject(
+      Object.assign(new Error('listen EADDRINUSE: address already in use 127.0.0.1:12346'), { code: 'EADDRINUSE' })
+    )
+    // Avoid an unhandled rejection if the implementation ever stops awaiting getServer.
+    callbackServerMock.getServer.catch(() => undefined)
+    const clientsBefore = mcpSdkMock.clients.length
+
+    const service = new McpRuntimeService()
+    await expect((service as any).getOrCreateClient(urlServer('streamableHttp'))).rejects.toThrow(
+      /127\.0\.0\.1:12346.*EADDRINUSE/
+    )
+
+    expect(callbackServerMock.waitForAuthCode).not.toHaveBeenCalled()
+    expect(mcpSdkMock.clients.length).toBe(clientsBefore + 1)
+    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+    expect(open).not.toHaveBeenCalled()
+    expect(callbackServerMock.instances[0]?.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('connects concurrent non-interactive servers even when the callback port is unavailable', async () => {
+    callbackServerMock.getServer = Promise.reject(new Error('EADDRINUSE'))
+    callbackServerMock.getServer.catch(() => undefined)
+    const service = new McpRuntimeService()
+    const servers = ['first', 'second'].map((id) => ({ ...urlServer('streamableHttp'), id }))
+
+    const clients = await Promise.all(servers.map((server) => (service as any).getOrCreateClient(server)))
+
+    expect(clients).toHaveLength(2)
+    for (const client of clients) expect(client.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+    expect(callbackServerMock.instances).toHaveLength(0)
+  })
+
+  it('releases the callback port when opening the browser fails', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    vi.mocked(open).mockRejectedValue(new Error('browser launch failed'))
+    const service = new McpRuntimeService()
+
+    await expect((service as any).getOrCreateClient(urlServer('streamableHttp'))).rejects.toThrow(
+      'browser launch failed'
+    )
+
+    expect(callbackServerMock.instances[0]?.close).toHaveBeenCalledTimes(1)
   })
 
   it('surfaces static Authorization failures without starting OAuth', async () => {
@@ -1273,7 +1461,7 @@ describe('McpRuntimeService prompt/resource capability gate', () => {
   })
 
   function stdioServer(id: string): McpServer {
-    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true }
   }
 
   it('never sends prompts/list or resources/list to a server declaring neither capability', async () => {
@@ -1319,7 +1507,7 @@ describe('McpRuntimeService list pagination', () => {
   })
 
   function stdioServer(id: string): McpServer {
-    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true }
   }
 
   it('follows the resources cursor so the model sees every page, not just the first', async () => {

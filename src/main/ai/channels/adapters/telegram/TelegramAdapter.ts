@@ -1,3 +1,6 @@
+import { Bot, InputFile } from 'grammy'
+import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
+
 import {
   downloadFileAsBase64,
   downloadImageAsBase64,
@@ -5,11 +8,8 @@ import {
   type ImageAttachment,
   MAX_FILE_SIZE_BYTES
 } from '@main/utils/downloadAsBase64'
-import { Bot, InputFile } from 'grammy'
-import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 
 const TELEGRAM_MAX_LENGTH = 4096
 /**
@@ -372,12 +372,8 @@ class TelegramAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('telegram', (channel, agentId) => {
+export function createTelegramAdapter(config: ChannelAdapterConfig<'telegram'>) {
   return new TelegramAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

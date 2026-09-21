@@ -21,7 +21,7 @@ function makeOptions(overrides: Partial<ToolExecutionOptions> = {}): ToolExecuti
     messages: [],
     experimental_context: { requestId: 'req-1' },
     ...overrides
-  } as ToolExecutionOptions
+  }
 }
 
 function registryWith(entry: Partial<ToolEntry> & Pick<ToolEntry, 'name' | 'tool'>): ToolRegistry {

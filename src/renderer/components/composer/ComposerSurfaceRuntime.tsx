@@ -1,3 +1,11 @@
+import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
+import type { EditorView } from '@tiptap/pm/view'
+import type { Editor } from '@tiptap/react'
+import { EditorContent, type NodeViewProps } from '@tiptap/react'
+import { Check, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
+import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
@@ -25,17 +33,11 @@ import {
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
-import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
-import type { EditorView } from '@tiptap/pm/view'
-import type { Editor } from '@tiptap/react'
-import { EditorContent, type NodeViewProps } from '@tiptap/react'
-import { Check, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
-import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useActiveComposerOverride } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
-import { createComposerInputAdapter, insertComposerTokenAtCursor } from './composerInputAdapter'
+import { ComposerFocusShortcut } from './ComposerFocusShortcut'
+import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposerToken } from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
@@ -44,7 +46,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
-import { ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
+import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
@@ -118,7 +120,7 @@ export interface ComposerSurfaceActions {
   replaceDraft: (draft: ComposerSerializedDraft) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
-  insertToken: (token: ComposerDraftToken) => void
+  insertToken: (token: ComposerDraftToken, updateOnly?: boolean) => void
   getDraft: () => ComposerSerializedDraft
 }
 
@@ -211,7 +213,7 @@ export interface ComposerSurfaceProps {
 export interface ComposerDeferredIntent {
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
-  insertToken?: { token: ComposerDraftToken; selection: { start: number; end: number } }
+  insertToken?: { token: ComposerDraftToken; updateOnly?: boolean; selection: { start: number; end: number } }
   /** The fallback textarea was focused — an eagerly mounted runtime must not steal focus otherwise. */
   hadFocus?: boolean
 }
@@ -338,9 +340,9 @@ function shouldDelegateLongTextPasteToFileHandler(
 ) {
   return Boolean(
     pasteLongTextAsFile &&
-      text &&
-      text.length > pasteLongTextThreshold &&
-      supportedExts.includes(PASTED_TEXT_FILE_EXTENSION)
+    text &&
+    text.length > pasteLongTextThreshold &&
+    supportedExts.includes(PASTED_TEXT_FILE_EXTENSION)
   )
 }
 
@@ -664,9 +666,8 @@ export default function ComposerSurfaceRuntime({
       const limitedText = nextText.slice(0, COMPOSER_INPUT_MAX_LENGTH)
       const editor = editorRef.current
       const currentText = editor && !editor.isDestroyed ? serializeComposerDocument(editor).text : textRef.current
-      // Rebuilding from plain text re-tokenizes only prompt variables, so a same-text update (e.g.
-      // pasteHandling re-applying the text after a long paste becomes a file) must skip the rebuild
-      // or quote/file/knowledge tokens degrade to their serialized text.
+      // Rebuilding from plain text re-tokenizes only prompt variables, so a same-text update must
+      // skip the rebuild or quote/file/knowledge tokens degrade to their serialized text.
       if (limitedText === currentText) return
       textRef.current = limitedText
       pendingLocalTextEchoRef.current = limitedText
@@ -675,14 +676,6 @@ export default function ComposerSurfaceRuntime({
       if (editor) setComposerEditorContent(editor, lastSerializedDraftRef, nextContent)
     },
     [onTextChange]
-  )
-
-  const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
-    (value) => {
-      const nextText = typeof value === 'function' ? value(textRef.current) : value
-      applyComposerText(nextText)
-    },
-    [applyComposerText]
   )
 
   const pasteHandlerOptions = useMemo(
@@ -697,7 +690,7 @@ export default function ComposerSurfaceRuntime({
     [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
   )
 
-  const { handlePaste } = usePasteHandler(text, setText, pasteHandlerOptions)
+  const { handlePaste } = usePasteHandler(pasteHandlerOptions)
 
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
@@ -853,10 +846,15 @@ export default function ComposerSurfaceRuntime({
       try {
         const fileText = await window.api.fs.readText(file.path)
         const currentText = serializeComposerDocument(editor).text
-        const textToInsert = getComposerInputTextWithinLimit(currentText, fileText)
+        // Refuse instead of truncating: pasting a truncated copy and dropping the
+        // file token would silently lose everything beyond the input limit.
+        if (exceedsComposerInputMaxLength(currentText, fileText)) {
+          toast.error(t('chat.input.paste_text_too_long', { max: COMPOSER_INPUT_MAX_LENGTH }))
+          return
+        }
         const position = typeof nodeViewProps.getPos === 'function' ? nodeViewProps.getPos() : undefined
-        const content = textToInsert
-          ? createPromptVariableInlineContent(textToInsert, { startIndex: getNextPromptVariableIndex(editor) })
+        const content = fileText
+          ? createPromptVariableInlineContent(fileText, { startIndex: getNextPromptVariableIndex(editor) })
           : []
 
         if (typeof position === 'number') {
@@ -889,11 +887,12 @@ export default function ComposerSurfaceRuntime({
     [setFiles, t]
   )
 
-  const insertToken = useCallback((token: ComposerDraftToken) => {
+  const insertToken = useCallback((token: ComposerDraftToken, updateOnly = false) => {
     const editor = editorRef.current
     if (!editor || editor.isDestroyed) return
 
-    insertComposerTokenAtCursor(editor, token)
+    if (updateOnly) updateComposerToken(editor, token)
+    else insertComposerTokenAtCursor(editor, token)
   }, [])
 
   const getDraft = useCallback((): ComposerSerializedDraft => {
@@ -1444,8 +1443,10 @@ export default function ComposerSurfaceRuntime({
   const memoizedEditorProps = useMemo(
     () => ({
       attributes: {
+        // Keep the input focusable while a send temporarily makes it read-only.
+        tabindex: '0',
         class: cn(
-          'composer-tiptap after:hidden! box-border block w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
+          'composer-tiptap box-border block w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
           hasCustomHeight ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
           hasCustomHeight && 'h-full'
         ),
@@ -2132,7 +2133,8 @@ export default function ComposerSurfaceRuntime({
             from: getComposerPositionAtTextOffset(editor, pendingToken.selection.start),
             to: getComposerPositionAtTextOffset(editor, pendingToken.selection.end)
           })
-          insertComposerTokenAtCursor(editor, pendingToken.token)
+          if (pendingToken.updateOnly) updateComposerToken(editor, pendingToken.token)
+          else insertComposerTokenAtCursor(editor, pendingToken.token)
         }
         if (transfer?.kind === 'paste') {
           // Do not bubble: ProseMirror listens on the view element itself, while the document-level
@@ -2296,17 +2298,22 @@ export default function ComposerSurfaceRuntime({
           ref={frameRef}
           data-ui="part:composer-input"
           data-composer-editor-frame=""
-          className={cn('min-w-0 flex-1 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
+          className={cn(
+            'group/composer-editor relative flex min-w-0 flex-1 overflow-hidden transition-[height] ease-out',
+            editingState && 'mt-2'
+          )}
           onTransitionEnd={handleTransitionEnd}
           style={isCompact ? compactFrameStyle : frameStyle}>
           <EditorContent
             editor={editor}
+            className="min-w-0 flex-1"
             style={isCompact ? compactEditorContentStyle : editorContentStyle}
             onFocus={() => {
               onFocus?.()
               pasteHandling.setLastFocusedComponent('inputbar')
             }}
           />
+          <ComposerFocusShortcut focus={focusEditor} editable={editable} />
         </div>
         {isCompact ? (
           <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
@@ -2359,6 +2366,7 @@ export default function ComposerSurfaceRuntime({
           : {})
       }}>
       <div className="w-full">
+        <ComposerToolFooterActionsSync />
         <div
           className="inputbar relative z-2 flex flex-col pt-0"
           onDragEnter={handleDragEnter}

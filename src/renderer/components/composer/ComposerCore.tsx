@@ -61,12 +61,12 @@ export default function ComposerCore({ fallback, className }: ComposerCoreProps)
         }
         onFocusCapture={(event) => {
           if (activeOverride) return
-          primaryFocusTargetRef.current = event.target as HTMLElement
+          primaryFocusTargetRef.current = event.target
           primaryHadFocusRef.current = true
         }}
         onBlurCapture={(event) => {
           if (activeOverride) return
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
             primaryHadFocusRef.current = false
           }
         }}>

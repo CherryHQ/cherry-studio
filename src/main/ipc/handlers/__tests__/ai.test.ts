@@ -1,8 +1,14 @@
+import { APICallError, RetryError } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
+import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
+import { AgentSessionForkError } from '@main/ai/runtime/fork/checkpoint'
 import { AiStreamAdmissionError } from '@main/ai/streamManager'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetMock,
@@ -25,6 +31,13 @@ vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
 vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
+vi.mock('@main/ai/agents/AgentLifecycleService', () => ({
+  AgentSessionArchiveBusyError: class AgentSessionArchiveBusyError extends Error {
+    constructor(readonly sessionIds: string[]) {
+      super('Agent Sessions are busy')
+    }
+  }
+}))
 
 import { aiHandlers } from '../ai'
 
@@ -32,8 +45,9 @@ const aiService = {
   generateText: vi.fn(),
   checkModel: vi.fn(),
   embedMany: vi.fn(),
+  runTextRequest: vi.fn(),
   runImageRequest: vi.fn(),
-  abortImage: vi.fn(),
+  abortRequest: vi.fn(),
   listModels: vi.fn(),
   respondToolApproval: vi.fn()
 }
@@ -60,12 +74,13 @@ const toolPart = (toolCallId: string, output: unknown) => ({
 const fileManager = { read: vi.fn() }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
-const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn() }
-const agentSessionDeliveryService = {
-  deleteSessions: vi.fn(),
+const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn(), forkSession: vi.fn() }
+const agentLifecycleService = {
+  archiveSessions: vi.fn(),
+  restoreSession: vi.fn(),
   reuseOrCreateSession: vi.fn(),
-  deleteAgent: vi.fn(),
-  deleteAgentSessions: vi.fn(),
+  archiveAgent: vi.fn(),
+  archiveAgentSessions: vi.fn(),
   deleteWorkspace: vi.fn()
 }
 const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
@@ -103,8 +118,8 @@ beforeEach(() => {
         return claudeCodeWarmQueryManager
       case 'AgentSessionRuntimeService':
         return agentSessionRuntimeService
-      case 'AgentSessionDeliveryService':
-        return agentSessionDeliveryService
+      case 'AgentLifecycleService':
+        return agentLifecycleService
       case 'ClaudeCodeTraceBridgeService':
         return claudeCodeTraceBridgeService
       case 'AgentJobsService':
@@ -124,13 +139,66 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
+  it('forwards a native fork request with only the source session and checkpoint message', async () => {
+    agentSessionRuntimeService.forkSession.mockResolvedValue('child')
+    await expect(
+      aiHandlers['ai.agent.session.fork'](
+        {
+          sourceSessionId: 'source',
+          messageId: 'selected'
+        },
+        ctx
+      )
+    ).resolves.toEqual({ sessionId: 'child' })
+    expect(agentSessionRuntimeService.forkSession).toHaveBeenCalledWith('source', 'selected')
+  })
+
+  it.each([
+    [new AgentSessionForkError('history_changed'), 'history_changed'],
+    [new AgentSessionForkError('cancelled'), 'cancelled'],
+    [new AgentSessionForkSourceError('source_missing'), 'source_missing'],
+    [new AgentSessionForkSourceError('source_changed'), 'source_changed'],
+    [new AgentSessionForkError('unrecognized SDK failure'), 'operation_failed'],
+    [new Error('history_missing'), 'operation_failed']
+  ])('serializes fork failures by domain type, not their message: %s', async (error, reason) => {
+    agentSessionRuntimeService.forkSession.mockRejectedValue(error)
+    const result = aiHandlers['ai.agent.session.fork'](
+      {
+        sourceSessionId: 'source',
+        messageId: 'selected'
+      },
+      ctx
+    )
+    await expect(result).rejects.toBeInstanceOf(IpcError)
+    await expect(result).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED,
+      data: { reason }
+    })
+  })
+
   it('delegates mixed-effect Session deletion to the delivery owner', async () => {
-    agentSessionDeliveryService.deleteSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+    agentLifecycleService.archiveSessions.mockResolvedValue({ deletedIds: ['session-1'] })
 
     await expect(aiHandlers['ai.agent.session.delete']({ sessionIds: ['session-1'] }, ctx)).resolves.toEqual({
       deletedIds: ['session-1']
     })
-    expect(agentSessionDeliveryService.deleteSessions).toHaveBeenCalledWith(['session-1'])
+    expect(agentLifecycleService.archiveSessions).toHaveBeenCalledWith(['session-1'])
+  })
+
+  it('delegates Session restoration to the delivery owner', async () => {
+    const restored = { id: 'session-1' }
+    agentLifecycleService.restoreSession.mockResolvedValue(restored)
+
+    await expect(aiHandlers['ai.agent.session.restore']({ sessionId: 'session-1' }, ctx)).resolves.toBe(restored)
+    expect(agentLifecycleService.restoreSession).toHaveBeenCalledWith('session-1')
+  })
+
+  it('preserves a branchable error when Session restoration loses the lifecycle race', async () => {
+    agentLifecycleService.restoreSession.mockRejectedValue(DataApiErrorFactory.notFound('Session', 'session-1'))
+
+    await expect(aiHandlers['ai.agent.session.restore']({ sessionId: 'session-1' }, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND
+    })
   })
 
   it('delegates placeholder reuse and duplicate cleanup to the delivery owner', async () => {
@@ -139,43 +207,43 @@ describe('aiHandlers', () => {
       created: false,
       deletedDuplicateSessionIds: ['session-duplicate']
     }
-    agentSessionDeliveryService.reuseOrCreateSession.mockResolvedValue(response)
+    agentLifecycleService.reuseOrCreateSession.mockResolvedValue(response)
 
     await expect(
       aiHandlers['ai.agent.session.reuse_or_create']({ agentId: 'agent-1', workspace: { type: 'system' } }, ctx)
     ).resolves.toBe(response)
-    expect(agentSessionDeliveryService.reuseOrCreateSession).toHaveBeenCalledWith({
+    expect(agentLifecycleService.reuseOrCreateSession).toHaveBeenCalledWith({
       agentId: 'agent-1',
       workspace: { type: 'system' }
     })
   })
 
   it('delegates mixed-effect Agent deletion to the delivery owner', async () => {
-    agentSessionDeliveryService.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: ['session-1'] })
+    agentLifecycleService.archiveAgent.mockResolvedValue({ deleted: true, deletedSessionIds: ['session-1'] })
 
     await expect(aiHandlers['ai.agent.delete']({ agentId: 'agent-1', deleteSessions: true }, ctx)).resolves.toEqual({
       deleted: true,
       deletedSessionIds: ['session-1']
     })
-    expect(agentSessionDeliveryService.deleteAgent).toHaveBeenCalledWith('agent-1', true)
+    expect(agentLifecycleService.archiveAgent).toHaveBeenCalledWith('agent-1', { archiveSessions: true })
   })
 
   it('delegates mixed-effect Agent Session deletion to the delivery owner', async () => {
-    agentSessionDeliveryService.deleteAgentSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+    agentLifecycleService.archiveAgentSessions.mockResolvedValue({ deletedIds: ['session-1'] })
 
     await expect(aiHandlers['ai.agent.sessions.delete']({ agentId: 'agent-1' }, ctx)).resolves.toEqual({
       deletedIds: ['session-1']
     })
-    expect(agentSessionDeliveryService.deleteAgentSessions).toHaveBeenCalledWith('agent-1')
+    expect(agentLifecycleService.archiveAgentSessions).toHaveBeenCalledWith('agent-1')
   })
 
   it('delegates mixed-effect workspace deletion to the delivery owner', async () => {
-    agentSessionDeliveryService.deleteWorkspace.mockResolvedValue({ deletedIds: ['session-1'] })
+    agentLifecycleService.deleteWorkspace.mockResolvedValue({ deletedIds: ['session-1'] })
 
     await expect(aiHandlers['ai.agent.workspace.delete']({ workspaceId: 'workspace-1' }, ctx)).resolves.toEqual({
       deletedIds: ['session-1']
     })
-    expect(agentSessionDeliveryService.deleteWorkspace).toHaveBeenCalledWith('workspace-1')
+    expect(agentLifecycleService.deleteWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
   it('delegates Support-session creation and returns its id', async () => {
@@ -192,7 +260,28 @@ describe('aiHandlers', () => {
 
     const result = await aiHandlers['ai.text.generate'](request, ctx)
 
-    expect(aiService.generateText).toHaveBeenCalledWith(request)
+    expect(aiService.generateText).toHaveBeenCalledWith({
+      ...request,
+      conversation: { id: expect.stringMatching(/^one-shot:/) }
+    })
+    expect(result).toBe(out)
+  })
+
+  it('generate_text routes a requestId through runTextRequest without leaking it into the request', async () => {
+    const out = { text: 'hello' }
+    aiService.runTextRequest.mockResolvedValue(out)
+
+    const result = await aiHandlers['ai.text.generate'](
+      { requestId: 'r1', uniqueModelId: 'openai::gpt-4o', prompt: 'hi' },
+      ctx
+    )
+
+    expect(aiService.runTextRequest).toHaveBeenCalledWith('r1', {
+      uniqueModelId: 'openai::gpt-4o',
+      prompt: 'hi',
+      conversation: { id: expect.stringMatching(/^one-shot:/) }
+    })
+    expect(aiService.generateText).not.toHaveBeenCalled()
     expect(result).toBe(out)
   })
 
@@ -228,9 +317,15 @@ describe('aiHandlers', () => {
     expect(result).toBe(out)
   })
 
-  it('abort_image delegates to AiService.abortImage and resolves void', async () => {
+  it('abort_image delegates to AiService.abortRequest and resolves void', async () => {
     const result = await aiHandlers['ai.image.abort']({ requestId: 'r1' }, ctx)
-    expect(aiService.abortImage).toHaveBeenCalledWith('r1')
+    expect(aiService.abortRequest).toHaveBeenCalledWith('r1')
+    expect(result).toBeUndefined()
+  })
+
+  it('abort_text delegates to AiService.abortRequest and resolves void', async () => {
+    const result = await aiHandlers['ai.text.abort']({ requestId: 'r1' }, ctx)
+    expect(aiService.abortRequest).toHaveBeenCalledWith('r1')
     expect(result).toBeUndefined()
   })
 
@@ -260,6 +355,43 @@ describe('aiHandlers', () => {
     expect(error.data).toMatchObject({ message: '401 Unauthorized', statusCode: 401, responseBody: 'bad key' })
   })
 
+  it('exposes only safe details from a direct APICallError', async () => {
+    const providerError = new APICallError({
+      message: 'Forbidden',
+      url: 'https://api.example.com/chat?token=url-secret',
+      requestBodyValues: { prompt: 'private user prompt' },
+      statusCode: 403,
+      responseHeaders: { 'set-cookie': 'session=header-secret' },
+      responseBody: JSON.stringify({ error: { message: 'provider access denied' }, trace: 'response-secret' }),
+      data: { apiKey: 'data-secret' },
+      cause: new Error('Authorization: Bearer cause-secret'),
+      isRetryable: false
+    })
+    aiService.checkModel.mockRejectedValue(providerError)
+
+    const error = await aiHandlers['ai.provider.model.check']({ uniqueModelId: 'openai::gpt-4o' }, ctx).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.message).toBe('provider access denied')
+    expect(error.data).toEqual({
+      name: 'AI_APICallError',
+      message: 'provider access denied',
+      providerErrorCategory: 'permission',
+      stack: null,
+      cause: null,
+      url: '',
+      requestBodyValues: null,
+      statusCode: 403,
+      responseHeaders: null,
+      responseBody: null,
+      isRetryable: false,
+      data: null
+    })
+    expect(JSON.stringify(error)).not.toMatch(
+      /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/
+    )
+  })
+
   it('normalizes a non-Error throw into an AI_REQUEST_FAILED IpcError', async () => {
     aiService.checkModel.mockRejectedValue('boom')
 
@@ -268,6 +400,28 @@ describe('aiHandlers', () => {
     expect(error).toBeInstanceOf(IpcError)
     expect(error.code).toBe(aiErrorCodes.AI_REQUEST_FAILED)
     expect(error.message).toBe('boom')
+  })
+
+  it('does not expose a RetryError wrapper payload through the AI IPC error', async () => {
+    const terminalError = new Error('Rate limit reached')
+    const privatePayload = '{"prompt":"private user prompt","trace":"internal trace"'
+    const retryError = new RetryError({
+      message: `Failed after 3 attempts. Last error: Provider failed: ${privatePayload}`,
+      reason: 'maxRetriesExceeded',
+      errors: [terminalError]
+    })
+    aiService.checkModel.mockRejectedValue(retryError)
+
+    const error = await aiHandlers['ai.provider.model.check']({ uniqueModelId: 'openai::gpt-4o' }, ctx).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.message).toBe('')
+    expect(error.stack).not.toMatch(/private user prompt|internal trace/)
+    expect(error.data).toMatchObject({
+      message: '',
+      stack: null,
+      lastError: { message: 'Rate limit reached', stack: null }
+    })
   })
 })
 
@@ -533,6 +687,27 @@ describe('aiHandlers — agent sessions & tasks', () => {
 
     expect(aiService.respondToolApproval).toHaveBeenCalledWith(payload, undefined)
     expect(windowManager.getWindow).not.toHaveBeenCalled()
+  })
+})
+
+describe('aiHandlers — Agent Session archive commands', () => {
+  it.each([
+    ['ai.agent.session.delete', { sessionIds: ['session-a'] }, 'archiveSessions'],
+    ['ai.agent.sessions.delete', { agentId: 'agent-1' }, 'archiveAgentSessions'],
+    ['ai.agent.delete', { agentId: 'agent-1', deleteSessions: true }, 'archiveAgent']
+  ] as const)('maps busy errors from %s to a branchable IPC error', async (route, input, serviceMethod) => {
+    agentLifecycleService[serviceMethod].mockRejectedValueOnce(new AgentSessionArchiveBusyError(['session-a']))
+
+    const error = await (aiHandlers[route] as (input: never, context: typeof ctx) => Promise<unknown>)(
+      input as never,
+      ctx
+    ).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_ARCHIVE_BUSY,
+      data: { sessionIds: ['session-a'] }
+    })
   })
 })
 

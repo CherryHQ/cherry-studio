@@ -1,9 +1,10 @@
-import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, render, screen } from '@testing-library/react'
 import { useRef } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 import { clearModelHealthStatus, useModelHealthStatus, writeModelHealthStatus } from '../modelHealthStatusCache'
 

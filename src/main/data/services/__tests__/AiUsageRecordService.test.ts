@@ -1,4 +1,9 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import type { LanguageModelMiddleware } from 'ai'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
@@ -14,10 +19,6 @@ import { createLanguageUsageMiddleware } from '@main/ai/hooks/billingHook'
 import { gatewayUsageNormalizeFeature } from '@main/ai/runtime/aiSdk/params/features/gatewayUsageNormalize'
 import { createAiUsageCaptureContext, createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import type { LanguageModelMiddleware } from 'ai'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()

@@ -46,10 +46,11 @@ import path from 'node:path'
 import { addAbortSignal, Readable, Writable } from 'node:stream'
 import { finished, pipeline } from 'node:stream/promises'
 
+import mime from 'mime'
+
 import { loggerService } from '@logger'
 import type { ContentHash } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import mime from 'mime'
 
 import { createContentHasher } from './contentHash'
 
@@ -161,7 +162,9 @@ export async function probeReadable(path: AbsoluteFilePath): Promise<PathReadabi
  */
 export async function isSameFile(a: AbsoluteFilePath, b: AbsoluteFilePath): Promise<boolean> {
   try {
-    const [sa, sb] = await Promise.all([fsStat(a), fsStat(b)])
+    // bigint: Windows NTFS file reference numbers exceed 2^53, so as doubles
+    // two adjacent files can round to the same ino.
+    const [sa, sb] = await Promise.all([fsStat(a, { bigint: true }), fsStat(b, { bigint: true })])
     return sa.dev === sb.dev && sa.ino === sb.ino
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
@@ -184,16 +187,23 @@ function tmpNameFor(target: string): string {
 /**
  * Whether an errno from a directory-fsync attempt should be silently
  * swallowed instead of warn-logged. Only codes that mean "this FS semantically
- * rejects directory fsync" qualify — EINVAL / EISDIR / ENOTSUP all come from
- * Windows, FUSE, or network mounts that don't expose dir-handle sync. EPERM /
- * EACCES intentionally do NOT qualify: those usually mean the userData
+ * rejects directory fsync" qualify — EINVAL / EISDIR / ENOTSUP come from
+ * POSIX systems, FUSE, or network mounts that don't expose dir-handle sync.
+ * On Windows, fsync on a directory handle always fails with EPERM
+ * (FlushFileBuffers on a directory handle → ERROR_ACCESS_DENIED → Node maps
+ * to EPERM), so EPERM / EACCES additionally qualify there. On other platforms
+ * EPERM / EACCES intentionally do NOT qualify: those usually mean the userData
  * directory's ACL drifted (sandbox containment shift, SELinux/AppArmor
  * tightening, manual chown), and silently skipping the dashboard signal would
  * mask the regression. Exported for direct unit coverage of the classification.
  * @internal
  */
-export function shouldSilenceFsyncDirError(code: string | undefined): boolean {
-  return code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP'
+export function shouldSilenceFsyncDirError(
+  code: string | undefined,
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  if (code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP') return true
+  return platform === 'win32' && (code === 'EPERM' || code === 'EACCES')
 }
 
 /**

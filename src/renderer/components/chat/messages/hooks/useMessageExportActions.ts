@@ -1,9 +1,10 @@
+import { useCallback, useMemo } from 'react'
+
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { ipcApi } from '@renderer/ipc'
 import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
 import type { MessageExportView } from '@renderer/types/messageExport'
-import { useCallback, useMemo } from 'react'
 
 type MessageExportActions = Pick<
   MessageListActions,
@@ -51,9 +52,8 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
 
   const exportToNotes = useCallback(
     async (message: MessageExportView) => {
-      const { exportMessageToNotes, getMessageTitle, messageToMarkdown } = await import(
-        '@renderer/services/ExportService'
-      )
+      const { exportMessageToNotes, getMessageTitle, messageToMarkdown } =
+        await import('@renderer/services/ExportService')
       const title = await getMessageTitle(message)
       const markdown = await messageToMarkdown(message)
       return exportMessageToNotes(title, markdown, notesPath)
@@ -62,18 +62,16 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
   )
 
   const exportToNotion = useCallback(async (message: MessageExportView) => {
-    const { exportMessageToNotion, getMessageTitle, messageToMarkdown } = await import(
-      '@renderer/services/ExportService'
-    )
+    const { exportMessageToNotion, getMessageTitle, messageToMarkdown } =
+      await import('@renderer/services/ExportService')
     const title = await getMessageTitle(message)
     const markdown = await messageToMarkdown(message)
     await exportMessageToNotion(title, markdown, message)
   }, [])
 
   const exportToYuque = useCallback(async (message: MessageExportView) => {
-    const { exportMarkdownToYuque, getMessageTitle, messageToMarkdown } = await import(
-      '@renderer/services/ExportService'
-    )
+    const { exportMarkdownToYuque, getMessageTitle, messageToMarkdown } =
+      await import('@renderer/services/ExportService')
     const title = await getMessageTitle(message)
     const markdown = await messageToMarkdown(message)
     await exportMarkdownToYuque(title, markdown)
@@ -95,9 +93,8 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
   }, [])
 
   const exportToSiyuan = useCallback(async (message: MessageExportView) => {
-    const { exportMarkdownToSiyuan, getMessageTitle, messageToMarkdown } = await import(
-      '@renderer/services/ExportService'
-    )
+    const { exportMarkdownToSiyuan, getMessageTitle, messageToMarkdown } =
+      await import('@renderer/services/ExportService')
     const title = await getMessageTitle(message)
     const markdown = await messageToMarkdown(message)
     return exportMarkdownToSiyuan(title, markdown)

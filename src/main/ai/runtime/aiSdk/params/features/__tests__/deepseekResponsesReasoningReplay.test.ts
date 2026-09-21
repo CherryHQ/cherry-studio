@@ -1,8 +1,9 @@
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
-import type { Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { LanguageModelMiddleware } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import type { RequestScope } from '../../scope'
 import {
@@ -22,7 +23,7 @@ async function transform(prompt: LanguageModelV3Prompt): Promise<LanguageModelV3
   const middleware = await getMiddleware()
   const result = await middleware.transformParams!({
     type: 'stream',
-    params: { prompt } as any,
+    params: { prompt },
     model: {} as any
   })
   return result.prompt
@@ -80,7 +81,7 @@ describe('deepseekResponsesReasoningReplay', () => {
       expect(assistant.content[1]).toEqual({ type: 'text', text: 'answer' })
     })
 
-    it('leaves reasoning parts with a native OpenAI round-trip alone', async () => {
+    it('tags item-backed reasoning for raw passback but preserves encrypted reasoning', async () => {
       const prompt: LanguageModelV3Prompt = [
         {
           role: 'assistant',
@@ -94,7 +95,7 @@ describe('deepseekResponsesReasoningReplay', () => {
       expect(result[0].content[0]).toEqual({
         type: 'reasoning',
         text: 'a',
-        providerOptions: { openai: { itemId: 'rs_1' } }
+        providerOptions: { openai: { itemId: 'rs_1', rawReasoningContent: true } }
       })
       expect(result[0].content[1]).toEqual({
         type: 'reasoning',

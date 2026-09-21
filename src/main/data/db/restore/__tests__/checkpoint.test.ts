@@ -2,9 +2,10 @@ import { mkdtempSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { checkpointTruncateAssert } from '@data/db/restore/checkpoint'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import { checkpointTruncateAssert } from '@data/db/restore/checkpoint'
 
 describe('checkpointTruncateAssert', () => {
   let tempDir: string

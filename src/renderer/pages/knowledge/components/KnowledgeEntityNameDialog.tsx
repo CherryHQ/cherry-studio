@@ -1,8 +1,9 @@
-import { Button, Dialog, DialogContent, FieldError, Input, Label } from '@cherrystudio/ui'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, FieldError, Input, Label } from '@cherrystudio/ui'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 import {
   KnowledgeDialogBody,

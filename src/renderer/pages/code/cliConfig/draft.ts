@@ -77,24 +77,27 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
     dataApiService.get(`/providers/${providerId}/api-keys`) as Promise<{ keys?: ApiKeyEntry[] } | undefined>,
     // Model metadata only tunes optional fields (endpoint pick, context window),
     // so a fetch failure degrades the config quietly — leave a breadcrumb.
-    dataApiService
-      .get(`/models/${args.modelId}`)
-      .catch((error) => {
-        logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
-        return null
-      })
+    dataApiService.get(`/models/${args.modelId}`).catch((error) => {
+      logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
+      return null
+    })
   ])
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
   }
 
   const apiKey = firstApiKey(apiKeysRes?.keys)
-  // Ollama's local server needs no real credential, but the Claude Code and
-  // OpenCode SDKs still require a non-empty auth token — mirrors the same
-  // fallback used for the in-app agent runtime (agentSessionWarmup.ts).
+  // Keyless local servers (authOptional, e.g. Ollama, oMLX) need no real credential,
+  // but the CLI SDKs still require a non-empty auth token — same per-provider
+  // stand-in OpenClaw injects. Ollama-endpoint custom providers keep the
+  // agentSessionWarmup fallback.
   const effectiveApiKey =
     apiKey ||
-    (OLLAMA_FALLBACK_TOOLS.includes(args.cliTool) && isOllamaProvider(provider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+    (provider.authOptional === true
+      ? (provider.presetProviderId ?? provider.id)
+      : OLLAMA_FALLBACK_TOOLS.includes(args.cliTool) && isOllamaProvider(provider)
+        ? OLLAMA_PLACEHOLDER_AUTH_TOKEN
+        : '')
 
   return {
     provider,

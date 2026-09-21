@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -12,7 +11,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
 })
 
 afterEach(() => {
@@ -72,6 +71,25 @@ describe('Tooltip', () => {
       const trigger = container.querySelector('[data-state]')
       expect(trigger).toBeInTheDocument()
       expect(screen.getByText('Trigger')).toBeInTheDocument()
+    })
+
+    it('unmounts an open tooltip content immediately when isDisabled turns true', () => {
+      const { rerender } = render(
+        <Tooltip content="close-tip" isOpen>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+      expect(getTooltipContentElement('close-tip')).toBeInTheDocument()
+
+      rerender(
+        <Tooltip content="close-tip" isOpen isDisabled>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+
+      // Anchors hidden via display:none leave Radix tooltips parked at the viewport
+      // origin during their exit animation; disabling must drop the content at once.
+      expect(document.querySelector('[data-slot="tooltip-content"]')).not.toBeInTheDocument()
     })
 
     it('uses title as fallback when content is not provided', () => {

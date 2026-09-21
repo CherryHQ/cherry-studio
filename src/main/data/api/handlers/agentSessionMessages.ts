@@ -3,6 +3,7 @@
  */
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
 import { toDataApiError } from '@shared/data/api/errors'
 import {
@@ -28,6 +29,8 @@ function projectMessageForRenderer(message: AgentSessionMessageEntity, sessionId
 export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas> = {
   '/agent-sessions/:sessionId/messages': {
     GET: async ({ params, query }) => {
+      // Message routes scope like session reads: background sessions are not addressable here.
+      agentSessionService.getConversationById(params.sessionId)
       const parsed = AgentSessionMessagesListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
       const response = agentSessionMessageService.listSessionMessages(params.sessionId, parsed.data)
@@ -41,16 +44,19 @@ export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas
 
   '/agent-sessions/:sessionId/messages/:messageId': {
     GET: async ({ params }) => {
+      agentSessionService.getConversationById(params.sessionId)
       return agentSessionMessageService.getSessionMessage(params.sessionId, params.messageId)
     },
 
     PATCH: async ({ params, body }) => {
+      agentSessionService.getConversationById(params.sessionId)
       const parsed = UpdateAgentSessionMessageSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionMessageService.updateSessionMessage(params.sessionId, params.messageId, parsed.data)
     },
 
     DELETE: async ({ params }) => {
+      agentSessionService.getConversationById(params.sessionId)
       agentSessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
       return undefined
     }

@@ -1,38 +1,67 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
+import { use } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 
 import ChatMarkdown from '../ChatMarkdown'
 
-vi.mock('../ChatMarkdownRuntime', () => ({
-  default: () => <div data-testid="plain-runtime" />
+const previewLoad = vi.hoisted(() => Promise.withResolvers<void>())
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
+
+vi.mock('../../MessageListProvider', () => ({
+  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false, codeFancyBlock: true }),
+  useOptionalMessageListActions: () => undefined
 }))
 
-vi.mock('../ChatMarkdownMermaidRuntime', () => ({
-  default: () => <div data-testid="mermaid-runtime" />
+vi.mock('@renderer/components/Preview/MermaidPreview', () => ({
+  default: function MermaidPreview() {
+    use(previewLoad.promise)
+    return null
+  }
 }))
 
-vi.mock('../StandaloneHtmlArtifactRenderer', () => ({
-  default: () => <div data-testid="html-artifact" />
-}))
+describe('ChatMarkdown loading boundary', () => {
+  it('renders formatted text on the first commit', () => {
+    render(<ChatMarkdown block={{ id: 'part', content: '# Ready\n\n**Formatted** text.', status: 'success' }} />)
 
-const renderContent = (content: string) => render(<ChatMarkdown block={{ id: 'part', content, status: 'success' }} />)
-
-describe('ChatMarkdown runtime selection', () => {
-  it.each([
-    ['bare fence', '```mermaid\ngraph TD;\n```'],
-    ['space after the marker', '``` mermaid\ngraph TD;\n```'],
-    ['info metadata after the language', '```mermaid title="Flow"\ngraph TD;\n```'],
-    ['tilde fence', '~~~mermaid\ngraph TD;\n~~~'],
-    ['inside a block quote', '> Look:\n>\n> ```mermaid\n> graph TD;\n> ```'],
-    ['inside a list item', '1. Diagram:\n\n   ```mermaid\n   graph TD;\n   ```'],
-    ['after leading prose', 'Here you go:\n\n```mermaid\ngraph TD;\n```']
-  ])('loads the Mermaid runtime for a fence with %s', async (_label, content) => {
-    renderContent(content)
-    expect(await screen.findByTestId('mermaid-runtime')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Ready', level: 1 })).toBeVisible()
+    expect(screen.getByText('Formatted')).toBeVisible()
   })
 
-  it('keeps the lightweight runtime when no Mermaid fence is present', async () => {
-    renderContent('```ts\nconst mermaid = 1\n```\n\nMermaid is only mentioned here.')
-    expect(await screen.findByTestId('plain-runtime')).toBeInTheDocument()
+  it('preserves existing prose when a stream adds a diagram whose preview is still loading', async () => {
+    const content = '# Reading position\n\nKeep this paragraph.'
+    const { rerender } = render(<ChatMarkdown block={{ id: 'stream', content, status: 'streaming' }} />, {
+      wrapper: CodeStyleProvider
+    })
+    const heading = await screen.findByRole('heading', { name: 'Reading position' }, { timeout: 10000 })
+
+    try {
+      rerender(
+        <ChatMarkdown
+          block={{
+            id: 'stream',
+            content: `${content}\n\n\`\`\`mermaid\ngraph TD; A-->B;\n\`\`\``,
+            status: 'streaming'
+          }}
+        />
+      )
+
+      expect(screen.getByRole('heading', { name: 'Reading position' })).toBe(heading)
+      await act(async () => {
+        await vi.dynamicImportSettled()
+      })
+      expect(heading).toBeVisible()
+      expect(screen.getByRole('paragraph')).toHaveTextContent('Keep this paragraph.')
+    } finally {
+      await act(async () => {
+        previewLoad.resolve()
+        await vi.dynamicImportSettled()
+      })
+    }
+
+    expect(screen.getByRole('heading', { name: 'Reading position' })).toBe(heading)
   })
 })

@@ -1,84 +1,128 @@
 # E2E Testing Guide
 
-本目录包含 Cherry Studio 的端到端 (E2E) 测试，使用 Playwright 测试 Electron 应用。
+This directory contains end-to-end (E2E) tests for the Cherry Studio Electron application using Playwright.
 
-## 目录结构
+## Critical-path regression
+
+Cross-platform validation of development branches and release installers uses a separate
+[regression workflow](cherry-regression/README.md), which reuses a controller-owned application
+process through CDP. `pnpm test:e2e` runs the existing smoke suite described below;
+`pnpm test:e2e:regression` runs the regression scenarios.
+
+## Directory structure
 
 ```
 tests/e2e/
-├── README.md                 # 本文档
-├── global-setup.ts           # 全局测试初始化
-├── global-teardown.ts        # 全局测试清理
+├── README.md                 # This guide
+├── global-setup.ts           # Global test setup
+├── global-teardown.ts        # Global test teardown
 ├── fixtures/
-│   └── electron.fixture.ts   # Electron 应用启动 fixture
+│   └── electron.fixture.ts   # Electron application launch fixture
 ├── utils/
-│   ├── wait-helpers.ts       # 等待辅助函数
+│   ├── wait-helpers.ts       # Wait helpers
 │   ├── ui-locator.ts         # data-ui contract locator
-│   └── index.ts              # 工具导出
-└── specs/                    # 测试用例
-    └── app-launch.spec.ts    # 应用启动边界测试
+│   └── index.ts              # Utility exports
+├── specs/                    # Smoke test cases
+│   └── app-launch.spec.ts    # Application launch boundary tests
+└── cherry-regression/        # Critical-path regression suite
+    ├── README.md            # Scenario organization and execution contract
+    ├── fixture.ts           # Controller-owned application and CDP fixtures
+    ├── RegressionApp.ts     # Window access and controller integration
+    ├── setup.ts             # Per-scenario application initialization
+    ├── 01-startup.test.ts   # First of ten numbered phase files
+    └── ...                  # Remaining phases and domain helpers
 ```
 
 ---
 
-## 运行测试
+## Running tests
 
-### 前置条件
+### Smoke suite
 
-1. 安装依赖：`pnpm install`
-2. 构建应用：`pnpm build`
+The prerequisites and commands below apply only to the smoke suite in `specs/`.
 
-### 运行命令
+#### Prerequisites
+
+1. Install dependencies: `pnpm install`
+2. Build the application: `pnpm build`
+
+#### Commands
 
 ```bash
-# 运行所有 e2e 测试
+# Run the smoke suite
 pnpm test:e2e
 
-# 带可视化窗口运行（可以看到测试过程）
+# Run with visible windows
 pnpm test:e2e --headed
 
-# 运行特定测试文件
+# Run a specific test file
 pnpm playwright test tests/e2e/specs/app-launch.spec.ts
 
-# 运行匹配名称的测试
+# Run tests matching a name
 pnpm playwright test -g "reasonable size"
 
-# 调试模式（会暂停并打开调试器）
+# Run in debug mode (pauses execution and opens the debugger)
 pnpm playwright test --debug
 
-# 使用 Playwright UI 模式
+# Use Playwright UI mode
 pnpm playwright test --ui
 
-# 查看测试报告
+# View the test report
 pnpm playwright show-report
 ```
 
-## 编写 E2E 测试
+### Critical-path regression suite
 
-测试设计和审查统一遵守[前端测试规范](../../docs/references/testing/frontend-testing.md)。本目录只提供
-Electron E2E 基础设施：
+Use the [regression workflow](../../.github/workflows/cherry-regression-test.yml) for hosted macOS and Windows runs.
+It prepares the application, isolated run directory, and provider configuration before running the scenarios.
+`pnpm test:e2e:regression` selects the regression config, but does not perform that preparation itself:
+execution requires `CHERRY_TEST_RUN_DIR` to point to an initialized controller run.
+See the [scenario guide](cherry-regression/README.md) and [controller guide](../../scripts/cherry-regression-test/README.md)
+for phase execution and configuration. Do not use the smoke suite's launch fixture for regression scenarios.
 
-- 从 `fixtures/electron.fixture.ts` 导入 `test`、`expect`、`electronApp` 和 `mainWindow`。
-- 使用 `utils/ui-locator.ts` 定位
-  [UI Semantic Contract](../../docs/references/components/ui-semantic-contract.md)中的稳定应用边界。
-- 运行参数以根目录 `playwright.config.ts` 为准。
+## Writing E2E tests
 
-新增 E2E 应围绕跨进程的完整用户结果，直接使用稳定的语义定位器和可观察条件。
+Test design and review follow the [Frontend Testing Guidelines](../../docs/references/testing/frontend-testing.md).
+
+### Smoke suite
+
+The smoke suite uses the following Electron E2E infrastructure:
+
+- Import fixtures and assertions from `fixtures/electron.fixture.ts`: `test`, `expect`, `electronApp`, and `mainWindow`.
+- Use `utils/ui-locator.ts` to locate stable application boundaries defined in the
+  [UI Semantic Contract](../../docs/references/components/ui-semantic-contract.md).
+- Refer to `playwright.config.ts` in the repository root for runtime settings.
+
+### Critical-path regression suite
+
+- Place numbered phase tests and domain helpers in `cherry-regression/`.
+- Import `test` and `expect` from `cherry-regression/fixture.ts` in scenarios; use its `app` and `mainWindow` fixtures.
+- Register cases in `scripts/cherry-regression-test/cases.ts` and follow the [scenario guide](cherry-regression/README.md).
+- Use `cherry-regression.playwright.config.ts`, not the smoke suite's `playwright.config.ts`.
+
+New E2E tests should verify complete user outcomes across processes using stable semantic locators and observable conditions.
 
 ---
 
-## 配置文件
+## Configuration
 
-主要配置在项目根目录的 `playwright.config.ts`：
+The smoke suite is configured in `playwright.config.ts` in the repository root:
 
-- `testDir`: 测试目录 (`./tests/e2e/specs`)
-- `timeout`: 测试超时 (60秒)
-- `workers`: 并发数 (1，Electron 需要串行)
-- `retries`: 重试次数 (CI 环境下为 2)
+- `testDir`: Test directory (`./tests/e2e/specs`)
+- `timeout`: Test timeout (60 seconds)
+- `workers`: Worker count (1; Electron tests run sequentially)
+- `retries`: Retry count (2 in CI)
+
+The regression suite uses [cherry-regression.playwright.config.ts](../../cherry-regression.playwright.config.ts):
+
+- `testDir`: `./tests/e2e/cherry-regression`, matching `*.test.ts` files
+- `workers`: 1 within each platform; the workflow runs macOS and Windows in parallel
+- `retries`: 0
+- Reports and failure evidence are written under `CHERRY_TEST_RUN_DIR`.
 
 ---
 
-## 相关文档
+## Related documentation
 
-- [Playwright 官方文档](https://playwright.dev/docs/intro)
-- [Playwright Electron 测试](https://playwright.dev/docs/api/class-electron)
+- [Playwright documentation](https://playwright.dev/docs/intro)
+- [Playwright Electron testing](https://playwright.dev/docs/api/class-electron)

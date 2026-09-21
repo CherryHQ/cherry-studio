@@ -1,11 +1,3 @@
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-  InputGroupText,
-  InputGroupTextarea
-} from '@cherrystudio/ui/components/primitives/input-group'
 import type { Meta, StoryObj } from '@storybook/react'
 import {
   AtSign,
@@ -26,6 +18,15 @@ import {
   X
 } from 'lucide-react'
 import { useState } from 'react'
+
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupText,
+  InputGroupTextarea
+} from '@cherrystudio/ui/components/primitives/input-group'
 
 const meta: Meta<typeof InputGroup> = {
   title: 'Components/Primitives/InputGroup',

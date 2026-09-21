@@ -1,11 +1,13 @@
+import * as fs from 'fs'
+import * as path from 'path'
+
+import StreamZip from 'node-stream-zip'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
-import * as fs from 'fs'
-import StreamZip from 'node-stream-zip'
-import * as path from 'path'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('McpPackageService')
 

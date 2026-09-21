@@ -1,3 +1,7 @@
+import type { FC, ReactNode } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
@@ -24,9 +28,6 @@ import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/t
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { FC, ReactNode } from 'react'
-import React, { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
@@ -107,11 +108,11 @@ const Chat: FC<Props> = (props) => {
   // selected-model details. Model entities only carry the provider id.
   const shouldLoadProviders = Boolean(
     activeTopic &&
-      (assistantContext.model ||
-        (activeConversationControlsSnapshot &&
-          (activeConversationControlsSnapshot.mentionedModels.length > 0 ||
-            activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 0 ||
-            activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
+    (assistantContext.model ||
+      (activeConversationControlsSnapshot &&
+        (activeConversationControlsSnapshot.mentionedModels.length > 0 ||
+          activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 0 ||
+          activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const locateMessageIdProp = props.locateMessageId
@@ -158,6 +159,7 @@ const Chat: FC<Props> = (props) => {
       const confirmed = await popup.confirm({
         title: t('chat.input.clear.title'),
         content: t('chat.input.clear.content'),
+        autoFocusConfirm: true,
         centered: true
       })
       if (!confirmed) return
@@ -296,7 +298,11 @@ const Chat: FC<Props> = (props) => {
         showConversation ? (
           <>
             {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
-            <TopicRightPane.Shortcuts />
+            <TopicRightPane.Shortcuts
+              browserEnabled={
+                !!assistantContext.assistant && assistantContext.assistant.settings.enableBrowser !== false
+              }
+            />
           </>
         ) : undefined
       }

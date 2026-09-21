@@ -1,6 +1,7 @@
+import { createFileRoute } from '@tanstack/react-router'
+
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
-import { createFileRoute } from '@tanstack/react-router'
 
 const DependenciesWrapper = () => (
   <SettingsContentColumn className="bg-transparent">

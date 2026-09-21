@@ -1,10 +1,11 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse as parseYaml } from 'yaml'
+
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { parse as parseYaml } from 'yaml'
 
 import { clearCliConfig, writeCliConfigDraft } from '../index'
 
@@ -55,6 +56,19 @@ const ollamaProvider = {
   defaultChatEndpoint: 'ollama-chat'
 } as unknown as Provider
 
+/** Keyless local server (authOptional) exposing both Anthropic and chat endpoints. */
+const omlxProvider = {
+  id: 'omlx',
+  presetProviderId: 'omlx',
+  name: 'oMLX',
+  authOptional: true,
+  endpointConfigs: {
+    'anthropic-messages': { baseUrl: 'http://localhost:8000' },
+    'openai-chat-completions': { baseUrl: 'http://localhost:8000' }
+  },
+  defaultChatEndpoint: 'openai-chat-completions'
+} as unknown as Provider
+
 const openaiCompatProvider = {
   id: 'deepseek',
   name: 'DeepSeek',
@@ -88,6 +102,8 @@ describe('writeCliConfigDraft', () => {
   let existing: Record<string, string>
 
   beforeEach(() => {
+    mocks.request.mockClear()
+    vi.mocked(dataApiService.get).mockClear()
     written = null
     writes = []
     existing = {}
@@ -305,6 +321,42 @@ describe('writeCliConfigDraft', () => {
         ANTHROPIC_AUTH_TOKEN: 'ollama',
         ANTHROPIC_MODEL: 'llama3'
       })
+    })
+
+    it('injects a per-provider placeholder auth token for a keyless local provider', async () => {
+      mockGet({
+        '/providers/omlx': () => omlxProvider,
+        '/providers/omlx/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'omlx::qwen3-coder-30b'
+      })
+
+      expect(written).not.toBeNull()
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env).toEqual({
+        ANTHROPIC_BASE_URL: 'http://localhost:8000',
+        ANTHROPIC_AUTH_TOKEN: 'omlx',
+        ANTHROPIC_MODEL: 'qwen3-coder-30b'
+      })
+    })
+
+    it('writes a keyless local provider through the Qwen Code writer without an API key', async () => {
+      mockGet({
+        '/providers/omlx': () => omlxProvider,
+        '/providers/omlx/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.QWEN_CODE,
+        modelId: 'omlx::qwen3-coder-30b'
+      })
+
+      expect(written).not.toBeNull()
     })
 
     it('omits ANTHROPIC_MODEL for detailed Claude model config', async () => {
@@ -655,7 +707,7 @@ describe('writeCliConfigDraft', () => {
     // that remote compaction is on, regardless of the actual toggle — so a provider whose
     // display name really is "OpenAI" must never be written verbatim unless that mode is on.
     it('avoids the "OpenAI" name collision when the provider is actually named OpenAI (remote compaction off)', async () => {
-      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' }
       mockGet({
         '/providers/deepseek': () => openaiNamedProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -670,7 +722,7 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('writes the literal "OpenAI" name when remote compaction is actually on', async () => {
-      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' }
       mockGet({
         '/providers/deepseek': () => openaiNamedProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),

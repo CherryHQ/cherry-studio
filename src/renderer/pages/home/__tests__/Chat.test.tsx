@@ -1,10 +1,11 @@
-import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
-import { popup } from '@renderer/services/popup'
-import type { Topic } from '@renderer/types/topic'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { popup } from '@renderer/services/popup'
+import type { Topic } from '@renderer/types/topic'
 
 import Chat from '../Chat'
 

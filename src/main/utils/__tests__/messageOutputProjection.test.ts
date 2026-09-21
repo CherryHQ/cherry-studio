@@ -1,8 +1,9 @@
+import type { UIMessageChunk } from 'ai'
+import { describe, expect, it } from 'vitest'
+
 import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { UIMessageChunk } from 'ai'
-import { describe, expect, it } from 'vitest'
 
 import {
   DEFER_TOOL_OUTPUT_BYTES,
@@ -93,7 +94,7 @@ function partWith(output: unknown): CherryMessagePart {
 }
 
 function chunkWith(output: unknown): UIMessageChunk {
-  return { type: 'tool-output-available', toolCallId: TOOL_CALL_ID, output } as UIMessageChunk
+  return { type: 'tool-output-available', toolCallId: TOOL_CALL_ID, output }
 }
 
 const blob = (key: string, n: number) => ({

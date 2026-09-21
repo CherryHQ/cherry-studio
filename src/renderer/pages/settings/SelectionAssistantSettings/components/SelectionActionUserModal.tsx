@@ -1,3 +1,10 @@
+import { CircleHelp, Dices, ExternalLink, OctagonX } from 'lucide-react'
+import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
+import type React from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -22,12 +29,6 @@ import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { CircleHelp, Dices, ExternalLink, OctagonX } from 'lucide-react'
-import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
-import type React from 'react'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface SelectionActionUserModalProps {
   isModalOpen: boolean
@@ -149,7 +150,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                     href="https://lucide.dev/icons/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-link text-xs">
+                    className="inline-flex items-center gap-1 text-xs text-link">
                     {t('selection.settings.user_modal.icon.view_all')}
                     <ExternalLink size={12} />
                   </a>
@@ -255,7 +256,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 <QuestionIcon size={14} />
               </Tooltip>
               <Spacer />
-              <div className="flex select-text items-center gap-1 text-muted-foreground text-xs">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground select-text">
                 {t('selection.settings.user_modal.prompt.placeholder_text')} {'{{text}}'}
                 <CopyButton
                   tooltip={t('selection.settings.user_modal.prompt.copy_placeholder')}
@@ -292,7 +293,7 @@ const ModalSectionTitle = ({ className, ...props }: React.ComponentPropsWithoutR
 )
 
 const ModalSectionTitleLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('text-foreground text-sm', className)} {...props} />
+  <div className={cn('text-sm text-foreground', className)} {...props} />
 )
 
 const QuestionIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof CircleHelp>) => (
@@ -300,7 +301,7 @@ const QuestionIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<ty
 )
 
 const ErrorText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('text-destructive text-xs', className)} {...props} />
+  <div className={cn('text-xs text-destructive', className)} {...props} />
 )
 
 const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -319,7 +320,7 @@ const IconPreview = ({ className, ...props }: React.ComponentPropsWithoutRef<'di
 
 const AssistantItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('flex h-7 w-full min-w-0 max-w-full flex-row items-center gap-2 overflow-hidden', className)}
+    className={cn('flex h-7 w-full max-w-full min-w-0 flex-row items-center gap-2 overflow-hidden', className)}
     {...props}
   />
 )

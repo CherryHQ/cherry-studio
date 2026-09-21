@@ -35,7 +35,10 @@ function mockHttpsResponse({ body = 'ok', headers = {}, statusCode = 200 }: Mock
     headers,
     resume: vi.fn(),
     destroy: vi.fn()
-  }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+  }) as IncomingMessage & {
+    resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  }
   const request = Object.assign(new EventEmitter(), {
     end: vi.fn(),
     destroy: vi.fn()
@@ -232,13 +235,19 @@ describe('fetchRemoteText', () => {
       headers: { location: 'https://cdn.example.com/article' },
       resume: vi.fn(),
       destroy: vi.fn()
-    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    }) as IncomingMessage & {
+      resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     const finalResponse = Object.assign(new EventEmitter(), {
       statusCode: 200,
       headers: {},
       resume: vi.fn(),
       destroy: vi.fn()
-    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    }) as IncomingMessage & {
+      resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     const requests = [redirectResponse, finalResponse]
     httpsRequestMock.mockImplementation((options: RequestOptions, callback: (response: IncomingMessage) => void) => {
       const response = requests.shift()
@@ -296,7 +305,10 @@ describe('fetchRemoteText', () => {
       headers: { location: 'https://private.example/article' },
       resume: vi.fn(),
       destroy: vi.fn()
-    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    }) as IncomingMessage & {
+      resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     httpsRequestMock.mockImplementation((_options: RequestOptions, callback: (response: IncomingMessage) => void) => {
       queueMicrotask(() => callback(redirectResponse))
       return Object.assign(new EventEmitter(), { end: vi.fn(), destroy: vi.fn() })
@@ -319,7 +331,12 @@ describe('fetchRemoteText', () => {
         resume: vi.fn(),
         destroy: vi.fn()
       })
-    ) as Array<IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }>
+    ) as Array<
+      IncomingMessage & {
+        resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+        destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      }
+    >
     httpsRequestMock.mockImplementation((_options: RequestOptions, callback: (response: IncomingMessage) => void) => {
       const response = responses[httpsRequestMock.mock.calls.length - 1]
       if (!response) throw new Error('Unexpected HTTPS request')
@@ -369,7 +386,10 @@ describe('fetchRemoteText', () => {
       headers: {},
       resume: vi.fn(),
       destroy: vi.fn()
-    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    }) as IncomingMessage & {
+      resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     const request = Object.assign(new EventEmitter(), {
       end: vi.fn(),
       destroy: vi.fn()
@@ -401,7 +421,10 @@ describe('fetchRemoteText', () => {
       headers: {},
       resume: vi.fn(),
       destroy: vi.fn()
-    }) as IncomingMessage & { resume: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }
+    }) as IncomingMessage & {
+      resume: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      destroy: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     const request = Object.assign(new EventEmitter(), {
       end: vi.fn(),
       destroy: vi.fn()

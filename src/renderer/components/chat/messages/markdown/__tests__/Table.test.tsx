@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => {
       warn: vi.fn()
     },
     exportTableToExcel: vi.fn(),
-    markdownBlockContext: { content: '' as string }
+    markdownBlockContext: { content: '' }
   }
 })
 
