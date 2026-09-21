@@ -2,6 +2,8 @@ import { execFile } from 'child_process'
 import path from 'node:path'
 import { promisify } from 'util'
 
+import { getRawShellEnv } from '@main/utils/shellEnv'
+
 const execFileAsync = promisify(execFile)
 
 // Bounded `--version` run: proves the binary starts without needing auth or a session.
@@ -68,14 +70,19 @@ export function classifyClaudeStartupError(error: unknown): ClaudeStartupProbeFa
 }
 
 export async function probeClaudeExecutable(executablePath: string): Promise<ClaudeStartupProbeResult> {
-  // npm-global shims (.cmd/.bat) need cmd.exe; a shell-less exec cannot run them.
+  // npm-global shims (.cmd/.bat) need cmd.exe, and a shell concatenates its
+  // command line unquoted — quote a spaced shim path so it still resolves.
   const needsShell = ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
+  // Discovery resolves system binaries on the login-shell PATH and the terminal
+  // launches with that same env; probe with it too, not the stale process env.
+  const env = await getRawShellEnv()
   try {
-    await execFileAsync(executablePath, ['--version'], {
+    await execFileAsync(needsShell ? `"${executablePath}"` : executablePath, ['--version'], {
       timeout: PROBE_TIMEOUT_MS,
       windowsHide: true,
       killSignal: 'SIGKILL',
-      shell: needsShell
+      shell: needsShell,
+      env
     })
     return { ok: true }
   } catch (error) {

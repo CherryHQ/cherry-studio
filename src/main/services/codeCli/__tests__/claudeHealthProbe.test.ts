@@ -7,7 +7,12 @@ import { classifyClaudeStartupError, describeClaudeStartupFailure, probeClaudeEx
 vi.mock('child_process', () => ({ execFile: vi.fn() }))
 vi.mock('util', () => ({ promisify: (fn: unknown) => fn }))
 
+const shellEnvMock = vi.hoisted(() => ({ getRawShellEnv: vi.fn() }))
+
+vi.mock('@main/utils/shellEnv', () => ({ getRawShellEnv: shellEnvMock.getRawShellEnv }))
+
 const execFileMock = vi.mocked(execFile as unknown as (...args: never[]) => Promise<{ stdout: string; stderr: string }>)
+const loginShellEnv = { PATH: '/login/shell/bin:/usr/bin' }
 
 describe('classifyClaudeStartupError', () => {
   it('treats a signal termination as a startup crash', () => {
@@ -109,6 +114,7 @@ describe('describeClaudeStartupFailure', () => {
 describe('probeClaudeExecutable', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    shellEnvMock.getRawShellEnv.mockResolvedValue(loginShellEnv)
   })
 
   it('returns ok with a bounded hidden probe when the binary answers', async () => {
@@ -118,15 +124,37 @@ describe('probeClaudeExecutable', () => {
       timeout: 10_000,
       windowsHide: true,
       killSignal: 'SIGKILL',
-      shell: false
+      shell: false,
+      env: loginShellEnv
     })
+  })
+
+  it('probes with the login-shell env that discovery and the terminal launch use', async () => {
+    execFileMock.mockResolvedValueOnce({ stdout: '1.0.0', stderr: '' })
+    await probeClaudeExecutable('C:\\Tools\\claude.exe')
+    expect(shellEnvMock.getRawShellEnv).toHaveBeenCalledOnce()
+    expect(execFileMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ env: loginShellEnv })
+    )
   })
 
   it('runs .cmd shims through a shell', async () => {
     execFileMock.mockResolvedValueOnce({ stdout: '1.0.0', stderr: '' })
     await expect(probeClaudeExecutable('C:\\Tools\\claude.cmd')).resolves.toEqual({ ok: true })
     expect(execFileMock).toHaveBeenCalledWith(
-      'C:\\Tools\\claude.cmd',
+      '"C:\\Tools\\claude.cmd"',
+      ['--version'],
+      expect.objectContaining({ shell: true, env: loginShellEnv })
+    )
+  })
+
+  it('quotes a spaced .cmd shim path so the shell probe still resolves it', async () => {
+    execFileMock.mockResolvedValueOnce({ stdout: '1.0.0', stderr: '' })
+    await expect(probeClaudeExecutable('C:\\My Tools\\claude.cmd')).resolves.toEqual({ ok: true })
+    expect(execFileMock).toHaveBeenCalledWith(
+      '"C:\\My Tools\\claude.cmd"',
       ['--version'],
       expect.objectContaining({ shell: true })
     )

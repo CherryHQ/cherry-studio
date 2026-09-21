@@ -1087,7 +1087,9 @@ describe('CodeCliService', () => {
         expect(childProcessMock.execFileAsync).toHaveBeenCalledWith(
           'C:\\Tools\\claude.exe',
           ['--version'],
-          expect.objectContaining({ timeout: expect.any(Number) })
+          // The probe must see the same login-shell env the terminal launch gets,
+          // or a healthy system binary can fail the check from a stale PATH.
+          expect.objectContaining({ timeout: expect.any(Number), env: { PATH: '/usr/local/bin:/usr/bin' } })
         )
         expect(result.message).toContain('C:\\Tools\\claude.exe')
         expect(result.message).toContain('crashed during startup')
