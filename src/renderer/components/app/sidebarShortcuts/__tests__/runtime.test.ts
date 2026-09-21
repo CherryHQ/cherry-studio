@@ -352,6 +352,26 @@ describe('sidebar conversation navigation', () => {
     expect(state.tabs).toHaveLength(2)
   })
 
+  it.each([
+    ['core.topic', '/app/chat?topicId=conversation-1', '/app/chat?extra=1&topicId=conversation-1'],
+    ['core.agent-session', '/app/agents?sessionId=conversation-1', '/app/agents?extra=1&sessionId=conversation-1']
+  ] as const)(
+    'keeps an already-active matching %s tab when an earlier duplicate exists',
+    async (providerId, earlierUrl, laterUrl) => {
+      const { context, state } = statefulTabContext([
+        { id: 'earlier', type: 'route', url: earlierUrl, title: 'Earlier' },
+        { id: 'later', type: 'route', url: laterUrl, title: 'Later' }
+      ])
+      state.activeTabId = 'later'
+
+      await activateShortcut(context, providerId, 'conversation-1')
+
+      expect(state.activeTabId).toBe('later')
+      expect(state.tabs.find((tab) => tab.id === 'later')?.url).toBe(laterUrl)
+      expect(state.tabs.find((tab) => tab.id === 'earlier')?.url).toBe(earlierUrl)
+    }
+  )
+
   it('retargets the current Agent tab with agentId when that session is already open', async () => {
     MockDataApiUtils.setCustomResponse('/agent-sessions/latest', 'GET', { session: { id: 'conversation-1' } })
     const tabs = tabContext([
@@ -370,6 +390,22 @@ describe('sidebar conversation navigation', () => {
     )
     expect(tabs.setActiveTab).not.toHaveBeenCalled()
     expect(tabs.openTab).not.toHaveBeenCalled()
+    MockDataApiUtils.resetMocks()
+  })
+
+  it('keeps an already-active matching Agent session tab and still writes agentId', async () => {
+    MockDataApiUtils.setCustomResponse('/agent-sessions/latest', 'GET', { session: { id: 'conversation-1' } })
+    const { context, state } = statefulTabContext([
+      { id: 'earlier', type: 'route', url: '/app/agents?sessionId=conversation-1', title: 'Earlier' },
+      { id: 'later', type: 'route', url: '/app/agents?extra=1&sessionId=conversation-1', title: 'Later' }
+    ])
+    state.activeTabId = 'later'
+
+    await activateShortcut(context, 'core.agent', 'owner-1')
+
+    expect(state.activeTabId).toBe('later')
+    expect(state.tabs.find((tab) => tab.id === 'later')?.url).toBe('/app/agents?agentId=owner-1')
+    expect(state.tabs.find((tab) => tab.id === 'earlier')?.url).toBe('/app/agents?sessionId=conversation-1')
     MockDataApiUtils.resetMocks()
   })
 
