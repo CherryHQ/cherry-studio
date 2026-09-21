@@ -2,9 +2,12 @@
 
 ## SessionRecord
 
+* [Karpathy session 016b63dd8443](/karpathy-session-016b63dd8443fd33.md)
 * [Karpathy session 18615bbd3fcb](/karpathy-session-18615bbd3fcb4856.md)
+* [Karpathy session 218847384fd1](/karpathy-session-218847384fd1ddd9.md)
 * [Karpathy session 32bc4558dfe5](/karpathy-session-32bc4558dfe5928d.md)
 * [Karpathy session 3642f5f8a3c0](/karpathy-session-3642f5f8a3c086f1.md)
+* [Karpathy session 3eed5823cd52](/karpathy-session-3eed5823cd525014.md)
 * [Karpathy session 48553c729731](/karpathy-session-48553c72973114f8.md)
 * [Karpathy session 60bda3178770](/karpathy-session-60bda31787707db4.md)
 * [Karpathy session 61f559842813](/karpathy-session-61f5598428131b41.md)

@@ -2,7 +2,7 @@
   "phase": "rebrand-to-the-boss",
   "status": "applying",
   "createdAt": "2026-09-21T09:27:39Z",
-  "updatedAt": "2026-09-21T12:36:54Z",
+  "updatedAt": "2026-09-21T14:21:57Z",
   "previousPhase": null,
   "goals": [
     "G1",
@@ -32,7 +32,8 @@
     "rebrand-004-app-identity",
     "rebrand-005-visual-assets",
     "rebrand-006-i18n-strings",
-    "rebrand-007-outbound-attribution"
+    "rebrand-007-outbound-attribution",
+    "rebrand-0075-preboot-identity"
   ],
   "depth": 0,
   "parentPhase": null,
@@ -77,11 +78,16 @@
       "at": "2026-09-21T12:36:54Z",
       "decision": "007 closed out: http.ts and openapiDocs titles were delivered early by 002. Close-out verification caught a missed outbound string — DOC_TAGS.cherry was still Cherry Studio, which becomes a module name in generated API clients. Fixed, 486 apiGateway tests pass.",
       "by": "opsx-apply"
+    },
+    {
+      "at": "2026-09-21T14:21:57Z",
+      "decision": "0075 complete: 15 files of OS-level/third-party identity routed through the branding module. LegacyBackupManager audited first — it validates appName on read, so it now accepts both names to keep pre-rebrand backups restorable. Full Brand Guide v2.2 palette, typography, and vector icons also applied.",
+      "by": "opsx-apply"
     }
   ],
   "completion": {
     "implementation": {
-      "completed": 7,
+      "completed": 8,
       "total": 10
     }
   }
