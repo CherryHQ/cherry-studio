@@ -168,6 +168,44 @@ describe('ComfyuiTransport', () => {
     expect(error).toBeInstanceOf(Error)
     expect((error as Error).name).toBe('AbortError')
   })
+
+  it('reports a caller cancel during a rejected /prompt body as an AbortError', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      if (url.includes('/userdata/')) return respond(workflow)
+      if (url.includes('/prompt')) {
+        // A rejected response whose body read fails with the caller's abort.
+        const body = new ReadableStream({
+          start(controller) {
+            ;(init?.signal as AbortSignal | undefined)?.addEventListener('abort', () => {
+              const e = new Error('The operation was aborted')
+              e.name = 'AbortError'
+              controller.error(e)
+            })
+          }
+        })
+        return new Response(body, { status: 400 })
+      }
+      if (url.includes('/system_stats')) return respond({ system: { comfyui_version: '0.3.57' } })
+      return respond({ queue_running: [], queue_pending: [] })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+    const controller = new AbortController()
+
+    const promise = transport
+      .submit({ ...submitInput, signal: controller.signal })
+      .then(() => null)
+      .catch((e) => e)
+    await vi.advanceTimersByTimeAsync(0)
+    controller.abort()
+    await vi.advanceTimersByTimeAsync(0)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).name).toBe('AbortError')
+    expect((error as Error).message).not.toMatch(/workflow_rejected/)
+  })
 })
 
 describe('listWorkflows', () => {
@@ -382,6 +420,27 @@ describe('cancel is not gated on the queue snapshot', () => {
     expect(order).toEqual(['POST /queue', 'GET /system_stats', 'POST /interrupt', 'GET /queue'])
   })
 
+  it('resolves without waiting for the queue snapshot it only logs', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/system_stats')) {
+        return respond({ system: { comfyui_version: '0.3.57' } })
+      }
+      if (init?.method === 'POST') return respond({})
+      // The log-only snapshot never answers.
+      return new Promise<Response>(() => {})
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    let settled = false
+    const promise = transport.cancel('pid-1').then(() => {
+      settled = true
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(settled).toBe(true)
+    await promise
+  })
+
   it('bounds the cancellation writes so a stalled POST cannot hold cancel open', async () => {
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).includes('/system_stats')) {
@@ -445,6 +504,32 @@ describe('poll', () => {
     expect(images).toEqual(['data:image/png;base64,AQID'])
     expect(String(doFetch.mock.calls[0][0])).toBe('http://localhost:8188/history/pid-1')
     expect(String(doFetch.mock.calls[1][0])).toBe('http://localhost:8188/view?filename=out.png&subfolder=&type=output')
+  })
+
+  it('reports a failed execution even when images sit beside the error', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/history/')) {
+        return respond({
+          'pid-1': {
+            status: { status_str: 'error', completed: false, messages: [['execution_error', { node_id: 9 }]] },
+            // Nodes that finished before the failure leave outputs behind.
+            outputs: { '9': { images: [{ filename: 'out.png', subfolder: '', type: 'output' }] } }
+          }
+        })
+      }
+      throw new Error(`unexpected url ${input}`)
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const promise = transport.poll('pid-1').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(0)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(PaintingGenerateError)
+    expect((error as PaintingGenerateError).code).toBe('REMOTE_ERROR')
+    expect(String((error as Error).message)).toContain('workflow_failed')
+    // Nothing was downloaded: the failure is the answer, not a partial success.
+    expect(doFetch.mock.calls.map((call) => String(call[0]))).toEqual(['http://localhost:8188/history/pid-1'])
   })
 
   it('throws an AbortError before fetching when the signal is already aborted', async () => {

@@ -1298,6 +1298,29 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('http://localhost:8188')
     })
 
+    it('routes ComfyUI without selecting or attributing a stored key', async () => {
+      const provider = makeProvider({
+        id: 'comfyui',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'http://localhost:8188', adapterFamily: 'comfyui' }
+        }
+      })
+      const model = makeModel({
+        providerId: 'comfyui',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+
+      const resolved = await resolveProviderAiSdkConfig(provider, model)
+
+      // The server takes no credential, so resolving one would attribute a key
+      // the transport never sends.
+      expect(resolved.config.providerId).toBe('comfyui')
+      expect(resolveApiKeyMock).not.toHaveBeenCalled()
+      expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
+    })
+
     it.each([
       ['minimax', undefined, 'https://api.minimaxi.com/v1'],
       ['minimax-global', 'minimax', 'https://api.minimax.io/v1']

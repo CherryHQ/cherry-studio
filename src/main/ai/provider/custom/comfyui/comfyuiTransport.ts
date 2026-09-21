@@ -203,9 +203,18 @@ async function requestJson<T>(
  * and are wrapped in a structured `REMOTE_ERROR` carrying a localized fallback
  * when the body says nothing useful.
  */
-async function describePromptError(response: Response): Promise<string> {
+async function describePromptError(response: Response, signal?: AbortSignal): Promise<string> {
   const fallback = t('paintings.comfyui.workflow_rejected', { status: response.status })
-  const bodyText = await response.text().catch(() => '')
+  let bodyText = ''
+  try {
+    bodyText = await response.text()
+  } catch (error) {
+    // A caller cancel during the read is a cancel: reporting the rejected
+    // workflow here would surface it as a failed generation.
+    if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+      throw createAbortError('Prompt response aborted')
+    }
+  }
   if (!bodyText) return fallback
   let payload: {
     error?: { message?: string; details?: string }
@@ -300,7 +309,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
           })
           if (!response.ok) {
             throw createPaintingGenerateError('REMOTE_ERROR', {
-              message: await describePromptError(response)
+              message: await describePromptError(response, input.signal)
             })
           }
           const { prompt_id } = (await response.json()) as { prompt_id?: string }
@@ -339,18 +348,20 @@ class ComfyuiTransport implements ImageGenerationTransport {
       try {
         const history = await this.fetchHistory(taskId, options.signal, deadline - Date.now())
         const entry = history[taskId]
+        // A failed run can still carry the outputs of the nodes that finished
+        // before it: the error status is the answer, whatever sits beside it.
+        if (entry?.status?.status_str === 'error') {
+          throw createPaintingGenerateError('REMOTE_ERROR', {
+            message:
+              `${t('paintings.comfyui.workflow_failed')} ${JSON.stringify(entry.status.messages ?? {}).slice(0, 500)}`.trim()
+          })
+        }
         if (entry?.outputs && Object.keys(entry.outputs).length > 0) {
           const images = Object.values(entry.outputs).flatMap((output) => output.images ?? [])
           if (images.length === 0) {
             throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.no_image') })
           }
           return await Promise.all(images.map((image) => this.fetchImage(image, options.signal)))
-        }
-        if (entry?.status?.status_str === 'error') {
-          throw createPaintingGenerateError('REMOTE_ERROR', {
-            message:
-              `${t('paintings.comfyui.workflow_failed')} ${JSON.stringify(entry.status.messages ?? {}).slice(0, 500)}`.trim()
-          })
         }
       } catch (error) {
         if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
@@ -472,7 +483,11 @@ class ComfyuiTransport implements ImageGenerationTransport {
     }
 
     await Promise.all(writes)
-    logger.debug(`ComfyUI cancel for ${taskId}: queue snapshot said '${await this.cancelAction(taskId)}'`)
+    // The snapshot only feeds this log line: awaiting it would hold a caller's
+    // cancellation open on a queue read that changes nothing.
+    void this.cancelAction(taskId)
+      .then((state) => logger.debug(`ComfyUI cancel for ${taskId}: queue snapshot said '${state}'`))
+      .catch(() => undefined)
   }
 
   /**

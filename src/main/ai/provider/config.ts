@@ -260,7 +260,9 @@ export async function resolveProviderAiSdkConfig(
     // openai-compatible builder, which would POST an OpenAI chat body to `/v1/...` and
     // get ComfyUI's web UI HTML back. Its `languageModel`/`embeddingModel` factories
     // throw the intentional "not served" error the UI surfaces.
-    { match: (p) => matchesPreset(p, SystemProviderIds.comfyui), build: withSelectedApiKey(buildComfyuiConfig) },
+    // `withoutCredential`, not `withSelectedApiKey`: the server takes none, so selecting
+    // and attributing a stored key would credit one the transport never sends.
+    { match: (p) => matchesPreset(p, SystemProviderIds.comfyui), build: withoutCredential(buildComfyuiConfig) },
     { match: (p) => isAzureOpenAIProvider(p), build: withSelectedApiKey(buildAzureConfig) },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
     // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
