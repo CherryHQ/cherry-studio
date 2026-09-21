@@ -100,13 +100,24 @@ describe('heartbeatSchedule', () => {
     mkdirSync(path.join(agentsRoot, id), { recursive: true })
     dbh.db
       .insert(agentTable)
-      .values({ id, type, name: `Agent ${id}`, instructions: '', orderKey: id, configuration })
+      .values({
+        id,
+        type,
+        name: `Agent ${id}`,
+        instructions: '',
+        orderKey: id,
+        configuration: { heartbeat_enabled: true, ...configuration }
+      })
       .run()
   }
 
   /** Flip the agent's stored heartbeat configuration, as a config save would. */
   function setAgentConfiguration(id: string, configuration: AgentConfiguration): void {
-    dbh.db.update(agentTable).set({ configuration }).where(eq(agentTable.id, id)).run()
+    dbh.db
+      .update(agentTable)
+      .set({ configuration: { heartbeat_enabled: true, ...configuration } })
+      .where(eq(agentTable.id, id))
+      .run()
   }
 
   beforeAll(async () => {
@@ -162,6 +173,25 @@ describe('heartbeatSchedule', () => {
     await scheduler._doStop()
     BaseService.resetInstances()
     rmSync(agentsRoot, { recursive: true, force: true })
+  })
+
+  it('does not provision heartbeat until the Agent explicitly opts in', async () => {
+    seedAgent(AGENT_ID, { heartbeat_enabled: undefined })
+    expect(await syncHeartbeatSchedule(AGENT_ID)).toBe('skipped-disabled')
+    expect(heartbeatRows(AGENT_ID)).toEqual([])
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+  })
+
+  it('pauses a legacy enabled schedule when the Agent has no saved heartbeat toggle', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    setAgentConfiguration(AGENT_ID, { heartbeat_enabled: undefined })
+
+    await repairHeartbeatSchedules()
+
+    expect(jobScheduleService.getById(row.id)?.enabled).toBe(false)
+    expect(scheduler.has(`schedule:${row.id}`)).toBe(false)
   })
 
   it('does not provision a schedule or workspace when heartbeat.md is a directory', async () => {

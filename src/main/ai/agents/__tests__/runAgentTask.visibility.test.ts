@@ -33,7 +33,14 @@ describe('scheduled session visibility', () => {
     vi.spyOn(application, 'getPath').mockReturnValue(root)
     dbh.db
       .insert(agentTable)
-      .values({ id: 'agent', type: 'claude-code', name: 'Agent', instructions: '', orderKey: 'a0' })
+      .values({
+        id: 'agent',
+        type: 'claude-code',
+        name: 'Agent',
+        instructions: '',
+        orderKey: 'a0',
+        configuration: { heartbeat_enabled: true }
+      })
       .run()
     const container = application.getContainer()
     const get = container.get.bind(container)

@@ -166,7 +166,7 @@ function makeCtx(overrides: TestJobContextOverrides = {}) {
   } as JobContext<TestAgentTaskInput>
 }
 
-function makeAgent(config: Record<string, unknown> = {}): AgentEntity {
+function makeAgent(config: Record<string, unknown> = { heartbeat_enabled: true }): AgentEntity {
   return {
     id: 'a1',
     type: 'claude-code',
@@ -266,17 +266,20 @@ describe('runAgentTask', () => {
   // A disabled heartbeat must short-circuit BEFORE createSession — that call also
   // lazily provisions a workspace on first fire, so creating a session for a fire
   // we're going to drop would accrete a session row (and workspace) every interval.
-  it('skips a disabled heartbeat WITHOUT creating a session', async () => {
-    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
-    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
-    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: false }))
+  it.each([false, undefined])(
+    'skips heartbeat without an opt-in (enabled=%s) WITHOUT creating a session',
+    async (enabled) => {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: enabled }))
 
-    const out = await runAgentTask(makeCtx())
+      const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ result: 'Skipped (disabled)' })
-    expect(agentSessionService.create).not.toHaveBeenCalled()
-    expect(readHeartbeat).not.toHaveBeenCalled()
-  })
+      expect(out).toEqual({ result: 'Skipped (disabled)' })
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+      expect(readHeartbeat).not.toHaveBeenCalled()
+    }
+  )
 
   // v1 gave every agent a `heartbeat` task; v2's job_schedule is UNIQUE on (type, name), so
   // the migration renames all but the first to `task_<v1Id>` — still heartbeats, still gated.

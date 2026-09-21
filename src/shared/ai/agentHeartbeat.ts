@@ -13,10 +13,10 @@ export const MIN_HEARTBEAT_INTERVAL_MINUTES = 1
 /** Upper form bound (24h). */
 export const MAX_HEARTBEAT_INTERVAL_MINUTES = 1440
 
-/** The heartbeat is on unless explicitly disabled — the single default every reader shares. */
-export const DEFAULT_HEARTBEAT_ENABLED = true
+/** Heartbeat requires an explicit opt-in — the single default every reader shares. */
+export const DEFAULT_HEARTBEAT_ENABLED = false
 
-/** Resolve the stored toggle with the shared default (unset means on). */
+/** Resolve the stored toggle with the shared default (unset means off). */
 export function isHeartbeatEnabled(configuration: { heartbeat_enabled?: boolean }): boolean {
   return configuration.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED
 }

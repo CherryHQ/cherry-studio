@@ -63,7 +63,14 @@ describe('heartbeat commands', () => {
     await service._doInit()
     dbh.db
       .insert(agentTable)
-      .values({ id: 'a1', name: 'Test', type: 'claude-code', instructions: '', orderKey: 'a0' })
+      .values({
+        id: 'a1',
+        name: 'Test',
+        type: 'claude-code',
+        instructions: '',
+        orderKey: 'a0',
+        configuration: { heartbeat_enabled: true }
+      })
       .run()
   })
   afterEach(async () => {
