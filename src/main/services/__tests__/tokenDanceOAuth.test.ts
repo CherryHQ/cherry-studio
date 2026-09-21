@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PRODUCT_NAME } from '@shared/utils/branding'
+
 const { netFetchMock, openExternalMock } = vi.hoisted(() => ({
   netFetchMock: vi.fn(),
   openExternalMock: vi.fn()
@@ -55,7 +57,7 @@ describe('authorizeTokenDanceApiKey', () => {
     expect(authorizationUrl?.origin).toBe('https://tokendance.space')
     expect(authorizationUrl?.pathname).toBe('/auth')
     expect(authorizationUrl?.searchParams.get('app_url')).toBe('app://cherryai.com.cn')
-    expect(authorizationUrl?.searchParams.get('key_name')).toBe('Cherry Studio')
+    expect(authorizationUrl?.searchParams.get('key_name')).toBe(PRODUCT_NAME)
     expect(authorizationUrl?.searchParams.get('code_challenge_method')).toBe('S256')
 
     const callbackUrl = new URL(authorizationUrl!.searchParams.get('callback_url')!)

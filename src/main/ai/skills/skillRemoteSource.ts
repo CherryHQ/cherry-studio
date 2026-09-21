@@ -10,6 +10,7 @@ import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
+import { PRODUCT_DIRNAME } from '@shared/utils/branding'
 import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 
 import {
@@ -223,7 +224,7 @@ async function fetchFromClawhub(
   const detailUrl = new URL(`https://clawhub.ai/api/v1/skills/${encodeURIComponent(slug)}`)
   detailUrl.searchParams.set('ownerHandle', ownerHandle)
   const detailResp = await net.fetch(detailUrl.toString(), {
-    headers: { 'User-Agent': 'CherryStudio' }
+    headers: { 'User-Agent': PRODUCT_DIRNAME }
   })
 
   if (!detailResp.ok) {
@@ -245,7 +246,7 @@ async function fetchFromClawhub(
   downloadUrl.searchParams.set('slug', slug)
   downloadUrl.searchParams.set('ownerHandle', ownerHandle)
   const downloadResp = await net.fetch(downloadUrl.toString(), {
-    headers: { 'User-Agent': 'CherryStudio' }
+    headers: { 'User-Agent': PRODUCT_DIRNAME }
   })
 
   if (!downloadResp.ok) {

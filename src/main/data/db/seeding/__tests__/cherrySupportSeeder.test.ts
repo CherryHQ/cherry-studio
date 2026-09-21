@@ -28,7 +28,7 @@ describe('CherrySupportSeeder', () => {
     vi.mocked(app.getPreferredSystemLanguages).mockReturnValue(['en-US'])
   })
 
-  it('creates Cherry Support beside Cherry Assistant with a system session and copied model', () => {
+  it('creates Boss Support beside Boss Assistant with a system session and copied model', () => {
     new CherryAiDefaultModelSeeder().run(dbh.db)
     new CherryAssistantSeeder().run(dbh.db)
     const [assistant] = builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.ASSISTANT)
@@ -43,7 +43,7 @@ describe('CherrySupportSeeder', () => {
     const [support] = builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)
     expect(support).toMatchObject({
       id: CHERRY_SUPPORT_AGENT_ID,
-      name: 'Cherry Support',
+      name: 'Boss Support',
       description: '',
       instructions: '',
       model: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
@@ -113,7 +113,7 @@ describe('CherrySupportSeeder', () => {
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
   })
 
-  it('does not recreate a soft-deleted Cherry Support', () => {
+  it('does not recreate a soft-deleted Boss Support', () => {
     new CherrySupportSeeder().run(dbh.db)
     const [support] = builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)
     dbh.db

@@ -59,13 +59,13 @@ describe('CherryAssistantSeeder', () => {
     const [agent] = builtinAgents(dbh.db)
     expect(agent).toMatchObject({
       type: 'claude-code',
-      name: 'Cherry Assistant',
+      name: 'Boss Assistant',
       description: '',
       instructions: '',
       model: null
     })
     expect(agent.configuration).toMatchObject({
-      avatar: '🍒',
+      avatar: '🧠',
       permission_mode: 'acceptEdits',
       bootstrap_completed: true,
       env_vars: {},
@@ -87,7 +87,7 @@ describe('CherryAssistantSeeder', () => {
     new CherryAssistantSeeder().run(dbh.db)
 
     const [agent] = builtinAgents(dbh.db)
-    expect(agent.name).toBe('Cherry 小助手')
+    expect(agent.name).toBe('Boss 助手')
   })
 
   it('falls back to the English name when preferred system languages are unavailable', () => {
@@ -98,7 +98,7 @@ describe('CherryAssistantSeeder', () => {
     expect(() => new CherryAssistantSeeder().run(dbh.db)).not.toThrow()
 
     const [agent] = builtinAgents(dbh.db)
-    expect(agent.name).toBe('Cherry Assistant')
+    expect(agent.name).toBe('Boss Assistant')
   })
 
   it('preserves an existing permission mode when the seeder reruns', () => {
@@ -123,7 +123,7 @@ describe('CherryAssistantSeeder', () => {
     expect(journal?.value).toMatchObject({ version: '2' })
   })
 
-  it('adds Cherry Assistant after a version 1 skip in an existing library and journals the rollout', () => {
+  it('adds Boss Assistant after a version 1 skip in an existing library and journals the rollout', () => {
     insertOrdinaryAgent()
     dbh.db
       .insert(appStateTable)
@@ -138,7 +138,7 @@ describe('CherryAssistantSeeder', () => {
     expect(journal?.value).toMatchObject({ version: new CherryAssistantSeeder().version })
   })
 
-  it('adds Cherry Assistant when only soft-deleted ordinary agents exist', () => {
+  it('adds Boss Assistant when only soft-deleted ordinary agents exist', () => {
     const ordinaryAgentId = insertOrdinaryAgent()
     dbh.db
       .update(agentTable)
@@ -152,7 +152,7 @@ describe('CherryAssistantSeeder', () => {
     expect(builtinAgents(dbh.db)).toHaveLength(1)
   })
 
-  it('adds Cherry Assistant when orphan sessions record prior library history', () => {
+  it('adds Boss Assistant when orphan sessions record prior library history', () => {
     const agentId = 'historical-agent'
     const sessionId = 'historical-session'
 
@@ -202,7 +202,7 @@ describe('CherryAssistantSeeder', () => {
     expect(journal?.value).toMatchObject({ version: new CherryAssistantSeeder().version })
   })
 
-  it('does not recreate a soft-deleted Cherry Assistant during the library-wide rollout', () => {
+  it('does not recreate a soft-deleted Boss Assistant during the library-wide rollout', () => {
     const runner = new SeedRunner(dbh.db)
     new CherryAssistantSeeder().run(dbh.db)
     const [assistant] = builtinAgents(dbh.db)

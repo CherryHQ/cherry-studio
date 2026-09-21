@@ -63,6 +63,8 @@ vi.mock('../skillArchive', async (importOriginal) => {
   }
 })
 
+import { PRODUCT_DIRNAME } from '@shared/utils/branding'
+
 // Namespaced so the local `createTempDir` test helper cannot shadow the module export.
 import * as skillArchive from '../skillArchive'
 import * as skillPaths from '../skillPaths'
@@ -1299,13 +1301,13 @@ describe('SkillService', () => {
 
         expect(result).toBe(installedSkill)
         expect(net.fetch).toHaveBeenNthCalledWith(1, 'https://clawhub.ai/api/v1/skills/code?ownerHandle=ivangdavila', {
-          headers: { 'User-Agent': 'CherryStudio' }
+          headers: { 'User-Agent': PRODUCT_DIRNAME }
         })
         expect(net.fetch).toHaveBeenNthCalledWith(
           2,
           'https://clawhub.ai/api/v1/download?slug=code&ownerHandle=ivangdavila',
           {
-            headers: { 'User-Agent': 'CherryStudio' }
+            headers: { 'User-Agent': PRODUCT_DIRNAME }
           }
         )
         expect(createTempDirSpy).toHaveBeenCalledWith('clawhub')

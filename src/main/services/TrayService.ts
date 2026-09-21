@@ -5,6 +5,7 @@ import { application } from '@application'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
+import { PRODUCT_NAME } from '@shared/utils/branding'
 
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
@@ -51,7 +52,7 @@ export class TrayService extends BaseService implements Activatable {
       this.tray.setContextMenu(this.contextMenu)
     }
 
-    this.tray.setToolTip('Cherry Studio')
+    this.tray.setToolTip(PRODUCT_NAME)
 
     this.tray.on('right-click', () => {
       if (this.contextMenu) {

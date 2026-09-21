@@ -153,10 +153,17 @@ describe('validateThemeContractSources', () => {
 
   it('rejects unresolved references introduced by a dark override', async () => {
     const sources = await loadSources()
-    sources.providerColors = sources.providerColors.replace(
-      '--cs-background: oklch(0.209 0 0 / 0.55);',
-      '--cs-background: var( --cs-missing-dark-background);'
-    )
+    // Anchor on the dark block's own declaration rather than a literal colour
+    // value, so rebranding the palette cannot silently defuse this test.
+    const darkStart = sources.providerColors.indexOf('.dark {')
+    expect(darkStart).toBeGreaterThan(-1)
+    const darkDecl = /(--cs-background:)[^;]+;/.exec(sources.providerColors.slice(darkStart))
+    expect(darkDecl).not.toBeNull()
+    sources.providerColors =
+      sources.providerColors.slice(0, darkStart) +
+      sources.providerColors
+        .slice(darkStart)
+        .replace(darkDecl![0], '--cs-background: var( --cs-missing-dark-background);')
 
     expect(() => validateThemeContractSources(sources)).toThrow(
       /dark --cs-background .* references undefined --cs-missing-dark-background/

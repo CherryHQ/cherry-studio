@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { COMPANY_NAME, PRODUCT_DIRNAME } from '@shared/utils/branding'
+
 /**
  * Tests for src/main/core/preboot/crashTelemetry.ts
  *
@@ -71,8 +73,8 @@ describe('initCrashTelemetry', () => {
 
     expect(crashReporterStartMock).toHaveBeenCalledTimes(1)
     expect(crashReporterStartMock).toHaveBeenCalledWith({
-      companyName: 'CherryHQ',
-      productName: 'CherryStudio',
+      companyName: COMPANY_NAME,
+      productName: PRODUCT_DIRNAME,
       submitURL: '',
       uploadToServer: false
     })

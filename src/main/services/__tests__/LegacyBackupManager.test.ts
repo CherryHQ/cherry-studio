@@ -332,6 +332,8 @@ import * as path from 'path'
 import { ZipArchive } from 'archiver'
 import * as fs from 'fs-extra'
 
+import { PRODUCT_NAME } from '@shared/utils/branding'
+
 import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
 import WebDav from '../WebDav'
 
@@ -357,7 +359,7 @@ describe('BackupManager direct v2 data compatibility', () => {
   let backupManager: BackupManager
   const metadata = {
     version: 7,
-    appName: 'Cherry Studio',
+    appName: PRODUCT_NAME,
     appVersion: '2.0.0',
     timestamp: 1,
     platform: process.platform,
@@ -707,7 +709,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       '/mock/temp/backup/create-operation-id/metadata.json',
       expect.objectContaining({
         version: 7,
-        appName: 'Cherry Studio',
+        appName: PRODUCT_NAME,
         resources: {
           database: false,
           cache: true,

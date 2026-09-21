@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
+import { PRODUCT_NAME } from '@shared/utils/branding'
 
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
 const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
@@ -597,7 +598,7 @@ describe('OpenClawService gateway status state machine', () => {
           )
         ).rejects.toMatchObject({
           kind: 'external_config_invalid',
-          message: expect.stringContaining("outside Cherry Studio's managed provider section")
+          message: expect.stringContaining("outside The Boss's managed provider section")
         })
       }
     )
@@ -1896,7 +1897,7 @@ describe('OpenClawService gateway status state machine', () => {
       )
       const provider = {
         ...legacyProvider,
-        headers: { 'User-Agent': 'Cherry Studio', 'X-Synced': 'synced' },
+        headers: { 'User-Agent': PRODUCT_NAME, 'X-Synced': 'synced' },
         models: [
           {
             id: 'gpt-4o',
@@ -2199,7 +2200,7 @@ describe('OpenClawService gateway status state machine', () => {
         const result = await service.syncProviderConfig(legacyProvider, legacyModel)
 
         expect(result.success).toBe(false)
-        expect('message' in result && result.message).toContain("outside Cherry Studio's managed provider section")
+        expect('message' in result && result.message).toContain("outside The Boss's managed provider section")
         expect((service as any).gatewayAuthToken).toBe(initialToken)
         expect(fs.readFileSync(configPath, 'utf-8')).toBe(original)
         const candidatePath = validateConfigSpy.mock.calls[0][1] as string

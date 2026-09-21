@@ -36,14 +36,14 @@ describe('required DSH Bun runtime', () => {
     [
       'en-US',
       true,
-      'DSH could not start because its bundled runtime is unavailable. Reinstall Cherry Studio and try again.'
+      'DSH could not start because its bundled runtime is unavailable. Reinstall The Boss and try again.'
     ],
     [
       'en-US',
       false,
       'DSH could not start because its bundled runtime is unavailable. Run pnpm download:binaries in the development checkout and try again.'
     ],
-    ['zh-CN', true, 'DSH 无法启动，因为内置运行时不可用。请重新安装 Cherry Studio 后重试。'],
+    ['zh-CN', true, 'DSH 无法启动，因为内置运行时不可用。请重新安装 The Boss 后重试。'],
     ['zh-CN', false, 'DSH 无法启动，因为内置运行时不可用。请在开发仓库中运行 pnpm download:binaries 后重试。']
   ] as const)(
     'localizes runtime recovery for %s (packaged: %s) and preserves the cause',
@@ -65,7 +65,7 @@ describe('required DSH Bun runtime', () => {
 
   it('requires the version marker supplied by the build', async () => {
     vi.mocked(readFile).mockRejectedValueOnce(new Error('ENOENT'))
-    await expect(resolveDshBunRuntime()).rejects.toThrow('Reinstall Cherry Studio')
+    await expect(resolveDshBunRuntime()).rejects.toThrow('Reinstall The Boss')
     expect(runProcess).not.toHaveBeenCalled()
   })
 

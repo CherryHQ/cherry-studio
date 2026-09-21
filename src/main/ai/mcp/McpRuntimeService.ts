@@ -26,6 +26,7 @@ import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
+import { PRODUCT_NAME } from '@shared/utils/branding'
 import { redactDeep, redactServerKey } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 
@@ -476,7 +477,7 @@ export class McpRuntimeService extends BaseService {
 
     const sdk = await loadMcpClientSdk()
     // Create new client instance for each connection
-    const client = new sdk.Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
+    const client = new sdk.Client({ name: PRODUCT_NAME, version: app.getVersion() }, { capabilities: {} })
 
     const authProvider = new McpOAuthClientProvider({
       serverUrlHash: crypto

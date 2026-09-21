@@ -10,6 +10,25 @@
 
   --code-font-family:
     var(--app-user-code-font-family, 'Cascadia Code'), 'Fira Code', 'Consolas', Menlo, Courier, monospace;
+
+  /*
+   * Brand type system (Brand Guide v2.2, §03) — four fonts, four roles.
+   * These sit alongside --font-family, which the user can override in
+   * settings; the role tokens are brand-owned and are not user-configurable.
+   * Each falls back through the bundled Ubuntu face and then the system
+   * stack, so surfaces stay correct before the brand faces are vendored.
+   */
+  --font-family-display: 'Space Grotesk', Ubuntu, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-family-ui: 'Inter', Ubuntu, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-family-body: 'Roboto', Ubuntu, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-family-mono: 'JetBrains Mono', var(--code-font-family);
+
+  /* Display scale — H1 48px/700 at -0.03em, leading 1.05 (guide §03). */
+  --display-tracking: -0.03em;
+  --display-leading: 1.05;
+
+  /* Eyebrow/overline — uppercase, wide tracking, ember (guide §03). */
+  --overline-tracking: 0.12em;
 }
 
 /* Windows系统专用字体配置 */
@@ -23,4 +42,41 @@ body[os='windows'] {
   --code-font-family:
     var(--app-user-code-font-family, 'Cascadia Code'), 'Fira Code', 'Consolas', 'Sarasa Mono SC', 'Microsoft YaHei UI',
     Courier, monospace;
+}
+
+/*
+ * Brand typography application (Brand Guide v2.2 §03).
+ *
+ * Headings take the display face with its tighter tracking; body copy and UI
+ * chrome keep --font-family so a user's font choice still governs the text
+ * they read most. Scoped to `app` layer so product styles can still override.
+ */
+@layer app {
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-family-display);
+    letter-spacing: var(--display-tracking);
+    line-height: var(--display-leading);
+  }
+
+  /* Eyebrows/overlines: uppercase, wide-tracked, ember — the guide's
+     signature technical label treatment. */
+  .overline,
+  .eyebrow {
+    font-family: var(--font-family-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: var(--overline-tracking);
+    text-transform: uppercase;
+    color: var(--primary);
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-family-mono);
+  }
 }

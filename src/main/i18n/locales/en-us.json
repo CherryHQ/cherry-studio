@@ -10,7 +10,7 @@
   "agent.session.workspace_status.inaccessible": "Workspace path is not accessible: {{path}}",
   "agent.session.workspace_status.missing": "Workspace path does not exist: {{path}}",
   "agent.session.workspace_status.not_directory": "Workspace path is not a directory: {{path}}",
-  "apiGateway.docs.description": "OpenAI-, Anthropic- and Gemini-compatible HTTP API for The Boss, plus Cherry-specific endpoints (models, knowledge bases)",
+  "apiGateway.docs.description": "OpenAI-, Anthropic- and Gemini-compatible HTTP API for The Boss, plus Boss-specific endpoints (models, knowledge bases)",
   "apiGateway.docs.language_switcher_label": "Documentation language",
   "apiGateway.docs.operations.chat_completions": "Create a chat completion. Request and response bodies follow the OpenAI Chat Completions format; set `stream: true` for incremental output.",
   "apiGateway.docs.operations.count_tokens": "Estimate how many input tokens a set of Anthropic-format messages uses.",

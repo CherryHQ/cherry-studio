@@ -7,6 +7,7 @@ import * as z from 'zod'
 import { loggerService } from '@logger'
 import { TOKEN_DANCE_APP_URL } from '@main/ai/provider/constants'
 import { t } from '@main/i18n'
+import { PRODUCT_NAME } from '@shared/utils/branding'
 
 const logger = loggerService.withContext('TokenDanceOAuth')
 
@@ -14,7 +15,7 @@ const TOKEN_DANCE_CONFIG = {
   authorizeUrl: 'https://tokendance.space/auth',
   exchangeUrl: 'https://tokendance.space/portal/api/v1/auth/keys',
   appUrl: TOKEN_DANCE_APP_URL,
-  keyName: 'Cherry Studio',
+  keyName: PRODUCT_NAME,
   callbackPath: '/oauth/tokendance/callback',
   authorizationTimeoutMs: 10 * 60 * 1000,
   exchangeTimeoutMs: 30 * 1000

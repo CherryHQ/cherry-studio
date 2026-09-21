@@ -13,11 +13,11 @@ import type { DbType, ISeeder } from '../../types'
 // keeping this seed local avoids either direction crossing the Data/AI boundary.
 const CHERRY_ASSISTANT_SEED = {
   name: {
-    default: 'Cherry Assistant',
-    zh: 'Cherry 小助手'
+    default: 'Boss Assistant',
+    zh: 'Boss 助手'
   },
   configuration: {
-    avatar: '🍒',
+    avatar: '🧠',
     permission_mode: 'acceptEdits',
     bootstrap_completed: true,
     builtin_role: 'assistant',
@@ -27,7 +27,7 @@ const CHERRY_ASSISTANT_SEED = {
 
 export class CherryAssistantSeeder implements ISeeder {
   readonly name = 'cherryAssistant'
-  readonly description = 'Insert the builtin Cherry Assistant in every agent library'
+  readonly description = 'Insert the builtin Boss Assistant in every agent library'
   readonly executionPolicy = 'run-on-change' as const
   // Version 1 journaled the old "empty library only" eligibility decision. Version 2
   // rolls the assistant out to existing libraries; the persisted builtin identity still
@@ -53,7 +53,7 @@ export class CherryAssistantSeeder implements ISeeder {
       })
 
       if (!row) {
-        throw new Error('insert succeeded but select returned no builtin Cherry Assistant row')
+        throw new Error('insert succeeded but select returned no builtin Boss Assistant row')
       }
 
       // One seeded session makes the agent visible in the Agents sidebar. This does

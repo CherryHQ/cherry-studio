@@ -11,7 +11,7 @@ import type { DbType, ISeeder } from '../../types'
 
 const CHERRY_SUPPORT_SEED = {
   name: {
-    default: 'Cherry Support',
+    default: 'Boss Support',
     zh: '产品反馈'
   },
   configuration: {
@@ -25,7 +25,7 @@ const CHERRY_SUPPORT_SEED = {
 
 export class CherrySupportSeeder implements ISeeder {
   readonly name = 'cherrySupport'
-  readonly description = 'Insert the builtin Cherry Support agent in every agent library'
+  readonly description = 'Insert the builtin Boss Support agent in every agent library'
   readonly executionPolicy = 'run-on-change' as const
   readonly version = '3'
 
@@ -56,7 +56,7 @@ export class CherrySupportSeeder implements ISeeder {
       })
 
       if (!row) {
-        throw new Error('insert succeeded but select returned no builtin Cherry Support row')
+        throw new Error('insert succeeded but select returned no builtin Boss Support row')
       }
 
       agentSessionService.createTx(tx, uuidv4(), {

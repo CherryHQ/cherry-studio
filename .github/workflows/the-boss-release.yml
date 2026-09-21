@@ -29,6 +29,8 @@ jobs:
     name: Build ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
+    env:
+      HAS_SIGNING: ${{ secrets.CSC_LINK != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -72,18 +74,29 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install python-setuptools
 
+      # Signing env vars are set ONLY when the secrets exist. An unset secret
+      # interpolates to an empty string, and electron-builder then treats
+      # CSC_LINK="" as a certificate path, resolves it to the repo root, and
+      # dies with "not a file" — so absent secrets must mean absent variables.
+      - name: Enable code signing
+        if: env.HAS_SIGNING == 'true'
+        shell: bash
+        run: |
+          {
+            echo "CSC_LINK=${{ secrets.CSC_LINK }}"
+            echo "CSC_KEY_PASSWORD=${{ secrets.CSC_KEY_PASSWORD }}"
+            echo "APPLE_ID=${{ secrets.APPLE_ID }}"
+            echo "APPLE_APP_SPECIFIC_PASSWORD=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}"
+            echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}"
+          } >> "$GITHUB_ENV"
+
       - name: Build
         shell: bash
-        # Unsigned by default: signing secrets are absent in this fork, and
-        # electron-builder skips signing rather than failing when they are unset.
         run: pnpm ${{ matrix.script }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Skip signing outright when no certificate is configured.
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ env.HAS_SIGNING }}
 
       - name: Upload installers to IPFS
         id: ipfs
@@ -133,7 +146,10 @@ jobs:
   releases-doc:
     name: Update RELEASES.md
     needs: build
-    if: github.event_name != 'pull_request'
+    # Never let one platform's failure withhold the other's installers.
+    # `always()` also runs after a failed build; the download step tolerates
+    # a missing manifest and the commit step no-ops when nothing changed.
+    if: always() && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -143,12 +159,27 @@ jobs:
           ref: ${{ github.ref_name }}
 
       - uses: actions/download-artifact@v6
+        continue-on-error: true
         with:
           pattern: ipfs-manifest-*
           path: manifests
           merge-multiple: false
 
+      - name: Skip when no platform produced installers
+        id: gate
+        shell: bash
+        run: |
+          shopt -s nullglob
+          found=(manifests/*/ipfs-manifest.tsv)
+          if [ ${#found[@]} -eq 0 ]; then
+            echo "No manifests — every build failed; nothing to publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Prepend this build to RELEASES.md
+        if: steps.gate.outputs.publish == 'true'
         shell: bash
         env:
           IPFS_API: ${{ env.IPFS_API }}
@@ -205,6 +236,7 @@ jobs:
           cat RELEASES.md
 
       - name: Commit
+        if: steps.gate.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail

@@ -54,12 +54,20 @@ import {
   type WebDavConfig
 } from '@shared/types/backup'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { PRODUCT_NAME } from '@shared/utils/branding'
 
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 
 const logger = loggerService.withContext('BackupManager')
 const DIRECT_BACKUP_VERSION = 7
+
+/**
+ * `appName` is a backup-format compatibility marker, not branding. Backups written
+ * before the rebrand carry the upstream name and are still ours, so both are
+ * accepted on read while new backups are written under {@link PRODUCT_NAME}.
+ */
+const ACCEPTED_BACKUP_APP_NAMES: readonly string[] = [PRODUCT_NAME, 'Cherry Studio']
 const QUIESCE_TIMEOUT_MS = 30_000
 const REMOTE_UPLOAD_IDLE_TIMEOUT_MS = 5 * 60_000
 const STALE_TEMP_ARTIFACT_AGE_MS = 24 * 60 * 60 * 1000
@@ -216,7 +224,7 @@ class BackupManager {
     return {
       version: DIRECT_BACKUP_VERSION,
       timestamp: Date.now(),
-      appName: 'Cherry Studio',
+      appName: PRODUCT_NAME,
       appVersion: app.getVersion(),
       platform: process.platform,
       arch: process.arch,
@@ -1153,8 +1161,9 @@ class BackupManager {
   private async readDirectBackupMetadata(extractionDir: string): Promise<DirectBackupMetadata> {
     const raw = (await fs.readJson(path.join(extractionDir, 'metadata.json'))) as Record<string, unknown>
 
-    if (!raw || typeof raw !== 'object' || raw.appName !== 'Cherry Studio') {
-      throw new Error('This backup file is not from Cherry Studio and cannot be restored')
+    // Accept the upstream name too: backups taken before the rebrand are still ours.
+    if (!raw || typeof raw !== 'object' || !ACCEPTED_BACKUP_APP_NAMES.includes(raw.appName as string)) {
+      throw new Error(`This backup file is not from ${PRODUCT_NAME} and cannot be restored`)
     }
     if (typeof raw.version === 'number' && raw.version > DIRECT_BACKUP_VERSION) {
       throw new Error(

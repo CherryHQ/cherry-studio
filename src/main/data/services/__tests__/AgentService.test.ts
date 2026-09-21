@@ -506,7 +506,7 @@ describe('AgentService', () => {
       const supportDefaults: Parameters<typeof agentService.ensureBuiltinAgent>[0] = {
         ...defaults,
         builtinRole: 'support',
-        name: 'Cherry Support'
+        name: 'Boss Support'
       }
       const first = agentService.ensureBuiltinAgent(supportDefaults)
       dbh.db
@@ -2071,15 +2071,15 @@ describe('AgentService', () => {
         expect.objectContaining({
           id: 'agent_builtin_global_search',
           subtitle:
-            'Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
+            'Built-in advisor for The Boss. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
         })
       ])
     })
 
-    it('matches and displays Cherry Support through its localized fallback description', async () => {
+    it('matches and displays Boss Support through its localized fallback description', async () => {
       await insertAgent({
         id: CHERRY_SUPPORT_AGENT_ID,
-        name: 'Cherry Support',
+        name: 'Boss Support',
         description: '',
         configuration: { builtin_role: 'support' },
         updatedAt: 100
@@ -2088,7 +2088,7 @@ describe('AgentService', () => {
       expect(agentService.search({ q: 'troubleshooting', limit: 5 })).toEqual([
         expect.objectContaining({
           id: CHERRY_SUPPORT_AGENT_ID,
-          subtitle: 'Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback'
+          subtitle: 'Official support Agent for The Boss, covering setup guidance, troubleshooting, FAQs, and feedback'
         })
       ])
     })

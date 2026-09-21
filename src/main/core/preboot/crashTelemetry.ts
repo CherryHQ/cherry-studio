@@ -5,6 +5,7 @@ import { app, crashReporter } from 'electron'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
 import { isSelfHardenedSession } from '@main/core/security/selfHardenedSessions'
+import { COMPANY_NAME, PRODUCT_DIRNAME } from '@shared/utils/branding'
 
 const logger = loggerService.withContext('CrashTelemetry')
 
@@ -37,8 +38,8 @@ export function initCrashTelemetry(): void {
  */
 function startCrashReporter(): void {
   crashReporter.start({
-    companyName: 'CherryHQ',
-    productName: 'CherryStudio',
+    companyName: COMPANY_NAME,
+    productName: PRODUCT_DIRNAME,
     submitURL: '',
     uploadToServer: false
   })

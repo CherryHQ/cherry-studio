@@ -11,6 +11,7 @@ import {
   type RelocationStage,
   UserDataRelocationIpcChannels
 } from '@shared/types/userDataRelocation'
+import { PRODUCT_NAME } from '@shared/utils/branding'
 
 const logger = loggerService.withContext('UserDataRelocationWindow')
 const CRITICAL_STAGES: ReadonlySet<RelocationStage> = new Set(['preparing', 'copying', 'committing'])
@@ -88,7 +89,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
     minimizable: true,
     show: false,
     autoHideMenuBar: true,
-    title: 'Cherry Studio',
+    title: PRODUCT_NAME,
     webPreferences: {
       preload: join(__dirname, '../preload/simplest.js'),
       partition: 'user-data-relocation-window',

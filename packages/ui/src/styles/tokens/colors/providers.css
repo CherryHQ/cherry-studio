@@ -12,6 +12,7 @@
 
 :root {
   /* Brand Colors */
+  /* Brand guide v2.2: light ember #E04E28, calibrated for the #F7F7F8 surface. */
   --cs-primary: var(--cs-brand-500);
   --cs-destructive: var(--cs-red-500);
   --cs-destructive-hover: var(--cs-red-400);
@@ -20,19 +21,19 @@
   --cs-info: var(--cs-blue-500);
 
   /* Background & Foreground */
-  --cs-background: var(--cs-white);
+  --cs-background: oklch(0.9764 0.0013 286.4); /* #F7F7F8 brand bg */
   --cs-background-subtle: oklch(0 0 0 / 0.02);
-  --cs-foreground: oklch(0.213 0 0);
-  --cs-muted-foreground: oklch(0.556 0 0);
+  --cs-foreground: oklch(0.1665 0.0124 254.2); /* #0B0F14 brand ink — 19.3:1 AAA */
+  --cs-muted-foreground: oklch(0.4461 0.0263 256.8); /* #4B5563 — 7.4:1 AAA */
   --cs-foreground-tertiary: oklch(0.669 0 0);
   --cs-foreground-disabled: var(--cs-foreground-tertiary);
 
   /* Card & Popover */
-  --cs-card: var(--cs-white);
-  --cs-popover: var(--cs-white);
+  --cs-card: oklch(1 0 0); /* #FFFFFF */
+  --cs-popover: oklch(1 0 0);
 
   /* Border */
-  --cs-border: oklch(0 0 0 / 0.1);
+  --cs-border: oklch(0.8983 0.0127 255.5); /* #D8DEE6 brand border */
   --cs-border-subtle: oklch(0 0 0 / 0.04);
   --cs-border-strong: oklch(0 0 0 / 0.2);
   --cs-border-selected: oklch(0 0 0 / 0.3);
@@ -44,33 +45,33 @@
   --cs-secondary: oklch(0 0 0 / 0.05); /* Secondary Button Background */
   --cs-secondary-hover: oklch(0 0 0 / 0.1);
   --cs-secondary-active: oklch(0 0 0 / 0.15);
-  --cs-muted: oklch(0 0 0 / 0.05); /* Muted/Subtle Background */
-  --cs-accent: oklch(0 0 0 / 0.05); /* Accent Background */
+  --cs-muted: oklch(0.9545 0.0046 258.3); /* #EEF0F3 brand muted */
+  --cs-accent: oklch(0.8974 0.0328 34.3); /* #F2D6CF ember-tinted accent */
   --cs-ghost-active: oklch(0 0 0 / 0.1); /* Ghost Button Active */
 
   /* Sidebar */
-  --cs-sidebar: oklch(0.9672 0 0);
+  --cs-sidebar: oklch(0.9545 0.0046 258.3); /* #EEF0F3 */
   --cs-sidebar-accent: oklch(0.97 0 0);
 
   /* Surface-paired foregrounds */
-  --cs-card-foreground: oklch(0.145 0 0);
-  --cs-popover-foreground: oklch(0.145 0 0);
+  --cs-card-foreground: oklch(0.1665 0.0124 254.2);
+  --cs-popover-foreground: oklch(0.1665 0.0124 254.2);
   --cs-secondary-foreground: oklch(0.205 0 0);
-  --cs-accent-foreground: oklch(0.205 0 0);
+  --cs-accent-foreground: oklch(0.2521 0.0628 28.2); /* #3B1410 on ember accent */
 
   /* Foregrounds used on solid colored fills */
   --cs-primary-foreground: oklch(0.985 0 0);
   --cs-destructive-foreground: var(--cs-white);
 
   /* Input border */
-  --cs-input: oklch(0.922 0 0);
+  --cs-input: oklch(0.8983 0.0127 255.5);
 
   /* Sidebar sub-palette */
-  --cs-sidebar-foreground: oklch(0.145 0 0);
+  --cs-sidebar-foreground: oklch(0.1665 0.0124 254.2);
   --cs-sidebar-primary: oklch(0.205 0 0);
   --cs-sidebar-primary-foreground: oklch(0.985 0 0);
   --cs-sidebar-accent-foreground: oklch(0.205 0 0);
-  --cs-sidebar-border: oklch(0.922 0 0);
+  --cs-sidebar-border: oklch(0.8983 0.0127 255.5);
   --cs-sidebar-ring: oklch(0.708 0 0);
 
   /* Canonical Cherry Studio feedback contract.
@@ -100,37 +101,37 @@
   --cs-info: var(--cs-blue-400);
 
   /* Background & Foreground */
-  --cs-background: oklch(0.209 0 0 / 0.55);
+  --cs-background: oklch(0.1665 0.0124 254.2); /* #0B0F14 brand bg */
   --cs-background-subtle: oklch(1 0 0 / 0.02);
-  --cs-foreground: oklch(0.931 0 0);
-  --cs-muted-foreground: oklch(0.708 0 0);
+  --cs-foreground: oklch(0.944 0.0097 252.8); /* #E8EDF3 — 14.2:1 AAA */
+  --cs-muted-foreground: oklch(0.7539 0.02 255.6); /* #A7B0BC */
   --cs-foreground-tertiary: oklch(0.559 0 0);
 
   /* Card & Popover — surfaces stack via color (DESIGN.md): the higher the
    * layer, the lighter the surface, so popovers sit ABOVE cards, not below. */
-  --cs-card: var(--cs-neutral-900);
-  --cs-popover: var(--cs-neutral-800);
+  --cs-card: oklch(0.1982 0.0229 257.3); /* #0F1620 brand card */
+  --cs-popover: oklch(0.2234 0.0229 254.3); /* #141C26 — sits above card */
 
   /* Border */
-  --cs-border: oklch(1 0 0 / 0.1);
+  --cs-border: oklch(0.3053 0.0356 255.4); /* #233041 brand border */
   --cs-border-subtle: oklch(1 0 0 / 0.05);
   --cs-border-strong: oklch(1 0 0 / 0.2);
   --cs-border-selected: oklch(1 0 0 / 0.3);
 
   /* Ring (Focus) - 保持不变 */
-  --cs-ring: oklch(0.76 0.204 131 / 0.4);
+  --cs-ring: color-mix(in srgb, var(--cs-primary) 45%, transparent); /* ember focus */
 
   /* UI Element Colors - Dark Mode */
-  --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */
+  --cs-secondary: oklch(0.2576 0.0301 256.9); /* #1A2432 brand secondary */
   --cs-secondary-hover: oklch(1 0 0 / 0.2);
   --cs-secondary-active: oklch(1 0 0 / 0.25);
-  --cs-muted: oklch(1 0 0 / 0.1); /* Muted/Subtle Background */
-  --cs-accent: oklch(1 0 0 / 0.1); /* Accent Background */
+  --cs-muted: oklch(0.2234 0.0229 254.3); /* #141C26 */
+  --cs-accent: oklch(0.24 0.0252 35.5); /* #2A1B17 ember-tinted accent */
   --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
 
   /* Sidebar */
-  --cs-sidebar: oklch(0.2393 0 0);
-  --cs-sidebar-accent: oklch(0.269 0 0);
+  --cs-sidebar: oklch(0.1982 0.0229 257.3); /* #0F1620 */
+  --cs-sidebar-accent: oklch(0.2576 0.0301 256.9); /* #1A2432 */
 
   /* Surface-paired foregrounds */
   --cs-card-foreground: oklch(0.985 0 0);
@@ -138,12 +139,16 @@
   --cs-secondary-foreground: oklch(0.985 0 0);
   --cs-accent-foreground: oklch(0.985 0 0);
 
+  /* Brand guide v2.2: dark ember #FF6A3D — lighter so it glows on #0B0F14
+     ("the lit terminal"). 5.1:1 AA. Never reuse the light-mode ember here. */
+  --cs-primary: var(--cs-brand-400);
+
   /* Foregrounds used on solid colored fills */
   --cs-primary-foreground: oklch(0.205 0 0);
   --cs-destructive-foreground: var(--cs-white);
 
   /* Input border */
-  --cs-input: oklch(0.269 0 0);
+  --cs-input: oklch(0.3053 0.0356 255.4);
 
   /* Sidebar sub-palette */
   --cs-sidebar-foreground: oklch(0.985 0 0);

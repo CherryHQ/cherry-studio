@@ -13,6 +13,7 @@ import { sanitizeUrl } from 'strict-url-sanitise'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { PRODUCT_NAME } from '@shared/utils/branding'
 
 import { JsonFileStorage } from './storage'
 import type { OAuthProviderOptions } from './types'
@@ -32,7 +33,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
       callbackPort: options.callbackPort || 12346,
       callbackPath: options.callbackPath || '/oauth/callback',
       configDir: options.configDir || configDir,
-      clientName: options.clientName || 'Cherry Studio',
+      clientName: options.clientName || PRODUCT_NAME,
       clientUri: options.clientUri || 'https://github.com/CherryHQ/cherry-studio'
     }
     this.storage = new JsonFileStorage(this.config.serverUrlHash, this.config.configDir)

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PRODUCT_DIRNAME } from '@shared/utils/branding'
+
 /**
  * Tests for src/main/core/preboot/chromiumFlags.ts
  *
@@ -128,8 +130,8 @@ describe('configureChromiumFlags', () => {
       configureChromiumFlags()
 
       expect(appendSwitchMock).toHaveBeenCalledWith('wm-window-animations-disabled')
-      expect(appendSwitchMock).not.toHaveBeenCalledWith('class', 'CherryStudio')
-      expect(appendSwitchMock).not.toHaveBeenCalledWith('name', 'CherryStudio')
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('class', PRODUCT_DIRNAME)
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('name', PRODUCT_DIRNAME)
       expect(appendSwitchMock).not.toHaveBeenCalledWith('enable-features', 'GlobalShortcutsPortal')
     })
 
@@ -142,8 +144,8 @@ describe('configureChromiumFlags', () => {
       const { configureChromiumFlags } = await loadModule()
       configureChromiumFlags()
 
-      expect(appendSwitchMock).toHaveBeenCalledWith('class', 'CherryStudio')
-      expect(appendSwitchMock).toHaveBeenCalledWith('name', 'CherryStudio')
+      expect(appendSwitchMock).toHaveBeenCalledWith('class', PRODUCT_DIRNAME)
+      expect(appendSwitchMock).toHaveBeenCalledWith('name', PRODUCT_DIRNAME)
       expect(appendSwitchMock).not.toHaveBeenCalledWith('enable-features', 'GlobalShortcutsPortal')
       expect(appendSwitchMock).not.toHaveBeenCalledWith('wm-window-animations-disabled')
     })
@@ -158,8 +160,8 @@ describe('configureChromiumFlags', () => {
       configureChromiumFlags()
 
       expect(appendSwitchMock).toHaveBeenCalledWith('enable-features', 'GlobalShortcutsPortal')
-      expect(appendSwitchMock).toHaveBeenCalledWith('class', 'CherryStudio')
-      expect(appendSwitchMock).toHaveBeenCalledWith('name', 'CherryStudio')
+      expect(appendSwitchMock).toHaveBeenCalledWith('class', PRODUCT_DIRNAME)
+      expect(appendSwitchMock).toHaveBeenCalledWith('name', PRODUCT_DIRNAME)
     })
 
     it('macOS: appends NO platform-specific switches', async () => {
@@ -171,8 +173,8 @@ describe('configureChromiumFlags', () => {
       configureChromiumFlags()
 
       expect(appendSwitchMock).not.toHaveBeenCalledWith('wm-window-animations-disabled')
-      expect(appendSwitchMock).not.toHaveBeenCalledWith('class', 'CherryStudio')
-      expect(appendSwitchMock).not.toHaveBeenCalledWith('name', 'CherryStudio')
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('class', PRODUCT_DIRNAME)
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('name', PRODUCT_DIRNAME)
       expect(appendSwitchMock).not.toHaveBeenCalledWith('enable-features', 'GlobalShortcutsPortal')
     })
   })

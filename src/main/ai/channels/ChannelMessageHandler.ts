@@ -21,6 +21,7 @@ import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { PRODUCT_NAME } from '@shared/utils/branding'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
@@ -625,7 +626,7 @@ export class ChannelMessageHandler {
         case 'help': {
           onAdmitted()
           const agent = agentService.getAgent(agentId)
-          const name = agent?.name ?? 'Cherry Studio'
+          const name = agent?.name ?? PRODUCT_NAME
           const description = agent?.description ?? ''
           const commands = await this.helpCommandsForChat(agentId, adapter.channelId, conversationIdOf(command))
           const helpText = [

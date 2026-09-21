@@ -1,10 +1,11 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { PRODUCT_DIRNAME } from '@shared/utils/branding'
 // Heavy OTel modules (trace-core processors, trace-node, opentelemetry SDK) are loaded
 // via dynamic import() in initTracer() to avoid startup overhead when developer_mode is off.
 
-const TRACER_NAME = 'CherryStudio'
+const TRACER_NAME = PRODUCT_DIRNAME
 
 const logger = loggerService.withContext('NodeTraceService')
 
