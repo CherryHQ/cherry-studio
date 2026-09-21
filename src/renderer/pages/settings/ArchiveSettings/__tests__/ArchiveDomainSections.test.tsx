@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -21,13 +22,12 @@ const mocks = vi.hoisted(() => ({
   pagesByPath: new Map<string, Array<{ items: unknown[]; nextCursor?: string }>>(),
   paginatedItemsByPath: new Map<string, unknown[]>(),
   mutate: vi.fn(),
-  mutationOptions: new Map<string, { refresh?: (context: { args?: any }) => string[] }>(),
   refresh: vi.fn().mockResolvedValue(undefined),
   invalidate: vi.fn().mockResolvedValue(undefined),
   ipcRequest: vi.fn()
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
   useInfiniteQuery: (path: string) => ({
     pages: mocks.pagesByPath.get(path) ?? [],
     isLoading: false,
@@ -50,12 +50,11 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
     prevPage: vi.fn(),
     refresh: mocks.refresh
   }),
-  useDataChange: vi.fn(),
+  useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
   useInvalidateCache: () => mocks.invalidate,
-  useMutation: (method: string, path: string, options?: { refresh?: (context: { args?: any }) => string[] }) => {
-    mocks.mutationOptions.set(`${method} ${path}`, options ?? {})
-    return { trigger: (args?: unknown) => mocks.mutate(method, path, args) }
-  }
+  useMutation: (method: string, path: string) => ({
+    trigger: (args?: unknown) => mocks.mutate(method, path, args)
+  })
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -155,10 +154,10 @@ afterEach(() => {
 beforeEach(async () => {
   await i18n.changeLanguage('en-US')
   MockUsePreferenceUtils.resetMocks()
+  MockDataApiUtils.resetMocks()
   mocks.pagesByPath.clear()
   mocks.paginatedItemsByPath.clear()
   mocks.mutate.mockReset().mockResolvedValue(undefined)
-  mocks.mutationOptions.clear()
   mocks.refresh.mockReset().mockResolvedValue(undefined)
   mocks.invalidate.mockReset().mockResolvedValue(undefined)
   mocks.ipcRequest.mockReset()
@@ -258,21 +257,6 @@ describe('Archive domain batch adapters', () => {
         params: { id: 'painting-1' }
       })
     )
-  })
-
-  it('refreshes only assistant resources when restoring an assistant', () => {
-    render(
-      <AssistantArchiveSection
-        retentionDays={30}
-        isBatchMode={false}
-        isPermanentDeleting={false}
-        onRequestDelete={vi.fn()}
-      />
-    )
-
-    const refresh = mocks.mutationOptions.get('POST /assistants/:id/restore')?.refresh
-
-    expect(refresh?.({ args: { params: { id: 'assistant-1' } } })).toEqual(['/assistants', '/assistants/assistant-1'])
   })
 
   it('restores an Agent through lifecycle IPC and refreshes its resources', async () => {
@@ -894,6 +878,61 @@ describe('All archive actions', () => {
     expect(mocks.mutate).toHaveBeenCalledWith('POST', '/topics/:id/restore', { params: { id: 'same' } })
     expect(mocks.ipcRequest).toHaveBeenCalledWith('file.batch_restore', { ids: ['same'] })
     expect(toast.warning).toHaveBeenCalledWith('Restored 1 item; 1 failed')
+  })
+
+  it('refreshes once per external notification batch and stops listening after unmount', async () => {
+    const { unmount } = render(
+      <AllArchiveSection retentionDays={30} isBatchMode={false} isPermanentDeleting={false} onRequestDelete={vi.fn()} />
+    )
+    const changes = [
+      { endpoint: '/topics', kind: 'membership' },
+      { endpoint: '/assistants', kind: 'membership' }
+    ] as const
+    await act(async () => MockDataApiUtils.emitDataChange([...changes]))
+    expect(mocks.refresh).toHaveBeenCalledTimes(1)
+    unmount()
+    MockDataApiUtils.emitDataChange([...changes])
+    expect(mocks.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('coalesces mutation refreshes and notifications through a failed batch, then resumes external updates', async () => {
+    seedMixedArchive()
+    vi.mocked(dataApiService.get).mockResolvedValue(deletedFile('same', 'Archived file'))
+    const user = userEvent.setup()
+    let pending: PendingPermanentDelete | undefined
+    mocks.mutate.mockImplementation(async () => {
+      MockDataApiUtils.emitDataChange([
+        { endpoint: '/topics', kind: 'membership' },
+        { endpoint: '/assistants', kind: 'membership' }
+      ])
+      expect(mocks.refresh).not.toHaveBeenCalled()
+    })
+    mocks.ipcRequest.mockImplementation(async () => {
+      MockDataApiUtils.emitDataChange([{ endpoint: '/files/entries', kind: 'membership' }])
+      expect(mocks.refresh).not.toHaveBeenCalled()
+      throw new Error('File unavailable')
+    })
+    render(
+      <AllArchiveSection
+        retentionDays={30}
+        isBatchMode
+        isPermanentDeleting={false}
+        onRequestDelete={(request) => {
+          pending = request
+        }}
+      />
+    )
+    await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently 2' }))
+    expect(await runPendingRequest(pending)).toEqual({
+      succeeded: ['topics:same'],
+      failed: [{ id: 'files:same', error: 'File unavailable' }]
+    })
+    expect(mocks.refresh).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('checkbox', { name: 'Select Archived topic' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select Archived file' })).toBeChecked()
+    await act(async () => MockDataApiUtils.emitDataChange([{ endpoint: '/files/entries', kind: 'membership' }]))
+    expect(mocks.refresh).toHaveBeenCalledTimes(2)
   })
 
   it('passes only raw file IDs to the reference check before a mixed permanent delete', async () => {

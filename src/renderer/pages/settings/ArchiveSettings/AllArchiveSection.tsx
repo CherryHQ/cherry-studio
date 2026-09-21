@@ -1,5 +1,5 @@
 import { ListTodo, MessageSquare } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -37,19 +37,25 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
     limit: 50
   })
   const entries = useInfiniteFlatItems(pages)
-  useDataChange('/topics', () => void refresh())
-  useDataChange('/assistants', () => void refresh())
-  useDataChange('/agents', () => void refresh())
-  useDataChange('/agent-sessions', () => void refresh())
-  useDataChange('/paintings', () => void refresh())
-  useDataChange('/files/entries', () => void refresh())
+  const pendingActions = useRef(0)
+  const refreshArchive = async () => {
+    if (pendingActions.current > 0) return
+    try {
+      await refresh()
+    } catch (error) {
+      logger.warn('Failed to refresh archive', error as Error)
+    }
+  }
+  useDataChange(['/topics', '/assistants', '/agents', '/agent-sessions', '/paintings', '/files/entries'], () => {
+    void refreshArchive()
+  })
 
   const actions = {
-    topics: useTopicArchiveActions(refresh),
-    assistants: useAssistantArchiveActions(refresh),
-    agents: useAgentArchiveActions(refresh),
-    sessions: useSessionArchiveActions(refresh),
-    paintings: usePaintingArchiveActions(refresh),
+    topics: useTopicArchiveActions(refreshArchive),
+    assistants: useAssistantArchiveActions(refreshArchive),
+    agents: useAgentArchiveActions(refreshArchive),
+    sessions: useSessionArchiveActions(refreshArchive),
+    paintings: usePaintingArchiveActions(refreshArchive),
     files: useFileArchiveActions()
   }
   const entriesById = new Map(entries.map((entry) => [entry.id, entry]))
@@ -66,20 +72,22 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
   )
   const pendingRestoreId = pendingDomain ? `${pendingDomain}:${actions[pendingDomain].pendingRestoreId}` : null
 
-  const refreshAfterAction = async () => {
+  const withArchiveRefresh = async <T,>(run: () => Promise<T>): Promise<T> => {
+    pendingActions.current += 1
     try {
-      await refresh()
-    } catch (error) {
-      logger.warn('Failed to refresh archive after mutation', error as Error)
+      return await run()
+    } finally {
+      pendingActions.current -= 1
+      await refreshArchive()
     }
   }
 
   const runBatch = async (
     targets: ArchiveItem[],
     action: 'onRestoreMany' | 'onPermanentDeleteMany'
-  ): Promise<ArchiveBatchOutcome> => {
-    const outcome: ArchiveBatchOutcome = { succeeded: [], failed: [] }
-    try {
+  ): Promise<ArchiveBatchOutcome> =>
+    withArchiveRefresh(async () => {
+      const outcome: ArchiveBatchOutcome = { succeeded: [], failed: [] }
       for (const domain of Object.keys(actions) as ArchiveDomain[]) {
         const domainItems = targets.filter((item) => entriesById.get(item.id)?.domain === domain)
         if (domainItems.length === 0) continue
@@ -94,10 +102,7 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
         }
       }
       return outcome
-    } finally {
-      await refreshAfterAction()
-    }
-  }
+    })
 
   return (
     <ArchiveSection
@@ -108,27 +113,23 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
       onRetry={refresh}
       pagination={{ kind: 'cursor', hasMore: hasNext, isLoadingMore: isRefreshing, onLoadMore: loadNext }}
       pendingRestoreId={pendingRestoreId}
-      onRestore={async (item) => {
-        const entry = entriesById.get(item.id)!
-        try {
+      onRestore={(item) =>
+        withArchiveRefresh(async () => {
+          const entry = entriesById.get(item.id)!
           await actions[entry.domain].onRestore({ ...item, id: entry.entityId })
-        } finally {
-          await refreshAfterAction()
-        }
-      }}
+        })
+      }
       onRestoreMany={(items) => runBatch(items, 'onRestoreMany')}
-      onPermanentDelete={async (item) => {
-        const entry = entriesById.get(item.id)!
-        try {
+      onPermanentDelete={(item) =>
+        withArchiveRefresh(async () => {
+          const entry = entriesById.get(item.id)!
           const result = await actions[entry.domain].onPermanentDelete({ ...item, id: entry.entityId })
           return {
             succeeded: result.succeeded.map((id) => `${entry.domain}:${id}`),
             failed: result.failed.map((failure) => ({ ...failure, id: `${entry.domain}:${failure.id}` }))
           }
-        } finally {
-          await refreshAfterAction()
-        }
-      }}
+        })
+      }
       onPermanentDeleteMany={(items) => runBatch(items, 'onPermanentDeleteMany')}
       onRequestDelete={(request) => {
         const fileEntryIds = request.items.flatMap((item) => {

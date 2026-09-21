@@ -140,19 +140,19 @@ async function inspectFailedFileIds(
   return { activeIds, missingIds }
 }
 
-export function useTopicArchiveActions(refresh: () => Promise<unknown>) {
+function useDataArchiveActions(domain: 'topics' | 'assistants' | 'paintings', refresh: () => Promise<unknown>) {
   const { t } = useTranslation()
   const runAction = useArchiveActionRunner()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
-  // Refresh the list plus the one restored row — `/topics/*` would revalidate every cached topic.
-  const restoreMutation = useMutation('POST', '/topics/:id/restore', {
-    refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
+  // Refresh only the restored row and list, avoiding every cached detail in the domain.
+  const restoreMutation = useMutation('POST', `/${domain}/:id/restore`, {
+    refresh: ({ args }) => [`/${domain}`, `/${domain}/${args!.params.id}`]
   })
-  const deleteMutation = useMutation('DELETE', '/topics/:id')
+  const deleteMutation = useMutation('DELETE', `/${domain}/:id`)
 
   const restoreItem = (item: ArchiveItem) =>
-    reconcileNotFound(() => restoreMutation.trigger({ params: { id: item.id } }), refresh, `/topics/${item.id}`)
+    reconcileNotFound(() => restoreMutation.trigger({ params: { id: item.id } }), refresh, `/${domain}/${item.id}`)
 
   const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
@@ -180,6 +180,10 @@ export function useTopicArchiveActions(refresh: () => Promise<unknown>) {
     onPermanentDelete: handleDelete,
     onPermanentDeleteMany: handleDeleteMany
   }
+}
+
+export function useTopicArchiveActions(refresh: () => Promise<unknown>) {
+  return useDataArchiveActions('topics', refresh)
 }
 
 export function useAgentArchiveActions(refresh: () => Promise<unknown>) {
@@ -309,85 +313,11 @@ export function useSessionArchiveActions(refresh: () => Promise<unknown>) {
 }
 
 export function useAssistantArchiveActions(refresh: () => Promise<unknown>) {
-  const { t } = useTranslation()
-  const runAction = useArchiveActionRunner()
-  const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
-
-  const restoreMutation = useMutation('POST', '/assistants/:id/restore', {
-    refresh: ({ args }) => ['/assistants', `/assistants/${args!.params.id}`]
-  })
-  const deleteMutation = useMutation('DELETE', '/assistants/:id')
-
-  const restoreItem = (item: ArchiveItem) =>
-    reconcileNotFound(() => restoreMutation.trigger({ params: { id: item.id } }), refresh, `/assistants/${item.id}`)
-
-  const handleRestore = async (item: ArchiveItem) => {
-    setPendingRestoreId(item.id)
-    try {
-      await runAction('restore', () => restoreItem(item))
-    } finally {
-      setPendingRestoreId(null)
-    }
-  }
-
-  const handleRestoreMany = (targets: ArchiveItem[]) => runPerItem(targets, restoreItem)
-  const handleDeleteMany = (targets: ArchiveItem[]) =>
-    runDataPermanentDeletes(
-      targets,
-      (target) => deleteMutation.trigger({ params: { id: target.id }, query: { permanent: true } }),
-      refresh,
-      t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
-    )
-  const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
-
-  return {
-    pendingRestoreId,
-    onRestore: handleRestore,
-    onRestoreMany: handleRestoreMany,
-    onPermanentDelete: handleDelete,
-    onPermanentDeleteMany: handleDeleteMany
-  }
+  return useDataArchiveActions('assistants', refresh)
 }
 
 export function usePaintingArchiveActions(refresh: () => Promise<unknown>) {
-  const { t } = useTranslation()
-  const runAction = useArchiveActionRunner()
-  const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
-
-  const restoreMutation = useMutation('POST', '/paintings/:id/restore', {
-    refresh: ({ args }) => ['/paintings', `/paintings/${args!.params.id}`]
-  })
-  const deleteMutation = useMutation('DELETE', '/paintings/:id')
-
-  const restoreItem = (item: ArchiveItem) =>
-    reconcileNotFound(() => restoreMutation.trigger({ params: { id: item.id } }), refresh, `/paintings/${item.id}`)
-
-  const handleRestore = async (item: ArchiveItem) => {
-    setPendingRestoreId(item.id)
-    try {
-      await runAction('restore', () => restoreItem(item))
-    } finally {
-      setPendingRestoreId(null)
-    }
-  }
-
-  const handleRestoreMany = (targets: ArchiveItem[]) => runPerItem(targets, restoreItem)
-  const handleDeleteMany = (targets: ArchiveItem[]) =>
-    runDataPermanentDeletes(
-      targets,
-      (target) => deleteMutation.trigger({ params: { id: target.id }, query: { permanent: true } }),
-      refresh,
-      t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
-    )
-  const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
-
-  return {
-    pendingRestoreId,
-    onRestore: handleRestore,
-    onRestoreMany: handleRestoreMany,
-    onPermanentDelete: handleDelete,
-    onPermanentDeleteMany: handleDeleteMany
-  }
+  return useDataArchiveActions('paintings', refresh)
 }
 
 export function useFileArchiveActions() {
