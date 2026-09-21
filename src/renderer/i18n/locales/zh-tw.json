@@ -835,7 +835,6 @@
   "chat.topics.copy.md": "複製為 Markdown",
   "chat.topics.copy.plain_text": "複製為純文字（移除 Markdown）",
   "chat.topics.copy.title": "複製",
-  "chat.topics.delete.blocked_generation": "請先停止生成，再永久刪除此對話。",
   "chat.topics.delete.shortcut": "按住 {{key}} 可直接刪除",
   "chat.topics.display.assistant": "助理",
   "chat.topics.display.time": "時間",

@@ -674,7 +674,7 @@ export function Topics({
   )
 
   const handleDeleteTopicFromMenu = useCallback(
-    async (topic: Topic, permanent = false) => {
+    async (topic: Topic) => {
       const wasActiveAtStart = topic.id === activeTopicIdRef.current
       const assistantTopicsBeforeDelete = topicsRef.current.filter(
         (candidate) => candidate.assistantId === topic.assistantId
@@ -684,13 +684,11 @@ export function Topics({
         findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
 
       try {
-        if (permanent) await deleteTopicById(topic.id, { permanent: true, targetState: 'active' })
-        else await deleteTopicById(topic.id)
+        await deleteTopicById(topic.id)
       } catch (err) {
         logger.error('Failed to delete topic', { topicId: topic.id, err })
         if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
-        else if (isTrashTopicBusyError(err))
-          toast.info(t(permanent ? 'chat.topics.delete.blocked_generation' : 'recycle_bin.move.blocked_generation'))
+        else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
         else toast.error(err instanceof Error ? err.message : t('chat.topics.manage.delete.error'))
         return
       }
@@ -703,11 +701,6 @@ export function Topics({
       if (shouldReplaceSelection) {
         if (replacement) setActiveTopic(replacement)
         else clearActiveTopic()
-      }
-
-      if (permanent) {
-        toast.success(t('settings.data.trash.permanent_delete.success'))
-        return
       }
 
       showRecycleBinUndo({
@@ -1728,7 +1721,7 @@ interface TopicListBodyProps {
   notesPath: string
   onAutoRename: (topic: Topic) => Promise<void>
   onClearMessages: (topic: Topic) => void
-  onDeleteFromMenu: (topic: Topic, permanent?: boolean) => Promise<void>
+  onDeleteFromMenu: (topic: Topic) => Promise<void>
   onMoveToAssistant: (topic: Topic, assistantId: string) => void | Promise<void>
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
@@ -1924,7 +1917,6 @@ const TopicRow = memo(function TopicRow({
     onClearMessages,
     onCopyImage: (topic) => onRequestTopicImageAction('copy', topic),
     onDelete: onDeleteFromMenu,
-    onDeletePermanently: (topic) => onDeleteFromMenu(topic, true),
     onExportImage: (topic) => onRequestTopicImageAction('export', topic),
     onMoveToAssistant,
     onOpenInNewTab,

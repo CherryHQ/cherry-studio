@@ -835,7 +835,6 @@
   "chat.topics.copy.md": "Αντιγραφή ως Markdown",
   "chat.topics.copy.plain_text": "Αντιγραφή ως απλό κείμενο (αφαίρεση Markdown)",
   "chat.topics.copy.title": "Αντιγραφή",
-  "chat.topics.delete.blocked_generation": "Σταματήστε τη δημιουργία πριν διαγράψετε οριστικά αυτή τη συνομιλία.",
   "chat.topics.delete.shortcut": "Πατήστε {{key}} για να διαγράψετε αμέσως",
   "chat.topics.display.assistant": "Βοηθός",
   "chat.topics.display.time": "Χρόνος",

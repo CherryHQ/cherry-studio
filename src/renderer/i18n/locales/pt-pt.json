@@ -835,7 +835,6 @@
   "chat.topics.copy.md": "Copiar como Markdown",
   "chat.topics.copy.plain_text": "Copiar como texto simples (remover Markdown)",
   "chat.topics.copy.title": "Copiar",
-  "chat.topics.delete.blocked_generation": "Pare a geração antes de eliminar permanentemente esta conversa.",
   "chat.topics.delete.shortcut": "Prima {{key}} para eliminar diretamente",
   "chat.topics.display.assistant": "Assistente",
   "chat.topics.display.time": "Tempo",

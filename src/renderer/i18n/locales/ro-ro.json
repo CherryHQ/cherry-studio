@@ -835,7 +835,6 @@
   "chat.topics.copy.md": "Copiază ca markdown",
   "chat.topics.copy.plain_text": "Copiază ca text simplu (elimină Markdown)",
   "chat.topics.copy.title": "Copiază",
-  "chat.topics.delete.blocked_generation": "Oprește generarea înainte de a șterge definitiv această conversație.",
   "chat.topics.delete.shortcut": "Ține apăsat {{key}} pentru a șterge direct",
   "chat.topics.display.assistant": "Asistent",
   "chat.topics.display.time": "Timp",
