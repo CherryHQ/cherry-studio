@@ -95,4 +95,4 @@ export type NativeRequest =
   | { operation: 'capabilities'; locale: string }
   | { operation: 'install_asr_assets'; locale: string; confirmDownload: true }
   | { operation: 'transcribe'; locale: string; inputPath: string }
-  | { operation: 'synthesize'; voiceId: string; text: string; outputPath: string }
+  | { operation: 'synthesize'; voiceId: string; text: string; outputPath: string; speed: number }

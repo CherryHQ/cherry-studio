@@ -126,7 +126,8 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     const recording = await request('file.voice_recording.create', {
       sessionId: appleSession,
       audio: webm,
-      mimeType: 'audio/webm;codecs=opus'
+      mimeType: 'audio/webm;codecs=opus',
+      durationMs: Math.round(audio.duration * 1000)
     })
     evidence.stage = 'apple_transcribe'
     const transcript = await request('ai.transcription.generate', {
@@ -146,7 +147,8 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     const funasrRecording = await request('file.voice_recording.create', {
       sessionId: funasrSession,
       audio: webm,
-      mimeType: 'audio/webm;codecs=opus'
+      mimeType: 'audio/webm;codecs=opus',
+      durationMs: Math.round(audio.duration * 1000)
     })
     evidence.stage = 'funasr_refusal'
     try {

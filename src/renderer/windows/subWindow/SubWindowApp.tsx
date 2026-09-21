@@ -8,6 +8,7 @@ import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
+import { VoicePlaybackHost } from '@renderer/components/VoicePlaybackHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
@@ -46,6 +47,7 @@ function SubWindowApp(): React.ReactElement {
                 <ConversationNotificationRuntime />
                 <PopupHost />
                 <ToastHost />
+                <VoicePlaybackHost />
               </TabsProvider>
             </CommandProvider>
           </CommandContextKeyProvider>
