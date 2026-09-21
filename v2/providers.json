@@ -295,8 +295,8 @@
       "metadata": {
         "website": {
           "apiKey": "https://platform.deepseek.com/api_keys",
-          "docs": "https://platform.deepseek.com/api-docs/",
-          "models": "https://platform.deepseek.com/api-docs/",
+          "docs": "https://api-docs.deepseek.com/",
+          "models": "https://api-docs.deepseek.com/",
           "official": "https://deepseek.com/"
         }
       },
@@ -2633,5 +2633,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "2435ad1032e8114c"
+  "version": "f490ed21e7e5cbfb"
 }
