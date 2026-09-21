@@ -28,7 +28,8 @@ import {
   type BeginAppRegistrationResult,
   type BeginAuthorizationResult,
   type BeginUserAuthorizationInput,
-  ExternalKnowledgeRuntime
+  ExternalKnowledgeRuntime,
+  ExternalKnowledgeRuntimeError
 } from './external/ExternalKnowledgeRuntime'
 import {
   type CreateExternalKnowledgeSourceCommand,
@@ -38,6 +39,7 @@ import {
 import { ExternalKnowledgeSyncService } from './external/ExternalKnowledgeSyncService'
 import { createIndexKnowledgeItem } from './ingestion/indexKnowledgeItem'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
+import { recoverDeletingKnowledgeItems } from './ingestion/subtreeDeletion'
 import type {
   KnowledgeConceptContent,
   KnowledgeConceptGrep,
@@ -64,13 +66,19 @@ import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from '
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService', 'WebSearchService'])
 export class KnowledgeService extends BaseService {
+  private externalKnowledgeAdmissionOpen = false
   private readonly knowledgeLockManager = new KeyedMutex()
   private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime()
   private readonly externalKnowledgeSyncService = new ExternalKnowledgeSyncService(
     this.externalKnowledgeRuntime,
     this.knowledgeLockManager
   )
-  private readonly externalKnowledgeSyncAdmission = new ExternalKnowledgeSyncAdmission(this.externalKnowledgeRuntime)
+  private readonly externalKnowledgeSyncAdmission = new ExternalKnowledgeSyncAdmission(this.externalKnowledgeRuntime, {
+    now: Date.now,
+    assertOpen: () => {
+      if (!this.externalKnowledgeAdmissionOpen) throw new ExternalKnowledgeRuntimeError('stopped')
+    }
+  })
   private readonly indexKnowledgeItem = createIndexKnowledgeItem(this.knowledgeLockManager)
   private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)
   private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
@@ -101,14 +109,41 @@ export class KnowledgeService extends BaseService {
 
   protected async onReady(): Promise<void> {
     await this.externalKnowledgeRuntime.start()
+    this.externalKnowledgeAdmissionOpen = true
   }
 
   protected async onStop(): Promise<void> {
-    await this.externalKnowledgeRuntime.stop()
+    this.externalKnowledgeAdmissionOpen = false
+    const failures: unknown[] = []
+    let activeJobs: Array<{ id: string }> = []
+    try {
+      activeJobs = await application.get('JobManager').list({
+        status: ['pending', 'delayed', 'running'],
+        type: 'knowledge.sync-external-source'
+      })
+    } catch (error) {
+      failures.push(error)
+    }
+
+    const cancellationResults = await Promise.allSettled(
+      activeJobs.map((job) => application.get('JobManager').cancel(job.id, 'knowledge-service-stop'))
+    )
+    for (const result of cancellationResults) {
+      if (result.status === 'rejected') failures.push(result.reason)
+    }
+
+    try {
+      await this.externalKnowledgeRuntime.stop()
+    } catch (error) {
+      failures.push(error)
+    }
+
+    if (failures.length === 1) throw failures[0]
+    if (failures.length > 1) throw new AggregateError(failures, 'Failed to stop External Knowledge')
   }
 
   protected async onAllReady(): Promise<void> {
-    this.ingestionService.recoverDeletingItems()
+    recoverDeletingKnowledgeItems()
     this.ingestionService.recoverInterruptedItems()
   }
 

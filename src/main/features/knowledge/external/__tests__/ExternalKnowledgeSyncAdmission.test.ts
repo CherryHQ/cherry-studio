@@ -10,6 +10,8 @@ import type { DbOrTx } from '@data/db/types'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import { ErrorCode } from '@shared/data/api/errors'
 
+import { ExternalKnowledgeRuntimeError } from '../ExternalKnowledgeRuntime'
+
 const { enqueueTxMock, notifyDataChangeMock } = vi.hoisted(() => ({
   enqueueTxMock: vi.fn(),
   notifyDataChangeMock: vi.fn()
@@ -22,7 +24,8 @@ vi.mock('@application', async () => {
 
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
 
-const { ExternalKnowledgeSyncAdmission } = await import('../ExternalKnowledgeSyncAdmission')
+const { ExternalKnowledgeAdmissionError, ExternalKnowledgeSyncAdmission } =
+  await import('../ExternalKnowledgeSyncAdmission')
 
 const BASE_ID = '11111111-1111-4111-8111-111111111111'
 const FAILED_BASE_ID = '22222222-2222-4222-8222-222222222222'
@@ -53,6 +56,12 @@ const resolution = {
 describe('ExternalKnowledgeSyncAdmission', () => {
   const dbh = setupTestDatabase()
   const resolveFeishuScope = vi.fn()
+  let gateOpen = true
+  const assertOpen = vi.fn(() => {
+    if (!gateOpen) throw new ExternalKnowledgeRuntimeError('stopped')
+  })
+  const createAdmission = (now = 123) =>
+    new ExternalKnowledgeSyncAdmission({ resolveFeishuScope }, { now: () => now, assertOpen })
 
   const seedBase = (id: string, status: 'completed' | 'failed' = 'completed') =>
     dbh.db
@@ -77,8 +86,17 @@ describe('ExternalKnowledgeSyncAdmission', () => {
         provider: 'feishu',
         appId: 'cli_example',
         appCredentialSource: 'personal-agent',
-        authorizationStatus: 'pending-authorization',
-        credentialReference: 'credential-reference-only'
+        authorizationStatus: 'connected',
+        credentialReference: 'credential-reference-only',
+        accountUserId: 'user-1',
+        accountOpenId: 'open-1',
+        accountUnionId: null,
+        tenantKey: 'tenant-1',
+        displayName: 'Ada',
+        avatarUrl: null,
+        grantedScopes: ['wiki:node:read'],
+        authorizedAt: 100,
+        lastValidatedAt: 100
       })
       .run()
 
@@ -122,6 +140,7 @@ describe('ExternalKnowledgeSyncAdmission', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    gateOpen = true
     resolveFeishuScope.mockResolvedValue(resolution)
     enqueueTxMock.mockImplementation(
       (tx: DbOrTx, type: string, input: unknown, options: { queue: string; idempotencyKey?: string }) => {
@@ -151,7 +170,7 @@ describe('ExternalKnowledgeSyncAdmission', () => {
   })
 
   it('re-resolves the raw URL and atomically creates a source bound to its initial job', async () => {
-    const admission = new ExternalKnowledgeSyncAdmission({ resolveFeishuScope }, { now: () => 123 })
+    const admission = createAdmission()
 
     const source = await admission.create({
       baseId: BASE_ID,
@@ -199,7 +218,8 @@ describe('ExternalKnowledgeSyncAdmission', () => {
       {
         now: () => {
           throw new Error('clock failed after enqueue')
-        }
+        },
+        assertOpen
       }
     )
 
@@ -219,7 +239,7 @@ describe('ExternalKnowledgeSyncAdmission', () => {
 
   it('coalesces manual synchronization without overwriting the original trigger or start time', async () => {
     const seeded = seedSource('active', JOB_ID)
-    const admission = new ExternalKnowledgeSyncAdmission({ resolveFeishuScope }, { now: () => 999 })
+    const admission = createAdmission(999)
 
     const source = await admission.requestSync({ sourceId: seeded.id })
 
@@ -248,7 +268,7 @@ describe('ExternalKnowledgeSyncAdmission', () => {
 
   it('binds a new manual job and publishes source projection only after commit', async () => {
     const seeded = seedSource()
-    const admission = new ExternalKnowledgeSyncAdmission({ resolveFeishuScope }, { now: () => 999 })
+    const admission = createAdmission(999)
 
     const source = await admission.requestSync({ sourceId: seeded.id })
 
@@ -286,7 +306,7 @@ describe('ExternalKnowledgeSyncAdmission', () => {
       })
       .returning()
       .get()
-    const admission = new ExternalKnowledgeSyncAdmission({ resolveFeishuScope }, { now: () => 999 })
+    const admission = createAdmission(999)
 
     await expect(admission.requestSync({ sourceId: paused.id })).rejects.toMatchObject({
       code: ErrorCode.INVALID_OPERATION
@@ -300,7 +320,7 @@ describe('ExternalKnowledgeSyncAdmission', () => {
   it('persists a minimal job row without URL, preview data, provider payload, credentials, or secrets', async () => {
     const secret = 'secret-provider-payload'
     resolveFeishuScope.mockResolvedValue({ ...resolution, providerPayload: { secret } })
-    const admission = new ExternalKnowledgeSyncAdmission({ resolveFeishuScope }, { now: () => 123 })
+    const admission = createAdmission()
 
     const source = await admission.create({
       baseId: BASE_ID,
@@ -323,5 +343,123 @@ describe('ExternalKnowledgeSyncAdmission', () => {
     expect(JSON.stringify(persistedJob)).not.toContain('selected')
     expect(JSON.stringify(persistedJob)).not.toContain('credentials')
     expect(JSON.stringify(persistedJob)).not.toContain('user-private')
+  })
+
+  it.each([
+    {
+      name: 'base is deleted',
+      mutate: (db: typeof dbh.db) => db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, BASE_ID)).run()
+    },
+    {
+      name: 'connection is deleted',
+      mutate: (db: typeof dbh.db) =>
+        db.delete(externalKnowledgeConnectionTable).where(eq(externalKnowledgeConnectionTable.id, CONNECTION_ID)).run()
+    },
+    {
+      name: 'connection requires reauthorization',
+      mutate: (db: typeof dbh.db) =>
+        db
+          .update(externalKnowledgeConnectionTable)
+          .set({ authorizationStatus: 'reauthorization-required' })
+          .where(eq(externalKnowledgeConnectionTable.id, CONNECTION_ID))
+          .run()
+    },
+    {
+      name: 'connection tenant changes',
+      mutate: (db: typeof dbh.db) =>
+        db
+          .update(externalKnowledgeConnectionTable)
+          .set({ tenantKey: 'tenant-2' })
+          .where(eq(externalKnowledgeConnectionTable.id, CONNECTION_ID))
+          .run()
+    }
+  ])('rejects target-unavailable when the $name during remote resolution', async ({ mutate }) => {
+    let finishResolution!: (value: typeof resolution) => void
+    resolveFeishuScope.mockReturnValueOnce(
+      new Promise<typeof resolution>((resolve) => {
+        finishResolution = resolve
+      })
+    )
+    const admission = createAdmission()
+    const pending = admission.create({
+      baseId: BASE_ID,
+      connectionId: CONNECTION_ID,
+      url: 'https://acme.feishu.cn/wiki/root',
+      name: 'Engineering Wiki'
+    })
+    await vi.waitFor(() => expect(resolveFeishuScope).toHaveBeenCalledOnce())
+    mutate(dbh.db)
+    finishResolution(resolution)
+
+    await expect(pending).rejects.toMatchObject({
+      name: ExternalKnowledgeAdmissionError.name,
+      code: 'target-unavailable'
+    })
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toEqual([])
+    expect(dbh.db.select().from(jobTable).all()).toEqual([])
+  })
+
+  it('maps duplicate provider scope to a safe source-conflict without leaking its composite identity', async () => {
+    const admission = createAdmission()
+    const input = {
+      baseId: BASE_ID,
+      connectionId: CONNECTION_ID,
+      url: 'https://acme.feishu.cn/wiki/root',
+      name: 'Engineering Wiki'
+    }
+    await admission.create(input)
+
+    const error = await admission.create({ ...input, name: 'Duplicate Wiki' }).catch((cause) => cause)
+
+    expect(error).toMatchObject({
+      name: ExternalKnowledgeAdmissionError.name,
+      code: 'source-conflict',
+      message: 'An external knowledge source already exists for this provider scope'
+    })
+    expect(JSON.stringify(error)).not.toContain(`${BASE_ID}:feishu:tenant-1:space-1`)
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toHaveLength(1)
+    expect(dbh.db.select().from(jobTable).all()).toHaveLength(1)
+  })
+
+  it('rechecks the admission gate after deferred scope resolution before opening a transaction', async () => {
+    let finishResolution!: (value: typeof resolution) => void
+    resolveFeishuScope.mockReturnValueOnce(
+      new Promise<typeof resolution>((resolve) => {
+        finishResolution = resolve
+      })
+    )
+    const admission = createAdmission()
+    const pending = admission.create({
+      baseId: BASE_ID,
+      connectionId: CONNECTION_ID,
+      url: 'https://acme.feishu.cn/wiki/root',
+      name: 'Engineering Wiki'
+    })
+    await vi.waitFor(() => expect(resolveFeishuScope).toHaveBeenCalledOnce())
+    gateOpen = false
+    finishResolution(resolution)
+
+    await expect(pending).rejects.toMatchObject({ code: 'stopped' })
+    expect(assertOpen).toHaveBeenCalledTimes(2)
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toEqual([])
+    expect(dbh.db.select().from(jobTable).all()).toEqual([])
+  })
+
+  it('rejects a closed gate before scope resolution or requestSync database reads', async () => {
+    const source = seedSource()
+    gateOpen = false
+    const admission = createAdmission()
+
+    await expect(
+      admission.create({
+        baseId: BASE_ID,
+        connectionId: CONNECTION_ID,
+        url: 'https://acme.feishu.cn/wiki/root',
+        name: 'Engineering Wiki'
+      })
+    ).rejects.toMatchObject({ code: 'stopped' })
+    await expect(admission.requestSync({ sourceId: source.id })).rejects.toMatchObject({ code: 'stopped' })
+    expect(resolveFeishuScope).not.toHaveBeenCalled()
+    expect(enqueueTxMock).not.toHaveBeenCalled()
   })
 })

@@ -479,23 +479,23 @@ describe('ExternalKnowledgeDocumentService', () => {
     }>()
   })
 
-  it('rolls back item and document owner helpers with their caller transaction', () => {
+  it('rolls back publication helpers while preserving the durable deleting staging row', () => {
     seedOwnership()
-    let createdItemId: string | null = null
+    const createdItemId = '0198f3f2-7d23-7abc-8def-123456789abc'
+    knowledgeItemService.createDeletingExternal(BASE_ID, createdItemId, {
+      source: 'Feishu Wiki',
+      title: 'Rolled back document',
+      relativePath: KnowledgeRelativePathSchema.parse('external/rolled-back-document.md')
+    })
 
     expect(() =>
       dbh.db.transaction((tx) => {
-        const item = knowledgeItemService.createCompletedExternalTx(
-          tx,
-          BASE_ID,
-          '0198f3f2-7d23-7abc-8def-123456789abc',
-          {
-            source: 'Feishu Wiki',
-            title: 'Rolled back document',
-            relativePath: KnowledgeRelativePathSchema.parse('external/rolled-back-document.md')
-          }
-        )
-        createdItemId = item.id
+        const item = knowledgeItemService.promoteDeletingExternalTx(tx, BASE_ID, createdItemId, {
+          source: 'Feishu Wiki',
+          title: 'Rolled back document',
+          relativePath: KnowledgeRelativePathSchema.parse('external/rolled-back-document.md')
+        })
+        expect(item).not.toBeNull()
         const document = externalKnowledgeDocumentService.createActiveTx(tx, syncFence, {
           remoteObjectId: 'doc-rollback',
           canonicalNodeId: 'node-rollback',
@@ -506,18 +506,17 @@ describe('ExternalKnowledgeDocumentService', () => {
           remoteRevision: '1',
           contentHash: 'hash-rollback',
           lastSeenAt: 400,
-          knowledgeItemId: item.id,
+          knowledgeItemId: item!.id,
           currentWarning: null
         })
-        expect(document).toMatchObject({ remoteObjectId: 'doc-rollback', knowledgeItemId: item.id })
+        expect(document).toMatchObject({ remoteObjectId: 'doc-rollback', knowledgeItemId: item!.id })
         throw new Error('force outer transaction rollback')
       })
     ).toThrow('force outer transaction rollback')
 
-    expect(createdItemId).not.toBeNull()
     expect(
-      dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, createdItemId!)).get()
-    ).toBeUndefined()
+      dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, createdItemId)).get()
+    ).toMatchObject({ status: 'deleting' })
     expect(
       externalKnowledgeDocumentService.getByRemoteObjectIdTx(dbh.db, BASE_ID, SOURCE_ID, 'doc-rollback')
     ).toBeNull()

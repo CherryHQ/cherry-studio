@@ -354,35 +354,54 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
-  createCompletedExternalTx(
-    tx: Pick<DbType, 'insert'>,
+  createDeletingExternal(baseId: string, id: string, data: ExternalItemData): KnowledgeItem {
+    const [row] = application.get('DbService').withWriteTx((tx) =>
+      withSqliteErrors(
+        () =>
+          tx
+            .insert(knowledgeItemTable)
+            .values({ id, baseId, groupId: null, type: 'external', data, status: 'deleting', error: null })
+            .returning()
+            .all(),
+        {
+          foreignKey: () => DataApiErrorFactory.notFound('KnowledgeBase', baseId),
+          check: (constraintName) =>
+            DataApiErrorFactory.validation({
+              _root: [
+                constraintName
+                  ? `Knowledge item failed CHECK constraint '${constraintName}'`
+                  : 'Knowledge item failed a CHECK constraint'
+              ]
+            })
+        } satisfies SqliteErrorHandlers
+      )
+    )
+    if (!row) {
+      throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Deleting external item create result missing')
+    }
+    return rowToKnowledgeItem(row)
+  }
+
+  promoteDeletingExternalTx(
+    tx: Pick<DbType, 'update'>,
     baseId: string,
     id: string,
     data: ExternalItemData
-  ): KnowledgeItem {
-    const [row] = withSqliteErrors(
-      () =>
-        tx
-          .insert(knowledgeItemTable)
-          .values({ id, baseId, groupId: null, type: 'external', data, status: 'completed', error: null })
-          .returning()
-          .all(),
-      {
-        foreignKey: () => DataApiErrorFactory.notFound('KnowledgeBase', baseId),
-        check: (constraintName) =>
-          DataApiErrorFactory.validation({
-            _root: [
-              constraintName
-                ? `Knowledge item failed CHECK constraint '${constraintName}'`
-                : 'Knowledge item failed a CHECK constraint'
-            ]
-          })
-      } satisfies SqliteErrorHandlers
-    )
-    if (!row) {
-      throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Completed external item create result missing')
-    }
-    return rowToKnowledgeItem(row)
+  ): KnowledgeItem | null {
+    const [row] = tx
+      .update(knowledgeItemTable)
+      .set({ data, status: 'completed', error: null })
+      .where(
+        and(
+          eq(knowledgeItemTable.id, id),
+          eq(knowledgeItemTable.baseId, baseId),
+          eq(knowledgeItemTable.type, 'external'),
+          eq(knowledgeItemTable.status, 'deleting')
+        )
+      )
+      .returning()
+      .all()
+    return row ? rowToKnowledgeItem(row) : null
   }
 
   updateCompletedExternalMetadataTx(
@@ -421,21 +440,6 @@ export class KnowledgeItemService {
       .returning()
       .all()
     return updatedRow ? rowToKnowledgeItem(updatedRow) : null
-  }
-
-  deleteCompletedExternalTx(tx: Pick<DbType, 'delete'>, baseId: string, id: string): boolean {
-    const result = tx
-      .delete(knowledgeItemTable)
-      .where(
-        and(
-          eq(knowledgeItemTable.id, id),
-          eq(knowledgeItemTable.baseId, baseId),
-          eq(knowledgeItemTable.type, 'external'),
-          eq(knowledgeItemTable.status, 'completed')
-        )
-      )
-      .run()
-    return result.changes > 0
   }
 
   private validateGroupOwnerTx(db: Pick<DbType, 'select'>, baseId: string, groupId: string | null | undefined): void {

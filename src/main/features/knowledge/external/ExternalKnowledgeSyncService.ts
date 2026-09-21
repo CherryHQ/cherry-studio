@@ -26,7 +26,8 @@ import {
 } from '@shared/data/types/knowledge'
 
 import { prepareKnowledgeMaterial } from '../ingestion/indexKnowledgeItem'
-import { deleteKnowledgeItemFiles, writeFileIntoKnowledgeBaseAt } from '../pathStorage'
+import { enqueueKnowledgeSubtreeDeletionTx, recoverDeletingKnowledgeItems } from '../ingestion/subtreeDeletion'
+import { writeFileIntoKnowledgeBaseAt } from '../pathStorage'
 import type { RebuildMaterialInput } from '../pipeline/vectorstore/indexStore/model'
 import { ExternalKnowledgeRuntimeError, type ExternalKnowledgeRuntimeErrorCode } from './ExternalKnowledgeRuntime'
 import type { FeishuKnowledgeReference, FeishuKnowledgeSourceScanResult } from './feishuKnowledgeReadAdapter'
@@ -43,7 +44,8 @@ export type ExternalKnowledgeSyncDependencies = {
   createItemId(): string
   now(): number
   writeFileIntoKnowledgeBaseAt: typeof writeFileIntoKnowledgeBaseAt
-  deleteKnowledgeItemFiles: typeof deleteKnowledgeItemFiles
+  enqueueKnowledgeSubtreeDeletionTx: typeof enqueueKnowledgeSubtreeDeletionTx
+  recoverDeletingKnowledgeItems: typeof recoverDeletingKnowledgeItems
   prepareKnowledgeMaterial: typeof prepareKnowledgeMaterial
   getIndexStore(base: Parameters<typeof prepareKnowledgeMaterial>[0]['base']): ExternalKnowledgeIndexStore
 }
@@ -61,14 +63,7 @@ export type SyncExternalKnowledgeSourceInput = Pick<
   'fence' | 'signal' | 'reportProgress'
 >
 
-export type ExternalKnowledgeSyncWarning =
-  | 'stale-publication'
-  | 'staged-vector-cleanup-failed'
-  | 'staged-snapshot-cleanup-failed'
-  | 'old-vector-cleanup-failed'
-  | 'old-snapshot-cleanup-failed'
-
-type ExternalKnowledgeArtifactCleanupWarning = Exclude<ExternalKnowledgeSyncWarning, 'stale-publication'>
+export type ExternalKnowledgeSyncWarning = 'stale-publication'
 
 export type ExternalKnowledgeDocumentSyncResult = {
   outcome: 'indexed' | 'unchanged' | 'skipped'
@@ -78,12 +73,7 @@ export type ExternalKnowledgeDocumentSyncResult = {
 export type ExternalKnowledgeSourceSyncWarningCode =
   | PerDocumentRuntimeWarningCode
   | 'resource-permission-denied'
-  | Exclude<ExternalKnowledgeSyncWarning, 'stale-publication'>
   | 'document-sync-failed'
-  | 'missing-vector-cleanup-failed'
-  | 'missing-snapshot-cleanup-failed'
-  | 'permission-vector-cleanup-failed'
-  | 'permission-snapshot-cleanup-failed'
 
 export type ExternalKnowledgeSourceSyncWarning = {
   code: ExternalKnowledgeSourceSyncWarningCode
@@ -138,18 +128,12 @@ class ExternalKnowledgeDocumentReadError extends Error {
   }
 }
 
-class ExternalKnowledgeDocumentSyncFailure extends Error {
-  constructor(readonly cleanupWarnings: ExternalKnowledgeArtifactCleanupWarning[]) {
-    super('External knowledge document synchronization failed')
-    this.name = 'ExternalKnowledgeDocumentSyncFailure'
-  }
-}
-
 const defaultDependencies: ExternalKnowledgeSyncDependencies = {
   createItemId: uuidv7,
   now: Date.now,
   writeFileIntoKnowledgeBaseAt,
-  deleteKnowledgeItemFiles,
+  enqueueKnowledgeSubtreeDeletionTx,
+  recoverDeletingKnowledgeItems,
   prepareKnowledgeMaterial,
   getIndexStore: (base) => application.get('KnowledgeVectorStoreService').getIndexStore(base)
 }
@@ -272,6 +256,7 @@ export class ExternalKnowledgeSyncService {
     } catch {
       throw new ExternalKnowledgeSourceSyncError('cancelled', finalizedSummary(summary))
     }
+    this.dependencies.recoverDeletingKnowledgeItems(input.fence.baseId)
     const source = externalKnowledgeSourceService.getByIdTx(db, input.fence.sourceId)
     if (!matchesSourceFence(source, input.fence)) {
       throw new ExternalKnowledgeSourceSyncError('stale-publication', finalizedSummary(summary))
@@ -311,26 +296,13 @@ export class ExternalKnowledgeSyncService {
       try {
         result = await this.syncDocument({ ...input, reference, observedAt })
       } catch (error) {
-        const cleanupWarnings = error instanceof ExternalKnowledgeDocumentSyncFailure ? error.cleanupWarnings : []
-        const appendCleanupWarnings = () => {
-          for (const code of cleanupWarnings) {
-            summary.warnings.push({ code, remoteObjectId: reference.descriptor.remoteObjectId })
-          }
-        }
         if (input.signal.aborted) {
-          appendCleanupWarnings()
           throw new ExternalKnowledgeSourceSyncError('cancelled', finalizedSummary(summary))
         }
         if (error instanceof ExternalKnowledgeDocumentReadError) {
           if (error.code === 'resource-permission-denied') {
-            let cleanupWarnings: ExternalKnowledgeSourceSyncWarning[]
             try {
-              cleanupWarnings = await this.markDocumentUnavailable(
-                input,
-                reference,
-                expectedDocument,
-                'resource-permission-denied'
-              )
+              await this.markDocumentUnavailable(input, reference, expectedDocument, 'resource-permission-denied')
             } catch (reconciliationError) {
               throw new ExternalKnowledgeSourceSyncError(
                 this.reconciliationErrorCode(reconciliationError, input.signal),
@@ -339,7 +311,6 @@ export class ExternalKnowledgeSyncService {
             }
             summary.skippedCount += 1
             summary.warnings.push({ code: error.code, remoteObjectId: reference.descriptor.remoteObjectId })
-            summary.warnings.push(...cleanupWarnings)
             continue
           }
           if (!isPerDocumentRuntimeWarningCode(error.code)) {
@@ -361,7 +332,6 @@ export class ExternalKnowledgeSyncService {
         try {
           await this.recordDocumentWarning(input, reference, expectedDocument, observedAt, 'document-sync-failed')
         } catch (reconciliationError) {
-          appendCleanupWarnings()
           throw new ExternalKnowledgeSourceSyncError(
             this.reconciliationErrorCode(reconciliationError, input.signal),
             finalizedSummary(summary)
@@ -369,16 +339,10 @@ export class ExternalKnowledgeSyncService {
         }
         summary.skippedCount += 1
         summary.warnings.push({ code: 'document-sync-failed', remoteObjectId: reference.descriptor.remoteObjectId })
-        appendCleanupWarnings()
         continue
       }
 
       const stale = result.warnings.includes('stale-publication')
-      for (const code of result.warnings) {
-        if (code !== 'stale-publication') {
-          summary.warnings.push({ code, remoteObjectId: reference.descriptor.remoteObjectId })
-        }
-      }
       if (stale) {
         throw new ExternalKnowledgeSourceSyncError('stale-publication', finalizedSummary(summary))
       }
@@ -388,11 +352,9 @@ export class ExternalKnowledgeSyncService {
     }
 
     try {
-      summary.warnings.push(
-        ...(await this.reconcileMissingDocuments(
-          input,
-          new Set(scan.canonicalReferences.map((reference) => reference.descriptor.remoteObjectId))
-        ))
+      await this.reconcileMissingDocuments(
+        input,
+        new Set(scan.canonicalReferences.map((reference) => reference.descriptor.remoteObjectId))
       )
     } catch (error) {
       throw new ExternalKnowledgeSourceSyncError(
@@ -458,25 +420,17 @@ export class ExternalKnowledgeSyncService {
     }
     const itemId = this.dependencies.createItemId()
     const relativePath = KnowledgeRelativePathSchema.parse(`external/${itemId}.md`)
-    const now = new Date(input.observedAt).toISOString()
-    const item: KnowledgeItemOf<'external'> = {
-      id: itemId,
-      baseId: input.fence.baseId,
-      groupId: null,
-      type: 'external',
-      data: { source: source.name, title: input.reference.descriptor.title, relativePath },
-      status: 'completed',
-      error: null,
-      createdAt: now,
-      updatedAt: now
+    const item = knowledgeItemService.createDeletingExternal(input.fence.baseId, itemId, {
+      source: source.name,
+      title: input.reference.descriptor.title,
+      relativePath
+    })
+    if (item.type !== 'external') {
+      throw new Error(`Deleting external staging row has unexpected type: ${item.id}`)
     }
-    const store = this.dependencies.getIndexStore(base)
-    let snapshotStaged = false
-    let materialStaged = false
-
     try {
+      const store = this.dependencies.getIndexStore(base)
       await this.dependencies.writeFileIntoKnowledgeBaseAt(input.fence.baseId, relativePath, markdown)
-      snapshotStaged = true
       const prepared = await this.dependencies.prepareKnowledgeMaterial({
         base,
         item,
@@ -488,7 +442,7 @@ export class ExternalKnowledgeSyncService {
       })
 
       input.reportProgress(80, { stage: 'writing', currentFile: 0, totalFiles: 1 })
-      const warnings = await this.knowledgeLockManager.runExclusive(input.fence.baseId, async () => {
+      await this.knowledgeLockManager.runExclusive(input.fence.baseId, () => {
         input.signal.throwIfAborted()
         const txDb = dbService.getDb()
         const latestSource = externalKnowledgeSourceService.getByIdTx(txDb, input.fence.sourceId)
@@ -505,13 +459,13 @@ export class ExternalKnowledgeSyncService {
           throw new StaleExternalKnowledgePublicationError()
         }
 
-        materialStaged = true
         store.rebuildMaterial(itemId, prepared.rebuildInput)
         dbService.withWriteTx((tx) => {
-          knowledgeItemService.createCompletedExternalTx(tx, input.fence.baseId, itemId, {
+          const promoted = knowledgeItemService.promoteDeletingExternalTx(tx, input.fence.baseId, itemId, {
             ...item.data,
             source: latestSource.name
           })
+          if (!promoted) throw new StaleExternalKnowledgePublicationError()
           if (!latestDocument) {
             const document = externalKnowledgeDocumentService.createActiveTx(tx, input.fence, {
               remoteObjectId: input.reference.descriptor.remoteObjectId,
@@ -543,24 +497,24 @@ export class ExternalKnowledgeSyncService {
             syncMetadata(input)
           )
           if (!updated) throw new StaleExternalKnowledgePublicationError()
-          if (
-            previousItem &&
-            !knowledgeItemService.deleteCompletedExternalTx(tx, input.fence.baseId, previousItem.id)
-          ) {
-            throw new StaleExternalKnowledgePublicationError()
+          if (previousItem) {
+            const deletingItemIds = knowledgeItemService.setSubtreeStatusTx(
+              tx,
+              input.fence.baseId,
+              [previousItem.id],
+              'deleting'
+            )
+            if (!deletingItemIds.includes(previousItem.id)) throw new StaleExternalKnowledgePublicationError()
+            this.dependencies.enqueueKnowledgeSubtreeDeletionTx(tx, input.fence.baseId, [previousItem.id])
           }
         })
-        return previousItem ? await this.cleanupPublishedOldArtifacts(base, previousItem, store) : []
       })
 
-      return { outcome: 'indexed', warnings }
+      return { outcome: 'indexed', warnings: [] }
     } catch (error) {
-      const warnings = await this.cleanupStagedArtifacts(base, item, store, materialStaged, snapshotStaged)
+      this.acceptStagedCleanup(input.fence.baseId, item.id)
       if (error instanceof StaleExternalKnowledgePublicationError) {
-        return { outcome: 'skipped', warnings: ['stale-publication', ...warnings] }
-      }
-      if (warnings.length > 0) {
-        throw new ExternalKnowledgeDocumentSyncFailure(warnings)
+        return { outcome: 'skipped', warnings: ['stale-publication'] }
       }
       throw error
     }
@@ -682,7 +636,7 @@ export class ExternalKnowledgeSyncService {
     reference: FeishuKnowledgeReference,
     expectedDocument: ReturnType<typeof externalKnowledgeDocumentService.getByRemoteObjectIdTx>,
     currentWarning: string
-  ): Promise<ExternalKnowledgeSourceSyncWarning[]> {
+  ): Promise<void> {
     const base = knowledgeBaseService.getById(input.fence.baseId)
     if (!isCompletedKnowledgeBase(base)) {
       throw DataApiErrorFactory.invalidOperation(
@@ -691,7 +645,7 @@ export class ExternalKnowledgeSyncService {
       )
     }
 
-    return await this.knowledgeLockManager.runExclusive(input.fence.baseId, async () => {
+    await this.knowledgeLockManager.runExclusive(input.fence.baseId, () => {
       input.signal.throwIfAborted()
       const dbService = application.get('DbService')
       const db = dbService.getDb()
@@ -709,9 +663,11 @@ export class ExternalKnowledgeSyncService {
       ) {
         throw new StaleExternalKnowledgePublicationError()
       }
-      if (document?.availability !== 'active') return []
+      if (document?.availability !== 'active') return
       const item = knowledgeItemService.getById(document.knowledgeItemId)
-      if (item.type !== 'external') throw new StaleExternalKnowledgePublicationError()
+      if (item.type !== 'external' || item.status !== 'completed') {
+        throw new StaleExternalKnowledgePublicationError()
+      }
 
       dbService.withWriteTx((tx) => {
         externalKnowledgeDocumentService.markUnavailableBatchTx(
@@ -720,13 +676,11 @@ export class ExternalKnowledgeSyncService {
           [{ documentId: document.id, expected: documentVersion(expectedDocument)! }],
           currentWarning
         )
-        if (!knowledgeItemService.deleteCompletedExternalTx(tx, input.fence.baseId, item.id)) {
+        const deletingItemIds = knowledgeItemService.setSubtreeStatusTx(tx, input.fence.baseId, [item.id], 'deleting')
+        if (deletingItemIds.length !== 1 || deletingItemIds[0] !== item.id) {
           throw new StaleExternalKnowledgePublicationError()
         }
-      })
-      return await this.cleanupUnavailableArtifacts(base, [item], {
-        vector: 'permission-vector-cleanup-failed',
-        snapshot: 'permission-snapshot-cleanup-failed'
+        this.dependencies.enqueueKnowledgeSubtreeDeletionTx(tx, input.fence.baseId, [item.id])
       })
     })
   }
@@ -734,7 +688,7 @@ export class ExternalKnowledgeSyncService {
   private async reconcileMissingDocuments(
     input: SyncExternalKnowledgeSourceInput,
     seenRemoteObjectIds: ReadonlySet<string>
-  ): Promise<ExternalKnowledgeSourceSyncWarning[]> {
+  ): Promise<void> {
     const base = knowledgeBaseService.getById(input.fence.baseId)
     if (!isCompletedKnowledgeBase(base)) {
       throw DataApiErrorFactory.invalidOperation(
@@ -743,7 +697,7 @@ export class ExternalKnowledgeSyncService {
       )
     }
 
-    return await this.knowledgeLockManager.runExclusive(input.fence.baseId, async () => {
+    await this.knowledgeLockManager.runExclusive(input.fence.baseId, () => {
       input.signal.throwIfAborted()
       const dbService = application.get('DbService')
       const db = dbService.getDb()
@@ -755,7 +709,9 @@ export class ExternalKnowledgeSyncService {
       const items = missingDocuments.map((document) => {
         if (document.availability !== 'active') throw new StaleExternalKnowledgePublicationError()
         const item = knowledgeItemService.getById(document.knowledgeItemId)
-        if (item.type !== 'external') throw new StaleExternalKnowledgePublicationError()
+        if (item.type !== 'external' || item.status !== 'completed') {
+          throw new StaleExternalKnowledgePublicationError()
+        }
         return item
       })
 
@@ -768,116 +724,30 @@ export class ExternalKnowledgeSyncService {
           missingDocuments.map((document) => ({ documentId: document.id, expected: documentVersion(document)! })),
           'source-document-missing'
         )
-        for (const item of items) {
-          if (!knowledgeItemService.deleteCompletedExternalTx(tx, input.fence.baseId, item.id)) {
-            throw new StaleExternalKnowledgePublicationError()
-          }
+        const rootItemIds = items.map((item) => item.id)
+        const deletingItemIds = knowledgeItemService.setSubtreeStatusTx(tx, input.fence.baseId, rootItemIds, 'deleting')
+        if (
+          deletingItemIds.length !== rootItemIds.length ||
+          rootItemIds.some((itemId) => !deletingItemIds.includes(itemId))
+        ) {
+          throw new StaleExternalKnowledgePublicationError()
         }
-      })
-
-      return await this.cleanupUnavailableArtifacts(base, items, {
-        vector: 'missing-vector-cleanup-failed',
-        snapshot: 'missing-snapshot-cleanup-failed'
+        this.dependencies.enqueueKnowledgeSubtreeDeletionTx(tx, input.fence.baseId, rootItemIds)
       })
     })
   }
 
-  private async cleanupUnavailableArtifacts(
-    base: Parameters<ExternalKnowledgeSyncDependencies['getIndexStore']>[0],
-    items: KnowledgeItemOf<'external'>[],
-    warningCodes: {
-      vector: ExternalKnowledgeSourceSyncWarningCode
-      snapshot: ExternalKnowledgeSourceSyncWarningCode
-    }
-  ): Promise<ExternalKnowledgeSourceSyncWarning[]> {
-    if (items.length === 0) return []
-    const warnings: ExternalKnowledgeSourceSyncWarning[] = []
-    const itemIds = items.map((item) => item.id)
+  private acceptStagedCleanup(baseId: string, itemId: string): void {
     try {
-      const store = this.dependencies.getIndexStore(base)
-      await store.deleteMaterials(itemIds)
-    } catch {
-      warnings.push({ code: warningCodes.vector })
-      logger.warn('Failed to clean unavailable external knowledge vector material', {
-        baseId: base.id,
-        itemCount: itemIds.length,
-        code: warningCodes.vector
+      application
+        .get('DbService')
+        .withWriteTx((tx) => this.dependencies.enqueueKnowledgeSubtreeDeletionTx(tx, baseId, [itemId]))
+    } catch (error) {
+      logger.warn('Failed to admit staged external knowledge cleanup; recovery will retry', {
+        baseId,
+        itemId,
+        error
       })
     }
-    try {
-      await this.dependencies.deleteKnowledgeItemFiles(base.id, items)
-    } catch {
-      warnings.push({ code: warningCodes.snapshot })
-      logger.warn('Failed to clean unavailable external knowledge snapshots', {
-        baseId: base.id,
-        itemCount: itemIds.length,
-        code: warningCodes.snapshot
-      })
-    }
-    return warnings
-  }
-
-  private async cleanupStagedArtifacts(
-    base: Parameters<ExternalKnowledgeSyncDependencies['getIndexStore']>[0],
-    item: KnowledgeItemOf<'external'>,
-    store: ExternalKnowledgeIndexStore,
-    materialStaged: boolean,
-    snapshotStaged: boolean
-  ): Promise<ExternalKnowledgeArtifactCleanupWarning[]> {
-    const warnings: ExternalKnowledgeArtifactCleanupWarning[] = []
-    if (materialStaged) {
-      try {
-        await this.knowledgeLockManager.runExclusive(base.id, () => store.deleteMaterials([item.id]))
-      } catch {
-        warnings.push('staged-vector-cleanup-failed')
-        logger.warn('Failed to clean staged external knowledge vector material', {
-          baseId: base.id,
-          itemId: item.id,
-          code: 'staged-vector-cleanup-failed'
-        })
-      }
-    }
-    if (snapshotStaged) {
-      try {
-        await this.dependencies.deleteKnowledgeItemFiles(base.id, [item])
-      } catch {
-        warnings.push('staged-snapshot-cleanup-failed')
-        logger.warn('Failed to clean staged external knowledge snapshot', {
-          baseId: base.id,
-          itemId: item.id,
-          code: 'staged-snapshot-cleanup-failed'
-        })
-      }
-    }
-    return warnings
-  }
-
-  private async cleanupPublishedOldArtifacts(
-    base: Parameters<ExternalKnowledgeSyncDependencies['getIndexStore']>[0],
-    item: KnowledgeItemOf<'external'>,
-    store: ExternalKnowledgeIndexStore
-  ): Promise<ExternalKnowledgeArtifactCleanupWarning[]> {
-    const warnings: ExternalKnowledgeArtifactCleanupWarning[] = []
-    try {
-      await store.deleteMaterials([item.id])
-    } catch {
-      warnings.push('old-vector-cleanup-failed')
-      logger.warn('Failed to clean replaced external knowledge vector material', {
-        baseId: base.id,
-        itemId: item.id,
-        code: 'old-vector-cleanup-failed'
-      })
-    }
-    try {
-      await this.dependencies.deleteKnowledgeItemFiles(base.id, [item])
-    } catch {
-      warnings.push('old-snapshot-cleanup-failed')
-      logger.warn('Failed to clean replaced external knowledge snapshot', {
-        baseId: base.id,
-        itemId: item.id,
-        code: 'old-snapshot-cleanup-failed'
-      })
-    }
-    return warnings
   }
 }

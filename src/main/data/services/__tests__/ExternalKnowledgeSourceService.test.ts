@@ -120,7 +120,8 @@ describe('ExternalKnowledgeSourceService', () => {
     const created = dbh.db.transaction((tx) => externalKnowledgeSourceService.createTx(tx, input))
 
     expect(created).toMatchObject({ ...input, state: 'active', revision: 0, activeJobId: null })
-    expect(() =>
+    let conflict: unknown
+    try {
       dbh.db.transaction((tx) =>
         externalKnowledgeSourceService.createTx(tx, {
           ...input,
@@ -128,7 +129,15 @@ describe('ExternalKnowledgeSourceService', () => {
           name: 'Duplicate scope'
         })
       )
-    ).toThrowError(expect.objectContaining({ code: ErrorCode.CONFLICT, status: 409 }))
+    } catch (error) {
+      conflict = error
+    }
+    expect(conflict).toMatchObject({
+      code: ErrorCode.CONFLICT,
+      status: 409,
+      message: 'An external knowledge source already exists for this provider scope'
+    })
+    expect(JSON.stringify(conflict)).not.toContain(`${BASE_ID}:feishu:tenant-1:space-1`)
     expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toHaveLength(1)
   })
 

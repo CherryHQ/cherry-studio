@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ExternalKnowledgeAdmissionError } from '@main/features/knowledge'
 import { ExternalKnowledgeRuntimeError } from '@main/features/knowledge/external/ExternalKnowledgeRuntime'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -159,6 +160,51 @@ describe('knowledgeHandlers', () => {
       ctx
     ).catch((cause) => cause)
     expect(error).toBe(conflict)
+  })
+
+  it.each([
+    {
+      route: 'knowledge.external_source.create' as const,
+      service: knowledgeService.createExternalKnowledgeSource,
+      error: new ExternalKnowledgeAdmissionError('source-conflict'),
+      code: knowledgeErrorCodes.EXTERNAL_SOURCE_CONFLICT,
+      message: 'An external knowledge source already exists for this provider scope'
+    },
+    {
+      route: 'knowledge.external_source.sync' as const,
+      service: knowledgeService.requestExternalKnowledgeSourceSync,
+      error: new ExternalKnowledgeAdmissionError('target-unavailable'),
+      code: knowledgeErrorCodes.EXTERNAL_SOURCE_TARGET_UNAVAILABLE,
+      message: 'The external knowledge source target is unavailable'
+    }
+  ])('maps $route admission failures to stable safe IPC errors', async ({ route, service, error, code, message }) => {
+    service.mockRejectedValueOnce(error)
+    const input =
+      route === 'knowledge.external_source.create'
+        ? {
+            baseId: externalSource.baseId,
+            connectionId: externalSource.connectionId,
+            url: 'https://acme.feishu.cn/wiki/root',
+            name: 'Engineering Wiki'
+          }
+        : { sourceId: externalSource.id }
+
+    const result = await knowledgeHandlers[route](input as never, ctx).catch((cause) => cause)
+
+    expect(result).toBeInstanceOf(IpcError)
+    expect(result).toMatchObject({ code, message })
+    expect(JSON.stringify(result)).not.toContain(externalSource.baseId)
+    expect(JSON.stringify(result)).not.toContain(externalSource.id)
+  })
+
+  it('maps manual sync runtime shutdown to the stable stopped code', async () => {
+    knowledgeService.requestExternalKnowledgeSourceSync.mockRejectedValueOnce(
+      new ExternalKnowledgeRuntimeError('stopped')
+    )
+
+    await expect(
+      knowledgeHandlers['knowledge.external_source.sync']({ sourceId: externalSource.id }, ctx)
+    ).rejects.toMatchObject({ code: knowledgeErrorCodes.EXTERNAL_RUNTIME_STOPPED })
   })
   it('routes both Feishu application credential entries through the same user authorization command', async () => {
     const started = { authorizationSessionId: 'session-1' }

@@ -4,6 +4,7 @@ import * as z from 'zod'
 import { application } from '@application'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import type { JobHandler } from '@main/core/job/types'
+import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
 import {
   notifyExternalKnowledgeSourceChange,
@@ -22,15 +23,7 @@ const WarningCodeSchema = z.enum([
   'invalid-provider-response',
   'unsupported-resource',
   'resource-permission-denied',
-  'staged-vector-cleanup-failed',
-  'staged-snapshot-cleanup-failed',
-  'old-vector-cleanup-failed',
-  'old-snapshot-cleanup-failed',
-  'document-sync-failed',
-  'missing-vector-cleanup-failed',
-  'missing-snapshot-cleanup-failed',
-  'permission-vector-cleanup-failed',
-  'permission-snapshot-cleanup-failed'
+  'document-sync-failed'
 ])
 
 const SyncSummarySchema = z
@@ -175,7 +168,9 @@ export function createSyncExternalSourceJobHandler(
           ? null
           : event.status === 'cancelled'
             ? 'cancelled'
-            : (failedMetadata?.code ?? 'failed')
+            : event.error?.code === JOB_ERROR_CODES.HANDLER_TIMEOUT
+              ? 'timeout'
+              : (failedMetadata?.code ?? 'failed')
       const settled = application.get('DbService').withWriteTx((tx) =>
         externalKnowledgeSourceService.settleSyncTx(tx, {
           sourceId: event.input.sourceId,

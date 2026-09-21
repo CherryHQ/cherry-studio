@@ -6,7 +6,7 @@ import {
   type InsertExternalKnowledgeSourceRow,
   externalKnowledgeSourceTable
 } from '@data/db/schemas/externalKnowledgeSource'
-import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
@@ -20,6 +20,7 @@ import { knowledgeBaseService } from './KnowledgeBaseService'
 import { timestampToISO } from './utils/rowMappers'
 
 const nullableTimestampToISO = (value: number | null): string | null => (value === null ? null : timestampToISO(value))
+const SOURCE_SCOPE_CONFLICT_MESSAGE = 'An external knowledge source already exists for this provider scope'
 
 export type CreateExternalKnowledgeSourceInput = Pick<
   InsertExternalKnowledgeSourceRow,
@@ -90,7 +91,24 @@ export class ExternalKnowledgeSourceService {
     return row ? rowToEntity(row) : null
   }
 
-  createTx(tx: Pick<DbType, 'insert'>, input: CreateExternalKnowledgeSourceInput): ExternalKnowledgeSource {
+  createTx(tx: Pick<DbType, 'select' | 'insert'>, input: CreateExternalKnowledgeSourceInput): ExternalKnowledgeSource {
+    const existing = tx
+      .select({ id: externalKnowledgeSourceTable.id })
+      .from(externalKnowledgeSourceTable)
+      .where(
+        and(
+          eq(externalKnowledgeSourceTable.baseId, input.baseId),
+          eq(externalKnowledgeSourceTable.provider, input.provider),
+          eq(externalKnowledgeSourceTable.tenantId, input.tenantId),
+          eq(externalKnowledgeSourceTable.spaceId, input.spaceId)
+        )
+      )
+      .limit(1)
+      .get()
+    if (existing) {
+      throw DataApiErrorFactory.conflict(SOURCE_SCOPE_CONFLICT_MESSAGE, 'ExternalKnowledgeSource')
+    }
+
     const [row] = withSqliteErrors(
       () =>
         tx
@@ -98,10 +116,20 @@ export class ExternalKnowledgeSourceService {
           .values({ ...input, state: 'active', scheduleId: null, revision: 0 })
           .returning()
           .all(),
-      defaultHandlersFor(
-        'ExternalKnowledgeSource',
-        `${input.baseId}:${input.provider}:${input.tenantId}:${input.spaceId}`
-      )
+      {
+        unique: () => DataApiErrorFactory.conflict(SOURCE_SCOPE_CONFLICT_MESSAGE, 'ExternalKnowledgeSource'),
+        foreignKey: () => DataApiErrorFactory.notFound('ExternalKnowledgeSourceTarget'),
+        check: () =>
+          DataApiErrorFactory.validation(
+            { _root: ['External knowledge source violates persisted validation constraints'] },
+            'External knowledge source violates persisted validation constraints'
+          ),
+        notNull: () =>
+          DataApiErrorFactory.validation(
+            { _root: ['External knowledge source is missing persisted required data'] },
+            'External knowledge source is missing persisted required data'
+          )
+      } satisfies SqliteErrorHandlers
     )
     if (!row) {
       throw DataApiErrorFactory.dataInconsistent('ExternalKnowledgeSource', 'Source create result missing')

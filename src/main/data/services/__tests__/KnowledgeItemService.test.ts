@@ -687,37 +687,39 @@ describe('KnowledgeItemService', () => {
   })
 
   describe('external synchronization mutations', () => {
-    it('persists the staged UUIDv7 as the completed external item id', () => {
+    it('commits a deleting external staging row that stays hidden from normal reads', () => {
       const stagedItemId = '0198f3f2-7d21-7abc-8def-123456789abc'
 
-      const created = dbh.db.transaction((tx) =>
-        service.createCompletedExternalTx(tx, KNOWLEDGE_BASE_ID, stagedItemId, {
-          source: 'Feishu Wiki',
-          title: 'Document 1',
-          relativePath: 'external/staged-document-1.md' as PosixRelativeFilePath
-        })
-      )
+      const created = service.createDeletingExternal(KNOWLEDGE_BASE_ID, stagedItemId, {
+        source: 'Feishu Wiki',
+        title: 'Document 1',
+        relativePath: 'external/staged-document-1.md' as PosixRelativeFilePath
+      })
 
-      expect(created.id).toBe(stagedItemId)
+      expect(created).toMatchObject({ id: stagedItemId, type: 'external', status: 'deleting' })
       expect(
         dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, stagedItemId)).get()
       ).toMatchObject({
         id: stagedItemId,
-        status: 'completed'
+        status: 'deleting'
       })
+      expect(service.getItemsByBaseId(KNOWLEDGE_BASE_ID)).toEqual([])
     })
 
-    it('creates a completed external item and updates only its external metadata in the caller transaction', () => {
+    it('promotes only the matching deleting external row and keeps metadata updates available', () => {
       const relativePath = 'external/document-1.md' as PosixRelativeFilePath
       const itemId = '0198f3f2-7d22-7abc-8def-123456789abc'
 
-      const created = dbh.db.transaction((tx) =>
-        service.createCompletedExternalTx(tx, KNOWLEDGE_BASE_ID, itemId, {
-          source: 'Feishu Wiki',
-          title: 'Document 1',
-          relativePath
-        })
-      )
+      service.createDeletingExternal(KNOWLEDGE_BASE_ID, itemId, {
+        source: 'Feishu Wiki',
+        title: 'Document 1',
+        relativePath
+      })
+      const created = service.promoteDeletingExternalTx(dbh.db, KNOWLEDGE_BASE_ID, itemId, {
+        source: 'Feishu Wiki',
+        title: 'Document 1',
+        relativePath
+      })
 
       expect(created).toMatchObject({
         baseId: KNOWLEDGE_BASE_ID,
@@ -727,6 +729,7 @@ describe('KnowledgeItemService', () => {
         error: null,
         data: { source: 'Feishu Wiki', title: 'Document 1', relativePath }
       })
+      if (!created) throw new Error('Expected deleting external item to be promoted')
       expect(
         service.updateCompletedExternalMetadataTx(dbh.db, created.id, {
           baseId: KNOWLEDGE_BASE_ID,
@@ -738,25 +741,20 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('deletes only the expected completed external item through its owner transaction primitive', async () => {
-      const external = await seedItem({
-        id: EXTERNAL_CHILD_ID,
-        type: 'external',
-        status: 'completed',
-        data: {
-          source: 'Feishu Wiki',
-          title: 'External document',
-          relativePath: 'external/document.md' as PosixRelativeFilePath
-        }
-      })
+    it('does not promote another knowledge item type', async () => {
       const note = await seedItem({ id: NOTE_1_ID, status: 'completed' })
 
-      expect(service.deleteCompletedExternalTx(dbh.db, KNOWLEDGE_BASE_ID, note.id)).toBe(false)
-      expect(service.deleteCompletedExternalTx(dbh.db, KNOWLEDGE_BASE_ID, external.id)).toBe(true)
       expect(
-        dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, external.id)).get()
-      ).toBeUndefined()
-      expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, note.id)).get()).toBeDefined()
+        service.promoteDeletingExternalTx(dbh.db, KNOWLEDGE_BASE_ID, note.id, {
+          source: 'Feishu Wiki',
+          title: 'Document 1',
+          relativePath: 'external/document-1.md' as PosixRelativeFilePath
+        })
+      ).toBeNull()
+      expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, note.id)).get()).toMatchObject({
+        type: 'note',
+        status: 'completed'
+      })
     })
   })
 

@@ -7,10 +7,12 @@ import {
   createCtx,
   createDeleteSubtreeJobHandler,
   createDirectoryItem,
+  createExternalItem,
   createFileItem,
   createJobSnapshot,
   createNoteItem,
   deleteItemsByIdsMock,
+  deleteKnowledgeItemFilesMock,
   deleteKnowledgeItemFilesBestEffortMock,
   deleteMaterialsMock,
   FILE_ITEM_ID,
@@ -90,6 +92,37 @@ describe('delete-subtree job handler', () => {
     expect(deleteKnowledgeItemFilesBestEffortMock.mock.invocationCallOrder[0]).toBeLessThan(
       deleteItemsByIdsMock.mock.invocationCallOrder[0]
     )
+  })
+
+  it('keeps deleting external rows when strict snapshot cleanup fails', async () => {
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const externalItem = createExternalItem('external-1', 'deleting')
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([externalItem])
+    deleteKnowledgeItemFilesMock.mockRejectedValue(new Error('snapshot cleanup failed'))
+
+    await expect(
+      handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: [externalItem.id] }, 'delete-job'))
+    ).rejects.toThrow('snapshot cleanup failed')
+
+    expect(deleteMaterialsMock).toHaveBeenCalledWith([externalItem.id])
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
+  })
+
+  it('uses strict cleanup for external items and best-effort cleanup for ordinary items', async () => {
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const directory = createDirectoryItem('dir-1', 'deleting')
+    const file = createFileItem(FILE_ITEM_ID, 'deleting')
+    const externalItem = createExternalItem('external-1', 'deleting')
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([directory, file, externalItem])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1', externalItem.id] }, 'delete-job'))
+
+    expect(deleteKnowledgeItemFilesMock).toHaveBeenCalledWith('kb-1', [externalItem])
+    expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledWith('kb-1', [directory, file], {
+      baseId: 'kb-1',
+      jobId: 'delete-job'
+    })
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', FILE_ITEM_ID, externalItem.id])
   })
 
   it('deletes deleting rows by id', async () => {

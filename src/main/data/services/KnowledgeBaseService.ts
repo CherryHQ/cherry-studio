@@ -361,7 +361,11 @@ export class KnowledgeBaseService {
   }
 
   getById(id: string): KnowledgeBase {
-    const [row] = this.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1).all()
+    return this.getByIdTx(this.db, id)
+  }
+
+  getByIdTx(tx: Pick<DbType, 'select'>, id: string): KnowledgeBase {
+    const [row] = tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('KnowledgeBase', id)

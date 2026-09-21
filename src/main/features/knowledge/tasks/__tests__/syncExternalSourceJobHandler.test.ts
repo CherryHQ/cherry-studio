@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { JobContext, JobSettledEvent } from '@main/core/job/types'
+import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
 import {
   ExternalKnowledgeSourceSyncError,
@@ -323,6 +324,28 @@ describe('sync-external-source job handler', () => {
     await handler.onSettled?.(settledEvent())
 
     expect(notifyDataChangeMock).not.toHaveBeenCalled()
+  })
+
+  it('projects a structured handler timeout ahead of stale cancellation metadata', async () => {
+    const handler = createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 999 })
+
+    await handler.onSettled?.(
+      settledEvent({
+        status: 'failed',
+        output: undefined,
+        error: {
+          code: JOB_ERROR_CODES.HANDLER_TIMEOUT,
+          message: 'handler exceeded its deadline',
+          retryable: true
+        },
+        metadata: { externalKnowledgeSync: { code: 'cancelled', summary: summary({ indexedCount: 0 }) } }
+      })
+    )
+
+    expect(settleSyncTxMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ outcome: 'failed', errorSummary: 'timeout' })
+    )
   })
 
   it('publishes the source read model only after the settlement transaction returns', async () => {

@@ -79,11 +79,15 @@ describe('ExternalKnowledgeSyncService', () => {
   const dbh = setupTestDatabase()
   const snapshots = new Map<string, string>()
   const materials = new Map<string, unknown>()
+  const deletionAdmissions: Array<{ baseId: string; rootItemIds: string[] }> = []
+  const recoverDeletingKnowledgeItemsMock = vi.fn()
 
   beforeEach(() => {
     vi.clearAllMocks()
     snapshots.clear()
     materials.clear()
+    deletionAdmissions.length = 0
+    recoverDeletingKnowledgeItemsMock.mockReset()
 
     dbh.db
       .insert(knowledgeBaseTable)
@@ -163,15 +167,14 @@ describe('ExternalKnowledgeSyncService', () => {
     }
     const dependencies: Partial<ExternalKnowledgeSyncDependencies> = {
       createItemId: () => STAGED_ITEM_ID,
+      enqueueKnowledgeSubtreeDeletionTx: (_tx, baseId, rootItemIds) => {
+        if (rootItemIds.length === 0) return
+        deletionAdmissions.push({ baseId, rootItemIds })
+      },
+      recoverDeletingKnowledgeItems: recoverDeletingKnowledgeItemsMock,
       writeFileIntoKnowledgeBaseAt: async (baseId, relativePath, markdown) => {
         snapshots.set(`${baseId}:${relativePath}`, markdown)
         return relativePath
-      },
-      deleteKnowledgeItemFiles: async (baseId, items) => {
-        for (const item of items) {
-          const relativePath = (item.data as { relativePath: string }).relativePath
-          snapshots.delete(`${baseId}:${relativePath}`)
-        }
       },
       prepareKnowledgeMaterial: vi.fn(async ({ item }) => {
         const text = snapshots.get(`${item.baseId}:${item.data.relativePath}`)!
@@ -279,6 +282,20 @@ describe('ExternalKnowledgeSyncService', () => {
     expectTypeOf<HasIndependentSource>().toEqualTypeOf<false>()
   })
 
+  it('recovers deleting locators for the base before scanning a source', async () => {
+    const order: string[] = []
+    recoverDeletingKnowledgeItemsMock.mockImplementation(() => order.push('recover'))
+    const service = createService('body', {}, undefined, async () => {
+      order.push('scan')
+      return scanResult([])
+    })
+
+    await service.syncSource(sourceSyncInput())
+
+    expect(recoverDeletingKnowledgeItemsMock).toHaveBeenCalledWith(BASE_ID)
+    expect(order).toEqual(['recover', 'scan'])
+  })
+
   it('uses the persisted source selected by the fence even when a legacy caller supplies another source', async () => {
     dbh.db
       .insert(externalKnowledgeConnectionTable)
@@ -382,7 +399,7 @@ describe('ExternalKnowledgeSyncService', () => {
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
   })
 
-  it('publishes a new document only after its snapshot and vector material are staged under the same item id', async () => {
+  it('publishes a new document only after its durable locator, snapshot, and vector material use the same item id', async () => {
     const relativePath = KnowledgeRelativePathSchema.parse(`external/${STAGED_ITEM_ID}.md`)
     let observedBeforeMainCommit = false
     const service = createService('first line\r\nsecond line', {
@@ -391,7 +408,8 @@ describe('ExternalKnowledgeSyncService', () => {
         rebuildMaterial: (itemId, input) => {
           observedBeforeMainCommit =
             itemId === STAGED_ITEM_ID &&
-            dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, itemId)).get() === undefined &&
+            dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, itemId)).get()?.status ===
+              'deleting' &&
             dbh.db
               .select()
               .from(externalKnowledgeDocumentTable)
@@ -592,7 +610,7 @@ describe('ExternalKnowledgeSyncService', () => {
     expect([...materials.keys()]).toEqual([OLD_ITEM_ID])
   })
 
-  it('atomically replaces changed Markdown while the completed old owner stays visible through vector staging', async () => {
+  it('atomically publishes the replacement and admits durable cleanup for the old owner', async () => {
     const oldRelativePath = seedActiveDocument()
     const newRelativePath = KnowledgeRelativePathSchema.parse(`external/${STAGED_ITEM_ID}.md`)
     let oldOwnerVisibleDuringRebuild = false
@@ -608,7 +626,9 @@ describe('ExternalKnowledgeSyncService', () => {
           const oldItem = dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, OLD_ITEM_ID)).get()
           const newItem = dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, itemId)).get()
           oldOwnerVisibleDuringRebuild =
-            document?.knowledgeItemId === OLD_ITEM_ID && oldItem?.status === 'completed' && newItem === undefined
+            document?.knowledgeItemId === OLD_ITEM_ID &&
+            oldItem?.status === 'completed' &&
+            newItem?.status === 'deleting'
           materials.set(itemId, input)
         },
         deleteMaterials: async (itemIds) => itemIds.forEach((itemId) => materials.delete(itemId))
@@ -621,13 +641,16 @@ describe('ExternalKnowledgeSyncService', () => {
 
     expect(result).toEqual({ outcome: 'indexed', warnings: [] })
     expect(oldOwnerVisibleDuringRebuild).toBe(true)
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
-      expect.objectContaining({
-        id: STAGED_ITEM_ID,
-        status: 'completed',
-        data: { source: 'Engineering Wiki', title: 'Architecture', relativePath: newRelativePath }
-      })
-    ])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: OLD_ITEM_ID, status: 'deleting' }),
+        expect.objectContaining({
+          id: STAGED_ITEM_ID,
+          status: 'completed',
+          data: { source: 'Engineering Wiki', title: 'Architecture', relativePath: newRelativePath }
+        })
+      ])
+    )
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({
         id: OLD_DOCUMENT_ID,
@@ -637,9 +660,10 @@ describe('ExternalKnowledgeSyncService', () => {
         availability: 'active'
       })
     ])
-    expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(false)
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [OLD_ITEM_ID] }])
+    expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(true)
     expect(snapshots.get(`${BASE_ID}:${newRelativePath}`)).toBe('changed body')
-    expect([...materials.keys()]).toEqual([STAGED_ITEM_ID])
+    expect([...materials.keys()]).toEqual([OLD_ITEM_ID, STAGED_ITEM_ID])
   })
 
   it('publishes a newly readable version into the existing unavailable document row', async () => {
@@ -675,17 +699,21 @@ describe('ExternalKnowledgeSyncService', () => {
 
     await expect(service.syncDocument(input)).rejects.toThrow('snapshot write failed')
 
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
-      expect.objectContaining({ id: OLD_ITEM_ID, data: expect.objectContaining({ relativePath: oldRelativePath }) })
-    ])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: OLD_ITEM_ID, status: 'completed' }),
+        expect.objectContaining({ id: STAGED_ITEM_ID, status: 'deleting' })
+      ])
+    )
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ knowledgeItemId: OLD_ITEM_ID, contentHash: OLD_CONTENT_HASH })
     ])
     expect([...snapshots.keys()]).toEqual([`${BASE_ID}:${oldRelativePath}`])
     expect([...materials.keys()]).toEqual([OLD_ITEM_ID])
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [STAGED_ITEM_ID] }])
   })
 
-  it('removes the staged snapshot and leaves the old publication intact when preparation fails', async () => {
+  it('keeps the staged snapshot locatable and admits cleanup when preparation fails', async () => {
     const oldRelativePath = seedActiveDocument()
     const service = createService('changed body', {
       prepareKnowledgeMaterial: async () => {
@@ -697,15 +725,21 @@ describe('ExternalKnowledgeSyncService', () => {
 
     await expect(service.syncDocument(input)).rejects.toThrow('prepare failed')
 
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: OLD_ITEM_ID, status: 'completed' }),
+        expect.objectContaining({ id: STAGED_ITEM_ID, status: 'deleting' })
+      ])
+    )
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ knowledgeItemId: OLD_ITEM_ID, contentHash: OLD_CONTENT_HASH })
     ])
-    expect([...snapshots.keys()]).toEqual([`${BASE_ID}:${oldRelativePath}`])
+    expect([...snapshots.keys()]).toEqual([`${BASE_ID}:${oldRelativePath}`, `${BASE_ID}:external/${STAGED_ITEM_ID}.md`])
     expect([...materials.keys()]).toEqual([OLD_ITEM_ID])
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [STAGED_ITEM_ID] }])
   })
 
-  it('compensates a partially written new vector and snapshot when rebuild fails', async () => {
+  it('keeps partially written vector and snapshot artifacts locatable when rebuild fails', async () => {
     const oldRelativePath = seedActiveDocument()
     const service = createService('changed body', {
       getIndexStore: () => ({
@@ -722,33 +756,32 @@ describe('ExternalKnowledgeSyncService', () => {
 
     await expect(service.syncDocument(input)).rejects.toThrow('rebuild failed')
 
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: OLD_ITEM_ID, status: 'completed' }),
+        expect.objectContaining({ id: STAGED_ITEM_ID, status: 'deleting' })
+      ])
+    )
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ knowledgeItemId: OLD_ITEM_ID, contentHash: OLD_CONTENT_HASH })
     ])
-    expect([...snapshots.keys()]).toEqual([`${BASE_ID}:${oldRelativePath}`])
-    expect([...materials.keys()]).toEqual([OLD_ITEM_ID])
+    expect([...snapshots.keys()]).toEqual([`${BASE_ID}:${oldRelativePath}`, `${BASE_ID}:external/${STAGED_ITEM_ID}.md`])
+    expect([...materials.keys()]).toEqual([OLD_ITEM_ID, STAGED_ITEM_ID])
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [STAGED_ITEM_ID] }])
   })
 
-  it('rolls back visibility and compensates new artifacts when the main database transaction fails', async () => {
+  it('keeps the locator and staged artifacts when the publication transaction fails', async () => {
     const oldRelativePath = seedActiveDocument()
-    dbh.db
-      .insert(knowledgeItemTable)
-      .values({
-        id: STAGED_ITEM_ID,
-        baseId: BASE_ID,
-        groupId: null,
-        type: 'note',
-        data: { source: 'conflicting item', content: 'conflict' },
-        status: 'completed',
-        error: null
-      })
-      .run()
-    const service = createService('changed body')
+    const service = createService('changed body', {
+      enqueueKnowledgeSubtreeDeletionTx: (_tx, baseId, rootItemIds) => {
+        if (rootItemIds.includes(OLD_ITEM_ID)) throw new Error('publication cleanup admission failed')
+        deletionAdmissions.push({ baseId, rootItemIds })
+      }
+    })
     const input = syncInput()
     input.reference = reference({ remoteRevision: 'revision-2' })
 
-    await expect(service.syncDocument(input)).rejects.toThrow()
+    await expect(service.syncDocument(input)).rejects.toThrow('publication cleanup admission failed')
 
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ knowledgeItemId: OLD_ITEM_ID, contentHash: OLD_CONTENT_HASH })
@@ -757,9 +790,16 @@ describe('ExternalKnowledgeSyncService', () => {
       id: OLD_ITEM_ID,
       status: 'completed'
     })
-    expect(snapshots.has(`${BASE_ID}:external/${STAGED_ITEM_ID}.md`)).toBe(false)
+    expect(
+      dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, STAGED_ITEM_ID)).get()
+    ).toMatchObject({
+      id: STAGED_ITEM_ID,
+      status: 'deleting'
+    })
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [STAGED_ITEM_ID] }])
+    expect(snapshots.has(`${BASE_ID}:external/${STAGED_ITEM_ID}.md`)).toBe(true)
     expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(true)
-    expect([...materials.keys()]).toEqual([OLD_ITEM_ID])
+    expect([...materials.keys()]).toEqual([OLD_ITEM_ID, STAGED_ITEM_ID])
   })
 
   it.each([
@@ -795,12 +835,18 @@ describe('ExternalKnowledgeSyncService', () => {
     const result = await service.syncDocument(input)
 
     expect(result).toEqual({ outcome: 'skipped', warnings: ['stale-publication'] })
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: OLD_ITEM_ID, status: 'completed' }),
+        expect.objectContaining({ id: STAGED_ITEM_ID, status: 'deleting' })
+      ])
+    )
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ knowledgeItemId: OLD_ITEM_ID, contentHash: OLD_CONTENT_HASH })
     ])
-    expect([...snapshots.keys()]).toEqual([`${BASE_ID}:${oldRelativePath}`])
+    expect([...snapshots.keys()]).toEqual([`${BASE_ID}:${oldRelativePath}`, `${BASE_ID}:external/${STAGED_ITEM_ID}.md`])
     expect([...materials.keys()]).toEqual([OLD_ITEM_ID])
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [STAGED_ITEM_ID] }])
   })
 
   it('skips a staged replacement when the expected document version changes before the base lock', async () => {
@@ -821,15 +867,21 @@ describe('ExternalKnowledgeSyncService', () => {
     const result = await service.syncDocument(input)
 
     expect(result).toEqual({ outcome: 'skipped', warnings: ['stale-publication'] })
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: OLD_ITEM_ID, status: 'completed' }),
+        expect.objectContaining({ id: STAGED_ITEM_ID, status: 'deleting' })
+      ])
+    )
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ knowledgeItemId: OLD_ITEM_ID, remoteRevision: 'raced-revision' })
     ])
-    expect([...snapshots.keys()]).toEqual([`${BASE_ID}:${oldRelativePath}`])
+    expect([...snapshots.keys()]).toEqual([`${BASE_ID}:${oldRelativePath}`, `${BASE_ID}:external/${STAGED_ITEM_ID}.md`])
     expect([...materials.keys()]).toEqual([OLD_ITEM_ID])
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [STAGED_ITEM_ID] }])
   })
 
-  it('compensates the staged snapshot and preserves the old publication when aborted before the base lock', async () => {
+  it('keeps the staged locator and artifacts when aborted before the base lock', async () => {
     const oldRelativePath = seedActiveDocument()
     const controller = new AbortController()
     const service = createService('changed body', {
@@ -844,15 +896,21 @@ describe('ExternalKnowledgeSyncService', () => {
 
     await expect(service.syncDocument(input)).rejects.toThrow(expect.objectContaining({ name: 'AbortError' }))
 
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: OLD_ITEM_ID, status: 'completed' }),
+        expect.objectContaining({ id: STAGED_ITEM_ID, status: 'deleting' })
+      ])
+    )
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ knowledgeItemId: OLD_ITEM_ID, contentHash: OLD_CONTENT_HASH })
     ])
-    expect([...snapshots.keys()]).toEqual([`${BASE_ID}:${oldRelativePath}`])
+    expect([...snapshots.keys()]).toEqual([`${BASE_ID}:${oldRelativePath}`, `${BASE_ID}:external/${STAGED_ITEM_ID}.md`])
     expect([...materials.keys()]).toEqual([OLD_ITEM_ID])
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [STAGED_ITEM_ID] }])
   })
 
-  it('keeps the committed replacement visible and reports warnings when old artifact cleanup fails', async () => {
+  it('does not synchronously purge old artifacts after accepting durable cleanup', async () => {
     const oldRelativePath = seedActiveDocument()
     const newRelativePath = KnowledgeRelativePathSchema.parse(`external/${STAGED_ITEM_ID}.md`)
     const service = createService('changed body', {
@@ -863,23 +921,20 @@ describe('ExternalKnowledgeSyncService', () => {
           if (itemIds.includes(OLD_ITEM_ID)) throw new Error('old vector cleanup failed')
           itemIds.forEach((itemId) => materials.delete(itemId))
         }
-      }),
-      deleteKnowledgeItemFiles: async (_baseId, items) => {
-        if (items.some((item) => item.id === OLD_ITEM_ID)) throw new Error('old snapshot cleanup failed')
-      }
+      })
     })
     const input = syncInput()
     input.reference = reference({ remoteRevision: 'revision-2' })
 
     const result = await service.syncDocument(input)
 
-    expect(result).toEqual({
-      outcome: 'indexed',
-      warnings: ['old-vector-cleanup-failed', 'old-snapshot-cleanup-failed']
-    })
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
-      expect.objectContaining({ id: STAGED_ITEM_ID, status: 'completed' })
-    ])
+    expect(result).toEqual({ outcome: 'indexed', warnings: [] })
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: OLD_ITEM_ID, status: 'deleting' }),
+        expect.objectContaining({ id: STAGED_ITEM_ID, status: 'completed' })
+      ])
+    )
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ knowledgeItemId: STAGED_ITEM_ID, remoteRevision: 'revision-2' })
     ])
@@ -887,9 +942,10 @@ describe('ExternalKnowledgeSyncService', () => {
     expect(snapshots.has(`${BASE_ID}:${newRelativePath}`)).toBe(true)
     expect(materials.has(OLD_ITEM_ID)).toBe(true)
     expect(materials.has(STAGED_ITEM_ID)).toBe(true)
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [OLD_ITEM_ID] }])
   })
 
-  it('marks a missing active document unavailable before cleaning its searchable artifacts', async () => {
+  it('marks a missing active document unavailable and durably admits artifact cleanup', async () => {
     const oldRelativePath = seedActiveDocument()
     const service = createService('unused', {}, undefined, async () => scanResult([]))
 
@@ -903,7 +959,9 @@ describe('ExternalKnowledgeSyncService', () => {
       warningCount: 0,
       warnings: []
     })
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
+      expect.objectContaining({ id: OLD_ITEM_ID, status: 'deleting' })
+    ])
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({
         id: OLD_DOCUMENT_ID,
@@ -914,8 +972,9 @@ describe('ExternalKnowledgeSyncService', () => {
         currentWarning: 'source-document-missing'
       })
     ])
-    expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(false)
-    expect(materials.has(OLD_ITEM_ID)).toBe(false)
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [OLD_ITEM_ID] }])
+    expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(true)
+    expect(materials.has(OLD_ITEM_ID)).toBe(true)
   })
 
   it.each([
@@ -1295,7 +1354,7 @@ describe('ExternalKnowledgeSyncService', () => {
     ])
   })
 
-  it('purges an existing publication only for an explicit document read permission denial', async () => {
+  it('withdraws an existing publication and durably admits cleanup only for an explicit permission denial', async () => {
     const oldRelativePath = seedActiveDocument({ remoteRevision: 'revision-0' })
     const service = createService('unused', {}, async () => {
       throw new ExternalKnowledgeRuntimeError('resource-permission-denied')
@@ -1305,12 +1364,15 @@ describe('ExternalKnowledgeSyncService', () => {
 
     expect(result.skippedCount).toBe(1)
     expect(result.warnings).toEqual([{ code: 'resource-permission-denied', remoteObjectId: 'doc-1' }])
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
+      expect.objectContaining({ id: OLD_ITEM_ID, status: 'deleting' })
+    ])
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ availability: 'unavailable', knowledgeItemId: null, contentHash: null })
     ])
-    expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(false)
-    expect(materials.has(OLD_ITEM_ID)).toBe(false)
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [OLD_ITEM_ID] }])
+    expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(true)
+    expect(materials.has(OLD_ITEM_ID)).toBe(true)
   })
 
   it('does not create rows for a new document with a read permission denial', async () => {
@@ -1337,7 +1399,12 @@ describe('ExternalKnowledgeSyncService', () => {
     const result = await service.syncSource(sourceSyncInput())
 
     expect(result.warnings).toEqual([{ code: 'document-sync-failed', remoteObjectId: 'doc-1' }])
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: OLD_ITEM_ID, status: 'completed' }),
+        expect.objectContaining({ id: STAGED_ITEM_ID, status: 'deleting' })
+      ])
+    )
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({
         availability: 'active',
@@ -1362,7 +1429,12 @@ describe('ExternalKnowledgeSyncService', () => {
     expect(result.skippedCount).toBe(1)
     expect(result.warnings).toEqual([{ code: 'document-sync-failed', remoteObjectId: 'doc-1' }])
     expect(JSON.stringify(result)).not.toContain('private prepared body failure')
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: OLD_ITEM_ID, status: 'completed' }),
+        expect.objectContaining({ id: STAGED_ITEM_ID, status: 'deleting' })
+      ])
+    )
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({
         availability: 'active',
@@ -1376,7 +1448,7 @@ describe('ExternalKnowledgeSyncService', () => {
     expect(materials.get(OLD_ITEM_ID)).toEqual({ content: 'old body' })
   })
 
-  it('does not leave rows or staged artifacts when first publication preparation fails', async () => {
+  it('keeps a durable staging locator when first publication preparation fails', async () => {
     const service = createService('new body', {
       prepareKnowledgeMaterial: async () => {
         throw new Error('private prepared body failure')
@@ -1387,75 +1459,43 @@ describe('ExternalKnowledgeSyncService', () => {
 
     expect(result.skippedCount).toBe(1)
     expect(result.warnings).toEqual([{ code: 'document-sync-failed', remoteObjectId: 'doc-1' }])
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
+      expect.objectContaining({ id: STAGED_ITEM_ID, status: 'deleting' })
+    ])
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
-    expect(snapshots.size).toBe(0)
+    expect(snapshots.size).toBe(1)
     expect(materials.size).toBe(0)
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [STAGED_ITEM_ID] }])
   })
 
-  it('reports staged artifact cleanup warnings after a tolerated document failure', async () => {
+  it('preserves the original document failure when staging cleanup admission also fails', async () => {
     const service = createService('new body', {
       prepareKnowledgeMaterial: async () => {
         throw new Error('private prepared body failure')
       },
-      deleteKnowledgeItemFiles: async () => {
-        throw new Error('private staged snapshot cleanup failure')
+      enqueueKnowledgeSubtreeDeletionTx: (_tx, _baseId, rootItemIds) => {
+        if (rootItemIds.length > 0) throw new Error('private cleanup admission failure')
       }
     })
 
     const result = await service.syncSource(sourceSyncInput())
 
-    expect(result.warningCount).toBe(2)
-    expect(result.warnings).toEqual([
-      { code: 'document-sync-failed', remoteObjectId: 'doc-1' },
-      { code: 'staged-snapshot-cleanup-failed', remoteObjectId: 'doc-1' }
-    ])
+    expect(result.warningCount).toBe(1)
+    expect(result.warnings).toEqual([{ code: 'document-sync-failed', remoteObjectId: 'doc-1' }])
     expect(JSON.stringify(result)).not.toContain('private')
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
+      expect.objectContaining({ id: STAGED_ITEM_ID, status: 'deleting' })
+    ])
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
   })
 
-  it('keeps reconciled rows invisible when missing-document artifact cleanup fails', async () => {
-    seedActiveDocument()
-    const service = createService(
-      'unused',
-      {
-        getIndexStore: () => ({
-          listExistingEmbeddingHashes: () => new Set(),
-          rebuildMaterial: (itemId, input) => materials.set(itemId, input),
-          deleteMaterials: async () => {
-            throw new Error('private vector cleanup failure')
-          }
-        }),
-        deleteKnowledgeItemFiles: async () => {
-          throw new Error('private snapshot cleanup failure')
-        }
-      },
-      undefined,
-      async () => scanResult([])
-    )
-
-    const result = await service.syncSource(sourceSyncInput())
-
-    expect(result.warningCount).toBe(result.warnings.length)
-    expect(result.warnings).toEqual([
-      { code: 'missing-vector-cleanup-failed' },
-      { code: 'missing-snapshot-cleanup-failed' }
-    ])
-    expect(JSON.stringify(result)).not.toContain('private')
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
-    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
-      expect.objectContaining({ availability: 'unavailable', knowledgeItemId: null })
-    ])
-  })
-
-  it('continues snapshot cleanup and reports a warning when opening the missing-document index store fails', async () => {
+  it('does not run missing-document artifact cleanup inline after durable admission', async () => {
     const oldRelativePath = seedActiveDocument()
     const service = createService(
       'unused',
       {
         getIndexStore: () => {
-          throw new Error('private index open failure')
+          throw new Error('inline cleanup must not open the index store')
         }
       },
       undefined,
@@ -1464,12 +1504,39 @@ describe('ExternalKnowledgeSyncService', () => {
 
     const result = await service.syncSource(sourceSyncInput())
 
-    expect(result.warnings).toEqual([{ code: 'missing-vector-cleanup-failed' }])
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([])
+    expect(result.warnings).toEqual([])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
+      expect.objectContaining({ id: OLD_ITEM_ID, status: 'deleting' })
+    ])
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ availability: 'unavailable', knowledgeItemId: null })
     ])
-    expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(false)
+    expect(snapshots.has(`${BASE_ID}:${oldRelativePath}`)).toBe(true)
+    expect(materials.has(OLD_ITEM_ID)).toBe(true)
+  })
+
+  it('rolls back missing-document withdrawal when durable cleanup admission fails', async () => {
+    seedActiveDocument()
+    const service = createService(
+      'unused',
+      {
+        enqueueKnowledgeSubtreeDeletionTx: () => {
+          throw new Error('cleanup admission failed')
+        }
+      },
+      undefined,
+      async () => scanResult([])
+    )
+
+    const error = await captureSourceError(service.syncSource(sourceSyncInput()))
+
+    expect(error.code).toBe('reconciliation-failed')
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([
+      expect.objectContaining({ id: OLD_ITEM_ID, status: 'completed' })
+    ])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
+      expect.objectContaining({ availability: 'active', knowledgeItemId: OLD_ITEM_ID })
+    ])
   })
 
   it('rolls back all missing document visibility and item deletes when one item CAS fails', async () => {
@@ -1582,9 +1649,15 @@ describe('ExternalKnowledgeSyncService', () => {
     expect(error.code).toBe('stale-publication')
     expect(error.summary.scannedCount).toBe(1)
     expect(error.summary.skippedCount).toBe(0)
-    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual([expect.objectContaining({ id: OLD_ITEM_ID })])
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: OLD_ITEM_ID, status: 'completed' }),
+        expect.objectContaining({ id: STAGED_ITEM_ID, status: 'deleting' })
+      ])
+    )
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ remoteObjectId: 'missing-doc', availability: 'active', knowledgeItemId: OLD_ITEM_ID })
     ])
+    expect(deletionAdmissions).toEqual([{ baseId: BASE_ID, rootItemIds: [STAGED_ITEM_ID] }])
   })
 })
