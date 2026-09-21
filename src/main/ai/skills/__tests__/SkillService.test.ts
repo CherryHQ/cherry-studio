@@ -1753,6 +1753,59 @@ describe('SkillService', () => {
       }
     })
 
+    it('updates a skill-specific reserved alias in place when a reinstall renames it', async () => {
+      const root = await createTempDir('github-reserved-rename-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      // Same skill path reinstalled after only the frontmatter name changed: the skill-specific
+      // URL pins one skill, so the stem row is the same skill despite the new name.
+      const sourceUrl = 'https://github.com/owner/repo/tree/main/skills/CON'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Old Name',
+        folderName: 'CON',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      const sourceDir = await createTempDir('reserved-rename-source-')
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# new')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'CON',
+        name: 'New Name',
+        description: 'Renamed skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory: string) => path.join(directory, 'SKILL.md'))
+      const skillService = new SkillService()
+      const publishSpy = vi.spyOn(skillService['installer'], 'install').mockResolvedValue(undefined)
+
+      try {
+        const installed = await skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)
+
+        expect(installed).toMatchObject({ id: SKILL_ID_1, folderName: 'CON', name: 'New Name' })
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        expect(publishSpy).toHaveBeenCalledWith(sourceDir, path.join(dataSkillsRoot, 'CON'))
+      } finally {
+        publishSpy.mockRestore()
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+        vi.mocked(findSkillMdPath).mockReset()
+      }
+    })
+
     it('does not resolve the reserved alias for a differently-cased same-URL row', async () => {
       const root = await createTempDir('github-reserved-sibling-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')
