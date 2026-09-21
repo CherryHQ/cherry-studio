@@ -265,11 +265,6 @@ export function encodeReasoningInvocation(invocation: ResolvedReasoningInvocatio
   return encodeEmissions(invocation)
 }
 
-/** Whether a wire emission is delivered via raw request body rather than providerOptions. */
-export function isRequestBodyTarget(_target: ReasoningWireTarget, delivery?: ReasoningWireDelivery): boolean {
-  return delivery === 'request-body'
-}
-
 /**
  * Top-level raw-body keys the wire declares across all its modes
  * (`chat_template_kwargs`, `extra_body`). Callers use this to route

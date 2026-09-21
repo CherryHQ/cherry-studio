@@ -577,9 +577,8 @@ function buildAgentOptions(
   // can't diverge. Assistant-less callers (translate, prompt streams) carry no capabilities;
   // they opt into reasoning by setting `request.reasoningEffort` explicitly.
   // Body-routed wire fields (e.g. `chat_template_kwargs` for self-hosted) bypass the
-  // closed Responses providerOptions schema — their delivery is declared on the wire
-  // operation via `isRequestBodyTarget` and extracted here so providerOptions stays
-  // request-body-free.
+  // closed Responses providerOptions schema — their `request-body` delivery is declared
+  // on the wire operation and extracted here so providerOptions stays request-body-free.
   const reasoningBodyParams = extractReasoningBodyParams(reasoning)
   const hasReasoningBody = Object.keys(reasoningBodyParams).length > 0
   const reasoningForProviderOptions = hasReasoningBody ? filterReasoningForProviderOptions(reasoning) : reasoning
