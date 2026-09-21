@@ -9,6 +9,7 @@ export default defineCreator({
     { pattern: '^muse-spark' },
     { pattern: '^interfaze' },
     { pattern: '^laguna-s' },
-    { pattern: '^fugu' }
+    { pattern: '^fugu' },
+    { pattern: '^arrow-2' }
   ]
 })
