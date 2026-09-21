@@ -354,7 +354,7 @@ describe('Trash domain batch adapters', () => {
         failed: [
           {
             id: staleId,
-            error: 'No longer in the Recycle Bin. Refresh and try again.',
+            error: 'No longer in the Archive. Refresh and try again.',
             reason: 'no-longer-in-recycle-bin'
           },
           { id: failedId, error: 'permission denied' }
@@ -366,7 +366,7 @@ describe('Trash domain batch adapters', () => {
       expect(screen.getByRole('checkbox', { name: `Select Failed ${testCase.label}` })).toBeChecked()
       expect(toast.warning).toHaveBeenCalledOnce()
       expect(toast.warning).toHaveBeenCalledWith(
-        'Permanently deleted: 1; no longer in the Recycle Bin: 1; other failures: 1'
+        'Permanently deleted: 1; no longer in the Archive: 1; other failures: 1'
       )
       expect(toast.info).not.toHaveBeenCalled()
       expect(toast.error).not.toHaveBeenCalled()
@@ -406,7 +406,7 @@ describe('Trash domain batch adapters', () => {
         failed: [
           {
             id: staleId,
-            error: 'No longer in the Recycle Bin. Refresh and try again.',
+            error: 'No longer in the Archive. Refresh and try again.',
             reason: 'no-longer-in-recycle-bin'
           }
         ]
@@ -414,7 +414,7 @@ describe('Trash domain batch adapters', () => {
       expect(mocks.refresh).toHaveBeenCalledTimes(1)
       expect(screen.getByRole('checkbox', { name: `Select Stale ${testCase.label}` })).toBeChecked()
       expect(toast.info).toHaveBeenCalledOnce()
-      expect(toast.info).toHaveBeenCalledWith('No longer in the Recycle Bin. Refresh and try again.')
+      expect(toast.info).toHaveBeenCalledWith('No longer in the Archive. Refresh and try again.')
       expect(toast.warning).not.toHaveBeenCalled()
       expect(toast.error).not.toHaveBeenCalled()
       expect(toast.success).not.toHaveBeenCalled()
@@ -447,9 +447,7 @@ describe('Trash domain batch adapters', () => {
 
     expect(screen.getByText('2 selected')).toBeInTheDocument()
     expect(toast.warning).toHaveBeenCalledOnce()
-    expect(toast.warning).toHaveBeenCalledWith(
-      'Permanently deleted: 0; no longer in the Recycle Bin: 2; other failures: 0'
-    )
+    expect(toast.warning).toHaveBeenCalledWith('Permanently deleted: 0; no longer in the Archive: 2; other failures: 0')
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
@@ -492,7 +490,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: 'agent-2',
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         },
         { id: 'agent-3', error: 'agent failed' }
@@ -504,9 +502,7 @@ describe('Trash domain batch adapters', () => {
     expect(screen.getByRole('checkbox', { name: 'Select Second agent' })).toBeChecked()
     expect(screen.getByRole('checkbox', { name: 'Select Third agent' })).toBeChecked()
     expect(toast.warning).toHaveBeenCalledOnce()
-    expect(toast.warning).toHaveBeenCalledWith(
-      'Permanently deleted: 1; no longer in the Recycle Bin: 1; other failures: 1'
-    )
+    expect(toast.warning).toHaveBeenCalledWith('Permanently deleted: 1; no longer in the Archive: 1; other failures: 1')
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
@@ -553,7 +549,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: 'session-2',
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         },
         { id: 'session-3', error: 'session failed' }
@@ -565,9 +561,7 @@ describe('Trash domain batch adapters', () => {
     expect(screen.getByRole('checkbox', { name: 'Select Second session' })).toBeChecked()
     expect(screen.getByRole('checkbox', { name: 'Select Third session' })).toBeChecked()
     expect(toast.warning).toHaveBeenCalledOnce()
-    expect(toast.warning).toHaveBeenCalledWith(
-      'Permanently deleted: 1; no longer in the Recycle Bin: 1; other failures: 1'
-    )
+    expect(toast.warning).toHaveBeenCalledWith('Permanently deleted: 1; no longer in the Archive: 1; other failures: 1')
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
@@ -621,7 +615,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: testCase.record.id,
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         }
       ]
@@ -630,7 +624,7 @@ describe('Trash domain batch adapters', () => {
     expect(mocks.invalidate).toHaveBeenCalledWith(testCase.invalidatePaths)
     expect(screen.getByRole('checkbox', { name: testCase.checkboxName })).toBeChecked()
     expect(toast.info).toHaveBeenCalledOnce()
-    expect(toast.info).toHaveBeenCalledWith('No longer in the Recycle Bin. Refresh and try again.')
+    expect(toast.info).toHaveBeenCalledWith('No longer in the Archive. Refresh and try again.')
     expect(toast.warning).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
@@ -694,7 +688,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: ids[500],
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         }
       ]
@@ -705,14 +699,14 @@ describe('Trash domain batch adapters', () => {
     expect(screen.getByRole('checkbox', { name: 'Select File 500.md' })).toBeChecked()
     expect(toast.warning).toHaveBeenCalledOnce()
     expect(toast.warning).toHaveBeenCalledWith(
-      'Permanently deleted: 500; no longer in the Recycle Bin: 1; other failures: 0'
+      'Permanently deleted: 500; no longer in the Archive: 1; other failures: 0'
     )
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('reports a single missing File permanent-delete failure as no longer in the Recycle Bin', async () => {
+  it('reports a single missing File permanent-delete failure as no longer in the Archive', async () => {
     const user = userEvent.setup()
     const file = deletedFile('file-missing', 'Missing')
     mocks.pagesByPath.set('/files/entries', [{ items: [file] }])
@@ -742,7 +736,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: file.id,
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         }
       ]
@@ -752,7 +746,7 @@ describe('Trash domain batch adapters', () => {
       vi.mocked(dataApiService.get).mock.invocationCallOrder[0]
     )
     expect(toast.info).toHaveBeenCalledOnce()
-    expect(toast.info).toHaveBeenCalledWith('No longer in the Recycle Bin. Refresh and try again.')
+    expect(toast.info).toHaveBeenCalledWith('No longer in the Archive. Refresh and try again.')
     expect(toast.error).not.toHaveBeenCalled()
   })
 
@@ -849,7 +843,7 @@ describe('Trash domain batch adapters', () => {
       failed: [
         {
           id: active.id,
-          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          error: 'No longer in the Archive. Refresh and try again.',
           reason: 'no-longer-in-recycle-bin'
         },
         { id: referenced.id, error: 'still referenced' }
@@ -860,9 +854,7 @@ describe('Trash domain batch adapters', () => {
     )
     expect(screen.getByText('2 selected')).toBeInTheDocument()
     expect(toast.warning).toHaveBeenCalledOnce()
-    expect(toast.warning).toHaveBeenCalledWith(
-      'Permanently deleted: 0; no longer in the Recycle Bin: 1; other failures: 1'
-    )
+    expect(toast.warning).toHaveBeenCalledWith('Permanently deleted: 0; no longer in the Archive: 1; other failures: 1')
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()

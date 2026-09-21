@@ -90,7 +90,7 @@ vi.mock('../TrashDomainSections', async () => {
 })
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
 
-const { default: TrashSettings } = await import('../TrashSettings')
+const { default: TrashSettings } = await import('../ArchiveSettings')
 
 function fileItems(count: number): TrashItem[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -146,7 +146,7 @@ describe('TrashSettings', () => {
     await i18n.changeLanguage('zh-CN')
     render(<TrashSettings />)
 
-    const tabs = within(screen.getByRole('tablist', { name: '回收站' }))
+    const tabs = within(screen.getByRole('tablist', { name: '归档' }))
     for (const name of ['助手', '话题', '智能体', '会话', '绘图', '文件']) {
       expect(tabs.getByRole('tab', { name })).toBeVisible()
     }
@@ -203,14 +203,17 @@ describe('TrashSettings', () => {
     })
     render(<TrashSettings />)
 
-    await user.click(screen.getByRole('button', { name: 'Empty Trash' }))
+    expect(screen.queryByRole('menuitem', { name: 'Empty Archive' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Empty Archive' }))
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: 'Empty Trash' }))
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Empty Archive' }))
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveTextContent('Referenced files will be kept.')
-    await user.click(within(dialog).getByRole('button', { name: 'Empty Trash' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Empty Archive' }))
 
     expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('trash.purge_now')
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Deleted: 3. Referenced files kept: 2.'))
