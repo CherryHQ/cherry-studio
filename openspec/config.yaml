@@ -1,0 +1,85 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+context: |
+  Cherry Studio — a cross-platform desktop AI assistant (Electron + React).
+  Read CLAUDE.md at the repo root first; it is the authoritative source for
+  the rules summarized here, and docs/references/** holds the detail.
+
+  Tech stack
+  - Electron (electron-vite, electron-builder), React, TypeScript
+  - pnpm workspace, Node pinned in package.json engines
+  - Tailwind CSS + Shadcn UI via @cherrystudio/ui (packages/ui)
+  - SQLite through better-sqlite3 + Drizzle ORM — the driver is SYNCHRONOUS
+  - Vitest 3 for tests, Oxlint/ESLint + Oxfmt for lint and format
+  - i18next for all user-visible strings
+
+  Layout
+  - src/main (main process), src/renderer, src/preload, src/shared
+  - packages/: ai-sdk-provider, aiCore, dsh-bridge, extension-table-plus,
+    provider-registry, ui
+  - Each process root's top level is a CLOSED SET — route new code into an
+    existing category, never a new top-level directory.
+
+  Architecture rules that shape most changes
+  - Five data subsystems, pick deliberately: SQLite business data -> DataApi;
+    user setting -> Preference; losable/shared -> Cache; early boot ->
+    BootConfig; everything else imperative -> IpcApi. No DB table means no
+    DataApi endpoint.
+  - Main-process services owning long-lived resources extend BaseService with
+    @Injectable/@ServicePhase/@DependsOn, register in serviceRegistry.ts, and
+    are reached via application.get('Name'). Never `new` them.
+  - All BrowserWindow access goes through WindowManager (open()/close() only).
+  - Filesystem paths come from application.getPath('namespace.key'); never
+    app.getPath() or ad-hoc path construction.
+  - All logging goes through loggerService.withContext(...); never console.log.
+  - Migrations in migrations/sqlite-drizzle/ have SHIPPED against real user
+    data: append new ones via `pnpm db:migrations:generate`, never edit,
+    renumber, or wipe an existing migration.
+  - Four data-classification files are auto-generated; edit
+    scripts/data-classify/data/*.json and regenerate instead.
+
+  Conventions
+  - Conventional Commits with a specific kebab-case scope naming the module
+    (e.g. feat(archive-settings):, fix(model-discovery):) — never a generic
+    scope like `main`.
+  - Commits must be both signed and signed off: `git commit -S --signoff`.
+  - Branch: `main` is the default target for all active development.
+  - Surgical changes only: touch what the task requires, match existing style,
+    and do not refactor adjacent code that is not broken.
+  - No behavior-pinning tests. A test whose only assertion records what the
+    code currently does has zero value. Assert the contract: real input ->
+    the promised outcome, plus failure and edge cases.
+  - For UI work read DESIGN.md and use @cherrystudio/ui components.
+
+  Verification — check what you changed, not the whole repo
+  - `pnpm lint` covers format + typecheck + i18n:check.
+  - Tests: `pnpm test:main <file>`, test:renderer, test:aicore, test:shared,
+    test:pkg:ui, test:scripts, or `pnpm exec vitest run <file>`.
+    Never `pnpm test <path>` — the script chains vitest invocations with &&
+    and args reach only the last one.
+  - Docs-only edits need just `pnpm docs:check`.
+  - `pnpm build:check` runs the whole gate; use it for broad or risky changes.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
