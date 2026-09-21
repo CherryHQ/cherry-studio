@@ -4,10 +4,13 @@ import { app } from 'electron'
 
 import { application } from '@application'
 import type { AppEdition } from '@shared/types/appEdition'
+import { APP_ID } from '@shared/utils/branding'
 
+// Must stay in sync with `appId` in electron-builder.yml and
+// electron-builder.cn.config.cjs; appEdition.test.ts reads both and asserts it.
 const APPLICATION_IDS = {
-  global: 'com.kangfenmao.CherryStudio',
-  cn: 'com.cherryai.cherrystudio.cn'
+  global: APP_ID,
+  cn: `${APP_ID}.cn`
 } as const satisfies Record<AppEdition, string>
 
 function parseAppEdition(value: unknown): AppEdition {
