@@ -1,5 +1,9 @@
 import { application } from '@application'
-import { externalKnowledgeConnectionService } from '@data/services/ExternalKnowledgeConnectionService'
+import type { DbOrTx } from '@data/db/types'
+import {
+  type CommitExternalKnowledgeReauthorizationInput,
+  externalKnowledgeConnectionService
+} from '@data/services/ExternalKnowledgeConnectionService'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { isTerminalStatus } from '@shared/data/api/schemas/jobs'
@@ -25,6 +29,11 @@ type LifecycleDependencies = {
 }
 
 export type ActiveJobReconciliationResult = 'ready' | 'active' | 'pending-recovery'
+
+type ConnectionSourceStateChange = {
+  changedSourceIds: string[]
+  scheduleIds: string[]
+}
 
 const defaultDependencies: LifecycleDependencies = {
   waitForRetry: (signal) =>
@@ -119,8 +128,19 @@ export class ExternalKnowledgeSourceLifecycle {
     this.setConnectionSourcesState(connectionId, 'paused')
   }
 
-  resumeAfterReauthorization(connectionId: string): void {
-    this.setConnectionSourcesState(connectionId, 'active')
+  commitReauthorization(connectionId: string, input: CommitExternalKnowledgeReauthorizationInput) {
+    const { connection, change } = application.get('DbService').withWriteTx((tx) => ({
+      connection: externalKnowledgeConnectionService.commitReauthorizationTx(tx, connectionId, input),
+      change: this.setConnectionSourcesStateTx(tx, connectionId, 'active')
+    }))
+
+    return {
+      connection,
+      afterCommit: () => {
+        externalKnowledgeConnectionService.notifyReauthorizationCommitted(connectionId)
+        this.publishConnectionSourcesState(change)
+      }
+    }
   }
 
   reconcilePersistedReauthorization(): void {
@@ -239,36 +259,47 @@ export class ExternalKnowledgeSourceLifecycle {
   }
 
   private setConnectionSourcesState(connectionId: string, state: ExternalKnowledgeSourceState): void {
-    const changedSourceIds: string[] = []
-    const scheduleIds = application.get('DbService').withWriteTx((tx) => {
-      const ids: string[] = []
-      for (const source of externalKnowledgeSourceService.listByConnectionIdTx(tx, connectionId)) {
-        const nextRevision = source.state === state ? source.revision : source.revision + 1
-        if (source.scheduleId) {
-          const updated = application.get('JobManager').updateJobScheduleTx(tx, source.scheduleId, {
-            enabled: state === 'active',
-            jobInputTemplate: scheduleTemplate(source, nextRevision)
-          })
-          if (!updated) {
-            throw DataApiErrorFactory.dataInconsistent('ExternalKnowledgeSource', 'Linked schedule is missing')
-          }
-          ids.push(source.scheduleId)
-        }
-        if (source.state === state) continue
-        const changed = externalKnowledgeSourceService.setStateTx(tx, {
-          sourceId: source.id,
-          expectedRevision: source.revision,
-          expectedState: source.state,
-          state
-        })
-        if (!changed) throw DataApiErrorFactory.concurrentModification('ExternalKnowledgeSource', source.id)
-        changedSourceIds.push(source.id)
-      }
-      return ids
-    })
+    const change = application
+      .get('DbService')
+      .withWriteTx((tx) => this.setConnectionSourcesStateTx(tx, connectionId, state))
+    this.publishConnectionSourcesState(change)
+  }
 
-    for (const scheduleId of scheduleIds) application.get('JobManager').syncJobScheduleTimerById(scheduleId)
-    for (const sourceId of changedSourceIds) {
+  private setConnectionSourcesStateTx(
+    tx: DbOrTx,
+    connectionId: string,
+    state: ExternalKnowledgeSourceState
+  ): ConnectionSourceStateChange {
+    const changedSourceIds: string[] = []
+    const scheduleIds: string[] = []
+    for (const source of externalKnowledgeSourceService.listByConnectionIdTx(tx, connectionId)) {
+      const nextRevision = source.state === state ? source.revision : source.revision + 1
+      if (source.scheduleId) {
+        const updated = application.get('JobManager').updateJobScheduleTx(tx, source.scheduleId, {
+          enabled: state === 'active',
+          jobInputTemplate: scheduleTemplate(source, nextRevision)
+        })
+        if (!updated) {
+          throw DataApiErrorFactory.dataInconsistent('ExternalKnowledgeSource', 'Linked schedule is missing')
+        }
+        scheduleIds.push(source.scheduleId)
+      }
+      if (source.state === state) continue
+      const changed = externalKnowledgeSourceService.setStateTx(tx, {
+        sourceId: source.id,
+        expectedRevision: source.revision,
+        expectedState: source.state,
+        state
+      })
+      if (!changed) throw DataApiErrorFactory.concurrentModification('ExternalKnowledgeSource', source.id)
+      changedSourceIds.push(source.id)
+    }
+    return { changedSourceIds, scheduleIds }
+  }
+
+  private publishConnectionSourcesState(change: ConnectionSourceStateChange): void {
+    for (const scheduleId of change.scheduleIds) application.get('JobManager').syncJobScheduleTimerById(scheduleId)
+    for (const sourceId of change.changedSourceIds) {
       const source = externalKnowledgeSourceService.getById(sourceId)
       if (source) notifyExternalKnowledgeSourceChange(source.baseId, source.id, 'projection')
     }

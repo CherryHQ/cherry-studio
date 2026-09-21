@@ -620,12 +620,6 @@ export class KnowledgeItemService {
     logger.info('Deleted knowledge items by ids', { baseId, count: deleted.rowsAffected })
   }
 
-  deleteAllByBaseId(baseId: string): number {
-    const result = this.db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.baseId, baseId)).run()
-    logger.info('Deleted all knowledge items for base', { baseId, count: result.changes })
-    return result.changes
-  }
-
   getSubtreeItems(baseId: string, rootIds: string[], options: GetSubtreeItemsOptions = {}): KnowledgeItem[] {
     const uniqueRootIds = [...new Set(rootIds)]
     if (uniqueRootIds.length === 0) {

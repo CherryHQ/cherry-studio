@@ -34,7 +34,7 @@ vi.mock('@application', async () => {
 
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
 
-const { ExternalKnowledgeDisconnectService } = await import('../ExternalKnowledgeDisconnectService')
+const { ExternalKnowledgeDisconnect } = await import('../ExternalKnowledgeDisconnect')
 
 const BASE_ID = '11111111-1111-4111-8111-111111111111'
 const CONNECTION_ID = '0198f3f2-7d10-7abc-8def-123456789abc'
@@ -46,7 +46,7 @@ const ACTIVE_JOB_ID = '0198f3f2-7d15-7abc-8def-123456789abc'
 const SCHEDULE_ID = '22222222-2222-4222-8222-222222222222'
 const DELETION_JOB_ID = '0198f3f2-7d16-7abc-8def-123456789abc'
 
-describe('ExternalKnowledgeDisconnectService', () => {
+describe('ExternalKnowledgeDisconnect', () => {
   const dbh = setupTestDatabase()
 
   const seedSource = () => {
@@ -207,7 +207,7 @@ describe('ExternalKnowledgeDisconnectService', () => {
   })
 
   it('keeps completed local content ownerless while deleting the source and every document record', async () => {
-    const service = new ExternalKnowledgeDisconnectService(new KeyedMutex())
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
 
     await service.disconnect({ sourceId: SOURCE_ID, mode: 'keep-local' })
 
@@ -225,7 +225,7 @@ describe('ExternalKnowledgeDisconnectService', () => {
   })
 
   it('durably marks owned content deleting and enqueues subtree cleanup before removing ownership', async () => {
-    const service = new ExternalKnowledgeDisconnectService(new KeyedMutex())
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
 
     await service.disconnect({ sourceId: SOURCE_ID, mode: 'remove-local' })
 
@@ -244,7 +244,7 @@ describe('ExternalKnowledgeDisconnectService', () => {
 
   it('leaves the source untouched when schedule unregistering fails', async () => {
     unregisterScheduleMock.mockResolvedValueOnce(false)
-    const service = new ExternalKnowledgeDisconnectService(new KeyedMutex())
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
 
     await expect(service.disconnect({ sourceId: SOURCE_ID, mode: 'keep-local' })).rejects.toMatchObject({
       code: ErrorCode.INVALID_OPERATION
@@ -259,7 +259,7 @@ describe('ExternalKnowledgeDisconnectService', () => {
 
   it('stops destructive cleanup when active work cannot settle', async () => {
     cancelMock.mockResolvedValueOnce({ outcome: 'timed-out' })
-    const service = new ExternalKnowledgeDisconnectService(new KeyedMutex())
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
 
     await expect(service.disconnect({ sourceId: SOURCE_ID, mode: 'remove-local' })).rejects.toMatchObject({
       code: ErrorCode.INVALID_OPERATION
@@ -284,7 +284,7 @@ describe('ExternalKnowledgeDisconnectService', () => {
         .run()
       return { outcome: 'cancelled' }
     })
-    const service = new ExternalKnowledgeDisconnectService(new KeyedMutex())
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
 
     await expect(service.disconnect({ sourceId: SOURCE_ID, mode: 'remove-local' })).rejects.toMatchObject({
       code: ErrorCode.CONCURRENT_MODIFICATION
@@ -314,32 +314,38 @@ describe('ExternalKnowledgeDisconnectService', () => {
       expect(lockHeld).toBe(false)
       return { outcome: 'cancelled' }
     })
-    const service = new ExternalKnowledgeDisconnectService(lockManager)
+    const service = new ExternalKnowledgeDisconnect(lockManager)
 
     await service.disconnect({ sourceId: SOURCE_ID, mode: 'keep-local' })
 
     expect(lockManager.runExclusive).toHaveBeenCalledTimes(2)
   })
 
-  it('removes every source and document only after base schedules are unregistered', async () => {
-    const service = new ExternalKnowledgeDisconnectService(new KeyedMutex())
+  it('unregisters base schedules without deleting canonical source or document rows', async () => {
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
 
-    await service.prepareExternalSourcesForBaseDeletion(BASE_ID)
+    const sourceIds = await service.prepareExternalSourcesForBaseDeletion(BASE_ID)
 
     expect(unregisterScheduleMock).toHaveBeenCalledWith(SCHEDULE_ID)
-    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toEqual([])
-    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toMatchObject([
+      { id: SOURCE_ID, scheduleId: null }
+    ])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toHaveLength(2)
     expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, ITEM_ID)).get()).toMatchObject({
       id: ITEM_ID,
       status: 'completed'
     })
     expect(dbh.db.select().from(externalKnowledgeConnectionTable).all()).toHaveLength(1)
     expect(cancelMock).not.toHaveBeenCalled()
+    expect(sourceIds).toEqual([SOURCE_ID])
+
+    service.notifyExternalSourcesDeleted(BASE_ID, sourceIds)
+    expect(notifyDataChangeMock).toHaveBeenCalled()
   })
 
   it('keeps base sources and documents when schedule cleanup fails', async () => {
     unregisterScheduleMock.mockResolvedValueOnce(false)
-    const service = new ExternalKnowledgeDisconnectService(new KeyedMutex())
+    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
 
     await expect(service.prepareExternalSourcesForBaseDeletion(BASE_ID)).rejects.toMatchObject({
       code: ErrorCode.INVALID_OPERATION

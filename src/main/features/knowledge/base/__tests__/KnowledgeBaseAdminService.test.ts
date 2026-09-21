@@ -6,15 +6,15 @@ import type { KnowledgeIngestionService } from '../../ingestion/KnowledgeIngesti
 
 const {
   cancelActiveKnowledgeJobsMock,
-  deleteAllByBaseIdMock,
   deleteBaseRowMock,
   deleteStoreMock,
+  notifyExternalSourcesDeletedMock,
   prepareExternalSourcesForBaseDeletionMock
 } = vi.hoisted(() => ({
   cancelActiveKnowledgeJobsMock: vi.fn(),
-  deleteAllByBaseIdMock: vi.fn(),
   deleteBaseRowMock: vi.fn(),
   deleteStoreMock: vi.fn(),
+  notifyExternalSourcesDeletedMock: vi.fn(),
   prepareExternalSourcesForBaseDeletionMock: vi.fn()
 }))
 
@@ -33,12 +33,6 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
   }
 }))
 
-vi.mock('@data/services/KnowledgeItemService', () => ({
-  knowledgeItemService: {
-    deleteAllByBaseId: deleteAllByBaseIdMock
-  }
-}))
-
 vi.mock('../../tasks/utils/cancel', () => ({
   cancelActiveKnowledgeJobs: cancelActiveKnowledgeJobsMock
 }))
@@ -52,7 +46,8 @@ function createService() {
   return {
     runExclusiveSpy,
     service: new KnowledgeBaseAdminService(lock, {} as KnowledgeIngestionService, {
-      prepareExternalSourcesForBaseDeletion: prepareExternalSourcesForBaseDeletionMock
+      prepareExternalSourcesForBaseDeletion: prepareExternalSourcesForBaseDeletionMock,
+      notifyExternalSourcesDeleted: notifyExternalSourcesDeletedMock
     })
   }
 }
@@ -61,22 +56,21 @@ describe('KnowledgeBaseAdminService deleteBase', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     cancelActiveKnowledgeJobsMock.mockResolvedValue(undefined)
-    prepareExternalSourcesForBaseDeletionMock.mockResolvedValue(undefined)
+    prepareExternalSourcesForBaseDeletionMock.mockResolvedValue(['source-1'])
     deleteStoreMock.mockResolvedValue(undefined)
-    deleteAllByBaseIdMock.mockReturnValue(0)
     deleteBaseRowMock.mockReturnValue(undefined)
   })
 
-  it('strictly settles jobs, removes external ownership, then deletes artifacts, items, and the base row', async () => {
+  it('strictly settles jobs and schedules before deleting artifacts and atomically cascading the base row', async () => {
     const events: string[] = []
     cancelActiveKnowledgeJobsMock.mockImplementation(async () => events.push('cancel-jobs'))
-    prepareExternalSourcesForBaseDeletionMock.mockImplementation(async () => events.push('remove-external-sources'))
-    deleteStoreMock.mockImplementation(async () => events.push('delete-base-artifacts'))
-    deleteAllByBaseIdMock.mockImplementation(() => {
-      events.push('delete-items')
-      return 2
+    prepareExternalSourcesForBaseDeletionMock.mockImplementation(async () => {
+      events.push('remove-schedules')
+      return ['source-1']
     })
+    deleteStoreMock.mockImplementation(async () => events.push('delete-base-artifacts'))
     deleteBaseRowMock.mockImplementation(() => events.push('delete-base'))
+    notifyExternalSourcesDeletedMock.mockImplementation(() => events.push('notify-source-deletion'))
     const { runExclusiveSpy, service } = createService()
 
     await service.deleteBase('kb-1')
@@ -87,13 +81,13 @@ describe('KnowledgeBaseAdminService deleteBase', () => {
     expect(prepareExternalSourcesForBaseDeletionMock).toHaveBeenCalledWith('kb-1')
     expect(runExclusiveSpy).toHaveBeenCalledTimes(1)
     expect(runExclusiveSpy).toHaveBeenCalledWith('kb-1', expect.any(Function))
-    expect(deleteAllByBaseIdMock).toHaveBeenCalledWith('kb-1')
+    expect(notifyExternalSourcesDeletedMock).toHaveBeenCalledWith('kb-1', ['source-1'])
     expect(events).toEqual([
       'cancel-jobs',
-      'remove-external-sources',
+      'remove-schedules',
       'delete-base-artifacts',
-      'delete-items',
-      'delete-base'
+      'delete-base',
+      'notify-source-deletion'
     ])
   })
 
@@ -106,8 +100,8 @@ describe('KnowledgeBaseAdminService deleteBase', () => {
     expect(prepareExternalSourcesForBaseDeletionMock).not.toHaveBeenCalled()
     expect(runExclusiveSpy).not.toHaveBeenCalled()
     expect(deleteStoreMock).not.toHaveBeenCalled()
-    expect(deleteAllByBaseIdMock).not.toHaveBeenCalled()
     expect(deleteBaseRowMock).not.toHaveBeenCalled()
+    expect(notifyExternalSourcesDeletedMock).not.toHaveBeenCalled()
   })
 
   it('does not delete local data when an external source schedule cannot be removed', async () => {
@@ -118,7 +112,17 @@ describe('KnowledgeBaseAdminService deleteBase', () => {
 
     expect(runExclusiveSpy).not.toHaveBeenCalled()
     expect(deleteStoreMock).not.toHaveBeenCalled()
-    expect(deleteAllByBaseIdMock).not.toHaveBeenCalled()
     expect(deleteBaseRowMock).not.toHaveBeenCalled()
+    expect(notifyExternalSourcesDeletedMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the canonical base row when derived artifact cleanup fails', async () => {
+    deleteStoreMock.mockRejectedValueOnce(new Error('artifact cleanup failed'))
+    const { service } = createService()
+
+    await expect(service.deleteBase('kb-1')).rejects.toThrow('artifact cleanup failed')
+
+    expect(deleteBaseRowMock).not.toHaveBeenCalled()
+    expect(notifyExternalSourcesDeletedMock).not.toHaveBeenCalled()
   })
 })

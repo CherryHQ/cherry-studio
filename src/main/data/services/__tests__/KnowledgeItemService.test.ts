@@ -1031,34 +1031,6 @@ describe('KnowledgeItemService', () => {
     })
   })
 
-  describe('deleteAllByBaseId', () => {
-    it('deletes every item in one base without touching another base', async () => {
-      const otherBaseId = '22222222-2222-4222-8222-222222222222'
-      await dbh.db.insert(knowledgeBaseTable).values({
-        id: otherBaseId,
-        name: 'Other KB',
-        dimensions: 1024,
-        embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
-        status: 'completed',
-        error: null,
-        chunkSize: 1024,
-        chunkOverlap: 200
-      })
-      await seedItem({ id: NOTE_1_ID })
-      await seedItem({ id: ITEM_1_ID })
-      await seedItem({ id: OTHER_ITEM_ID, baseId: otherBaseId })
-
-      expect(service.deleteAllByBaseId(KNOWLEDGE_BASE_ID)).toBe(2)
-
-      await expect(
-        dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.baseId, KNOWLEDGE_BASE_ID))
-      ).resolves.toEqual([])
-      await expect(
-        dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.baseId, otherBaseId))
-      ).resolves.toHaveLength(1)
-    })
-  })
-
   describe('updateStatus', () => {
     async function getItemRow(id: string) {
       const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)

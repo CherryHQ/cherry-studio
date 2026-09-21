@@ -381,7 +381,7 @@ describe('ExternalKnowledgeSourceService', () => {
     expect(externalKnowledgeSourceService.getById(SOURCE_ID)).toBeNull()
   })
 
-  it('lists sources in a caller transaction and blocks base cleanup until schedules are removed', () => {
+  it('lists sources and their schedule links in a caller transaction', () => {
     seedBase(BASE_ID)
     seedConnection()
     seedSource(SOURCE_ID, BASE_ID, 300)
@@ -406,12 +406,6 @@ describe('ExternalKnowledgeSourceService', () => {
     expect(externalKnowledgeSourceService.listByBaseIdTx(dbh.db, BASE_ID)).toEqual([
       expect.objectContaining({ id: SOURCE_ID, scheduleId })
     ])
-    expect(() => externalKnowledgeSourceService.deleteByBaseIdTx(dbh.db, BASE_ID)).toThrow(
-      'remove external knowledge source schedules'
-    )
-    dbh.db.delete(jobScheduleTable).where(eq(jobScheduleTable.id, scheduleId)).run()
-    expect(externalKnowledgeSourceService.deleteByBaseIdTx(dbh.db, BASE_ID)).toBe(1)
-    expect(externalKnowledgeSourceService.listByBaseIdTx(dbh.db, BASE_ID)).toEqual([])
   })
 
   it.each(['failed', 'cancelled'] as const)(

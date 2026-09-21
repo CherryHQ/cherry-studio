@@ -89,7 +89,7 @@ caller
            -> Source + initial/manual/scheduled/startup Job transaction
         -> ExternalKnowledgeSourceLifecycle
            -> Source state + JobManager schedule transaction
-        -> ExternalKnowledgeDisconnectService
+        -> ExternalKnowledgeDisconnect
            -> schedule/work settlement + local ownership cleanup
         -> knowledge.sync-external-source
            -> ExternalKnowledgeSyncService
@@ -175,6 +175,13 @@ custom Cron, and scheduling UI remain out of scope. Public
 the trusted external synchronization path may create an external item after
 its local snapshot is pinned.
 
+Terminal authorization failure pauses dependent Sources and disables their
+schedules in one synchronous main-database transaction. Successful
+reauthorization likewise commits the Connection replacement, Source revision
+and state changes, and schedule eligibility atomically. Timer synchronization
+and read-model notifications run only after commit, and reauthorization does
+not enqueue an immediate synchronization.
+
 Connection removal has a durable-delete-first contract. The runtime first runs
 a no-side-effect Source-reference preflight, closes admission for that
 credential generation, aborts and drains its authorization/request/refresh
@@ -188,11 +195,13 @@ Disconnect removes only local ownership. Keep-local preserves completed external
 items as ownerless static content; remove-local routes every owned item through
 the durable deleting-row and `knowledge.delete-subtree` cleanup path. Both modes
 unregister the schedule, settle active work, delete Source/Document rows, preserve
-the shared Connection, and leave Feishu unchanged. Base deletion applies the same
-boundary in order: settle base jobs, remove schedules, remove Source/Document
-ownership, delete the complete base directory and item rows, then delete the base
-row. A later connection to the same scope does not reattach keep-local items and
-can create duplicate local content.
+the shared Connection, and leave Feishu unchanged. Base deletion first settles
+base jobs and removes schedules, but keeps Source/Document/item rows authoritative
+while deleting derived vector artifacts. It then deletes the base row; SQLite
+foreign-key cascades remove the complete Source/Document/item ownership graph in
+the same transaction while preserving shared Connections. A later connection to
+the same scope does not reattach keep-local items and can create duplicate local
+content.
 
 The external synchronization writer first persists an invisible external item
 with status `deleting`, then stages provider-normalized Markdown and prepares its
@@ -290,6 +299,8 @@ reindex-items(baseId, itemIds)
 - `knowledge.list_item_chunks`
 - `knowledge.external_source.create`
 - `knowledge.external_source.sync`
+- `knowledge.external_source.schedule.update`
+- `knowledge.external_source.disconnect`
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. Chunks are derived index rows and are replaced wholesale by reindexing; there is no chunk-delete mutation.
 
@@ -429,12 +440,13 @@ Base deletion currently runs:
 ```text
 delete-base(baseId)
  -> cancel active Knowledge jobs in base queue
+ -> unregister External Knowledge schedules without deleting ownership rows
  -> under base mutation lock:
       delete vector store artifacts
-      delete SQLite base row
+      delete SQLite base row and cascade Source/Document/item rows atomically
 ```
 
-If vector artifact deletion fails, the SQLite base row is preserved so the user can retry deletion. If SQLite deletion fails after vector artifacts were deleted, orchestration throws an `invalidOperation` because the cross-store cleanup cannot be rolled back.
+If vector artifact deletion fails, the complete SQLite ownership graph is preserved so the user can retry deletion. If SQLite deletion fails after vector artifacts were deleted, orchestration throws an `invalidOperation` because the cross-store cleanup cannot be rolled back; the canonical rows remain available for repair or reindexing.
 
 Knowledge files are owned by the Knowledge workflow under its raw/vector storage and are not registered as FileManager `FileRef` rows. Delete/reindex cleanup stays within Knowledge-owned storage and metadata.
 

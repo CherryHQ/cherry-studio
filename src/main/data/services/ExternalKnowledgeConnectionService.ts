@@ -189,13 +189,23 @@ export class ExternalKnowledgeConnectionService {
   }
 
   commitReauthorization(id: string, input: CommitExternalKnowledgeReauthorizationInput): ExternalKnowledgeConnection {
+    const connection = this.commitReauthorizationTx(this.db, id, input)
+    this.notifyReauthorizationCommitted(id)
+    return connection
+  }
+
+  commitReauthorizationTx(
+    tx: Pick<DbType, 'select' | 'update'>,
+    id: string,
+    input: CommitExternalKnowledgeReauthorizationInput
+  ): ExternalKnowledgeConnection {
     const parsed = parseOrThrow(
       CommitExternalKnowledgeReauthorizationSchema,
       input,
       'commit external knowledge reauthorization'
     )
     const now = Date.now()
-    const [row] = this.db
+    const [row] = tx
       .update(externalKnowledgeConnectionTable)
       .set({
         credentialReference: parsed.candidateCredentialReference,
@@ -217,13 +227,15 @@ export class ExternalKnowledgeConnectionService {
       .returning()
       .all()
     if (!row) {
-      if (!this.getById(id)) throw DataApiErrorFactory.notFound('ExternalKnowledgeConnection', id)
+      if (!this.getByIdTx(tx, id)) throw DataApiErrorFactory.notFound('ExternalKnowledgeConnection', id)
       throw DataApiErrorFactory.concurrentModification('ExternalKnowledgeConnection', id)
     }
-    const connection = rowToEntity(row)
+    return rowToEntity(row)
+  }
+
+  notifyReauthorizationCommitted(id: string): void {
     this.notifyProjectionChange(id)
     logger.info('External Knowledge reauthorization committed', { connectionId: id })
-    return connection
   }
 
   remove(id: string): boolean {

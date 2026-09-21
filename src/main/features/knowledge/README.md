@@ -86,7 +86,8 @@ payloads remain in the main-only runtime boundary.
 
 Sources default to manual-only and may own one daily JobManager schedule. Pause and terminal
 reauthorization disable the schedule in the same transaction that advances the Source revision;
-successful reauthorization restores eligibility without immediately synchronizing. Disconnect
+successful reauthorization commits the Connection and restores Source/schedule eligibility in one
+transaction without immediately synchronizing. Disconnect
 unregisters the schedule and settles active work before either preserving completed content as
 ownerless static external items or admitting it to durable subtree deletion.
 

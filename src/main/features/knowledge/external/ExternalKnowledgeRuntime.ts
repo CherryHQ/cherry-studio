@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto'
 
 import { delay } from 'es-toolkit'
 
-import { externalKnowledgeConnectionService } from '@data/services/ExternalKnowledgeConnectionService'
+import {
+  type CommitExternalKnowledgeReauthorizationInput,
+  externalKnowledgeConnectionService
+} from '@data/services/ExternalKnowledgeConnectionService'
 import { registrationBegin, registrationPoll } from '@main/services/feishuAppRegistration'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { FeishuExternalKnowledgeScope } from '@shared/data/types/externalKnowledge'
@@ -125,7 +128,11 @@ type Sleep = (milliseconds: number, signal?: AbortSignal) => Promise<void>
 
 export type ExternalKnowledgeRuntimeHooks = {
   onReauthorizationRequired?(connectionId: string): void
-  onReauthorizationSucceeded?(connectionId: string): void
+}
+
+export type ExternalKnowledgeReauthorizationCommit = {
+  connection: ExternalKnowledgeConnection
+  afterCommit(): void
 }
 
 type RuntimeOptions = {
@@ -136,6 +143,10 @@ type RuntimeOptions = {
   now?: () => number
   sleep?: Sleep
   hooks?: ExternalKnowledgeRuntimeHooks
+  commitReauthorization?(
+    connectionId: string,
+    input: CommitExternalKnowledgeReauthorizationInput
+  ): ExternalKnowledgeReauthorizationCommit
 }
 
 type RegistrationSession = {
@@ -256,6 +267,7 @@ export class ExternalKnowledgeRuntime {
   private readonly now: () => number
   private readonly sleep: Sleep
   private readonly hooks: ExternalKnowledgeRuntimeHooks
+  private readonly commitReauthorization: NonNullable<RuntimeOptions['commitReauthorization']>
   private lifetime = new AbortController()
   private accepting = false
   private readonly registrationSessions = new Map<string, RegistrationSession>()
@@ -272,6 +284,12 @@ export class ExternalKnowledgeRuntime {
     this.now = options.now ?? Date.now
     this.sleep = options.sleep ?? ((milliseconds, signal) => delay(milliseconds, { signal }))
     this.hooks = options.hooks ?? {}
+    this.commitReauthorization =
+      options.commitReauthorization ??
+      ((connectionId, input) => ({
+        connection: this.connections.commitReauthorization(connectionId, input),
+        afterCommit: () => undefined
+      }))
   }
 
   async start(): Promise<void> {
@@ -906,19 +924,25 @@ export class ExternalKnowledgeRuntime {
           ...this.absoluteTokens(token)
         })
         this.assertCredentialGeneration(state, session.generation)
-        const connected = session.initial
-          ? this.connections.markConnected(session.connectionId, {
-              ...identity,
-              grantedScopes: token.grantedScopes
-            })
-          : this.connections.commitReauthorization(session.connectionId, {
-              expectedCredentialReference: session.expectedCredentialReference!,
-              candidateCredentialReference: session.candidateCredentialReference,
-              appId: session.credentials.appId,
-              appCredentialSource: session.appCredentialSource,
-              applicationName: session.applicationName,
-              identity: { ...identity, grantedScopes: token.grantedScopes }
-            })
+        let connected: ExternalKnowledgeConnection
+        let afterCommit: () => void = () => undefined
+        if (session.initial) {
+          connected = this.connections.markConnected(session.connectionId, {
+            ...identity,
+            grantedScopes: token.grantedScopes
+          })
+        } else {
+          const commit = this.commitReauthorization(session.connectionId, {
+            expectedCredentialReference: session.expectedCredentialReference!,
+            candidateCredentialReference: session.candidateCredentialReference,
+            appId: session.credentials.appId,
+            appCredentialSource: session.appCredentialSource,
+            applicationName: session.applicationName,
+            identity: { ...identity, grantedScopes: token.grantedScopes }
+          })
+          connected = commit.connection
+          afterCommit = commit.afterCommit
+        }
         session.candidateCommitted = true
         if (session.expectedCredentialReference) {
           this.rekeyCredentialState(
@@ -929,7 +953,7 @@ export class ExternalKnowledgeRuntime {
           )
         }
         state.validatedGeneration = session.generation
-        if (!session.initial) this.hooks.onReauthorizationSucceeded?.(connected.id)
+        afterCommit()
         if (session.expectedCredentialReference) {
           await this.retireCredential(session.expectedCredentialReference, signal)
         }

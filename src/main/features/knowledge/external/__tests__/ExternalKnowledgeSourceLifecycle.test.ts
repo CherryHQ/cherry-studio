@@ -321,18 +321,100 @@ describe('ExternalKnowledgeSourceLifecycle', () => {
     expect(syncTimerMock).toHaveBeenCalledTimes(2)
   })
 
-  it('restores all paused sources and schedules after reauthorization without starting a sync', () => {
+  it('commits reauthorization with dependent source and schedule state in one transaction', () => {
     seedSource({ state: 'paused', scheduleId: SCHEDULE_ID })
+    dbh.db
+      .update(externalKnowledgeConnectionTable)
+      .set({ authorizationStatus: 'reauthorization-required' })
+      .where(eq(externalKnowledgeConnectionTable.id, CONNECTION_ID))
+      .run()
+    syncTimerMock.mockImplementationOnce(() => {
+      expect(dbh.db.select().from(externalKnowledgeConnectionTable).get()).toMatchObject({
+        authorizationStatus: 'connected',
+        credentialReference: 'replacement-credential-reference'
+      })
+      expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({
+        state: 'active',
+        revision: 4
+      })
+    })
 
-    lifecycle.resumeAfterReauthorization(CONNECTION_ID)
+    const commit = lifecycle.commitReauthorization(CONNECTION_ID, {
+      expectedCredentialReference: 'credential-reference-only',
+      candidateCredentialReference: 'replacement-credential-reference',
+      appId: 'cli_replacement',
+      appCredentialSource: 'personal-agent',
+      applicationName: null,
+      identity: {
+        accountUserId: 'user-1',
+        accountOpenId: 'open-2',
+        accountUnionId: null,
+        tenantKey: 'tenant-1',
+        displayName: 'Ada',
+        avatarUrl: null,
+        grantedScopes: ['wiki:node:read']
+      }
+    })
 
-    expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({ state: 'active', revision: 4 })
+    expect(syncTimerMock).not.toHaveBeenCalled()
+    commit.afterCommit()
+
+    expect(commit.connection).toMatchObject({
+      authorizationStatus: 'connected',
+      credentialReference: 'replacement-credential-reference'
+    })
     expect(dbh.db.select().from(jobScheduleTable).get()).toMatchObject({
       enabled: true,
       jobInputTemplate: expect.objectContaining({ sourceRevision: 4 })
     })
     expect(syncTimerMock).toHaveBeenCalledWith(SCHEDULE_ID)
     expect(requestSyncForTriggerMock).not.toHaveBeenCalled()
+  })
+
+  it('rolls back the connection when dependent source restoration cannot commit', () => {
+    seedSource({ state: 'paused', scheduleId: SCHEDULE_ID })
+    dbh.db
+      .update(externalKnowledgeConnectionTable)
+      .set({ authorizationStatus: 'reauthorization-required' })
+      .where(eq(externalKnowledgeConnectionTable.id, CONNECTION_ID))
+      .run()
+    updateScheduleTxMock.mockImplementationOnce((tx: DbOrTx, id: string, patch: Record<string, unknown>) => {
+      tx.update(jobScheduleTable).set(patch).where(eq(jobScheduleTable.id, id)).run()
+      return null
+    })
+
+    expect(() =>
+      lifecycle.commitReauthorization(CONNECTION_ID, {
+        expectedCredentialReference: 'credential-reference-only',
+        candidateCredentialReference: 'replacement-credential-reference',
+        appId: 'cli_replacement',
+        appCredentialSource: 'personal-agent',
+        applicationName: null,
+        identity: {
+          accountUserId: 'user-1',
+          accountOpenId: 'open-2',
+          accountUnionId: null,
+          tenantKey: 'tenant-1',
+          displayName: 'Ada',
+          avatarUrl: null,
+          grantedScopes: ['wiki:node:read']
+        }
+      })
+    ).toThrow('Linked schedule is missing')
+
+    expect(dbh.db.select().from(externalKnowledgeConnectionTable).get()).toMatchObject({
+      authorizationStatus: 'reauthorization-required',
+      credentialReference: 'credential-reference-only'
+    })
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({
+      state: 'paused',
+      revision: 3
+    })
+    expect(dbh.db.select().from(jobScheduleTable).get()).toMatchObject({
+      enabled: false,
+      jobInputTemplate: expect.objectContaining({ sourceRevision: 3 })
+    })
+    expect(syncTimerMock).not.toHaveBeenCalled()
   })
 
   it('converges sources of persisted reauthorization-required connections before admission opens', () => {

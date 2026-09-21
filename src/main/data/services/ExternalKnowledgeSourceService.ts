@@ -304,22 +304,6 @@ export class ExternalKnowledgeSourceService {
     return result.changes > 0
   }
 
-  deleteByBaseIdTx(tx: Pick<DbType, 'select' | 'delete'>, baseId: string): number {
-    const scheduled = tx
-      .select({ id: externalKnowledgeSourceTable.id })
-      .from(externalKnowledgeSourceTable)
-      .where(and(eq(externalKnowledgeSourceTable.baseId, baseId), isNotNull(externalKnowledgeSourceTable.scheduleId)))
-      .limit(1)
-      .get()
-    if (scheduled) {
-      throw DataApiErrorFactory.invalidOperation(
-        'delete knowledge base',
-        'remove external knowledge source schedules before deleting sources'
-      )
-    }
-    return tx.delete(externalKnowledgeSourceTable).where(eq(externalKnowledgeSourceTable.baseId, baseId)).run().changes
-  }
-
   settleSyncTx(tx: Pick<DbType, 'update'>, input: SettleExternalKnowledgeSyncInput): boolean {
     const succeeded = input.outcome === 'completed' || input.outcome === 'completed-with-warnings'
     const result = tx

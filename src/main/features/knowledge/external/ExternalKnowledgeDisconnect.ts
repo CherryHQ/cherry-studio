@@ -20,10 +20,10 @@ export type DisconnectExternalKnowledgeSourceCommand = {
   mode: 'keep-local' | 'remove-local'
 }
 
-export class ExternalKnowledgeDisconnectService {
+export class ExternalKnowledgeDisconnect {
   constructor(private readonly knowledgeLockManager: KeyedMutex) {}
 
-  async prepareExternalSourcesForBaseDeletion(baseId: string): Promise<void> {
+  async prepareExternalSourcesForBaseDeletion(baseId: string): Promise<string[]> {
     const sources = externalKnowledgeSourceService.listByBaseId(baseId)
     for (const source of sources) {
       if (source.scheduleId === null) continue
@@ -36,15 +36,13 @@ export class ExternalKnowledgeDisconnectService {
       }
     }
 
-    await this.knowledgeLockManager.runExclusive(baseId, () =>
-      application.get('DbService').withWriteTx((tx) => {
-        externalKnowledgeSourceService.deleteByBaseIdTx(tx, baseId)
-      })
-    )
+    return sources.map((source) => source.id)
+  }
 
-    for (const source of sources) {
-      notifyExternalKnowledgeSourceChange(baseId, source.id, 'membership')
-      notifyExternalKnowledgeSyncContentChange(baseId, source.id)
+  notifyExternalSourcesDeleted(baseId: string, sourceIds: readonly string[]): void {
+    for (const sourceId of sourceIds) {
+      notifyExternalKnowledgeSourceChange(baseId, sourceId, 'membership')
+      notifyExternalKnowledgeSyncContentChange(baseId, sourceId)
     }
   }
 

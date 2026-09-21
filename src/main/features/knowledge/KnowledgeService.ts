@@ -28,8 +28,8 @@ import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
 import {
   type DisconnectExternalKnowledgeSourceCommand,
-  ExternalKnowledgeDisconnectService
-} from './external/ExternalKnowledgeDisconnectService'
+  ExternalKnowledgeDisconnect
+} from './external/ExternalKnowledgeDisconnect'
 import {
   type BeginAppRegistrationResult,
   type BeginAuthorizationResult,
@@ -95,10 +95,10 @@ export class KnowledgeService extends BaseService {
   private readonly externalKnowledgeRuntime = new ExternalKnowledgeRuntime({
     hooks: {
       onReauthorizationRequired: (connectionId) =>
-        this.externalKnowledgeSourceLifecycle.pauseForReauthorization(connectionId),
-      onReauthorizationSucceeded: (connectionId) =>
-        this.externalKnowledgeSourceLifecycle.resumeAfterReauthorization(connectionId)
-    }
+        this.externalKnowledgeSourceLifecycle.pauseForReauthorization(connectionId)
+    },
+    commitReauthorization: (connectionId, input) =>
+      this.externalKnowledgeSourceLifecycle.commitReauthorization(connectionId, input)
   })
   private readonly externalKnowledgeSyncService = new ExternalKnowledgeSyncService(
     this.externalKnowledgeRuntime,
@@ -112,15 +112,13 @@ export class KnowledgeService extends BaseService {
   private readonly externalKnowledgeSourceLifecycle = new ExternalKnowledgeSourceLifecycle(
     this.externalKnowledgeSyncAdmission
   )
-  private readonly externalKnowledgeDisconnectService = new ExternalKnowledgeDisconnectService(
-    this.knowledgeLockManager
-  )
+  private readonly externalKnowledgeDisconnect = new ExternalKnowledgeDisconnect(this.knowledgeLockManager)
   private readonly indexKnowledgeItem = createIndexKnowledgeItem(this.knowledgeLockManager)
   private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)
   private readonly baseAdmin = new KnowledgeBaseAdminService(
     this.knowledgeLockManager,
     this.ingestionService,
-    this.externalKnowledgeDisconnectService
+    this.externalKnowledgeDisconnect
   )
   private readonly queryService = new KnowledgeQueryService()
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
@@ -153,7 +151,16 @@ export class KnowledgeService extends BaseService {
 
   protected async onReady(): Promise<void> {
     await this.externalKnowledgeRuntime.start()
-    this.externalKnowledgeSourceLifecycle.reconcilePersistedReauthorization()
+    try {
+      this.externalKnowledgeSourceLifecycle.reconcilePersistedReauthorization()
+    } catch (error) {
+      try {
+        await this.externalKnowledgeRuntime.stop()
+      } catch (stopError) {
+        throw new AggregateError([error, stopError], 'Failed to reconcile External Knowledge startup state')
+      }
+      throw error
+    }
     if (this.externalKnowledgeInitialReconciled) {
       this.externalKnowledgeAdmissionOpen = true
     } else if (this.externalKnowledgeReconciliationRequested) {
@@ -308,7 +315,7 @@ export class KnowledgeService extends BaseService {
   }
 
   async disconnectExternalKnowledgeSource(input: DisconnectExternalKnowledgeSourceCommand): Promise<void> {
-    await this.externalKnowledgeDisconnectService.disconnect(input)
+    await this.externalKnowledgeDisconnect.disconnect(input)
   }
 
   async removeExternalKnowledgeConnection(connectionId: string): Promise<void> {

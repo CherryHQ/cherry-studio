@@ -1435,7 +1435,7 @@ describe('ExternalKnowledgeRuntime', () => {
     await expect(credentials.read('ref-one')).resolves.toEqual({ status: 'missing' })
   })
 
-  it('propagates successful reauthorization after the durable connection commit and before credential retirement', async () => {
+  it('runs post-commit reauthorization effects after the durable transition and before credential retirement', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
     const value = connection('one', 'ref-one', { authorizationStatus: 'reauthorization-required' })
@@ -1469,28 +1469,31 @@ describe('ExternalKnowledgeRuntime', () => {
         events.push('credential-retirement')
       })
     })
-    const onReauthorizationSucceeded = vi.fn((connectionId: string) => {
-      expect(connections.values.get(connectionId)).toMatchObject({
-        authorizationStatus: 'connected',
-        accountUserId: value.accountUserId,
-        tenantKey: value.tenantKey
-      })
-      events.push('reauthorization-succeeded')
-    })
+    const commitReauthorization = vi.fn((connectionId: string, input: any) => ({
+      connection: connections.commitReauthorization(connectionId, input),
+      afterCommit: () => {
+        expect(connections.values.get(connectionId)).toMatchObject({
+          authorizationStatus: 'connected',
+          accountUserId: value.accountUserId,
+          tenantKey: value.tenantKey
+        })
+        events.push('reauthorization-succeeded')
+      }
+    }))
     const runtime = new ExternalKnowledgeRuntime({
       connections,
       credentials,
       provider,
       now: () => 1_000,
-      hooks: { onReauthorizationSucceeded }
+      commitReauthorization
     })
     await runtime.start()
 
     const begun = await runtime.beginReconnect(value.id)
     await runtime.completeUserAuthorization(begun.authorizationSessionId)
 
-    expect(onReauthorizationSucceeded).toHaveBeenCalledOnce()
-    expect(onReauthorizationSucceeded).toHaveBeenCalledWith(value.id)
+    expect(commitReauthorization).toHaveBeenCalledOnce()
+    expect(commitReauthorization).toHaveBeenCalledWith(value.id, expect.any(Object))
     expect(events).toEqual(['reauthorization-succeeded', 'credential-retirement'])
   })
 

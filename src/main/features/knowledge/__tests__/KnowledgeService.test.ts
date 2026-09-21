@@ -66,14 +66,14 @@ const {
   externalKnowledgeRuntimeOptionsMock,
   externalKnowledgeSourceLifecycleUpdateScheduleMock,
   externalKnowledgeSourceLifecyclePauseReauthorizationMock,
-  externalKnowledgeSourceLifecycleResumeReauthorizationMock,
   externalKnowledgeSourceLifecycleReconcilePersistedMock,
   externalKnowledgeSourceLifecycleReconcileAllMock,
   externalKnowledgeSourceLifecycleReconcileSourceMock,
   externalKnowledgeSourceLifecycleDispatchMock,
+  externalKnowledgeSourceLifecycleCommitReauthorizationMock,
   externalKnowledgeDisconnectMock,
   externalKnowledgePrepareBaseDeletionMock,
-  knowledgeItemDeleteAllByBaseIdMock
+  externalKnowledgeNotifyBaseDeletionMock
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
@@ -124,14 +124,14 @@ const {
   externalKnowledgeRuntimeOptionsMock: vi.fn(),
   externalKnowledgeSourceLifecycleUpdateScheduleMock: vi.fn(),
   externalKnowledgeSourceLifecyclePauseReauthorizationMock: vi.fn(),
-  externalKnowledgeSourceLifecycleResumeReauthorizationMock: vi.fn(),
   externalKnowledgeSourceLifecycleReconcilePersistedMock: vi.fn(),
   externalKnowledgeSourceLifecycleReconcileAllMock: vi.fn(),
   externalKnowledgeSourceLifecycleReconcileSourceMock: vi.fn(),
   externalKnowledgeSourceLifecycleDispatchMock: vi.fn(),
+  externalKnowledgeSourceLifecycleCommitReauthorizationMock: vi.fn(),
   externalKnowledgeDisconnectMock: vi.fn(),
   externalKnowledgePrepareBaseDeletionMock: vi.fn(),
-  knowledgeItemDeleteAllByBaseIdMock: vi.fn()
+  externalKnowledgeNotifyBaseDeletionMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -216,7 +216,6 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock,
     getOutermostSelectedItemIds: knowledgeItemGetOutermostSelectedItemIdsMock,
     getRootItemsByBaseId: knowledgeItemGetRootItemsByBaseIdMock,
-    deleteAllByBaseId: knowledgeItemDeleteAllByBaseIdMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     setSubtreeStatusTx: knowledgeItemSetSubtreeStatusTxMock,
     updateStatus: knowledgeItemUpdateStatusMock
@@ -256,9 +255,9 @@ vi.mock('../external/ExternalKnowledgeRuntime', async (importOriginal) => {
 
 vi.mock('../external/ExternalKnowledgeSourceLifecycle', () => ({
   ExternalKnowledgeSourceLifecycle: class {
+    commitReauthorization = externalKnowledgeSourceLifecycleCommitReauthorizationMock
     updateSchedulePolicy = externalKnowledgeSourceLifecycleUpdateScheduleMock
     pauseForReauthorization = externalKnowledgeSourceLifecyclePauseReauthorizationMock
-    resumeAfterReauthorization = externalKnowledgeSourceLifecycleResumeReauthorizationMock
     reconcilePersistedReauthorization = externalKnowledgeSourceLifecycleReconcilePersistedMock
     reconcileAllActiveJobs = externalKnowledgeSourceLifecycleReconcileAllMock
     reconcileSourceActiveJob = externalKnowledgeSourceLifecycleReconcileSourceMock
@@ -266,10 +265,11 @@ vi.mock('../external/ExternalKnowledgeSourceLifecycle', () => ({
   }
 }))
 
-vi.mock('../external/ExternalKnowledgeDisconnectService', () => ({
-  ExternalKnowledgeDisconnectService: class {
+vi.mock('../external/ExternalKnowledgeDisconnect', () => ({
+  ExternalKnowledgeDisconnect: class {
     disconnect = externalKnowledgeDisconnectMock
     prepareExternalSourcesForBaseDeletion = externalKnowledgePrepareBaseDeletionMock
+    notifyExternalSourcesDeleted = externalKnowledgeNotifyBaseDeletionMock
   }
 }))
 
@@ -458,7 +458,6 @@ describe('KnowledgeService', () => {
       }
     )
     knowledgeItemDeleteMock.mockReturnValue(undefined)
-    knowledgeItemDeleteAllByBaseIdMock.mockReturnValue(0)
     deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
     knowledgeItemGetDeletingRootGroupsMock.mockReturnValue([])
     knowledgeItemFailInterruptedItemsMock.mockReturnValue(0)
@@ -607,20 +606,24 @@ describe('KnowledgeService', () => {
     expect(externalKnowledgeRuntimeStopMock).toHaveBeenCalledOnce()
   })
 
-  it('wires runtime reauthorization hooks to source pause and resume without requesting a sync', () => {
+  it('wires runtime reauthorization failure propagation and atomic success commit without requesting a sync', () => {
     new KnowledgeService()
     const options = externalKnowledgeRuntimeOptionsMock.mock.calls.at(-1)?.[0] as {
+      commitReauthorization(connectionId: string, input: unknown): unknown
       hooks: {
         onReauthorizationRequired(connectionId: string): void
-        onReauthorizationSucceeded(connectionId: string): void
       }
     }
+    const commit = { connection: { id: 'connection-1' }, afterCommit: vi.fn() }
+    externalKnowledgeSourceLifecycleCommitReauthorizationMock.mockReturnValueOnce(commit)
 
     options.hooks.onReauthorizationRequired('connection-1')
-    options.hooks.onReauthorizationSucceeded('connection-1')
+    expect(options.commitReauthorization('connection-1', { candidateCredentialReference: 'candidate' })).toBe(commit)
 
     expect(externalKnowledgeSourceLifecyclePauseReauthorizationMock).toHaveBeenCalledWith('connection-1')
-    expect(externalKnowledgeSourceLifecycleResumeReauthorizationMock).toHaveBeenCalledWith('connection-1')
+    expect(externalKnowledgeSourceLifecycleCommitReauthorizationMock).toHaveBeenCalledWith('connection-1', {
+      candidateCredentialReference: 'candidate'
+    })
     expect(enqueueMock).not.toHaveBeenCalled()
     expect(enqueueTxMock).not.toHaveBeenCalled()
   })
@@ -635,6 +638,19 @@ describe('KnowledgeService', () => {
     expect(externalKnowledgeRuntimeStartMock.mock.invocationCallOrder[0]).toBeLessThan(
       externalKnowledgeSourceLifecycleReconcilePersistedMock.mock.invocationCallOrder[0]
     )
+  })
+
+  it('stops a started runtime when persisted reauthorization reconciliation fails', async () => {
+    const service = new KnowledgeService()
+    const reconciliationFailure = new Error('reauthorization reconciliation failed')
+    externalKnowledgeSourceLifecycleReconcilePersistedMock.mockImplementationOnce(() => {
+      throw reconciliationFailure
+    })
+
+    await expect((service as unknown as { onReady: () => Promise<void> }).onReady()).rejects.toBe(reconciliationFailure)
+
+    expect(externalKnowledgeRuntimeStartMock).toHaveBeenCalledOnce()
+    expect(externalKnowledgeRuntimeStopMock).toHaveBeenCalledOnce()
   })
 
   it('aborts and joins active-job startup reconciliation before stopping the runtime', async () => {
@@ -1025,16 +1041,12 @@ describe('KnowledgeService', () => {
     })
     expect(externalKnowledgePrepareBaseDeletionMock).toHaveBeenCalledWith('kb-1')
     expect(deleteStoreMock).toHaveBeenCalledWith('kb-1')
-    expect(knowledgeItemDeleteAllByBaseIdMock).toHaveBeenCalledWith('kb-1')
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
     expect(listMock.mock.invocationCallOrder[0]).toBeLessThan(deleteStoreMock.mock.invocationCallOrder[0])
     expect(externalKnowledgePrepareBaseDeletionMock.mock.invocationCallOrder[0]).toBeLessThan(
       deleteStoreMock.mock.invocationCallOrder[0]
     )
     expect(deleteStoreMock.mock.invocationCallOrder[0]).toBeLessThan(
-      knowledgeItemDeleteAllByBaseIdMock.mock.invocationCallOrder[0]
-    )
-    expect(knowledgeItemDeleteAllByBaseIdMock.mock.invocationCallOrder[0]).toBeLessThan(
       knowledgeBaseDeleteMock.mock.invocationCallOrder[0]
     )
   })
