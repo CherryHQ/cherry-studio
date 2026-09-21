@@ -1743,6 +1743,7 @@ const AgentComposerInner = ({
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
           showAiDisclaimer
+          voiceTarget={{ targetId: `composer:session:${sessionId}`, sourceEntityId: sessionId }}
           text={text}
           onTextChange={handleTextChange}
           editable={!isDirectSending}

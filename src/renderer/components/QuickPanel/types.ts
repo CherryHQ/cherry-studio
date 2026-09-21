@@ -24,6 +24,10 @@ export interface QuickPanelInsertTokenOptions {
 export interface QuickPanelInputAdapter {
   getText: () => string
   getCursorOffset?: () => number
+  /** Live plain-text selection used by delayed input such as local dictation. */
+  captureReplaceRange?: () => { from: number; to: number } | null
+  /** Replaces a range expressed in the same plain-text offsets as `captureReplaceRange`. */
+  replaceRange?: (range: { from: number; to: number }, text: string) => boolean
   /**
    * Inserts at the cursor. By default `${name}` markers in the text become editable prompt-variable
    * chips (quick phrases rely on it). Pass `tokenizeVariables: false` for text from a source that

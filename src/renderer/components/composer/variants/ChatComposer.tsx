@@ -1872,6 +1872,7 @@ const ChatComposerInner = ({
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
           showAiDisclaimer
+          voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
           text={text}
           onTextChange={handleTextChange}
           tokens={tokens}

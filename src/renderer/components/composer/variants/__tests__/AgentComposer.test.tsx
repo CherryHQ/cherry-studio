@@ -945,6 +945,10 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
     expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
+    expect(mocks.surfaceProps?.voiceTarget).toEqual({
+      targetId: 'composer:session:session-1',
+      sourceEntityId: 'session-1'
+    })
   })
 
   it('limits Session knowledge choices to the Agent static binding', () => {

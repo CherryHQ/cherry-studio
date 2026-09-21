@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { FileSearch, Globe, Image, Paperclip, Pointer, Zap } from 'lucide-react'
+import { FileSearch, Globe, Image, Mic, Paperclip, Pointer, Zap } from 'lucide-react'
 
 import { type ComposerToolScope, type ToolComposerToolbarContribution, TopicType } from './types'
 
@@ -22,6 +22,17 @@ export const ATTACHMENT_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {
   },
   label: (t) => t('chat.input.upload.attachment'),
   visibleInScopes: [TopicType.Chat, TopicType.Session, 'quick-assistant', 'painting']
+}
+
+export const DICTATION_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {
+  toolbar: {
+    id: 'dictation',
+    kind: 'command',
+    order: 60,
+    icon: <Mic />
+  },
+  label: (t) => t('chat.input.dictation.title'),
+  visibleInScopes: [TopicType.Chat, TopicType.Session, 'painting']
 }
 
 export const GENERATE_IMAGE_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {
@@ -84,6 +95,7 @@ const COMPOSER_TOOLBAR_MANIFESTS: ComposerToolbarManifestDefinition[] = [
   GENERATE_IMAGE_TOOLBAR_MANIFEST,
   WEB_SEARCH_TOOLBAR_MANIFEST,
   KNOWLEDGE_BASE_TOOLBAR_MANIFEST,
+  DICTATION_TOOLBAR_MANIFEST,
   QUICK_PHRASES_TOOLBAR_MANIFEST,
   PERMISSION_MODE_TOOLBAR_MANIFEST
 ]

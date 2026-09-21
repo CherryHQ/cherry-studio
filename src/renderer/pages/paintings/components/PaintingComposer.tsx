@@ -276,6 +276,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     <ComposerToolDerivedStateProvider couldAddImageFile={couldAddImageFile} extensions={PAINTING_IMAGE_EXTS}>
       {model && <ComposerToolRuntimeHost scope={PAINTING_SCOPE} model={model} />}
       <ComposerSurface
+        voiceTarget={{ targetId: `composer:painting:${painting.id}`, sourceEntityId: painting.id }}
         text={text}
         onTextChange={handleTextChange}
         tokens={tokens}
