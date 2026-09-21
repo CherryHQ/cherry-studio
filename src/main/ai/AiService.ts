@@ -1250,6 +1250,10 @@ export class AiService extends BaseService {
     // the upstream `/models` never returns (ppio image models, Claude-on-Vertex)
     // still surface for the user to enable.
     const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    // DeepSeek's /models is authoritative; the registry also retains retired compatibility aliases.
+    if (provider.id === 'deepseek' || provider.presetProviderId === 'deepseek') {
+      return remoteModels
+    }
     const registryModels = providerRegistryService.listProviderRegistryModels({
       providerId,
       presetProviderId: provider.presetProviderId ?? null

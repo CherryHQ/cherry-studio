@@ -2648,6 +2648,33 @@ describe('AiService.listModels', () => {
     })
   })
 
+  it.each([
+    { id: 'deepseek', modelListSource: 'api' },
+    { id: 'custom-deepseek', presetProviderId: 'deepseek', modelListSource: 'api' }
+  ])('uses the live DeepSeek catalog without resurrecting retired models for $id', async (provider) => {
+    const service = createService()
+    const apiModels = ['deepseek-flash', 'deepseek-v4-pro', 'deepseek-future'].map((apiModelId) => ({
+      id: `${provider.id}::${apiModelId}`,
+      apiModelId
+    }))
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListProviderRegistryModels.mockReturnValue(
+      ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'].map((apiModelId) => ({
+        id: `${provider.id}::${apiModelId}`,
+        apiModelId
+      }))
+    )
+
+    expect(await service.listModels({ providerId: provider.id })).toEqual(apiModels)
+
+    mockListModelsFromProvider.mockResolvedValue([])
+    expect(await service.listModels({ providerId: provider.id })).toEqual([])
+
+    mockListModelsFromProvider.mockRejectedValue(new Error('Unauthorized'))
+    await expect(service.listModels({ providerId: provider.id, throwOnError: true })).rejects.toThrow('Unauthorized')
+  })
+
   it('does not impose a service-level timeout on model listing', async () => {
     vi.useFakeTimers()
     const service = createService()
