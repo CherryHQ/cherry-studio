@@ -15,6 +15,7 @@ import {
 } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter, QuickPanelInsertTextOptions } from '@renderer/components/QuickPanel'
 
+import { serializeComposerDocument } from './composerDraft'
 import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableInlineContent, getNextPromptVariableIndex } from './promptVariables'
@@ -56,6 +57,26 @@ export function deleteComposerTextRange(editor: Editor, range: { from: number; t
   editor.chain().focus().deleteRange({ from, to }).run()
 }
 
+function getComposerDraftTextOffset(editor: Editor, position: number) {
+  const prefix = editor.state.doc.cut(0, Math.max(0, Math.min(position, editor.state.doc.content.size)))
+  return serializeComposerDocument(prefix.toJSON()).text.length
+}
+
+function getComposerDraftPositionAtTextOffset(editor: Editor, textOffset: number) {
+  let low = 0
+  let high = editor.state.doc.content.size
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (getComposerDraftTextOffset(editor, middle) < textOffset) low = middle + 1
+    else high = middle
+  }
+
+  return getComposerDraftTextOffset(editor, low) === textOffset
+    ? Math.max(1, Math.min(low, editor.state.doc.content.size))
+    : null
+}
+
 /**
  * Inline content for an adapter `insertText`. `tokenizeVariables: false` keeps the text literal —
  * the caller owns which spans are fields (see `QuickPanelInsertTextOptions`).
@@ -73,6 +94,27 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
   return {
     getText: () => getComposerInputText(editor),
     getCursorOffset: () => getComposerCursorTextOffset(editor),
+    captureReplaceRange: () => ({
+      from: getComposerDraftTextOffset(editor, editor.state.selection.from),
+      to: getComposerDraftTextOffset(editor, editor.state.selection.to)
+    }),
+    replaceRange: (range, text) => {
+      if (!Number.isInteger(range.from) || !Number.isInteger(range.to) || range.from < 0 || range.to < range.from) {
+        return false
+      }
+      const draftLength = serializeComposerDocument(editor).text.length
+      if (range.to > draftLength) return false
+      const from = getComposerDraftPositionAtTextOffset(editor, range.from)
+      const to = getComposerDraftPositionAtTextOffset(editor, range.to)
+      if (from === null || to === null || to < from) return false
+
+      return editor
+        .chain()
+        .focus()
+        .setTextSelection({ from, to })
+        .insertContent(buildInsertedInlineContent(editor, text, { tokenizeVariables: false }))
+        .run()
+    },
     insertText: (insertedText, options) => {
       editor
         .chain()

@@ -25,3 +25,7 @@ export type {
   SpeechPlaybackStartInput,
   SpeechPlaybackStartResult
 } from './SpeechPlaybackService'
+export { readMessageAloud } from './messagePlayback'
+export type { ReadMessageAloudInput } from './messagePlayback'
+export { autoReadCoordinator } from './AutoReadCoordinator'
+export type { AutoReadCompletion, AutoReadResult } from './AutoReadCoordinator'

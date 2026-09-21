@@ -8,6 +8,7 @@ import { exportService, getMessageTitle } from '@renderer/services/ExportService
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
+const readMessageAloud = vi.hoisted(() => vi.fn())
 
 vi.mock('@cherrystudio/ui', async () => {
   return {
@@ -117,6 +118,8 @@ vi.mock('@renderer/services/ExportService', () => ({
   getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))
+
+vi.mock('@renderer/services/voice', () => ({ readMessageAloud }))
 
 vi.mock('@renderer/utils/export', () => ({
   messageToPlainText: vi.fn(() => 'plain text')
@@ -392,6 +395,54 @@ describe('messageMenuBarActions', () => {
     expect(typeof toolbarActions.find((action) => action.id === 'translate')?.renderToolbar).toBe('function')
     expect(typeof toolbarActions.find((action) => action.id === 'delete')?.renderToolbar).toBe('function')
     expect(typeof toolbarActions.find((action) => action.id === 'more-menu')?.renderToolbar).toBe('function')
+  })
+
+  it('exposes read aloud only for completed assistant messages with natural-language text', () => {
+    const completed = createActionContext({ messageParts: [{ type: 'text', text: 'Answer' }] as any })
+    const pending = createActionContext({
+      message: { ...completed.message, status: 'pending' },
+      messageParts: completed.messageParts
+    })
+    const user = createActionContext({
+      message: { ...completed.message, role: 'user' },
+      messageParts: completed.messageParts,
+      isAssistantMessage: false,
+      isUserMessage: true
+    })
+    const toolOnly = createActionContext({
+      messageParts: [{ type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' }] as any
+    })
+
+    expect(resolveMessageMenuBarToolbarActions(completed).map((action) => action.id)).toContain('read-aloud')
+    expect(resolveMessageMenuBarToolbarActions(pending).map((action) => action.id)).not.toContain('read-aloud')
+    expect(resolveMessageMenuBarToolbarActions(user).map((action) => action.id)).not.toContain('read-aloud')
+    expect(resolveMessageMenuBarToolbarActions(toolOnly).map((action) => action.id)).not.toContain('read-aloud')
+  })
+
+  it('keeps read aloud discoverable without Voice configuration and invokes the shared helper with trigger focus', async () => {
+    const trigger = document.createElement('button')
+    document.body.appendChild(trigger)
+    trigger.focus()
+    const messageParts = [{ type: 'text', text: 'Answer' }] as any
+    const context = createActionContext({ messageParts })
+
+    const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'read-aloud')
+
+    expect(action).toMatchObject({
+      label: 'chat.message.read_aloud.label',
+      availability: { visible: true, enabled: true }
+    })
+    await executeMessageMenuBarAction('read-aloud', context)
+    expect(readMessageAloud).toHaveBeenCalledWith({
+      messageId: 'message-1',
+      parts: messageParts,
+      focusOnClose: expect.any(Function)
+    })
+
+    trigger.blur()
+    vi.mocked(readMessageAloud).mock.calls[0]?.[0].focusOnClose()
+    expect(document.activeElement).toBe(trigger)
+    trigger.remove()
   })
 
   it('does not require confirmation before regenerating an assistant message', () => {

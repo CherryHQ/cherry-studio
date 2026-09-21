@@ -19,7 +19,10 @@ const mocks = vi.hoisted(() => ({
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
   invalidateMessages: vi.fn(),
-  toastWarning: vi.fn()
+  toastWarning: vi.fn(),
+  autoReadConsume: vi.fn(async () => ({ status: 'started' })),
+  autoReadSetEnabled: vi.fn(async () => undefined),
+  autoReadEnabled: true
 }))
 
 // respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
@@ -41,6 +44,17 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: mocks.useExecutionOverlay
+}))
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => [mocks.autoReadEnabled, vi.fn()]
+}))
+
+vi.mock('@renderer/services/voice', () => ({
+  autoReadCoordinator: {
+    consume: mocks.autoReadConsume,
+    setEnabled: mocks.autoReadSetEnabled
+  }
 }))
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
@@ -152,6 +166,9 @@ describe('useAgentChatRuntimeState', () => {
     mocks.chatStop.mockResolvedValue(undefined)
     mocks.sendTurn.mockReset()
     mocks.sendTurn.mockResolvedValue(true)
+    mocks.autoReadConsume.mockClear()
+    mocks.autoReadSetEnabled.mockClear()
+    mocks.autoReadEnabled = true
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],
       isLoading: false,
@@ -216,7 +233,7 @@ describe('useAgentChatRuntimeState', () => {
     expect(sent).toBe(false)
   })
 
-  it('does not wire per-overlay finish refresh for agent sessions', () => {
+  it('wires auto-read to overlay finish without taking over the terminal refresh handoff', () => {
     renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
@@ -225,9 +242,72 @@ describe('useAgentChatRuntimeState', () => {
       })
     )
 
-    expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
+    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onFinish
+    expect(onFinish).toEqual(expect.any(Function))
+    const completed = {
+      ...assistantMessage,
+      parts: [{ type: 'text', text: 'final answer' }]
+    } as CherryUIMessage
+    act(() => {
+      onFinish?.('provider::model', {
+        attemptId: 4,
+        message: completed,
+        isAbort: false,
+        isError: false
+      })
+    })
+
+    expect(mocks.autoReadConsume).toHaveBeenCalledWith({
+      enabled: true,
+      message: completed,
+      attemptId: 4,
+      isAbort: false,
+      isError: false,
+      eligible: true
+    })
     expect(mocks.refresh).not.toHaveBeenCalled()
     expect(mocks.disposeOverlay).not.toHaveBeenCalled()
+  })
+
+  it.each(['goal-round', 'background-work'] as const)('skips %s autonomous turns for auto-read', (kind) => {
+    const autonomous = {
+      ...assistantMessage,
+      parts: [{ type: 'text', text: 'background result' }],
+      metadata: {
+        ...assistantMessage.metadata,
+        turnOrigin: kind === 'goal-round' ? { kind, round: 2 } : { kind }
+      }
+    } as CherryUIMessage
+    mocks.useAgentSessionParts.mockReturnValue({
+      messages: [autonomous],
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: mocks.refresh,
+      seedReservedMessages: mocks.seedReservedMessages,
+      deleteMessage: mocks.deleteSessionMessage
+    })
+    renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onFinish
+
+    act(() => {
+      onFinish?.('provider::model', {
+        attemptId: 9,
+        message: { ...autonomous, metadata: undefined } as CherryUIMessage,
+        isAbort: false,
+        isError: false
+      })
+    })
+
+    expect(mocks.autoReadConsume).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.objectContaining({ id: autonomous.id }), eligible: false })
+    )
   })
 
   it('invalidates disclosure state after deleting a session message', async () => {

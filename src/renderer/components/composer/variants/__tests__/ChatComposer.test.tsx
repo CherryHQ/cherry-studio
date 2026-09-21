@@ -830,6 +830,10 @@ describe('ChatComposer', () => {
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+    expect(mocks.surfaceProps?.voiceTarget).toEqual({
+      targetId: `composer:chat:${topic.id}`,
+      sourceEntityId: topic.id
+    })
   })
 
   it('renders context usage after the speed control next to the send action', () => {

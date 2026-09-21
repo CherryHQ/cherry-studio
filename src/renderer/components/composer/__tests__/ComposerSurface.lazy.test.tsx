@@ -1,6 +1,6 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ComposerSurface, {
@@ -14,8 +14,27 @@ const mocks = vi.hoisted(() => ({
   onSendDraft: vi.fn(),
   runtimeLoads: 0,
   runtimeIntent: undefined as ComposerDeferredIntent | undefined,
+  runtimeInputAdapter: {
+    captureReplaceRange: vi.fn(() => ({ from: 4, to: 4 })),
+    replaceRange: vi.fn(() => true)
+  },
   runtimeTokens: [] as Array<{ id: string; kind: string; label?: string }>,
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  voiceBind: vi.fn(),
+  voiceMarkCurrent: vi.fn(),
+  voiceRegistration: undefined as any,
+  voiceUnbind: vi.fn()
+}))
+
+vi.mock('@renderer/services/voice', () => ({
+  voiceTargetManager: {
+    bind: (registration: unknown) => {
+      mocks.voiceRegistration = registration
+      mocks.voiceBind(registration)
+      return mocks.voiceUnbind
+    },
+    markCurrent: (...args: unknown[]) => mocks.voiceMarkCurrent(...args)
+  }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -46,21 +65,32 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../ComposerSurfaceRuntime', () => {
   mocks.runtimeLoads += 1
+  const MockComposerSurfaceRuntime = ({
+    initialTextSelection,
+    text,
+    deferredIntent,
+    tokens,
+    onInputAdapterChange
+  }: ComposerSurfaceProps) => {
+    mocks.runtimeIntent = deferredIntent
+    mocks.runtimeTokens = tokens.map((token) => ({ id: token.id, kind: token.kind, label: token.label }))
+    useEffect(() => {
+      onInputAdapterChange?.(mocks.runtimeInputAdapter as never)
+      return () => onInputAdapterChange?.(undefined)
+    }, [onInputAdapterChange])
+    return (
+      <div
+        data-testid="composer-runtime"
+        data-selection={`${initialTextSelection?.start}:${initialTextSelection?.end}`}>
+        {text}
+        {tokens.map((token) => (
+          <span key={token.id}>{token.label}</span>
+        ))}
+      </div>
+    )
+  }
   return {
-    default: ({ initialTextSelection, text, deferredIntent, tokens }: ComposerSurfaceProps) => {
-      mocks.runtimeIntent = deferredIntent
-      mocks.runtimeTokens = tokens.map((token) => ({ id: token.id, kind: token.kind, label: token.label }))
-      return (
-        <div
-          data-testid="composer-runtime"
-          data-selection={`${initialTextSelection?.start}:${initialTextSelection?.end}`}>
-          {text}
-          {tokens.map((token) => (
-            <span key={token.id}>{token.label}</span>
-          ))}
-        </div>
-      )
-    }
+    default: MockComposerSurfaceRuntime
   }
 })
 
@@ -121,6 +151,12 @@ describe('deferred ComposerSurface', () => {
     mocks.runtimeTokens = []
     mocks.onSendDraft.mockClear()
     mocks.toastError.mockClear()
+    mocks.runtimeInputAdapter.captureReplaceRange.mockClear()
+    mocks.runtimeInputAdapter.replaceRange.mockClear()
+    mocks.voiceBind.mockClear()
+    mocks.voiceMarkCurrent.mockClear()
+    mocks.voiceRegistration = undefined
+    mocks.voiceUnbind.mockClear()
     MockUsePreferenceUtils.resetMocks()
   })
 
@@ -132,7 +168,7 @@ describe('deferred ComposerSurface', () => {
   it('matches the regular composer shell before loading the rich runtime', () => {
     const { container } = render(<Harness editable={undefined} />)
 
-    const input = screen.getByRole('textbox', { name: 'Message' })
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
     const inputbar = container.querySelector<HTMLElement>('[data-composer-inputbar]')
     const narrowLayout = container.querySelector<HTMLElement>('.narrow-mode')
 
@@ -189,6 +225,31 @@ describe('deferred ComposerSurface', () => {
     const runtime = await screen.findByTestId('composer-runtime')
     expect(runtime).toHaveTextContent('')
     expect(runtime).toHaveAttribute('data-selection', '0:0')
+  })
+
+  it('keeps one voice target binding across the fallback-to-runtime handoff', async () => {
+    const view = render(<Harness voiceTarget={{ targetId: 'composer:chat:topic-1', sourceEntityId: 'topic-1' }} />)
+
+    await waitFor(() => expect(mocks.voiceBind).toHaveBeenCalledTimes(1))
+    const registration = mocks.voiceRegistration
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
+    input.setSelectionRange(0, 0)
+    fireEvent.select(input)
+
+    expect(registration).toMatchObject({ targetId: 'composer:chat:topic-1', sourceEntityId: 'topic-1', owner: window })
+    expect(registration.captureReplaceRange()).toEqual({ from: 0, to: 0 })
+    fireEvent.pointerDown(input.closest('[data-composer-inputbar]')!)
+    expect(mocks.voiceMarkCurrent).toHaveBeenCalledWith('composer:chat:topic-1')
+    act(() => expect(registration.replaceRange({ from: 0, to: 0 }, 'X')).toBe(true))
+    expect(await screen.findByTestId('composer-runtime')).toHaveTextContent('X')
+
+    expect(mocks.voiceBind).toHaveBeenCalledTimes(1)
+    expect(registration.captureReplaceRange()).toEqual({ from: 4, to: 4 })
+    expect(registration.replaceRange({ from: 4, to: 4 }, 'voice')).toBe(true)
+    expect(mocks.runtimeInputAdapter.replaceRange).toHaveBeenCalledWith({ from: 4, to: 4 }, 'voice')
+
+    view.unmount()
+    expect(mocks.voiceUnbind).toHaveBeenCalledTimes(1)
   })
 
   it('keeps a usable textarea and IME state until the rich runtime can replace it', async () => {

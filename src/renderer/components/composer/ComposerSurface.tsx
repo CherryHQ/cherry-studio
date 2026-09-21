@@ -13,8 +13,10 @@ import { useTranslation } from 'react-i18next'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { toast } from '@renderer/services/toast'
+import { voiceTargetManager } from '@renderer/services/voice'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
 
@@ -71,6 +73,61 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const [runtimeReady, setRuntimeReady] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
   const sendBlockedReasonRef = useRef(props.sendBlockedReason)
+  const textRef = useRef(props.text)
+  const onTextChangeRef = useRef(props.onTextChange)
+  textRef.current = props.text
+  onTextChangeRef.current = props.onTextChange
+
+  const fallbackVoiceAdapterRef = useRef<
+    Pick<QuickPanelInputAdapter, 'captureReplaceRange' | 'replaceRange'> | undefined
+  >(undefined)
+  if (!fallbackVoiceAdapterRef.current) {
+    fallbackVoiceAdapterRef.current = {
+      captureReplaceRange: () => {
+        const input = textareaRef.current
+        return input
+          ? { from: input.selectionStart, to: input.selectionEnd }
+          : { from: selectionRef.current.start, to: selectionRef.current.end }
+      },
+      replaceRange: (range, insertedText) => {
+        const current = textRef.current
+        if (
+          !Number.isInteger(range.from) ||
+          !Number.isInteger(range.to) ||
+          range.from < 0 ||
+          range.to < range.from ||
+          range.to > current.length
+        ) {
+          return false
+        }
+        const nextText = `${current.slice(0, range.from)}${insertedText}${current.slice(range.to)}`
+        const nextPosition = range.from + insertedText.length
+        selectionRef.current = { start: nextPosition, end: nextPosition }
+        onTextChangeRef.current(nextText)
+        return true
+      }
+    }
+  }
+  const voiceInputAdapterRef = useRef(fallbackVoiceAdapterRef.current)
+  const handleInputAdapterChange = useCallback((adapter: QuickPanelInputAdapter | undefined) => {
+    voiceInputAdapterRef.current = adapter ?? fallbackVoiceAdapterRef.current!
+  }, [])
+  const voiceTargetId = props.voiceTarget?.targetId
+  const voiceSourceEntityId = props.voiceTarget?.sourceEntityId
+  const markVoiceTargetCurrent = useCallback(() => {
+    if (voiceTargetId) voiceTargetManager.markCurrent(voiceTargetId)
+  }, [voiceTargetId])
+
+  useEffect(() => {
+    if (!voiceTargetId || !voiceSourceEntityId) return
+    return voiceTargetManager.bind({
+      targetId: voiceTargetId,
+      sourceEntityId: voiceSourceEntityId,
+      owner: window,
+      captureReplaceRange: () => voiceInputAdapterRef.current.captureReplaceRange?.() ?? null,
+      replaceRange: (range, text) => voiceInputAdapterRef.current.replaceRange?.(range, text) ?? false
+    })
+  }, [voiceSourceEntityId, voiceTargetId])
 
   useEffect(() => {
     sendBlockedReasonRef.current = props.sendBlockedReason
@@ -183,6 +240,8 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         showAiDisclaimer={showAiDisclaimer}
         initialTextSelection={selectionRef.current}
         deferredIntent={intentRef.current}
+        onInputAdapterChange={handleInputAdapterChange}
+        onVoiceTargetInteraction={markVoiceTargetCurrent}
       />
     )
   }
@@ -256,6 +315,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       data-ui="chat.composer"
       data-composer-inputbar=""
       data-composer-presentation="regular"
+      onPointerDownCapture={markVoiceTargetCurrent}
       className={`inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-sm ${
         belowControls ? 'mb-0.5' : 'mb-3'
       }`}>
@@ -287,6 +347,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             }}
             onFocus={() => {
               intentRef.current.hadFocus = true
+              markVoiceTargetCurrent()
               props.onFocus?.()
               // Start the rich runtime on focus, not on the first key: with a warm chunk the swap
               // would otherwise commit before the keystroke's input event, dropping the character.
