@@ -678,20 +678,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     } catch (error) {
       logger.warn('Claude Code query close failed', { sessionId: this.input.sessionId, error })
     }
-    const cleanup = query?.return(undefined).catch((error) => {
+    // The runtime owner bounds its wait; retain completion so a late teardown can unblock the session.
+    await query?.return(undefined).catch((error) => {
       logger.warn('Claude Code query cleanup failed', { sessionId: this.input.sessionId, error })
     })
-    let timer: ReturnType<typeof setTimeout> | undefined
-    try {
-      await Promise.race([
-        cleanup,
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error('Claude Code process close timed out')), 10_000)
-        })
-      ])
-    } finally {
-      clearTimeout(timer)
-    }
   }
 
   private async runQueryLoop(): Promise<void> {

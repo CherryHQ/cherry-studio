@@ -3919,6 +3919,26 @@ describe('AgentSessionRuntimeService', () => {
     expect(() => service.beginTurn(baseTurnInput)).toThrow('close_failed')
   })
 
+  it('blocks writes after the close deadline and recovers when native teardown eventually completes', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const teardown = createDeferred<void>()
+      getEntry(service).connection = { close: () => teardown.promise, send: vi.fn(), events: [] }
+      const closing = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_001)
+      await closing
+      expect(() => service.beginTurn(baseTurnInput)).toThrow('close_failed')
+      teardown.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(() => service.beginTurn(baseTurnInput)).not.toThrow()
+      await service.closeSession('session-1')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('persists assistant turns with the latest resume token', async () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({
