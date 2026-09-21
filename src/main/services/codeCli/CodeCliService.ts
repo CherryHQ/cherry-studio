@@ -582,7 +582,9 @@ export class CodeCliService extends BaseService {
     // terminal where a native crash would flash and die with no diagnosis.
     if (cliTool === CodeCli.CLAUDE_CODE && availability.source === 'system') {
       logger.info('Selected Claude Code executable', { path: executablePath, source: availability.source })
-      const probe = await probeClaudeExecutable(executablePath)
+      // Probe in the launch directory: a project-scoped shim resolves there,
+      // while the terminal also starts there — probing elsewhere can false-fail.
+      const probe = await probeClaudeExecutable(executablePath, directory)
       if (!probe.ok) {
         const message = describeClaudeStartupFailure(executablePath, probe.failure)
         logger.warn('Claude Code system binary failed the startup probe', {

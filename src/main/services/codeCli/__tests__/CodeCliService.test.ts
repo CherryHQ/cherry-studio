@@ -1089,7 +1089,13 @@ describe('CodeCliService', () => {
           ['--version'],
           // The probe must see the same login-shell env the terminal launch gets,
           // or a healthy system binary can fail the check from a stale PATH.
-          expect.objectContaining({ timeout: expect.any(Number), env: { PATH: '/usr/local/bin:/usr/bin' } })
+          // It must also run in the launch directory, or a project-scoped shim
+          // can fail the check while the terminal launch would succeed.
+          expect.objectContaining({
+            timeout: expect.any(Number),
+            env: { PATH: '/usr/local/bin:/usr/bin' },
+            cwd: 'C:\\Users\\me\\proj'
+          })
         )
         expect(result.message).toContain('C:\\Tools\\claude.exe')
         expect(result.message).toContain('crashed during startup')

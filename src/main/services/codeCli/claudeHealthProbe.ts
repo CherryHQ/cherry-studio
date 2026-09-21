@@ -69,20 +69,29 @@ export function classifyClaudeStartupError(error: unknown): ClaudeStartupProbeFa
   return { reason: 'exit', detail }
 }
 
-export async function probeClaudeExecutable(executablePath: string): Promise<ClaudeStartupProbeResult> {
+export async function probeClaudeExecutable(executablePath: string, cwd?: string): Promise<ClaudeStartupProbeResult> {
   // npm-global shims (.cmd/.bat) need cmd.exe, and a shell concatenates its
   // command line unquoted — quote a spaced shim path so it still resolves.
   const needsShell = ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
+  // cmd.exe expands %…% even inside quotes — double it like the launch does,
+  // or a path such as "100% tools" corrupts the probe.
+  const command =
+    needsShell && process.platform === 'win32'
+      ? `"${executablePath.replace(/%/g, '%%')}"`
+      : needsShell
+        ? `"${executablePath}"`
+        : executablePath
   // Discovery resolves system binaries on the login-shell PATH and the terminal
   // launches with that same env; probe with it too, not the stale process env.
   const env = await getRawShellEnv()
   try {
-    await execFileAsync(needsShell ? `"${executablePath}"` : executablePath, ['--version'], {
+    await execFileAsync(command, ['--version'], {
       timeout: PROBE_TIMEOUT_MS,
       windowsHide: true,
       killSignal: 'SIGKILL',
       shell: needsShell,
-      env
+      env,
+      ...(cwd ? { cwd } : {})
     })
     return { ok: true }
   } catch (error) {

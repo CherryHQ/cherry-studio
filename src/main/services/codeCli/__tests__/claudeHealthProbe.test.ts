@@ -160,6 +160,34 @@ describe('probeClaudeExecutable', () => {
     )
   })
 
+  it('probes in the launch directory so a project-scoped shim resolves', async () => {
+    execFileMock.mockResolvedValueOnce({ stdout: '1.0.0', stderr: '' })
+    await expect(probeClaudeExecutable('C:\\Tools\\claude.exe', 'C:\\Users\\me\\proj')).resolves.toEqual({
+      ok: true
+    })
+    expect(execFileMock).toHaveBeenCalledWith(
+      'C:\\Tools\\claude.exe',
+      ['--version'],
+      expect.objectContaining({ cwd: 'C:\\Users\\me\\proj' })
+    )
+  })
+
+  it('doubles percent signs in a .cmd shim path on Windows so cmd.exe keeps them literal', async () => {
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    try {
+      execFileMock.mockResolvedValueOnce({ stdout: '1.0.0', stderr: '' })
+      await expect(probeClaudeExecutable('C:\\100% Tools\\claude.cmd')).resolves.toEqual({ ok: true })
+      expect(execFileMock).toHaveBeenCalledWith(
+        '"C:\\100%% Tools\\claude.cmd"',
+        ['--version'],
+        expect.objectContaining({ shell: true })
+      )
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    }
+  })
+
   it('maps a hung binary to a timeout failure', async () => {
     execFileMock.mockRejectedValueOnce(Object.assign(new Error('Command failed'), { killed: true }))
     const result = await probeClaudeExecutable('C:\\Tools\\claude.exe')
