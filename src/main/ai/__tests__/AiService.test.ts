@@ -703,7 +703,10 @@ describe('AiService', () => {
     )
     expect((rejection as Error).cause).toBe(sdkFailure)
     expect((rejection as { statusCode?: unknown }).statusCode).toBe(200)
-    expect((rejection as { responseBody?: unknown }).responseBody).toBe('{"data":"not-an-array"}')
+    // Raw bodies/URLs stay behind the provider-error redaction boundary —
+    // only the numeric status crosses IPC (see serializeNestedProviderError).
+    expect('responseBody' in (rejection as object)).toBe(false)
+    expect('url' in (rejection as object)).toBe(false)
   })
 
   it('passes retryable image failures through without the contract message', async () => {

@@ -1020,17 +1020,14 @@ export class AiService extends BaseService {
       }
       const unusableError = findUnusableSuccessResponseError(error)
       if (unusableError) {
-        // The status/body fields are ones serializeError copies, so the contract detail survives IPC.
+        // Only the numeric status crosses IPC — raw bodies/URLs stay behind the
+        // provider-error redaction boundary (serializeNestedProviderError nulls them).
         throw Object.assign(
           new Error(
             `The image provider returned a response that could not be processed (provider "${sdkConfig.providerId}", model "${sdkConfig.modelId}", HTTP 200). The operation may still have been billed. It was not retried automatically.`,
             { cause: error }
           ),
-          {
-            statusCode: unusableError.statusCode,
-            ...(typeof unusableError.responseBody === 'string' ? { responseBody: unusableError.responseBody } : {}),
-            url: unusableError.url
-          }
+          { statusCode: unusableError.statusCode }
         )
       }
       throw error
