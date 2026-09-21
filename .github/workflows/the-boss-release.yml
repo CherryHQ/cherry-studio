@@ -240,13 +240,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet RELEASES.md; then
+          git add RELEASES.md
+          # Compare against the index, not the worktree: `git diff` reports no
+          # change for a file git has never tracked, so the first ever run would
+          # otherwise exit here without publishing anything.
+          if git diff --cached --quiet RELEASES.md; then
             echo "RELEASES.md unchanged."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           version="$(node -p "require('./package.json').version")"
-          git add RELEASES.md
           git commit -m "chore(releases): publish v${version} installers [skip ci]"
           git push origin HEAD:${GITHUB_REF_NAME}

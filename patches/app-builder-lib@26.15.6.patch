@@ -1,22 +1,8 @@
-diff --git a/out/node-module-collector/pnpmNodeModulesCollector.js b/out/node-module-collector/pnpmNodeModulesCollector.js
-index 8853912e013d3769f3e763d06720a94091a7ffaa..154fbec14a0dbdd81e545ce60ec3403ed9d50330 100644
---- a/out/node-module-collector/pnpmNodeModulesCollector.js
-+++ b/out/node-module-collector/pnpmNodeModulesCollector.js
-@@ -155,6 +155,10 @@ class PnpmNodeModulesCollector extends nodeModulesCollector_1.NodeModulesCollect
-             // The pnpm list output can include the same `name@version` thousands of times across a
-             // deep workspace; without this guard we re-resolve and re-recurse each occurrence.
-             if (this.collectedDeps.has(id)) {
-+                // Still walk children: pnpm's global dedup can place a package's only full
-+                // expansion under a peer-variation duplicate of an already-seen name@version.
-+                // Skipping the subtree here leaves those packages unresolvable (PKG_DUPLICATE_REF_UNRESOLVED).
-+                await this.collectDepsRecursively(value);
-                 return;
-             }
-             this.collectedDeps.add(id);
 diff --git a/out/codeSign/macCodeSign.js b/out/codeSign/macCodeSign.js
+index 9a69042fd48f4759a1c697bf23fa5b44f2da2366..347a486d2040e6993ec7f3ef8385963c89f767e2 100644
 --- a/out/codeSign/macCodeSign.js
 +++ b/out/codeSign/macCodeSign.js
-@@ -156,16 +156,16 @@ async function createKeychain({ tmpDir, cscLink, cscKeyPassword, cscILink, cscI
+@@ -156,16 +156,16 @@ async function createKeychain({ tmpDir, cscLink, cscKeyPassword, cscILink, cscIK
      if (cscIKeyPassword != null) {
          cscPasswords.push(cscIKeyPassword);
      }
@@ -36,3 +22,47 @@ diff --git a/out/codeSign/macCodeSign.js b/out/codeSign/macCodeSign.js
      }
      return {
          keychainFile,
+@@ -254,7 +254,11 @@ async function _findIdentity(type, qualifier, keychain) {
+ async function parseIdentity(line) {
+     const firstQuoteIndex = line.indexOf('"');
+     const name = line.substring(firstQuoteIndex + 1, line.lastIndexOf('"'));
+-    const hash = line.substring(0, firstQuoteIndex - 1);
++    // `security find-identity` lines are numbered — "  2) <SHA1> "Name"" — so the
++    // raw prefix carries the list index and would be passed to `codesign --sign`
++    // verbatim. That never matches, and signing then falls back to the display
++    // name, which is ambiguous when two certificates share one name.
++    const hash = line.substring(0, firstQuoteIndex - 1).replace(/^\s*\d+\)\s*/, "").trim();
+     const { Identity: IdentityClass } = await (0, dynamicImport_1.dynamicImport)("@electron/osx-sign/dist/cjs/util-identities");
+     return new IdentityClass(name, hash);
+ }
+diff --git a/out/macPackager.js b/out/macPackager.js
+index 024d4ed6359270416343a676a4b0cb62f9fa941a..44f039fd2dc7e2dd6d0c29cf330cc5a440d51172 100644
+--- a/out/macPackager.js
++++ b/out/macPackager.js
+@@ -331,7 +331,10 @@ class MacPackager extends platformPackager_1.PlatformPackager {
+             identityHash: (identity === null || identity === void 0 ? void 0 : identity.hash) || "none",
+             provisioningProfile: provisioningProfile || "none",
+         }, customSign ? "executing custom sign" : "signing");
+-        return customSign ? Promise.resolve(customSign(opts, this)) : (0, macCodeSign_1.sign)({ ...opts, identity: identity ? identity.name : undefined });
++        // Pass the certificate SHA-1 rather than its display name. @electron/osx-sign
++        // re-resolves whatever it is given via `security find-identity`, so a name
++        // shared by two certificates resolves ambiguously and signing fails.
++        return customSign ? Promise.resolve(customSign(opts, this)) : (0, macCodeSign_1.sign)({ ...opts, identity: identity ? identity.hash || identity.name : undefined });
+     }
+     //noinspection JSMethodCanBeStatic
+     async doFlat(appPath, outFile, identity, keychain) {
+diff --git a/out/node-module-collector/pnpmNodeModulesCollector.js b/out/node-module-collector/pnpmNodeModulesCollector.js
+index 8853912e013d3769f3e763d06720a94091a7ffaa..154fbec14a0dbdd81e545ce60ec3403ed9d50330 100644
+--- a/out/node-module-collector/pnpmNodeModulesCollector.js
++++ b/out/node-module-collector/pnpmNodeModulesCollector.js
+@@ -155,6 +155,10 @@ class PnpmNodeModulesCollector extends nodeModulesCollector_1.NodeModulesCollect
+             // The pnpm list output can include the same `name@version` thousands of times across a
+             // deep workspace; without this guard we re-resolve and re-recurse each occurrence.
+             if (this.collectedDeps.has(id)) {
++                // Still walk children: pnpm's global dedup can place a package's only full
++                // expansion under a peer-variation duplicate of an already-seen name@version.
++                // Skipping the subtree here leaves those packages unresolvable (PKG_DUPLICATE_REF_UNRESOLVED).
++                await this.collectDepsRecursively(value);
+                 return;
+             }
+             this.collectedDeps.add(id);
