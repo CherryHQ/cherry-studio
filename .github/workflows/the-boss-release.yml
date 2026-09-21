@@ -1,0 +1,220 @@
+name: The Boss Release
+
+run-name: Build ${{ github.ref_name }} @ ${{ github.sha }}
+
+# Fork-owned release pipeline. Upstream's workflows are guarded by
+# `if: github.repository == 'CherryHQ/cherry-studio'`, so they no-op here and
+# this runs alongside them without interfering.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".kbd-orchestrator/**"
+      - ".prometheus/**"
+      - "openspec/**"
+  workflow_dispatch:
+
+concurrency:
+  group: the-boss-release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IPFS_API: https://ipfs.prometheusags.ai
+  NODE_OPTIONS: --max-old-space-size=8192
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS (arm64 + x64)
+            script: build:mac
+            artifacts: "dist/*.dmg"
+          - os: windows-latest
+            label: Windows (x64 + arm64)
+            script: build:win
+            artifacts: "dist/*setup.exe"
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - uses: pnpm/action-setup@v5
+
+      - name: Resolve pnpm store
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      # Upstream hits a setuptools gap on the macOS runner image.
+      - name: macOS build dependencies
+        if: runner.os == 'macOS'
+        run: brew install python-setuptools
+
+      - name: Build
+        shell: bash
+        # Unsigned by default: signing secrets are absent in this fork, and
+        # electron-builder skips signing rather than failing when they are unset.
+        run: pnpm ${{ matrix.script }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload installers to IPFS
+        id: ipfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(${{ matrix.artifacts }})
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No installers matched ${{ matrix.artifacts }} — the build produced nothing to publish."
+            ls -la dist/ || true
+            exit 1
+          fi
+
+          : > ipfs-manifest.tsv
+          for f in "${files[@]}"; do
+            name="$(basename "$f")"
+            echo "Adding $name ($(du -h "$f" | cut -f1))"
+            # Kubo RPC. cid-version=1 for the modern base32 CIDs gateways expect.
+            response="$(curl -sS --fail-with-body --retry 3 --retry-delay 10 --max-time 1800 \
+              -X POST -F "file=@$f" \
+              "$IPFS_API/api/v0/add?pin=true&cid-version=1&progress=false")"
+            cid="$(printf '%s' "$response" | tail -n1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["Hash"])')"
+            if [ -z "$cid" ]; then
+              echo "::error::IPFS add returned no CID for $name: $response"
+              exit 1
+            fi
+            # Verify it is actually retrievable before advertising the link.
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 120 -I "$IPFS_API/ipfs/$cid" || true)"
+            if [ "$code" != "200" ]; then
+              echo "::error::$name pinned as $cid but the gateway returned HTTP $code"
+              exit 1
+            fi
+            size="$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")"
+            printf '%s\t%s\t%s\n' "$name" "$cid" "$size" >> ipfs-manifest.tsv
+            echo "  $name -> $cid"
+          done
+          cat ipfs-manifest.tsv
+
+      - name: Publish manifest fragment
+        uses: actions/upload-artifact@v5
+        with:
+          name: ipfs-manifest-${{ runner.os }}
+          path: ipfs-manifest.tsv
+          retention-days: 7
+
+  releases-doc:
+    name: Update RELEASES.md
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: ipfs-manifest-*
+          path: manifests
+          merge-multiple: false
+
+      - name: Prepend this build to RELEASES.md
+        shell: bash
+        env:
+          IPFS_API: ${{ env.IPFS_API }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          stamp="$(date -u +'%Y-%m-%d %H:%M UTC')"
+
+          {
+            echo "## v${version} — ${stamp}"
+            echo
+            echo "Commit [\`${GITHUB_SHA:0:9}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})"
+            echo
+            echo "| Installer | Size | Download |"
+            echo "|---|---|---|"
+            for m in manifests/*/ipfs-manifest.tsv; do
+              [ -f "$m" ] || continue
+              while IFS=$'\t' read -r name cid size; do
+                [ -n "${name:-}" ] || continue
+                mb="$(awk -v b="$size" 'BEGIN{printf "%.1f MB", b/1048576}')"
+                echo "| \`${name}\` | ${mb} | [${cid:0:12}…](${IPFS_API}/ipfs/${cid}) |"
+              done < "$m"
+            done
+            echo
+          } > .release-entry.md
+
+          # Newest first, inserted at an explicit marker so the header and intro
+          # always stay above the release list.
+          marker='<!-- releases:newest-first -->'
+          if [ ! -f RELEASES.md ] || ! grep -qF "$marker" RELEASES.md; then
+            {
+              echo "# The Boss — Releases"
+              echo
+              echo "Installers are published to IPFS and served from ${IPFS_API}."
+              echo "Each entry is immutable: a CID always resolves to that exact build."
+              echo
+              echo "$marker"
+              echo
+            } > RELEASES.head
+            # Preserve any existing entries from a pre-marker file.
+            if [ -f RELEASES.md ]; then
+              sed -n '/^## /,$p' RELEASES.md > RELEASES.tail
+            else
+              : > RELEASES.tail
+            fi
+          else
+            sed -n "1,/$(printf '%s' "$marker" | sed 's/[]\/$*.^[]/\\&/g')/p" RELEASES.md > RELEASES.head
+            echo >> RELEASES.head
+            sed -n '/^## /,$p' RELEASES.md > RELEASES.tail
+          fi
+          cat RELEASES.head .release-entry.md RELEASES.tail > RELEASES.md
+          rm -f RELEASES.head RELEASES.tail
+          rm -f .release-entry.md
+          cat RELEASES.md
+
+      - name: Commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet RELEASES.md; then
+            echo "RELEASES.md unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          version="$(node -p "require('./package.json').version")"
+          git add RELEASES.md
+          git commit -m "chore(releases): publish v${version} installers [skip ci]"
+          git push origin HEAD:${GITHUB_REF_NAME}
