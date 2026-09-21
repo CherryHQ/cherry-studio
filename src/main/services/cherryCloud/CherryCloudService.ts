@@ -1064,7 +1064,7 @@ export class CherryCloudService extends BaseService {
     if (!stored) return
 
     const device = { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey }
-    const session = stored.session?.apiOrigin === resolveApiOrigin() ? stored.session : null
+    const session = stored.session?.apiOrigin === resolveCherryCloudApiOrigin() ? stored.session : null
 
     this.cloudState = {
       device,
@@ -1093,7 +1093,7 @@ export class CherryCloudService extends BaseService {
       devicePublicKey: device.publicKey,
       devicePrivateKey: device.privateKey,
       session: {
-        apiOrigin: resolveApiOrigin(),
+        apiOrigin: resolveCherryCloudApiOrigin(),
         refreshToken: session.refreshToken,
         sessionId: session.sessionId,
         sessionExpiresAt: session.sessionExpiresAt,
