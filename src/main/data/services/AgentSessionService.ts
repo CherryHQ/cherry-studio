@@ -13,12 +13,13 @@ import {
 } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
-import { getDataService } from '@data/services/dataServiceRegistry'
+import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -154,6 +155,53 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  // Only called for the owning Agent's internal data directory; names alone cannot identify heartbeat sessions.
+  hideLegacyHeartbeatSessionsTx(tx: DbOrTx, agentId: string, workspaceId: string): string[] {
+    const heartbeatPrefix =
+      '[Heartbeat]\nThis is a periodic heartbeat. The instructions below are from your heartbeat.md file.\n'
+    const linkedSession = sql`coalesce(json_extract(${jobTable.metadata}, '$.sessionId'), json_extract(${jobTable.output}, '$.sessionId'))`
+    return tx
+      .update(sessionsTable)
+      .set({ type: 'background' })
+      .where(
+        and(
+          eq(sessionsTable.agentId, agentId),
+          eq(sessionsTable.workspaceId, workspaceId),
+          eq(sessionsTable.type, 'conversation'),
+          eq(sessionsTable.isNameManuallyEdited, false),
+          sql`NOT EXISTS (
+        SELECT 1 FROM ${jobTable} WHERE ${linkedSession} = ${sessionsTable.id}
+        AND (${jobTable.type} != 'agent.task' OR json_extract(${jobTable.input}, '$.prompt') IS NOT '__heartbeat__'
+          OR json_extract(${jobTable.input}, '$.agentId') IS NOT ${agentId})
+      )`,
+          sql`NOT EXISTS (
+        SELECT 1 FROM ${agentSessionMessageTable}
+        WHERE ${agentSessionMessageTable.sessionId} = ${sessionsTable.id} AND ${agentSessionMessageTable.role} = 'user'
+        AND (
+          json_array_length(${agentSessionMessageTable.data}, '$.parts') IS NOT 1
+          OR json_extract(${agentSessionMessageTable.data}, '$.parts[0].type') IS NOT 'text'
+          OR (
+            json_extract(${agentSessionMessageTable.data}, '$.parts[0].text') IS NOT '__heartbeat__'
+            AND substr(json_extract(${agentSessionMessageTable.data}, '$.parts[0].text'), 1, ${heartbeatPrefix.length}) IS NOT ${heartbeatPrefix}
+          )
+        )
+      )`,
+          or(
+            sql`EXISTS (
+          SELECT 1 FROM ${jobTable} WHERE ${linkedSession} = ${sessionsTable.id}
+          AND ${jobTable.type} = 'agent.task' AND json_extract(${jobTable.input}, '$.prompt') = '__heartbeat__'
+          AND json_extract(${jobTable.input}, '$.agentId') = ${agentId}
+        )`,
+            eq(sessionsTable.name, 'heartbeat'),
+            eq(sessionsTable.name, `heartbeat_${agentId}`)
+          )
+        )
+      )
+      .returning({ id: sessionsTable.id })
+      .all()
+      .map((row) => row.id)
+  }
+
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length === 0) return
@@ -1420,3 +1468,5 @@ export class AgentSessionService {
 }
 
 export const agentSessionService = new AgentSessionService()
+
+registerDataService('AgentSessionService', agentSessionService)

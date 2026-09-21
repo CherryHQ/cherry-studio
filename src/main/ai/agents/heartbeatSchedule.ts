@@ -462,6 +462,7 @@ export async function repairHeartbeatSchedules(
   }
   signal.throwIfAborted()
   await reapOrphanedScheduleRows(rows, signal)
+  agentWorkspaceService.retireLegacyAgentDataWorkspaces()
 }
 
 function readTemplateAgentId(row: JobScheduleSnapshot): string | null {
