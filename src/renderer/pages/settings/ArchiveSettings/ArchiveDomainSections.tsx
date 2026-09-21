@@ -1,5 +1,5 @@
 import { chunk } from 'es-toolkit'
-import { MessageSquare, MessagesSquare } from 'lucide-react'
+import { ListTodo, MessageSquare } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import useSWR from 'swr'
@@ -54,7 +54,7 @@ export const TopicArchiveSection: FC<ArchiveDomainSectionProps> = ({
 }) => {
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/topics', {
     query: ARCHIVED_ITEMS_QUERY,
-    limit: 20
+    limit: 50
   })
   const topics = useInfiniteFlatItems(pages)
   useDataChange('/topics', () => void refresh())
@@ -159,7 +159,7 @@ export const SessionArchiveSection: FC<ArchiveDomainSectionProps> = ({
 }) => {
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     query: ARCHIVED_ITEMS_QUERY,
-    limit: 20
+    limit: 50
   })
   const sessions = useInfiniteFlatItems(pages)
   useDataChange('/agent-sessions', () => void refresh())
@@ -172,7 +172,7 @@ export const SessionArchiveSection: FC<ArchiveDomainSectionProps> = ({
 
   return (
     <ArchiveSection
-      icon={MessagesSquare}
+      icon={ListTodo}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
       onBatchAvailabilityChange={onBatchAvailabilityChange}
@@ -264,7 +264,7 @@ export const PaintingArchiveSection: FC<ArchiveDomainSectionProps> = ({
 }) => {
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/paintings', {
     query: ARCHIVED_ITEMS_QUERY,
-    limit: 20
+    limit: 50
   })
   const paintings = useInfiniteFlatItems(pages)
   useDataChange('/paintings', () => void refresh())
@@ -332,7 +332,7 @@ export const FileArchiveSection: FC<ArchiveDomainSectionProps> = ({
 }) => {
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/files/entries', {
     query: ARCHIVED_ITEMS_QUERY,
-    limit: 20
+    limit: 50
   })
   const entries = useInfiniteFlatItems(pages)
   useDataChange('/files/entries', () => void refresh())

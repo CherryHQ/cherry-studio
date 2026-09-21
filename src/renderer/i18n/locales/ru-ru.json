@@ -3913,7 +3913,7 @@
   "settings.data.trash.domain.assistants": "Ассистенты",
   "settings.data.trash.domain.files": "Файлы",
   "settings.data.trash.domain.paintings": "Изображения",
-  "settings.data.trash.domain.sessions": "Сессии",
+  "settings.data.trash.domain.sessions": "Задачи",
   "settings.data.trash.domain.topics": "Темы",
   "settings.data.trash.empty.section": "Нет архивированных элементов",
   "settings.data.trash.empty_trash.button": "Очистить архив",

@@ -3913,7 +3913,7 @@
   "settings.data.trash.domain.assistants": "Assistants",
   "settings.data.trash.domain.files": "Files",
   "settings.data.trash.domain.paintings": "Paintings",
-  "settings.data.trash.domain.sessions": "Sessions",
+  "settings.data.trash.domain.sessions": "Tasks",
   "settings.data.trash.domain.topics": "Topics",
   "settings.data.trash.empty.section": "No archived items",
   "settings.data.trash.empty_trash.button": "Empty Archive",

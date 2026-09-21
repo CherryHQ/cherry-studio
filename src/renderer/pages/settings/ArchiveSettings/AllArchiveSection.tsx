@@ -1,4 +1,4 @@
-import { MessageSquare, MessagesSquare } from 'lucide-react'
+import { ListTodo, MessageSquare } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -26,7 +26,7 @@ const DOMAIN_PRESENTATION = {
   topics: { icon: MessageSquare, labelKey: 'settings.data.trash.domain.topics' },
   assistants: { icon: SIDEBAR_ICON_COMPONENTS.assistants, labelKey: 'settings.data.trash.domain.assistants' },
   agents: { icon: SIDEBAR_ICON_COMPONENTS.agents, labelKey: 'settings.data.trash.domain.agents' },
-  sessions: { icon: MessagesSquare, labelKey: 'settings.data.trash.domain.sessions' },
+  sessions: { icon: ListTodo, labelKey: 'settings.data.trash.domain.sessions' },
   paintings: { icon: SIDEBAR_ICON_COMPONENTS.paintings, labelKey: 'settings.data.trash.domain.paintings' },
   files: { icon: SIDEBAR_ICON_COMPONENTS.files, labelKey: 'settings.data.trash.domain.files' }
 } as const
@@ -34,7 +34,7 @@ const DOMAIN_PRESENTATION = {
 export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
   const { t } = useTranslation()
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/archives', {
-    limit: 20
+    limit: 50
   })
   const entries = useInfiniteFlatItems(pages)
   useDataChange('/topics', () => void refresh())

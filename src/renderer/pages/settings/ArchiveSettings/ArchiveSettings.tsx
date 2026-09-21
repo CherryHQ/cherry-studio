@@ -50,8 +50,8 @@ type ArchiveCategory = 'all' | 'topics' | 'agents' | 'sessions' | 'assistants' |
 const CATEGORIES: { id: ArchiveCategory; labelKey: string }[] = [
   { id: 'all', labelKey: 'common.all' },
   { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants' },
-  { id: 'topics', labelKey: 'settings.data.trash.domain.topics' },
   { id: 'agents', labelKey: 'settings.data.trash.domain.agents' },
+  { id: 'topics', labelKey: 'settings.data.trash.domain.topics' },
   { id: 'sessions', labelKey: 'settings.data.trash.domain.sessions' },
   { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings' },
   { id: 'files', labelKey: 'settings.data.trash.domain.files' }

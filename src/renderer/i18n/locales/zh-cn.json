@@ -3913,7 +3913,7 @@
   "settings.data.trash.domain.assistants": "助手",
   "settings.data.trash.domain.files": "文件",
   "settings.data.trash.domain.paintings": "绘图",
-  "settings.data.trash.domain.sessions": "会话",
+  "settings.data.trash.domain.sessions": "任务",
   "settings.data.trash.domain.topics": "话题",
   "settings.data.trash.empty.section": "暂无已归档的项目",
   "settings.data.trash.empty_trash.button": "清空归档",

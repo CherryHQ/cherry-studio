@@ -175,16 +175,16 @@ describe('ArchiveSettings', () => {
     await chooseCategory(user, i18n.language === 'zh-CN' ? '话题' : 'Topics')
 
     const tabs = within(screen.getByRole('tablist', { name: '归档' }))
-    for (const name of ['全部', '助手', '话题', '智能体', '会话', '绘图', '文件']) {
+    for (const name of ['全部', '助手', '智能体', '话题', '任务', '绘图', '文件']) {
       expect(tabs.getByRole('tab', { name })).toBeVisible()
     }
     expect(screen.getByRole('tabpanel', { name: '话题' })).toHaveTextContent('Deleted topic')
 
-    await user.click(tabs.getByRole('tab', { name: '会话' }))
-    expect(screen.getByRole('tabpanel', { name: '会话' })).toHaveTextContent('Deleted session')
+    await user.click(tabs.getByRole('tab', { name: '任务' }))
+    expect(screen.getByRole('tabpanel', { name: '任务' })).toHaveTextContent('Deleted session')
     expect(screen.queryByText('Deleted topic')).not.toBeInTheDocument()
 
-    await user.keyboard('{Home}{ArrowRight}{ArrowRight}')
+    await user.keyboard('{Home}{ArrowRight}{ArrowRight}{ArrowRight}')
     expect(tabs.getByRole('tab', { name: '话题' })).toHaveFocus()
     expect(screen.getByRole('tabpanel', { name: '话题' })).toHaveTextContent('Deleted topic')
     expect(screen.queryByText('Deleted session')).not.toBeInTheDocument()
@@ -312,7 +312,7 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
     await user.click(screen.getByRole('button', { name: 'Done' }))
     expect(screen.getByRole('tab', { name: 'Topics' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByRole('button', { name: 'Restore 1' })).not.toBeInTheDocument()
-    await chooseCategory(user, 'Sessions')
+    await chooseCategory(user, 'Tasks')
     await user.click(screen.getByRole('button', { name: 'Batch manage' }))
 
     expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument()

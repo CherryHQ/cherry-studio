@@ -3913,7 +3913,7 @@
   "settings.data.trash.domain.assistants": "助理",
   "settings.data.trash.domain.files": "檔案",
   "settings.data.trash.domain.paintings": "繪圖",
-  "settings.data.trash.domain.sessions": "工作階段",
+  "settings.data.trash.domain.sessions": "任務",
   "settings.data.trash.domain.topics": "話題",
   "settings.data.trash.empty.section": "暫無已封存的項目",
   "settings.data.trash.empty_trash.button": "清空封存",
