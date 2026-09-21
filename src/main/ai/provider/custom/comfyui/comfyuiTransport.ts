@@ -325,7 +325,13 @@ class ComfyuiTransport implements ImageGenerationTransport {
           headers: this.headers,
           signal: controller.signal
         })
-        if (!response.ok) return { targetedInterrupt: false }
+        if (!response.ok) {
+          // A non-OK probe is transient in practice — the server may be starting
+          // up or restarting — so it is not cached either: caching it would
+          // disable targeted cancellation for the rest of this transport's life.
+          this.capabilitiesPromise = undefined
+          return { targetedInterrupt: false }
+        }
         const stats = (await response.json()) as Record<string, unknown>
         const verStr = (stats.system as Record<string, unknown>)?.comfyui_version as string | undefined
         if (!verStr) return { targetedInterrupt: false }

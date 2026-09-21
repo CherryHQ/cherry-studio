@@ -702,6 +702,34 @@ describe('cancel (capability-based)', () => {
   })
 
   // ------------------------------------------------------------------
+  // Test 7b — a transient non-OK probe is not cached as "unsupported"
+  // ------------------------------------------------------------------
+  it('re-probes after a transient non-OK capability response', async () => {
+    let statsCalls = 0
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/system_stats')) {
+        statsCalls += 1
+        // First probe fails while the server is still coming up; the retry succeeds.
+        if (statsCalls === 1) return new Response('starting up', { status: 503 })
+        return systemStats('0.3.60')
+      }
+      if (url.includes('/queue')) {
+        if (init?.method === 'POST') return respond({})
+        return respond({ queue_running: [[1, 'pid-1', {}, {}, []]], queue_pending: [] })
+      }
+      return respond({})
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.cancel('pid-1') // transient failure → must not be cached
+    await transport.cancel('pid-1') // probes again, succeeds → interrupt is sent
+
+    expect(statsCalls).toBe(2)
+    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }])
+  })
+
+  // ------------------------------------------------------------------
   // Test 8 — no /system_stats endpoint → fail closed
   // ------------------------------------------------------------------
   it('fails closed when /system_stats is unavailable', async () => {
