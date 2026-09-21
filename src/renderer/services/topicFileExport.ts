@@ -1,3 +1,5 @@
+import { isToolUIPart } from 'ai'
+
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
@@ -7,6 +9,7 @@ import { MAX_EMBED_IMAGE_BYTES } from '@renderer/services/markdownImageExport'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { isPersistedToolOutput } from '@shared/ai/transport'
 import type { TreeResponse } from '@shared/data/types/message'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
@@ -111,6 +114,42 @@ async function inlineLocalAttachments(parts: unknown[]): Promise<InlineResult> {
   return { parts: rewritten, skipped }
 }
 
+// Persisted tool outputs keep their full text only in source-install FileManager
+// blobs, so resolve them to full values at export; the destination has no such
+// rows. Unresolvable or over-limit outputs keep their excerpt envelope and are
+// counted so the caller can say so instead of losing them silently.
+async function hydratePersistedToolOutputs(messages: CherryTopicFile['messages'], topicId: string): Promise<number> {
+  let skipped = 0
+  for (const message of messages) {
+    let parts: unknown[] | undefined
+    for (const [index, part] of message.parts.entries()) {
+      if (typeof part !== 'object' || part === null || typeof (part as { type?: unknown }).type !== 'string') continue
+      if (!isToolUIPart(part as never)) continue
+      const toolPart = part as { state?: unknown; toolCallId?: unknown; output?: unknown }
+      if (toolPart.state !== 'output-available' || typeof toolPart.toolCallId !== 'string') continue
+      if (!isPersistedToolOutput(toolPart.output)) continue
+      try {
+        const response = await ipcApi.request('ai.tool.get_result', {
+          topicId,
+          messageId: message.sourceId,
+          toolCallId: toolPart.toolCallId
+        })
+        if (!response.found || JSON.stringify(response.output).length > MAX_EMBED_IMAGE_BYTES) {
+          skipped += 1
+          continue
+        }
+        parts ??= [...message.parts]
+        parts[index] = { ...(part as Record<string, unknown>), output: response.output }
+      } catch (error) {
+        skipped += 1
+        logger.warn('Dropped an unresolvable tool output from the topic file export', { error })
+      }
+    }
+    if (parts) message.parts = parts
+  }
+  return skipped
+}
+
 export async function collectTopicFileData(topicId: string): Promise<CherryTopicFile> {
   const topic = await dataApiService.get(`/topics/${topicId}`)
   const treeResponse = await dataApiService.get(`/topics/${topicId}/tree`, {
@@ -142,6 +181,11 @@ export async function collectTopicFileData(topicId: string): Promise<CherryTopic
   if (skippedAttachments > 0) {
     logger.warn('Skipped unreadable attachments during topic file export', { skippedAttachments })
     toast.warning(i18n.t('chat.topics.export.topic_file_skipped_attachments', { count: skippedAttachments }))
+  }
+  const skippedToolOutputs = await hydratePersistedToolOutputs(file.messages, topicId)
+  if (skippedToolOutputs > 0) {
+    logger.warn('Exported tool output excerpts without their full text', { skippedToolOutputs })
+    toast.warning(i18n.t('chat.topics.export.topic_file_skipped_tool_outputs', { count: skippedToolOutputs }))
   }
   return file
 }

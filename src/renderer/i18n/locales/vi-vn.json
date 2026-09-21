@@ -913,6 +913,7 @@
   "chat.topics.export.topic_file": "Xuất tệp chủ đề",
   "chat.topics.export.topic_file_saved": "Đã lưu tệp chủ đề thành công",
   "chat.topics.export.topic_file_skipped_attachments": "Đã bỏ qua {{count}} tệp đính kèm (quá 10 MiB hoặc không đọc được)",
+  "chat.topics.export.topic_file_skipped_tool_outputs": "Đã bỏ qua {{count}} kết quả công cụ (không có toàn văn hoặc quá 10 MiB; giữ lại đoạn trích)",
   "chat.topics.export.wait_for_title_naming": "Đang tạo tiêu đề...",
   "chat.topics.export.word": "Xuất ra Word",
   "chat.topics.export.yuque": "Xuất sang Yuque",

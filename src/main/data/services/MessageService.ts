@@ -497,9 +497,12 @@ export class MessageService {
       return { nodes: [], siblingsGroups: [], activeNodeId: null, rootId: virtualRootId }
     }
 
-    // Get tree with depth limit via CTE
-    // Use a large depth for unlimited (-1)
-    const maxDepth = depth === -1 ? 999 : depth
+    // Get tree with depth limit via CTE. depth -1 means the whole tree, so the
+    // recursion carries no depth predicate; any other depth caps it.
+    const maxDepth = depth === -1 ? null : depth
+    const depthGuard = maxDepth === null ? sql`1 = 1` : sql`t.tree_depth < ${maxDepth}`
+    // Nodes pulled in outside the CTE (active path beyond the cap) sort after it.
+    const overflowDepth = (maxDepth ?? 999) + 1
 
     // Recursive CTE returns ID + depth only (single-word columns are
     // casing-safe). Full rows are fetched via ORM below for camelCase mapping.
@@ -514,7 +517,7 @@ export class MessageService {
         UNION ALL
         SELECT m.id, t.tree_depth + 1 FROM message m
         INNER JOIN tree t ON m.parent_id = t.id
-        WHERE t.tree_depth < ${maxDepth} AND m.deleted_at IS NULL
+        WHERE ${depthGuard} AND m.deleted_at IS NULL
       )
       SELECT id, tree_depth FROM tree
     `)
@@ -550,7 +553,7 @@ export class MessageService {
         .where(and(inArray(messageTable.id, missingActivePathIds), isNull(messageTable.deletedAt)))
         .all()
       for (const row of additionalRows) {
-        treeRows.push({ ...row, treeDepth: maxDepth + 1 })
+        treeRows.push({ ...row, treeDepth: overflowDepth })
         treeNodeIds.add(row.id)
       }
     }
@@ -576,7 +579,7 @@ export class MessageService {
 
       for (const row of childrenRows) {
         if (!treeNodeIds.has(row.id)) {
-          treeRows.push({ ...row, treeDepth: maxDepth + 1 })
+          treeRows.push({ ...row, treeDepth: overflowDepth })
           treeNodeIds.add(row.id)
         }
       }
@@ -590,7 +593,7 @@ export class MessageService {
 
       for (const row of childrenRows) {
         if (!treeNodeIds.has(row.id)) {
-          treeRows.push({ ...row, treeDepth: maxDepth + 1 })
+          treeRows.push({ ...row, treeDepth: overflowDepth })
           treeNodeIds.add(row.id)
         }
       }

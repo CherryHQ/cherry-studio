@@ -913,6 +913,7 @@
   "chat.topics.export.topic_file": "トピックファイルをエクスポート",
   "chat.topics.export.topic_file_saved": "トピックファイルを保存しました",
   "chat.topics.export.topic_file_skipped_attachments": "{{count}} 件の添付ファイルをスキップしました（10 MiB 超過または読み取り不可）",
+  "chat.topics.export.topic_file_skipped_tool_outputs": "{{count}} 件のツール出力をスキップしました（全文が利用不可または10 MiB超過のため、抜粋を保持）",
   "chat.topics.export.wait_for_title_naming": "タイトルを生成中...",
   "chat.topics.export.word": "Wordとしてエクスポート",
   "chat.topics.export.yuque": "Yuque にエクスポート",

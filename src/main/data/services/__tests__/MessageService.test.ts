@@ -1864,6 +1864,63 @@ describe('MessageService', () => {
       ])
       expect([...ids].sort()).toEqual(['a-active', 'a-deep', 'a-inactive', 'u-deep', 'u-follow'])
     })
+
+    it('keeps inactive branches deeper than any fixed cap at depth -1', async () => {
+      const chainLength = 1100
+      const rows: Array<typeof messageTable.$inferInsert> = [
+        {
+          id: 'u-wide',
+          parentId: null,
+          topicId: 'topic-inactive-vast',
+          role: 'user',
+          data: mainText('branched prompt'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'a-wide-active',
+          parentId: 'u-wide',
+          topicId: 'topic-inactive-vast',
+          role: 'assistant',
+          data: mainText('active answer'),
+          status: 'success',
+          siblingsGroupId: 5,
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ]
+      let parentId = 'u-wide'
+      for (let depth = 0; depth < chainLength; depth += 1) {
+        const id = `wide-inactive-${depth}`
+        rows.push({
+          id,
+          parentId,
+          topicId: 'topic-inactive-vast',
+          role: depth % 2 === 0 ? 'assistant' : 'user',
+          data: mainText(`inactive level ${depth}`),
+          status: 'success',
+          siblingsGroupId: depth === 0 ? 5 : 0,
+          createdAt: 300 + depth,
+          updatedAt: 300 + depth
+        })
+        parentId = id
+      }
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-inactive-vast', activeNodeId: 'a-wide-active', orderKey: 'vast' })
+      await dbh.db.insert(messageTable).values(withRoot('topic-inactive-vast', rows))
+
+      const result = messageService.getTree('topic-inactive-vast', { depth: -1 })
+
+      const ids = new Set([
+        ...result.nodes.map((node) => node.id),
+        ...result.siblingsGroups.flatMap((group) => group.nodes.map((node) => node.id))
+      ])
+      expect(ids.has(`wide-inactive-${chainLength - 1}`)).toBe(true)
+      expect(ids.size).toBe(chainLength + 2)
+    })
   })
 
   describe('update — partial data patches', () => {

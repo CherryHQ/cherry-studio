@@ -913,6 +913,7 @@
   "chat.topics.export.topic_file": "Экспортировать файл топика",
   "chat.topics.export.topic_file_saved": "Файл топика успешно сохранён",
   "chat.topics.export.topic_file_skipped_attachments": "Пропущено вложений: {{count}} (более 10 МиБ или нечитаемы)",
+  "chat.topics.export.topic_file_skipped_tool_outputs": "Пропущено результатов инструментов: {{count}} (полный текст недоступен или более 10 МиБ; отрывки сохранены)",
   "chat.topics.export.wait_for_title_naming": "Создание заголовка...",
   "chat.topics.export.word": "Экспорт как Word",
   "chat.topics.export.yuque": "Экспорт в Yuque",

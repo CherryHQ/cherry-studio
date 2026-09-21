@@ -913,6 +913,7 @@
   "chat.topics.export.topic_file": "Εξαγωγή αρχείου θέματος",
   "chat.topics.export.topic_file_saved": "Το αρχείο θέματος αποθηκεύτηκε με επιτυχία",
   "chat.topics.export.topic_file_skipped_attachments": "Παραλείφθηκαν {{count}} συνημμένα (πάνω από 10 MiB ή μη αναγνώσιμα)",
+  "chat.topics.export.topic_file_skipped_tool_outputs": "Παραλείφθηκαν {{count}} αποτελέσματα εργαλείων (πλήρες κείμενο μη διαθέσιμο ή πάνω από 10 MiB· διατηρήθηκαν αποσπάσματα)",
   "chat.topics.export.wait_for_title_naming": "Γενικευμένος τίτλος...",
   "chat.topics.export.word": "Εξαγωγή ως Word",
   "chat.topics.export.yuque": "Εξαγωγή στο Yuque",

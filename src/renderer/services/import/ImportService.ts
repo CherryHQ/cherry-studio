@@ -7,7 +7,7 @@ import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import { AnthropicImporter } from './importers/AnthropicImporter'
 import { ChatgptImporter } from './importers/ChatgptImporter'
 import { CherryTopicImporter } from './importers/CherryTopicImporter'
-import type { ConversationImporter, ImportMessageNode, ImportResponse, ImportResult } from './types'
+import type { ConversationImporter, ImportConversation, ImportMessageNode, ImportResponse, ImportResult } from './types'
 
 const logger = loggerService.withContext('ImportService')
 
@@ -298,69 +298,89 @@ class ImportService {
       const createdTopic = await dataApiService.post('/topics', {
         body: assistant ? { name: conversation.name, assistantId: assistant.id } : { name: conversation.name }
       })
-      if (conversation.isNameManuallyEdited) {
-        await dataApiService.patch(`/topics/${createdTopic.id}`, { body: { isNameManuallyEdited: true } })
-      }
-      completeStep()
-
-      const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()
-      for (const message of conversation.messages) {
-        const messagesByRole = messagesByParent.get(message.parentSourceId) ?? new Map()
-        const siblings = messagesByRole.get(message.role) ?? []
-        siblings.push(message)
-        messagesByRole.set(message.role, siblings)
-        messagesByParent.set(message.parentSourceId, messagesByRole)
-      }
-
-      const siblingGroupIds = new Map<string, number>()
-      let nextSiblingGroupId = 1
-      for (const messagesByRole of messagesByParent.values()) {
-        for (const siblings of messagesByRole.values()) {
-          if (siblings.length < 2) continue
-          for (const sibling of siblings) siblingGroupIds.set(sibling.sourceId, nextSiblingGroupId)
-          nextSiblingGroupId++
+      try {
+        await this.persistConversation(conversation, createdTopic.id, assistant, completeStep)
+      } catch (error) {
+        // Never report failure while leaving a partial topic behind: remove
+        // what this pass created, then surface the original error.
+        try {
+          await dataApiService.delete(`/topics/${createdTopic.id}`, { query: { permanent: true } })
+        } catch (cleanupError) {
+          logger.warn('Failed to clean up a partially imported topic', { topicId: createdTopic.id, cleanupError })
         }
+        throw error
       }
-
-      const createdIds = new Map<string, string>()
-      const pendingSourceIds = new Set(conversation.messages.map((message) => message.sourceId))
-      while (pendingSourceIds.size > 0) {
-        let createdInPass = 0
-        for (const message of conversation.messages) {
-          if (!pendingSourceIds.has(message.sourceId)) continue
-
-          let parentId: string | null = null
-          if (message.parentSourceId) {
-            const createdParentId = createdIds.get(message.parentSourceId)
-            if (!createdParentId) continue
-            parentId = createdParentId
-          }
-
-          const created = await dataApiService.post(`/topics/${createdTopic.id}/messages`, {
-            body: this.toMessageDto(message, parentId, siblingGroupIds.get(message.sourceId), assistant)
-          })
-          createdIds.set(message.sourceId, created.id)
-          pendingSourceIds.delete(message.sourceId)
-          createdInPass++
-          completeStep()
-        }
-
-        if (createdInPass === 0) {
-          throw new Error(`Unable to resolve imported message parents for topic "${conversation.name}"`)
-        }
-      }
-
-      const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
-      const activeNodeId = activeSourceId ? createdIds.get(activeSourceId) : undefined
-      if (activeNodeId) {
-        await dataApiService.put(`/topics/${createdTopic.id}/active-node`, { body: { nodeId: activeNodeId } })
-      }
-      if (activeSourceId) completeStep()
     }
 
     const messagesCount = conversations.reduce((count, conversation) => count + conversation.messages.length, 0)
     logger.info(`Persisted import: ${conversations.length} topics, ${messagesCount} messages`)
     return messagesCount
+  }
+
+  private async persistConversation(
+    conversation: ImportConversation,
+    topicId: string,
+    assistant: { id: string; name: string; emoji: string } | undefined,
+    completeStep: () => void
+  ): Promise<void> {
+    if (conversation.isNameManuallyEdited) {
+      await dataApiService.patch(`/topics/${topicId}`, { body: { isNameManuallyEdited: true } })
+    }
+    completeStep()
+
+    const messagesByParent = new Map<string | undefined, Map<ImportMessageNode['role'], ImportMessageNode[]>>()
+    for (const message of conversation.messages) {
+      const messagesByRole = messagesByParent.get(message.parentSourceId) ?? new Map()
+      const siblings = messagesByRole.get(message.role) ?? []
+      siblings.push(message)
+      messagesByRole.set(message.role, siblings)
+      messagesByParent.set(message.parentSourceId, messagesByRole)
+    }
+
+    const siblingGroupIds = new Map<string, number>()
+    let nextSiblingGroupId = 1
+    for (const messagesByRole of messagesByParent.values()) {
+      for (const siblings of messagesByRole.values()) {
+        if (siblings.length < 2) continue
+        for (const sibling of siblings) siblingGroupIds.set(sibling.sourceId, nextSiblingGroupId)
+        nextSiblingGroupId++
+      }
+    }
+
+    const createdIds = new Map<string, string>()
+    const pendingSourceIds = new Set(conversation.messages.map((message) => message.sourceId))
+    while (pendingSourceIds.size > 0) {
+      let createdInPass = 0
+      for (const message of conversation.messages) {
+        if (!pendingSourceIds.has(message.sourceId)) continue
+
+        let parentId: string | null = null
+        if (message.parentSourceId) {
+          const createdParentId = createdIds.get(message.parentSourceId)
+          if (!createdParentId) continue
+          parentId = createdParentId
+        }
+
+        const created = await dataApiService.post(`/topics/${topicId}/messages`, {
+          body: this.toMessageDto(message, parentId, siblingGroupIds.get(message.sourceId), assistant)
+        })
+        createdIds.set(message.sourceId, created.id)
+        pendingSourceIds.delete(message.sourceId)
+        createdInPass++
+        completeStep()
+      }
+
+      if (createdInPass === 0) {
+        throw new Error(`Unable to resolve imported message parents for topic "${conversation.name}"`)
+      }
+    }
+
+    const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
+    const activeNodeId = activeSourceId ? createdIds.get(activeSourceId) : undefined
+    if (activeNodeId) {
+      await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
+    }
+    if (activeSourceId) completeStep()
   }
 }
 

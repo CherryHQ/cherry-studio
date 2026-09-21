@@ -184,6 +184,29 @@ describe('importService.importNativeTopic', () => {
     expect(patches).toEqual([])
   })
 
+  it('removes the created topic when persisting fails midway', async () => {
+    const deletes: { path: string; options: any }[] = []
+    let messageCalls = 0
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string) => {
+      if (path === '/topics') return { id: 'new-topic' }
+      messageCalls += 1
+      if (messageCalls > 1) throw new Error('db gone')
+      return { id: `msg_${messageCalls}` }
+    })
+    vi.mocked(dataApiService.delete).mockImplementation(async (path: string, options: any) => {
+      deletes.push({ path, options })
+      return {}
+    })
+    vi.mocked(dataApiService.put).mockResolvedValue({ activeNodeId: 'x' })
+    vi.mocked(dataApiService.patch).mockResolvedValue({})
+
+    const response = await importService.importNativeTopic(nativeFileContent())
+
+    expect(response.success).toBe(false)
+    expect(response.topicsCount).toBe(0)
+    expect(deletes).toEqual([{ path: '/topics/new-topic', options: { query: { permanent: true } } }])
+  })
+
   it('fails invalid files without writing anything', async () => {
     const postSpy = vi.mocked(dataApiService.post)
     const putSpy = vi.mocked(dataApiService.put)

@@ -913,6 +913,7 @@
   "chat.topics.export.topic_file": "Exportă fișierul topicului",
   "chat.topics.export.topic_file_saved": "Fișierul topicului a fost salvat cu succes",
   "chat.topics.export.topic_file_skipped_attachments": "Au fost omise {{count}} atașament(e) (peste 10 MiB sau ilizibile)",
+  "chat.topics.export.topic_file_skipped_tool_outputs": "Au fost omise {{count}} rezultate de instrumente (text integral indisponibil sau peste 10 MiB; fragmente păstrate)",
   "chat.topics.export.wait_for_title_naming": "Se generează titlul...",
   "chat.topics.export.word": "Exportă ca Word",
   "chat.topics.export.yuque": "Exportă în Yuque",

@@ -325,4 +325,89 @@ describe('topicFileExport', () => {
       }
     })
   })
+
+  describe('persisted tool outputs', () => {
+    const persistedPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-1',
+      toolName: 'read_file',
+      state: 'output-available',
+      input: {},
+      output: {
+        $persistedToolOutput: {
+          fileEntryId: 'blob-1',
+          vfsFilename: 'vfs_abc.txt',
+          head: 'excerpt head',
+          tail: 'excerpt tail',
+          totalChars: 24,
+          totalLines: 2,
+          shape: 'text'
+        }
+      }
+    } as const
+
+    function withToolPart() {
+      const original = messagesById.u1
+      messagesById.u1 = {
+        ...original,
+        data: { parts: [{ type: 'text', text: 'run' } as const, persistedPart] }
+      }
+      return () => {
+        messagesById.u1 = original
+      }
+    }
+
+    beforeEach(() => {
+      ipcRequest.mockReset()
+    })
+
+    it('resolves persisted envelopes to full values so imports carry them', async () => {
+      ipcRequest.mockResolvedValue({ found: true, output: 'full tool output text' })
+      const restore = withToolPart()
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        expect(ipcRequest).toHaveBeenCalledWith('ai.tool.get_result', {
+          topicId: 'topic-1',
+          messageId: 'u1',
+          toolCallId: 'call-1'
+        })
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
+        expect(parts[1]).toMatchObject({ toolCallId: 'call-1', output: 'full tool output text' })
+        expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
+        expect(toast.warning).not.toHaveBeenCalled()
+      } finally {
+        restore()
+      }
+    })
+
+    it('keeps the excerpt and warns when the full output is gone', async () => {
+      ipcRequest.mockResolvedValue({ found: false })
+      const restore = withToolPart()
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
+        expect(parts[1]).toMatchObject({ output: persistedPart.output })
+        expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
+        expect(toast.warning).toHaveBeenCalledWith('chat.topics.export.topic_file_skipped_tool_outputs')
+      } finally {
+        restore()
+      }
+    })
+
+    it('keeps the excerpt and warns when the full output is over the cap', async () => {
+      ipcRequest.mockResolvedValue({ found: true, output: 'x'.repeat(11 * 1024 * 1024) })
+      const restore = withToolPart()
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
+        expect(parts[1]).toMatchObject({ output: persistedPart.output })
+        expect(toast.warning).toHaveBeenCalledWith('chat.topics.export.topic_file_skipped_tool_outputs')
+      } finally {
+        restore()
+      }
+    })
+  })
 })

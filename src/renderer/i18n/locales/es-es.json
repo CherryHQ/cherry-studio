@@ -913,6 +913,7 @@
   "chat.topics.export.topic_file": "Exportar archivo de tema",
   "chat.topics.export.topic_file_saved": "Archivo de tema guardado correctamente",
   "chat.topics.export.topic_file_skipped_attachments": "Se omitieron {{count}} adjunto(s) (más de 10 MiB o ilegibles)",
+  "chat.topics.export.topic_file_skipped_tool_outputs": "Se omitieron {{count}} resultado(s) de herramientas (texto completo no disponible o más de 10 MiB; se conservaron extractos)",
   "chat.topics.export.wait_for_title_naming": "Generando título...",
   "chat.topics.export.word": "Exportar como Word",
   "chat.topics.export.yuque": "Exportar a Yuque",
