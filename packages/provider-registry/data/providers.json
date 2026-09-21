@@ -180,6 +180,7 @@
               "auto": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -191,6 +192,7 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -202,6 +204,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -250,6 +253,7 @@
               "auto": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -261,6 +265,7 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -272,6 +277,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -582,6 +588,7 @@
                 },
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoning.effort",
                     "value": {
                       "source": "effort"
@@ -592,6 +599,7 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoning.effort",
                     "value": {
                       "source": "effort"
@@ -602,6 +610,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoning.effort",
                     "value": {
                       "source": "literal",
@@ -899,12 +908,14 @@
                 },
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -912,6 +923,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -922,6 +934,7 @@
               "default": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -929,6 +942,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -939,12 +953,14 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -952,6 +968,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -962,6 +979,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "literal",
@@ -1056,12 +1074,14 @@
                 },
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1069,6 +1089,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1079,6 +1100,7 @@
               "default": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1086,6 +1108,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1096,12 +1119,14 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1109,6 +1134,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1119,6 +1145,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "literal",
@@ -1182,12 +1209,14 @@
                 },
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1195,6 +1224,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1205,6 +1235,7 @@
               "default": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1212,6 +1243,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1222,12 +1254,14 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1235,6 +1269,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1245,6 +1280,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "literal",
@@ -1287,12 +1323,14 @@
                 },
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1300,6 +1338,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1310,6 +1349,7 @@
               "default": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1317,6 +1357,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1327,12 +1368,14 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "literal",
@@ -1340,6 +1383,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningSummary",
                     "value": {
                       "source": "assistant-summary"
@@ -1350,6 +1394,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "literal",
@@ -1485,6 +1530,7 @@
               "auto": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1496,6 +1542,7 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1507,6 +1554,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1556,6 +1604,7 @@
               "auto": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1567,6 +1616,7 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1578,6 +1628,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1715,6 +1766,7 @@
               "auto": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1726,6 +1778,7 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1737,6 +1790,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1883,6 +1937,7 @@
               "auto": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1890,6 +1945,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.budgetTokens",
                     "value": {
                       "source": "literal",
@@ -1904,6 +1960,7 @@
                 },
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -1911,6 +1968,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.budgetTokens",
                     "value": {
                       "source": "literal",
@@ -1918,6 +1976,7 @@
                     }
                   },
                   {
+                    "delivery": "provider-option",
                     "target": "effort",
                     "value": {
                       "source": "effort"
@@ -1928,6 +1987,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2014,6 +2074,7 @@
                 },
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
@@ -2024,6 +2085,7 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "effort"
@@ -2034,6 +2096,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "reasoningEffort",
                     "value": {
                       "source": "literal",
@@ -2374,6 +2437,7 @@
               "auto": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2385,6 +2449,7 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2396,6 +2461,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2416,6 +2482,7 @@
               "auto": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2427,6 +2494,7 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2438,6 +2506,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "thinking.type",
                     "value": {
                       "source": "literal",
@@ -2522,6 +2591,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "provider-option",
                     "target": "disable_reasoning",
                     "value": {
                       "source": "literal",
@@ -2636,5 +2706,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "2707d81b155c6c98"
+  "version": "891dbf17c1ac099c"
 }
