@@ -36,7 +36,13 @@ export async function downloadBundleFiles(
   let doneWeight = 0
 
   for (const file of files) {
-    const urls = sourceOrder.map((id) => resolveModelFileUrl(id, file.repo, file.remoteFile))
+    const urls = file.sources
+      ? sourceOrder.flatMap((id) =>
+          file.sources
+            .filter((source) => source.source === id)
+            .map((source) => resolveModelFileUrl(id, source.repo, source.remoteFile, source.revision))
+        )
+      : sourceOrder.map((id) => resolveModelFileUrl(id, file.repo, file.remoteFile))
     await withMirrorFallback(urls, signal, `${bundle.id}/${file.key}`, (url) =>
       writeBundleFile(file, url, path.join(installDir, file.relPath), signal, (fraction) =>
         onProgress?.((doneWeight + file.weight * fraction) / totalWeight)

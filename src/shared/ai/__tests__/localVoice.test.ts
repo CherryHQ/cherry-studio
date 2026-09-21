@@ -21,9 +21,16 @@ describe('local voice model facts and default resolution', () => {
   })
 
   it('recommends Apple ASR only on macOS 26 and newer', () => {
-    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 26 })).toBe(APPLE_ASR_MODEL_ID)
-    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 27 })).toBe(APPLE_ASR_MODEL_ID)
-    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 25 })).toBe(FUNASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: 26 })).toBe(APPLE_ASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'x64', majorVersion: 27 })).toBe(APPLE_ASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: 25 })).toBe(FUNASR_MODEL_ID)
+  })
+
+  it('recommends FunASR on every platform its verified native artifact supports', () => {
+    expect(resolveDefaultAsrModel({ platform: 'linux', arch: 'x64' })).toBe(FUNASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'linux', arch: 'arm64' })).toBe(FUNASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'win32', arch: 'x64' })).toBe(FUNASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'win32', arch: 'arm64' })).toBeUndefined()
   })
 
   it('preserves explicit selection regardless of platform availability', () => {
@@ -34,12 +41,14 @@ describe('local voice model facts and default resolution', () => {
     expect(resolveDefaultAsrModel({ platform: 'linux' }, APPLE_ASR_MODEL_ID)).toBe(APPLE_ASR_MODEL_ID)
   })
 
-  it('does not guess a default for an unknown macOS version or undeclared platform', () => {
+  it('uses FunASR when Apple support is unknown but the native platform is supported', () => {
     expect(resolveDefaultAsrModel({ platform: 'darwin' })).toBeUndefined()
-    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: Number.NaN })).toBeUndefined()
-    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 0 })).toBeUndefined()
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: Number.NaN })).toBe(
+      FUNASR_MODEL_ID
+    )
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: 0 })).toBe(FUNASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'linux' })).toBeUndefined()
-    expect(resolveDefaultAsrModel({ platform: 'win32' })).toBeUndefined()
+    expect(resolveDefaultAsrModel({ platform: 'freebsd', arch: 'x64' })).toBeUndefined()
   })
 
   it('expresses separate one-shot models through existing capability and modality facts', () => {

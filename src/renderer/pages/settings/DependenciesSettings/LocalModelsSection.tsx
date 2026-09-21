@@ -34,7 +34,10 @@ const CAPABILITY_CARDS = {
     nameKey: 'settings.dependencies.localModels.ocr.name',
     subtitleKey: 'settings.dependencies.localModels.ocr.subtitle'
   }
-} as const satisfies Record<LocalModelCapability, { icon: ReactNode; nameKey: string; subtitleKey: string }>
+} as const satisfies Record<
+  Exclude<LocalModelCapability, 'asr'>,
+  { icon: ReactNode; nameKey: string; subtitleKey: string }
+>
 
 /**
  * Settings-specific notice state layered over the shared local-model lifecycle.
@@ -87,7 +90,7 @@ function useLocalModelCard(id: LocalModelBundleId) {
 
 interface ModelCardProps {
   id: LocalModelBundleId
-  capability: LocalModelCapability
+  capability: Exclude<LocalModelCapability, 'asr'>
   /** Lifted so the section can hide every card at once when the platform is unsupported. */
   onStatusChange: (id: LocalModelBundleId, status: LocalModelStatus) => void
 }
@@ -176,7 +179,7 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
   )
 }
 
-type ListedModel = { id: LocalModelBundleId; capability: LocalModelCapability }
+type ListedModel = { id: LocalModelBundleId; capability: Exclude<LocalModelCapability, 'asr'> }
 
 /**
  * Local model download cards, one per installable bundle as reported by the registry.
@@ -206,7 +209,7 @@ const LocalModelsSection: FC = () => {
     void ipcApi
       .request('local_model.list')
       .then((result) => {
-        if (mounted) setModels(result.models)
+        if (mounted) setModels(result.models.filter((model): model is ListedModel => model.capability !== 'asr'))
       })
       .catch((error) => logger.warn('Failed to list local models', error as Error))
     return () => {

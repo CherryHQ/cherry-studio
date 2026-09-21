@@ -10,6 +10,7 @@ import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   DEFAULT_SPEECH_SPEED,
+  FUNASR_MODEL_ID,
   LOCAL_VOICE_MODELS,
   type LocalVoiceModelId,
   resolveDefaultAsrModel,
@@ -187,13 +188,15 @@ export class VoiceSessionService extends BaseService {
     if (!session.files.has(input.fileEntryId)) throw new VoiceRuntimeError('forbidden_owner')
     const modelId = input.modelId ?? this.defaultAsrModel()
     if (!modelId) throw new VoiceRuntimeError('unsupported')
+    const language = input.modelId === undefined && modelId === FUNASR_MODEL_ID ? undefined : input.language
+    const adapterOptions = { ...input, language }
     const result = await this.run(
       session,
       input.requestId,
       modelId,
       'transcription',
       async (signal) => {
-        await this.requireReady(modelId, input, signal)
+        await this.requireReady(modelId, adapterOptions, signal)
         const files = application.get('FileManager')
         const entry = await files.getById(input.fileEntryId)
         if (
@@ -208,9 +211,7 @@ export class VoiceSessionService extends BaseService {
         if (!['audio/webm', 'video/webm', 'audio/webm;codecs=opus'].includes(audio.mime))
           throw new VoiceRuntimeError('invalid_audio')
         signal.throwIfAborted()
-        const transcript = await application
-          .get('AiService')
-          .transcribe(modelId, audio.content, { language: input.language }, signal)
+        const transcript = await application.get('AiService').transcribe(modelId, audio.content, { language }, signal)
         signal.throwIfAborted()
         await this.deleteFile(session, input.fileEntryId)
         return { sessionId: session.id, requestId: input.requestId, ...transcript }
@@ -218,7 +219,7 @@ export class VoiceSessionService extends BaseService {
       {
         startPhase: 'recognizing',
         failurePhase: 'failed',
-        log: { locale: input.language, mimeType: 'audio/webm;codecs=opus' }
+        log: { locale: language, mimeType: 'audio/webm;codecs=opus' }
       }
     )
     await this.closeSession(session)
@@ -472,6 +473,7 @@ export class VoiceSessionService extends BaseService {
   private defaultAsrModel() {
     return resolveDefaultAsrModel({
       platform: process.platform,
+      arch: process.arch,
       majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion(), 10) : undefined
     })
   }

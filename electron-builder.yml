@@ -76,6 +76,7 @@ files:
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
+  - "!node_modules/sherpa-onnx-{darwin,linux,win}-*/**" # binaries are downloaded on first use; only the JS wrapper ships
   - "!node_modules/@cherrystudio/system-speech/{native,src,tests,scripts}/**"
   - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through mac.extraResources
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files

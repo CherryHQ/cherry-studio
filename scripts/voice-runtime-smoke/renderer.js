@@ -5,7 +5,6 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     'VOICE_UNSUPPORTED',
     'VOICE_ASSET_REQUIRED',
     'VOICE_MODEL_REQUIRED',
-    'VOICE_LICENSE_UNVERIFIED',
     'VOICE_VOICE_UNAVAILABLE',
     'VOICE_BUSY',
     'VOICE_FORBIDDEN',
@@ -20,11 +19,11 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     'INVALID_LANGUAGE',
     'VOICE_NOT_INSTALLED',
     'ASR_NOT_READY',
+    'FUNASR_NOT_READY',
     'AUDIO_UNSUPPORTED',
     'INVALID_TTS_AUDIO',
     'RECORDING_FAILED',
     'TRANSCRIPT_EMPTY',
-    'FUNASR_UNEXPECTED_SUCCESS',
     'CLEANUP_FAILED'
   ])
   let request
@@ -57,6 +56,12 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
     })
     evidence.appleStatus = { status: status.status }
     if (status.status !== 'ready') throw { code: 'ASR_NOT_READY' }
+    evidence.stage = 'funasr_status'
+    const funasrStatus = await request('ai.voice.model.status', {
+      modelId: 'local-voice::funasr-nano'
+    })
+    evidence.funasrStatus = { status: funasrStatus.status }
+    if (funasrStatus.status !== 'ready') throw { code: 'FUNASR_NOT_READY' }
     if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) throw { code: 'AUDIO_UNSUPPORTED' }
 
     evidence.stage = 'speech'
@@ -150,20 +155,25 @@ module.exports = async function runVoiceRuntimeSmoke(expectedUrl, language = 'en
       mimeType: 'audio/webm;codecs=opus',
       durationMs: Math.round(audio.duration * 1000)
     })
-    evidence.stage = 'funasr_refusal'
-    try {
-      await request('ai.transcription.generate', {
-        sessionId: funasrSession,
-        requestId: crypto.randomUUID(),
-        source: 'automation',
-        modelId: 'local-voice::funasr-nano',
-        language,
-        fileEntryId: funasrRecording.id
-      })
-      throw { code: 'FUNASR_UNEXPECTED_SUCCESS' }
-    } catch (error) {
-      if (error?.code !== 'VOICE_LICENSE_UNVERIFIED') throw error
-      evidence.funasr = { status: 'refused', reason: 'license_unverified' }
+    evidence.stage = 'funasr_transcribe'
+    const funasrTranscript = await request('ai.transcription.generate', {
+      sessionId: funasrSession,
+      requestId: crypto.randomUUID(),
+      source: 'automation',
+      modelId: 'local-voice::funasr-nano',
+      fileEntryId: funasrRecording.id
+    })
+    if (
+      typeof funasrTranscript.text !== 'string' ||
+      !funasrTranscript.text.trim() ||
+      !Array.isArray(funasrTranscript.segments) ||
+      !funasrTranscript.segments.length
+    )
+      throw { code: 'TRANSCRIPT_EMPTY' }
+    evidence.funasr = {
+      transcriptNonEmpty: true,
+      segmentCount: funasrTranscript.segments.length,
+      durationSeconds: funasrTranscript.durationInSeconds
     }
     evidence.passed = true
     evidence.stage = 'complete'
