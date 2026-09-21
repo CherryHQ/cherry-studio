@@ -2610,6 +2610,50 @@ describe('AgentSessionRuntimeService', () => {
       }
     })
 
+    it('abandons the deferred rebuild instead of forcing it when no turn is waiting', async () => {
+      vi.useFakeTimers()
+      try {
+        const firstConnection = {
+          events: createAsyncQueue<any>().iterable,
+          send: vi.fn(),
+          close: vi.fn(),
+          reconcile: vi.fn().mockResolvedValue('rebuild')
+        }
+        const connect = vi.fn()
+        runtimeDriverRegistry.register({
+          type: 'test-runtime',
+          capabilities: ['agent-session'],
+          connect,
+          validateSession: vi.fn(),
+          listAvailableTools: vi.fn().mockResolvedValue([])
+        })
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+        const entry = getEntry(service)
+        entry.connection = firstConnection
+        service.markTurnTerminal('session-1', 'success')
+        // Zombie occupancy: the work's process died without the driver ever reporting release,
+        // so no driver edge will ever settle the deferral.
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, firstConnection)
+
+        // A prewarm re-prime (primeConnection) enters the same waiter with background occupancy
+        // and no turn to admit: the grace expiry must leave the occupied connection alone.
+        const connected = (service as any).ensureConnection(entry)
+        await vi.waitFor(() => expect(firstConnection.reconcile).toHaveBeenCalledOnce())
+        vi.advanceTimersByTime(120_000)
+
+        await expect(connected).resolves.toBe(false)
+        expect(firstConnection.close).not.toHaveBeenCalled()
+        expect(connect).not.toHaveBeenCalled()
+        expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith(
+          'Forcing connection rebuild after background work grace expiry',
+          expect.anything()
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('cancels the forced rebuild once background work releases within the grace period', async () => {
       vi.useFakeTimers()
       try {
@@ -2665,7 +2709,7 @@ describe('AgentSessionRuntimeService', () => {
         // rebuild: firing the leftover timer later cannot warn or tear the new connection down.
         vi.advanceTimersByTime(120_001)
         expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith(
-          'Background work did not release within the grace period; forcing connection rebuild',
+          'Background work did not release within the grace period',
           expect.anything()
         )
         expect(secondConnection.close).not.toHaveBeenCalled()

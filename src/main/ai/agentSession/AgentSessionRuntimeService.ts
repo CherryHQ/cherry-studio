@@ -1625,6 +1625,15 @@ export class AgentSessionRuntimeService extends BaseService {
                 // turn with it. Re-arm the grace window; that work's own release still
                 // settles the waiter.
                 if (carriesProtectedExecution()) continue
+                // Without a turn waiting to admit (a prewarm re-prime), killing the occupancy
+                // buys nothing — abandon the rebuild; the next real turn re-reconciles.
+                const waitingTurn = this.currentTurn(entry)
+                if (!waitingTurn || !this.isTurnLive(entry, waitingTurn)) {
+                  logger.info('Abandoning deferred connection rebuild; no turn is waiting on it', {
+                    sessionId: entry.sessionId
+                  })
+                  return false
+                }
                 // Unowned occupancy only — prefer the pending user turn over an unbounded
                 // wait: force the rebuild on the regular teardown path, which structurally
                 // clears the occupancy.
