@@ -2,10 +2,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
-import { application } from '@application'
 import { apiGatewayPairedDeviceTable } from '@data/db/schemas/apiGatewayPairedDevice'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
-import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { ErrorCode } from '@shared/data/api/errors'
 
 describe('ApiGatewayPairedDeviceService', () => {
@@ -46,9 +44,6 @@ describe('ApiGatewayPairedDeviceService', () => {
 
     expect(apiGatewayPairedDeviceService.list()).toEqual([device])
     expect(device).not.toHaveProperty('tokenHash')
-    expect(apiGatewayPairedDeviceService.get(device.id)).toEqual(device)
-    expect(apiGatewayPairedDeviceService.findByTokenHash('a'.repeat(64))).toEqual(device)
-    expect(apiGatewayPairedDeviceService.findByTokenHash('f'.repeat(64))).toBeUndefined()
     expect(dbh.db.select().from(apiGatewayPairedDeviceTable).get()?.tokenHash).toBe('a'.repeat(64))
   })
 
@@ -67,37 +62,10 @@ describe('ApiGatewayPairedDeviceService', () => {
     const device = apiGatewayPairedDeviceService.create({ name: 'iPhone', platform: 'ios', tokenHash })
 
     expect(apiGatewayPairedDeviceService.hasTokenHash(tokenHash)).toBe(true)
-    const credentialsVisibleAtRevocation: boolean[] = []
-    const subscription = apiGatewayPairedDeviceService.onDeleted((id) => {
-      expect(id).toBe(device.id)
-      credentialsVisibleAtRevocation.push(apiGatewayPairedDeviceService.hasTokenHash(tokenHash))
-    })
-    try {
-      apiGatewayPairedDeviceService.delete(device.id)
-    } finally {
-      subscription.dispose()
-    }
-    expect(credentialsVisibleAtRevocation).toEqual([false])
+    apiGatewayPairedDeviceService.delete(device.id)
     expect(apiGatewayPairedDeviceService.hasTokenHash(tokenHash)).toBe(false)
-    expect(apiGatewayPairedDeviceService.get(device.id)).toBeUndefined()
-    expect(apiGatewayPairedDeviceService.findByTokenHash(tokenHash)).toBeUndefined()
     expect(
       dbh.db.select().from(apiGatewayPairedDeviceTable).where(eq(apiGatewayPairedDeviceTable.id, device.id)).get()
     ).toBeUndefined()
-  })
-
-  it("removes a revoked device's command receipts and keeps other devices' receipts", () => {
-    const revoked = apiGatewayPairedDeviceService.create({ name: 'iPhone', platform: 'ios', tokenHash: 'e'.repeat(64) })
-    const kept = apiGatewayPairedDeviceService.create({ name: 'Pixel', platform: 'android', tokenHash: 'f'.repeat(64) })
-    const receipt = { commandId: 'command', requestHash: 'hash', agentId: 'agent', result: {} }
-    application.get('DbService').withWriteTx((tx) => {
-      remoteCommandService.recordTx(tx, { ...receipt, deviceId: revoked.id })
-      remoteCommandService.recordTx(tx, { ...receipt, deviceId: kept.id })
-    })
-
-    apiGatewayPairedDeviceService.delete(revoked.id)
-
-    expect(remoteCommandService.get(revoked.id, 'command')).toBeUndefined()
-    expect(remoteCommandService.get(kept.id, 'command')).toBeDefined()
   })
 })

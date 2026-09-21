@@ -1,7 +1,7 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { isLanAllowedRoute, isLanPeerAddress, isLoopbackAddress, screenLanRequest } from '../lanGuard'
+import { isLanAllowedRoute, isLoopbackAddress, screenLanRequest } from '../lanGuard'
 
 /** A minimal request-like carrying an injected peer address, as srvx exposes via `.ip`. */
 const requestFrom = (method: string, ip: string | undefined): Request => ({ method, ip }) as unknown as Request
@@ -24,37 +24,15 @@ describe('isLoopbackAddress', () => {
   })
 })
 
-describe('isLanPeerAddress', () => {
-  it('accepts private, link-local, and CGNAT (Tailscale) peers, including mapped forms', () => {
-    for (const address of ['192.168.1.8', '10.0.0.5', '172.16.0.1', '172.31.255.254', '169.254.10.2']) {
-      expect(isLanPeerAddress(address)).toBe(true)
-    }
-    for (const address of ['100.64.0.1', '100.127.255.254', '::ffff:192.168.1.8']) {
-      expect(isLanPeerAddress(address)).toBe(true)
-    }
-  })
-
-  it('rejects loopback, public, and just-outside-the-range peers', () => {
-    for (const address of ['127.0.0.1', '::1', '8.8.8.8', '::ffff:8.8.8.8', '2001:db8::1']) {
-      expect(isLanPeerAddress(address)).toBe(false)
-    }
-    for (const address of ['172.15.255.255', '172.32.0.1', '100.63.255.255', '100.128.0.1', '192.169.0.1']) {
-      expect(isLanPeerAddress(address)).toBe(false)
-    }
-  })
-})
-
 describe('isLanAllowedRoute', () => {
-  it('permits pairing, provider export, and Agent connection discovery', () => {
+  it('permits only the pairing bootstrap and the provider export', () => {
     expect(isLanAllowedRoute('POST', '/pair')).toBe(true)
     expect(isLanAllowedRoute('GET', '/v1/export/providers')).toBe(true)
-    expect(isLanAllowedRoute('GET', '/v1/remote-agent')).toBe(true)
   })
 
   it('rejects the export under the wrong method and the pairing under the wrong method', () => {
     expect(isLanAllowedRoute('GET', '/pair')).toBe(false)
     expect(isLanAllowedRoute('POST', '/v1/export/providers')).toBe(false)
-    expect(isLanAllowedRoute('POST', '/v1/remote-agent')).toBe(false)
   })
 
   it('rejects the generation, MCP, and knowledge routes', () => {
@@ -83,47 +61,5 @@ describe('screenLanRequest', () => {
   it('lets a LAN caller reach the pairing bootstrap and provider export', () => {
     expect(screenLanRequest(requestFrom('POST', '192.168.1.8'), '/pair')).toBeUndefined()
     expect(screenLanRequest(requestFrom('GET', '192.168.1.8'), '/v1/export/providers')).toBeUndefined()
-    expect(screenLanRequest(requestFrom('GET', '192.168.1.8'), '/v1/remote-agent')).toBeUndefined()
-  })
-
-  it('lets a Tailscale peer pair and export providers', () => {
-    expect(screenLanRequest(requestFrom('POST', '100.101.102.103'), '/pair')).toBeUndefined()
-    expect(screenLanRequest(requestFrom('GET', '100.101.102.103'), '/v1/export/providers')).toBeUndefined()
-  })
-
-  it('refuses device credentials to a same-machine tunnel, which arrives as a loopback peer', () => {
-    for (const ip of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) {
-      expect(screenLanRequest(requestFrom('POST', ip), '/pair')).toEqual({
-        error: expect.stringContaining('local network')
-      })
-      expect(screenLanRequest(requestFrom('GET', ip), '/v1/export/providers')).toEqual({
-        error: expect.stringContaining('local network')
-      })
-    }
-  })
-
-  it('refuses device credentials to a port-forwarded public peer', () => {
-    expect(screenLanRequest(requestFrom('POST', '203.0.113.7'), '/pair')).toEqual({
-      error: expect.stringContaining('local network')
-    })
-    expect(screenLanRequest(requestFrom('GET', '203.0.113.7'), '/v1/export/providers')).toEqual({
-      error: expect.stringContaining('local network')
-    })
-  })
-
-  it('keeps in-process callers, which have no socket peer, unrestricted', () => {
-    expect(screenLanRequest(requestFrom('POST', undefined), '/pair')).toBeUndefined()
-    expect(screenLanRequest(requestFrom('GET', undefined), '/v1/export/providers')).toBeUndefined()
-  })
-
-  it('still serves secret-free Agent discovery to a public peer', () => {
-    expect(screenLanRequest(requestFrom('GET', '203.0.113.7'), '/v1/remote-agent')).toBeUndefined()
-  })
-
-  it('blocks Agent discovery after device connections are disabled', () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.host', '127.0.0.1')
-    expect(screenLanRequest(requestFrom('GET', '192.168.1.8'), '/v1/remote-agent')).toEqual({
-      error: expect.stringContaining('LAN access is disabled')
-    })
   })
 })

@@ -22,7 +22,6 @@ const {
   mockListProviderModels,
   mockListProviders,
   mockPairDevice,
-  mockPeekConnectionInfo,
   mockPreferenceGet,
   mockProcessMessage
 } = vi.hoisted(() => ({
@@ -46,7 +45,6 @@ const {
         }
       : null
   ),
-  mockPeekConnectionInfo: vi.fn<() => unknown>(),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
@@ -59,8 +57,7 @@ vi.mock('@application', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
     PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
-    ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken, pairDevice: mockPairDevice },
-    RemoteAccessService: { peekConnectionInfo: mockPeekConnectionInfo }
+    ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken, pairDevice: mockPairDevice }
   }
   return mockApplicationFactory(overrides)
 })
@@ -388,29 +385,6 @@ describe('API gateway routes (integration)', () => {
     it('does not extend paired-device access to ordinary API routes', async () => {
       const { status } = await read(await get(app, '/v1/models', { authorization: 'Bearer paired-device-token' }))
       expect(status).toBe(403)
-    })
-  })
-
-  describe('Agent connection discovery', () => {
-    const descriptor = {
-      protocolVersion: 1,
-      instanceId: 'desktop-instance',
-      port: 34445,
-      path: '/remote/v1/connect',
-      serverPublicKey: 'server-public-key'
-    }
-
-    it('returns the descriptor without credentials so the device token never crosses the LAN in plaintext', async () => {
-      mockPeekConnectionInfo.mockReturnValue(descriptor)
-      const response = await get(app, '/v1/remote-agent', {})
-      expect(response.headers.get('cache-control')).toBe('no-store')
-      expect(await read(response)).toEqual({ status: 200, body: descriptor })
-    })
-
-    it('reports 503 while the Agent listener is unavailable', async () => {
-      mockPeekConnectionInfo.mockReturnValue(undefined)
-      const { status } = await read(await get(app, '/v1/remote-agent', {}))
-      expect(status).toBe(503)
     })
   })
 

@@ -8,7 +8,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
-import { type Activatable, BaseService, Emitter, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ApiGatewayPairedDeviceMetadata } from '@shared/data/types/apiGatewayPairedDevice'
 import type { OutputFor } from '@shared/ipc/types'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
@@ -28,10 +28,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private lanGateway: ApiGateway | null = null
   private readonly lanMutex = new Mutex()
   private readonly pairing = new ApiGatewayPairing()
-  private readonly _onLanServingChanged = new Emitter<boolean>()
-  /** Fires when {@link isLanServing} flips, so followers of LAN access never re-derive it. */
-  readonly onLanServingChanged = this._onLanServingChanged.event
-  private lanServing = false
   /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
   private readonly internalUsageToken = uuidv4()
   /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
@@ -78,11 +74,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       application.get('PreferenceService').subscribeChange('feature.api_gateway.enabled', (enabled) => {
         this.desiredEnabled = enabled
         this.reconciler.request()
-        this.syncLanServing()
       })
-    )
-    this.registerDisposable(
-      application.get('PreferenceService').subscribeChange('feature.api_gateway.host', () => this.syncLanServing())
     )
   }
 
@@ -154,20 +146,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
     } catch (error) {
       logger.warn('Failed to publish API gateway running state', error as Error)
     }
-    this.syncLanServing()
-  }
-
-  /** Whether paired devices may be served over the LAN right now. */
-  isLanServing(): boolean {
-    const { enabled, host } = this.getCurrentConfig()
-    return enabled && host === '0.0.0.0' && (this.lanGateway?.isRunning() ?? false)
-  }
-
-  private syncLanServing(): void {
-    const serving = this.isLanServing()
-    if (serving === this.lanServing) return
-    this.lanServing = serving
-    this._onLanServingChanged.fire(serving)
   }
 
   /**

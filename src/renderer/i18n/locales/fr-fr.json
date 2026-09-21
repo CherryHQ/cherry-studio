@@ -1258,7 +1258,7 @@
   "deviceConnections.status.stopped": "L’accès au réseau local est indisponible",
   "deviceConnections.title": "Connexions d’appareils",
   "deviceConnections.toggle.description": "Autorisez les appareils appairés sur le même réseau local à se connecter à ce Cherry Studio.",
-  "deviceConnections.toggle.risk": "Les appareils associés peuvent recevoir vos clés API de fournisseurs et utiliser tous les Agents du bureau, notamment envoyer des messages et répondre aux demandes d’autorisation des outils. L’association et le transfert de configuration utilisent HTTP sans chiffrement. Connectez uniquement des appareils et des réseaux de confiance.",
+  "deviceConnections.toggle.risk": "Les connexions sur le réseau local utilisent du HTTP en clair, non chiffré. Les appareils appairés reçoivent vos clés API de fournisseur : n'activez cette option que sur un réseau de confiance et désactivez-la une fois terminé.",
   "docs.title": "Documentation d'aide",
   "emoji_picker.categories.activities": "Activités",
   "emoji_picker.categories.animals_nature": "Animaux & Nature",

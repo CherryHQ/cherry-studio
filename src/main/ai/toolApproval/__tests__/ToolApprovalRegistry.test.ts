@@ -134,24 +134,4 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
   it('clear() is a no-op (returns 0) when nothing is pending', () => {
     expect(toolApprovalRegistry.clear()).toBe(0)
   })
-
-  it('hands a reader a copy of the pending input, so it cannot alter what the runtime resumes with', () => {
-    const { entry, approvalId } = makeEntry({ originalInput: { cmd: 'ls', args: ['-l'] } })
-    toolApprovalRegistry.register(entry)
-
-    const read = toolApprovalRegistry.inputFor(approvalId) as { cmd: string; args: string[] }
-    read.cmd = 'rm'
-    read.args.push('-rf')
-
-    expect(entry.originalInput).toEqual({ cmd: 'ls', args: ['-l'] })
-    expect(toolApprovalRegistry.inputFor(approvalId)).toEqual({ cmd: 'ls', args: ['-l'] })
-  })
-
-  it('has no input for an approval that is already settled', () => {
-    const { entry, approvalId } = makeEntry()
-    toolApprovalRegistry.register(entry)
-    toolApprovalRegistry.dispatch(approvalId, { approved: true })
-
-    expect(toolApprovalRegistry.inputFor(approvalId)).toBeUndefined()
-  })
 })

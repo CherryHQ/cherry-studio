@@ -14,7 +14,6 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { AiStreamRequest } from '../../types'
 import type { StreamLifecycle } from '../lifecycle/StreamLifecycle'
 import type { StreamListener } from '../types'
-import type { AgentMessageCommit } from './agentSubmission'
 import type { MainDispatchRequest } from './dispatch'
 
 type PreparedLiveExecutionChange =
@@ -71,7 +70,6 @@ export interface DispatchContext {
   requireIdle?: boolean
   /** Internal callers may require the session's agent ownership at the message-write boundary. */
   expectedAgentId?: string
-  commitAgentMessage?: AgentMessageCommit
 }
 
 export interface ChatContextProvider {

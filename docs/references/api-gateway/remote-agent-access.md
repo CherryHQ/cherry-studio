@@ -1,5 +1,5 @@
 ---
-description: Design proposal for remote desktop Agent access through a shared direct and relay transport
+description: JSON-RPC remote access architecture, device-level authorization, shared protocol package, and staged desktop/mobile implementation plan
 sources:
   - src/main/features/apiGateway
   - src/main/ai/streamManager
@@ -8,463 +8,469 @@ sources:
 
 # Remote Agent Access (Design)
 
-> **Status: design proposal — not yet implemented.**
-> [`README.md`](./README.md) documents the **as-built** API Gateway (OpenAI/Anthropic
-> compatibility for local SDK clients). This document specifies a **proposed
-> extension**: reaching a *running agent session* from a user's own mobile client,
-> over a transport that works self-hosted and cloud-hosted from one substrate.
-> Symbols marked **(exists)** are present today and reused as-is; everything else
-> is new and described in the future tense.
+> **Status: target design for a rewrite, not an implemented contract.**
+> This replaces both the original raw-transport proposal in PR #16567 and the
+> snapshot-based LAN contract in PR #20717. Compatibility with that unpublished
+> implementation is not required. Existing code is a source of execution seams,
+> not the specification. No package or new endpoint is shipped by this document.
 
-## Goal
+This document owns architecture, authorization, deployment, and package boundaries.
+The [Remote Agent API Design](../ai/remote-agent-access.md) owns endpoint names,
+DTOs, events, recovery, limits, and public package exports. Change these together;
+do not maintain two independent method or event catalogs.
+The [sequence diagrams and module map](../ai/remote-agent-sequences.md) trace these
+contracts through pairing, execution, recovery, races, revocation, and backpressure.
+The [implementation design](../ai/remote-agent-implementation.md) details proposed
+package/Desktop files, function contracts, atomicity, and lifecycle ownership.
+The [testing specification](../ai/remote-agent-testing.md) defines the real local
+WebSocket client harness and acceptance gates for these stages.
 
-Let a user open their own mobile app and **see and drive an agent session that is
-running on their desktop** — read the live transcript, send prompts, and approve
-tool calls — without learning VPN/tunnel/networking concepts.
+The #20717 prototype has been backed up and removed from the working tree.
+Remote services and prototype-only owner extensions below are design targets or
+archived references, not implemented baseline APIs.
 
-The agent keeps running **in the Electron desktop** (main process); the cloud is
-**relay only** (it forwards bytes, it does not execute agents). The same relay
-codebase runs as the user's self-hosted instance or as our managed service.
+## Goal and decisions
 
-## Scope & locked decisions
+A user's mobile app can read and drive an Agent running on their desktop: browse
+Agent sessions, send messages, approve tools, and cancel an execution. The
+Agent always executes in the desktop main process. The desktop must be online;
+the cloud forwards encrypted bytes and never becomes an Agent execution fallback.
 
-- **Target is the agent**, not the gateway's OpenAI/Anthropic chat endpoints.
-- **Own mobile client** (Expo / React Native). Mobile rendering is **out of scope
-  here**; the hand-off boundary is the wire contract (`@shared/ai/transport`).
-- **Cloud = relay only.** The agent runs in the Electron desktop backend, so
-  **the desktop must be online**; when it is not, the mobile client shows
-  "cannot connect". There is no architectural fallback (a "keep-awake" desktop
-  option already exists).
-- **Self-hostable.** The relay is one Go codebase; our cloud is a managed instance
-  of it.
-- **Remote tool approval is supported** — and is the highest-stakes capability
-  (see [Security model](#security-model)).
-- **Application-layer end-to-end encryption is in scope** — agent content is
-  encrypted between the mobile client and the desktop so that no relay/tunnel can
-  read or tamper with it. See [End-to-end encryption](#end-to-end-encryption-application-layer).
-- **Non-goals (v1):** arbitrary TCP/UDP/RDP/VNC, full VPN, P2P, multi-user
-  collaboration, hiding traffic **metadata** from the relay (E2E protects content
-  and integrity, not which-desktop/when/how-big).
+- **Full incremental transmission**, on LAN and over a relay. Text, reasoning,
+  tool input, tool results, status, and approval changes all have explicit events.
+  Checkpoints are for initial synchronization and recovery, not periodic refresh.
+- **One protocol across reachability modes.** Direct LAN, a user's VPN/proxy,
+  hosted relay, and self-hosted relay use the same encrypted WebSocket surface.
+- **One public package: `@cherrystudio/remote-protocol`.** Its root is domain-neutral;
+  Agent schemas and reducers live in its `/agent` export. Future domains do not
+  require renaming the package or depending on Agent types.
+- **Standard JSON-RPC 2.0 messages.** Requests/responses use `id`; server events
+  are notifications. Numeric RPC errors and application reasons have separate
+  meanings. Command deduplication, event replay and ACK remain application contracts.
+- **Complete protocol versions, no feature negotiation in v1.** Incremental events,
+  recovery, ACK and command receipts are mandatory parts of v1. Mobile and Desktop
+  advertise implemented protocol versions and select a common complete version;
+  incompatible releases stop with an upgrade message. Add capability negotiation
+  only when a real optional feature requires it.
+- **Small application-owned recovery layer.** Mobile controls connection generations,
+  backoff, reauthentication and recovery; Desktop owns bounded replay and admission.
+  Reuse WebSocket, JSON-RPC and crypto implementations. Do not introduce a separate
+  realtime framework or generic reconnect SDK in the initial implementation.
+- **One device-level Agent authorization switch.** Pairing proves identity; the
+  desktop explicitly approves viewing and controlling its Agent sessions together.
+  v1 has no per-resource allowlists or separate view/send/approve permissions.
+  Approval does not bypass individual tool decisions or execution preconditions.
+- **No automatic elevation** from an existing provider-pairing token, API key,
+  Passport account, relay token, or network location to Agent authority.
+- **Shared remote infrastructure:** provider/model configuration transfer and Agent
+  access share pairing, device identity, authentication, encrypted WebSocket,
+  JSON-RPC, reconnect and relay transport; see the decision below.
+- **v1 scope:** own Expo / React Native client, provider/model configuration transfer, text submission, session creation,
+  read-only history/artifacts, tool decisions, and conditional cancellation.
+  Uploads, Agent configuration edits, arbitrary filesystem access, arbitrary
+  network tunnels, business domains beyond configuration transfer and Agent access, and multi-user collaboration are out
+  of scope. New domain modules require an actual consumer.
 
-## Architecture
+## Shared infrastructure for configuration transfer and Agent access
 
-Two layers. The upper layer never forks; the lower layer is pluggable.
+**Accepted product decision:** pair once and confirm the permitted capabilities
+during that pairing. A successful pairing immediately enables the capabilities
+the desktop approved; it must not require a second authorization step afterward.
+Provider/model configuration transfer and Agent access use the same device identity,
+key proof, authenticated encrypted WebSocket, JSON-RPC dispatch, connection recovery
+and direct/relay reachability. Do not build another pairing or transport stack for
+configuration transfer.
 
+Business contracts and permissions remain separate. Configuration transfer belongs
+to the provider/model data owners and may include credentials only when that
+capability was approved. Agent access belongs to the existing execution/data owners;
+its approval does not authorize credential export, and configuration-transfer
+approval does not authorize Agent control. These are business permissions confirmed
+at pairing, not optional protocol-feature negotiation or per-action Agent permissions.
+Agent journals, checkpoints and execution receipts remain Agent-domain mechanisms;
+configuration transfer does not have to adopt the streaming-session model.
+
+The current HTTP `GET /v1/export/providers` route is the existing implementation,
+not the target shared transport. The target carries configuration-transfer business
+messages inside the same encrypted remote route, including over a relay; it does not
+forward the old HTTP provider/export routes through that relay. Existing provider
+tokens do not automatically acquire new permissions.
+
+This decision expands the Agent-only contract draft below. Before freezing v1,
+define the configuration-transfer method/DTO and package boundary, unified pairing
+capability confirmation and authorization results, and the old HTTP path's migration
+and retirement policy. The current `domain: 'agent'`, Agent-only authorization and
+package examples describe the Agent slice, not the complete unified pairing contract.
+This records the agreed direction; it does not claim configuration transfer has
+already migrated or prescribe unreviewed wire names/token formats.
+
+## Architecture and ownership
+
+```mermaid
+flowchart TD
+  Mobile[Mobile client] --> Reachability[Direct URL or relay routing]
+  Reachability --> Gateway[Desktop API Gateway: remote WS ingress]
+  Gateway --> Protocol[Remote adapter: identity, device authorization, schemas, delivery]
+  Protocol --> Execution[Agent execution owner]
+  Protocol --> Data[Owned data services]
+  Execution --> Runtime[Registered Agent runtime]
+  DesktopUI[Desktop UI] --> Execution
 ```
-Expo / RN mobile client
-        │  WSS  (speaks @shared/ai/transport)
-        ▼
-  Reachability provider  ──►  { baseUrl, sessionToken, scope }
-        │
-   ┌────┴───────────────────────────────────────────────┐
-   │ ① direct / BYO-URL (no relay)                       │
-   │     LAN · Tailscale/WireGuard/ZeroTier · cloudflared │
-   │ ② relay (reverse tunnel) — one Go codebase           │
-   │     hosted (+ Passport)  ·  self-host (+ deploy token)│
-   └────┬───────────────────────────────────────────────┘
-        ▼
-  Desktop apiGateway  ── agent transport surface (WS) ──►  AiStreamManager
-        │                                                    (exists)
-        ▼
-  Headless agent loop in main process  (exists: startAgentSessionRun)
-```
 
-- **Invariant — the agent transport surface (Stage 1).** A WebSocket surface on
-  the existing `apiGateway` that carries the **already-existing**
-  `@shared/ai/transport` protocol. Every reachability mode hits the *same* WS
-  server (`ws://desktop/v1/agent/...`); only how the mobile becomes able to reach
-  it differs.
-- **Seam.** A reachability provider exposes only `{ baseUrl, sessionToken, scope }`
-  to the rest of the system. Tailscale concepts (tailnet/ACL) and Passport
-  concepts (account) never leak past it.
+Reachability returns `{ baseUrl, routingCredential? }`. Identity pins, device keys,
+and device authorization belong to the authenticated protocol; a routing credential only helps
+bytes reach the correct desktop. Route names and encrypted payloads are identical
+in direct and relay modes; see the [API surface](../ai/remote-agent-access.md#connection-and-api-surface).
 
-## Reuse map
-
-The agent's I/O machinery already exists; the work is an HTTP/WS edge plus a relay.
-
-| Capability | Status | Symbol |
+| Owner | Responsibility | Boundary |
 |---|---|---|
-| Drive a turn | **exists** | `AiStreamOpenRequest` (submit / regenerate) |
-| Attach + replay | **exists** | `AiStreamAttachRequest` → `AiStreamAttachResponse` (`bufferedChunks` / terminal `finalMessages`) |
-| Live chunk / done / error | **exists** | `StreamChunkPayload` / `StreamDonePayload` / `StreamErrorPayload` |
-| Tool approval | **exists** | `AiToolApprovalRespondRequest` / `ApprovalDecision` |
-| Abort | **exists** | `AiStreamAbortRequest` |
-| Topic status (incl. awaiting-approval) | **exists** | `TopicStreamStatus` |
-| Non-renderer HTTP listener | **exists** | `SseListener` (an equal `AiStreamManager` subscriber) |
-| Fan-out + buffer + grace + background-continue | **exists** | `AiStreamManager` (`maxBufferChunks`, grace period, `backgroundMode:'continue'`) |
-| Open / attach / abort / approve logic | **exists** | `ai.*` IPC handlers (`src/main/ipc/handlers/ai.ts`) |
-| Headless agent execution | **exists** | `startAgentSessionRun()` |
-| Tool-approval join point | **exists** | `ToolApprovalRegistry` + `AiService.respondToolApproval()` |
-| Session list / history | **exists** | DataApi `/agent-sessions`, `/agent-sessions/:id/messages` (`src/main/data/api/handlers/agentSessions.ts`) |
-| HTTP server | **exists** | `apiGateway` (Elysia + `@elysia/node`, `127.0.0.1:23333`) |
-| **WS agent surface** | **new** | `WebSocketListener` + `/v1/agent/*` routes |
-| **QR pairing + capability token** | **new** | `/v1/pair/*` routes + token mint/verify |
-| **Relay (reverse tunnel)** | **new** | separate Go project (`frps`/`frpc`-style) |
+| API Gateway | HTTP upgrade, route isolation, connection admission | Does not execute Agents or grant access based on provider credentials |
+| Remote adapter | Authentication, live authorization, DTO conversion, journal, delivery | Calls execution/data owners; never adds a second Agent loop |
+| Agent execution owner | Stream listeners and state notifications, execution identity, send/cancel/approve serialization, final persistence | Must not import remote-access services |
+| Data services | Durable command admission, device authorization state, session/history reads | SQLite changes remain in existing owning services and appended migrations |
+| Mobile app | Connection lifecycle, secure keys, transactional local projection/cursor, UI | Consumes portable protocol schemas; no copied desktop internal types |
+| Go relay | Desktop routing and bounded encrypted byte forwarding | No Agent schemas, plaintext history, tool arguments, or access-token validation |
 
-`AiStreamManager.dispatch(listener, openRequest)` is **already listener-generic**
-(the IPC handler just happens to pass a `WebContentsListener`); a `WebSocketListener`
-slots into the same call. `attach(wc, req)` is currently `WebContents`-typed and
-needs a `StreamListener`-typed variant — the one required refactor.
+Reuse the existing stream manager, runtime registry, persistence, and approval
+owners. `addListener()` already registers a listener and synchronously replays its
+buffer. The removed prototype supplied `observeTopic()` and snapshot access; any
+replacement state/interaction observation hooks still need implementation.
+Start from the existing listener mechanism, not a new session event model or capture API. Their
+bounded execution buffers are not the remote journal, and renderer `WebContents`
+attachment is not the remote adapter. Verify initial replay completeness, snapshot /
+chunk handoff, attachment across executions, approval updates and persistence order;
+extend the existing owner interfaces only where those tests expose a gap. Remote
+owns protocol projection, checkpoint/replay barriers and ACK. Durable admission
+still belongs with execution/data owners. Do not substitute periodic snapshot diffs
+for streaming events. Long-lived resources follow the lifecycle framework.
 
-## Reachability modes
+## Decision: v1 synchronization scope (2026-09-21)
 
-### ① Direct / BYO public URL (no relay)
+Desktop remains the sole authority. v1 provides current-execution deltas, bounded
+replay, checkpoint recovery and command idempotency; it does not synchronize
+independently editable replicas or merge client state. Completed, persisted
+messages are history: changes invalidate history caches for on-demand reads,
+rather than restarting message/part deltas on archived content.
 
-The mobile reaches the desktop's `apiGateway` at *some* URL the user controls:
-LAN, a mesh VPN (Tailscale / WireGuard / ZeroTier), or a BYO tunnel
-(cloudflared / ngrok / the user's own reverse proxy). The code only needs to
-support **an arbitrary `baseUrl` + a desktop-self-signed capability token** — which
-is required for Tailscale anyway, so cloudflared etc. fall out for free. Pairing
-and the token are handled locally: the **desktop is its own control plane** (it
-runs the pairing endpoints and self-signs the token). The relay control protocol
-is not used.
+Replay requires a complete local live baseline and a contiguous retained suffix.
+Otherwise recover through a checkpoint, accepting extra transfer on that exceptional
+path. Do not add message-level gap repair, historical-version hydration for appends,
+or create/upsert events for cache reloads. Ordinary history scrolling does not
+require a checkpoint. See the normative
+[live/history boundary](../ai/remote-agent-access.md#v1-livehistory-boundary)
+for completion, eviction and recovery rules. This boundary keeps weak-network
+optimization focused on normal streaming and short disconnections.
 
-> **cloudflared / BYO tunnel — content is protected by app-layer E2E; metadata is
-> not.** Such tunnels terminate TLS at a third-party edge, but
-> [application-layer E2E](#end-to-end-encryption-application-layer) means that edge
-> (and our own relay) sees only **ciphertext plus routing metadata** — it cannot
-> read or tamper with agent content or tool-approval messages. It *does* see
-> metadata (which desktop/session, timing, sizes). A one-click cloudflared launcher
-> (binary via `BinaryManager` + a quick tunnel) is a reasonable demo affordance,
-> additive to — not a replacement for — our relay on the hosted path. A mesh
-> (Tailscale/WireGuard) encrypts the transport end-to-end too, so there E2E is
-> defense-in-depth.
+## Defects this design removes
 
-### ② Relay (reverse tunnel)
+| Earlier approach | Failure | Target contract |
+|---|---|---|
+| Periodic full snapshots | Repeated transcript bytes grow with output; projection limits lose content | Ordered deltas; explicit complete content reads for referenced values |
+| Forward internal transport types | Desktop refactors and SDK events become mobile breaking changes | Versioned public DTOs and adapters |
+| Reconnect with a fresh event counter | Cannot distinguish gaps, duplicates, or a restarted desktop | Session epoch + sequence cursor; replay or explicit reset |
+| Fetch snapshot then subscribe | Events can disappear between capture and attachment | Atomic checkpoint and replay barrier |
+| Retry send after response loss | Can start duplicate execution | Durable command ID, canonical input, receipt and tombstone |
+| Provider pairing implicitly authorizes Agent control | Provider credentials silently acquire unrelated authority | Separate desktop-approved Agent access switch on the paired device |
+| Static-key-only encrypted channel | Long-term key compromise exposes recorded traffic | Reviewed authenticated ephemeral handshake with forward secrecy |
+| Unbounded pending output | One slow phone consumes memory and delays controls | Byte credits, bounded journals/checkpoints, reset slow subscriptions |
+| Public schema copies in both repos | Contract and reducers drift independently | One versioned package consumed by both |
 
-For users with no shared network. One Go codebase, two operators:
+## Reachability and route isolation
 
-- **Hosted** — we operate it; identity via **Passport** (the cloud account).
-- **Self-host** — the user runs it (`docker compose up`); identity via a
-  **deploy token**.
+**Direct / BYO URL:** use the same surface through LAN, a VPN, or an existing
+reverse proxy. LAN exposure is opt-in. The desktop validates deployment Host and
+Origin policy in addition to cryptographic authentication; neither header is an
+identity proof. Authentication and device-level authorization are required on LAN too.
 
-See [Control-layer contract](#control-layer-contract).
+**Relay:** one Go server/client codebase supports hosted and self-hosted operation.
+The desktop initiates an outbound authenticated tunnel. Hosted reachability may
+use Passport; self-hosting uses deployment credentials. A route ID identifies a
+desktop tunnel, not an Agent session. Tunnel reconnection does not change device authorization
+or replay cursors, unless desktop replay state was actually lost.
 
-## Exposed endpoints (agent transport surface)
+The remote ingress accepts only the remote WebSocket route. Enforce this allowlist
+at the desktop, including when the route shares the existing gateway's listener;
+relay configuration is not the security boundary. Do not forward `/v1/*`, provider
+routes, local administrative routes, or an arbitrary target port. Existing local
+OpenAI/Anthropic/MCP access remains a separate authorization.
 
-New routes on `apiGateway`. **Two auth domains on one server:** the existing
-OpenAI/Anthropic routes keep the global `cs-sk` key; the new `/v1/agent/*` and
-`/v1/pair/*` routes use the **capability token** (a JWT), whose `cap` bits and
-`session_id` binding the **desktop** verifies.
+The relay control plane has its own versioned registration, liveness, and routing
+messages. Select its multiplexing implementation separately; those messages never
+share Agent session IDs or parse encrypted business frames. Go binary acquisition
+uses [Binary Manager](../binary-manager/README.md); secrets reach the child through
+an inherited private pipe rather than command-line arguments. Relay queues and
+connection admission must also be bounded.
 
-> **With E2E on (default for the relay/cloudflared modes):** the capability token
-> is presented as the **first message inside the E2E channel** (§
-> [End-to-end encryption](#end-to-end-encryption-application-layer)), never in a
-> URL/header the relay can read. The WS upgrade itself carries only a **coarse
-> relay-session credential** used for routing. The `@elysia/bearer` header/query
-> form is used only in direct (no-relay) modes where there is no third party to
-> hide the token from.
+## Pairing and device authorization
 
-### A. Live channel (WebSocket — the core)
+1. The desktop user enables sharing and creates a short-lived invitation. Its QR
+   carries discovery, identity pin, invitation ID/secret and reachability, never a
+   provider key or reusable Agent token.
+2. The phone proves its key through the encrypted handshake and submits a claim
+   for the Agent domain. There is no requested scope or permission checklist.
+3. The desktop shows device identity, verification code and one explicit decision:
+   allow this device to access and control desktop Agent sessions. Approval covers
+   viewing, creation, sending, responding to individual tool approvals and cancelling,
+   including future sessions. There is no remote approval or enable operation.
+4. Approval binds the invitation, claim, device key and authorization generation.
+   The phone receives a short-lived access token only inside its encrypted channel.
+   Reject/expiry creates no authority; the same key may recover the same claim until
+   its bounded expiry. QR possession alone is not permission to execute.
 
-`GET /v1/agent/sessions/:sessionId/stream` (WS upgrade, `?access_token=…`).
-One socket carries everything. Envelope is `{ type, payload }` where **`payload`
-reuses `@shared/ai/transport` types verbatim**:
+Store one optional Agent authorization on the existing paired-device record:
+`agentRemoteAccess: null | { grantId, status: 'enabled' | 'revoked' }`, with the
+proven device-key binding. Provider pairing remains independent and does not enable
+this switch. There is no standalone remoteGrant table or RemoteGrantService, no
+session/Agent/workspace allowlist, no grant revision and no per-action permissions.
+Existing runtime/resource/lifecycle checks still apply; no provider secrets,
+configuration editing or arbitrary filesystem API is added by this authorization.
 
-| Dir | `type` | `payload` | Maps to | cap |
-|---|---|---|---|---|
-| on connect | `attach` | `AiStreamAttachResponse` | `AiStreamManager.attach` (generalized) | view |
-| ↓ | `chunk` / `done` / `error` | `StreamChunkPayload` / `StreamDonePayload` / `StreamErrorPayload` | `WebSocketListener` | view |
-| ↑ send prompt | `open` | `AiStreamOpenRequest` | `dispatch(wsListener, req)` | send |
-| ↑ stop | `abort` | `AiStreamAbortRequest` | `abort(topicId)` | send |
-| ↑ approve tool | `approve` | `AiToolApprovalRespondRequest` | `respondToolApproval(payload, wsListener)` | **approve** |
-| ↕ heartbeat | `ping` / `pong` | — | app-level (required on mobile networks) | — |
+`grantId` remains an opaque authorization-generation ID for tokens, command receipts
+and recovery handles. It is not a permission object exposed for user management.
+Initial approval and reapproval after revocation generate a fresh, never-reused ID;
+refresh/reconnect or redundant enable preserves an already enabled generation.
+Old pending commands cannot be automatically reassigned to a new generation.
+A short-lived access token is audience-bound and bound to the device key and this
+ID. Validate issuer/audience/expiry/algorithm using the selected reviewed profile,
+and recheck the stored enabled generation on each request and outbound delivery.
+Neither a token alone nor a grant ID proves the device key. Cryptographic and token
+encoding choices remain release gates.
 
-Connecting *is* attach; closing *is* detach. The first server frame replays
-buffered/terminal state, then live chunks flow.
+After token expiry while offline, the same approved key can authenticate the same
+enabled generation to receive a new token. A revoked generation/key cannot refresh
+or reactivate itself; it needs a new local approval. Protocol version compatibility remains a separate check; incremental delivery
+and recovery are mandatory, with no per-feature flags in v1.
 
-### B. Agent data (REST — reuse the data layer)
+Revocation persists the disabled generation, closes its connections and invalidates
+pages/checkpoints and queued delivery. Disabling Agent access leaves provider pairing
+unchanged. Expiry pauses domain traffic until successful refresh. Identity rotation
+requires pairing again. Backup restore revokes restored credentials/Agent authorization
+before ingress resumes so rolled-back receipts cannot revive old authority. Audit
+approval/revocation and command identities without logging credentials or tool input.
+Read-only mode or restricted delegation can be designed when an actual use case needs
+it; neither is part of v1.
 
-| Endpoint | cap |
+## Encryption release gate
+
+Select an established authenticated key-exchange protocol and maintained desktop /
+Expo-compatible libraries before freezing protocol v1. The profile must provide:
+
+- QR-pinned desktop authentication and device-key proof, including a distinct
+  unapproved pairing state;
+- fresh ephemeral keys, forward secrecy, key confirmation, and transcript binding
+  of profile/version negotiation;
+- authenticated encryption of requests, responses, events, history, pairing
+  completion, and credentials, with directional keys/counters and replay rejection;
+- explicit nonce/counter/rekey limits and OS-backed long-term key storage;
+- independent test vectors, tamper/downgrade/replay tests, and actual Expo integration.
+
+No business frame precedes handshake completion and device authorization. Disable
+0-RTT mutations and plaintext/static-key fallback. Reconnect establishes fresh
+keys; journal replay re-encrypts logical events rather than replaying ciphertext.
+Public hops use WSS. LAN WS may carry the same authenticated encrypted channel;
+it never carries plaintext business data. A TLS-terminating relay still sees only
+application ciphertext, although it can observe size/timing and drop traffic.
+This document intentionally does not invent a cipher frame or claim a reviewed
+library/profile has already been selected.
+
+## Public protocol package
+
+Proposed location: `packages/remote-protocol`, published as
+`@cherrystudio/remote-protocol`. Publication is a later delivery step, not part of
+this documentation change. Both repositories install a tested package version;
+a separate repository is not required.
+
+| Export | Owns | Must not depend on |
+|---|---|---|
+| `@cherrystudio/remote-protocol` | JSON-RPC validation, connection/version negotiation, common errors, transport profile descriptors | Agent DTOs, other domain schemas, platform APIs |
+| `@cherrystudio/remote-protocol/agent` | Agent method schemas, device authorization, events, checkpoints, pure reducer, canonical command encoding | Desktop services, mobile UI, other domains |
+
+The dependency direction is domain → common, never common → Agent. Envelope
+validation parses the common structure first; consumers compose only the domain
+validators they support. Domain permissions remain in the domain export. Do not
+pre-create task/file/sync domains or a universal business-event union.
+
+Use runtime schemas as the single source for inferred request, result, error,
+event, and checkpoint types. Export a typed method map as well as validators;
+compile-time interfaces alone cannot validate a remote peer. Pure reducers and
+canonical command encoding must have shared conformance fixtures. The concrete
+[export surface](../ai/remote-agent-access.md#public-package-api) lives in the API design.
+
+Use an existing portable JSON-RPC implementation for dispatch and request correlation
+in platform adapters. Evaluate [json-rpc-2.0](https://github.com/shogowada/json-rpc-2.0)
+first with the packed-package Node/Expo proof; this is a candidate, not a dependency
+already added or a completed compatibility test. Verify batch/error/notification
+behavior, pending-request cleanup, transport send failures, and bounded admission
+before choosing it. Keep its concrete client/server objects out of the package's
+public domain API. Do not implement another RPC engine or adopt a Node stdio framing
+stack merely to share method types.
+
+No Electron, React, React Native, database, provider SDK, Node-only `Buffer` /
+crypto/fs, sockets, timers, or mutable singleton state belongs in the package.
+Use JSON-compatible DTOs and `Uint8Array` at byte boundaries. Keep cryptographic
+implementations, platform key storage, networking/reconnect, and UI in their
+adapters; the package declares the selected profile and protocol shapes only.
+Do not re-export `@shared/ai/transport`, `UIMessageChunk`, or internal persistence
+models. The App's `packages/universal` can temporarily re-export these canonical
+contracts while consumers migrate; it must not retain another schema implementation.
+
+Publish compiled JavaScript, declarations, explicit export paths, and conformance
+fixtures. Validate the actual packed artifact in Node and Expo/Metro. Start with
+prereleases until both consumers interoperate. Package semver, app releases and
+protocolVersion are separate. Compatible optional response fields may be additive;
+new methods/event variants or changed reducer/command-identity semantics need a new
+protocol version. v1 has no capability negotiation or separate domain-version axis.
+Select the highest common explicitly implemented version; a newer app can retain an
+older complete protocol to interoperate with an older peer. Test every advertised
+version against actual released peer artifacts, not just the latest code relabeled
+with an old version. Do not promise automatic N-1 compatibility. See the
+[compatibility rules](../ai/remote-agent-access.md#protocol-version-compatibility). Generate cross-language schema artifacts only
+when a real consumer needs them. The Go relay does not need Agent schemas.
+
+## Application-protocol references
+
+These references guide specific responsibilities; sharing their patterns does not
+claim ACP, LSP, JMAP, or NETCONF wire compatibility.
+
+| Reference | Applied decision | Boundary |
+|---|---|---|
+| [JSON-RPC 2.0](https://www.jsonrpc.org/specification) | Standard request/response/notification, numeric errors, batch semantics | Does not supply authorization, command idempotency, or replay |
+| [ACP v1 initialization](https://agentclientprotocol.com/protocol/v1/initialization) and [prompt turn](https://agentclientprotocol.com/protocol/v1/prompt-turn) | Review session, prompt, output and permission semantics before inventing domain concepts | Phone does not become the executor's filesystem/tool host; approval must survive disconnect |
+| [LSP initialization](https://github.com/microsoft/language-server-protocol/blob/gh-pages/_specifications/lsp/3.17/general/initialize.md) | Initialization before independently released peers exchange business messages | Reference only; v1 does not adopt its capability negotiation |
+| [JMAP RFC 8620 §5.2](https://www.rfc-editor.org/rfc/rfc8620.html#section-5.2) | State-based incremental recovery with explicit inability to calculate changes | Record synchronization is not token replay; our event journal and ACK contract are additional |
+| [NETCONF RFC 6241 §8.1](https://www.rfc-editor.org/rfc/rfc6241#section-8.1) | Explicitly advertised common protocol version | Reference only; v1 does not adopt extension capabilities, XML, or network configuration operations |
+
+## Implementation order and acceptance
+
+This is a staged rewrite plan. Complete each acceptance gate before enabling its
+network behavior; documentation changes alone do not satisfy a stage. The first
+deliverable is the protocol package and a two-consumer conformance proof, followed
+by a single real desktop/mobile Agent flow before expanding the UI or adding Relay.
+
+### Baseline integration points and archived references
+
+The baseline desktop provides execution and data owners, but not the target
+contract. The removed `remoteAccess` files and `RemoteCommandService` below refer
+to the archived #20717 prototype and must be implemented anew. The App paths below are relative to the linked mobile repository and
+describe its current workspace layout; recheck them against the implementation base.
+
+| Baseline location / archived prototype | Reuse or change |
 |---|---|
-| `GET /v1/agent/sessions/:sessionId` | view |
-| `GET /v1/agent/sessions/:sessionId/messages?before=&limit=` | view |
+| Desktop `src/main/services/remoteAccess/protocol.ts`, `requestRouter.ts` | Replace custom `type/requestId` envelopes and local method schemas with JSON-RPC dispatch and imported package contracts |
+| Desktop `RemoteAgentSubscription.ts`, `messageProjection.ts` in that service | Replace timed snapshots and per-subscription epochs with immutable per-session/protocol-version events, checkpoint barriers, shared replay and byte credits |
+| Desktop `src/main/ai/streamManager/AiStreamManager.ts`, Agent lifecycle/runtime owners | Reuse StreamListener, addListener and per-topic locks; add required state observation; verify replay/attachment gaps and extend existing owners only as needed; add idle reservation |
+| Desktop `src/main/data/services/RemoteCommandService.ts`, remote `agentCommands.ts` | Implement transaction-backed receipts with device/authorization-generation identity, durable admission outcomes/tombstones, and explicit crash recovery |
+| Desktop gateway and paired-device services | Reuse listener/lifecycle/device identity ownership; add isolated WS routing and the device-level Agent switch; replace the static-key channel only after crypto validation |
+| App `packages/universal` | Keep existing portable app contracts; consume the published remote package rather than copying network schemas into this package |
+| App `src/backend/services`, `src/backend/data` | Own remote connection/key lifecycle and transactional projection/cursor/pending-command storage respectively |
+| App `src/shared/contracts`, `src/bootstrap/composition/createBackend.ts` | Expose and assemble a semantic remote workflow; these in-process interfaces must not expose RPC IDs, sockets or raw wire envelopes |
 
-### C. QR device pairing (REST)
+Changes to persisted device authorizations, command identities or stable part IDs require appended
+migrations with populated-database forward tests. Do not rewrite existing migrations.
+The existing App `ChatModule` drives a local runtime; remote execution must not
+silently enter that executor or create a second local run.
 
-See [QR device pairing](#qr-device-pairing) for the flow and why this is **not**
-RFC 8628 (only its safety mechanics are borrowed).
+### Stage 1: package and JSON-RPC conformance
 
-| Endpoint | Caller | Purpose |
-|---|---|---|
-| `POST /v1/pair/sessions` | desktop (local) | start pairing → `pairing_code` + QR (`verification_uri_complete`) + `confirm_code` + TTL |
-| `POST /v1/pair/sessions/:code/claim` | phone | submit device info → `confirm_code` (matched on both screens) + requested scope |
-| `POST /v1/pair/sessions/:code/approve` | desktop (local, authed) | user grants scope (view/send/approve) |
-| `POST /v1/pair/sessions/:code/token` | phone (poll) | once approved → **capability token + baseUrl** |
+- Create `packages/remote-protocol` with explicit root and `/agent` exports. Define
+  canonical schemas/method maps, application error reasons, negotiation, event
+  reducer/checkpoint installation, and shared wire fixtures. Separate RPC correlation
+  from durable `commandId` in examples and types.
+- Validate the candidate RPC library with paired in-memory endpoints, then install
+  the same packed artifact in Node and the actual Expo/Metro environment. Keep this
+  harness transport-only; it does not publish an insecure network mode.
+- Verify standard errors, null/number/string response IDs, no response to notifications,
+  mixed/empty batches, response reordering, quota enforcement and pending-call cleanup.
+  Verify different Mobile/Desktop releases sharing one complete version, future
+  new/old peers in both directions, no common version, and client rejection of an
+  unoffered selection. Do not introduce capability flags or partial-v1 modes. Unknown domain notifications never
+  advance a projection cursor.
+- Deliverable: a portable package artifact and passing independent consumer fixtures.
+  Use a local packed artifact first; registry prerelease publication is a separate
+  delivery action after package contents and consumers are validated.
 
-### D. Sharing control (REST — visible state + kill switch)
+### Stage 2: execution and persistence correctness
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /v1/agent/shares` | active phones / sessions / caps / duration |
-| `DELETE /v1/agent/shares/:id` | revoke a share |
+- Build the remote adapter on existing StreamListener/addListener and topic/runtime
+  observations. Test complete/truncated replay, an idle session starting a run,
+  subsequent executions, snapshot/chunk handoff, approvals and final persistence.
+  Extend existing owners only for demonstrated gaps; do not pre-create a generic
+  session event model or new capture API. Build the bounded remote journal from
+  these sources, not periodic full-snapshot diffs. Preserve stable identities and
+  test runtime-specific mappings, including tool input/output.
+- Extend durable admission through the existing topic lock and synchronous database
+  transaction. Add device/authorization-generation deduplication and retain terminal tombstones. Existing
+  local and remote entry points must honor the same execution reservation.
+- Verify no missing event at capture/subscribe, complete Unicode/tool reconstruction,
+  epoch/reset handling, lost admission response, changed-input retry, activation
+  failure and restart after uncertain side effects. Use real migrated test databases.
+- Deliverable: correct owner-level behavior with a deterministic fake transport;
+  no mobile screen or network reachability is required to prove these invariants.
 
-### Access control — no app-level guard, no separate listener
+### Stage 3: authenticated desktop gateway
 
-The new routes **co-locate** on `apiGateway`. "Who may reach the endpoint" is
-delegated to the layer that owns reachability:
+- Select and validate the desktop/Expo crypto and token profile. Implement pinned
+  identity, device-key proof, explicit desktop approval, device authorization revocation and token
+  renewal; verify the reviewed protocol's interoperability and negative vectors.
+- Mount `/v1/remote/connect` with its own admission/auth boundary, outside the
+  gateway's provider-key guard while still covered by the remote route allowlist.
+  Register resources with lifecycle ownership. Wire the JSON-RPC adapter to Stage 2.
+- Verify that old provider/device credentials alone cannot invoke Agent methods,
+  that revocation stops pending delivery, and that send/approve/cancel each enforce
+  the enabled device authorization and concurrency preconditions. Validate full encrypted Node↔Expo
+  round trips before exposing this mode to users.
+- Deliverable: a secure direct endpoint exercised by a protocol client. The
+  cryptographic profile is a prerequisite, not an optional post-launch hardening task.
 
-- **direct / Tailscale** → the **tailnet ACL** (the boundary the user chose; the
-  app does not add its own guard, and the powerful `cs-sk` routes being reachable
-  on a trusted tailnet is acceptable — they still require the key).
-- **hosted relay** → the relay **forwards only `/v1/agent/*` + `/v1/pair/*`** by
-  construction, so the `cs-sk` surface never leaves.
-- **BYO tunnel** → the user scopes their own tunnel (documented, not enforced).
+### Stage 4: one complete mobile flow
 
-## Control-layer contract
+- Add a backend remote workflow under the existing mobile service bucket. It owns
+  secure key storage, JSON-RPC connection/negotiation, subscriptions, timeouts and
+  reconnect. Put durable pending commands and projection/cursor writes behind the
+  mobile data owner. UI consumes semantic states and operations through its normal
+  workflow seam, never through raw `request(method, params)` calls.
+- Complete pair → select permitted session → install checkpoint → send → render
+  text/tool updates → approve/cancel → durable completion. Include read-only history
+  and content paging where required to view the session and complete approval input.
+- Verify iOS/Android background/resume, app restart, lost receipt, token expiry,
+  version mismatch and revoked device authorizations. Network timeout shows an unknown/pending
+  command outcome until reconciled; it never silently resends under a new ID.
+- Deliverable: one real Agent session works end to end, including reconnect, without
+  starting a local mobile Agent or copying credentials to run the model there.
 
-Relevant only to reachability mode ②. **Three independent protocol surfaces;** the
-relay implements surfaces 1–2 and treats surface 3 as opaque payload. Modeled on
-**frp** (Go, the direct analogue), cross-checked against ngrok/cloudflared.
+### Stage 5: weak-network acceptance and rollout
 
-```
-mobile WSS → relay (Go) → [yamux over TLS] → desktop tunnel client (Go) → localhost apiGateway WS
-```
+- Exercise replay/checkpoint expiry, gaps/duplicates, ACK validation, byte quotas,
+  slow subscribers and control-message scheduling under injected latency, bandwidth
+  limits and disconnections. Add golden event traces covering all supported runtimes.
+- Compare total wire bytes, first-text latency, recovery time, queue/journal memory
+  and cancel-response delay on identical traces. Streaming appends must send new
+  content plus bounded framing, not growing transcript snapshots. A slow subscriber
+  cannot block desktop execution or healthy subscribers.
+- Run compatibility tests across every advertised released package/protocol-version pair.
+  Only then freeze budgets, publish the validated package and enable the replacement
+  remote mode; remove obsolete snapshot/parser paths as part of that cutover.
 
-Because the desktop tunnel client is **also Go and ships in the same project**
-(`frps`/`frpc` model), surface 1 is **Go↔Go** and needs no cross-language schema.
-The Electron app only spawns the client binary (acquired via `BinaryManager`) with
-a few flags (`relay URL`, `token`, local port).
+### Stage 6: relay reachability
 
-### Surface 1 — tunnel control (desktop ↔ relay)
+Add hosted/self-hosted routing with the same encrypted JSON-RPC and Agent semantics.
+Test tunnel reconnect without epoch changes when desktop state survives, desktop
+route isolation, bounded relay queues, and absence of plaintext business payloads
+at the relay. No Relay-specific Agent method set or second protocol package is needed.
 
-- **Connection model.** Desktop dials **one** outbound TLS connection, multiplexed
-  with **yamux**. The **relay opens a stream to the desktop** per incoming mobile
-  connection (ngrok/yamux model — simpler than frp's `ReqWorkConn` dial-back); the
-  desktop client pipes it to the local `apiGateway` WS.
-- **No `NewProxy`.** There is exactly one target (the apiGateway WS); the desktop
-  registers itself and every stream maps to that one endpoint.
-- **Control stream.** One dedicated yamux stream carries JSON control messages
-  (frp-v1 framing: `1 type byte | 8-byte BE length | JSON`, or newline-delimited
-  JSON). Minimal set: `Register`/`RegisterResp` (carries tunnel-auth token +
-  `desktop_device_id` + `resume_id`; relay returns the assigned UUID),
-  `OpenSession` (relay→desktop: new mobile stream header `session_id`, then raw
-  pipe), `CloseSession`, `Ping`/`Pong`.
-- **Tunnel auth.** `HMAC-SHA256(token, timestamp)` + constant-time compare +
-  freshness window. This authenticates the **tunnel identity** and is distinct
-  from the capability token (surface 3).
-- **Routing.** Per-desktop **UUID** (cloudflared model); mobile addresses
-  `wss://relay/<desktop-uuid>`. Hosted: a UUID is routable only within its owning
-  Passport account (multi-tenant isolation); self-host collapses to one account.
-- **Reconnect.** frp's **RunID** resumption — desktop persists `resume_id`, the
-  relay atomically replaces the stale session, routing stays stable.
-- **Heartbeat.** yamux keepalive suffices on this leg (frp disables app-ping when
-  muxed).
-- **WebSocket.** yamux streams are raw byte streams, so the mobile's WS upgrade
-  passes through to `apiGateway` for a normal handshake — **avoiding cloudflared's
-  HTTP/2 `101` rewrite** (ngrok model).
-
-### Surface 2 — QR pairing (relay brokers)
-
-The relay/control-plane serves the pairing endpoints in hosted mode; the desktop's
-`apiGateway` serves the same contract in self-host mode. See
-[QR device pairing](#qr-device-pairing).
-
-### Surface 3 — capability token (opaque to relay)
-
-See [Capability token](#capability-token). The relay never holds a signing key, so
-it can broker but cannot forge or escalate.
-
-## QR device pairing
-
-This is **not** RFC 8628, though it borrows 8628's safety mechanics (one-time
-short-lived code, polling, matching-code anti-phishing). It is a **QR device
-pairing** flow — the mirror of WhatsApp Web / Discord QR login:
-
-| Role | WhatsApp Web | Here |
-|---|---|---|
-| displays QR | web (new client) | **desktop (authority + resource)** |
-| scans QR | phone (authority) | **phone (new client)** |
-| issues credential to | the displayer | **the scanner (phone)** |
-
-Issuing the token to the phone is **not an anti-pattern** — the phone is genuinely
-the client that will access the resource. The safety invariant that must hold,
-regardless of which side displays vs. scans, is:
-
-> **The authority (the side that owns the resource) explicitly approves before any
-> credential is minted; the QR carries only a one-time pairing ticket, never a
-> credential.**
-
-Our flow satisfies it: the QR carries a `pairing_code` (a one-time, 60–300 s
-ticket), the phone claims, the **desktop user approves** (with a matching code
-shown on both screens — anti-phishing), and only then is the token issued. The
-genuine anti-patterns — token-in-the-QR (scan = instant access) and
-no-authority-confirmation (whoever scans gets in) — are both avoided.
-
-**Hardening (not a v1 blocker).** Delivering the token to the phone via
-`/token` has the standard AiTM-theft surface; bind the token to `mobile_device`
-and keep the TTL short. Stronger: **proof-of-possession** — the phone generates a
-keypair at claim time and the token binds to its public key, so a stolen token is
-useless without the phone's private key.
-
-**Pairing also bootstraps E2E.** The same QR + approve flow carries the
-*authenticated* key exchange for [end-to-end encryption](#end-to-end-encryption-application-layer):
-the phone binds its ephemeral X25519 public key into `/claim` (alongside the PoP
-key above), the desktop returns its ephemeral key **signed by the desktop identity
-key the phone pinned from the QR**, and the user's `/approve` authenticates the
-phone's key out-of-band. This is what stops the relay from MITM-ing the key
-exchange — see that section for why an unanchored ECDH through the relay is unsafe.
-
-## Capability token
-
-Short-lived, scoped, **verified offline by the desktop** without trusting the relay.
-
-- **Format.** Asymmetric claims token — **JWT (EdDSA/ES256, `alg` pinned to an
-  allow-list)** for ecosystem reach (Go + TS), or **PASETO v4.public (Ed25519)** if
-  preferred. **Not** Macaroons (shared-secret breaks relay-free verification);
-  **not** default-config JWT (alg-confusion).
-- **Claims.** `sub` (user), `desktop_device`, `mobile_device`, `session_id`,
-  `cap` (view/send/approve bits), `aud`, `iss`, `iat`, `exp`, `nbf`, `jti`.
-- **Who signs.** Hosted → **Passport** signs (relay only transports). Self-host →
-  the **desktop self-signs** (it is its own root of trust; the phone learns the
-  desktop's public key during pairing).
-- **How the desktop verifies (without trusting the relay).** Verify signature
-  against an independently-trusted public key (pinned in the build / a Passport
-  JWKS endpoint — **never** the relay) → check `exp`/`nbf`/`aud`/`iss` → check the
-  `desktop_device`/`session_id` binding matches *this* desktop and session → check
-  `cap` bits → (optionally, when online) check `jti` deny-list.
-- **TTL & revocation.** Access token 5–15 min, refreshable; pairing ticket
-  60–300 s, one-time. Short TTL is the primary revocation; an optional `jti`
-  deny-list (entry TTL = token's remaining life) gives surgical revocation when the
-  desktop is online.
-- **Transport.** Presented to the desktop **inside the E2E channel** (not a
-  URL/header), so the relay never reads it; the relay routes on a separate, coarse
-  relay-session credential (two tokens — see [End-to-end encryption](#end-to-end-encryption-application-layer)).
-
-## End-to-end encryption (application layer)
-
-Agent content is encrypted **end-to-end between the mobile client and the desktop**,
-above the WS transport, so **no relay or tunnel — ours, Cloudflare's, or any
-intermediary — can read or tamper with it**, whether or not it terminates TLS. The
-relay stays not just agent-agnostic but **content-agnostic**: it forwards opaque
-ciphertext. This matters precisely because **remote tool approval** is supported —
-with E2E a relay cannot forge or alter an approval, only observe that an encrypted
-message passed (or drop it).
-
-- **Cipher suite.** X25519 ECDH → HKDF-SHA256 → an AEAD (XChaCha20-Poly1305, or
-  AES-256-GCM if the RN crypto library favours it); per-message nonce + monotonic
-  sequence number (replay/reorder protection).
-- **Authenticated key exchange — the load-bearing part.** A bare ECDH *through the
-  relay* is trivially MITM'd (the relay substitutes its own keys to each side), so
-  the exchange MUST be anchored to things the relay cannot forge — the out-of-band
-  QR and the desktop identity key:
-  - **Desktop side.** The desktop signs its ephemeral X25519 public key with its
-    long-term identity key (the same key whose public half the phone pins from the
-    QR during pairing). The phone verifies that signature → the desktop's ephemeral
-    key is authentic.
-  - **Mobile side.** The phone binds its ephemeral public key into the `/claim`
-    that proves possession of the one-time QR secret; the desktop user then
-    **approves that specific claim** (matching code confirms phone↔desktop). So the
-    phone's key is authenticated by *QR-secret possession + human approval*, which
-    the relay cannot fabricate.
-  - Both derive `K = HKDF(X25519(eph_d, eph_m), transcript)`. The relay holds no
-    private key and cannot compute `K`.
-- **Where it sits.** A thin wrapper at the WS edge: outbound `@shared/ai/transport`
-  payloads are serialized → AEAD-sealed → sent as opaque binary WS frames; inbound
-  frames are opened → parsed. **`@shared/ai/transport` is unchanged** (E2E wraps
-  it) and **the relay/tunnel needs no change** — it already forwards opaque WS
-  frames, now ciphertext.
-- **What rides inside the channel.** The live stream, all control
-  (`open`/`abort`/`approve`), replayed history, and the capability token (so the
-  relay never sees the token).
-- **What E2E does NOT hide — metadata.** The relay still sees which desktop UUID /
-  session a connection targets and message timing/sizes.
-- **Honest limit.** The guarantee is only as strong as the **Expo/RN client's**
-  crypto implementation, which is built by a separate team and out of scope here —
-  we specify the protocol; a faithful implementation is required. Forward secrecy
-  comes from fresh ephemeral keys per pairing + rekey-on-reconnect.
-- **Across modes — uniform.** E2E makes the hosted relay and cloudflared/BYO
-  tunnels content-private; over a mesh (Tailscale/WireGuard, which already encrypts
-  the transport end-to-end) it is defense-in-depth.
-
-## Security model
-
-- **Content is end-to-end encrypted; the relay sees only ciphertext + metadata.**
-  See [End-to-end encryption](#end-to-end-encryption-application-layer). A relay
-  (ours, Cloudflare's, or any intermediary) **cannot read or tamper** with agent
-  content or tool-approval messages. It can still affect **availability** (drop /
-  delay traffic) and observe **metadata** (which desktop/session, timing, sizes) —
-  it cannot forge.
-- **Remote tool approval raises the stakes — defended in depth.** Approving
-  remotely = authorizing an action on the user's machine. E2E ensures a relay
-  cannot forge/alter an approval; *additionally*: `approve` is a **separate
-  capability bit** (a view-only share cannot approve); the desktop **independently
-  verifies** the token's scope on every privileged action; the desktop shows what
-  is being approved, keeps an audit trail, and retains a kill switch.
-- **Scope is enforced at the desktop, not the relay.** The relay is agent- and
-  content-agnostic and cannot gate `approve`; the desktop is the authority.
-- **Key exchange is the crux of the E2E guarantee.** It must be anchored to the QR
-  out-of-band channel + the desktop identity key (above), or the relay can MITM and
-  the E2E guarantee is hollow. A mesh (Tailscale/WireGuard) adds transport-level
-  E2E as defense-in-depth.
-- **Visible state + revoke.** The desktop always surfaces which device is
-  connected to which session, for how long, with one-tap disconnect.
-
-## Schema & code generation
-
-**Single IDL = Zod 4** (repo convention); `z.toJSONSchema()` is native (no
-`zod-to-json-schema` bridge). `apiGateway` already emits OpenAPI from Zod via
-`@elysia/openapi` (`mapJsonSchema: { zod: z.toJSONSchema }`). **Protobuf is not
-used** — the control plane is small and low-frequency, the data plane is opaque
-bytes, and JSON is debuggable on the wire (frp's control messages are JSON too).
-
-| Surface | Cross-language? | Schema |
-|---|---|---|
-| Surface 1 (tunnel control) | no (Go↔Go, same project) | internal Go structs |
-| Surface 2 (pairing, HTTP) | yes (Go relay / TS apiGateway / Expo) | Zod → **OpenAPI** → Go `oapi-codegen` |
-| Surface 3 (token claims) | yes (Go/Passport or TS signs; TS verifies) | Zod → **JSON Schema** → `go-jsonschema`/quicktype |
-| Agent surface endpoints | TS serves, Expo consumes (relay opaque) | Zod → OpenAPI |
-| TS → Go binary config | a few flags | not a schema |
-
-Upgrade path (YAGNI): if a surface grows large/high-frequency, **TypeSpec** can
-emit OpenAPI + JSON Schema + protobuf from one source.
-
-## Build sequence
-
-The first real demo needs **no relay** — it retires the core risk locally.
-
-1. **Agent transport surface (Stage 1)** — add the WS `/v1/agent/*` routes +
-   `WebSocketListener`; generalize `AiStreamManager.attach` to a `StreamListener`.
-   **Verify with `wscat` on localhost**: attach → replay, `open`, `approve`. Zero
-   networking.
-2. **Direct demo** — reach Stage 1 over LAN/Tailscale; validate the end-to-end
-   product feel (and the Expo client) at near-zero cost. (Trusted transport, so
-   E2E is optional here.)
-3. **E2E channel** — add the authenticated X25519 handshake (anchored to the QR +
-   desktop identity key) and the AEAD payload wrapper. **Required before any
-   relay/cloudflared mode is content-private.**
-4. **Relay + Passport (hosted)** — the growth path; validates the seam and the
-   relay control contract (carrying the now-encrypted payload).
-5. **Tailscale self-host** — nearly free once Stage 1 exists.
-6. **Relay + deploy token (self-host)** — reuse the relay, swap the auth adapter.
-
-## To confirm during implementation
-
-- `AiStreamManager.attach` gains a `StreamListener`-typed variant (`dispatch` is
-  already generic).
-- Agent `sessionId` → stream `topicId` mapping (the `open` response's
-  `blocked: 'agent-session-workspace'` variant confirms `open` supports agent
-  sessions; the key relationship needs checking).
-- JWT vs PASETO for the capability token.
-- ~~One vs two tokens~~ **resolved by E2E → two tokens**: a coarse relay-session
-  credential for routing (relay-visible) + the capability token presented inside
-  the E2E channel (relay-opaque).
-- E2E cipher suite: X25519 + HKDF-SHA256 + **XChaCha20-Poly1305 vs AES-256-GCM** —
-  pick per the RN crypto library's mature primitives.
-- Possible simplification: the QR-anchored authenticated handshake already
-  authenticates the phone, and `/approve` already carries the granted scope — so
-  the desktop *could* record caps against the E2E session instead of minting a
-  separate capability JWT. Evaluate after the handshake exists; keep the JWT for
-  now (it also serves the direct/no-E2E modes).
-- Mobile client native-vs-PWA — **out of scope here**, decided by the mobile team;
-  the contract is `@shared/ai/transport` either way.
+Required cases include Unicode boundaries, interleaved tools, replacement content,
+multiple executions, missing/duplicate events, epoch reset, checkpoint expiry,
+client crash between projection/cursor writes, desktop crash before persistence,
+response loss after admission, same-ID input conflict, concurrent local/remote
+approval, stale cancellation, token expiry/device revocation during replay, and invalid
+handshake/oversized input. Byte budgets in the API design are proposed defaults;
+measure first-text latency, catch-up time, memory and control-response delay on real
+mobile networks before freezing them. The bounded journal is not durable event
+sourcing and cannot promise recovery of unpersisted output after a desktop crash.
 
 ## Related references
 
-- [API Gateway Reference](./README.md) — the as-built gateway this extends;
-  `SseListener`, the two-auth model, Elysia/Zod/OpenAPI wiring.
-- [AI Reference](../ai/README.md) — `AiStreamManager`, the `StreamListener` model,
-  `@shared/ai/transport`, `ToolApprovalRegistry`, `startAgentSessionRun`.
-- [Binary Manager](../binary-manager/README.md) — acquiring the Go tunnel-client
-  binary.
-- [Lifecycle](../lifecycle/README.md) — `ApiGatewayService`, `Activatable`.
+- [Remote Agent API Design](../ai/remote-agent-access.md) — authoritative target wire and package API.
+- [API Gateway Reference](./README.md) — current implementation, including the old pairing behavior.
+- [AI Reference](../ai/README.md) — execution, stream listeners, persistence, and approval ownership.
+- [Lifecycle](../lifecycle/README.md) — resource ownership and shutdown.

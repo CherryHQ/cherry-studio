@@ -28,7 +28,6 @@ import { messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
 import { pairingRoutes } from './routes/pairing'
 import { providerExportRoutes } from './routes/providerExport'
-import { remoteAgentRoutes } from './routes/remoteAgent'
 import { responsesRoutes } from './routes/responses'
 
 const logger = loggerService.withContext('ApiGateway')
@@ -108,8 +107,9 @@ export function buildApp({
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       })
     )
-    // Confine LAN callers to pairing, provider export, and Agent connection discovery.
-    // Screen before request-id stamping; loopback and in-process callers are unrestricted.
+    // Confine LAN (non-loopback) callers to the pairing + provider-export routes;
+    // loopback and in-process callers are unrestricted. Runs before request-id
+    // stamping so a rejected LAN request short-circuits cheaply.
     .onRequest(({ request, set }) => {
       const failure = screenLanRequest(request, new URL(request.url).pathname)
       if (failure) {
@@ -195,8 +195,6 @@ export function buildApp({
     // Credential-bearing mobile export has a device-token-only local guard. It is
     // registered before the broad `/v1` guard so the desktop API key cannot reach it.
     .use(providerExportRoutes)
-    // Public Agent connection discovery — also ahead of the `/v1` guard, which would demand the API key.
-    .use(remoteAgentRoutes)
     // Gemini routes carry their own self-contained (`local`) auth guard and are
     // mounted BEFORE `v1Routes` on purpose: `v1Routes`' `scoped` guard exports to
     // the app scope and would otherwise intercept `/v1beta` requests (its guard

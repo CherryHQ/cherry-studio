@@ -2023,30 +2023,6 @@ export class AgentSessionMessageService {
     return saved
   }
 
-  findPendingApprovalAnchor(sessionId: string, approvalId: string): string | undefined {
-    return (
-      application
-        .get('DbService')
-        .getDb()
-        .select({ id: sessionMessagesTable.id })
-        .from(sessionMessagesTable)
-        .where(
-          and(
-            eq(sessionMessagesTable.sessionId, sessionId),
-            sql`exists (
-        select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
-        where json_extract(part.value, '$.state') = 'approval-requested'
-          and json_extract(part.value, '$.approval.id') = ${approvalId}
-      )`
-          )
-        )
-        // A pending approval sits in the newest messages; walking the session index backwards stops there.
-        .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
-        .limit(1)
-        .get()?.id
-    )
-  }
-
   /**
    * Atomically settle one persisted agent-session approval card. The SDK callback is resolved only
    * after this returns true, so a displayed question cannot resume its agent while remaining stuck

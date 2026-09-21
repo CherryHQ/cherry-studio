@@ -16,7 +16,6 @@ import { isAgentSessionWorkspaceError } from '../../runtime/agentSessionWorkspac
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
 import { agentChatContextProvider } from './AgentChatContextProvider'
-import type { AgentDispatchOptions } from './agentSubmission'
 import type { ChatContextProvider } from './ChatContextProvider'
 import { persistentChatContextProvider } from './PersistentChatContextProvider'
 import { temporaryChatContextProvider } from './TemporaryChatContextProvider'
@@ -87,8 +86,7 @@ const providers: readonly ChatContextProvider[] = [
 export async function dispatchStreamRequest(
   manager: AiStreamManager,
   subscriber: StreamListener,
-  req: MainDispatchRequest,
-  options: AgentDispatchOptions = {}
+  req: MainDispatchRequest
 ): Promise<AiStreamOpenResponse> {
   const provider = providers.find((p) => p.canHandle(req.topicId))
   if (!provider) {
@@ -115,19 +113,17 @@ export async function dispatchStreamRequest(
       topicId: req.topicId
     })
   }
-  const prepared = await provider
-    .prepareDispatch(subscriber, req, { hasLiveStream, ...options })
-    .catch((error: unknown) => {
-      if (isAgentSessionWorkspaceError(error)) {
-        return {
-          blocked: {
-            reason: 'agent-session-workspace' as const,
-            message: error.message
-          }
+  const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
+    if (isAgentSessionWorkspaceError(error)) {
+      return {
+        blocked: {
+          reason: 'agent-session-workspace' as const,
+          message: error.message
         }
       }
-      throw error
-    })
+    }
+    throw error
+  })
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
   }

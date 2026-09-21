@@ -945,7 +945,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => String(entryPath).startsWith('/mock/userData/'))
     vi.spyOn(backupManager as any, 'stageArchiveDirectory').mockResolvedValue(undefined)
     vi.spyOn(backupManager as any, 'copyClaudeState').mockResolvedValue(undefined)
-    vi.spyOn(backupManager as any, 'prepareStagedDatabase').mockReturnValue([
+    vi.spyOn(backupManager as any, 'validateStagedDatabase').mockReturnValue([
       { folderMillis: 1, hash: 'migration-hash' }
     ])
     vi.spyOn(backupManager as any, 'fsyncTree').mockImplementation(() => {})

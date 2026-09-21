@@ -1258,7 +1258,7 @@
   "deviceConnections.status.stopped": "LAN アクセスを利用できません",
   "deviceConnections.title": "デバイス接続",
   "deviceConnections.toggle.description": "同じローカルネットワーク上のペアリング済みデバイスがこの Cherry Studio に接続できるようにします。",
-  "deviceConnections.toggle.risk": "ペアリング済みのデバイスは、プロバイダーの API キーを受け取り、メッセージ送信やツール承認への応答を含む、デスクトップのすべての Agent を利用できます。ペアリングと設定の転送には暗号化されていない HTTP を使用します。信頼できるデバイスとネットワークのみを接続してください。",
+  "deviceConnections.toggle.risk": "ローカルネットワーク接続は暗号化されていない平文の HTTP を使用します。ペアリングした端末にはプロバイダーの API キーが送られるため、信頼できるネットワークでのみ有効にし、使い終わったら無効にしてください。",
   "docs.title": "ドキュメント",
   "emoji_picker.categories.activities": "活動",
   "emoji_picker.categories.animals_nature": "動物と自然",

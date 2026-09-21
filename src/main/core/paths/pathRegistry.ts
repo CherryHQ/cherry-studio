@@ -169,7 +169,6 @@ export function buildPathRegistry() {
 
     // Cherry Cloud account credentials (device identity is retained when the session is cleared)
     'feature.cherry_account.credentials_file': path.join(appUserData, 'Credentials', 'cherry-account.json'),
-    'feature.remote_access.credentials': path.join(appUserData, 'Credentials', 'remote-access'),
 
     // Trace
     'feature.trace': path.join(appUserDataRuntime, 'trace'),

@@ -1820,7 +1820,7 @@ describe('AiStreamManager', () => {
       expect(nextTurnAdmitted).toBe(false)
 
       releaseRuntimeClose()
-      await expect(stopping).resolves.toBe(true)
+      await expect(stopping).resolves.toBeUndefined()
       await expect(nextTurn).resolves.toBeUndefined()
       expect(nextTurnAdmitted).toBe(true)
     })
@@ -1860,7 +1860,7 @@ describe('AiStreamManager', () => {
       expect(nextTurnAdmitted).toBe(false)
 
       releaseContinuationPersistence()
-      await expect(stopping).resolves.toBe(true)
+      await expect(stopping).resolves.toBeUndefined()
       await expect(nextTurn).resolves.toBeUndefined()
       expect(nextTurnAdmitted).toBe(true)
     })

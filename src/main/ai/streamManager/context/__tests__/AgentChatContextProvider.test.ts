@@ -23,11 +23,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    getById: mocks.getSession,
-    ensureTraceIdTx: mocks.ensureTraceIdTx,
-    notifyReadModelChange: vi.fn()
-  }
+  agentSessionService: { getById: mocks.getSession, ensureTraceIdTx: mocks.ensureTraceIdTx }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -264,6 +260,9 @@ describe('AgentChatContextProvider', () => {
 
     const prepared = await provider.prepareDispatch(subscriber, openReq())
 
+    expect(mocks.saveMessage).toHaveBeenCalledOnce()
+    expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+    expect(mocks.runtimeBeginTurn).not.toHaveBeenCalled()
     expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
       'session-1',
       expect.objectContaining({ role: 'user', sessionId: 'session-1' }),

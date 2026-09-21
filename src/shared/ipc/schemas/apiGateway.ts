@@ -18,22 +18,12 @@ const stopResultSchema: z.ZodType<ApiGatewayStopResult> = z.union([
   z.object({ success: z.literal(false), error: z.string() })
 ])
 
-export const RemoteAgentConnectionInfoSchema = z.object({
-  protocolVersion: z.literal(1),
-  instanceId: z.string(),
-  port: z.number().int().min(1).max(65535),
-  path: z.literal('/remote/v1/connect'),
-  serverPublicKey: z.string()
-})
-export type RemoteAgentConnectionInfo = z.infer<typeof RemoteAgentConnectionInfoSchema>
-
 const pairingOfferSchema = z.object({
   hostname: z.string(),
   port: z.number(),
   addresses: z.array(z.string()).min(1),
   code: z.string(),
-  expiresAt: z.number(),
-  remoteAgent: RemoteAgentConnectionInfoSchema.optional()
+  expiresAt: z.number()
 })
 
 export const apiGatewayRequestSchemas = {
