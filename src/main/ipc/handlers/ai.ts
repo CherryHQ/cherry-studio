@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
-import { AgentSessionEditError } from '@data/services/agentSessionEdit'
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'

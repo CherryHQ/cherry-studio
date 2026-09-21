@@ -158,14 +158,17 @@ function makeAskUserQuestionApproval(part = makeAskUserQuestionPart()) {
 describe('useAgentChatRuntimeState', () => {
   it('retains the edited draft after a failed resend and clears it only on acceptance or cancel', async () => {
     const draft = {
-      messageId: 'last-user',
+      messageId: 'edited-user',
       version: 'version-1',
       parts: [{ type: 'text' as const, text: 'Original question' }]
     }
     const history: CherryUIMessage[] = [
       { id: 'earlier-user', role: 'user', parts: [{ type: 'text', text: 'Earlier question' }] },
+      { id: 'earlier-assistant', role: 'assistant', parts: [{ type: 'text', text: 'Earlier answer' }] },
       { id: draft.messageId, role: 'user', parts: draft.parts },
-      { ...assistantMessage, parts: [{ type: 'text', text: 'Old answer' }] }
+      { ...assistantMessage, parts: [{ type: 'text', text: 'Old answer' }] },
+      { id: 'later-user', role: 'user', parts: [{ type: 'text', text: 'Later question' }] },
+      { id: 'later-assistant', role: 'assistant', parts: [{ type: 'text', text: 'Later answer' }] }
     ]
     mocks.useAgentSessionParts.mockReturnValue({ ...mocks.useAgentSessionParts(), messages: history })
     mocks.editTarget.mockResolvedValue(draft)
@@ -186,7 +189,11 @@ describe('useAgentChatRuntimeState', () => {
     act(() => {
       resend = result.current.resendEditedMessage({ text: 'Replacement' })
     })
-    expect(result.current.uiMessages.map((item) => item.id)).toEqual(['earlier-user', draft.messageId])
+    expect(result.current.uiMessages.map((item) => item.id)).toEqual([
+      'earlier-user',
+      'earlier-assistant',
+      draft.messageId
+    ])
     expect(result.current.partsByMessageId[draft.messageId]).toEqual([{ type: 'text', text: 'Replacement' }])
     await act(async () => {
       sending.reject(new Error('Rejected'))

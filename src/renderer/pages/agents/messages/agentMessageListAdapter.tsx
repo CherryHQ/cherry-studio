@@ -457,12 +457,7 @@ export function useAgentMessageListProviderValue({
     () => ({
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
-        normalInteractionsEnabled &&
-        !!startEditing &&
-        !editBusy &&
-        message.role === 'user' &&
-        message.id === messages.findLast((item) => item.role === 'user')?.id &&
-        !message.delivery,
+        normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
       startEditing: startEditing
         ? (message) => {
             void startEditing(message.id)
@@ -506,7 +501,6 @@ export function useAgentMessageListProviderValue({
       forkSession,
       startEditing,
       editBusy,
-      messages,
       openForkSourceSession,
       t,
       abortTool,

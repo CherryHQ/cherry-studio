@@ -63,7 +63,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { AgentSessionEditError } from './agentSessionEdit'
+import { AgentSessionEditError } from './AgentSessionEditError'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -309,10 +309,10 @@ export class AgentSessionMessageService {
       .where(eq(sessionMessagesTable.sessionId, sessionId))
       .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
       .all()
-    const index = rows.findLastIndex((row) => row.role === 'user')
+    const index = rows.findIndex((row) => row.id === messageId)
     const user = rows[index]
-    if (!user || user.id !== messageId || user.delivery || source.session.type !== 'conversation')
-      throw new AgentSessionEditError('not_last_user')
+    if (!user || user.role !== 'user' || user.delivery || source.session.type !== 'conversation')
+      throw new AgentSessionEditError('invalid_target')
     if (
       rows.some(
         (row) =>

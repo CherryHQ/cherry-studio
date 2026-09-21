@@ -12,7 +12,7 @@ export interface AgentSessionEditDraft extends AgentSessionEditTarget {
 export const agentSessionEditFailureReasons = [
   'busy',
   'history_changed',
-  'not_last_user',
+  'invalid_target',
   'input_unsupported',
   'attachment_unavailable',
   'close_failed'

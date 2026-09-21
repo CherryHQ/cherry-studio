@@ -161,7 +161,9 @@ describe('Agent fork publication', () => {
         sessionId,
         messages: [
           { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Old question' }] } },
-          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Old answer' }] } }
+          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Old answer' }] } },
+          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Later question' }] } },
+          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Later answer' }] } }
         ]
       })
       const target = {
@@ -173,11 +175,12 @@ describe('Agent fork publication', () => {
         expect(input.targetCwd).toBe(directory)
         expect(input.checkpoint).toMatchObject({ leafId: 'leaf' })
         if (outcome === 'history changed')
-          dbh.db
-            .update(agentSessionTable)
-            .set({ name: 'Changed elsewhere' })
-            .where(eq(agentSessionTable.id, sessionId))
-            .run()
+          tail.push(
+            ...agentSessionMessageService.saveMessages({
+              sessionId,
+              messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New input' }] } }]
+            })
+          )
       }
       const operation = new AgentSessionForkOperations().edit(
         sessionId,
@@ -220,7 +223,7 @@ describe('Agent fork publication', () => {
             async () => {},
             () => {}
           )
-        ).rejects.toMatchObject({ reason: 'not_last_user' })
+        ).rejects.toMatchObject({ reason: 'invalid_target' })
       } else {
         await expect(operation).rejects.toThrow()
         expect(
@@ -234,6 +237,47 @@ describe('Agent fork publication', () => {
       }
     }
   )
+
+  it.each(['missing', 'assistant'] as const)('rejects an invalid edit target: %s', (target) => {
+    expect(() =>
+      agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, target === 'missing' ? randomUUID() : messageId)
+    ).toThrow('invalid_target')
+    expect(agentSessionMessageService.listSessionMessages(sessionId).items.map((row) => row.id)).toEqual([messageId])
+  })
+
+  it('keeps later turns when the boundary before an edited message has no checkpoint', async () => {
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ data: { parts: [] } })
+      .where(eq(agentSessionMessageTable.id, messageId))
+      .run()
+    const tail = agentSessionMessageService.saveMessages({
+      sessionId,
+      messages: [
+        { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question A' }] } },
+        { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Answer A' }] } },
+        { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question B' }] } }
+      ]
+    })
+    const target = {
+      messageId: tail[0].id,
+      version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, tail[0].id).version
+    }
+    await expect(
+      new AgentSessionForkOperations().edit(
+        sessionId,
+        target,
+        async () => {},
+        () => {}
+      )
+    ).rejects.toMatchObject({ reason: 'legacy_history' })
+    expect(
+      agentSessionMessageService
+        .listSessionMessages(sessionId)
+        .items.toReversed()
+        .map((row) => row.id)
+    ).toEqual([messageId, ...tail.map((row) => row.id)])
+  })
 
   it('replaces inherited links with the direct parent only at the new fork boundary', async () => {
     const childId = await new AgentSessionForkOperations().fork(sessionId, messageId)

@@ -2,7 +2,7 @@ import { open } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
-import { AgentSessionEditError } from '@data/services/agentSessionEdit'
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 

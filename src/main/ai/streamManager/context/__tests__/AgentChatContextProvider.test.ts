@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AgentSessionEditError } from '@data/services/agentSessionEdit'
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 
 import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
