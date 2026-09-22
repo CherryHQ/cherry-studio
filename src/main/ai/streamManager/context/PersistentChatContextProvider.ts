@@ -52,7 +52,8 @@ import {
   buildAssignmentReminder,
   buildBreakdownPrompt,
   buildMergePrompt,
-  parseBreakdown
+  parseBreakdown,
+  reassignSimpleTasksToLocal
 } from '../../orchestration/headController'
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
@@ -812,9 +813,16 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         logger.info('controller produced no usable split, sending the ordinary turn', { controllerModelId })
         return undefined
       }
+
+      // L10: Reassign simple tasks to the local model to preserve remote quota for complex reasoning
+      const localWorkerModelId = application.get('PreferenceService').get('chat.routing.local_worker_model')?.trim() as
+        | UniqueModelId
+        | undefined
+      const reassignedAssignments = reassignSimpleTasksToLocal(assignments, localWorkerModelId)
+
       return {
         controllerModelId: controllerModelId as UniqueModelId,
-        instructions: new Map(assignments.map((assignment) => [assignment.modelId, assignment.instruction]))
+        instructions: new Map(reassignedAssignments.map((assignment) => [assignment.modelId, assignment.instruction]))
       }
     } catch (error) {
       logger.warn('controller breakdown failed, sending the ordinary turn', { controllerModelId, error })

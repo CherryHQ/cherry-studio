@@ -26,6 +26,59 @@ export interface WorkerAnswer {
 }
 
 /**
+ * Detect if an instruction describes a simple, mechanical task that can be handled
+ * by a small local model (e.g., LM Studio 1-3B).
+ * Simple tasks: formatting, list extraction, naming, classification, summarization.
+ */
+export function isSimpleTask(instruction: string): boolean {
+  const lower = instruction.toLowerCase()
+  const simpleKeywords = [
+    'format',
+    'list',
+    'extract',
+    'name',
+    'classify',
+    'categorize',
+    'sort',
+    'organize',
+    'summarize',
+    'abbreviate',
+    'abbreviat',
+    'shorten',
+    'condense',
+    'join',
+    'split',
+    'arrange',
+    'order'
+  ]
+  return simpleKeywords.some((keyword) => lower.includes(keyword))
+}
+
+/**
+ * Reassign simple tasks to a local model if available.
+ * After the controller has distributed work among remote workers,
+ * this function redirects simple, mechanical tasks to a local model
+ * to preserve remote API quota for complex reasoning tasks.
+ */
+export function reassignSimpleTasksToLocal(
+  assignments: Assignment[],
+  localModelId: UniqueModelId | undefined
+): Assignment[] {
+  if (!localModelId) return assignments
+  // If local model is already among the workers, just return as-is.
+  // The controller can choose to route simple tasks to it naturally.
+  if (assignments.some((a) => a.modelId === localModelId)) return assignments
+
+  // Reassign simple tasks to the local model
+  return assignments.map((assignment) => {
+    if (isSimpleTask(assignment.instruction)) {
+      return { ...assignment, modelId: localModelId }
+    }
+    return assignment
+  })
+}
+
+/**
  * Ask the controller to divide the request among the workers.
  *
  * Workers are addressed by 1-based position rather than by model id: a model asked to echo

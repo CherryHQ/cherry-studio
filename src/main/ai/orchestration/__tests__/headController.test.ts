@@ -6,7 +6,9 @@ import {
   buildAssignmentReminder,
   buildBreakdownPrompt,
   buildMergePrompt,
+  isSimpleTask,
   parseBreakdown,
+  reassignSimpleTasksToLocal,
   type WorkerBrief
 } from '../headController'
 
@@ -138,5 +140,99 @@ describe('buildMergePrompt', () => {
 
   it('asks for the user-facing answer, not a report on the process', () => {
     expect(buildMergePrompt(REQUEST, answers)).toContain('Do not mention the assistants')
+  })
+})
+
+describe('isSimpleTask', () => {
+  it.each([
+    ['Format the output as JSON', true],
+    ['Extract all email addresses from this text', true],
+    ['Name these variables according to conventions', true],
+    ['Classify the sentiment of each review', true],
+    ['Sort these items alphabetically', true],
+    ['Summarize the main points', true],
+    ['Abbreviate the title', true],
+    ['Join these lists into one', true]
+  ])('detects simple task: "%s"', (instruction, expected) => {
+    expect(isSimpleTask(instruction)).toBe(expected)
+  })
+
+  it.each([
+    ['Write a novel about the future', false],
+    ['Design a new algorithm', false],
+    ['Explain quantum physics', false],
+    ['Create a marketing strategy', false]
+  ])('does not detect complex task: "%s"', (instruction, expected) => {
+    expect(isSimpleTask(instruction)).toBe(expected)
+  })
+
+  it('is case-insensitive', () => {
+    expect(isSimpleTask('FORMAT THIS OUTPUT')).toBe(true)
+    expect(isSimpleTask('EXTRACT ALL DATA')).toBe(true)
+  })
+})
+
+describe('reassignSimpleTasksToLocal', () => {
+  const localModelId = createUniqueModelId('lmstudio', 'qwen-3b')
+  const remoteModelId1 = createUniqueModelId('openai', 'gpt-4')
+  const remoteModelId2 = createUniqueModelId('anthropic', 'claude-3-sonnet')
+
+  it('reassigns simple tasks to the local model', () => {
+    const assignments = [
+      { modelId: remoteModelId1, instruction: 'Format the output as JSON' },
+      { modelId: remoteModelId2, instruction: 'Write a detailed analysis' }
+    ]
+
+    const result = reassignSimpleTasksToLocal(assignments, localModelId)
+
+    expect(result[0]).toEqual({ modelId: localModelId, instruction: 'Format the output as JSON' })
+    expect(result[1]).toEqual({ modelId: remoteModelId2, instruction: 'Write a detailed analysis' })
+  })
+
+  it('keeps complex tasks assigned to their original models', () => {
+    const assignments = [
+      { modelId: remoteModelId1, instruction: 'Design a new algorithm' },
+      { modelId: remoteModelId2, instruction: 'Create a marketing strategy' }
+    ]
+
+    const result = reassignSimpleTasksToLocal(assignments, localModelId)
+
+    expect(result).toEqual(assignments)
+  })
+
+  it('does not reassign when local model is already a worker', () => {
+    const assignments = [
+      { modelId: localModelId, instruction: 'Format the output as JSON' },
+      { modelId: remoteModelId1, instruction: 'Write a detailed analysis' }
+    ]
+
+    const result = reassignSimpleTasksToLocal(assignments, localModelId)
+
+    expect(result).toEqual(assignments)
+  })
+
+  it('returns assignments unchanged when no local model is provided', () => {
+    const assignments = [
+      { modelId: remoteModelId1, instruction: 'Format the output as JSON' },
+      { modelId: remoteModelId2, instruction: 'Write a detailed analysis' }
+    ]
+
+    const result = reassignSimpleTasksToLocal(assignments, undefined)
+
+    expect(result).toEqual(assignments)
+  })
+
+  it('reassigns multiple simple tasks to the local model', () => {
+    const assignments = [
+      { modelId: remoteModelId1, instruction: 'Format the output as JSON' },
+      { modelId: remoteModelId2, instruction: 'Extract all dates' },
+      { modelId: remoteModelId1, instruction: 'Classify the sentiment' }
+    ]
+
+    const result = reassignSimpleTasksToLocal(assignments, localModelId)
+
+    expect(result[0]).toEqual({ modelId: localModelId, instruction: 'Format the output as JSON' })
+    expect(result[1]).toEqual({ modelId: localModelId, instruction: 'Extract all dates' })
+    expect(result[2]).toEqual({ modelId: localModelId, instruction: 'Classify the sentiment' })
   })
 })
