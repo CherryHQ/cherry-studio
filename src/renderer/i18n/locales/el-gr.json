@@ -1670,6 +1670,8 @@
   "knowledge.data_source.add_dialog.note.loading": "Φόρτωση σημειώσεων…",
   "knowledge.data_source.add_dialog.note.mode.create": "Νέα σημείωση",
   "knowledge.data_source.add_dialog.note.mode.import": "Εισαγωγή σημειώσεων",
+  "knowledge.data_source.add_dialog.picker.all_files": "Όλα τα αρχεία",
+  "knowledge.data_source.add_dialog.picker.supported_files": "Υποστηριζόμενα αρχεία",
   "knowledge.data_source.add_dialog.sources.directory": "Φάκελος",
   "knowledge.data_source.add_dialog.sources.file": "Αρχείο",
   "knowledge.data_source.add_dialog.sources.note": "Σημείωση",

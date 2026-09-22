@@ -1670,6 +1670,8 @@
   "knowledge.data_source.add_dialog.note.loading": "Загрузка заметок…",
   "knowledge.data_source.add_dialog.note.mode.create": "Новая заметка",
   "knowledge.data_source.add_dialog.note.mode.import": "Импортные примечания",
+  "knowledge.data_source.add_dialog.picker.all_files": "Все файлы",
+  "knowledge.data_source.add_dialog.picker.supported_files": "Поддерживаемые файлы",
   "knowledge.data_source.add_dialog.sources.directory": "Папка",
   "knowledge.data_source.add_dialog.sources.file": "Файл",
   "knowledge.data_source.add_dialog.sources.note": "Примечание",

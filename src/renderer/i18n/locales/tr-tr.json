@@ -1670,6 +1670,8 @@
   "knowledge.data_source.add_dialog.note.loading": "Notlar yükleniyor…",
   "knowledge.data_source.add_dialog.note.mode.create": "Yeni not",
   "knowledge.data_source.add_dialog.note.mode.import": "Notları içe aktar",
+  "knowledge.data_source.add_dialog.picker.all_files": "Tüm dosyalar",
+  "knowledge.data_source.add_dialog.picker.supported_files": "Desteklenen dosyalar",
   "knowledge.data_source.add_dialog.sources.directory": "Klasör",
   "knowledge.data_source.add_dialog.sources.file": "Dosya",
   "knowledge.data_source.add_dialog.sources.note": "Not",

@@ -1,3 +1,5 @@
+import type * as FsPromises from 'node:fs/promises'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as FsUtils from '@main/utils/file'
@@ -120,8 +122,31 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
   read: readFileMock
 }))
 
+// The text-fallback binary guard sniffs the file's raw byte prefix via `fs.open`. Mock it so the
+// tests control the sniffed bytes without touching disk; `sniffBytesMock` returns the prefix bytes.
+const sniffBytesMock = vi.hoisted(() => vi.fn<() => Uint8Array>(() => new Uint8Array(0)))
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromises>()
+  return {
+    ...actual,
+    default: actual,
+    open: vi.fn(async () => ({
+      read: async (buffer: Buffer, offset: number, length: number) => {
+        const bytes = sniffBytesMock()
+        const bytesRead = Math.min(bytes.length, length)
+        for (let i = 0; i < bytesRead; i += 1) {
+          buffer[offset + i] = bytes[i]
+        }
+        return { bytesRead }
+      },
+      close: async () => {}
+    }))
+  }
+})
+
 const { loadKnowledgeItemDocuments } = await import('../KnowledgeReader')
-const { createSupportedFileReader } = await import('../KnowledgeFileReader')
+const { createSupportedFileReader, usesTextFallbackReader, sourceFileLooksBinary } =
+  await import('../KnowledgeFileReader')
 
 function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file'> {
   return {
@@ -222,6 +247,7 @@ describe('loadKnowledgeItemDocuments', () => {
   })
 
   it('falls back to TextFileReader for unmatched file extensions', async () => {
+    readerSpies.text.mockResolvedValueOnce([{ text: 'plain text content', metadata: { reader: 'text' } }] as never)
     const item = createFileItem('.log')
     const docs = await loadKnowledgeItemDocuments(item)
 
@@ -231,6 +257,19 @@ describe('loadKnowledgeItemDocuments', () => {
         source: '/tmp/sample.log'
       }
     })
+  })
+
+  it('flags a text-fallback file whose raw bytes contain a NUL as binary', async () => {
+    // The guard runs pre-copy on the original source; a NUL in the prefix marks it binary.
+    sniffBytesMock.mockReturnValueOnce(new Uint8Array([0x50, 0x4b, 0x03, 0x00, 0x04]))
+    expect(await sourceFileLooksBinary('/tmp/sample.log')).toBe(true)
+  })
+
+  it('does not flag a dedicated reader whose format is legitimately binary', async () => {
+    // A .pdf goes to PDFReader, which owns that format, so a NUL in its bytes must not mark it binary.
+    sniffBytesMock.mockReturnValue(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x00]))
+    expect(await sourceFileLooksBinary('/tmp/sample.pdf')).toBe(false)
+    sniffBytesMock.mockReturnValue(new Uint8Array(0))
   })
 
   it('can read a processed artifact path while preserving source metadata', async () => {
@@ -342,6 +381,35 @@ describe('loadKnowledgeItemDocuments', () => {
     const item = { ...createUrlItem(), data: { source: 'https://example.com', url: 'https://example.com' } }
 
     await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow('has no captured snapshot to read')
+  })
+
+  it('guards only the extensions the factory routes to the text fallback, never a dedicated reader', () => {
+    // A dedicated reader owns its (often binary) container, so the binary guard must not run for it;
+    // only the non-fatal text fallback can mojibake a binary file.
+    const dedicated = [
+      '.pdf',
+      '.csv',
+      '.doc',
+      '.docx',
+      '.epub',
+      '.ppt',
+      '.pptx',
+      '.xls',
+      '.xlsx',
+      '.html',
+      '.htm',
+      '.json',
+      '.markdown',
+      '.md',
+      '.mdx',
+      '.draftsexport'
+    ]
+    for (const ext of dedicated) {
+      expect(usesTextFallbackReader(`/tmp/sample${ext}`)).toBe(false)
+    }
+    for (const ext of ['.txt', '.log', '.py', '.yaml', '.unknownext']) {
+      expect(usesTextFallbackReader(`/tmp/sample${ext}`)).toBe(true)
+    }
   })
 
   it('throws for unsupported directory items', async () => {

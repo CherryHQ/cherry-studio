@@ -1670,6 +1670,8 @@
   "knowledge.data_source.add_dialog.note.loading": "Loading notes…",
   "knowledge.data_source.add_dialog.note.mode.create": "New note",
   "knowledge.data_source.add_dialog.note.mode.import": "Import notes",
+  "knowledge.data_source.add_dialog.picker.all_files": "All files",
+  "knowledge.data_source.add_dialog.picker.supported_files": "Supported files",
   "knowledge.data_source.add_dialog.sources.directory": "Folder",
   "knowledge.data_source.add_dialog.sources.file": "File",
   "knowledge.data_source.add_dialog.sources.note": "Note",

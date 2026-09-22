@@ -52,6 +52,7 @@ const {
   deleteKnowledgeItemFilesBestEffortMock,
   fsLstatMock,
   fsStatMock,
+  fsOpenMock,
   listMaterialUnitsMock,
   storeSearchMock,
   getMaterialByRelativePathMock,
@@ -95,6 +96,7 @@ const {
   deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
   fsLstatMock: vi.fn(),
   fsStatMock: vi.fn(),
+  fsOpenMock: vi.fn(),
   listMaterialUnitsMock: vi.fn(),
   storeSearchMock: vi.fn(),
   getMaterialByRelativePathMock: vi.fn(),
@@ -143,7 +145,9 @@ vi.mock('node:fs/promises', () => ({
   default: {
     lstat: fsLstatMock,
     stat: fsStatMock
-  }
+  },
+  // The pre-copy binary guard reads the source prefix; default to NUL-free (text) bytes.
+  open: fsOpenMock
 }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
@@ -348,6 +352,15 @@ describe('KnowledgeService', () => {
       birthtime: new Date('2026-04-08T00:00:00.000Z')
     })
     fsLstatMock.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+    // Pre-copy binary guard: default reads yield text (no NUL), so a file is admitted. Binary cases
+    // override read to place a NUL in the buffer.
+    fsOpenMock.mockResolvedValue({
+      read: async (buffer: Buffer) => {
+        buffer.fill(0x41)
+        return { bytesRead: buffer.length }
+      },
+      close: async () => {}
+    })
     // Reindex source-existence gate: default every source readable so existing reindex tests are
     // unaffected; the missing/unverifiable-source tests override these per case.
     probeKnowledgeFileMock.mockResolvedValue('readable')
@@ -992,6 +1005,62 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('restores an off-list file admitted via allowArbitrary instead of failing the add-time gate', async () => {
+    const service = new KnowledgeService()
+    const sourceBase = createBase({ id: 'source-kb', fileProcessorId: null })
+    const restoredBase = createBase({ id: 'restored-kb', fileProcessorId: null })
+    knowledgeBaseGetByIdMock.mockReturnValueOnce(sourceBase).mockReturnValue(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+
+    // The persisted item records the opt-in — the whole point of persisting allowArbitrary.
+    const optedInSourceFile = {
+      ...createFileItem('src-file', 'source-kb', '/Users/me/notes.unknownext'),
+      data: {
+        source: '/Users/me/notes.unknownext',
+        relativePath: 'notes.unknownext' as PosixRelativeFilePath,
+        allowArbitrary: true
+      }
+    }
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([optedInSourceFile])
+
+    const restoredFile = {
+      ...createFileItem('restored-file', 'restored-kb', '/Users/me/notes.unknownext'),
+      data: {
+        source: '/Users/me/notes.unknownext',
+        relativePath: 'notes.unknownext' as PosixRelativeFilePath,
+        allowArbitrary: true
+      }
+    }
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(restoredFile)
+    knowledgeItemGetByIdMock.mockReturnValue(restoredFile)
+
+    // Without the persisted opt-in, the reconstructed add input would hit the curated gate and throw
+    // 'Unsupported knowledge file type', aborting the whole restore.
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::embed',
+      dimensions: 3
+    })
+
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'restored-kb',
+      '/mock/feature.knowledgebase.data/source-kb/raw/notes.unknownext',
+      'notes.unknownext'
+    )
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
+      'restored-kb',
+      expect.objectContaining({
+        type: 'file',
+        data: {
+          source: '/Users/me/notes.unknownext',
+          relativePath: 'notes.unknownext' as PosixRelativeFilePath,
+          allowArbitrary: true
+        }
+      })
+    )
+  })
+
   it('restores a url with a captured snapshot by copying it in so the first index reads it offline', async () => {
     const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb' })
@@ -1250,6 +1319,74 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(2)
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(1, 'kb-1', '/Users/me/a/notes.md', 'notes.md')
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(2, 'kb-1', '/Users/me/b/notes.md', 'notes_1.md')
+  })
+
+  it('rejects a file whose extension is off the curated allow-list without an explicit opt-in', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+
+    await expect(
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/Users/me/archive.7z', path: '/Users/me/archive.7z' as AbsoluteFilePath } }
+      ])
+    ).rejects.toThrow(/Unsupported knowledge file type/)
+    expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts an off-list extension when the user explicitly opted in via allowArbitrary', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/notes.unknownext'))
+    knowledgeItemGetByIdMock.mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/notes.unknownext'))
+
+    await service.addItems('kb-1', [
+      {
+        type: 'file',
+        data: {
+          source: '/Users/me/notes.unknownext',
+          path: '/Users/me/notes.unknownext' as AbsoluteFilePath,
+          allowArbitrary: true
+        }
+      }
+    ])
+
+    // The membership gate is skipped: the file is copied and queued. (A binary such file is caught
+    // later by the index-time reader guard, not here at add time.)
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'kb-1',
+      '/Users/me/notes.unknownext',
+      'notes.unknownext'
+    )
+    // The opt-in is persisted so a later restore can re-admit the file past the same gate.
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
+      'kb-1',
+      expect.objectContaining({
+        type: 'file',
+        data: { source: '/Users/me/notes.unknownext', relativePath: 'notes.unknownext', allowArbitrary: true }
+      })
+    )
+  })
+
+  it('rejects a binary source before copying it into the base', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    // A NUL in the sniffed prefix marks the source binary; the reader routes .log to the text fallback.
+    fsOpenMock.mockResolvedValue({
+      read: async (buffer: Buffer) => {
+        buffer.fill(0x41)
+        buffer[10] = 0x00
+        return { bytesRead: buffer.length }
+      },
+      close: async () => {}
+    })
+
+    await expect(
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/Users/me/stream.log', path: '/Users/me/stream.log' as AbsoluteFilePath } }
+      ])
+    ).rejects.toThrow(/binary content/)
+    // The copy never runs — the point of the pre-copy guard.
+    expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
   })
 
   it('auto-renames a file whose processed-markdown name would collide', async () => {

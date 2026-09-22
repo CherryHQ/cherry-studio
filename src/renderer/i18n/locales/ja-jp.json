@@ -1670,6 +1670,8 @@
   "knowledge.data_source.add_dialog.note.loading": "メモを読み込んでいます…",
   "knowledge.data_source.add_dialog.note.mode.create": "新規メモ",
   "knowledge.data_source.add_dialog.note.mode.import": "インポートメモ",
+  "knowledge.data_source.add_dialog.picker.all_files": "すべてのファイル",
+  "knowledge.data_source.add_dialog.picker.supported_files": "サポートされているファイル",
   "knowledge.data_source.add_dialog.sources.directory": "フォルダー",
   "knowledge.data_source.add_dialog.sources.file": "ファイル",
   "knowledge.data_source.add_dialog.sources.note": "注",
