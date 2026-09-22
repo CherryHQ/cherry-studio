@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, rm } from 'node:fs/promises'
+import { chmod, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -6,7 +6,61 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import { canWrite, isOutsidePath, isPathInside, isSameOrInside } from '../path'
+import { canonicalizePathForContainment, canWrite, isOutsidePath, isPathInside, isSameOrInside } from '../path'
+
+describe('canonicalizePathForContainment', () => {
+  const dirLinkType = process.platform === 'win32' ? 'junction' : 'dir'
+  let root: string
+  let outside: string
+
+  beforeEach(async () => {
+    root = await realpath(await mkdtemp(path.join(tmpdir(), 'cherry-containment-root-')))
+    outside = await realpath(await mkdtemp(path.join(tmpdir(), 'cherry-containment-outside-')))
+  })
+
+  afterEach(async () => {
+    await Promise.all([root, outside].map((dir) => rm(dir, { recursive: true, force: true })))
+  })
+
+  it('resolves an existing path through a symlink to where it really lives', async () => {
+    await writeFile(path.join(outside, 'secret.txt'), 'secret')
+    await symlink(outside, path.join(root, 'escape'), dirLinkType)
+
+    await expect(
+      canonicalizePathForContainment(path.join(root, 'escape', 'secret.txt'), { allowMissing: false })
+    ).resolves.toBe(path.join(outside, 'secret.txt'))
+  })
+
+  it('resolves a missing target below a symlink to where it would be created', async () => {
+    await symlink(outside, path.join(root, 'escape'), dirLinkType)
+
+    await expect(
+      canonicalizePathForContainment(path.join(root, 'escape', 'new', 'file.txt'), { allowMissing: true })
+    ).resolves.toBe(path.join(outside, 'new', 'file.txt'))
+  })
+
+  it('returns undefined for a missing target when missing targets are not allowed', async () => {
+    await expect(
+      canonicalizePathForContainment(path.join(root, 'missing.txt'), { allowMissing: false })
+    ).resolves.toBeUndefined()
+  })
+
+  it.skipIf(process.platform === 'win32')('returns undefined for a dangling file symlink', async () => {
+    await symlink(path.join(outside, 'missing.txt'), path.join(root, 'dangling'))
+
+    await expect(
+      canonicalizePathForContainment(path.join(root, 'dangling'), { allowMissing: true })
+    ).resolves.toBeUndefined()
+  })
+
+  it('returns undefined for a missing target below a dangling directory symlink', async () => {
+    await symlink(path.join(outside, 'missing-dir'), path.join(root, 'dangling-dir'), dirLinkType)
+
+    await expect(
+      canonicalizePathForContainment(path.join(root, 'dangling-dir', 'new.txt'), { allowMissing: true })
+    ).resolves.toBeUndefined()
+  })
+})
 
 describe('isPathInside', () => {
   it('returns true when child is directly inside parent', () => {

@@ -479,7 +479,7 @@ describe('WindowManager', () => {
       expect(shell.openExternal).not.toHaveBeenCalled()
     })
 
-    it('still blocks cross-origin http(s) and routes it to the system browser', () => {
+    it('blocks cross-origin http(s) without owning external navigation policy', () => {
       const id = wm.open('default' as never)
       const win = wm.getWindow(id) as unknown as MockBrowserWindow
       win.webContents.getURL.mockReturnValue('https://app.local/index.html')
@@ -489,7 +489,7 @@ describe('WindowManager', () => {
       handler({ preventDefault }, 'https://evil.example.com')
 
       expect(preventDefault).toHaveBeenCalledTimes(1)
-      expect(shell.openExternal).toHaveBeenCalledWith('https://evil.example.com')
+      expect(shell.openExternal).not.toHaveBeenCalled()
     })
   })
 

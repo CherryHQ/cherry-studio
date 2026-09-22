@@ -24,12 +24,12 @@ export const KnowledgeCitationCard: React.FC<{ citation: Citation; actions?: Cit
 }) => {
   const providerActions = useOptionalMessageListActions()
   const linkActions = {
-    openPath: actions?.openPath ?? providerActions?.openPath,
-    openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
+    openBrowserUrl: actions?.openBrowserUrl ?? providerActions?.openBrowserUrl,
+    openPath: actions?.openPath ?? providerActions?.openPath
   }
 
   return (
-    <SelectionContextMenu>
+    <SelectionContextMenu openBrowserUrl={actions?.openBrowserUrl ?? providerActions?.openBrowserUrl}>
       <div className="group relative flex w-full flex-col py-3 transition-all duration-300">
         <div className="relative mb-1.5 flex w-full flex-row items-center gap-2">
           {citation.showFavicon && <FileSearch width={16} />}
@@ -37,6 +37,7 @@ export const KnowledgeCitationCard: React.FC<{ citation: Citation; actions?: Cit
             <a
               className="flex-1 text-sm leading-[1.6] text-nowrap text-foreground no-underline"
               href={citation.url}
+              onAuxClick={(e) => handleLinkClick(citation.url, e, linkActions)}
               onClick={(e) => handleLinkClick(citation.url, e, linkActions)}>
               {documentTitle(citation.title)}
             </a>
@@ -50,7 +51,7 @@ export const KnowledgeCitationCard: React.FC<{ citation: Citation; actions?: Cit
           </div>
           {citation.content && <CopyButton content={citation.content} actions={actions} />}
         </div>
-        <div className="selectable-text cursor-text text-[13px] leading-[1.6] break-all text-muted-foreground select-text">
+        <div className="selectable-text text-muted-foreground cursor-text text-[13px] leading-[1.6] break-all select-text">
           {citation.content ?? ''}
         </div>
       </div>
@@ -71,7 +72,7 @@ export const KnowledgeCitationHoverContent: React.FC<{ citation: KnowledgeCitati
     <div style={{ userSelect: 'text' }}>
       {title && (
         <div className="mb-2 flex items-center gap-2">
-          <FileSearch size={16} className="shrink-0 text-muted-foreground" />
+          <FileSearch size={16} className="text-muted-foreground shrink-0" />
           <div
             className="overflow-hidden text-sm leading-[1.4] text-ellipsis whitespace-nowrap text-foreground"
             role="heading"
@@ -83,7 +84,7 @@ export const KnowledgeCitationHoverContent: React.FC<{ citation: KnowledgeCitati
       )}
       {citation.content?.trim() && (
         <div
-          className="overflow-hidden text-[13px] leading-normal text-muted-foreground"
+          className="text-muted-foreground overflow-hidden text-[13px] leading-normal"
           role="article"
           style={{
             display: '-webkit-box',

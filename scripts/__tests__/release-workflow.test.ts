@@ -8,6 +8,7 @@ import { parse } from 'yaml'
 
 import { prepareBackport } from '../release/backport-patch'
 import { composeReleaseBody } from '../release/compose-release-body'
+import { getExpectedReleaseArtifacts } from '../release/edition'
 import {
   extractHotfixReleaseNote,
   readBuilderReleaseNotes,
@@ -1170,20 +1171,40 @@ describe('release workflow gates', () => {
     expect(addLabelIndex).toBeLessThan(noteCheckIndex)
   })
 
-  it('requires environment approval before exposing preview signing and service credentials', () => {
+  it('builds previews without environment approval while retaining signing and service credentials', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
     const buildJob = workflow.jobs.build
     const checkoutStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Check out preview commit')
     const macBuildStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Build Mac')
 
-    expect(buildJob.environment).toBe('release')
+    for (const job of Object.values(workflow.jobs)) {
+      expect(job).not.toHaveProperty('environment')
+    }
     expect(checkoutStep.with['persist-credentials']).toBe(false)
     expect(macBuildStep.env).toMatchObject({
       APPLE_ID: '${{ secrets.APPLE_ID }}',
       CSC_LINK: '${{ secrets.CSC_LINK }}',
-      GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
       MAIN_VITE_CHERRYAI_CLIENT_SECRET: '${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}'
     })
+  })
+
+  it('keeps preview packages in Actions artifacts without GitHub release publishing', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+
+    expect(workflow.permissions).toEqual({ contents: 'read' })
+    for (const job of Object.values(workflow.jobs) as {
+      permissions?: { contents?: string }
+      steps: { name?: string; uses?: string; run?: string; env?: Record<string, string> }[]
+    }[]) {
+      expect(job.permissions?.contents).not.toBe('write')
+      for (const step of job.steps) {
+        expect(step.uses ?? '').not.toMatch(/release-action|action-gh-release/)
+        if (step.name?.startsWith('Build ')) {
+          expect(step.run).toContain('--publish never')
+          expect(step.env).not.toHaveProperty('GH_TOKEN')
+        }
+      }
+    }
   })
 
   it('builds and stages both editions for every selected preview platform', () => {
@@ -1193,15 +1214,103 @@ describe('release workflow gates', () => {
     const validationStep = buildJob.steps.find(
       (step: { name?: string }) => step.name === 'Validate edition preview artifacts'
     )
-    const uploadStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Upload preview artifacts')
 
     expect(buildJob.strategy.matrix.edition).toEqual(['global', 'cn'])
     for (const step of buildSteps) {
       expect(step.run).toContain("matrix.edition == 'cn'")
     }
     expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
-    expect(uploadStep.with.name).toContain('${{ matrix.edition }}')
-    expect(uploadStep.with.path).toContain('dist/preview*.yml')
+  })
+
+  it('uploads one directly downloadable installer per preview architecture', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const uploads = workflow.jobs.build.steps.filter((step: { uses?: string }) =>
+      step.uses?.startsWith('actions/upload-artifact@')
+    )
+
+    expect(uploads).toHaveLength(2)
+    for (const [index, arch] of ['x64', 'arm64'].entries()) {
+      const options = uploads[index].with
+      expect(options.archive).toBe(false)
+      expect(options['if-no-files-found']).toBe('error')
+      const patterns = options.path.trim().split('\n')
+      for (const edition of ['global', 'cn']) {
+        for (const [platform, suffix] of [
+          ['windows', '-setup.exe'],
+          ['mac', '.dmg'],
+          ['linux', '.AppImage']
+        ]) {
+          const artifacts = getExpectedReleaseArtifacts({
+            edition,
+            platform,
+            productName: 'Cherry Studio',
+            version: '2.0.14-preview-1234567'
+          })
+          const files = [...artifacts.files, ...artifacts.manifests.map((manifest) => manifest.file)]
+          const selected = files.filter((file) =>
+            patterns.some((pattern: string) => path.matchesGlob(`dist/${file}`, pattern))
+          )
+          expect(selected).toHaveLength(1)
+          expect(selected[0]).toContain(edition === 'cn' ? 'Cherry-Studio-CN-' : 'Cherry-Studio-2.')
+          expect(selected[0].endsWith(`-${arch}${suffix}`)).toBe(true)
+        }
+      }
+    }
+  })
+
+  it.each([false, true])('summarizes available preview downloads when artifacts are empty: %s', async (empty) => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const job = workflow.jobs.summary
+    expect(job.needs).toContain('build')
+    expect(job.if).toContain('always()')
+    expect(job.permissions.actions).toBe('read')
+    const artifacts = [
+      { id: 101, name: 'Cherry-Studio-2.0.14-preview-1234567-win-x64-setup.exe', size_in_bytes: 1048576 },
+      { id: 102, name: 'Cherry-Studio-CN-2.0.14-preview-1234567-mac-arm64.dmg', size_in_bytes: 2621440 },
+      { id: 103, name: 'Cherry-Studio-2.0.14-preview-1234567-linux-arm64.AppImage', size_in_bytes: 3145728 },
+      { id: 104, name: 'Cherry-Studio-2.0.14-preview-1234567-win-arm64-setup.exe', expired: true },
+      { id: 105, name: 'unrelated.zip' }
+    ]
+    let output = ''
+    const github = {
+      rest: { actions: { listWorkflowRunArtifacts: 'listWorkflowRunArtifacts' } },
+      paginate: async (_endpoint: unknown, params: { owner: string; repo: string; run_id: number }) => {
+        expect(params).toMatchObject({ owner: 'CherryHQ', repo: 'cherry-studio', run_id: 42 })
+        return empty ? [] : artifacts
+      }
+    }
+    const core = {
+      summary: {
+        addRaw(markdown: string) {
+          output += markdown
+          return this
+        },
+        async write() {}
+      }
+    }
+    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+    await new AsyncFunction('github', 'context', 'core', job.steps[0].with.script)(
+      github,
+      { repo: { owner: 'CherryHQ', repo: 'cherry-studio' }, runId: 42, serverUrl: 'https://github.com' },
+      core
+    )
+
+    expect(output).toContain('3 days')
+    if (empty) {
+      expect(output).toContain('No preview installers are available')
+      expect(output).not.toContain('[Download]')
+    } else {
+      expect(output).toContain('| Windows | Global | x64 | 2.0.14-preview-1234567 | 1.0 MiB |')
+      expect(output).toContain('| macOS | CN | arm64 | 2.0.14-preview-1234567 | 2.5 MiB |')
+      expect(output).toContain('| Linux | Global | arm64 | 2.0.14-preview-1234567 | 3.0 MiB |')
+      for (const id of [101, 102, 103]) {
+        expect(output).toContain(
+          `[Download](https://github.com/CherryHQ/cherry-studio/actions/runs/42/artifacts/${id})`
+        )
+      }
+      expect(output).not.toContain('/artifacts/104')
+      expect(output).not.toContain('unrelated.zip')
+    }
   })
 
   it('syncs post-release metadata from the published tag without depending on the release branch head', () => {

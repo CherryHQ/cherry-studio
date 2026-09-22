@@ -129,6 +129,7 @@ const PinnedTabButton = ({
         onPointerDown={drag.onPointerDown}
         onClick={onSelect}
         title={tab.title}
+        aria-label={tab.title}
         style={{
           ...rest.style,
           transform: `translateX(${drag.translateX}px)`,

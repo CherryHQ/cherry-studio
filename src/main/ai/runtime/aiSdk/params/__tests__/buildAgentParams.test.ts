@@ -14,6 +14,7 @@ import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 
 const CONVERSATION = { id: 'conversation-1', topicId: 'topic-1' }
+import { createBrowserToolEntries } from '../../../../tools/adapters/aiSdk/builtin/BrowserTools'
 import { createFsReadToolEntry } from '../../../../tools/adapters/aiSdk/builtin/FsReadTool'
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
@@ -952,7 +953,7 @@ describe('buildAgentParams web-tool routing', () => {
     },
     { endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, runtimeProviderId: 'anthropic', expectedRoute: 'client' }
   ] as const)(
-    'routes DeepSeek V4 Flash web search to $expectedRoute on $endpointType',
+    'routes DeepSeek Flash web search to $expectedRoute on $endpointType',
     async ({ endpointType, runtimeProviderId, expectedRoute }) => {
       resolveProviderAiSdkConfigMock.mockResolvedValue({
         config: { providerId: runtimeProviderId, providerSettings: {} },
@@ -976,9 +977,9 @@ describe('buildAgentParams web-tool routing', () => {
         ]
       })
       const deepseekModel = makeModel({
-        id: 'deepseek::deepseek-v4-flash',
+        id: 'deepseek::deepseek-flash',
         providerId: 'deepseek',
-        apiModelId: 'deepseek-v4-flash',
+        apiModelId: 'deepseek-flash',
         endpointTypes: [endpointType],
         capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
       })
@@ -1247,6 +1248,42 @@ describe('buildAgentParams assistant-less reasoning', () => {
       store: false,
       reasoning: { effort: 'high', summary: 'detailed' }
     })
+  })
+
+  it('omits reasoning.summary for a Responses endpoint without explicit support', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'newapi', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'new-api',
+      presetProviderId: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' } }
+    })
+    const model = makeModel({
+      id: 'new-api::gpt-5.6-sol',
+      providerId: 'new-api',
+      apiModelId: 'gpt-5.6-sol',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    })
+    const assistant = makeAssistant({ settings: { reasoning_effort: 'high', reasoning_summary: 'detailed' } })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.providerOptions?.openai).toMatchObject({ reasoningEffort: 'high' })
+    expect(result.options.providerOptions?.openai).not.toHaveProperty('reasoningSummary')
   })
 
   const makeOffCapableSetup = () => {
@@ -2064,5 +2101,38 @@ describe('resolveTools fs_read gating', () => {
     )
     expect(tools?.[FS_READ_TOOL_NAME]).toBeDefined()
     expect(tools?.client_tool).toBeDefined()
+  })
+})
+
+describe('assistant browser tool selection', () => {
+  beforeEach(() => {
+    for (const entry of createBrowserToolEntries()) registry.register(entry)
+    preferenceGetMock.mockImplementation((key) => (key === 'app.browser.agent_control.enabled' ? true : null))
+  })
+  afterEach(() => {
+    for (const entry of createBrowserToolEntries()) registry.deregister(entry.name)
+  })
+  it('offers browser tools only to enabled persistent conversations', async () => {
+    const assistant = makeAssistant()
+    const enabled = await resolveTools({ conversation: CONVERSATION }, assistant, makeModel(), false, [])
+    expect([...Object.keys(enabled.tools ?? {}), ...enabled.deferredEntries.map((entry) => entry.name)]).toContain(
+      'browser_open'
+    )
+    const disabled = await resolveTools(
+      { conversation: CONVERSATION },
+      { ...assistant, settings: { ...assistant.settings, enableBrowser: false } },
+      makeModel(),
+      false,
+      []
+    )
+    expect([
+      ...Object.keys(disabled.tools ?? {}),
+      ...disabled.deferredEntries.map((entry) => entry.name)
+    ]).not.toContain('browser_open')
+    const temporary = await resolveTools({ conversation: { id: 'temporary' } }, assistant, makeModel(), false, [])
+    expect([
+      ...Object.keys(temporary.tools ?? {}),
+      ...temporary.deferredEntries.map((entry) => entry.name)
+    ]).not.toContain('browser_open')
   })
 })

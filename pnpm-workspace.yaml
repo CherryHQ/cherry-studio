@@ -1,6 +1,13 @@
 packages:
   - "packages/*"
 
+packageExtensions:
+  # The published development export imports these but lists them only as devDependencies.
+  "micromark-extension-definition-list@2.0.1":
+    dependencies:
+      debug: "4.4.3"
+      devlop: "1.1.0"
+
 overrides:
   # Temporary: the SDK umbrella is only needed without dshBin; Cherry always supplies its bundled runtime.
   # Remove when upstream makes this optional/peer (PR #20214, discussion_r3965278746).
@@ -26,7 +33,7 @@ overrides:
   prosemirror-view: "1.41.9"
   prosemirror-transform: "1.12.0"
   esbuild: "^0.25.0"
-  node-abi: "4.28.0"
+  node-abi: "4.33.0"
   openai: "npm:@cherrystudio/openai@6.15.0"
   tar-fs: "^2.1.4"
   "tar@>=7.0.0 <7.5.19": "7.5.19"
@@ -108,6 +115,8 @@ patchedDependencies:
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
   motion-dom@12.42.0: patches/motion-dom@12.42.0.patch
   "@tiptap/extension-list@3.26.1": patches/@tiptap__extension-list@3.26.1.patch
+  "@deepseek-ai/dsh-sdk-client@0.1.2-rc.1": patches/@deepseek-ai__dsh-sdk-client@0.1.2-rc.1.patch
+  docx-preview@0.3.7: patches/docx-preview@0.3.7.patch
 
 allowBuilds:
   "@deepseek-ai/dsh-subprocess-local": true
@@ -115,6 +124,7 @@ allowBuilds:
   "@j178/prek": true
   "@paymoapp/electron-shutdown-handler": true
   "@scarf/scarf": true
+  "@sentry/cli": true
   "@swc/core": true
   better-sqlite3: true
   canvas: false
@@ -241,6 +251,6 @@ minimumReleaseAgeExclude:
   - "@ai-sdk/togetherai@2.0.78"
   - "@ai-sdk/xai@3.0.126"
   - "@ai-sdk/provider-utils@4.0.50"
-  - "@cherrystudio/analytics-client@1.3.1"
+  - "@cherrystudio/analytics-client@1.4.0"
   - "@ai-sdk/openai@3.0.109"
   - "@ai-sdk/azure@3.0.116"

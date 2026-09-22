@@ -37,7 +37,7 @@ import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import { useActiveComposerOverride } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
-import { createComposerInputAdapter, insertComposerTokenAtCursor } from './composerInputAdapter'
+import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposerToken } from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
@@ -120,11 +120,14 @@ export interface ComposerSurfaceActions {
   replaceDraft: (draft: ComposerSerializedDraft) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
-  insertToken: (token: ComposerDraftToken) => void
+  insertToken: (token: ComposerDraftToken, updateOnly?: boolean) => void
   getDraft: () => ComposerSerializedDraft
 }
 
 export interface ComposerSurfaceEditingState {
+  description?: string
+  sendLabel?: string
+  cancelDisabled?: boolean
   messageId: string
   highlightKey?: number
   onCancel: () => void
@@ -213,7 +216,7 @@ export interface ComposerSurfaceProps {
 export interface ComposerDeferredIntent {
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
-  insertToken?: { token: ComposerDraftToken; selection: { start: number; end: number } }
+  insertToken?: { token: ComposerDraftToken; updateOnly?: boolean; selection: { start: number; end: number } }
   /** The fallback textarea was focused — an eagerly mounted runtime must not steal focus otherwise. */
   hadFocus?: boolean
 }
@@ -887,11 +890,12 @@ export default function ComposerSurfaceRuntime({
     [setFiles, t]
   )
 
-  const insertToken = useCallback((token: ComposerDraftToken) => {
+  const insertToken = useCallback((token: ComposerDraftToken, updateOnly = false) => {
     const editor = editorRef.current
     if (!editor || editor.isDestroyed) return
 
-    insertComposerTokenAtCursor(editor, token)
+    if (updateOnly) updateComposerToken(editor, token)
+    else insertComposerTokenAtCursor(editor, token)
   }, [])
 
   const getDraft = useCallback((): ComposerSerializedDraft => {
@@ -1442,8 +1446,10 @@ export default function ComposerSurfaceRuntime({
   const memoizedEditorProps = useMemo(
     () => ({
       attributes: {
+        // Keep the input focusable while a send temporarily makes it read-only.
+        tabindex: '0',
         class: cn(
-          'composer-tiptap after:hidden! box-border block w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
+          'composer-tiptap box-border block w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
           hasCustomHeight ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
           hasCustomHeight && 'h-full'
         ),
@@ -2130,7 +2136,8 @@ export default function ComposerSurfaceRuntime({
             from: getComposerPositionAtTextOffset(editor, pendingToken.selection.start),
             to: getComposerPositionAtTextOffset(editor, pendingToken.selection.end)
           })
-          insertComposerTokenAtCursor(editor, pendingToken.token)
+          if (pendingToken.updateOnly) updateComposerToken(editor, pendingToken.token)
+          else insertComposerTokenAtCursor(editor, pendingToken.token)
         }
         if (transfer?.kind === 'paste') {
           // Do not bubble: ProseMirror listens on the view element itself, while the document-level
@@ -2170,18 +2177,23 @@ export default function ComposerSurfaceRuntime({
       </button>
     </Tooltip>
   ) : (
-    <SendMessageButton sendMessage={sendDraft} disabled={sendDisabled} onDisabledClick={showBlockedSendReason} />
+    <SendMessageButton
+      sendMessage={sendDraft}
+      disabled={sendDisabled}
+      onDisabledClick={showBlockedSendReason}
+      label={editingState?.sendLabel}
+    />
   )
   const editingModeHeader = editingState ? (
     <div
       role="status"
       aria-live="polite"
-      aria-label={t('chat.input.editing_message')}
+      aria-label={editingState.description ?? t('chat.input.editing_message')}
       data-composer-editing-header=""
       className="flex h-9 shrink-0 items-center justify-between border-border-subtle border-b bg-transparent px-3 text-muted-foreground text-xs">
       <div className="flex min-w-0 items-center gap-1.5">
         <Pencil aria-hidden="true" data-composer-editing-icon="" className="size-3.5 shrink-0" />
-        <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
+        <span className="min-w-0 font-medium">{editingState.description ?? t('chat.input.editing')}</span>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {editingState.onLocate ? (
@@ -2214,6 +2226,7 @@ export default function ComposerSurfaceRuntime({
           <Button
             type="button"
             onClick={editingState.onCancel}
+            disabled={editingState.cancelDisabled}
             variant="ghost"
             size="icon-sm"
             className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"
