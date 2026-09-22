@@ -77,6 +77,7 @@ export function useResourceLibrary({
     search: isAgent ? trimmedSearch : undefined,
     groupId: isAgent ? (activeGroupId ?? undefined) : undefined
   })
+  const baseSkills = skillAdapter.useList({ enabled: isSkill })
   const skills = skillAdapter.useList({ enabled: isSkill, search: isSkill ? trimmedSearch : undefined })
   const prompts = promptAdapter.useList({ enabled: isPrompt, search: isPrompt ? trimmedSearch : undefined })
 
@@ -155,14 +156,14 @@ export function useResourceLibrary({
     if (isAssistant) return baseAssistants.data.map(buildAssistantItem)
     if (isAgent) return baseAgents.data.map(buildAgentItem)
     if (isPrompt) return prompts.data.map(buildPromptItem)
-    return skills.data.map(buildSkillItem)
+    return baseSkills.data.map(buildSkillItem)
   }, [
     isAssistant,
     isAgent,
     isPrompt,
     baseAssistants.data,
     baseAgents.data,
-    skills.data,
+    baseSkills.data,
     prompts.data,
     buildAssistantItem,
     buildAgentItem,
@@ -194,26 +195,27 @@ export function useResourceLibrary({
       ? baseAgents.isLoading || agents.isLoading || libraryGroups.isLoading
       : isPrompt
         ? prompts.isLoading
-        : skills.isLoading
+        : baseSkills.isLoading || skills.isLoading
   const isRefreshing = isAssistant
     ? baseAssistants.isRefreshing || filteredAssistants.isRefreshing
     : isAgent
       ? baseAgents.isRefreshing || agents.isRefreshing
       : isPrompt
         ? prompts.isRefreshing
-        : skills.isRefreshing
+        : baseSkills.isRefreshing || skills.isRefreshing
   const error = isAssistant
     ? (baseAssistants.error ?? filteredAssistants.error ?? libraryGroups.error)
     : isAgent
       ? (baseAgents.error ?? agents.error ?? libraryGroups.error)
       : isPrompt
         ? prompts.error
-        : skills.error
+        : (baseSkills.error ?? skills.error)
 
   const baseAssistantsRefetch = baseAssistants.refetch
   const filteredAssistantsRefetch = filteredAssistants.refetch
   const baseAgentsRefetch = baseAgents.refetch
   const agentsRefetch = agents.refetch
+  const baseSkillsRefetch = baseSkills.refetch
   const skillsRefetch = skills.refetch
   const promptsRefetch = prompts.refetch
   const groupsRefetch = libraryGroups.refetch
@@ -230,6 +232,7 @@ export function useResourceLibrary({
     } else if (isPrompt) {
       promptsRefetch()
     } else {
+      baseSkillsRefetch()
       skillsRefetch()
     }
   }, [
@@ -240,6 +243,7 @@ export function useResourceLibrary({
     filteredAssistantsRefetch,
     baseAgentsRefetch,
     agentsRefetch,
+    baseSkillsRefetch,
     skillsRefetch,
     promptsRefetch,
     groupsRefetch

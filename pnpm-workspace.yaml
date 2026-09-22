@@ -251,6 +251,6 @@ minimumReleaseAgeExclude:
   - "@ai-sdk/togetherai@2.0.78"
   - "@ai-sdk/xai@3.0.126"
   - "@ai-sdk/provider-utils@4.0.50"
-  - "@cherrystudio/analytics-client@1.3.1"
+  - "@cherrystudio/analytics-client@1.4.0"
   - "@ai-sdk/openai@3.0.109"
   - "@ai-sdk/azure@3.0.116"

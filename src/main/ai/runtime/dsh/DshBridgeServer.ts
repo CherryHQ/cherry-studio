@@ -37,6 +37,7 @@ const READY_TIMEOUT_MS = 15_000
 export interface DshBridgeServerOptions {
   /** Agent-session id — keys the neutral approval registry so close()/abort target the right approvals. */
   sessionId: string
+  nativeSessionId?: string
   /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
   emit: (
     event: AgentRuntimeEvent,
@@ -226,7 +227,8 @@ export class DshBridgeServer {
       if (!authenticated) return
       if (method === 'tool/cancel') {
         const cancel = params as BridgeNotificationMap['tool/cancel']
-        if (cancel.sessionId === this.options.sessionId) this.activeToolCalls.get(cancel.callId)?.abort()
+        if (cancel.sessionId === (this.options.nativeSessionId ?? this.options.sessionId))
+          this.activeToolCalls.get(cancel.callId)?.abort()
         return
       }
       if (method === 'subagent/lifecycle') {
@@ -269,7 +271,8 @@ export class DshBridgeServer {
   }
 
   private async handleToolCall(call: BridgePluginRequestMap['tool/call']['params']): Promise<BridgeToolCallResult> {
-    if (call.sessionId !== this.options.sessionId) throw new Error('dsh bridge tool call used the wrong session')
+    if (call.sessionId !== (this.options.nativeSessionId ?? this.options.sessionId))
+      throw new Error('dsh bridge tool call used the wrong session')
     if (!call.callId || this.activeToolCalls.has(call.callId)) {
       throw new Error('dsh bridge tool call id is missing or already active')
     }
@@ -285,7 +288,7 @@ export class DshBridgeServer {
   private async handleGuardCheck(
     check: BridgePluginRequestMap['guard/check']['params']
   ): Promise<BridgePluginRequestMap['guard/check']['result']> {
-    if (check.sessionId !== this.options.sessionId) {
+    if (check.sessionId !== (this.options.nativeSessionId ?? this.options.sessionId)) {
       return Promise.reject(new Error('dsh bridge guard check used the wrong session'))
     }
     if (typeof check.toolName !== 'string' || !check.toolName || typeof check.cwd !== 'string' || !check.cwd) {
@@ -357,7 +360,7 @@ export class DshBridgeServer {
   private handleQuestionAsk(
     ask: BridgePluginRequestMap['question/ask']['params']
   ): Promise<BridgePluginRequestMap['question/ask']['result']> {
-    if (ask.sessionId !== this.options.sessionId) {
+    if (ask.sessionId !== (this.options.nativeSessionId ?? this.options.sessionId)) {
       return Promise.reject(new Error('dsh bridge question used the wrong session'))
     }
     const review = ask.questions.length === 1 ? ask.questions[0] : undefined

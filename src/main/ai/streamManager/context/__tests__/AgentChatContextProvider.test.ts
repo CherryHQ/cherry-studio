@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
+
 import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
 
@@ -16,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   runtimeBeginTurn: vi.fn(),
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
+  runtimeAssertWritable: vi.fn(),
   runtimeValidateSession: vi.fn()
 }))
 
@@ -137,7 +140,8 @@ describe('AgentChatContextProvider', () => {
         return {
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
-          isSessionBusy: mocks.runtimeIsSessionBusy
+          isSessionBusy: mocks.runtimeIsSessionBusy,
+          assertSessionWritable: mocks.runtimeAssertWritable
         }
       }
       if (name === 'DbService') return { withWriteTx: (fn: (tx: object) => unknown) => fn({}) }
@@ -150,6 +154,18 @@ describe('AgentChatContextProvider', () => {
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
   })
+
+  it.each(['busy', 'close_failed'] as const)(
+    'rejects ordinary sends before persistence while edit state is %s',
+    async (reason) => {
+      mocks.runtimeAssertWritable.mockImplementationOnce(() => {
+        throw new AgentSessionEditError(reason)
+      })
+      await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toMatchObject({ reason })
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+    }
+  )
 
   it('prepares fresh agent-session dispatch through the long-lived runtime service', async () => {
     const subscriber = makeSubscriber()
