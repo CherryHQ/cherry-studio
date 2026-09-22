@@ -67,6 +67,8 @@ const GATEWAY = {
   usageHeaders: GATEWAY_USAGE_HEADERS
 }
 
+afterEach(() => vi.unstubAllGlobals())
+
 function makeProvider(overrides: Partial<Provider>): Provider {
   return {
     id: 'p',
