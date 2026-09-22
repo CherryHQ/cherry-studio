@@ -23,8 +23,11 @@ vi.mock('uuid', () => ({
 
 // ─── Mock: @main/core/platform ──────────────────────────────────
 
+const platformMock = vi.hoisted(() => ({ isMac: false }))
 vi.mock('@main/core/platform', () => ({
-  isMac: false,
+  get isMac() {
+    return platformMock.isMac
+  },
   isWin: false,
   isLinux: false,
   isDev: false
@@ -373,6 +376,7 @@ describe('WindowManager', () => {
 
   beforeEach(() => {
     BaseService.resetInstances()
+    platformMock.isMac = false
     uuidCounter = 0
     createdWindows.length = 0
     wm = new WindowManager()
@@ -1556,6 +1560,46 @@ describe('WindowManager', () => {
 
       expect(screen.getDisplayMatching).toHaveBeenCalledWith(current)
       expect(win.setBounds).toHaveBeenCalledWith({ x: 2480, y: 220, width: 800, height: 600 })
+    })
+
+    it('center() waits for macOS fullscreen exit and applies the latest requested bounds once', async () => {
+      const { screen } = await import('electron')
+      platformMock.isMac = true
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      win.isFullScreen.mockReturnValue(true)
+      win.getBounds.mockReturnValue({ x: 1920, y: 0, width: 1920, height: 1080 })
+      win.getNormalBounds.mockReturnValue({ x: 100, y: 80, width: 800, height: 600 })
+      const display = {
+        bounds: { x: 1920, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 1920, y: 0, width: 1920, height: 1040 }
+      } as Electron.Display
+      vi.mocked(screen.getDisplayMatching).mockReturnValueOnce(display).mockReturnValueOnce(display)
+
+      expect(wm.center(id)).toBe(true)
+      win.isFullScreen.mockReturnValue(false)
+      win.getNormalBounds.mockReturnValue({ x: 100, y: 80, width: 900, height: 600 })
+      expect(wm.center(id)).toBe(true)
+
+      expect(win.setFullScreen).toHaveBeenCalledTimes(1)
+      expect(win.setBounds).not.toHaveBeenCalled()
+      win.emit('leave-full-screen')
+      expect(win.setBounds).toHaveBeenCalledTimes(1)
+      expect(win.setBounds).toHaveBeenCalledWith({ x: 2430, y: 240, width: 900, height: 600 })
+      win.emit('leave-full-screen')
+      expect(win.setBounds).toHaveBeenCalledTimes(1)
+    })
+
+    it('center() does not apply pending macOS bounds to a destroyed window', () => {
+      platformMock.isMac = true
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      win.isFullScreen.mockReturnValue(true)
+
+      expect(wm.center(id)).toBe(true)
+      win.isDestroyed.mockReturnValue(true)
+      win.emit('leave-full-screen')
+      expect(win.setBounds).not.toHaveBeenCalled()
     })
 
     it('center() returns false for unknown windowId', () => {

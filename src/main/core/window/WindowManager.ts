@@ -100,6 +100,8 @@ export class WindowManager extends BaseService {
   /** Window IDs indexed by type for fast lookups */
   private windowsByType = new Map<WindowType, Set<string>>()
 
+  private pendingCenterBounds = new WeakMap<BrowserWindow, Electron.Rectangle>()
+
   /** Warmup state per window type — shared by pooled and singleton lifecycles */
   private warmupStates = new Map<WindowType, WarmupState>()
 
@@ -550,19 +552,38 @@ export class WindowManager extends BaseService {
     const window = managed.window
     const current = window.getBounds()
     const normal = window.getNormalBounds()
-
-    if (window.isFullScreen()) window.setFullScreen(false)
-    if (window.isMaximized()) window.unmaximize()
-    if (window.isMinimized()) window.restore()
-
     const display = screen.getDisplayMatching(current)
     const area = isMac ? display.bounds : display.workArea
-    window.setBounds({
+    const bounds = {
       x: Math.round(area.x + (area.width - normal.width) / 2),
       y: Math.round(area.y + (area.height - normal.height) / 2),
       width: normal.width,
       height: normal.height
-    })
+    }
+    const place = (target: Electron.Rectangle) => {
+      if (window.isMaximized()) window.unmaximize()
+      if (window.isMinimized()) window.restore()
+      window.setBounds(target)
+    }
+
+    const fullscreen = window.isFullScreen()
+    if (isMac && (fullscreen || this.pendingCenterBounds.has(window))) {
+      const pending = this.pendingCenterBounds.has(window)
+      this.pendingCenterBounds.set(window, bounds)
+      if (!pending) {
+        // Native fullscreen exit is asynchronous on macOS; early bounds are discarded.
+        window.once('leave-full-screen', () => {
+          const target = this.pendingCenterBounds.get(window)
+          this.pendingCenterBounds.delete(window)
+          if (target && !window.isDestroyed()) place(target)
+        })
+        window.setFullScreen(false)
+      }
+      return true
+    }
+
+    if (fullscreen) window.setFullScreen(false)
+    place(bounds)
     return true
   }
 
