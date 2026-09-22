@@ -495,4 +495,124 @@ describe('toolSchemaCompatibilityFeature', () => {
     // `anyOf: [{ enum: [1] }, { enum: [2] }]` and 400 the whole request.
     expect(declaration.parameters.properties.clickCount).toEqual({ anyOf: [{ type: 'number' }, { type: 'number' }] })
   })
+
+  // Gemini's function-declaration proto has no `propertyNames` /
+  // `additionalProperties` fields (issue #20939) — they 400 the whole
+  // request as `Unknown name ... Cannot find field`.
+  it('drops propertyNames and additionalProperties for Gemini, keeping them elsewhere', async () => {
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [
+        {
+          type: 'function',
+          name: 'search',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'q' },
+              options: {
+                type: 'object',
+                properties: { limit: { type: 'integer' } },
+                propertyNames: { pattern: '^[a-z]+$' },
+                additionalProperties: { type: 'string' }
+              }
+            },
+            required: ['query'],
+            additionalProperties: false
+          }
+        },
+        {
+          type: 'function',
+          name: 'strict_search',
+          strict: true,
+          inputSchema: {
+            type: 'object',
+            properties: { query: { type: 'string' } },
+            required: ['query'],
+            additionalProperties: false
+          }
+        }
+      ]
+    }
+
+    const transformed = (
+      await transform(params, {
+        aiSdkProviderId: 'google',
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+    ).tools
+    const [search, strictSearch] = transformed ?? []
+    if (search?.type !== 'function' || strictSearch?.type !== 'function') {
+      throw new Error('expected transformed function tools')
+    }
+
+    expect(search.inputSchema).toEqual({
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'q' },
+        options: { type: 'object', properties: { limit: { type: 'integer' } } }
+      },
+      required: ['query']
+    })
+    expect(strictSearch.inputSchema).toEqual({
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query']
+    })
+
+    const untouched = (
+      await transform(params, {
+        aiSdkProviderId: 'anthropic',
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      })
+    ).tools
+    expect(untouched?.[0]).toBe(params.tools?.[0])
+    expect(untouched?.[1]).toBe(params.tools?.[1])
+  })
+
+  it('sends Gemini-shaped requests without propertyNames or additionalProperties', async () => {
+    // Relay-style scope (e.g. aihubmix/newapi wrapping Gemini): endpointType is
+    // GOOGLE_GENERATE_CONTENT while the downstream relay translates schemas
+    // literally, so the repo-owned middleware is the last choke point (issue #20939).
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [
+        {
+          type: 'function',
+          name: 'search',
+          // MCP-style raw JSON schema (bypasses zod conversion, like live MCP tools).
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string' },
+              options: {
+                type: 'object',
+                properties: { limit: { type: 'integer' } },
+                propertyNames: { pattern: '^[a-z]+$' },
+                additionalProperties: { type: 'string' }
+              }
+            },
+            required: ['query'],
+            additionalProperties: false
+          }
+        }
+      ]
+    }
+
+    for (const scope of [
+      { aiSdkProviderId: 'google', endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT },
+      { aiSdkProviderId: 'aihubmix', endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
+    ] as const) {
+      const transformed = (await transform(params, scope)).tools?.[0]
+      if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+      expect(transformed.inputSchema).toEqual({
+        type: 'object',
+        properties: {
+          query: { type: 'string' },
+          options: { type: 'object', properties: { limit: { type: 'integer' } } }
+        },
+        required: ['query']
+      })
+    }
+  })
 })
