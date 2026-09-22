@@ -54,6 +54,7 @@ export interface DshBridgeServerOptions {
     cwd: string
   ) => Promise<BridgePluginRequestMap['guard/check']['result']>
   /** One subagent residency-epoch edge from the plugin's lifecycle listeners. */
+  onSessionState?: (state: BridgeNotificationMap['session/state']) => void
   onSubagentLifecycle?: (edge: BridgeNotificationMap['subagent/lifecycle']) => void
   /** Called when an authenticated connection closes unexpectedly. */
   onDisconnect?: () => void
@@ -229,6 +230,13 @@ export class DshBridgeServer {
         const cancel = params as BridgeNotificationMap['tool/cancel']
         if (cancel.sessionId === (this.options.nativeSessionId ?? this.options.sessionId))
           this.activeToolCalls.get(cancel.callId)?.abort()
+        return
+      }
+      if (method === 'session/state') {
+        const state = params as BridgeNotificationMap['session/state']
+        if (state.sessionId === (this.options.nativeSessionId ?? this.options.sessionId)) {
+          this.options.onSessionState?.(state)
+        }
         return
       }
       if (method === 'subagent/lifecycle') {

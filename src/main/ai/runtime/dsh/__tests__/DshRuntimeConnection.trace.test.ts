@@ -258,6 +258,49 @@ describe('DshRuntimeConnection tracing', () => {
     }
   })
 
+  it('holds background work until root idle and its final event boundary have both arrived', async () => {
+    const connection = await new DshRuntimeDriver().connect(connectInput)
+    const events: AgentRuntimeEvent[] = []
+    const consume = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+    try {
+      const bridge = vi.mocked(DshBridgeServer).mock.calls[0][0]
+      bridge.onSubagentLifecycle!({
+        phase: 'start',
+        runId: 'run',
+        childSessionId: 'child',
+        parentSessionId: 'session-1',
+        provider: 'test'
+      })
+      bridge.onSessionState!({ sessionId: 'session-1', status: 'running', sessionEventSeq: SessionSeq(1) })
+      bridge.onSubagentLifecycle!({
+        phase: 'end',
+        runId: 'run',
+        childSessionId: 'child',
+        parentSessionId: 'session-1',
+        provider: 'test',
+        stopReason: 'completed'
+      })
+      await drain()
+      expect(events).not.toContainEqual({ type: 'background-work-state', active: false })
+      bridge.onSessionState!({ sessionId: 'session-1', status: 'idle', sessionEventSeq: SessionSeq(2) })
+      await drain()
+      expect(events).not.toContainEqual({ type: 'background-work-state', active: false })
+      subscription.push({
+        method: 'session.event',
+        params: {
+          sessionId: 'session-1',
+          event: { type: 'turn/end', seq: 2, time: 0, data: { reason: { kind: 'completed' } } }
+        }
+      })
+      await vi.waitFor(() => expect(events).toContainEqual({ type: 'background-work-state', active: false }))
+    } finally {
+      await connection.close()
+      await consume
+    }
+  })
+
   it('rejects a DSH checkpoint with an invalid native boundary before flushing history', async () => {
     await expect(
       new DshRuntimeDriver().fork({
