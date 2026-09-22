@@ -16,6 +16,7 @@
 
 import { isEqual } from 'es-toolkit/compat'
 
+import { application } from '@application'
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -335,6 +336,9 @@ export function inferCustomModelReasoning(
   return projectRuntimeReasoning(proto, profile)
 }
 
+/** Preference key: `true` shows the raw model id, `false` the decorated display name. */
+export const MODEL_DISPLAY_NAME_SHOW_RAW_ID = 'models.display_name.show_raw_id'
+
 /** Tokens that must stay upper-cased when a raw id is prettified (a lowercase word would mis-title-case). */
 const MODEL_NAME_ACRONYMS: Record<string, string> = {
   api: 'API',
@@ -371,7 +375,8 @@ function prettifyIdSegment(segment: string): string {
 }
 
 /**
- * Display name for a model resolved against a provider's live `/models` list. The raw id is the only
+ * Decorated display name for a model resolved against a provider's live `/models` list — only used when
+ * the user opts out of raw-id display (`MODEL_DISPLAY_NAME_SHOW_RAW_ID` = false). The raw id is the only
  * per-SKU identity, so the name must stay distinguishable between sibling ids that share one canonical
  * catalog entry (`MiniMax-M2.1` vs `MiniMax/MiniMax-M2.1`, `qwen-plus` vs `qwen-plus-2025-12-01`).
  *
@@ -1126,6 +1131,8 @@ class ProviderRegistryService {
   resolveModels(providerId: string, modelIds: string[]): Model[] {
     getDataService('ProviderService').assertAvailable(providerId)
     const providerContext = this.getEffectiveProviderContext(providerId)
+    // Default to the raw id (mirrors the schema default) unless the user opts into decorated names.
+    const showRawId = application.get('PreferenceService').get(MODEL_DISPLAY_NAME_SHOW_RAW_ID) !== false
 
     const results: Model[] = []
     const seen = new Set<string>()
@@ -1152,19 +1159,20 @@ class ProviderRegistryService {
         // gets sent on the wire and the identity the unique `id` is built from — otherwise a fuzzy
         // (normalized) match would collapse distinct SKUs onto the canonical spelling (`MiniMax/MiniMax-M2.1`
         // → `MiniMax-M2.1`, `qwen-plus-2025-12-01` → `qwen-plus`), mis-routing the request and colliding
-        // ids. `presetModelId` keeps the canonical link for metadata; `deriveResolvedModelName` keeps the
-        // display name distinguishable between siblings that share one canonical entry.
+        // ids. `presetModelId` keeps the canonical link for metadata; the display `name` is the raw id
+        // (or the decorated name when the user opts into it), keeping the pulled list faithful to the
+        // provider's served ids.
         const canonicalApiId = model.apiModelId ?? registryOverride?.apiModelId ?? null
         results.push({
           ...model,
           id: createUniqueModelId(providerId, modelId),
           apiModelId: modelId,
-          name: deriveResolvedModelName(modelId, model.name, canonicalApiId),
+          name: showRawId ? modelId : deriveResolvedModelName(modelId, model.name, canonicalApiId),
           presetModelId: presetModel.id
         })
       } else {
         const custom = createCustomModel(providerId, modelId, reasoningProfile.wire, serviceTierControl)
-        results.push({ ...custom, name: deriveResolvedModelName(modelId, null, null) })
+        results.push({ ...custom, name: showRawId ? modelId : deriveResolvedModelName(modelId, null, null) })
       }
     }
 

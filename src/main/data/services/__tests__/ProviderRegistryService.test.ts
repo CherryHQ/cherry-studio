@@ -7,10 +7,12 @@ import { readFileSync } from 'node:fs'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { MODEL_DISPLAY_NAME_SHOW_RAW_ID } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -371,7 +373,8 @@ describe('ProviderRegistryService', () => {
       const models = providerRegistryService.resolveModels('openai', ['gpt-4o'])
 
       expect(models).toHaveLength(1)
-      expect(models[0].name).toBe('GPT-4o')
+      // The pulled list shows the raw model id itself.
+      expect(models[0].name).toBe('gpt-4o')
       expect(models[0].capabilities).toContain('image-recognition')
       expect(models[0].capabilities).toContain('function-call')
       expect(models[0].contextWindow).toBe(128_000)
@@ -524,12 +527,9 @@ describe('ProviderRegistryService', () => {
       const models = providerRegistryService.resolveModels('openai', ['custom-model', 'qwen1.5-1.8b-chat'])
 
       expect(models).toHaveLength(2)
-      // An unmatched id is prettified for display (split on `-`, title-cased) instead of shown raw.
-      expect(models[0].name).toBe('Custom Model')
-      // …but the raw id is preserved as the wire apiModelId.
-      expect(models[0].apiModelId).toBe('custom-model')
-      expect(models[1].name).toBe('Qwen1.5 1.8b Chat')
-      expect(models[1].apiModelId).toBe('qwen1.5-1.8b-chat')
+      // An unmatched model keeps its raw id as both the display name and the wire apiModelId.
+      expect(models[0]).toMatchObject({ name: 'custom-model', apiModelId: 'custom-model' })
+      expect(models[1]).toMatchObject({ name: 'qwen1.5-1.8b-chat', apiModelId: 'qwen1.5-1.8b-chat' })
     })
 
     it('does not infer controls when a preset model fails the reasoning membership gate', () => {
@@ -657,9 +657,8 @@ describe('ProviderRegistryService', () => {
       const models = providerRegistryService.resolveModels('openai', ['gpt-4o:free'])
 
       expect(models).toHaveLength(1)
-      // Carries the registry display name, with the `:free` variant appended so it stays distinguishable
-      // from the bare `gpt-4o` row; the raw id is preserved as the wire apiModelId.
-      expect(models[0].name).toBe('GPT-4o (free)')
+      // The raw id is preserved as both the display name and the wire apiModelId.
+      expect(models[0].name).toBe('gpt-4o:free')
       expect(models[0].apiModelId).toBe('gpt-4o:free')
     })
 
@@ -671,10 +670,10 @@ describe('ProviderRegistryService', () => {
       const models = providerRegistryService.resolveModels('openai', ['aihubmix-gpt-4o'])
 
       expect(models).toHaveLength(1)
-      expect(models[0].name).toBe('GPT-4o')
+      expect(models[0].name).toBe('aihubmix-gpt-4o')
     })
 
-    it('preserves provider display names and exact apiModelId identities for same-canonical variants', async () => {
+    it('keeps raw ids as display names and apiModelId identities for same-canonical variants', async () => {
       // A provider serving one canonical model under several apiModelIds (tokenhub's dated 原厂直供 variants).
       mockReadModels.mockReturnValue({
         version: '1.0',
@@ -720,11 +719,11 @@ describe('ProviderRegistryService', () => {
       // unique id rebuilt from the apiModelId (NOT collapsed to the canonical tokenhub::deepseek-v4-flash)
       expect(dated.id).toBe(createUniqueModelId('tokenhub', 'deepseek-v4-flash-202605'))
       expect(dated.apiModelId).toBe('deepseek-v4-flash-202605')
-      expect(dated.name).toBe('DeepSeek-V4-Flash 原厂直供')
+      expect(dated.name).toBe('deepseek-v4-flash-202605')
       expect(dated.presetModelId).toBe('deepseek-v4-flash') // canonical preset preserved for metadata
     })
 
-    it('distinguishes fuzzy-matched siblings by name while keeping each raw id as the wire apiModelId', () => {
+    it('keeps each fuzzy-matched sibling raw id as its display name and wire apiModelId', () => {
       mockReadModels.mockReturnValue({
         version: '1.0',
         models: [
@@ -761,24 +760,20 @@ describe('ProviderRegistryService', () => {
         'qwen-plus-2025-12-01'
       ])
 
-      // exact apiModelId match → curated name verbatim
-      expect(self.name).toBe('MiniMax M2.1')
+      // Every variant keeps its raw id as the display name — no name decoration.
+      expect(self.name).toBe('MiniMax-M2.1')
       expect(self.apiModelId).toBe('MiniMax-M2.1')
-      // fuzzy match via slash vendor prefix → distinguished, raw id preserved for routing
-      expect(vendor.name).toBe('MiniMax: MiniMax M2.1')
+      expect(vendor.name).toBe('MiniMax/MiniMax-M2.1')
       expect(vendor.apiModelId).toBe('MiniMax/MiniMax-M2.1')
       expect(vendor.id).toBe(createUniqueModelId('dashscope', 'MiniMax/MiniMax-M2.1'))
-      // a dotted vendor prefix normalizes away just like the slash form, so it must decorate too —
-      // otherwise this collapses onto the bare sibling's name despite being a distinct SKU
-      expect(dotted.name).toBe('MiniMax: MiniMax M2.1')
+      expect(dotted.name).toBe('MiniMax.MiniMax-M2.1')
       expect(dotted.apiModelId).toBe('MiniMax.MiniMax-M2.1')
       expect(dotted.id).toBe(createUniqueModelId('dashscope', 'MiniMax.MiniMax-M2.1'))
-      // fuzzy match via dated snapshot → date appended, raw id preserved
-      expect(dated.name).toBe('Qwen-Plus (2025-12-01)')
+      expect(dated.name).toBe('qwen-plus-2025-12-01')
       expect(dated.apiModelId).toBe('qwen-plus-2025-12-01')
     })
 
-    it('decorates a multi-segment Bedrock ARN prefix and its revision', () => {
+    it('keeps the raw id as display name for a multi-segment Bedrock ARN and its revision', () => {
       mockReadModels.mockReturnValue({
         version: '1.0',
         models: [{ id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', capabilities: ['function-call'] }]
@@ -802,8 +797,41 @@ describe('ProviderRegistryService', () => {
 
       const [regional] = providerRegistryService.resolveModels('aws-bedrock', ['us.anthropic.claude-sonnet-4-5-v1:0'])
 
-      expect(regional.name).toBe('us.anthropic: Claude Sonnet 4.5 (v1:0)')
+      expect(regional.name).toBe('us.anthropic.claude-sonnet-4-5-v1:0')
       expect(regional.apiModelId).toBe('us.anthropic.claude-sonnet-4-5-v1:0')
+    })
+
+    it('uses the decorated display name when the raw-id preference is disabled', async () => {
+      // Would catch a regression that always emits raw ids and ignores the decorated opt-in.
+      MockMainPreferenceServiceUtils.setPreferenceValue(MODEL_DISPLAY_NAME_SHOW_RAW_ID, false)
+      try {
+        setupRegistryData()
+
+        const models = providerRegistryService.resolveModels('openai', [
+          'custom-model',
+          'gpt-5.6-sol',
+          'mf/glm-5.3',
+          'mf/deepseek-v4-flash-0731'
+        ])
+
+        // Unmatched ids are prettified instead of shown raw when the user opts into decorated names:
+        // hyphen → space + title-cased tokens, slash namespace → `Prefix:`, dated snapshot in parens.
+        expect(models.map((model) => model.name)).toEqual([
+          'Custom Model',
+          'GPT 5.6 Sol',
+          'Mf: GLM 5.3',
+          'Mf: Deepseek V4 Flash (0731)'
+        ])
+        // The raw ids stay the wire apiModelIds regardless of the display mode.
+        expect(models.map((model) => model.apiModelId)).toEqual([
+          'custom-model',
+          'gpt-5.6-sol',
+          'mf/glm-5.3',
+          'mf/deepseek-v4-flash-0731'
+        ])
+      } finally {
+        MockMainPreferenceServiceUtils.setPreferenceValue(MODEL_DISPLAY_NAME_SHOW_RAW_ID, true)
+      }
     })
 
     it('getImageGenerationSupport returns the model block when present', async () => {
