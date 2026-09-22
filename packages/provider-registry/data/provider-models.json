@@ -16250,6 +16250,30 @@
       "providerId": "grok-cli"
     },
     {
+      "apiModelId": "grok-4.6",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-6",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
       "apiModelId": "grok-4.7",
       "endpointTypes": ["openai-responses"],
       "limits": {
@@ -40631,5 +40655,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "6ed61877eb8ffc6c"
+  "version": "268f15c29341edb0"
 }

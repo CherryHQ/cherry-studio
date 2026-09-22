@@ -24,7 +24,7 @@ export default defineProvider({
     }
   },
   overrides: [
-    // grok-4-7 / grok-4-5 / grok-4-3 resolve to base-catalog models; override only the
+    // grok-4-7 / grok-4-6 / grok-4-5 / grok-4-3 resolve to base-catalog models; override only the
     // CLI-proxy specifics (30k output cap, flat CLI-side pricing).
     {
       modelId: 'grok-4-7',
@@ -54,6 +54,17 @@ export default defineProvider({
         input: { currency: 'USD', perMillionTokens: 4 },
         output: { currency: 'USD', perMillionTokens: 12 },
         cacheRead: { currency: 'USD', perMillionTokens: 1 }
+      }
+    },
+    {
+      modelId: 'grok-4-6',
+      apiModelId: 'grok-4.6',
+      limits: { contextWindow: 500000, maxOutputTokens: 30000 },
+      endpointTypes: ['openai-responses'],
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        output: { currency: 'USD', perMillionTokens: 6 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.5 }
       }
     },
     {
