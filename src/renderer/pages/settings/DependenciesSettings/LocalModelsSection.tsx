@@ -286,9 +286,9 @@ const LmStudioEmbeddingModelSelector: FC = () => {
     setLoading(true)
     void ipcApi
       .request('ai.provider.model.list', { providerId: 'lmstudio' })
-      .then(({ models = [] }) => {
+      .then((models) => {
         if (mounted) {
-          setLmStudioModels(models as Model[])
+          setLmStudioModels((models as Model[]) || [])
         }
       })
       .catch((error) => {
