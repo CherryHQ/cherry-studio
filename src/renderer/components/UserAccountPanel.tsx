@@ -18,6 +18,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { isEmoji } from '@renderer/utils/naming'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
@@ -39,9 +40,9 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
     isAuthorizing
   } = useCherryAccountSession(active)
 
-  const openPersonalInformation = () => {
+  const handleOpenAccountDetails = () => {
     onRequestClose?.()
-    openSettingsTab('/settings/usage')
+    openSettingsTab(getAppEdition() === 'global' ? '/settings/subscription' : '/settings/usage')
   }
 
   const handleOpenSettings = () => {
@@ -124,7 +125,7 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
           variant="ghost"
           aria-label={t('settings.general.user_name.label')}
           className="h-auto min-h-9 w-full items-center justify-start gap-2 px-2 py-1 text-left"
-          onClick={openPersonalInformation}
+          onClick={handleOpenAccountDetails}
           size="sm">
           {isEmoji(avatar) ? (
             <EmojiAvatar size={28} fontSize={14} className="shrink-0">
