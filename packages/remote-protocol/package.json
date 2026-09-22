@@ -1,0 +1,42 @@
+{
+  "name": "@cherrystudio/remote-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "files": [
+    "dist",
+    "fixtures"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "default": "./dist/agent.js"
+    },
+    "./configuration": {
+      "types": "./dist/configuration.d.ts",
+      "default": "./dist/configuration.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "json-canonicalize": "3.0.1"
+  },
+  "devDependencies": {
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^4.1.10",
+    "zod": "4.3.4"
+  },
+  "peerDependencies": {
+    "zod": "^4.3.4"
+  }
+}
