@@ -9,7 +9,11 @@ import { loggerService } from '@logger'
 
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
-import { journalNeedsChromiumStorageQuiesce, quiesceChromiumStorageForRestore } from './chromiumStorageQuiesce'
+import {
+  entryNeedsChromiumStorageQuiesce,
+  isChromiumRuntimeDir,
+  quiesceChromiumStorageForRestore
+} from './chromiumStorageQuiesce'
 import { hashDbFile } from './hashDbFile'
 import type { PromotionStep, RestoreJournal } from './restoreJournal'
 import { PROMOTION_STEP_ORDER, readRestoreJournal, removeRestoreJournal, writeRestoreJournal } from './restoreJournal'
@@ -399,13 +403,7 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
   for (let i = PROMOTION_STEP_ORDER.indexOf(current.step) + 1; i < PROMOTION_STEP_ORDER.length; i++) {
     const step = PROMOTION_STEP_ORDER[i]
     try {
-      if (step === 'entries-applied' && journalNeedsChromiumStorageQuiesce(ctx.journal)) {
-        logger.info('Quiescing Chromium runtime storage before applying file entries', {
-          restoreId: ctx.journal.restoreId
-        })
-        await quiesceChromiumStorageForRestore()
-      }
-      runStep(ctx, step)
+      await runStep(ctx, step)
     } catch (error) {
       // The commit step's rename is the point of no return, and renameDurable
       // fsyncs the affected directories AFTER renaming — so this throw can
@@ -448,7 +446,7 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
   finalize(ctx, 'completed', current.step)
 }
 
-function runStep(ctx: PromotionContext, step: PromotionStep): void {
+async function runStep(ctx: PromotionContext, step: PromotionStep): Promise<void> {
   switch (step) {
     case 'gate-passed':
       // Admission marker only — no filesystem action.
@@ -474,7 +472,7 @@ function runStep(ctx: PromotionContext, step: PromotionStep): void {
       return
     case 'entries-applied':
       for (const entry of ctx.journal.fileResources) {
-        applyEntry(ctx, entry)
+        await applyEntry(ctx, entry)
       }
       return
     case 'integrity-ok': {
@@ -506,7 +504,7 @@ function integrityCheck(dbPath: string): string {
   }
 }
 
-function applyEntry(ctx: PromotionContext, entry: FileResource): void {
+async function applyEntry(ctx: PromotionContext, entry: FileResource): Promise<void> {
   switch (entry.kind) {
     case 'blob-add':
     case 'dir-add':
@@ -522,6 +520,13 @@ function applyEntry(ctx: PromotionContext, entry: FileResource): void {
       // Aside-first: the original must be parked before the overwrite lands.
       if (aside && fs.existsSync(live) && !fs.existsSync(aside)) {
         renameDurable(live, aside)
+      }
+      if (entryNeedsChromiumStorageQuiesce(entry) && isChromiumRuntimeDir(entry.livePath)) {
+        logger.info('Quiescing Chromium runtime storage after aside, before staging move', {
+          restoreId: ctx.journal.restoreId,
+          livePath: entry.livePath
+        })
+        await quiesceChromiumStorageForRestore(entry.livePath)
       }
       moveIdempotent(resolveEntry(ctx, entry.stagingPath), live)
       return

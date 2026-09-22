@@ -9,25 +9,46 @@ const logger = loggerService.withContext('RestorePromotion')
 /** userData-relative directory names Chromium keeps open via LevelDB on Windows. */
 export const CHROMIUM_RUNTIME_DIR_NAMES = ['IndexedDB', 'Local Storage'] as const
 
+type ChromiumRuntimeDirName = (typeof CHROMIUM_RUNTIME_DIR_NAMES)[number]
+
+type FileResource = RestoreJournal['fileResources'][number]
+
+export function isChromiumRuntimeDir(livePath: string): livePath is ChromiumRuntimeDirName {
+  return CHROMIUM_RUNTIME_DIR_NAMES.includes(livePath as ChromiumRuntimeDirName)
+}
+
 export function journalNeedsChromiumStorageQuiesce(journal: RestoreJournal): boolean {
   if (process.platform !== 'win32') {
     return false
   }
-  return journal.fileResources.some(
-    (entry) =>
-      (entry.kind === 'overwrite' || entry.kind === 'note-overwrite') &&
-      CHROMIUM_RUNTIME_DIR_NAMES.includes(entry.livePath as (typeof CHROMIUM_RUNTIME_DIR_NAMES)[number])
-  )
+  return journal.fileResources.some((entry) => entryNeedsChromiumStorageQuiesce(entry))
+}
+
+export function entryNeedsChromiumStorageQuiesce(entry: FileResource): boolean {
+  if (process.platform !== 'win32') {
+    return false
+  }
+  return (entry.kind === 'overwrite' || entry.kind === 'note-overwrite') && isChromiumRuntimeDir(entry.livePath)
+}
+
+function clearDataTypesForDir(livePath: ChromiumRuntimeDirName): Array<'indexedDB' | 'localStorage'> {
+  if (livePath === 'Local Storage') {
+    return ['localStorage']
+  }
+  return ['indexedDB']
 }
 
 /**
- * Release Chromium LevelDB handles on the default session before renaming
- * runtime storage directories during restore promotion on Windows.
+ * Release Chromium LevelDB handles on the default session after the live
+ * directory has been parked aside, so the staging copy can land at the live path.
+ *
+ * Uses `clearData` rather than `clearStorageData` because the pinned Electron
+ * version does not reliably release IndexedDB handles via the legacy API.
  */
-export async function quiesceChromiumStorageForRestore(): Promise<void> {
+export async function quiesceChromiumStorageForRestore(livePath: ChromiumRuntimeDirName): Promise<void> {
   await app.whenReady()
-  await session.defaultSession.clearStorageData({
-    storages: ['localstorage', 'indexeddb']
+  await session.defaultSession.clearData({
+    dataTypes: clearDataTypesForDir(livePath)
   })
-  logger.info('Chromium runtime storage quiesced for restore promotion')
+  logger.info('Chromium runtime storage quiesced for restore promotion', { livePath })
 }
