@@ -335,8 +335,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
         const result = this.persistDispatchTx(tx, validated, {
           id: validated.agentId,
           updatedAt: validated.agentUpdatedAt,
-          model: validated.uniqueModelId,
-          type: validated.agentType
+          model: validated.agentModel,
+          type: validated.agentType,
+          sessionModelId: validated.sessionModelId
         })
         agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
         return result
