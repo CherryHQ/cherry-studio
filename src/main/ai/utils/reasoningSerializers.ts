@@ -181,8 +181,16 @@ function resolveModeBudget(
 
 export function resolveReasoningInvocation(input: ResolveReasoningInvocationInput): ResolvedReasoningInvocation {
   const requested = input.selection ?? 'default'
-  if (!input.model.capabilities.includes(MODEL_CAPABILITY.REASONING) || !input.model.reasoning || input.profile.disabled) {
-    return omit('the model has reasoning disabled, declares no reasoning, or its profile is disabled', input.model, requested)
+  if (
+    !input.model.capabilities?.includes(MODEL_CAPABILITY.REASONING) ||
+    !input.model.reasoning ||
+    input.profile.disabled
+  ) {
+    return omit(
+      'the model has reasoning disabled, declares no reasoning, or its profile is disabled',
+      input.model,
+      requested
+    )
   }
 
   const selection = resolveSelection(input.selection, input.model)
