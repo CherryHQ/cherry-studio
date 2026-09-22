@@ -1,15 +1,11 @@
-import type { Server, IncomingMessage } from 'node:http'
-import type { Duplex } from 'node:stream'
-
-import { WebSocketServer, type WebSocket } from 'ws'
-
 import { application } from '@application'
 import { remoteLimits, type RemoteCapability } from '@cherrystudio/remote-protocol'
 import {
   acceptSecureChannel,
+  type ChannelOptions,
   deviceIdentityId,
-  RemoteSocketStream,
-  type ChannelOptions
+  type RemoteSocket,
+  RemoteSocketStream
 } from '@cherrystudio/remote-transport'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
@@ -27,7 +23,8 @@ const transportLog: ChannelOptions['logger'] = {
     Object.assign(() => {}, {
       enabled: false,
       trace() {},
-      error: () => logger.debug('Encrypted remote transport closed'),
+      error: (formatter: unknown, ...args: unknown[]) =>
+        logger.warn('Encrypted remote transport error', { detail: String(formatter), args: args.map(String) }),
       newScope: () => transportLog.forComponent('remote')
     })
 }
@@ -41,7 +38,7 @@ export class RemoteAccessService extends BaseService {
   private readonly tokens = new RemoteTokens()
   private readonly hub = new RemoteAgentHub()
   private readonly connections = new Map<
-    WebSocket,
+    RemoteSocket,
     { address: string; openedAt: number; abort: AbortController; remote?: RemoteConnection }
   >()
 
@@ -56,7 +53,7 @@ export class RemoteAccessService extends BaseService {
           if (!entry.remote?.isAuthenticated() && Date.now() - entry.openedAt > remoteLimits.invitationMs)
             throw new Error('Pairing timeout')
         } catch {
-          socket.terminate()
+          socket.close(1008, 'Remote session expired')
         }
       }
     }, 1000)
@@ -64,7 +61,7 @@ export class RemoteAccessService extends BaseService {
       this.pairing.clear()
       this.tokens.clear()
       this.hub.dispose()
-      for (const socket of this.connections.keys()) socket.terminate()
+      for (const socket of this.connections.keys()) socket.close(1001, 'Service stopping')
     })
   }
 
@@ -81,49 +78,36 @@ export class RemoteAccessService extends BaseService {
     application.get('IpcApiService').broadcast('api_gateway.remote.pairing_changed', undefined)
   }
 
-  attach(server: Server): () => void {
-    const wss = new WebSocketServer({ noServer: true, maxPayload: remoteLimits.recordBytes, perMessageDeflate: false })
-    const upgrade = (request: IncomingMessage, socket: Duplex, head: Buffer) => {
-      if (request.url !== '/v1/remote/connect' || request.headers.origin || request.method !== 'GET') {
-        socket.destroy()
-        return
-      }
-      const address = request.socket.remoteAddress ?? ''
-      if (
-        this.connections.size >= 32 ||
-        [...this.connections.values()].filter((value) => value.address === address).length >= 4
-      ) {
-        socket.destroy()
-        return
-      }
-      wss.handleUpgrade(request, socket, head, (websocket) => {
-        const entry = {
-          address,
-          openedAt: Date.now(),
-          abort: new AbortController(),
-          remote: undefined as RemoteConnection | undefined
-        }
-        this.connections.set(websocket, entry)
-        websocket.once('close', () => {
-          entry.abort.abort()
-          entry.remote?.dispose()
-          this.connections.delete(websocket)
-        })
-        void this.run(websocket, entry).catch(() => websocket.terminate())
-      })
+  /** Called by the gateway's ws route once the upgrade completed; refuses beyond the connection budget. */
+  accept(socket: RemoteSocket, address: string): void {
+    const sameAddress = [...this.connections.values()].filter((value) => value.address === address).length
+    if (this.connections.size >= 32 || sameAddress >= 4) {
+      socket.close(1013, 'Too many remote connections')
+      return
     }
-    server.on('upgrade', upgrade)
-    let closed = false
-    const detach = () => {
-      if (closed) return
-      closed = true
-      server.off('upgrade', upgrade)
-      this.pairing.clear()
-      for (const socket of wss.clients) socket.terminate()
-      wss.close()
+    socket.binaryType = 'arraybuffer'
+    const entry = {
+      address,
+      openedAt: Date.now(),
+      abort: new AbortController(),
+      remote: undefined as RemoteConnection | undefined
     }
-    this.registerDisposable(detach)
-    return detach
+    this.connections.set(socket, entry)
+    socket.addEventListener('close', () => {
+      entry.abort.abort()
+      entry.remote?.dispose()
+      this.connections.delete(socket)
+    })
+    void this.run(socket, entry).catch((error: unknown) => {
+      logger.warn('Remote session ended with an error', { address, error: (error as Error).message })
+      socket.close(1011, 'Remote session failed')
+    })
+  }
+
+  /** The LAN listener is going away: pending invitations and live sessions go with it. */
+  closeIngress(): void {
+    this.pairing.clear()
+    for (const socket of this.connections.keys()) socket.close(1001, 'Gateway stopping')
   }
 
   private getIdentity(): Promise<Uint8Array> {
@@ -134,7 +118,7 @@ export class RemoteAccessService extends BaseService {
     return this.identity
   }
 
-  private async run(socket: WebSocket, entry: { abort: AbortController; remote?: RemoteConnection }): Promise<void> {
+  private async run(socket: RemoteSocket, entry: { abort: AbortController; remote?: RemoteConnection }): Promise<void> {
     const stream = new RemoteSocketStream(socket, transportLog.forComponent('remote'), 'inbound')
     const channel = await acceptSecureChannel(stream, {
       identity: await this.getIdentity(),
@@ -164,7 +148,7 @@ export class RemoteAccessService extends BaseService {
         .then(async (response) => {
           if (response !== null) await remote.send(response)
         })
-        .catch(() => socket.terminate())
+        .catch(() => socket.close(1011, 'Remote request failed'))
     }
   }
 }

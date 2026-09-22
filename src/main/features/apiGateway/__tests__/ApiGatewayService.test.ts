@@ -79,6 +79,7 @@ vi.mock('@application', async () => {
     CacheService: { setShared: mockSetShared },
     AgentSessionRuntimeService: { getActiveUsageContext: mockGetActiveUsageContext },
     RemoteAccessService: {
+      closeIngress: vi.fn(),
       createInvitation: vi.fn(async () => ({
         invitationId: 'invitation',
         invitationSecret: 'secret',
@@ -407,7 +408,7 @@ describe('ApiGatewayService LAN shutdown', () => {
 
     expect(service.isActivated).toBe(true)
     expect(service.getCurrentConfig()).toMatchObject({ enabled: true, host: '0.0.0.0' })
-    expect(ApiGateway).toHaveBeenLastCalledWith({ host: '0.0.0.0', port: 0 }, expect.any(Function))
+    expect(ApiGateway).toHaveBeenLastCalledWith({ host: '0.0.0.0', port: 0 })
     expect((await service.createRemoteInvitation()).addresses).toEqual(['192.168.1.8'])
   })
 })

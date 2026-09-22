@@ -19,7 +19,7 @@ vi.mock('@application', async () => {
         Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, preferences.get(key)]))
     },
     RemoteAccessService: {
-      attach: () => () => {},
+      closeIngress: () => {},
       createInvitation: async () => ({
         invitationId: 'invitation',
         invitationSecret: 'secret',

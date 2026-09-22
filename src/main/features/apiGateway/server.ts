@@ -53,12 +53,8 @@ export class ApiGateway {
    * activation (a restart builds a fresh `ApiGateway`, and a port change is a stop→start).
    */
   private readonly mcpSessions = new McpSessionStore()
-  private detachIngress?: () => void
 
-  constructor(
-    private readonly endpoint?: { host: string; port: number },
-    private readonly attachIngress?: (server: HttpServer) => () => void
-  ) {}
+  constructor(private readonly endpoint?: { host: string; port: number }) {}
 
   async start(): Promise<void> {
     if (this.running) {
@@ -81,7 +77,6 @@ export class ApiGateway {
           const http = serverInfo.raw?.node?.server
           if (http) {
             this.applyServerTimeouts(http)
-            this.detachIngress = this.attachIngress?.(http)
           }
 
           // The listen callback fires synchronously before the socket is bound;
@@ -121,8 +116,6 @@ export class ApiGateway {
   }
 
   private cleanupFailedStart(): void {
-    this.detachIngress?.()
-    this.detachIngress = undefined
     this.running = false
     this.serverInfo = null
     this.app = null
@@ -132,8 +125,6 @@ export class ApiGateway {
     if (!this.app && !this.serverInfo) return
 
     try {
-      this.detachIngress?.()
-      this.detachIngress = undefined
       // Do NOT call `app.stop()` here: with the `@elysia/node` adapter, `listen()`
       // never assigns `app.server`, so Elysia core's web-standard `stop()` throws
       // "Elysia isn't running". An unhandled throw would skip the cleanup below and

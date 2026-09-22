@@ -7,7 +7,7 @@ together during pairing. Each capability has an independent authorization grant.
 
 | File | Owns |
 |---|---|
-| `RemoteAccessService.ts` | WS upgrade on the gateway listener, identity, sweep, connection registry |
+| `RemoteAccessService.ts` | Accepts sockets from the gateway's `/v1/remote/connect` ws route, identity, sweep, connection registry |
 | `RemoteConnection.ts` | Per-connection RPC: hello/authenticate/refresh/ping, pairing, configuration export |
 | `RemotePairing.ts` / `RemoteTokens.ts` / `deviceIdentity.ts` | Invitation + claim state, access tokens, Ed25519 identity file |
 | `agentHandlers.ts` | Every `agent.*` method, including durable command receipts |

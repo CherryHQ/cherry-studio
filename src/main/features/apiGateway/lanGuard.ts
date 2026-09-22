@@ -1,9 +1,11 @@
 import { application } from '@application'
 
+import { REMOTE_CONNECT_PATH } from './routes/remote'
+
 /**
  * When the gateway binds the LAN (`0.0.0.0`) the same listener serves the
  * desktop's own loopback consumers and the encrypted WebSocket upgrade used by
- * remote devices. No HTTP route may cross the LAN: an exposed MCP proxy is
+ * remote devices. No other HTTP route may cross the LAN: an exposed MCP proxy is
  * remote tool execution, and the chat routes leak the desktop API key over the
  * wire. This screens every request by its socket peer.
  */
@@ -26,12 +28,18 @@ function readRemoteAddress(request: Request): string | undefined {
   return carrier.ip ?? carrier.runtime?.node?.req?.socket?.remoteAddress
 }
 
-/** Returns a 403 body for every non-loopback HTTP request, or `undefined` to let the request proceed. */
-export function screenLanRequest(request: Request): { error: string } | undefined {
+/** Returns a 403 body for a non-loopback request unless it is the remote-access upgrade. */
+export function screenLanRequest(request: Request, pathname: string): { error: string } | undefined {
   if (isLoopbackAddress(readRemoteAddress(request))) return undefined
   // A local task can keep the listener alive after stopping; LAN access must still be revoked.
   if (application.get('PreferenceService').get('feature.api_gateway.host') !== '0.0.0.0') {
     return { error: 'Forbidden: LAN access is disabled' }
   }
+  if (
+    request.method === 'GET' &&
+    pathname === REMOTE_CONNECT_PATH &&
+    request.headers.get('upgrade')?.toLowerCase() === 'websocket'
+  )
+    return undefined
   return { error: 'Forbidden: this endpoint is not reachable over the LAN' }
 }

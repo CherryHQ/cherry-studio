@@ -316,9 +316,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private async startLanGateway(): Promise<void> {
     if (this.lanGateway?.isRunning()) return
     const { ApiGateway } = await import('./server')
-    this.lanGateway = new ApiGateway({ host: '0.0.0.0', port: 0 }, (server) =>
-      application.get('RemoteAccessService').attach(server)
-    )
+    this.lanGateway = new ApiGateway({ host: '0.0.0.0', port: 0 })
     try {
       await this.lanGateway.start()
     } catch (error) {
@@ -328,6 +326,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   private async stopLanGateway(): Promise<void> {
+    application.get('RemoteAccessService').closeIngress()
     try {
       await this.lanGateway?.stop()
     } finally {
