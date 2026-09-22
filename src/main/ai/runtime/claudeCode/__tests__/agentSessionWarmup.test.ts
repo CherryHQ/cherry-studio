@@ -1542,6 +1542,30 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['promptModelName'])
   })
 
+  it('fingerprints the session override model name instead of the parent agent default', async () => {
+    mocks.getSessionById.mockReturnValue({
+      ...sessionWithWorkspace,
+      model: 'provider-1::model-2'
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      name: modelId === 'model-2' ? 'Override Model' : 'Default Model',
+      apiModelId: `${modelId}-api`
+    }))
+
+    const withOverride = await deriveConnectionConfig('session-1')
+    mocks.getSessionById.mockReturnValue(sessionWithWorkspace)
+    const agentDefault = await deriveConnectionConfig('session-1')
+
+    if (!withOverride.ok || !agentDefault.ok) throw new Error('expected ok derive')
+    expect(withOverride.config.rebuildSignature).not.toBe(agentDefault.config.rebuildSignature)
+    const changedFacts = Object.keys(agentDefault.config.rebuildFactFingerprints).filter(
+      (name) => agentDefault.config.rebuildFactFingerprints[name] !== withOverride.config.rebuildFactFingerprints[name]
+    )
+    expect(changedFacts).toContain('modelId')
+    expect(changedFacts).toContain('promptModelName')
+  })
+
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {
     mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: 'http://proxy-a.example.com:8080' })
     const first = await deriveSignature()

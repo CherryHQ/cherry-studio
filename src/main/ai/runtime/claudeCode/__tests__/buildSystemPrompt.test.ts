@@ -281,6 +281,18 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
     expect(text).not.toContain('{{username}}')
     expect(text).not.toContain('{{model_name}}')
   })
+
+  it('prefers the effective turn model name over the parent agent default for {{model_name}}', async () => {
+    mockReplacePromptVariables.mockResolvedValueOnce('Use Claude Opus.')
+    const agent = makeAgent({
+      instructions: 'Use {{model_name}}.',
+      modelName: 'Claude Sonnet 4.5'
+    })
+
+    await buildSystemPrompt(agent, '/tmp/cwd', undefined, [], [], undefined, undefined, 'Claude Opus')
+
+    expect(mockReplacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Claude Opus')
+  })
 })
 
 describe('buildSystemPrompt — report_artifacts prompt', () => {
