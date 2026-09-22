@@ -1017,7 +1017,10 @@
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://inference.gitgot.ai/v1",
           "reasoningFormat": {
-            "type": "openai-chat"
+            "type": "openai-chat",
+            "wire": {
+              "disabled": true
+            }
           }
         }
       },
@@ -2660,5 +2663,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "f57e7046f8580797"
+  "version": "5ee0551dac6a10aa"
 }
