@@ -1188,7 +1188,7 @@ class ModelService {
     )
 
     if (deletedIds.length > 0) pinService.notifyPurged()
-    if (clearedSessionIds.length > 0) agentSessionService.notifyReadModelChange(clearedSessionIds, 'projection')
+    if (clearedSessionIds.length > 0) agentSessionService.notifySessionModelOverridesCleared(clearedSessionIds)
     return { models: this.enrichRowsFromRegistryTx(dbService.getDb(), rows), deletedIds }
   }
 
@@ -1221,7 +1221,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
     )
-    if (clearedSessionIds.length > 0) agentSessionService.notifyReadModelChange(clearedSessionIds, 'projection')
+    if (clearedSessionIds.length > 0) agentSessionService.notifySessionModelOverridesCleared(clearedSessionIds)
     pinService.notifyPurged()
 
     logger.info('Deleted model', { providerId, modelId })
@@ -1292,7 +1292,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(ids.length === 1 ? ids[0] : `batch(${ids.length} items)`)
     )
-    if (clearedSessionIds.length > 0) agentSessionService.notifyReadModelChange(clearedSessionIds, 'projection')
+    if (clearedSessionIds.length > 0) agentSessionService.notifySessionModelOverridesCleared(clearedSessionIds)
     pinService.notifyPurged()
 
     logger.info('Bulk deleted models', {

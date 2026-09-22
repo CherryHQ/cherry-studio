@@ -172,6 +172,15 @@ export class AgentSessionService {
     notifyDataApiDataChange(effects)
   }
 
+  /** Projection plus runtime reconciliation when an override is cleared outside a direct session PATCH. */
+  notifySessionModelOverridesCleared(sessionIds: readonly string[]): void {
+    if (sessionIds.length === 0) return
+    this.notifyReadModelChange(sessionIds, 'projection')
+    for (const sessionId of sessionIds) {
+      this._onSessionModelUpdated.fire({ sessionId })
+    }
+  }
+
   notifyPurged(sessionIds: readonly string[]): void {
     if (sessionIds.length === 0) return
     this.notifyReadModelChange(sessionIds, 'membership')

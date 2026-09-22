@@ -1030,7 +1030,7 @@ class ProviderService {
     })
 
     if (deletedModelCount > 0) pinService.notifyPurged()
-    if (clearedSessionIds.length > 0) agentSessionService.notifyReadModelChange(clearedSessionIds, 'projection')
+    if (clearedSessionIds.length > 0) agentSessionService.notifySessionModelOverridesCleared(clearedSessionIds)
 
     logger.info('Deleted provider', { providerId })
   }

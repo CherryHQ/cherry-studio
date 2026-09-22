@@ -398,6 +398,25 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(current.config.rebuildSignature).toBe(request?.connectionConfig.rebuildSignature)
   })
 
+  it('passes the effective connection model to session settings for an override-only agent', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: null })
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' },
+      modelId: 'provider-1::model-3'
+    })
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ connectionModelId: 'provider-1::model-3' }),
+      expect.anything()
+    )
+  })
+
   it('strips ENABLE_TOOL_SEARCH when the connection model rejects dynamically-loaded tools', async () => {
     // The settings builder force-enables ToolSearch for every agent; the route must undo that for
     // models whose provider rejects dynamic tool declarations (Kimi non-K3 → tokenization failed).
