@@ -834,6 +834,17 @@ describe('findPromptTarget', () => {
     expect(target).toEqual({ nodeId: '1', input: 'text_g', samplerId: '3' })
   })
 
+  it('orders standalone candidates by node number, not by string', () => {
+    // Two candidates of equal rank: ComfyUI numbers nodes, so 9 is lower than 10
+    // even though "10" sorts first as a string.
+    const target = findPromptTarget({
+      '10': { class_type: 'OtherGenerator', inputs: { prompt: 'a', seed: 1 }, _meta: { title: 'ten' } },
+      '9': { class_type: 'MiniMaxH3MLXTurbo', inputs: { prompt: 'b', seed: 2 }, _meta: { title: 'nine' } }
+    })
+
+    expect(target).toEqual({ nodeId: '9', input: 'prompt', samplerId: '9' })
+  })
+
   it('targets the node itself when a self-contained generator owns the prompt', () => {
     // MiniMaxH3MLXTurbo takes the prompt as its own widget and schedules its own
     // noise: there is no `positive` edge anywhere in the graph to walk.

@@ -680,6 +680,14 @@ export function findPromptTarget(
   // walk: the prompt and the seed are both its own widgets. Nothing better can
   // be said about which text input a graph means, so take the highest-ranked
   // prompt-like input on a node that also samples a seed, lowest node id first.
+  const byNodeId = (a: string, b: string): number => {
+    // A node id is a string to the API but a number to ComfyUI: ordering the
+    // tie-break lexicographically would read "10" as lower than "9".
+    const left = Number(a)
+    const right = Number(b)
+    if (Number.isInteger(left) && Number.isInteger(right) && left !== right) return left - right
+    return a < b ? -1 : a > b ? 1 : 0
+  }
   let standalone: { nodeId: string; input: string; rank: number } | undefined
   for (const [nodeId, node] of Object.entries(prompt)) {
     if (seedInputKey(node.inputs) === undefined) continue
@@ -688,7 +696,9 @@ export function findPromptTarget(
       const rank = PROMPT_INPUT_PREFERENCE.indexOf(name)
       if (rank === -1) continue
       const better =
-        standalone === undefined || rank < standalone.rank || (rank === standalone.rank && nodeId < standalone.nodeId)
+        standalone === undefined ||
+        rank < standalone.rank ||
+        (rank === standalone.rank && byNodeId(nodeId, standalone.nodeId) < 0)
       if (better) standalone = { nodeId, input: name, rank }
     }
   }
