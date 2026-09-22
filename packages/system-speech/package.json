@@ -1,0 +1,44 @@
+{
+  "name": "@cherrystudio/system-speech",
+  "version": "0.0.1",
+  "private": true,
+  "files": [
+    "dist/**/*",
+    "native/**/*"
+  ],
+  "type": "module",
+  "exports": {
+    "./contracts": {
+      "types": "./dist/contracts.d.ts",
+      "import": "./dist/contracts.js"
+    },
+    "./native": {
+      "types": "./dist/nativeClient.d.ts",
+      "import": "./dist/nativeClient.js"
+    },
+    "./webm": {
+      "types": "./dist/webmToWav.d.ts",
+      "import": "./dist/webmToWav.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "build:native": "tsx validation/buildNative.ts",
+    "clean": "rm -rf dist native/.build validation/electron/dist .validation-pack",
+    "test": "vitest run",
+    "test:native": "swift test --package-path native",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "validate": "tsx validation/run.ts",
+    "validate:packaged": "tsx validation/smokePackagedHelper.ts",
+    "validate:webm": "pnpm exec vite build --config validation/electron/vite.config.ts && electron validation/electron/main.cjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "electron": "44.2.0",
+    "tsdown": "^0.22.14",
+    "tsx": "^4.21.0",
+    "typescript": "7.0.2",
+    "vite": "^8.2.0",
+    "vitest": "^4.0.13"
+  }
+}

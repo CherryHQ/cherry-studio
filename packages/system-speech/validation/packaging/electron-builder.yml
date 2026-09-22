@@ -1,0 +1,7 @@
+extends: electron-builder.yml
+directories:
+  output: packages/system-speech/.validation-pack
+mac:
+  extraResources:
+    - from: packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech
+      to: system-speech/cherry-system-speech

@@ -1983,6 +1983,30 @@ importers:
         specifier: ^4.1.12
         version: 4.3.6
 
+  packages/system-speech:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.2
+        version: 24.10.4
+      electron:
+        specifier: 44.2.0
+        version: 44.2.0
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(oxc-resolver@11.21.2)(tsx@4.21.0)(typescript@7.0.2)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vite:
+        specifier: ^8.2.0
+        version: 8.2.0(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)
+      vitest:
+        specifier: ^4.0.13
+        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@24.10.4)(@vitest/coverage-v8@4.1.11(@vitest/browser@4.1.11)(vitest@4.1.11))(@vitest/ui@4.1.11(vitest@4.1.11))(jsdom@26.1.0)(msw@2.12.7(@types/node@24.10.4)(typescript@7.0.2))(vite@8.2.0(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+
   packages/ui:
     dependencies:
       '@dnd-kit/core':
