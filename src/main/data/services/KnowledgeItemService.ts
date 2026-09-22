@@ -270,7 +270,7 @@ export class KnowledgeItemService {
     const invalidItem = selectedItems.find((item) => item.baseId !== baseId)
 
     if (invalidItem) {
-      throw new Error(`Knowledge item '${invalidItem.id}' does not belong to base '${baseId}'`)
+      throw DataApiErrorFactory.notFound('KnowledgeItem', invalidItem.id)
     }
 
     const descendantSelectedIds = new Set<string>()

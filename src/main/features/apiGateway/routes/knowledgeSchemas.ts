@@ -130,15 +130,23 @@ export const ListKnowledgeDocumentsResponseSchema = z.object({
   next_cursor: z.string().optional()
 })
 
+const KnowledgeDocumentAdmissionSchema = z.object({
+  id: z.string(),
+  status: KnowledgeItemStatusSchema,
+  error: z.string().nullable()
+})
+
 export const AddKnowledgeDocumentsResponseSchema = z.object({
   status: z.literal('accepted'),
-  documents: z.array(
-    z.object({
-      id: z.string(),
-      status: KnowledgeItemStatusSchema,
-      error: z.string().nullable()
-    })
-  )
+  documents: z.array(KnowledgeDocumentAdmissionSchema)
+})
+
+export const AddKnowledgeDocumentsUnavailableResponseSchema = z.object({
+  error: z.object({
+    code: z.literal('SERVICE_UNAVAILABLE'),
+    message: z.string(),
+    details: z.object({ documents: z.array(KnowledgeDocumentAdmissionSchema) })
+  })
 })
 
 export const KnowledgeDocumentsPayloadTooLargeResponseSchema = z.object({

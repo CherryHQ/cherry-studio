@@ -10,6 +10,7 @@ import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import {
   AddKnowledgeDocumentsRequestSchema,
   AddKnowledgeDocumentsResponseSchema,
+  AddKnowledgeDocumentsUnavailableResponseSchema,
   CreateKnowledgeBaseRequestSchema,
   DeleteKnowledgeBaseResponseSchema,
   DeleteKnowledgeDocumentResponseSchema,
@@ -239,7 +240,8 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
       body: AddKnowledgeDocumentsRequestSchema,
       response: {
         202: AddKnowledgeDocumentsResponseSchema,
-        413: KnowledgeDocumentsPayloadTooLargeResponseSchema
+        413: KnowledgeDocumentsPayloadTooLargeResponseSchema,
+        503: AddKnowledgeDocumentsUnavailableResponseSchema
       },
       parse: [
         async ({ request, contentType, set, status }) => {

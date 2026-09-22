@@ -1099,16 +1099,20 @@ describe('KnowledgeService', () => {
 
     vi.clearAllMocks()
     await expect(service.addItems('kb-1', inputs)).resolves.toEqual({ status: 'added' })
+    expect(knowledgeItemGetByIdMock).toHaveBeenCalledTimes(2)
   })
 
   it('rejects cross-base delete and reindex in the workflow before deriving roots or enqueueing work', async () => {
     const service = new KnowledgeService()
-    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1', 'kb-2'))
+    knowledgeItemGetOutermostSelectedItemIdsMock.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('KnowledgeItem', 'note-1')
+    })
 
     await expect(service.deleteItems('kb-1', ['note-1'])).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     await expect(service.reindexItems('kb-1', ['note-1'])).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
 
-    expect(knowledgeItemGetOutermostSelectedItemIdsMock).not.toHaveBeenCalled()
+    expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenCalledTimes(2)
+    expect(knowledgeItemGetByIdMock).not.toHaveBeenCalled()
     expect(enqueueMock).not.toHaveBeenCalled()
     expect(enqueueTxMock).not.toHaveBeenCalled()
   })

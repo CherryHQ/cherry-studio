@@ -216,7 +216,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       throw error
     }
 
-    return { status: 'accepted', items: this.getItemAdmissions(acceptedItems) }
+    return {
+      status: 'accepted',
+      items: reportAdmission ? this.getItemAdmissions(acceptedItems) : []
+    }
   }
 
   /**
@@ -239,7 +242,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
-    this.assertItemsBelongToBase(baseId, itemIds)
     const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
     if (rootItemIds.length === 0) {
       return
@@ -265,13 +267,12 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
-    this.assertItemsBelongToBase(baseId, itemIds)
-    assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
     const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
     if (rootItemIds.length === 0) {
       return
     }
 
+    assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
     await this.assertSubtreesCanReindex(baseId, rootItemIds)
 
     knowledgeBaseService.getById(baseId)
@@ -717,15 +718,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       logger,
       logMessage: 'Failed to mark unscheduled knowledge item after addItems scheduling failure'
     })
-  }
-
-  private assertItemsBelongToBase(baseId: string, itemIds: string[]): void {
-    for (const itemId of itemIds) {
-      const item = knowledgeItemService.getById(itemId)
-      if (item.baseId !== baseId) {
-        throw DataApiErrorFactory.notFound('KnowledgeItem', itemId)
-      }
-    }
   }
 
   private getItemAdmissions(

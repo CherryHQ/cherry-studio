@@ -323,6 +323,14 @@ describe('KnowledgeItemService', () => {
       expect(result).toEqual([DIR_A_ID, NOTE_ROOT_ID])
     })
 
+    it('returns NotFound when a selected item belongs to another base', async () => {
+      await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
+
+      expect(() => service.getOutermostSelectedItemIds('other-base', [NOTE_ROOT_ID])).toThrow(
+        expect.objectContaining({ code: 'NOT_FOUND' })
+      )
+    })
+
     it('filters items by group id', async () => {
       await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a' } })
       await seedItem({ id: NOTE_A_ID, groupId: DIR_A_ID, data: { source: 'a', content: 'a' } })

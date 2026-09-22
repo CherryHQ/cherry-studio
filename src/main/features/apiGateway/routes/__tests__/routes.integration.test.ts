@@ -229,6 +229,12 @@ describe('API gateway routes (integration)', () => {
       expect(addDocumentsSchema.properties.documents.description).toContain(
         'combined UTF-8 byte length of every document title, content, and group_id must not exceed 10000000'
       )
+      const unavailableResponse =
+        body.paths['/v1/knowledge-bases/{id}/documents'].post.responses['503'].content['application/json'].schema
+      expect(unavailableResponse.properties.error.properties.code.const).toBe('SERVICE_UNAVAILABLE')
+      expect(
+        unavailableResponse.properties.error.properties.details.properties.documents.items.properties
+      ).toHaveProperty('id')
     })
   })
 
