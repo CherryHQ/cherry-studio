@@ -2963,4 +2963,119 @@ describe('AgentSessionMessageService', () => {
       expect(() => saveWithOwner(agentUpdatedAt, undefined, '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e004')).not.toThrow()
     })
   })
+
+  describe('saveMessage ownership snapshot', () => {
+    const MODEL_A = 'test-provider::model-a'
+    const MODEL_B = 'test-provider::model-b'
+
+    function seedOverrideModels(): void {
+      dbh.db.insert(userProviderTable).values({ providerId: 'test-provider', name: 'Test', orderKey: 'p1' }).run()
+      dbh.db
+        .insert(userModelTable)
+        .values([
+          {
+            id: MODEL_A,
+            providerId: 'test-provider',
+            modelId: 'model-a',
+            name: 'Model A',
+            capabilities: [],
+            supportsStreaming: true,
+            orderKey: 'm1'
+          },
+          {
+            id: MODEL_B,
+            providerId: 'test-provider',
+            modelId: 'model-b',
+            name: 'Model B',
+            capabilities: [],
+            supportsStreaming: true,
+            orderKey: 'm2'
+          }
+        ])
+        .run()
+    }
+
+    async function seedOverrideSession(): Promise<string> {
+      seedOverrideModels()
+      await seedAgent('override-agent', 'Override Agent')
+      dbh.db.update(agentTable).set({ model: MODEL_A }).where(eq(agentTable.id, 'override-agent')).run()
+      await seedSession({
+        id: 'override-session',
+        agentId: 'override-agent',
+        modelId: MODEL_B,
+        name: 'Override',
+        orderKey: 'o0'
+      })
+      const [agent] = dbh.db
+        .select({ updatedAt: agentTable.updatedAt })
+        .from(agentTable)
+        .where(eq(agentTable.id, 'override-agent'))
+        .all()
+      return new Date(agent.updatedAt).toISOString()
+    }
+
+    it('rejects a busy follow-up when the session override changes after validation', async () => {
+      const agentUpdatedAt = await seedOverrideSession()
+      dbh.db
+        .update(agentSessionTable)
+        .set({ modelId: MODEL_A })
+        .where(eq(agentSessionTable.id, 'override-session'))
+        .run()
+
+      expect(() =>
+        agentSessionMessageService.saveMessage(
+          {
+            sessionId: 'override-session',
+            message: {
+              id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e010',
+              role: 'user',
+              status: 'success',
+              data: { parts: [] }
+            }
+          },
+          {
+            expectedAgent: {
+              id: 'override-agent',
+              updatedAt: agentUpdatedAt,
+              model: MODEL_A,
+              type: 'claude-code',
+              sessionModelId: MODEL_B
+            }
+          }
+        )
+      ).toThrowError(expect.objectContaining({ code: 'CONCURRENT_MODIFICATION' }))
+    })
+
+    it('rejects a busy follow-up when the agent default changes after validation', async () => {
+      const agentUpdatedAt = await seedOverrideSession()
+      dbh.db
+        .update(agentTable)
+        .set({ model: MODEL_B, updatedAt: Date.now() + 1_000 })
+        .where(eq(agentTable.id, 'override-agent'))
+        .run()
+
+      expect(() =>
+        agentSessionMessageService.saveMessage(
+          {
+            sessionId: 'override-session',
+            message: {
+              id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1e011',
+              role: 'user',
+              status: 'success',
+              data: { parts: [] }
+            }
+          },
+          {
+            expectedAgent: {
+              id: 'override-agent',
+              updatedAt: agentUpdatedAt,
+              model: MODEL_A,
+              type: 'claude-code',
+              sessionModelId: MODEL_B
+            }
+          }
+        )
+      ).toThrowError(expect.objectContaining({ code: 'CONCURRENT_MODIFICATION' }))
+    })
+  })
 })

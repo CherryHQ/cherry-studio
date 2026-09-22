@@ -73,6 +73,10 @@ export type AddressableAgentSession = {
   sessionName: string
 }
 
+export type SessionModelUpdatedEvent = {
+  sessionId: string
+}
+
 function publishTaskReadModelChanges(taskIds: readonly string[]): void {
   if (taskIds.length === 0) return
   // Resolve lazily because AgentTaskService reads the Session-owned relation.
@@ -160,6 +164,8 @@ export function agentSessionReadModelEffects(
 export class AgentSessionService {
   private readonly sessionUpdated = new Emitter<{ sessionId: string }>()
   readonly onSessionUpdated: Event<{ sessionId: string }> = this.sessionUpdated.event
+  private readonly _onSessionModelUpdated = new Emitter<SessionModelUpdatedEvent>()
+  readonly onSessionModelUpdated: Event<SessionModelUpdatedEvent> = this._onSessionModelUpdated.event
 
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
@@ -884,6 +890,7 @@ export class AgentSessionService {
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection')
     this.sessionUpdated.fire({ sessionId: id })
+    if (dto.modelId !== undefined) this._onSessionModelUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
 
