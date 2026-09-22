@@ -515,10 +515,17 @@ describe('AgentChatContextProvider', () => {
       modelId: 'openai::gpt-4o',
       workspace: { path: '/tmp' }
     })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
     mocks.runtimeIsSessionBusy.mockReturnValue(true)
 
     await provider.prepareDispatch(makeSubscriber(), openReq())
 
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-1' }),
+      expect.objectContaining({
+        expectedAgent: expect.objectContaining({ sessionModelId: 'openai::gpt-4o' })
+      })
+    )
     expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
       'session-1',
       expect.objectContaining({ role: 'user' }),
@@ -562,57 +569,23 @@ describe('AgentChatContextProvider', () => {
     })
   })
 
-  it('rejects a busy follow-up when the session override changes during validation', async () => {
-    mocks.getSession
-      .mockReturnValueOnce({
-        id: 'session-1',
-        agentId: 'agent-1',
-        modelId: 'openai::gpt-4o',
-        workspace: { path: '/tmp' }
-      })
-      .mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: null, workspace: { path: '/tmp' } })
-    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
-    mocks.runtimeIsSessionBusy.mockReturnValue(true)
-
-    await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toMatchObject({
-      code: 'CONCURRENT_MODIFICATION'
-    })
-
-    expect(mocks.saveMessage).not.toHaveBeenCalled()
-    expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
-  })
-
-  it('rejects a busy follow-up when the agent default changes during validation', async () => {
+  it('rejects a busy follow-up when the write boundary detects session override drift', async () => {
     mocks.getSession.mockReturnValue({
       id: 'session-1',
       agentId: 'agent-1',
-      modelId: null,
+      modelId: 'openai::gpt-4o',
       workspace: { path: '/tmp' }
     })
-    mocks.getAgent
-      .mockReturnValueOnce({
-        id: 'agent-1',
-        name: 'My Agent',
-        type: 'claude-code',
-        model: 'anthropic::claude-sonnet',
-        modelName: 'Claude Sonnet',
-        updatedAt: '2026-01-01T00:00:00.000Z'
-      })
-      .mockReturnValue({
-        id: 'agent-1',
-        name: 'My Agent',
-        type: 'claude-code',
-        model: 'openai::gpt-4o',
-        modelName: 'GPT-4o',
-        updatedAt: '2026-01-02T00:00:00.000Z'
-      })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
     mocks.runtimeIsSessionBusy.mockReturnValue(true)
+    mocks.saveMessage.mockImplementation(() => {
+      throw Object.assign(new Error('concurrent modification'), { code: 'CONCURRENT_MODIFICATION' })
+    })
 
     await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toMatchObject({
       code: 'CONCURRENT_MODIFICATION'
     })
 
-    expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
   })
 
