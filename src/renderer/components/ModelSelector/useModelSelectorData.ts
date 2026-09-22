@@ -9,11 +9,12 @@ import { getAppEdition } from '@renderer/utils/appEdition'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isAgentOnlyProvider } from '@shared/utils/provider'
 
 import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
+import { resolveSelectedModelIds } from './selection'
 import type {
   FlatListItem,
   ModelSelectorModelItem,
@@ -175,21 +176,10 @@ export function useModelSelectorData({
 
   // 只做去重 + 剔除不可选的脏 ID，不做数量截断。
   // 截断只影响 UI 的"显示为选中"态，不能让截断污染到对外回传的业务数据。
-  const resolvedSelectedModelIds = useMemo(() => {
-    const nextSelectedIds: UniqueModelId[] = []
-    const seen = new Set<UniqueModelId>()
-
-    for (const modelId of selectedModelIds) {
-      if (seen.has(modelId) || !selectableModelsById.has(modelId)) {
-        continue
-      }
-
-      seen.add(modelId)
-      nextSelectedIds.push(modelId)
-    }
-
-    return nextSelectedIds
-  }, [selectableModelsById, selectedModelIds])
+  const resolvedSelectedModelIds = useMemo(
+    () => resolveSelectedModelIds(selectedModelIds, selectableModelsById),
+    [selectableModelsById, selectedModelIds]
+  )
 
   // 仅用于 UI 展示：受 maxSelectedCount 约束（例如单选时只让第一个显示"已选"态）
   const visibleSelectedModelIdSet = useMemo(() => {

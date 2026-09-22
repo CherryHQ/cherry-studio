@@ -23,6 +23,63 @@ function areSelectedIdsEqual(left: readonly UniqueModelId[], right: readonly Uni
   return left.length === right.length && left.every((modelId, index) => modelId === right[index])
 }
 
+function isSelectableModelId(
+  modelId: UniqueModelId,
+  selectableModelIds: ReadonlySet<UniqueModelId> | ReadonlyMap<UniqueModelId, unknown>
+) {
+  return selectableModelIds instanceof Map ? selectableModelIds.has(modelId) : selectableModelIds.has(modelId)
+}
+
+/** Dedupes raw ids and keeps only those still present in the selectable catalog. */
+export function resolveSelectedModelIds(
+  selectedModelIds: readonly UniqueModelId[],
+  selectableModelIds: ReadonlySet<UniqueModelId> | ReadonlyMap<UniqueModelId, unknown>
+): UniqueModelId[] {
+  const nextSelectedIds: UniqueModelId[] = []
+  const seen = new Set<UniqueModelId>()
+
+  for (const modelId of selectedModelIds) {
+    if (seen.has(modelId) || !isSelectableModelId(modelId, selectableModelIds)) {
+      continue
+    }
+
+    seen.add(modelId)
+    nextSelectedIds.push(modelId)
+  }
+
+  return nextSelectedIds
+}
+
+/** Unique raw ids that no longer resolve against the selectable catalog. */
+export function countStaleSelectedModelIds(
+  rawSelectedModelIds: readonly UniqueModelId[],
+  resolvedSelectedModelIds: readonly UniqueModelId[]
+): number {
+  const resolvedIdSet = new Set(resolvedSelectedModelIds)
+  const seen = new Set<UniqueModelId>()
+  let staleCount = 0
+
+  for (const modelId of rawSelectedModelIds) {
+    if (seen.has(modelId)) {
+      continue
+    }
+
+    seen.add(modelId)
+    if (!resolvedIdSet.has(modelId)) {
+      staleCount += 1
+    }
+  }
+
+  return staleCount
+}
+
+export function hasStaleSelectedModelIds(
+  rawSelectedModelIds: readonly UniqueModelId[],
+  resolvedSelectedModelIds: readonly UniqueModelId[]
+): boolean {
+  return !areSelectedIdsEqual(rawSelectedModelIds, resolvedSelectedModelIds)
+}
+
 /**
  * Compute the collapsed selection for `multiSelectMode` ON→OFF.
  *
