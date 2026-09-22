@@ -20641,6 +20641,41 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output"],
+      "contextWindow": 500000,
+      "family": "grok",
+      "id": "grok-4-7",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 500000,
+      "metadata": {},
+      "name": "Grok 4.7",
+      "outputModalities": ["text"],
+      "ownedBy": "xai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh"]
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high", "xhigh"]
+      }
+    },
+    {
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 2000000,
       "id": "grok-4-fast",
@@ -22224,5 +22259,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "f0811fe964c98cb3"
+  "version": "942ae7954cf3e41c"
 }

@@ -4145,6 +4145,25 @@
       "providerId": "copilot"
     },
     {
+      "apiModelId": "grok-4.7",
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
       "apiModelId": "kimi-k2.7-code",
       "modelId": "kimi-k2-7-code",
       "pricing": {
@@ -14041,6 +14060,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "spacexai/grok-4.7",
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.6
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "spacexai/grok-build-0.1",
       "modelId": "grok-build-0-1",
       "pricing": {
@@ -21643,6 +21681,38 @@
       }
     },
     {
+      "apiModelId": "grok-4.7",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "hy3",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "hy3",
@@ -28313,6 +28383,40 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 6
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "x-ai/grok-4.7",
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.6
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.8
         }
       },
       "providerId": "openrouter",
@@ -40470,5 +40574,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "1eb9a4ee3ac33bd7"
+  "version": "35e0c8c182a2e844"
 }
