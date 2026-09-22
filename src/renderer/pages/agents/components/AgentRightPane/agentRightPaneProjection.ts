@@ -485,10 +485,28 @@ export function buildAgentToolFlowProjection(
       flowPartsByMessageId[promptMessage.id] = promptMessage.parts
     }
 
+    const taskIds = new Set<string>()
+    for (const { parts } of messageEntries) {
+      for (const part of parts) {
+        if (
+          part.type === 'data-agent-task-event' &&
+          part.data.toolUseId &&
+          part.data.toolUseId !== selectedToolCallId &&
+          selectedToolCallIds.has(part.data.toolUseId)
+        ) {
+          taskIds.add(part.data.taskId)
+        }
+      }
+    }
+
     const assistantParts: CherryMessagePart[] = []
     for (const { parts } of messageEntries) {
       for (let partIndex = 0; partIndex < parts.length; partIndex++) {
         const part = parts[partIndex]
+        if (part.type === 'data-agent-task-event') {
+          if (taskIds.has(part.data.taskId)) assistantParts.push(part)
+          continue
+        }
         const toolCallId = getToolCallId(part)
         if (toolCallId) {
           if (toolCallId === selectedToolCallId || !selectedToolCallIds.has(toolCallId)) continue
