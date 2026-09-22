@@ -4450,6 +4450,64 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1000000,
+      "family": "claude-opus",
+      "id": "claude-opus-5-5",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Opus 5.5",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "medium",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "defaultEffort": "medium",
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "effort"
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 1000000,
       "family": "claude-opus",
@@ -22259,5 +22317,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "ecb64236eab094c8"
+  "version": "17dbc04540ee4cbe"
 }
