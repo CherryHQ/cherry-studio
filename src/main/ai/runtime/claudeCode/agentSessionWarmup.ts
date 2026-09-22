@@ -559,7 +559,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
         effectiveLanguage,
-        promptModelName
+        promptModelName,
+        effectiveModelId: uniqueModelId
       },
       agent
     ),

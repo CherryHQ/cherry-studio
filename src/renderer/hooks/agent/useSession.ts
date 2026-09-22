@@ -101,8 +101,20 @@ export const useSession = (sessionId: string | null) => {
     swrOptions: { keepPreviousData: false }
   })
 
+  const sessionModelRef = useRef(session?.model ?? null)
+  useEffect(() => {
+    sessionModelRef.current = session?.model ?? null
+  }, [session?.model])
+
   useDataChange('/agent-sessions/:sessionId', (effects) => {
     if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) {
+      void mutate()
+    }
+  })
+  useDataChange('/models', (effects) => {
+    const overrideModel = sessionModelRef.current
+    if (!sessionId || !overrideModel) return
+    if (effects.some((effect) => !effect.entityIds || effect.entityIds.includes(overrideModel))) {
       void mutate()
     }
   })

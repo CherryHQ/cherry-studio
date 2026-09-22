@@ -1929,11 +1929,29 @@ describe('deriveConnectionConfig', () => {
       model: 'provider-1::model-1'
     })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-    mocks.resolveReasoningProfile.mockReturnValue({ format: 'anthropic', wire: undefined })
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.wire
+    })
     mocks.isRegistryProvider.mockReturnValue(false)
+    mocks.resolveApiKey.mockReturnValue({
+      value: 'api-key',
+      apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
+    })
+    mocks.apiGatewayGetAgentSessionUsageHeaders.mockReturnValue({
+      'x-cherry-agent-session-id': 'session-1',
+      'x-cherry-internal-usage-token': 'internal-token'
+    })
+    mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
     mocks.buildSessionSettings.mockResolvedValue({ env: {} })
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
     expect(request?.sdkModelId).toBe('model-1-api')
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'provider-1::model-1' }),
+      expect.anything(),
+      expect.objectContaining({ effectiveModelId: 'provider-1::model-1' }),
+      expect.anything()
+    )
   })
 })
