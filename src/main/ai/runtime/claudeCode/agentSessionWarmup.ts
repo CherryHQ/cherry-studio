@@ -188,13 +188,14 @@ function selectAnthropicCustomHeader(
 ): Record<string, string> | undefined {
   if (!source) return undefined
   const expectedName = headerName.toLowerCase()
+  let selectedHeader: Record<string, string> | undefined
   for (const line of source.split('\n')) {
     const separator = line.indexOf(':')
     if (separator < 0) continue
     const name = line.slice(0, separator).trim()
-    if (name.toLowerCase() === expectedName) return { [name]: line.slice(separator + 1).trim() }
+    if (name.toLowerCase() === expectedName) selectedHeader = { [name]: line.slice(separator + 1).trim() }
   }
-  return undefined
+  return selectedHeader
 }
 
 function buildUsageModels(

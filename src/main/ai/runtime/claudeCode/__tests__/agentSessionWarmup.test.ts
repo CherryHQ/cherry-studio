@@ -654,6 +654,23 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('X-Agent: retained\nX-Session-Id: agent-session')
   })
 
+  it('preserves the last duplicate agent-configured OpenRouter session header', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'my-router',
+      presetProviderId: 'openrouter',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://openrouter.ai/api' }
+      }
+    })
+    mocks.buildSessionSettings.mockResolvedValueOnce({
+      env: { ANTHROPIC_CUSTOM_HEADERS: 'X-Session-Id: stale-session\nx-session-id: current-session' }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('x-session-id: current-session')
+  })
+
   it('recognizes the OpenRouter adapter and preserves a case-insensitive explicit session header', async () => {
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'custom-router',
