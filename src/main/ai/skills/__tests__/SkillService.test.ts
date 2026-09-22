@@ -1254,11 +1254,13 @@ describe('SkillService', () => {
       vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'demo' } as never)
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
       const hashes: string[] = []
-      vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir').mockImplementation(async (skillDir) => {
-        await expect(fs.promises.access(path.join(skillDir, '.git'))).rejects.toMatchObject({ code: 'ENOENT' })
-        hashes.push(await new SkillInstaller().computeContentHash(skillDir))
-        return {}
-      })
+      vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir').mockImplementation(
+        async (skillDir) => {
+          await expect(fs.promises.access(path.join(skillDir, '.git'))).rejects.toMatchObject({ code: 'ENOENT' })
+          hashes.push(await new SkillInstaller().computeContentHash(skillDir))
+          return {}
+        }
+      )
 
       await skillService.install({ installSource: 'skills.sh:owner/repo/demo' })
       await skillService.install({ installSource: 'skills.sh:owner/repo/demo' })

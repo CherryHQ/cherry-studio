@@ -1,9 +1,10 @@
-import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 type MockTreeState = {
   error: Error | null
@@ -14,7 +15,7 @@ type MockTreeState = {
 
 const mocks = vi.hoisted(() => ({
   blocker: {
-    status: 'idle' as 'idle' | 'blocked',
+    status: 'idle',
     proceed: vi.fn(),
     reset: vi.fn()
   },

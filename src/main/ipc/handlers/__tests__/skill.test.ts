@@ -154,7 +154,7 @@ describe('skillHandlers', () => {
     })
 
     const { SkillRemoteUpdateError } = await import('@main/ai/skills/SkillService')
-    applyRemoteUpdateMock.mockRejectedValue(new SkillRemoteUpdateError('SKILL_REMOTE_STALE' as never, 'stale'))
+    applyRemoteUpdateMock.mockRejectedValue(new SkillRemoteUpdateError('SKILL_REMOTE_STALE', 'stale'))
     await expect(
       skillHandlers['skill.remote.apply']({ skillId: 's1', revision: 'revision', overwriteLocalChanges: false }, ctx)
     ).rejects.toMatchObject({ code: 'SKILL_REMOTE_STALE', message: 'stale' })

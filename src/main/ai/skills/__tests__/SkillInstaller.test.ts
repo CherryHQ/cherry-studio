@@ -1,7 +1,8 @@
 import * as path from 'node:path'
 
-import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX } from '@shared/utils/skillMarketplace'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX } from '@shared/utils/skillMarketplace'
 
 const mockPathExists = vi.fn()
 const mockCopyDirectoryRecursive = vi.fn()

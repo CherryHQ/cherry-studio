@@ -2,6 +2,10 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
@@ -12,9 +16,6 @@ import { PathStaleVersionError } from '@main/utils/file'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { hasSkillRemoteUpdateProvenance } from '@shared/utils/skillMarketplace'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchRemoteSkillMock = vi.hoisted(() => vi.fn())
 const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
