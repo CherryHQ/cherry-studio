@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import AdmZip from 'adm-zip'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1527,6 +1527,28 @@ describe('SkillService', () => {
       expect(parseSkillMetadata).not.toHaveBeenCalled()
     })
 
+    it('refuses to insert a duplicate when a malformed builtin row owns the folder', async () => {
+      const skillService = new SkillService()
+      const contentHash = await skillService['computeBuiltinDirectoryHash'](sourcePath)
+      await fs.promises.mkdir(destPath, { recursive: true })
+      await fs.promises.writeFile(path.join(destPath, 'SKILL.md'), '# Builtin')
+      await fs.promises.writeFile(path.join(destPath, '.version'), APP_VERSION)
+      dbh.db.run(
+        sql.raw(
+          `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES ('broken-builtin', 'Broken Builtin', NULL, '${FOLDER_NAME}', 'builtin', NULL, NULL, NULL, NULL, 'not-json', '${contentHash}', 1, 1, 1)`
+        )
+      )
+
+      await expect(skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION)).rejects.toThrow(
+        /malformed catalog row/
+      )
+
+      const rows = dbh.db.all(sql.raw(`SELECT id FROM agent_global_skill WHERE folder_name = '${FOLDER_NAME}'`))
+      expect(rows).toEqual([{ id: 'broken-builtin' }])
+      expect(parseSkillMetadata).not.toHaveBeenCalled()
+    })
+
     it('never writes agent_skill rows, leaving per-agent enablement to the read-time builtin default', async () => {
       const skillService = new SkillService()
       await fs.promises.mkdir(destPath, { recursive: true })
@@ -1818,6 +1840,31 @@ describe('SkillService', () => {
         ...overrides
       } as unknown as Awaited<ReturnType<typeof parseSkillMetadata>>
     }
+
+    it('isolates a malformed catalog JSON row while reconciling valid skills', async () => {
+      await writeLibrarySkill('valid-skill')
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('valid-skill'))
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'valid-skill',
+        folderName: 'valid-skill',
+        source: 'marketplace',
+        tags: ['valid'],
+        contentHash: 'valid-hash'
+      })
+      dbh.sqlite
+        .prepare(
+          `INSERT INTO agent_global_skill
+            (id, name, folder_name, source, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(SKILL_ID_2, 'broken-skill', 'broken-skill', 'marketplace', '{"unterminated":', 'broken-hash', 1, 2, 2)
+
+      expect(agentGlobalSkillService.listAll()).toEqual([
+        expect.objectContaining({ id: SKILL_ID_1, name: 'valid-skill', sourceTags: ['valid'] })
+      ])
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+    })
 
     it('reconcileSkills heals mirrors, prunes non-builtin skills whose files are gone, keeps builtins', async () => {
       vi.mocked(parseSkillMetadata).mockReset()
@@ -2143,6 +2190,88 @@ describe('SkillService', () => {
       expect(rows.some((row) => row.folderName === 'gone')).toBe(false)
       await expect(fs.promises.access(path.join(mirrorRoot, 'Foo'))).rejects.toThrow()
       await expect(fs.promises.access(path.join(mirrorRoot, 'foo'))).rejects.toThrow()
+    })
+
+    it('reconcileSkills skips a malformed catalog row without duplicating its folder', async () => {
+      await writeLibrarySkill('broken-skill', '# valid library copy')
+      await dbh.db.run(
+        sql.raw(
+          `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES ('broken-row', 'Broken', NULL, 'broken-skill', 'local', NULL, NULL, NULL, NULL, 'not-json', 'old', 1, 1, 1)`
+        )
+      )
+
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+
+      const rawRows = dbh.db.all(
+        sql.raw("SELECT id, folder_name, tags FROM agent_global_skill WHERE folder_name = 'broken-skill'")
+      )
+      expect(rawRows).toHaveLength(1)
+      expect(rawRows[0]).toMatchObject({ id: 'broken-row', folder_name: 'broken-skill', tags: 'not-json' })
+      await expect(fs.promises.access(path.join(mirrorRoot, 'broken-skill'))).resolves.toBeUndefined()
+      expect((await fs.promises.lstat(path.join(mirrorRoot, 'broken-skill'))).isSymbolicLink()).toBe(false)
+    })
+
+    it('copies a quarantined builtin mirror instead of creating a POSIX symlink', async () => {
+      const builtinDir = await writeLibrarySkill('broken-builtin', '# trusted builtin')
+      const trustedHash = await skillService['computeBuiltinDirectoryHash'](builtinDir)
+      dbh.db.run(
+        sql.raw(
+          `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES ('broken-builtin-row', 'Broken Builtin', NULL, 'broken-builtin', 'builtin', NULL, NULL, NULL, NULL, 'not-json', '${trustedHash}', 1, 1, 1)`
+        )
+      )
+
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+
+      const mirrored = await fs.promises.lstat(path.join(mirrorRoot, 'broken-builtin'))
+      expect(mirrored.isSymbolicLink()).toBe(false)
+      await expect(fs.promises.readFile(path.join(mirrorRoot, 'broken-builtin', 'SKILL.md'), 'utf-8')).resolves.toBe(
+        '# trusted builtin'
+      )
+    })
+
+    it('does not mirror quarantined builtin content when its trusted hash does not match', async () => {
+      await writeLibrarySkill('tampered-builtin', '# tampered builtin')
+      dbh.db.run(
+        sql.raw(
+          `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES ('tampered-builtin-row', 'Tampered Builtin', NULL, 'tampered-builtin', 'builtin', NULL, NULL, NULL, NULL, 'not-json', '${'0'.repeat(64)}', 1, 1, 1)`
+        )
+      )
+
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+
+      await expect(fs.promises.access(path.join(mirrorRoot, 'tampered-builtin'))).rejects.toThrow()
+    })
+
+    it('mirrors a quarantined row when a healthy row differs only by case', async () => {
+      const quarantinedDir = await writeLibrarySkill('Case-Skill', '# quarantined copy')
+      const healthyDir = await writeLibrarySkill('case-skill', '# healthy copy')
+      if ((await fs.promises.realpath(quarantinedDir)) === (await fs.promises.realpath(healthyDir))) return
+
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'case-skill',
+        folderName: 'case-skill',
+        source: 'local',
+        contentHash: 'healthy',
+        isEnabled: false
+      })
+      await dbh.db.run(
+        sql.raw(
+          `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES ('case-quarantined-row', 'Case Skill', NULL, 'Case-Skill', 'local', NULL, NULL, NULL, NULL, 'not-json', 'quarantined', 1, 1, 1)`
+        )
+      )
+
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+
+      const mirrored = await fs.promises.lstat(path.join(mirrorRoot, 'Case-Skill'))
+      expect(mirrored.isSymbolicLink()).toBe(false)
+      await expect(fs.promises.readFile(path.join(mirrorRoot, 'Case-Skill', 'SKILL.md'), 'utf-8')).resolves.toBe(
+        '# quarantined copy'
+      )
     })
 
     it('copies complete builtin content and quarantines later modifications', async () => {

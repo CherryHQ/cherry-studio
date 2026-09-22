@@ -658,7 +658,10 @@ export class SkillService {
   }
 
   /** Mirror `Data/Skills/<folderName>` into CLAUDE_CONFIG_DIR/skills. Idempotent. */
-  async linkMirror(folderName: string): Promise<void> {
+  async linkMirror(
+    folderName: string,
+    options: { forceCopy?: boolean; quarantined?: boolean; builtinContentHash?: string } = {}
+  ): Promise<void> {
     const sourceDir = this.getSkillStoragePath(folderName)
     const rootDir = path.resolve(this.getMirrorRoot())
     const targetDir = path.resolve(rootDir, folderName)
@@ -670,7 +673,7 @@ export class SkillService {
 
     let catalogSkill: InstalledSkill | null
     try {
-      catalogSkill = this.findCatalogSkillCaseInsensitive(folderName)
+      catalogSkill = options.quarantined ? null : this.findCatalogSkillCaseInsensitive(folderName)
     } catch (error) {
       await this.unlinkMirror(folderName)
       logger.warn('Refusing to mirror a case-ambiguous catalog skill', {
@@ -695,11 +698,13 @@ export class SkillService {
     }
 
     const builtinSkill = catalogSkill?.source === 'builtin' ? catalogSkill : null
-    const isBuiltin = builtinSkill !== null
-    if (builtinSkill) {
+    const isQuarantinedBuiltin = options.quarantined && options.builtinContentHash !== undefined
+    const isBuiltin = builtinSkill !== null || isQuarantinedBuiltin
+    const trustedBuiltinHash = builtinSkill?.contentHash ?? options.builtinContentHash
+    if (isBuiltin) {
       try {
         const actualHash = await this.computeBuiltinDirectoryHash(sourceDir)
-        if (actualHash !== builtinSkill.contentHash) {
+        if (!trustedBuiltinHash || actualHash !== trustedBuiltinHash) {
           await this.unlinkMirror(folderName)
           logger.warn('Refusing to mirror modified built-in skill content', { folderName })
           return
@@ -719,7 +724,7 @@ export class SkillService {
 
       // Builtins are copied even on POSIX. A symlink would expose direct writes to the canonical
       // authoring root immediately to every other agent before reconcile can reject the change.
-      if (!isWin && !isBuiltin) {
+      if (!isWin && !isBuiltin && !options.forceCopy) {
         const stat = await fs.promises.lstat(targetDir).catch(() => null)
         if (stat?.isSymbolicLink()) {
           const [targetRealPath, sourceRealPath] = await Promise.all([
@@ -731,7 +736,7 @@ export class SkillService {
       }
 
       await fs.promises.rm(targetDir, { recursive: true, force: true })
-      if (isWin || isBuiltin) {
+      if (isWin || isBuiltin || options.forceCopy) {
         // Windows avoids symlink/junction privilege quirks; builtins use a verified copy so
         // out-of-band writes to the authoring root cannot change another agent's loaded instructions.
         await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true })
@@ -817,6 +822,7 @@ export class SkillService {
     }
 
     const dbSkills = agentGlobalSkillService.listAll()
+    const catalogFolderKeys = new Set(agentGlobalSkillService.listFolderNames().map(normalizeFolderKey))
     const dbGroups = new Map<string, InstalledSkill[]>()
     for (const skill of dbSkills) {
       const key = normalizeFolderKey(skill.folderName)
@@ -905,6 +911,10 @@ export class SkillService {
         continue
       }
       if (existing && existing.contentHash === contentHash) continue
+      if (!existing && catalogFolderKeys.has(folderKey)) {
+        logger.warn('Skipped adopting skill with quarantined catalog row', { folderName })
+        continue
+      }
 
       let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
       try {
@@ -977,7 +987,13 @@ export class SkillService {
    */
   private async reconcileMirror(): Promise<void> {
     const all = agentGlobalSkillService.listAll()
-    const known = new Set(all.map((s) => normalizeFolderKey(s.folderName)))
+    const validFolderNames = new Set(all.map((skill) => skill.folderName))
+    const quarantinedRows = agentGlobalSkillService
+      .listFolderRecords()
+      .filter((row) => !validFolderNames.has(row.folderName))
+    const known = new Set(
+      [...all.map((s) => s.folderName), ...quarantinedRows.map((row) => row.folderName)].map(normalizeFolderKey)
+    )
     const groups = new Map<string, InstalledSkill[]>()
     for (const skill of all) {
       const key = normalizeFolderKey(skill.folderName)
@@ -998,6 +1014,13 @@ export class SkillService {
         continue
       }
       await this.linkMirror(group[0].folderName)
+    }
+    for (const row of quarantinedRows) {
+      await this.linkMirror(row.folderName, {
+        forceCopy: true,
+        quarantined: true,
+        ...(row.source === 'builtin' ? { builtinContentHash: row.contentHash } : {})
+      })
     }
 
     const root = this.getMirrorRoot()
@@ -1124,6 +1147,16 @@ export class SkillService {
   ): Promise<boolean> {
     return this.mutationLock.runExclusive(async () => {
       const existing = this.findCatalogSkillCaseInsensitive(folderName)
+      const hasQuarantinedRow =
+        !existing &&
+        agentGlobalSkillService
+          .listFolderNames()
+          .some((candidate) => normalizeFolderKey(candidate) === normalizeFolderKey(folderName))
+      if (hasQuarantinedRow) {
+        throw new Error(
+          `Folder name "${folderName}" has a malformed catalog row; refusing to insert a duplicate builtin.`
+        )
+      }
       if (existing && existing.source !== 'builtin') {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; refusing to overwrite it with a builtin.`
