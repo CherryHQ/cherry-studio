@@ -87,6 +87,10 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
       ]
     ],
     ['grok-4.3', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
+    ['grok-4.6', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }]],
+    ['grok-4.7', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }]],
+    ['grok-4-7', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }]],
+    ['grok-4.7-build-fast', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }]],
     ['deepseek-v4', [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }]],
     ['deepseek-v3.1', [{ kind: 'toggle' }]],
     ['kimi-k3', [{ kind: 'effort', values: ['low', 'high', 'max'] }, { kind: 'toggle' }]],

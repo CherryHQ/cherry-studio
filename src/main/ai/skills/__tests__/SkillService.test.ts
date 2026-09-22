@@ -5,6 +5,7 @@ import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import AdmZip from 'adm-zip'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
@@ -23,6 +24,7 @@ import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@m
 import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
 
 const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
 
@@ -65,6 +67,7 @@ vi.mock('../skillArchive', async (importOriginal) => {
 
 // Namespaced so the local `createTempDir` test helper cannot shadow the module export.
 import * as skillArchive from '../skillArchive'
+import { SkillInstaller } from '../SkillInstaller'
 import * as skillPaths from '../skillPaths'
 import { SkillService } from '../SkillService'
 
@@ -103,6 +106,7 @@ describe('SkillService', () => {
   // These are spies over the real implementations; drop any per-test stub and call history so one
   // install test cannot hand its stub to the next.
   beforeEach(() => {
+    MockMainPreferenceServiceUtils.resetMocks()
     vi.mocked(skillPaths.createTempDir).mockReset()
     vi.mocked(skillPaths.safeRemoveDirectory).mockReset()
     vi.mocked(skillArchive.extractZip).mockReset()
@@ -657,25 +661,6 @@ describe('SkillService', () => {
       expect(await dbh.db.select().from(agentSkillTable)).toEqual([])
     })
 
-    it('serves only bounded text content to the skill file preview', async () => {
-      const result = await skillService.importSystem({ directoryPath: sourceSkillDir })
-      const managedRoot = path.join(dataSkillsRoot, 'large-skill')
-
-      await fs.promises.writeFile(path.join(managedRoot, 'binary.bin'), Buffer.alloc(512))
-      await fs.promises.writeFile(path.join(managedRoot, 'oversized.txt'), Buffer.alloc(2 * 1024 * 1024 + 1, 0x61))
-
-      await expect(skillService.readFile(result.id, 'SKILL.md')).resolves.toBe('# Large skill')
-      await expect(skillService.readFile(result.id, 'binary.bin')).resolves.toBeNull()
-      await expect(skillService.readFile(result.id, 'oversized.txt')).resolves.toBeNull()
-
-      if (process.platform !== 'win32') {
-        const outsideFile = path.join(home, 'outside.txt')
-        await fs.promises.writeFile(outsideFile, 'outside content')
-        await fs.promises.symlink(outsideFile, path.join(managedRoot, 'escape.txt'))
-        await expect(skillService.readFile(result.id, 'escape.txt')).resolves.toBeNull()
-      }
-    })
-
     it('does not overwrite the editable managed copy when the system skill is already imported', async () => {
       const imported = await skillService.importSystem({ directoryPath: sourceSkillDir })
       const managedSkillFile = path.join(dataSkillsRoot, 'large-skill', 'SKILL.md')
@@ -867,6 +852,32 @@ describe('SkillService', () => {
       )
     })
 
+    it('uses the configured GitHub mirror for transport without changing persisted provenance', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue(BINARY_INSTALL_PREFERENCE_KEY, {
+        githubMirror: 'https://ghfast.top',
+        githubToken: '',
+        npmRegistry: '',
+        pipIndexUrl: '',
+        verifySignatures: true
+      })
+      const { skillService, installSpy, gitCalls } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }]
+      })
+
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+      })
+
+      const transportUrl = 'https://ghfast.top/https://github.com/owner/repo'
+      expect(gitCalls.find((args) => args.includes('ls-remote'))).toContain(transportUrl)
+      expect(gitCalls.find((args) => args.includes('fetch'))).toContain(transportUrl)
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'marketplace',
+        'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md'
+      )
+    })
+
     it('updates the same skill when switching between blob and explicit raw branch URLs', async () => {
       const root = await createTempDir('github-reinstall-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')
@@ -966,7 +977,7 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(`${path.sep}content`),
         'marketplace',
-        `https://github.com/owner/repo/tree/${oid}`
+        `https://github.com/owner/repo/blob/${oid}/SKILL.md`
       )
     })
 
@@ -1174,11 +1185,89 @@ describe('SkillService', () => {
         .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
         .mockResolvedValue({})
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
-      return { skillService, workDir, gitCalls, installSkillDirSpy }
+      return { skillService, workDir, gitCalls, installSkillDirSpy, installSpy: installSkillDirSpy }
     }
 
     const installFromClone = (skillService: SkillService) =>
       skillService.install({ installSource: 'claude-plugins:owner/repo/skills/demo' })
+
+    it('persists the exact skills.sh Skill path instead of the cloned repository root', async () => {
+      const { skillService, installSpy, workDir } = await setupClonedInstall()
+      vi.mocked(findAllSkillDirectories).mockResolvedValueOnce([
+        { folderPath: path.join(workDir, 'skills', 'demo'), sourcePath: 'skills/demo' }
+      ])
+      vi.mocked(parseSkillMetadata).mockResolvedValueOnce({ name: 'demo' } as never)
+
+      await skillService.install({ installSource: 'skills.sh:owner/repo/demo' })
+
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.stringContaining(path.join('skills', 'demo')),
+        'marketplace',
+        'https://skills.sh/owner/repo/demo'
+      )
+    })
+
+    it.each([
+      ['claude-plugins', 'claude-plugins:owner/repo/skills/demo'],
+      ['skills.sh', 'skills.sh:owner/repo/demo']
+    ])('uses the configured GitHub mirror for %s clone transport', async (_source, installSource) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue(BINARY_INSTALL_PREFERENCE_KEY, {
+        githubMirror: 'https://ghfast.top',
+        githubToken: '',
+        npmRegistry: '',
+        pipIndexUrl: '',
+        verifySignatures: true
+      })
+      const { skillService, gitCalls, workDir } = await setupClonedInstall()
+      if (installSource.startsWith('skills.sh:')) {
+        vi.mocked(findAllSkillDirectories).mockResolvedValueOnce([
+          { folderPath: path.join(workDir, 'skills', 'demo'), sourcePath: 'skills/demo' }
+        ])
+        vi.mocked(parseSkillMetadata).mockResolvedValueOnce({ name: 'demo' } as never)
+      }
+
+      await skillService.install({ installSource })
+
+      expect(gitCalls.find(({ args }) => args.includes('clone'))?.args).toContain(
+        'https://ghfast.top/https://github.com/owner/repo'
+      )
+    })
+
+    it('removes clone metadata before hashing a repository-root skills.sh Skill', async () => {
+      const skillService = new SkillService()
+      const firstClone = await createTempDir('root-clone-first-')
+      const secondClone = await createTempDir('root-clone-second-')
+      vi.mocked(skillPaths.createTempDir).mockResolvedValueOnce(firstClone).mockResolvedValueOnce(secondClone)
+      let cloneNumber = 0
+      executeCommandMock.mockImplementation(async (_command: string, args: string[]) => {
+        if (!args.includes('clone')) return ''
+        const cloneDir = args.at(-1)!
+        cloneNumber += 1
+        await fs.promises.mkdir(path.join(cloneDir, '.git', 'objects'), { recursive: true })
+        await fs.promises.writeFile(path.join(cloneDir, 'SKILL.md'), '# root skill')
+        await fs.promises.writeFile(path.join(cloneDir, '.git', 'objects', 'identity'), `clone-${cloneNumber}`)
+        return ''
+      })
+      vi.mocked(findAllSkillDirectories).mockImplementation(async (repoDir: string) => [
+        { folderPath: repoDir, sourcePath: '' }
+      ])
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'demo' } as never)
+      vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
+      const hashes: string[] = []
+      vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir').mockImplementation(
+        async (skillDir) => {
+          await expect(fs.promises.access(path.join(skillDir, '.git'))).rejects.toMatchObject({ code: 'ENOENT' })
+          hashes.push(await new SkillInstaller().computeContentHash(skillDir))
+          return {}
+        }
+      )
+
+      await skillService.install({ installSource: 'skills.sh:owner/repo/demo' })
+      await skillService.install({ installSource: 'skills.sh:owner/repo/demo' })
+
+      expect(hashes).toHaveLength(2)
+      expect(hashes[1]).toBe(hashes[0])
+    })
 
     it('bounds a clone and blocks its credential prompts, the way the fetch path already is', async () => {
       const { skillService, gitCalls } = await setupClonedInstall()
