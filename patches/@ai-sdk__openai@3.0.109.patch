@@ -1086,9 +1086,36 @@ index 5c27d8f..703956b 100644
  
  export type OpenAIResponsesReasoningProviderOptions = z.infer<
 diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
-index aef872b..b34fcfd 100644
+index aef872bfbed2218f104c6cf864cde8005173ff6d..19bd5182ccd5fe90ccdcf82b8e5c8f62201e2754 100644
 --- a/src/responses/openai-responses-api.ts
 +++ b/src/responses/openai-responses-api.ts
+@@ -725,11 +725,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+       }),
+       z.object({
+         type: z.literal('response.failed'),
+-        sequence_number: z.number(),
++        sequence_number: z.number().optional(),
+         response: z.object({
+           error: z
+             .object({
+-              code: z.string().nullish(),
++              code: z.union([z.string(), z.number()]).nullish(),
+               message: z.string(),
+             })
+             .nullish(),
+@@ -746,9 +746,9 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+       z.object({
+         type: z.literal('response.created'),
+         response: z.object({
+-          id: z.string(),
+-          created_at: z.number(),
+-          model: z.string(),
++          id: z.string().optional(),
++          created_at: z.number().optional(),
++          model: z.string().optional(),
+           service_tier: z.string().nullish(),
+         }),
+       }),
 @@ -1206,6 +1206,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
          summary_index: z.number(),
          delta: z.string(),
@@ -1111,7 +1138,7 @@ index aef872b..b34fcfd 100644
                ),
              }),
 diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
-index 485880b..e25dd4f 100644
+index 485880b51bbb55f9bf2b563afe24330f5a309c37..a19917c4e42353bcb58de514aeac846270cb44d9 100644
 --- a/src/responses/openai-responses-language-model.ts
 +++ b/src/responses/openai-responses-language-model.ts
 @@ -436,7 +436,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
@@ -1123,7 +1150,24 @@ index 485880b..e25dd4f 100644
        // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
        //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
        if (
-@@ -2243,6 +2243,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+@@ -2169,11 +2169,14 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = value.response.id ?? null;
+               controller.enqueue({
+                 type: 'response-metadata',
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1000),
++                timestamp:
++                  typeof value.response.created_at === 'number'
++                    ? new Date(value.response.created_at * 1000)
++                    : undefined,
+                 modelId: value.response.model,
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -2243,6 +2246,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                    } satisfies ResponsesReasoningProviderMetadata,
                  },
                });
