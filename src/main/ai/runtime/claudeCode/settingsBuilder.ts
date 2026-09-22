@@ -189,7 +189,7 @@ export async function buildClaudeCodeSessionSettings(
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
-  const effectiveModelId = options?.effectiveModelId ?? session.model ?? agent.model
+  const effectiveModelId = options?.effectiveModelId ?? session.model ?? agent.model ?? undefined
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
     ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
     buildEnvironment(provider, agent, effectiveModelId),
