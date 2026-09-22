@@ -682,26 +682,24 @@ export default function ComposerSurfaceRuntime({
     [onTextChange]
   )
 
-  const insertPastedPaths = useCallback(
-    (paths: string[]) => {
-      const addition = getComposerInputTextWithinLimit(textRef.current, paths.join('\n'))
-      if (!addition) return
-      const editor = editorRef.current
-      // Insert at the caret only while the composer holds focus — a paste routed through the
-      // global handler must not land on a stale selection.
-      if (editor && !editor.isDestroyed && editor.isFocused) {
-        editor
-          .chain()
-          .setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true)
-          .insertContent(createComposerPlainTextContent(addition))
-          .run()
-        return
-      }
-      const currentText = textRef.current
-      applyComposerText(currentText ? `${currentText}\n${addition}` : addition)
-    },
-    [applyComposerText]
-  )
+  const insertPastedPaths = useCallback((paths: string[]) => {
+    const addition = getComposerInputTextWithinLimit(textRef.current, paths.join('\n'))
+    if (!addition) return
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return
+    const content = createComposerPlainTextContent(addition)
+    // At the caret while focused; a global-handler paste lands at the end of the draft
+    // instead of the possibly stale stored selection. Both keep the rich tokens intact.
+    if (editor.isFocused) {
+      editor.chain().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
+    } else {
+      editor
+        .chain()
+        .setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true)
+        .insertContentAt(editor.state.doc.content.size, content)
+        .run()
+    }
+  }, [])
 
   const pasteHandlerOptions = useMemo(
     () => ({
