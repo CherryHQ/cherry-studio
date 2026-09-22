@@ -12,7 +12,7 @@
 import { application } from '@application'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   isAnthropicModel,
@@ -74,11 +74,11 @@ export function resolveCapabilities(
   assistant: Assistant,
   options: ResolveCapabilitiesOptions = {}
 ): ResolvedCapabilities {
-  // This flag means the model exposes reasoning behavior, not that the persisted assistant setting
-  // enabled it. The request snapshot may legitimately be `none`, `default`, or a freshly selected
-  // effort that has not reached assistant persistence yet; the resolver/profile decides what emits.
+  // The explicit model capability is authoritative: a retained registry descriptor must not make
+  // request-time serialization re-enable reasoning after the user disables it.
   const enableReasoning =
-    isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model) || isFixedReasoningModel(model)
+    model.capabilities.includes(MODEL_CAPABILITY.REASONING) &&
+    (isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model) || isFixedReasoningModel(model))
 
   // Native chat-model image output (Gemini `responseModalities`) stays disabled intentionally:
   // image generation is delivered via the `generate_image` tool (gated on `settings.enableGenerateImage`),

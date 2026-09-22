@@ -6,7 +6,13 @@ import {
   type ReasoningWireProfile
 } from '@cherrystudio/provider-registry'
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
-import { ENDPOINT_TYPE, type EndpointType, type Model, type RuntimeReasoning } from '@shared/data/types/model'
+import {
+  ENDPOINT_TYPE,
+  type EndpointType,
+  type Model,
+  MODEL_CAPABILITY,
+  type RuntimeReasoning
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import {
@@ -207,7 +213,7 @@ describe('cross-dialect descriptor translation', () => {
       const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
       const modelWithoutRuntimeReasoning = {
         ...openAIModel,
-        capabilities: [],
+        capabilities: [MODEL_CAPABILITY.REASONING],
         reasoning: undefined
       } as Model
       const support: ProtoReasoningSupport = {
@@ -273,7 +279,11 @@ describe('cross-dialect descriptor translation', () => {
 
   it('uses registry token limits when translating an Anthropic budget without runtime reasoning', () => {
     const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
-    const modelWithoutRuntimeReasoning = { ...openAIModel, capabilities: [], reasoning: undefined } as Model
+    const modelWithoutRuntimeReasoning = {
+      ...openAIModel,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: undefined
+    } as Model
     mocks.resolveReasoningProfile.mockReturnValueOnce({
       format: 'openai-responses',
       support: registryReasoningSupportWithBudget,
@@ -322,7 +332,11 @@ describe('cross-dialect descriptor translation', () => {
 
   it('uses registry token limits when translating a Gemini budget without runtime reasoning', () => {
     const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
-    const modelWithoutRuntimeReasoning = { ...openAIModel, capabilities: [], reasoning: undefined } as Model
+    const modelWithoutRuntimeReasoning = {
+      ...openAIModel,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: undefined
+    } as Model
     mocks.resolveReasoningProfile.mockReturnValueOnce({
       format: 'openai-responses',
       support: registryReasoningSupportWithBudget,

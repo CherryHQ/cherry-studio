@@ -22,6 +22,7 @@ describe('deriveThinkingOptions', () => {
     expect(deriveThinkingOptions(model(undefined, []))).toBeUndefined()
     expect(deriveThinkingOptions(model(undefined))).toBeUndefined()
     expect(deriveThinkingOptions(model({ selectableEfforts: [] }))).toBeUndefined()
+    expect(deriveThinkingOptions(model({ selectableEfforts: ['none', 'high'] }, []))).toBeUndefined()
   })
 
   it('only presents the selectable efforts projected by registry enrichment', () => {
