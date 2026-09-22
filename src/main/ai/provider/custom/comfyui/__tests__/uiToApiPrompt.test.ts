@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { convertUiWorkflowToPrompt, findPromptTarget, type ObjectInfo, type UiNode } from '../uiToApiPrompt'
+import {
+  applySeed,
+  convertUiWorkflowToPrompt,
+  findPromptTarget,
+  type ApiPromptNode,
+  type ObjectInfo,
+  type UiNode
+} from '../uiToApiPrompt'
 
 /** Minimal `GET /object_info` response covering the classes used below. */
 const objectInfo: ObjectInfo = {
@@ -873,5 +880,62 @@ describe('findPromptTarget', () => {
     })
 
     expect(target).toEqual({ nodeId: '1', input: expected, samplerId: '3' })
+  })
+})
+
+describe('applySeed', () => {
+  it('writes noise_seed for advanced samplers', () => {
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'KSamplerAdvanced', inputs: { noise_seed: 7 }, _meta: { title: 'x' } }
+    }
+
+    applySeed(graph, 42, '1')
+
+    expect(graph['1'].inputs.noise_seed).toBe(42)
+  })
+
+  it('prefers seed when a sampler exposes both', () => {
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'CustomSampler', inputs: { seed: 7, noise_seed: 8 }, _meta: { title: 'x' } }
+    }
+
+    applySeed(graph, 42, '1')
+
+    expect(graph['1'].inputs.seed).toBe(42)
+    expect(graph['1'].inputs.noise_seed).toBe(8)
+  })
+
+  it('falls back to any noise_seed node when the sampler has neither', () => {
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'KSamplerAdvanced', inputs: { noise_seed: 7 }, _meta: { title: 'x' } }
+    }
+
+    applySeed(graph, 42)
+
+    expect(graph['1'].inputs.noise_seed).toBe(42)
+  })
+
+  it('writes a linked seed at its source node instead of severing the link', () => {
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'Seed', inputs: { seed: 7 }, _meta: { title: 'source' } },
+      '2': { class_type: 'KSampler', inputs: { seed: ['1', 0] }, _meta: { title: 'sampler' } }
+    }
+
+    applySeed(graph, 42, '2')
+
+    expect(graph['2'].inputs.seed).toEqual(['1', 0])
+    expect(graph['1'].inputs.seed).toBe(42)
+  })
+
+  it('writes a seed linked from a PrimitiveInt source at its value widget', () => {
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'PrimitiveInt', inputs: { value: 7 }, _meta: { title: 'source' } },
+      '2': { class_type: 'KSampler', inputs: { seed: ['1', 0] }, _meta: { title: 'sampler' } }
+    }
+
+    applySeed(graph, 42, '2')
+
+    expect(graph['2'].inputs.seed).toEqual(['1', 0])
+    expect(graph['1'].inputs.value).toBe(42)
   })
 })

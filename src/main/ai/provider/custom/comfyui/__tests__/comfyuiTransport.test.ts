@@ -3,8 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
 import { createComfyuiTransport, listWorkflows, parseVersion } from '../comfyuiTransport'
-import { applySeed } from '../uiToApiPrompt'
-import type { ApiPromptNode, ObjectInfo } from '../uiToApiPrompt'
+import type { ObjectInfo } from '../uiToApiPrompt'
 
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
@@ -43,6 +42,57 @@ const workflow = {
 }
 
 const respond = (data: unknown) => new Response(JSON.stringify(data), { status: 200 })
+
+/** `/system_stats` body for a given server version. */
+const systemStats = (version: string) =>
+  respond({
+    system: { comfyui_version: version },
+    devices: []
+  })
+
+/** A fetch mock that serves `/system_stats` at `version` and `/queue` with the
+ *  given running / pending queues. Every write (queue delete, interrupt) is
+ *  answered with `{}` and recorded, so a test can assert what was sent. */
+const createCapsFetch = (version: string, running: unknown[][], pending: unknown[][]) => {
+  const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.includes('/system_stats')) return systemStats(version)
+    if (url.includes('/queue')) {
+      if (init?.method === 'POST') return respond({})
+      return respond({ queue_running: running, queue_pending: pending })
+    }
+    if (url.includes('/interrupt')) return respond({})
+    return respond({})
+  })
+  return doFetch
+}
+
+/** Staging for the race between `GET /queue` (the cancellation snapshot) and
+ *  `GET /system_stats` (the capability probe): the first queue read shows
+ *  `initialRunning`, the probe flips the server to `staleRunning`. */
+const createStaleQueueFetch = (initialRunning: unknown[][], staleRunning: unknown[][]) => {
+  let currentState = initialRunning
+  const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.includes('/queue')) {
+      if (init?.method === 'POST') return respond({})
+      return respond({ queue_running: currentState, queue_pending: [] })
+    }
+    if (url.includes('/system_stats')) {
+      currentState = staleRunning
+      return systemStats('0.3.40') // old version
+    }
+    if (url.includes('/interrupt')) return respond({})
+    return respond({})
+  })
+  return { doFetch, getCurrentState: () => currentState }
+}
+
+/** Every POST a mock received, with its parsed body. */
+const postWrites = (doFetch: { mock: { calls: [RequestInfo | URL, RequestInit?][] } }) =>
+  doFetch.mock.calls
+    .filter(([, init]) => init?.method === 'POST')
+    .map(([input, init]) => ({ url: String(input), body: JSON.parse(init?.body as string) }))
 
 const submitInput = {
   modelId: 'flow',
@@ -279,23 +329,8 @@ describe('listWorkflows', () => {
 })
 
 describe('cancel', () => {
-  /** The queue read is the only GET; the write's response body is ignored.
-   *  Also answers `/system_stats` with v0.3.57 so the capability check passes. */
-  const systemStatsSupporting = () => respond({ system: { comfyui_version: '0.3.57' }, devices: [] })
-
-  const queueFetch = (running: unknown[][], pending: unknown[][]) =>
-    vi.fn<(input: RequestInfo | URL, _init?: RequestInit) => Promise<Response>>(async (input: RequestInfo | URL) => {
-      if (String(input).includes('/system_stats')) return systemStatsSupporting()
-      return respond({ queue_running: running, queue_pending: pending })
-    })
-
-  const postWrites = (doFetch: ReturnType<typeof queueFetch>) =>
-    doFetch.mock.calls
-      .filter(([, init]) => init?.method === 'POST')
-      .map(([input, init]) => ({ url: String(input), body: JSON.parse(init?.body as string) }))
-
   it('interrupts a running prompt by id and also dequeues it', async () => {
-    const doFetch = queueFetch([[1, 'pid-1', {}, {}, []]], [[2, 'other', {}, {}, []]])
+    const doFetch = createCapsFetch('0.3.57', [[1, 'pid-1', {}, {}, []]], [[2, 'other', {}, {}, []]])
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await transport.cancel('pid-1')
@@ -310,7 +345,7 @@ describe('cancel', () => {
   })
 
   it('dequeues a pending prompt and also interrupts to cover the TOCTOU race', async () => {
-    const doFetch = queueFetch([[1, 'other', {}, {}, []]], [[2, 'pid-1', {}, {}, []]])
+    const doFetch = createCapsFetch('0.3.57', [[1, 'other', {}, {}, []]], [[2, 'pid-1', {}, {}, []]])
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await transport.cancel('pid-1')
@@ -326,7 +361,7 @@ describe('cancel', () => {
   })
 
   it('dequeues by id even when the snapshot does not list the prompt', async () => {
-    const doFetch = queueFetch([[1, 'other', {}, {}, []]], [])
+    const doFetch = createCapsFetch('0.3.57', [[1, 'other', {}, {}, []]], [])
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await transport.cancel('pid-1')
@@ -846,63 +881,6 @@ describe('poll', () => {
   })
 })
 
-describe('applySeed', () => {
-  it('writes noise_seed for advanced samplers', () => {
-    const graph: Record<string, ApiPromptNode> = {
-      '1': { class_type: 'KSamplerAdvanced', inputs: { noise_seed: 7 }, _meta: { title: 'x' } }
-    }
-
-    applySeed(graph, 42, '1')
-
-    expect(graph['1'].inputs.noise_seed).toBe(42)
-  })
-
-  it('prefers seed when a sampler exposes both', () => {
-    const graph: Record<string, ApiPromptNode> = {
-      '1': { class_type: 'CustomSampler', inputs: { seed: 7, noise_seed: 8 }, _meta: { title: 'x' } }
-    }
-
-    applySeed(graph, 42, '1')
-
-    expect(graph['1'].inputs.seed).toBe(42)
-    expect(graph['1'].inputs.noise_seed).toBe(8)
-  })
-
-  it('falls back to any noise_seed node when the sampler has neither', () => {
-    const graph: Record<string, ApiPromptNode> = {
-      '1': { class_type: 'KSamplerAdvanced', inputs: { noise_seed: 7 }, _meta: { title: 'x' } }
-    }
-
-    applySeed(graph, 42)
-
-    expect(graph['1'].inputs.noise_seed).toBe(42)
-  })
-
-  it('writes a linked seed at its source node instead of severing the link', () => {
-    const graph: Record<string, ApiPromptNode> = {
-      '1': { class_type: 'Seed', inputs: { seed: 7 }, _meta: { title: 'source' } },
-      '2': { class_type: 'KSampler', inputs: { seed: ['1', 0] }, _meta: { title: 'sampler' } }
-    }
-
-    applySeed(graph, 42, '2')
-
-    expect(graph['2'].inputs.seed).toEqual(['1', 0])
-    expect(graph['1'].inputs.seed).toBe(42)
-  })
-
-  it('writes a seed linked from a PrimitiveInt source at its value widget', () => {
-    const graph: Record<string, ApiPromptNode> = {
-      '1': { class_type: 'PrimitiveInt', inputs: { value: 7 }, _meta: { title: 'source' } },
-      '2': { class_type: 'KSampler', inputs: { seed: ['1', 0] }, _meta: { title: 'sampler' } }
-    }
-
-    applySeed(graph, 42, '2')
-
-    expect(graph['2'].inputs.seed).toEqual(['1', 0])
-    expect(graph['1'].inputs.value).toBe(42)
-  })
-})
-
 describe('parseVersion', () => {
   it('parses a standard three-component version', () => {
     expect(parseVersion('0.3.57')).toEqual([0, 3, 57])
@@ -929,67 +907,6 @@ describe('parseVersion', () => {
 })
 
 describe('cancel (capability-based)', () => {
-  /** Respond with JSON data. */
-  const respond = (data: unknown) => new Response(JSON.stringify(data), { status: 200 })
-
-  /** /system_stats body for a given version. */
-  const systemStats = (version: string) =>
-    respond({
-      system: { comfyui_version: version },
-      devices: []
-    })
-
-  /** A fetch mock that serves `/system_stats` with `version` and `/queue`
-   *  with the given running / pending queues.  Subsequent POSTs (queue
-   *  delete, interrupt) are also captured. */
-  const createCapsFetch = (version: string, running: unknown[][], pending: unknown[][]) => {
-    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (url.includes('/system_stats')) return systemStats(version)
-      if (url.includes('/queue')) {
-        if (init?.method === 'POST') return respond({})
-        return respond({ queue_running: running, queue_pending: pending })
-      }
-      if (url.includes('/interrupt')) return respond({})
-      return respond({})
-    })
-    return doFetch
-  }
-
-  /** Simulates the race between `GET /queue` (cancelAction) and `GET
-   *  /system_stats` (capability probe): the first queue snapshot shows A
-   *  running, then /system_stats triggers the state change (A finishes, B
-   *  starts).  The mock exposes the final state via the captured closure
-   *  so the test can assert the race actually occurred. */
-  const createStaleQueueFetch = (initialRunning: unknown[][], staleRunning: unknown[][]) => {
-    let currentState = initialRunning
-    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (url.includes('/queue')) {
-        if (init?.method === 'POST') return respond({})
-        return respond({ queue_running: currentState, queue_pending: [] })
-      }
-      if (url.includes('/system_stats')) {
-        // /system_stats fires during capability probe — at this point
-        // the server-side race has completed: A finished, B started.
-        currentState = staleRunning
-        return systemStats('0.3.40') // old version
-      }
-      if (url.includes('/interrupt')) return respond({})
-      return respond({})
-    })
-    return { doFetch, getCurrentState: () => currentState }
-  }
-
-  /** Collect all POST calls (url + body). */
-  const collectPosts = (doFetch: ReturnType<typeof vi.fn>) =>
-    doFetch.mock.calls
-      .filter(([, init]) => init?.method === 'POST')
-      .map(([input, init]) => ({
-        url: String(input),
-        body: JSON.parse(init?.body as string)
-      }))
-
   // ------------------------------------------------------------------
   // Test 1 — targeted interrupt supported
   // running → POST /interrupt { prompt_id }
@@ -1000,7 +917,7 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('pid-1')
 
-    expect(collectPosts(doFetch)).toEqual([
+    expect(postWrites(doFetch)).toEqual([
       { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
       { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
     ])
@@ -1018,7 +935,7 @@ describe('cancel (capability-based)', () => {
 
     // The id-scoped dequeue is still sent — it is the only cancellation these
     // servers offer that cannot touch an unrelated prompt.
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   // ------------------------------------------------------------------
@@ -1030,7 +947,7 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('pid-1')
 
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   // ------------------------------------------------------------------
@@ -1042,7 +959,7 @@ describe('cancel (capability-based)', () => {
 
     await transport.cancel('pid-1')
 
-    expect(collectPosts(doFetch)).toEqual([
+    expect(postWrites(doFetch)).toEqual([
       { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
       { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
     ])
@@ -1066,7 +983,7 @@ describe('cancel (capability-based)', () => {
     // Client still sends the interrupt request, but the server (v0.3.57)
     // will re-check the running set and skip it because A is no longer
     // executing.  The client cannot know this race in advance.
-    expect(collectPosts(doFetch)).toEqual([
+    expect(postWrites(doFetch)).toEqual([
       { url: 'http://localhost:8188/queue', body: { delete: ['A'] } },
       { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'A' } }
     ])
@@ -1095,7 +1012,7 @@ describe('cancel (capability-based)', () => {
 
     // Zero /interrupt POSTs → B cannot be killed by a global interrupt. Only
     // the id-scoped dequeue for A goes out.
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['A'] } }])
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['A'] } }])
     // Verify the race actually occurred: state changed from A to B.
     expect(getCurrentState()).toEqual([[2, 'B', {}, {}, []]])
   })
@@ -1143,7 +1060,7 @@ describe('cancel (capability-based)', () => {
     expect(statsCalls).toBe(2)
     // First cancel: probe failed → dequeue only. Second: the retry succeeds →
     // dequeue *and* interrupt.
-    expect(collectPosts(doFetch)).toEqual([
+    expect(postWrites(doFetch)).toEqual([
       { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
       { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
       { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
@@ -1164,7 +1081,7 @@ describe('cancel (capability-based)', () => {
 
     // The server is unknown → fail closed for the interrupt, which would be a
     // global kill there. The id-scoped dequeue is still sent.
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   // ------------------------------------------------------------------
@@ -1177,7 +1094,7 @@ describe('cancel (capability-based)', () => {
     await transport.cancel('pid-1')
 
     // No interrupt (fail closed), but the id-scoped dequeue still goes out.
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   it('fails closed for a dev version (0.3.58-dev)', async () => {
@@ -1187,7 +1104,7 @@ describe('cancel (capability-based)', () => {
     await transport.cancel('pid-1')
 
     // No interrupt (fail closed), but the id-scoped dequeue still goes out.
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   it('fails closed for a version with build metadata (0.3.57+build)', async () => {
@@ -1197,7 +1114,7 @@ describe('cancel (capability-based)', () => {
     await transport.cancel('pid-1')
 
     // No interrupt (fail closed), but the id-scoped dequeue still goes out.
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   it('fails closed when /system_stats returns valid JSON but missing the version field', async () => {
@@ -1210,7 +1127,7 @@ describe('cancel (capability-based)', () => {
     await transport.cancel('pid-1')
 
     // No interrupt (fail closed), but the id-scoped dequeue still goes out.
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 
   it('fails closed when /system_stats returns invalid JSON', async () => {
@@ -1224,6 +1141,6 @@ describe('cancel (capability-based)', () => {
     await transport.cancel('pid-1')
 
     // No interrupt (fail closed), but the id-scoped dequeue still goes out.
-    expect(collectPosts(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
+    expect(postWrites(doFetch)).toEqual([{ url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } }])
   })
 })
