@@ -445,22 +445,6 @@ export const ModelSnapshotSchema = z.strictObject({
 })
 export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
 
-export function createModelSnapshot(input: {
-  id: string
-  name: string
-  provider: string
-  providerName?: string
-  group?: string
-}): ModelSnapshot {
-  return {
-    id: input.id,
-    name: input.name,
-    provider: input.provider,
-    ...(input.providerName ? { providerName: input.providerName } : {}),
-    ...(input.group !== undefined ? { group: input.group } : {})
-  }
-}
-
 /**
  * Per-message snapshot of the producing author (chat assistant or session agent),
  * captured at creation time so the header/export can still show it after the entity

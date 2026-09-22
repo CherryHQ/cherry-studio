@@ -18,18 +18,13 @@ import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-import {
-  createModelSnapshot,
-  type CherryMessagePart,
-  type CherryUIMessage,
-  type MessageSnapshot
-} from '@shared/data/types/message'
+import { type CherryMessagePart, type CherryUIMessage, type MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
-import { resolveSnapshotProviderName } from '../../messages/modelSnapshot'
+import { createModelSnapshot, resolveSnapshotProviderName } from '../../messages/modelSnapshot'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'

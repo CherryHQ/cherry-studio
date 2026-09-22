@@ -1,7 +1,23 @@
 import { providerService } from '@main/data/services/ProviderService'
-import { createModelSnapshot, type ModelSnapshot } from '@shared/data/types/message'
+import type { ModelSnapshot } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+
+export function createModelSnapshot(input: {
+  id: string
+  name: string
+  provider: string
+  providerName?: string
+  group?: string
+}): ModelSnapshot {
+  return {
+    id: input.id,
+    name: input.name,
+    provider: input.provider,
+    ...(input.providerName ? { providerName: input.providerName } : {}),
+    ...(input.group !== undefined ? { group: input.group } : {})
+  }
+}
 
 export function resolveSnapshotProviderName(providerId: string): string | undefined {
   try {
