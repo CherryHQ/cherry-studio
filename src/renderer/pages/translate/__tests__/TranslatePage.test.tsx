@@ -1399,6 +1399,9 @@ describe('TranslatePage', () => {
     expect(translateArgs?.[4]).toBe('/tmp/pasted.png')
     expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
     expect(toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('translated'))
+    expect(toast.success).toHaveBeenCalledWith('translate.complete')
+    expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
   })
 
   it('ignores empty text data when handling drops', async () => {
