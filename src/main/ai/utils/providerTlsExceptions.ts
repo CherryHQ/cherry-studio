@@ -11,7 +11,7 @@ export const CERT_VERIFY_USE_CHROMIUM = -3
 /** Accept the certificate (skips Chromium's failure for this host). */
 export const CERT_VERIFY_ACCEPT = 0
 
-type ProviderTlsSource = Pick<Provider, 'settings' | 'endpointConfigs'>
+type ProviderTlsSource = Pick<Provider, 'isEnabled' | 'settings' | 'endpointConfigs'>
 
 /**
  * Parse the hostname of a provider API base URL.
@@ -33,13 +33,13 @@ export function hostnameFromApiBaseUrl(baseUrl: string): string | null {
 }
 
 /**
- * Hostnames whose TLS certificates may be accepted when the matching provider
- * has `settings.allowSelfSignedTls === true`.
+ * Hostnames whose TLS certificates may be accepted when the matching enabled
+ * provider has `settings.allowSelfSignedTls === true`.
  */
 export function collectAllowSelfSignedTlsHostnames(providers: readonly ProviderTlsSource[]): Set<string> {
   const hosts = new Set<string>()
   for (const provider of providers) {
-    if (provider.settings?.allowSelfSignedTls !== true) continue
+    if (!provider.isEnabled || provider.settings?.allowSelfSignedTls !== true) continue
     for (const config of Object.values(provider.endpointConfigs ?? {})) {
       const hostname = hostnameFromApiBaseUrl(config?.baseUrl ?? '')
       if (hostname) hosts.add(hostname)

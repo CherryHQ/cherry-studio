@@ -1,5 +1,6 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { net } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -15,6 +16,7 @@ import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 // and provider-utils' getFromApi to capture the exact { url, headers } passed.
 const {
   getRotatedApiKeyMock,
+  resolveApiKeyMock,
   getAuthConfigMock,
   getAuthHeadersMock,
   getCopilotTokenMock,
@@ -23,6 +25,7 @@ const {
   isRegistryProviderMock
 } = vi.hoisted(() => ({
   getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
+  resolveApiKeyMock: vi.fn(),
   getAuthConfigMock: vi.fn(),
   getAuthHeadersMock: vi.fn(),
   getCopilotTokenMock: vi.fn(),
@@ -34,6 +37,7 @@ const {
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     getRotatedApiKey: getRotatedApiKeyMock,
+    resolveApiKey: resolveApiKeyMock,
     getAuthConfig: getAuthConfigMock
   }
 }))
@@ -66,11 +70,12 @@ vi.mock('@ai-sdk/provider-utils', async (importOriginal) => {
 })
 
 // Import the SUT after the mocks are declared.
-const { listModels } = await import('../listModels')
+const { listModels, probeOllamaModel } = await import('../listModels')
 
 beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockReturnValue('AIza-secret-key')
+  resolveApiKeyMock.mockReturnValue({ value: '' })
   isRegistryProviderMock.mockImplementation((providerId) => providerId === 'openai')
   getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
   aiSdkPostJsonToApiMock.mockResolvedValue({ value: {} })
@@ -139,6 +144,59 @@ describe('listModels — default grouping', () => {
       expect(models.map((model) => model.group)).not.toContain(providerId)
     }
   )
+})
+
+describe('listModels — provider network transport', () => {
+  it.each([true, false])('lists models through Electron when TLS opt-in is %s', async (allowSelfSignedTls) => {
+    const provider = makeProvider({
+      id: 'custom',
+      settings: { allowSelfSignedTls },
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
+      }
+    })
+    const nodeFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Node fetch bypassed Electron session'))
+    vi.mocked(net.fetch).mockResolvedValue(Response.json({ data: [{ id: 'local-model' }] }))
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    aiSdkGetFromApiMock.mockImplementation((options) => actual.getFromApi(options))
+
+    try {
+      const models = await listModels(provider, undefined, { throwOnError: true })
+
+      expect(models.map((model) => model.apiModelId)).toEqual(['local-model'])
+      expect(net.fetch).toHaveBeenCalledWith('https://llm.internal/v1/models', expect.any(Object))
+      expect(nodeFetch).not.toHaveBeenCalled()
+    } finally {
+      nodeFetch.mockRestore()
+    }
+  })
+
+  it('uses the Electron session for Ollama model metadata and existence probes', async () => {
+    const provider = makeProvider({
+      id: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: { [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'https://ollama.internal' } }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { models: [{ name: 'qwen3:8b' }] } })
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    aiSdkPostJsonToApiMock.mockImplementation((options) => actual.postJsonToApi(options))
+    vi.mocked(net.fetch).mockResolvedValue(
+      Response.json({ model_info: { 'general.architecture': 'qwen3', 'qwen3.context_length': 8192 } })
+    )
+    const nodeFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Node fetch bypassed Electron session'))
+
+    try {
+      const models = await listModels(provider, undefined, { throwOnError: true })
+      expect(models[0].contextWindow).toBe(8192)
+      expect(net.fetch).toHaveBeenCalledWith('https://ollama.internal/api/show', expect.any(Object))
+
+      await expect(probeOllamaModel(provider, 'qwen3:8b')).resolves.toHaveProperty('latency')
+      expect(net.fetch).toHaveBeenCalledWith('https://ollama.internal/api/show', expect.any(Object))
+      expect(nodeFetch).not.toHaveBeenCalled()
+    } finally {
+      nodeFetch.mockRestore()
+    }
+  })
 })
 
 describe('listModels — TokenDance protocol routing', () => {

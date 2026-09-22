@@ -37,6 +37,7 @@ import {
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
+import { customFetch } from '../utils/customFetch'
 import { defaultHeaders, getBaseUrl, getExtraHeaders, getProviderAppHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
@@ -126,6 +127,7 @@ async function getFromApi<T>({
   const { value } = await aiSdkGetFromApi({
     url,
     headers,
+    fetch: customFetch,
     successfulResponseHandler: createJsonResponseHandler(zodSchema(responseSchema)),
     failedResponseHandler: createJsonErrorResponseHandler({
       errorSchema: zodSchema(ApiErrorSchema),
@@ -206,6 +208,7 @@ async function fetchOllamaContextWindow(
     const { value } = await postJsonToApi({
       url: `${baseUrl}/api/show`,
       headers: defaultHeaders(provider),
+      fetch: customFetch,
       body: { model },
       successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
       failedResponseHandler: createJsonErrorResponseHandler({
@@ -877,7 +880,7 @@ export async function probeOllamaModel(
     'Content-Type': 'application/json',
     ...(resolved.value ? { Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value } : {})
   })
-  const response = await fetch(`${baseUrl}/show`, {
+  const response = await customFetch(`${baseUrl}/show`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ model: modelApiId ?? '' }),

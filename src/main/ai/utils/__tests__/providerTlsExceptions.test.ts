@@ -41,6 +41,7 @@ describe('collectAllowSelfSignedTlsHostnames', () => {
   it('includes every https endpoint host only when allowSelfSignedTls is enabled', () => {
     const hosts = collectAllowSelfSignedTlsHostnames([
       {
+        isEnabled: true,
         settings: { allowSelfSignedTls: true },
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal:8443/v1' },
@@ -48,12 +49,14 @@ describe('collectAllowSelfSignedTlsHostnames', () => {
         }
       },
       {
+        isEnabled: true,
         settings: {},
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com/v1' }
         }
       },
       {
+        isEnabled: true,
         settings: { allowSelfSignedTls: false },
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://denied.internal/v1' }
@@ -62,6 +65,20 @@ describe('collectAllowSelfSignedTlsHostnames', () => {
     ])
 
     expect([...hosts].sort()).toEqual(['claude.internal', 'llm.internal'])
+  })
+
+  it('keeps disabled provider hosts under Chromium certificate verification', () => {
+    const hosts = collectAllowSelfSignedTlsHostnames([
+      {
+        isEnabled: false,
+        settings: { allowSelfSignedTls: true },
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://disabled.internal/v1' }
+        }
+      }
+    ])
+
+    expect(resolveCertificateVerifyResult('disabled.internal', hosts)).toBe(CERT_VERIFY_USE_CHROMIUM)
   })
 })
 
@@ -93,6 +110,7 @@ describe('installProviderCertificateVerifyProc', () => {
   it('accepts certificates for opted-in provider hosts and rejects unrelated hosts', () => {
     listProvidersMock.mockReturnValue([
       {
+        isEnabled: true,
         settings: { allowSelfSignedTls: true },
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal:8443/v1' }
@@ -107,6 +125,17 @@ describe('installProviderCertificateVerifyProc', () => {
 
     callback.mockClear()
     proc({ hostname: 'api.openai.com' }, callback)
+    expect(callback).toHaveBeenCalledWith(CERT_VERIFY_USE_CHROMIUM)
+  })
+
+  it('fails closed when the provider list is unavailable', () => {
+    listProvidersMock.mockImplementation(() => {
+      throw new Error('DB not ready')
+    })
+    const proc = captureProc()
+    const callback = vi.fn()
+
+    proc({ hostname: 'llm.internal' }, callback)
     expect(callback).toHaveBeenCalledWith(CERT_VERIFY_USE_CHROMIUM)
   })
 
