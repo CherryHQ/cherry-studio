@@ -117,6 +117,13 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
     }
   },
   {
+    modelId: 'grok-4-7',
+    endpointTypes: ['openai-responses'],
+    reasoningContracts: {
+      'openai-responses': { support: effortSupport(['low', 'medium', 'high', 'xhigh']) }
+    }
+  },
+  {
     modelId: 'gpt-5-6-luna',
     endpointTypes: ['openai-responses' as const],
     reasoningContracts: {

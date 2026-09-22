@@ -1029,7 +1029,7 @@ describe('SkillService', () => {
         skillService.install({
           installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
         })
-      ).rejects.toThrow('too large')
+      ).rejects.toThrow(/Skill holds \d+ bytes, over the 104857600-byte limit/)
       expect(gitCalls.some((args) => args.includes('checkout'))).toBe(false)
     })
 
@@ -1157,6 +1157,8 @@ describe('SkillService', () => {
       const skillService = new SkillService()
       const workDir = await createTempDir('clone-install-')
       vi.mocked(skillPaths.createTempDir).mockResolvedValue(workDir)
+      const actualArchive = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.resolveSkillDirectory).mockImplementation(actualArchive.resolveSkillDirectory)
       const gitCalls: Array<{ args: string[]; options?: { env?: Record<string, string>; timeout?: number } }> = []
 
       executeCommandMock.mockImplementation(async (_command: string, args: string[], options?: object) => {
@@ -1168,9 +1170,11 @@ describe('SkillService', () => {
         return ''
       })
 
-      vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir').mockResolvedValue({})
+      const installSkillDirSpy = vi
+        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
+        .mockResolvedValue({})
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
-      return { skillService, gitCalls }
+      return { skillService, workDir, gitCalls, installSkillDirSpy }
     }
 
     const installFromClone = (skillService: SkillService) =>
@@ -1210,6 +1214,67 @@ describe('SkillService', () => {
       await expect(installFromClone(skillService)).rejects.toThrow('Command timed out')
       expect(gitCalls).toHaveLength(1)
     })
+
+    it('rejects an oversized Claude Plugins skill before installing it', async () => {
+      const { skillService, workDir, installSkillDirSpy } = await setupClonedInstall()
+      const skillDir = path.join(workDir, 'skills', 'demo')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      const payload = await fs.promises.open(path.join(skillDir, 'payload.bin'), 'w')
+      await payload.truncate(101 * 1024 * 1024)
+      await payload.close()
+
+      await expect(installFromClone(skillService)).rejects.toThrow(
+        /Skill holds \d+ bytes, over the 104857600-byte limit/
+      )
+      expect(installSkillDirSpy).not.toHaveBeenCalled()
+    })
+
+    it('rejects a skills.sh skill with too many files before installing it', async () => {
+      const { skillService, workDir, installSkillDirSpy } = await setupClonedInstall()
+      const skillDir = path.join(workDir, 'skills', 'demo')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), '# skill')
+      for (let start = 0; start < 20_000; start += 500) {
+        const seed = path.join(skillDir, `${start}.txt`)
+        await fs.promises.writeFile(seed, '')
+        await Promise.all(
+          Array.from({ length: 499 }, (_, offset) =>
+            fs.promises.link(seed, path.join(skillDir, `${start + offset + 1}.txt`))
+          )
+        )
+      }
+      vi.mocked(findAllSkillDirectories).mockResolvedValue([{ folderPath: skillDir, sourcePath: 'skills/demo' }])
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'demo' } as never)
+
+      await expect(skillService.install({ installSource: 'skills.sh:owner/repo/demo' })).rejects.toThrow(
+        'Skill holds 20001 files, over the 20000-file limit'
+      )
+      expect(installSkillDirSpy).not.toHaveBeenCalled()
+    }, 60_000)
+
+    it.each(['claude-plugins:owner/repo/skills/demo', 'skills.sh:owner/repo/demo'])(
+      'does not count unrelated repository files for %s',
+      async (installSource) => {
+        const { skillService, workDir, installSkillDirSpy } = await setupClonedInstall()
+        const sibling = path.join(workDir, 'unrelated.bin')
+        const payload = await fs.promises.open(sibling, 'w')
+        await payload.truncate(101 * 1024 * 1024)
+        await payload.close()
+        vi.mocked(findAllSkillDirectories).mockResolvedValue([
+          { folderPath: path.join(workDir, 'skills', 'demo'), sourcePath: 'skills/demo' }
+        ])
+        vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'demo' } as never)
+        const canonicalWorkDir = await fs.promises.realpath(workDir)
+
+        await skillService.install({ installSource })
+
+        expect(installSkillDirSpy).toHaveBeenCalledWith(
+          path.join(canonicalWorkDir, 'skills', 'demo'),
+          'marketplace',
+          expect.any(String)
+        )
+      }
+    )
 
     it('rejects a clawhub source without its publisher identity', async () => {
       const skillService = new SkillService()
@@ -1335,7 +1400,7 @@ describe('SkillService', () => {
       const locatedSkillDir = path.join(extractDir, 'skill')
       await fs.promises.writeFile(realZipPath, new Uint8Array([1, 2, 3]))
       await fs.promises.symlink(realZipPath, linkedZipPath)
-      await fs.promises.mkdir(extractDir, { recursive: true })
+      await fs.promises.mkdir(locatedSkillDir, { recursive: true })
       const canonicalZipPath = await fs.promises.realpath(realZipPath)
 
       vi.mocked(skillPaths.createTempDir).mockResolvedValue(extractDir)
@@ -1351,29 +1416,76 @@ describe('SkillService', () => {
       expect(installSkillDirSpy).toHaveBeenCalledWith(locatedSkillDir, 'zip', pathToFileURL(canonicalZipPath).href)
     })
 
-    it('accepts ZIP archives containing 2,000 entries', async () => {
-      const root = await createTempDir('skill-zip-limit-')
-      const zipPath = path.join(root, 'limit.zip')
-      const extractDir = path.join(root, 'extract')
-      const zip = new AdmZip()
-      for (let index = 0; index < 2_000; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
-      zip.writeZip(zipPath)
-      await fs.promises.mkdir(extractDir)
-
-      await expect(skillArchive.extractZip(zipPath, extractDir)).resolves.toBeUndefined()
-    })
-
-    it('rejects ZIP archives containing more than 2,000 entries', async () => {
+    it('rejects archives with more entries than extraction allows, reporting the archive total', async () => {
       const root = await createTempDir('skill-zip-limit-')
       const zipPath = path.join(root, 'over-limit.zip')
       const extractDir = path.join(root, 'extract')
       const zip = new AdmZip()
-      for (let index = 0; index < 2_001; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
+      for (let index = 0; index < 60_000; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
       zip.writeZip(zipPath)
 
+      const actualArchive = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.extractZip).mockImplementation(actualArchive.extractZip)
+
+      // 60000, not the 50001 a scan that stopped at the entry crossing the ceiling would report.
       await expect(skillArchive.extractZip(zipPath, extractDir)).rejects.toThrow(
-        'ZIP has too many files: 2001 exceeds 2000'
+        'Skill archive contains 60000 entries, over the 50000-entry limit'
       )
+    })
+
+    /**
+     * The reported failure. `ppt-master-main.zip` is GitHub's zipball of a skill repository: the
+     * skill under `skills/ppt-master/` is inside the per-skill ceiling, but the repository around
+     * it is not. Install previously refused the whole archive under the per-skill ceilings.
+     */
+    it('installs a repository zipball whose skill is inside the per-skill limits', async () => {
+      const skillService = new SkillService()
+      const root = await createTempDir('skill-zip-repo-')
+      const zipPath = path.join(root, 'repo-main.zip')
+      const extractDir = path.join(root, 'extract')
+
+      const zip = new AdmZip()
+      zip.addFile('repo-main/skills/demo/SKILL.md', Buffer.from('---\nname: demo\n---\n'))
+      // Repository payload that is not part of the skill, over the per-skill ceiling on its own.
+      for (let index = 0; index < 110; index++) zip.addFile(`repo-main/assets/${index}.bin`, Buffer.alloc(1024 * 1024))
+      zip.writeZip(zipPath)
+
+      const actualArchive = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.extractZip).mockImplementation(actualArchive.extractZip)
+      const skillDir = path.join(extractDir, 'repo-main', 'skills', 'demo')
+      vi.mocked(skillPaths.createTempDir).mockResolvedValue(extractDir)
+      vi.mocked(skillArchive.resolveSkillDirectory).mockResolvedValue(skillDir)
+      const installSkillDirSpy = vi
+        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
+        .mockResolvedValue({})
+
+      await skillService.installFromZip({ zipFilePath: zipPath })
+
+      const canonicalZipPath = await fs.promises.realpath(zipPath)
+      expect(installSkillDirSpy).toHaveBeenCalledWith(skillDir, 'zip', pathToFileURL(canonicalZipPath).href)
+    })
+
+    it('refuses a skill directory over the per-skill size limit, reporting its real size', async () => {
+      const skillDir = await createTempDir('skill-oversized-')
+      // 110 MiB across 110 files: a scan that stopped at the file crossing the ceiling would report
+      // 105906176 (the 101st file), not what the directory actually holds.
+      for (let index = 0; index < 110; index++) {
+        await fs.promises.writeFile(path.join(skillDir, `${index}.bin`), Buffer.alloc(1024 * 1024))
+      }
+
+      await expect(skillArchive.assertSkillDirectoryWithinLimits(skillDir)).rejects.toThrow(
+        'Skill holds 115343360 bytes, over the 104857600-byte limit'
+      )
+    })
+
+    it('accepts a skill directory with more than the previous 2,000-file ceiling', async () => {
+      const skillDir = await createTempDir('skill-many-files-')
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), '---\nname: many\n---\n')
+      for (let index = 0; index < 2_500; index++) {
+        await fs.promises.writeFile(path.join(skillDir, `${index}.txt`), '')
+      }
+
+      await expect(skillArchive.assertSkillDirectoryWithinLimits(skillDir)).resolves.toBeUndefined()
     })
 
     it.each([
