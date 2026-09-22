@@ -4793,6 +4793,7 @@
   "settings.models.manage.stale_filter": "Expirat",
   "settings.models.manage.sync_apply_default_in_use": "Unele modele sunt utilizate ca model implicit și nu pot fi eliminate.",
   "settings.models.manage.sync_pull_failed": "Nu s-au putut prelua modelele.",
+  "settings.models.manage.workflows_not_listed": "{{count}} flux(uri) de lucru nelistate: numele conține # sau ?. Redenumiți-le în ComfyUI pentru a le lista.",
   "settings.models.more_actions": "Mai multe acțiuni pentru lista de modele",
   "settings.models.painting_model": "Model de pictură",
   "settings.models.painting_model_description": "Model utilizat pentru generarea de imagini",

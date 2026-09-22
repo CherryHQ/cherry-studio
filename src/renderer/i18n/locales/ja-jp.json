@@ -4793,6 +4793,7 @@
   "settings.models.manage.stale_filter": "期限切れ",
   "settings.models.manage.sync_apply_default_in_use": "一部のモデルはデフォルトモデルとして使用中のため、削除できません。",
   "settings.models.manage.sync_pull_failed": "モデルの取得に失敗しました。",
+  "settings.models.manage.workflows_not_listed": "{{count}} 件のワークフローが一覧に表示されません：名前に # または ? が含まれています。ComfyUI で名前を変更すると表示されます。",
   "settings.models.more_actions": "モデル一覧のその他の操作",
   "settings.models.painting_model": "ペインティングモデル",
   "settings.models.painting_model_description": "画像生成に使用されたモデル",

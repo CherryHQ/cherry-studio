@@ -4793,6 +4793,7 @@
   "settings.models.manage.stale_filter": "Μη έγκυρο",
   "settings.models.manage.sync_apply_default_in_use": "Κάποια μοντέλα χρησιμοποιούνται ως προεπιλεγμένα και δεν μπορούν να αφαιρεθούν.",
   "settings.models.manage.sync_pull_failed": "Η ανάκτηση μοντέλων απέτυχε.",
+  "settings.models.manage.workflows_not_listed": "{{count}} ροές εργασίας δεν εμφανίζονται: το όνομά τους περιέχει # ή ?. Μετονομάστε τις στο ComfyUI για να εμφανιστούν.",
   "settings.models.more_actions": "Περισσότερες ενέργειες λίστας μοντέλων",
   "settings.models.painting_model": "Μοντέλο Ζωγραφικής",
   "settings.models.painting_model_description": "Μοντέλο που χρησιμοποιείται για τη δημιουργία εικόνων",

@@ -4793,6 +4793,7 @@
   "settings.models.manage.stale_filter": "Eski",
   "settings.models.manage.sync_apply_default_in_use": "Bazı modeller varsayılan model olarak kullanıldığı için kaldırılamaz.",
   "settings.models.manage.sync_pull_failed": "Modeller alınamadı.",
+  "settings.models.manage.workflows_not_listed": "{{count}} iş akışı listelenmedi: adlarında # veya ? var. Listelemek için ComfyUI'de yeniden adlandırın.",
   "settings.models.more_actions": "Diğer model listesi işlemleri",
   "settings.models.painting_model": "Görsel Oluşturma Modeli",
   "settings.models.painting_model_description": "Görsel oluşturmak için kullanılan model",

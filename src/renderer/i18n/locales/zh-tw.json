@@ -4793,6 +4793,7 @@
   "settings.models.manage.stale_filter": "失效",
   "settings.models.manage.sync_apply_default_in_use": "部分模型正被用作預設模型，無法刪除。",
   "settings.models.manage.sync_pull_failed": "取得模型失敗。",
+  "settings.models.manage.workflows_not_listed": "有 {{count}} 個工作流未列出：名稱中含有 # 或 ?。在 ComfyUI 中重新命名後即可列出。",
   "settings.models.more_actions": "更多模型清單操作",
   "settings.models.painting_model": "繪圖模型",
   "settings.models.painting_model_description": "影像產生使用的模型",

@@ -4793,6 +4793,7 @@
   "settings.models.manage.stale_filter": "Obsolète",
   "settings.models.manage.sync_apply_default_in_use": "Certains modèles sont utilisés comme modèles par défaut et ne peuvent pas être supprimés.",
   "settings.models.manage.sync_pull_failed": "Échec de la récupération des modèles.",
+  "settings.models.manage.workflows_not_listed": "{{count}} workflow(s) non listé(s) : leur nom contient # ou ?. Renommez-les dans ComfyUI pour les lister.",
   "settings.models.more_actions": "Plus d'actions pour la liste des modèles",
   "settings.models.painting_model": "Modèle de peinture",
   "settings.models.painting_model_description": "Modèle utilisé pour la génération d'images",

@@ -4793,6 +4793,7 @@
   "settings.models.manage.stale_filter": "Ungültig",
   "settings.models.manage.sync_apply_default_in_use": "Einige Modelle sind als Standardmodell in Gebrauch und können nicht entfernt werden.",
   "settings.models.manage.sync_pull_failed": "Modelle konnten nicht abgerufen werden.",
+  "settings.models.manage.workflows_not_listed": "{{count}} Workflow(s) nicht gelistet: Der Name enthält # oder ?. Benenne sie in ComfyUI um, um sie zu listen.",
   "settings.models.more_actions": "Weitere Aktionen für die Modellliste",
   "settings.models.painting_model": "Malermodell",
   "settings.models.painting_model_description": "Modell für die Bildgenerierung",

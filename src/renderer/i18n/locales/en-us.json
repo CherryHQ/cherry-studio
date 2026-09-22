@@ -4793,6 +4793,7 @@
   "settings.models.manage.stale_filter": "Stale",
   "settings.models.manage.sync_apply_default_in_use": "Some models are in use as the default model and cannot be removed.",
   "settings.models.manage.sync_pull_failed": "Failed to pull models.",
+  "settings.models.manage.workflows_not_listed": "{{count}} workflow(s) not listed: their names contain # or ?. Rename them in ComfyUI to list them.",
   "settings.models.more_actions": "More model list actions",
   "settings.models.painting_model": "Painting Model",
   "settings.models.painting_model_description": "Model used for image generation",

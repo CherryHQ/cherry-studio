@@ -162,7 +162,15 @@ export async function fetchResolvedProviderModels(providerId: string): Promise<M
     logger.info('Fetching provider models via IPC', { providerId })
     const fetched = await ipcApi.request('ai.provider.model.list', { providerId, throwOnError: true })
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
-    return await enrichFetchedModels(providerId, fetched)
+    const resolved = await enrichFetchedModels(providerId, fetched)
+    // Main reports entries the provider itself holds but could not be listed as
+    // models (ComfyUI workflow names with `#` or `?`). Carried on the array so the
+    // return stays `Model[]` for every existing caller.
+    const skipped = (fetched as { skippedWorkflows?: string[] }).skippedWorkflows
+    if (skipped && skipped.length > 0) {
+      ;(resolved as { skippedWorkflows?: string[] }).skippedWorkflows = skipped
+    }
+    return resolved
   } catch (error) {
     logger.error('Failed to fetch and resolve provider models', {
       providerId,

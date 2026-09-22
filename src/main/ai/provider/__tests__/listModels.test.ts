@@ -1602,5 +1602,8 @@ describe('listModels — ComfyUI credentials', () => {
     // unique id, so the row would break every consumer that builds one.
     expect(models.map((m) => m.apiModelId)).toEqual(['portrait', 'sub/kept'])
     expect(models.map((m) => m.id)).toEqual(['comfyui::portrait', 'comfyui::sub/kept'])
+    // The omission has to be visible: the manager names these instead of showing a
+    // shorter list than the server has.
+    expect((models as { skippedWorkflows?: string[] }).skippedWorkflows).toEqual(['a#b', 'c?d'])
   })
 })

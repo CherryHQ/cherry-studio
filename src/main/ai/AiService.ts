@@ -1247,14 +1247,23 @@ export class AiService extends BaseService {
       })
     }
     const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    // A provider whose list IS its own files (ComfyUI's saved workflows) can skip
+    // entries; the caller needs to hear about those or the omission is invisible.
+    const skippedWorkflows = (remoteModels as { skippedWorkflows?: string[] }).skippedWorkflows
+    const withSkipNotice = (models: Partial<Model>[]): Partial<Model>[] => {
+      if (skippedWorkflows && skippedWorkflows.length > 0) {
+        ;(models as { skippedWorkflows?: string[] }).skippedWorkflows = skippedWorkflows
+      }
+      return models
+    }
     if (!provider.supplementModelsFromRegistry) {
-      return remoteModels
+      return withSkipNotice(remoteModels)
     }
     const registryModels = providerRegistryService.listProviderRegistryModels({
       providerId,
       presetProviderId: provider.presetProviderId ?? null
     })
-    return mergeProviderModelsWithRegistry(remoteModels, registryModels)
+    return withSkipNotice(mergeProviderModelsWithRegistry(remoteModels, registryModels))
   }
 
   /** Captures one model configuration for related probes without re-reading changing settings. */

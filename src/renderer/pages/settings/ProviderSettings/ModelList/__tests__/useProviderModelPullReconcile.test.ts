@@ -469,6 +469,26 @@ describe('useProviderModelPullReconcile', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  it('names the workflows the provider holds but cannot list as models', async () => {
+    // ComfyUI's list is its saved workflows; a name carrying `#`/`?` cannot become
+    // a model id, and silently listing fewer workflows reads as a vanished file.
+    useModelsMock.mockReturnValue({ models: [] })
+    fetchProviderCatalogModelsMock.mockResolvedValue([])
+    fetchResolvedProviderModelsMock.mockResolvedValue(
+      Object.assign([], { skippedWorkflows: ['sample #frag', 'sample ?query'] })
+    )
+
+    const { result } = renderHook(() => useProviderModelPullReconcile('comfyui'))
+
+    await act(async () => {
+      await result.current.reloadModels()
+    })
+
+    // The harness's `t` forwards only the key, so the count is asserted where it is
+    // produced instead (the listing test below); this pins that the user is told.
+    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.workflows_not_listed')
+  })
+
   it('keeps a workflow added while the authoritative list was loading', async () => {
     // Opening the drawer loads the provider list; a workflow the user adds while
     // that load is in flight is created after the provider built the list, and it

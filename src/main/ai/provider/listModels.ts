@@ -467,6 +467,9 @@ const ovmsFetcher: ModelFetcher = {
  * on the paintings page (`supportsImageGenerationEndpoint`) and routes generation to
  * the comfyui transport instead of an OpenAI adapter.
  */
+/** A model list that also reports what the provider had but could not be listed. */
+export type ListedModels = Partial<Model>[] & { skippedWorkflows?: string[] }
+
 const comfyuiFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.comfyui),
   fetch: async (provider, signal) => {
@@ -478,13 +481,14 @@ const comfyuiFetcher: ModelFetcher = {
     // reserved route character, so such a workflow is skipped rather than listed as
     // a row that no consumer can turn into an id.
     const listed = workflows.filter((workflow) => !hasReservedRouteChar(workflow))
-    if (listed.length !== workflows.length) {
+    const skipped = workflows.filter(hasReservedRouteChar)
+    if (skipped.length > 0) {
       logger.warn('Skipped ComfyUI workflows whose names contain a reserved route character', {
         providerId: provider.id,
-        skipped: workflows.filter(hasReservedRouteChar)
+        skipped
       })
     }
-    return dedup(listed, (workflow) => workflow).map((workflow) =>
+    const models = dedup(listed, (workflow) => workflow).map((workflow) =>
       toModel(workflow, provider, {
         name: workflow.split('/').pop() ?? workflow,
         ownedBy: 'comfyui',
@@ -494,6 +498,11 @@ const comfyuiFetcher: ModelFetcher = {
         outputModalities: [MODALITY.IMAGE]
       })
     )
+    // A skip the user cannot see reads as a workflow that vanished: the names travel
+    // with the list (the route does not re-parse handler output) so the model manager
+    // can say which files to rename. Not part of `Model`; the array carries it.
+    if (skipped.length > 0) (models as ListedModels).skippedWorkflows = skipped
+    return models
   }
 }
 
