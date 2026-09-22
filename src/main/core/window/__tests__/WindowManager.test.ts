@@ -1538,6 +1538,26 @@ describe('WindowManager', () => {
       expect(win.setBounds).toHaveBeenCalledWith({ x: 560, y: 220, width: 800, height: 600 })
     })
 
+    it('center() keeps a maximized window on its current display when normal bounds are elsewhere', async () => {
+      const { screen } = await import('electron')
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      const current = { x: 1920, y: 0, width: 1920, height: 1040 }
+      const normal = { x: 100, y: 80, width: 800, height: 600 }
+      win.isMaximized.mockReturnValue(true)
+      win.getBounds.mockReturnValue(current)
+      win.getNormalBounds.mockReturnValue(normal)
+      vi.mocked(screen.getDisplayMatching).mockReturnValueOnce({
+        bounds: { x: 1920, y: 0, width: 1920, height: 1080 },
+        workArea: current
+      } as Electron.Display)
+
+      expect(wm.center(id)).toBe(true)
+
+      expect(screen.getDisplayMatching).toHaveBeenCalledWith(current)
+      expect(win.setBounds).toHaveBeenCalledWith({ x: 2480, y: 220, width: 800, height: 600 })
+    })
+
     it('center() returns false for unknown windowId', () => {
       expect(wm.center('does-not-exist')).toBe(false)
     })

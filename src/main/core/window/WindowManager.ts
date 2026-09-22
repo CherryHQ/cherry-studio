@@ -548,13 +548,14 @@ export class WindowManager extends BaseService {
     if (!managed || managed.window.isDestroyed()) return false
 
     const window = managed.window
+    const current = window.getBounds()
     const normal = window.getNormalBounds()
 
     if (window.isFullScreen()) window.setFullScreen(false)
     if (window.isMaximized()) window.unmaximize()
     if (window.isMinimized()) window.restore()
 
-    const display = screen.getDisplayMatching(normal)
+    const display = screen.getDisplayMatching(current)
     const area = isMac ? display.bounds : display.workArea
     window.setBounds({
       x: Math.round(area.x + (area.width - normal.width) / 2),
