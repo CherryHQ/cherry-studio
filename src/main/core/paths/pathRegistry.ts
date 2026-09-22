@@ -11,7 +11,6 @@
 
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { app } from 'electron'
 
@@ -33,20 +32,6 @@ function getUserSystemPath(name: UserSystemPathName, fallback: string): string {
   }
 }
 
-function normalizePiAgentDir(input: string, home: string): string {
-  if (input === '~') return home
-  if (input.startsWith('~/') || (isWin && input.startsWith('~\\'))) return path.join(home, input.slice(2))
-  if (input.startsWith('file://')) {
-    try {
-      return fileURLToPath(input)
-    } catch (error) {
-      logger.warn('Invalid PI_CODING_AGENT_DIR file URL; using the default Pi agent directory', error as Error)
-      return path.join(home, '.pi', 'agent')
-    }
-  }
-  return input
-}
-
 /**
  * Build the frozen path registry. Called once during preboot (after
  * `app.setPath('userData', ...)`, before `app.whenReady()`).
@@ -60,9 +45,6 @@ function normalizePiAgentDir(input: string, home: string): string {
 export function buildPathRegistry() {
   // Intermediate vars (primitives only — no object literals in this file).
   const sysHome = os.homedir()
-  const externalPiAgentDir = process.env.PI_CODING_AGENT_DIR
-    ? normalizePiAgentDir(process.env.PI_CODING_AGENT_DIR, sysHome)
-    : path.join(sysHome, '.pi', 'agent')
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
@@ -338,7 +320,7 @@ export function buildPathRegistry() {
         : path.join(sysHome, '.mozilla/firefox'),
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
-    'external.pi.settings_file': path.join(externalPiAgentDir, 'settings.json'),
+    'external.pi.settings_file': path.join(sysHome, '.pi', 'agent', 'settings.json'),
     'external.hermes.default_home': isWin
       ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
       : path.join(sysHome, '.hermes'),

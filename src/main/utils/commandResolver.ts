@@ -491,7 +491,7 @@ export function findGitBash(customPath?: string | null): string | null {
 
     for (const bashPath of possibleBashPaths) {
       const resolvedBashPath = path.resolve(bashPath)
-      if (validateGitBashPath(resolvedBashPath)) {
+      if (fs.existsSync(resolvedBashPath)) {
         logger.debug('Found bash.exe via git.exe path derivation', { path: resolvedBashPath })
         return resolvedBashPath
       }
@@ -506,7 +506,7 @@ export function findGitBash(customPath?: string | null): string | null {
   // 4. Fallback: check common Git installation paths directly
   for (const root of getCommonGitRoots()) {
     const fullPath = path.join(root, 'bin', 'bash.exe')
-    if (validateGitBashPath(fullPath)) {
+    if (fs.existsSync(fullPath)) {
       logger.debug('Found bash.exe at common path', { path: fullPath })
       return fullPath
     }
@@ -523,12 +523,7 @@ export function validateGitBashPath(customPath?: string | null): string | null {
 
   const resolved = path.resolve(customPath)
 
-  try {
-    if (!fs.statSync(resolved).isFile()) {
-      logger.warn('Custom Git Bash path is not a file', { path: resolved })
-      return null
-    }
-  } catch {
+  if (!fs.existsSync(resolved)) {
     logger.warn('Custom Git Bash path does not exist', { path: resolved })
     return null
   }

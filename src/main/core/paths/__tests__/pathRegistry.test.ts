@@ -1,6 +1,5 @@
 import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -196,40 +195,11 @@ describe('buildPathRegistry', () => {
   })
 
   it('registers standalone Pi settings as external data', () => {
-    vi.stubEnv('PI_CODING_AGENT_DIR', '')
-    try {
-      expect(buildPathRegistry()['external.pi.settings_file']).toBe(
-        path.join(os.homedir(), '.pi', 'agent', 'settings.json')
-      )
-      expect(shouldAutoEnsure('external.pi.settings_file')).toBe(false)
-    } finally {
-      vi.unstubAllEnvs()
-    }
+    expect(buildPathRegistry()['external.pi.settings_file']).toBe(
+      path.join(os.homedir(), '.pi', 'agent', 'settings.json')
+    )
+    expect(shouldAutoEnsure('external.pi.settings_file')).toBe(false)
   })
-
-  it('resolves a file URL in PI_CODING_AGENT_DIR before locating Pi settings', () => {
-    const agentDir = path.resolve(os.homedir(), '.pi', 'custom agent')
-    vi.stubEnv('PI_CODING_AGENT_DIR', pathToFileURL(agentDir).href)
-    try {
-      expect(buildPathRegistry()['external.pi.settings_file']).toBe(path.join(agentDir, 'settings.json'))
-    } finally {
-      vi.unstubAllEnvs()
-    }
-  })
-
-  it.each(['file://[', 'file:///C:/pi/%ZZ'])(
-    'keeps startup paths available when PI_CODING_AGENT_DIR is malformed: %s',
-    (agentDir) => {
-      vi.stubEnv('PI_CODING_AGENT_DIR', agentDir)
-      try {
-        const registry = buildPathRegistry()
-        expect(registry['external.pi.settings_file']).toBe(path.join(os.homedir(), '.pi', 'agent', 'settings.json'))
-        expect(registry['app.database.file']).toBe(path.join('/mock/userData', 'Data', 'cherrystudio.sqlite'))
-      } finally {
-        vi.unstubAllEnvs()
-      }
-    }
-  )
 
   it('registers the platform-native default Hermes home as external data', () => {
     const registry = buildPathRegistry()
