@@ -406,8 +406,10 @@ const TranslatePage: FC = () => {
         )
       }
 
+      if (image && !rawText.trim()) return
+
       return addHistory({
-        sourceText: rawText.trim() ? rawText : (image?.name ?? rawText),
+        sourceText: rawText,
         targetText: translated,
         sourceLanguage: actualSourceLanguage,
         targetLanguage: actualTargetLanguage
