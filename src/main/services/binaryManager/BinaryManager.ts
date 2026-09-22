@@ -852,7 +852,12 @@ export class BinaryManager extends BaseService {
     }
 
     if (isWin) {
-      return findMiseExecutable()
+      try {
+        return await findMiseExecutable()
+      } catch (err) {
+        logger.warn('mise lookup failed', { error: this.errorMessage(err) })
+        return null
+      }
     }
 
     try {

@@ -54,8 +54,9 @@ const {
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
-    PreferenceService: { get: mockPreferenceGet },
+    PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
     ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken, pairDevice: mockPairDevice }
   }
   return mockApplicationFactory(overrides)

@@ -67,7 +67,7 @@ interface Props {
   onSearchChange: (v: string) => void
   onEdit: (r: ResourceItem) => void
   onDuplicate: (r: ResourceItem) => void
-  onDelete: (r: ResourceItem, permanent?: boolean) => void
+  onDelete: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void
   onCreate: (type: ResourceType) => void
   onImportAssistant: () => void
@@ -591,7 +591,7 @@ interface VirtualizedResourceGridProps {
   resources: ResourceItem[]
   variant: 'library' | 'settings'
   allGroups: Group[]
-  onDelete: (r: ResourceItem, permanent?: boolean) => void
+  onDelete: (r: ResourceItem) => void
   onDuplicate: (r: ResourceItem) => void
   onEdit: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void

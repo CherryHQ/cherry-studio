@@ -1,7 +1,6 @@
 {
   "agent.builtin.cherry_assistant.description": "Cherry Studio 內建顧問，可診斷問題、引導操作、彙整 FAQ、提交錯誤或功能需求，以及搜尋或建立 Skill。",
   "agent.builtin.cherry_support.description": "Cherry Studio 官方支援 Agent，提供設定引導、問題診斷、FAQ 與意見回饋",
-  "agent.heartbeat.workspace_name": "心跳 — {{name}}",
   "agent.session.dsh.bun_unavailable": "DSH 無法啟動，因為內建執行環境無法使用。請重新安裝 Cherry Studio 後再試一次。",
   "agent.session.dsh.bun_unavailable_dev": "DSH 無法啟動，因為內建執行環境無法使用。請在開發儲存庫中執行 pnpm download:binaries 後再試一次。",
   "agent.session.fork.execution_not_inherited": "此分叉工作階段未繼承原本的執行狀態。",
@@ -79,6 +78,10 @@
   "common.inspect": "檢查",
   "common.paste": "貼上",
   "dialog.all_files": "所有檔案",
+  "dialog.architecture_mismatch.detail": "你的 Mac 使用 Apple 晶片，但目前安裝的是 Intel 版 Cherry Studio，正在透過 Rosetta 轉譯執行，可能導致運作緩慢。請前往官網下載並安裝 macOS Apple 晶片（ARM64）版本。",
+  "dialog.architecture_mismatch.download": "前往官網下載",
+  "dialog.architecture_mismatch.later": "稍後再說",
+  "dialog.architecture_mismatch.title": "請安裝 Apple 晶片版",
   "dialog.data_reset.cancel": "取消",
   "dialog.data_reset.confirm": "重設並重新啟動",
   "dialog.data_reset.message": "這會清除對話、助理、知識庫、檔案與設定，然後重新啟動應用程式。此操作無法復原，是否繼續？",

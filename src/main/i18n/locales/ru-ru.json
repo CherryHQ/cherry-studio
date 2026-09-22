@@ -1,7 +1,6 @@
 {
   "agent.builtin.cherry_assistant.description": "Встроенный консультант Cherry Studio: диагностирует проблемы, помогает с действиями, собирает ответы на частые вопросы, отправляет сообщения об ошибках и запросы функций, а также ищет и создаёт навыки.",
   "agent.builtin.cherry_support.description": "Официальный агент поддержки Cherry Studio для настройки, диагностики, частых вопросов и обратной связи",
-  "agent.heartbeat.workspace_name": "Пульс — {{name}}",
   "agent.session.dsh.bun_unavailable": "Не удалось запустить DSH: встроенная среда выполнения недоступна. Переустановите Cherry Studio и повторите попытку.",
   "agent.session.dsh.bun_unavailable_dev": "Не удалось запустить DSH: встроенная среда выполнения недоступна. Выполните pnpm download:binaries в рабочей копии репозитория и повторите попытку.",
   "agent.session.fork.execution_not_inherited": "Выполнение не было перенесено в эту ветку сеанса.",
@@ -79,6 +78,10 @@
   "common.inspect": "Проверить",
   "common.paste": "Вставить",
   "dialog.all_files": "Все файлы",
+  "dialog.architecture_mismatch.detail": "Ваш Mac использует чип Apple, но эта версия Cherry Studio для Intel работает через Rosetta. Это может замедлять работу приложения. Скачайте и установите версию для macOS Apple Silicon (ARM64) с нашего официального сайта.",
+  "dialog.architecture_mismatch.download": "Перейти к загрузке",
+  "dialog.architecture_mismatch.later": "Позже",
+  "dialog.architecture_mismatch.title": "Установите версию для Apple Silicon",
   "dialog.data_reset.cancel": "Отмена",
   "dialog.data_reset.confirm": "Сбросить и перезапустить",
   "dialog.data_reset.message": "Будут удалены чаты, ассистенты, базы знаний, файлы и настройки, после чего приложение перезапустится. Это действие нельзя отменить. Продолжить?",
