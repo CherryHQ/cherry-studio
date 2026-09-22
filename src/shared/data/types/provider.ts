@@ -165,6 +165,26 @@ export const ANTHROPIC_CACHE_TTL_OPTIONS = ['5m', '1h'] as const
 const AnthropicCacheTtlSchema = z.enum(ANTHROPIC_CACHE_TTL_OPTIONS)
 export type AnthropicCacheTtl = z.infer<typeof AnthropicCacheTtlSchema>
 
+export const ProxyModeSchema = z.enum(['system', 'direct', 'custom'])
+export type ProxyMode = z.infer<typeof ProxyModeSchema>
+
+export const ProviderProxyConfigSchema = z
+  .discriminatedUnion('mode', [
+    z.object({
+      mode: z.literal('system')
+    }),
+    z.object({
+      mode: z.literal('direct')
+    }),
+    z.object({
+      mode: z.literal('custom'),
+      url: z.string().min(1)
+    })
+  ])
+  .optional()
+
+export type ProviderProxyConfig = z.infer<typeof ProviderProxyConfigSchema>
+
 export const ProviderSettingsSchema = z.object({
   streamOptions: z
     .object({
@@ -193,6 +213,9 @@ export const ProviderSettingsSchema = z.object({
   rateLimit: z.number().optional(),
   timeout: z.number().optional(),
   extraHeaders: z.record(z.string(), z.string()).optional(),
+
+  // Proxy configuration for this provider
+  proxy: ProviderProxyConfigSchema,
 
   // User notes
   notes: z.string().optional(),
