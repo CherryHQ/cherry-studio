@@ -37,7 +37,7 @@ class SelectiveDispatcher extends Dispatcher {
     try {
       await this.proxyDispatcher.close()
     } catch (error) {
-      this.logger?.error?.('Failed to close dispatcher:', error as Error)
+      this.logger?.error?.('Failed to close dispatcher:', error)
       void this.proxyDispatcher.destroy()
     }
   }
@@ -46,7 +46,7 @@ class SelectiveDispatcher extends Dispatcher {
     try {
       await this.proxyDispatcher.destroy()
     } catch (error) {
-      this.logger?.error?.('Failed to destroy dispatcher:', error as Error)
+      this.logger?.error?.('Failed to destroy dispatcher:', error)
     }
   }
 }
@@ -119,7 +119,7 @@ export class NodeProxyBackend {
       try {
         agent.destroy()
       } catch (error) {
-        this.logger?.error?.('Failed to destroy proxy agent:', error as Error)
+        this.logger?.error?.('Failed to destroy proxy agent:', error)
       }
     }
   }
@@ -149,7 +149,12 @@ export class NodeProxyBackend {
         return originalMethod(url, options, callback)
       }
       if (options.agent instanceof https.Agent) {
-        ;(agent as https.Agent).options.rejectUnauthorized = options.agent.options.rejectUnauthorized
+        // Per-request TLS option — mutating the shared proxy agent would leak
+        // the caller's rejectUnauthorized to later unrelated requests.
+        const tlsStance = options.agent.options.rejectUnauthorized
+        if (typeof tlsStance === 'boolean') {
+          ;(options as https.RequestOptions).rejectUnauthorized = tlsStance
+        }
       }
       options.agent = agent
       return url ? originalMethod(url, options, callback) : originalMethod(options, callback)

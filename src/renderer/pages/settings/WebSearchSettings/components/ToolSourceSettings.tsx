@@ -1,15 +1,10 @@
-import { Switch } from '@cherrystudio/ui'
-import {
-  SettingDivider,
-  SettingGroup,
-  SettingHelpText,
-  SettingRow,
-  SettingTitle
-} from '@renderer/components/SettingsPrimitives'
-import { useTheme } from '@renderer/hooks/useTheme'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { InfoTooltip, Switch } from '@cherrystudio/ui'
+import { SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 
@@ -21,25 +16,28 @@ import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 export const ToolSourceSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { clientToolsPreferred, setClientToolsPreferred } = useWebSearchSettings()
+  const { modelToolsPreferred, setModelToolsPreferred } = useWebSearchSettings()
   const persist = useWebSearchPersist()
 
   return (
     <SettingGroup theme={theme} variant="card">
-      <SettingTitle>{t('settings.tool.websearch.client_tools_preferred.label')}</SettingTitle>
-      <SettingDivider />
-      <SettingRow className="min-h-8 items-center justify-between gap-3">
-        <SettingHelpText className="min-w-0 flex-1">
-          {t('settings.tool.websearch.client_tools_preferred.description')}
-        </SettingHelpText>
+      <SettingTitle className="gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {t('settings.tool.websearch.model_tools_preferred.label')}
+          <InfoTooltip
+            content={t('settings.tool.websearch.model_tools_preferred.description')}
+            placement="right"
+            iconProps={{ className: 'shrink-0 cursor-pointer' }}
+          />
+        </div>
         <Switch
-          aria-label={t('settings.tool.websearch.client_tools_preferred.label')}
-          checked={clientToolsPreferred}
+          aria-label={t('settings.tool.websearch.model_tools_preferred.label')}
+          checked={modelToolsPreferred}
           onCheckedChange={(checked) =>
-            void persist(() => setClientToolsPreferred(checked), 'Failed to save the client web-tool preference')
+            void persist(() => setModelToolsPreferred(checked), 'Failed to save the model web-tool preference')
           }
         />
-      </SettingRow>
+      </SettingTitle>
     </SettingGroup>
   )
 }

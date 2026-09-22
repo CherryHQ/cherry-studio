@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('child_process', () => ({ spawn: vi.fn() }))

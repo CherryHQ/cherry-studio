@@ -1,4 +1,8 @@
-import { Button, Markdown } from '@cherrystudio/ui'
+import { FileText, Languages, Loader2 } from 'lucide-react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Markdown, Scrollbar } from '@cherrystudio/ui'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useTranslate } from '@renderer/hooks/translate'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -6,9 +10,6 @@ import { toast } from '@renderer/services/toast'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { SkillFileNode } from '@shared/types/skill'
-import { FileText, Languages, Loader2 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const CodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
 
@@ -238,7 +239,7 @@ export function SkillFileBrowser({ skillId }: Props) {
             ) : null}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <Scrollbar className="min-h-0 flex-1 overflow-x-auto">
             {loadingContent ? (
               <PreviewLoading />
             ) : selectedFile && previewContent !== null ? (
@@ -268,7 +269,7 @@ export function SkillFileBrowser({ skillId }: Props) {
                 <span className="text-xs">{t('library.skill_detail.select_file')}</span>
               </div>
             )}
-          </div>
+          </Scrollbar>
         </div>
       </div>
     </section>

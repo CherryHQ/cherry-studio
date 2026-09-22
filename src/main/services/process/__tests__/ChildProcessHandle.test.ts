@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('child_process', () => ({ spawn: vi.fn() }))
@@ -28,9 +29,10 @@ vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: vi.fn().mockResolvedValue({ PATH: '/usr/bin' })
 }))
 
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+
 import { crossPlatformSpawn, terminateProcessTree } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 
 import { ChildProcessHandle } from '../ChildProcessHandle'
 
@@ -254,6 +256,21 @@ describe('ChildProcessHandle', () => {
 
       expect(onExited).toHaveBeenCalledOnce()
       expect(onExited).toHaveBeenCalledWith(null, null)
+    })
+
+    it('delegates sensitive process errors to the consumer without logging them centrally', async () => {
+      const mockCp = createMockChildProcess()
+      mockSpawn.mockReturnValue(mockCp)
+      const secret = 'https://127.0.0.1/?token=secret'
+      const handle = new ChildProcessHandle({ id: 'sensitive-error-proc', command: 'node' })
+      const onError = vi.fn()
+      handle.onError = onError
+
+      await handle.start()
+      mockCp.emit('error', new Error(secret))
+
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: secret }))
+      expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toContain(secret)
     })
 
     it('isolates errors thrown by onExited', async () => {

@@ -1,7 +1,8 @@
-import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { createLucideIcon } from 'lucide-react'
 import { motion } from 'motion/react'
 import { type SVGProps, useId } from 'react'
+
+import { lightbulbVariants } from '@renderer/utils/motionVariants'
 
 export const StreamlineGoodHealthAndWellBeing = (
   props: SVGProps<SVGSVGElement> & {

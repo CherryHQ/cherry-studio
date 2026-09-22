@@ -14,7 +14,7 @@ import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/m
 import { t } from '@main/i18n'
 import { ProcessState } from '@main/services/process'
 import { atomicWriteFile, remove } from '@main/utils/file'
-import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { crossPlatformSpawn, removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
 import {
@@ -318,6 +318,13 @@ export interface OpenClawModelConfig {
     output: number
     cacheRead?: number
     cacheWrite?: number
+    tieredPricing?: Array<{
+      input: number
+      output: number
+      cacheRead: number
+      cacheWrite: number
+      range: [number, number] | [number]
+    }>
   }
   [key: string]: unknown
 }
@@ -386,7 +393,7 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
 
 @Injectable('OpenClawService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'ProcessManager'])
+@DependsOn(['ProcessManager'])
 export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
@@ -400,7 +407,7 @@ export class OpenClawService extends BaseService {
   }
 
   protected async onInit(): Promise<void> {
-    // IPC handlers migrated to IpcApi (openclaw.*)
+    application.get('CacheService').setShared('feature.openclaw.gateway_status', this.gatewayStatus)
   }
 
   protected async onReady(): Promise<void> {
@@ -431,20 +438,14 @@ export class OpenClawService extends BaseService {
     await this.stopGateway()
   }
 
-  /** Single gateway-status-transition point: assign, then broadcast; same-value calls are not transitions. */
+  /** Single gateway-status-transition point for the main-owned shared snapshot. */
   private setGatewayStatus(status: GatewayStatus, options?: { force?: boolean }): void {
     if (!options?.force && this.gatewayStatus === status) return
     this.gatewayStatus = status
     this.gatewayTransitionId++
     // Becoming idle is the moment a port preference change deferred during a run takes effect.
     if (status === 'stopped' || status === 'error') this.syncGatewayPortFromPreference()
-    try {
-      application.get('IpcApiService').broadcast('openclaw.status_changed', { status: this.gatewayStatus })
-    } catch (err) {
-      // A lost broadcast is corrected by the next transition or a request-completion
-      // rebroadcast; it must never abort the transition itself.
-      logger.warn('Failed to broadcast OpenClaw gateway status change', err as Error)
-    }
+    application.get('CacheService').setShared('feature.openclaw.gateway_status', this.gatewayStatus)
   }
 
   /**
@@ -741,7 +742,7 @@ export class OpenClawService extends BaseService {
     if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
       this.throwSchemaCapabilityError('config schema did not return a top-level object')
     }
-    return schema as OpenClawConfigSchemaNode
+    return schema
   }
 
   private throwSchemaCapabilityError(diagnostic: string): never {
@@ -833,6 +834,11 @@ export class OpenClawService extends BaseService {
 
     if (pm.get(OPENCLAW_GATEWAY_PROCESS_ID)) await this.stopManagedGateway()
 
+    // Copy before stripping: removeEnvProxy mutates in place, and shellEnv is reused
+    // for other OpenClaw commands. OpenClaw's undici EnvHttpProxyAgent rejects socks5://.
+    const env = { ...shellEnv }
+    removeEnvProxy(env)
+
     const handle = pm.register({
       id: OPENCLAW_GATEWAY_PROCESS_ID,
       command: openclawPath,
@@ -841,7 +847,7 @@ export class OpenClawService extends BaseService {
       // version BinaryManager installed and reports. This is OpenClaw's documented kill
       // switch, scoped to the gateway process we spawn.
       env: {
-        ...shellEnv,
+        ...env,
         OPENCLAW_CONFIG_PATH: openclawConfigPath(),
         OPENCLAW_NO_AUTO_UPDATE: '1'
       },
@@ -1160,12 +1166,10 @@ export class OpenClawService extends BaseService {
     }
 
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
-    const [provider, primaryModel, models, apiKeys] = await Promise.all([
-      providerService.getByProviderId(providerId),
-      modelService.getByKey(providerId, modelId),
-      modelService.list({ providerId, enabled: true }),
-      providerService.getApiKeys(providerId, { enabled: true })
-    ])
+    const provider = providerService.getByProviderId(providerId)
+    const primaryModel = modelService.getByKey(providerId, modelId)
+    const models = modelService.list({ providerId, enabled: true })
+    const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
 
     this.ensureSyncProviderSupported(provider)
     if (isNonChatModel(primaryModel)) {
@@ -1211,11 +1215,13 @@ export class OpenClawService extends BaseService {
     }
 
     const noKeyPlaceholder = this.getNoKeyPlaceholder(provider)
-    if (provider.authType === 'api-key' && !noKeyPlaceholder) {
+    if (provider.authType === 'api-key' && !noKeyPlaceholder && provider.authOptional !== true) {
       throw new Error(`Provider ${provider.id} has no enabled API key configured`)
     }
 
-    return noKeyPlaceholder ?? ''
+    // Keyless providers honour authOptional even without a per-provider
+    // placeholder; OpenClaw itself still needs a non-empty value.
+    return noKeyPlaceholder ?? (provider.authOptional === true ? 'no-key-required' : '')
   }
 
   private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType {
@@ -1285,6 +1291,39 @@ export class OpenClawService extends BaseService {
     }
     if (pricing.cacheWrite?.perMillionTokens != null && isUsd(pricing.cacheWrite.currency)) {
       cost.cacheWrite = pricing.cacheWrite.perMillionTokens
+    }
+    if (pricing.inputTokenTiers?.length) {
+      const baseRates = {
+        input: cost.input,
+        output: cost.output,
+        cacheRead: cost.cacheRead ?? cost.input,
+        cacheWrite: cost.cacheWrite ?? cost.input
+      }
+      const tieredPricing: NonNullable<NonNullable<OpenClawModelConfig['cost']>['tieredPricing']> = [
+        { ...baseRates, range: [0, pricing.inputTokenTiers[0].minInputTokens] }
+      ]
+
+      for (const [index, tier] of pricing.inputTokenTiers.entries()) {
+        if (
+          tier.input.perMillionTokens === null ||
+          tier.output.perMillionTokens === null ||
+          !isUsd(tier.input.currency) ||
+          !isUsd(tier.output.currency) ||
+          (tier.cacheRead && !isUsd(tier.cacheRead.currency)) ||
+          (tier.cacheWrite && !isUsd(tier.cacheWrite.currency))
+        ) {
+          return cost
+        }
+        const nextTier = pricing.inputTokenTiers[index + 1]
+        tieredPricing.push({
+          input: tier.input.perMillionTokens,
+          output: tier.output.perMillionTokens,
+          cacheRead: tier.cacheRead?.perMillionTokens ?? tier.input.perMillionTokens,
+          cacheWrite: tier.cacheWrite?.perMillionTokens ?? tier.input.perMillionTokens,
+          range: nextTier ? [tier.minInputTokens, nextTier.minInputTokens] : [tier.minInputTokens]
+        })
+      }
+      cost.tieredPricing = tieredPricing
     }
     return cost
   }
@@ -1388,6 +1427,7 @@ export class OpenClawService extends BaseService {
       )
       const supportsProviderField = (field: string) => schemaSupportsPath(configSchema, [...providerSchemaPath, field])
       const supportsModelField = (field: string) => schemaSupportsPath(configSchema, [...modelSchemaPath, field])
+      const supportsTieredPricing = schemaSupportsPath(configSchema, [...modelSchemaPath, 'cost', 'tieredPricing'])
 
       const openclawProvider: OpenClawProviderConfig = {
         ...existingProviderOverrides,
@@ -1397,6 +1437,11 @@ export class OpenClawService extends BaseService {
         models: provider.models.map((m) => {
           const synced = m as OpenClawSyncModel
           const existing = existingModelMap.get(m.id)
+          let cost = synced.cost
+          if (cost && !supportsTieredPricing) {
+            cost = { ...cost }
+            delete cost.tieredPricing
+          }
           return {
             ...(supportsModelField('maxTokens') && synced.maxTokens !== undefined
               ? { maxTokens: synced.maxTokens }
@@ -1405,7 +1450,7 @@ export class OpenClawService extends BaseService {
               ? { reasoning: synced.reasoning }
               : {}),
             ...(supportsModelField('input') && synced.input ? { input: synced.input } : {}),
-            ...(supportsModelField('cost') && synced.cost ? { cost: synced.cost } : {}),
+            ...(supportsModelField('cost') && cost ? { cost } : {}),
             ...(supportsModelField('contextWindow') ? { contextWindow: synced.contextWindow ?? 128000 } : {}),
             ...pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing),
             id: m.id,

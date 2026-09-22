@@ -1,8 +1,9 @@
-import { useQuery } from '@data/hooks/useDataApi'
-import { toast } from '@renderer/services/toast'
 import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useQuery } from '@data/hooks/useDataApi'
+import { toast } from '@renderer/services/toast'
 
 import { useAgent, useAgents, useUpdateAgent } from '../useAgent'
 
@@ -262,7 +263,13 @@ describe('useAgents', () => {
         agentId: 'agent-1',
         deleteSessions: false
       })
-      expect(invalidateSpy).toHaveBeenCalledWith('/agents')
+      expect(invalidateSpy).toHaveBeenCalledWith([
+        '/agents',
+        '/agents/agent-1',
+        '/agent-sessions',
+        '/agent-channels',
+        '/pins'
+      ])
       expect(toast.success).toHaveBeenCalledWith('common.delete_success')
     })
 

@@ -1,15 +1,17 @@
+import { sortBy } from 'es-toolkit/compat'
+import { useCallback, useMemo } from 'react'
+
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
-import { modelFilterIncludesAgentOnlyProviders } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
+import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isExternalCliProvider } from '@shared/utils/provider'
-import { sortBy } from 'es-toolkit/compat'
-import { useCallback, useMemo } from 'react'
+import { isAgentOnlyProvider } from '@shared/utils/provider'
 
 import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
 import type {
@@ -21,6 +23,16 @@ import type {
 import { getProviderDisplayName } from './utils'
 
 const EMPTY_TAGS: ModelSelectorTag[] = []
+const CHERRYAI_DISPLAY_GROUP = {
+  id: CHERRYAI_PROVIDER_ID,
+  providerIds: [CHERRYAI_PROVIDER_ID, CHERRY_CLOUD_PROVIDER_ID]
+} as const
+
+interface ModelSelectorDisplayGroup {
+  id: string
+  provider: Provider
+  models: Array<{ model: Model; provider: Provider }>
+}
 
 function getModelSearchScore(keywords: string, model: Model, provider: Provider, providerDisplayName: string) {
   return getSearchMatchScore(keywords, [
@@ -53,13 +65,13 @@ function getModelIdentifier(model: Model) {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }
 
-function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: readonly string[]) {
-  if (prioritizedProviderIds.length === 0) {
-    return providers
-  }
+function getDisplayGroupId(providerId: string) {
+  return CHERRYAI_DISPLAY_GROUP.providerIds.some((id) => id === providerId) ? CHERRYAI_DISPLAY_GROUP.id : providerId
+}
 
+function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: readonly string[]) {
   const providerById = new Map(providers.map((provider) => [provider.id, provider]))
-  const prioritized = prioritizedProviderIds
+  const prioritized = [...new Set([...CHERRYAI_DISPLAY_GROUP.providerIds, ...prioritizedProviderIds])]
     .map((providerId) => providerById.get(providerId))
     .filter((provider): provider is Provider => Boolean(provider))
   const prioritizedIds = new Set(prioritized.map((provider) => provider.id))
@@ -70,6 +82,7 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
 
 export function useModelSelectorData({
   enabled = true,
+  includeAgentOnlyModels = false,
   selectedModelIds = [],
   maxSelectedCount,
   searchText,
@@ -97,30 +110,23 @@ export function useModelSelectorData({
     togglePin
   } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
-
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
-  const availableProviders = providers
-  const availableModels = models
 
   const baseModelFilter = useCallback(
     (model: Model, provider?: Provider) => filter?.(model, provider) ?? true,
     [filter]
   )
 
-  // Agent-only providers (e.g. `claude-code`, login-based, no API key) are hidden
-  // from general selectors; only agent pickers (whose filter is marked) surface them.
-  const includeAgentOnlyProviders = useMemo(() => modelFilterIncludesAgentOnlyProviders(filter), [filter])
-
-  // A provider whose credentials come from an external CLI login carries no API
-  // key and cannot serve a normal chat request — it is agent-only.
-  const agentOnlyProviderIds = useMemo(
-    () => new Set(availableProviders.filter(isExternalCliProvider).map((p) => p.id)),
-    [availableProviders]
-  )
+  const agentOnlyProviderIds = useMemo(() => {
+    const edition = getAppEdition()
+    return new Set(
+      providers.filter((provider) => isAgentOnlyProvider(provider, edition)).map((provider) => provider.id)
+    )
+  }, [providers])
 
   const sortedProviders = useMemo(
-    () => sortProvidersByPriority(availableProviders, prioritizedProviderIds),
-    [availableProviders, prioritizedProviderIds]
+    () => sortProvidersByPriority(providers, prioritizedProviderIds),
+    [prioritizedProviderIds, providers]
   )
 
   // 交叉过滤：Provider.isEnabled 与 Model.isEnabled 互不联动，禁用 provider 下可能仍有启用 model。
@@ -129,13 +135,13 @@ export function useModelSelectorData({
     const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
     const grouped = new Map<string, Model[]>()
 
-    for (const model of availableModels) {
+    for (const model of models) {
       const provider = providerById.get(model.providerId)
       if (!provider || !baseModelFilter(model, provider)) {
         continue
       }
 
-      if (!includeAgentOnlyProviders && agentOnlyProviderIds.has(model.providerId)) {
+      if (!includeAgentOnlyModels && agentOnlyProviderIds.has(model.providerId)) {
         continue
       }
 
@@ -148,7 +154,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [availableModels, agentOnlyProviderIds, baseModelFilter, includeAgentOnlyProviders, sortedProviders])
+  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyModels, models, sortedProviders])
 
   const availableTags = useMemo(() => {
     if (modelsByProvider.size === 0) {
@@ -248,15 +254,33 @@ export function useModelSelectorData({
       return (!showTagFilter || tagFilter(model, provider)) && baseModelFilter(model, provider)
     }
     // `searchFilter(provider)` runs fuzzy scoring + sort per provider; cache the tag-filtered
-    // result so provider-local duplicate-name detection and the list below share one pass.
+    // result so display-group duplicate-name detection and the list below share one pass.
     const tagFilteredModelsByProvider = new Map<string, Model[]>(
       sortedProviders.map((provider) => [
         provider.id,
         searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model, provider)))
       ])
     )
-    const duplicateModelNamesByProvider = new Map(
-      [...tagFilteredModelsByProvider].map(([providerId, models]) => [providerId, getDuplicateModelNames(models)])
+    const displayGroupsById = new Map<string, ModelSelectorDisplayGroup>()
+    for (const provider of sortedProviders) {
+      const providerModels = tagFilteredModelsByProvider.get(provider.id) ?? []
+      if (providerModels.length === 0) {
+        continue
+      }
+
+      const groupId = getDisplayGroupId(provider.id)
+      const group = displayGroupsById.get(groupId)
+      const modelsWithProvider = providerModels.map((model) => ({ model, provider }))
+
+      if (group) {
+        group.models.push(...modelsWithProvider)
+      } else {
+        displayGroupsById.set(groupId, { id: groupId, provider, models: modelsWithProvider })
+      }
+    }
+    const displayGroups = [...displayGroupsById.values()]
+    const duplicateModelNamesByDisplayGroup = new Map(
+      displayGroups.map((group) => [group.id, getDuplicateModelNames(group.models.map(({ model }) => model))])
     )
 
     if (searchText.length === 0 && showPinnedModels && pinnedIdSet.size > 0) {
@@ -273,7 +297,7 @@ export function useModelSelectorData({
             provider,
             'pinned',
             true,
-            duplicateModelNamesByProvider.get(provider.id)?.has(model.name) ?? false
+            duplicateModelNamesByDisplayGroup.get(getDisplayGroupId(provider.id))?.has(model.name) ?? false
           )
         ]
       })
@@ -289,9 +313,9 @@ export function useModelSelectorData({
       }
     }
 
-    sortedProviders.forEach((provider) => {
-      const filteredModels = (tagFilteredModelsByProvider.get(provider.id) ?? []).filter(
-        (model) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id)
+    displayGroups.forEach((group) => {
+      const filteredModels = group.models.filter(
+        ({ model }) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id)
       )
 
       if (filteredModels.length === 0) {
@@ -299,22 +323,22 @@ export function useModelSelectorData({
       }
 
       items.push({
-        key: `provider-${provider.id}`,
+        key: `provider-${group.id}`,
         type: 'group',
-        title: getProviderDisplayName(provider),
+        title: getProviderDisplayName(group.provider),
         groupKind: 'provider',
-        provider,
-        canNavigateToSettings: isProviderSettingsListVisibleProvider(provider)
+        provider: group.provider,
+        canNavigateToSettings: isProviderSettingsListVisibleProvider(group.provider)
       })
 
       items.push(
-        ...filteredModels.map((model) =>
+        ...filteredModels.map(({ model, provider }) =>
           createModelItem(
             model,
             provider,
             'provider',
             showPinnedModels && pinnedIdSet.has(model.id),
-            duplicateModelNamesByProvider.get(provider.id)?.has(model.name) ?? false
+            duplicateModelNamesByDisplayGroup.get(group.id)?.has(model.name) ?? false
           )
         )
       )

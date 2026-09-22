@@ -1,3 +1,6 @@
+import { useId } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   FieldLegend,
   FieldSet,
@@ -12,8 +15,6 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { useId } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ModelChatEndpointType, ModelPurpose } from './modelPurpose'
 
@@ -65,7 +66,7 @@ export function ModelPurposeFields({
       <FieldLegend variant="label" className="mb-0 text-[13px] text-foreground">
         {t('settings.models.add.purpose.label')}
       </FieldLegend>
-      <p id={descriptionId} className="text-muted-foreground text-xs">
+      <p id={descriptionId} className="text-xs text-muted-foreground">
         {t('settings.models.add.purpose.description')}
       </p>
       <RadioGroup
@@ -87,7 +88,7 @@ export function ModelPurposeFields({
               <RadioGroupItem id={optionId} value={option} className="mt-0.5" />
               <span>
                 <span className="block text-[13px] text-foreground">{t(label.label)}</span>
-                <span className="mt-0.5 block font-normal text-foreground-tertiary text-xs">
+                <span className="mt-0.5 block text-xs font-normal text-foreground-tertiary">
                   {t(label.description)}
                 </span>
               </span>

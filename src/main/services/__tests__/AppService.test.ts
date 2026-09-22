@@ -1,6 +1,8 @@
-import { BaseService } from '@main/core/lifecycle'
 import path from 'path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
 
 const { setLoginItemSettingsMock, platform, ensureDirMock, atomicWriteFileMock, removeMock, loggerErrorMock } =
   vi.hoisted(() => ({

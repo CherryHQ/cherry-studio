@@ -1,15 +1,24 @@
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 
+import { application } from '@application'
+
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import type { ClaudeCodeSettings } from './types'
+
+/** An explicit child environment is authoritative, even when it omits the config override. */
+export function resolveClaudeConfigDirectory(env?: Options['env']): string {
+  return (
+    (env === undefined ? process.env.CLAUDE_CONFIG_DIR : env.CLAUDE_CONFIG_DIR) ??
+    application.getPath('external.claude.config')
+  )
+}
 
 export interface ClaudeCodeQueryOptionsInput {
   modelId: string
   settings: ClaudeCodeSettings
   abortController?: AbortController
   responseFormat?: Parameters<LanguageModelV3['doStream']>[0]['responseFormat']
-  stderrCollector?: (data: string) => void
   effectiveResume?: string
 }
 
@@ -18,7 +27,6 @@ export function createClaudeCodeQueryOptions({
   settings,
   abortController,
   responseFormat,
-  stderrCollector,
   effectiveResume
 }: ClaudeCodeQueryOptionsInput): Options {
   const {
@@ -45,14 +53,6 @@ export function createClaudeCodeQueryOptions({
     resume: effectiveResume ?? settings.resume
   }
 
-  const userStderrCallback = settings.stderr
-  if (stderrCollector || userStderrCallback) {
-    opts.stderr = (data: string) => {
-      if (stderrCollector) stderrCollector(data)
-      if (userStderrCallback) userStderrCallback(data)
-    }
-  }
-
   if (responseFormat?.type === 'json' && responseFormat.schema) {
     opts.outputFormat = {
       type: 'json_schema',
@@ -60,5 +60,5 @@ export function createClaudeCodeQueryOptions({
     }
   }
 
-  return opts as Options
+  return opts
 }

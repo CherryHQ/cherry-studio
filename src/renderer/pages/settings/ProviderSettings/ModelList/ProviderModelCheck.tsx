@@ -1,6 +1,7 @@
-import { Button } from '@cherrystudio/ui'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 
 import ModelCheckDialog from './ModelCheckDialog'
 import { useModelListHealthRun } from './modelListHealthContext'

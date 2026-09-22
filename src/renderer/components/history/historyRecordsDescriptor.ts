@@ -1,5 +1,6 @@
-import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ReactElement, ReactNode } from 'react'
+
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 
 import type {
   HistoryBulkMoveTarget,
@@ -16,6 +17,11 @@ export type HistoryOpenRename = (id: string, name: string) => void
 export interface HistoryRowActions {
   actions: readonly ResolvedAction[]
   onAction: (action: ResolvedAction) => void | Promise<void>
+}
+
+export interface HistoryBulkDeleteResult {
+  succeeded: string[]
+  failed: Array<{ id: string; error: string }>
 }
 
 /** i18n strings that differ between assistant (topic) and agent (session) modes. */
@@ -50,8 +56,8 @@ export interface HistoryRecordDescriptor<T> {
   /** Agent mode only: derive the stream status used by the status filter. */
   statusOf?: (item: T) => HistorySourceStatus
   matchesSearch: (item: T, keywords: string) => boolean
-  /** Runs the mode's bulk-delete mutation; resolves to the deleted ids, or undefined on failure/no-op. */
-  onBulkDelete: (ids: string[]) => Promise<readonly string[] | undefined>
+  /** Runs the mode's bulk-delete mutations and reports each item's outcome. */
+  onBulkDelete: (ids: string[]) => Promise<HistoryBulkDeleteResult>
   /** Switch the active record after the current one was deleted (null clears it). */
   onActiveRecordChange: (item: T | null) => void
 

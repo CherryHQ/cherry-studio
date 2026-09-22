@@ -6,10 +6,11 @@
  * document title and the matched snippet.
  */
 
-import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
-import type { Citation } from '@renderer/types/message'
 import { FileSearch } from 'lucide-react'
 import React from 'react'
+
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
+import type { Citation } from '@renderer/types/message'
 
 import { useOptionalMessageListActions } from '../messages/MessageListProvider'
 import { type CitationPanelActions, CopyButton, handleLinkClick } from './common'
@@ -23,33 +24,34 @@ export const KnowledgeCitationCard: React.FC<{ citation: Citation; actions?: Cit
 }) => {
   const providerActions = useOptionalMessageListActions()
   const linkActions = {
-    openPath: actions?.openPath ?? providerActions?.openPath,
-    openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
+    openBrowserUrl: actions?.openBrowserUrl ?? providerActions?.openBrowserUrl,
+    openPath: actions?.openPath ?? providerActions?.openPath
   }
 
   return (
-    <SelectionContextMenu>
+    <SelectionContextMenu openBrowserUrl={actions?.openBrowserUrl ?? providerActions?.openBrowserUrl}>
       <div className="group relative flex w-full flex-col py-3 transition-all duration-300">
         <div className="relative mb-1.5 flex w-full flex-row items-center gap-2">
           {citation.showFavicon && <FileSearch width={16} />}
           {citation.url ? (
             <a
-              className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
+              className="flex-1 text-sm leading-[1.6] text-nowrap text-foreground no-underline"
               href={citation.url}
+              onAuxClick={(e) => handleLinkClick(citation.url, e, linkActions)}
               onClick={(e) => handleLinkClick(citation.url, e, linkActions)}>
               {documentTitle(citation.title)}
             </a>
           ) : (
-            <span className="flex-1 text-nowrap text-foreground text-sm leading-[1.6]">
+            <span className="flex-1 text-sm leading-[1.6] text-nowrap text-foreground">
               {documentTitle(citation.title)}
             </span>
           )}
-          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
+          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] leading-[1.6] text-primary opacity-100 transition-opacity duration-300 group-hover:opacity-0">
             {citation.number}
           </div>
           {citation.content && <CopyButton content={citation.content} actions={actions} />}
         </div>
-        <div className="selectable-text cursor-text select-text break-all text-[13px] text-muted-foreground leading-[1.6]">
+        <div className="selectable-text text-muted-foreground cursor-text text-[13px] leading-[1.6] break-all select-text">
           {citation.content ?? ''}
         </div>
       </div>
@@ -70,9 +72,9 @@ export const KnowledgeCitationHoverContent: React.FC<{ citation: KnowledgeCitati
     <div style={{ userSelect: 'text' }}>
       {title && (
         <div className="mb-2 flex items-center gap-2">
-          <FileSearch size={16} className="shrink-0 text-muted-foreground" />
+          <FileSearch size={16} className="text-muted-foreground shrink-0" />
           <div
-            className="overflow-hidden text-ellipsis whitespace-nowrap text-foreground text-sm leading-[1.4]"
+            className="overflow-hidden text-sm leading-[1.4] text-ellipsis whitespace-nowrap text-foreground"
             role="heading"
             aria-level={3}
             title={title}>
@@ -82,7 +84,7 @@ export const KnowledgeCitationHoverContent: React.FC<{ citation: KnowledgeCitati
       )}
       {citation.content?.trim() && (
         <div
-          className="overflow-hidden text-[13px] text-muted-foreground leading-normal"
+          className="text-muted-foreground overflow-hidden text-[13px] leading-normal"
           role="article"
           style={{
             display: '-webkit-box',

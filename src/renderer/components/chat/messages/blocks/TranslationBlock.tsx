@@ -1,5 +1,6 @@
-import type { MarkdownSource } from '@cherrystudio/ui'
 import React, { useMemo } from 'react'
+
+import type { MarkdownSource } from '@cherrystudio/ui'
 
 import MessageTranslate from './MessageTranslate'
 
@@ -10,9 +11,11 @@ interface Props {
   content: string
   /** Whether this block is currently streaming */
   isStreaming: boolean
+  /** Remove this translation */
+  onDelete?: () => void
 }
 
-const TranslationBlock: React.FC<Props> = ({ id, content, isStreaming }) => {
+const TranslationBlock: React.FC<Props> = ({ id, content, isStreaming, onDelete }) => {
   const markdownSource = useMemo<MarkdownSource>(
     () => ({
       id,
@@ -22,7 +25,7 @@ const TranslationBlock: React.FC<Props> = ({ id, content, isStreaming }) => {
     [id, content, isStreaming]
   )
 
-  return <MessageTranslate block={markdownSource} />
+  return <MessageTranslate block={markdownSource} onDelete={onDelete} />
 }
 
 export default React.memo(TranslationBlock)

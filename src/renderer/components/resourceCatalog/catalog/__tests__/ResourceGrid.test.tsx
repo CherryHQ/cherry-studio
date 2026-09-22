@@ -1,12 +1,13 @@
-import type * as CherryUiModule from '@cherrystudio/ui'
-import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
-import { toast } from '@renderer/services/toast'
-import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryUiModule from '@cherrystudio/ui'
+import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
+import { toast } from '@renderer/services/toast'
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
 
 import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
@@ -530,6 +531,35 @@ describe('ResourceGrid empty state copy', () => {
     }
   })
 
+  it('keeps the layout control aligned with the visible columns after resizing', async () => {
+    const user = userEvent.setup()
+    let width = 900
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => width)
+    vi.stubGlobal('ResizeObserver', undefined)
+    try {
+      renderResourceGrid({ activeResourceType: 'skill', isLoading: true, variant: 'settings', allowColumnToggle: true })
+      const grid = screen.getByTestId('resource-grid-loading')
+      const toggle = screen.getByRole('button', { name: 'common.layout.two_columns' })
+      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
+      await user.click(toggle)
+      expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' })
+      expect(toggle).toHaveAccessibleName('common.layout.single_column')
+      width = 500
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
+      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
+      expect(toggle).toBeDisabled()
+      width = 900
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }))
+      expect(toggle).toBeEnabled()
+      expect(toggle).toHaveAccessibleName('common.layout.single_column')
+    } finally {
+      clientWidthSpy.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('uses the generic resource empty copy when there is no search', () => {
     renderResourceGrid()
 
@@ -790,6 +820,12 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('does not expose a sidebar shortcut action on Skill settings cards', () => {
+    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
+
+    expect(screen.queryByRole('button', { name: 'launchpad.pin_to_sidebar' })).not.toBeInTheDocument()
+  })
+
   it('toggles a Skill globally from its settings card without opening the card', async () => {
     const user = userEvent.setup()
     const onEdit = vi.fn()
@@ -821,16 +857,26 @@ describe('ResourceGrid card actions', () => {
     expect(screen.queryByText('1.2.3')).not.toBeInTheDocument()
   })
 
-  it('shows the overflow menu only for assistant cards', () => {
-    render(<ResourceCard resource={createAssistantResource()} {...getResourceCardProps()} />)
+  it.each([createAssistantResource, createAgentResource])(
+    'offers only archiving for owner cards',
+    async (createResource) => {
+      const user = userEvent.setup()
+      const resource = createResource()
+      const onDelete = vi.fn()
+      render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
 
-    expect(screen.getByRole('button', { name: /common.more/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
-  })
+      await user.click(screen.getByRole('button', { name: /common.more/ }))
+      expect(screen.getByRole('menuitem', { name: 'common.archive' })).toBeInTheDocument()
+      expect(screen.queryByRole('menuitem', { name: 'common.delete_permanently' })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('menuitem', { name: 'common.archive' }))
+      await waitFor(() => expect(onDelete).toHaveBeenCalledExactlyOnceWith(resource))
+      expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+    }
+  )
 
   it('shows a direct delete action when delete is the only card action', async () => {
     const user = userEvent.setup()
-    const resource = createAgentResource()
+    const resource = createPromptResource()
     const onDelete = vi.fn()
 
     render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
@@ -1077,15 +1123,17 @@ describe('ResourceCardMenu group binding', () => {
     expect(screen.queryByTestId('menu-divider')).not.toBeInTheDocument()
   })
 
-  it('keeps the divider when assistant resources have actions before delete', async () => {
+  it('offers archive without permanent deletion for assistant resources', async () => {
     const user = userEvent.setup()
+    const resource = createAssistantResource()
+    const onDelete = vi.fn()
 
     render(
       <ResourceCardMenu
-        resource={createAssistantResource()}
+        resource={resource}
         onClose={vi.fn()}
         onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
+        onDelete={onDelete}
         onExport={vi.fn()}
         allGroups={[]}
       />
@@ -1094,6 +1142,8 @@ describe('ResourceCardMenu group binding', () => {
     await user.click(screen.getByRole('button', { name: /common.more/ }))
     expect(screen.queryByRole('button', { name: /common.edit/ })).not.toBeInTheDocument()
     expect(screen.getByTestId('menu-divider')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: '删除' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'common.delete_permanently' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('menuitem', { name: 'common.archive' }))
+    await waitFor(() => expect(onDelete).toHaveBeenLastCalledWith(resource))
   })
 })

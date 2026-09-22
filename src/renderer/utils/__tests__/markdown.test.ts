@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  convertMathFormula,
+  convertLatexMathToDollars,
   findCitationInChildren,
   isHtmlCode,
   markdownToPlainText,
-  processLatexBrackets,
   purifyMarkdownImages,
   removeTrailingDoubleSpaces,
   updateCodeBlock
@@ -58,26 +57,73 @@ describe('markdown', () => {
     })
   })
 
-  describe('convertMathFormula', () => {
-    it('should handle multiple delimiters in input', () => {
-      // 验证处理输入中的多个分隔符
-      const input = 'Text \\[block1\\] and \\(inline\\) and \\[block2\\]'
-      const result = convertMathFormula(input)
-      expect(result).toBe('Text $$block1$$ and $inline$ and $$block2$$')
+  describe('convertLatexMathToDollars', () => {
+    it('converts formulas and preserves inline and fenced code', () => {
+      const input = 'Euler \\(e\\) and `r"\\(\\d+\\)"`\n\n```bash\nif \\[ -f x \\]; then :; fi\n```\n\n\\[ a^2 \\]'
+
+      expect(convertLatexMathToDollars(input)).toBe(
+        'Euler $e$ and `r"\\(\\d+\\)"`\n\n```bash\nif \\[ -f x \\]; then :; fi\n```\n\n$$ a^2 $$'
+      )
     })
 
-    it('should return input unchanged if no delimiters', () => {
-      // 验证没有分隔符时返回原始输入
-      const input = 'Some text without math'
-      const result = convertMathFormula(input)
-      expect(result).toBe('Some text without math')
+    it('converts prose between code blocks when the first block contains a literal fence', () => {
+      const input = '```python\nprint("```")\n```\n\nFormula: \\(x\\)\n\n```python\nre.match(r"\\(\\d+\\)", s)\n```'
+
+      expect(convertLatexMathToDollars(input)).toBe(
+        '```python\nprint("```")\n```\n\nFormula: $x$\n\n```python\nre.match(r"\\(\\d+\\)", s)\n```'
+      )
     })
 
-    it('should return input if null or empty', () => {
-      // 验证空输入或 null 输入时返回原值
-      expect(convertMathFormula('')).toBe('')
-      // @ts-expect-error purposely pass wrong type to test error branch
-      expect(convertMathFormula(null)).toBe(null)
+    it('preserves a fence that starts on the list marker line', () => {
+      const input = '- ```js\n  test(/\\(a\\)/)\n  ```\n\nFormula: \\(x\\)'
+
+      expect(convertLatexMathToDollars(input)).toBe('- ```js\n  test(/\\(a\\)/)\n  ```\n\nFormula: $x$')
+    })
+
+    it('preserves tilde fences, longer fences wrapping shorter ones, and indented code', () => {
+      expect(convertLatexMathToDollars('~~~js\n\\(a\\)\n~~~\n\n\\(x\\)')).toBe('~~~js\n\\(a\\)\n~~~\n\n$x$')
+      expect(convertLatexMathToDollars('````md\n```js\n\\(a\\)\n```\n````\n\n\\(x\\)')).toBe(
+        '````md\n```js\n\\(a\\)\n```\n````\n\n$x$'
+      )
+      expect(convertLatexMathToDollars('Text\n\n    \\(a\\)\n\n\\(x\\)')).toBe('Text\n\n    \\(a\\)\n\n$x$')
+    })
+
+    it('preserves inline code delimited by more than one backtick', () => {
+      expect(convertLatexMathToDollars('``a ` \\(b\\)`` and \\(x\\)')).toBe('``a ` \\(b\\)`` and $x$')
+    })
+
+    it('converts a display formula whose delimiters own their lines, keeping its indentation', () => {
+      expect(convertLatexMathToDollars('Sum:\n\n  \\[\n  a + b\n  \\]\n\nDone')).toBe(
+        'Sum:\n\n  $$\n  a + b\n  $$\n\nDone'
+      )
+    })
+
+    it('converts several formulas on one line', () => {
+      expect(convertLatexMathToDollars('Text \\[block1\\] and \\(inline\\) and \\[block2\\]')).toBe(
+        'Text $$block1$$ and $inline$ and $$block2$$'
+      )
+    })
+
+    it('keeps LaTeX line-break spacing and escaped backslashes that only look like delimiters', () => {
+      expect(convertLatexMathToDollars('\\[\na \\\\[2pt]\nb\n\\]')).toBe('$$\na \\\\[2pt]\nb\n$$')
+      expect(convertLatexMathToDollars('path C:\\\\(x) and \\(y\\)')).toBe('path C:\\\\(x) and $y$')
+    })
+
+    it('leaves an unclosed delimiter alone instead of emitting an unbalanced dollar fence', () => {
+      expect(convertLatexMathToDollars('an escaped \\[ bracket, then \\(x\\) math')).toBe(
+        'an escaped \\[ bracket, then $x$ math'
+      )
+    })
+
+    it('leaves link text alone, where the chat renders the formula as plain text', () => {
+      expect(convertLatexMathToDollars('[\\(x\\)](https://example.com) and \\(y\\)')).toBe(
+        '[\\(x\\)](https://example.com) and $y$'
+      )
+    })
+
+    it('returns content without delimiters unchanged', () => {
+      expect(convertLatexMathToDollars('')).toBe('')
+      expect(convertLatexMathToDollars('plain `code` and $x$')).toBe('plain `code` and $x$')
     })
   })
 
@@ -98,85 +144,84 @@ describe('markdown', () => {
   })
 
   describe('updateCodeBlock', () => {
-    /**
-     * 辅助函数：用户获取代码块的实际 ID
-     *
-     * 使用方法：
-     * 1. 修改测试用例，调用该函数
-     * 2. 运行测试并查看控制台输出中的代码块 ID
-     * 3. 用输出的 ID 替换测试中的硬编码 ID
-     * 4. 再次注释掉对此函数的调用
-     */
-    // function getAllCodeBlockIds(markdown: string): { [content: string]: string } {
-    //   const result: { [content: string]: string } = {}
-    //   const tree = unified().use(remarkParse).parse(markdown)
-    //
-    //   visit(tree, 'code', (node) => {
-    //     const id = getCodeBlockId(node.position?.start)
-    //     if (id) {
-    //       result[node.value] = id
-    //       console.log(`Code Block ID: "${id}" for content: "${node.value}" lang: "${node.lang}"`)
-    //     }
-    //   })
-    //
-    //   return result
-    // }
-
-    it('should not modify content when code block ID does not match', () => {
-      const markdown = '# Test\n```js\nvar x = 1;\n```\nOther content'
-      const wrongId = 'non-existent-id'
-      const newContent = 'const x = 2;'
-
-      const result = updateCodeBlock(markdown, wrongId, newContent)
-
-      expect(result).toContain('var x = 1;')
-      expect(result).not.toContain(newContent)
-    })
-
-    it('should only update the second of two identical code blocks', () => {
-      // 创建包含两个相同内容代码块的Markdown，文本和代码块交替出现
+    it('updates the edited block and leaves every other byte untouched', () => {
       const markdown =
-        '# Heading\n\nFirst paragraph.\n\n```js\nconst value = 100;\n```\n\nMiddle paragraph with some text.\n\n```js\nconst value = 100;\n```\n\nFinal text paragraph.'
+        'Intro $a_b$ and [cite:abc_1].\n\n```js\nconst a = 1\n```\n\n- [ ] todo\n\n```js\nconst b = 2\n```\n\nOutro __bold__.'
 
-      const expectedResult =
-        '# Heading\n\nFirst paragraph.\n\n```js\nconst value = 100;\n```\n\nMiddle paragraph with some text.\n\n```js\nconst updatedValue = 200;\n```\n\nFinal text paragraph.\n'
+      const result = updateCodeBlock(markdown, 'const b = 2', 'const b = 3')
 
-      const secondBlockId = '11:1:93'
-      const newContent = 'const updatedValue = 200;'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, secondBlockId, newContent)
-
-      expect(result).toBe(expectedResult)
+      expect(result).toBe(
+        'Intro $a_b$ and [cite:abc_1].\n\n```js\nconst a = 1\n```\n\n- [ ] todo\n\n```js\nconst b = 3\n```\n\nOutro __bold__.'
+      )
     })
 
-    it('should handle empty code blocks', () => {
-      const markdown = '```js\n\n```'
-      const expectedResult = '```js\nconsole.log("no longer empty");\n```\n'
+    it('matches the rendered code text, which carries one trailing newline', () => {
+      const result = updateCodeBlock('```js\nconst a = 1\n```', 'const a = 1\n', 'const a = 2')
 
-      const blockId = '1:1:0'
-      const newContent = 'console.log("no longer empty");'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, blockId, newContent)
-
-      expect(result).toBe(expectedResult)
+      expect(result).toBe('```js\nconst a = 2\n```')
     })
 
-    it('should handle code blocks with indentation', () => {
-      const markdown = '  ```js\n  const indented = true;\n  ```'
-      const expectedResult = '```js\nconst noLongerIndented = true;\n```\n'
+    it('matches an SVG block whose blank lines were removed for rendering', () => {
+      const markdown = '```svg\n<svg>\n\n<rect />\n\n</svg>\n```'
 
-      const blockId = '1:3:2'
-      const newContent = 'const noLongerIndented = true;'
+      const result = updateCodeBlock(markdown, '<svg>\n<rect />\n</svg>', '<svg></svg>')
 
-      // getAllCodeBlockIds(markdown)
+      expect(result).toBe('```svg\n<svg></svg>\n```')
+    })
 
-      const result = updateCodeBlock(markdown, blockId, newContent)
+    it('returns null when the original content matches no code block', () => {
+      expect(updateCodeBlock('# Test\n\n```js\nvar x = 1;\n```', 'var y = 1;', 'const y = 2;')).toBeNull()
+    })
 
-      expect(result).toBe(expectedResult)
+    it('returns null when identical code blocks make the target ambiguous', () => {
+      const markdown = '```js\nconst value = 100;\n```\n\nMiddle.\n\n```js\nconst value = 100;\n```'
+
+      expect(updateCodeBlock(markdown, 'const value = 100;', 'const value = 200;')).toBeNull()
+    })
+
+    it('fills an empty code block', () => {
+      expect(updateCodeBlock('```js\n\n```', '', 'console.log("no longer empty");')).toBe(
+        '```js\nconsole.log("no longer empty");\n```'
+      )
+    })
+
+    it('keeps the indentation of a block nested in a list', () => {
+      const markdown = '1. Install:\n\n   ```bash\n   npm i\n   ```\n\n2. Done'
+
+      const result = updateCodeBlock(markdown, 'npm i', 'pnpm i\n\npnpm dev')
+
+      expect(result).toBe('1. Install:\n\n   ```bash\n   pnpm i\n\n   pnpm dev\n   ```\n\n2. Done')
+    })
+
+    it('lengthens the fence when the new content contains a fence', () => {
+      const result = updateCodeBlock('```md\nold\n```', 'old', '```js\nnested\n```')
+
+      expect(result).toBe('````md\n```js\nnested\n```\n````')
+    })
+
+    it('writes replacement patterns in the new content literally', () => {
+      const result = updateCodeBlock('```sh\necho hi\n```', 'echo hi', "echo $$ '$&' $1")
+
+      expect(result).toBe("```sh\necho $$ '$&' $1\n```")
+    })
+
+    it('updates an unfenced HTML document that is rendered as a code block', () => {
+      const html = '<!DOCTYPE html>\n<html>\n<body>\n\n<h1>Hi</h1>\n\n</body>\n</html>'
+      const updated = html.replace('Hi', 'Hello')
+
+      const result = updateCodeBlock(`Here is the page:\n\n${html}\n\nDone $a_b$.`, `${html}\n`, updated)
+
+      expect(result).toBe(`Here is the page:\n\n${updated}\n\nDone $a_b$.`)
+    })
+
+    it('returns null when the original content only appears in prose', () => {
+      expect(updateCodeBlock('Run npm i once.\n\n```sh\nnpm  i\n```', 'npm i', 'pnpm i')).toBeNull()
+    })
+
+    it('still updates a block nested in a blockquote', () => {
+      const result = updateCodeBlock('> ```js\n> const a = 1\n> ```', 'const a = 1', 'const a = 2')
+
+      expect(result).toBe('> ```js\n> const a = 2\n> ```\n')
     })
   })
 
@@ -196,242 +241,6 @@ describe('markdown', () => {
       const expected = 'Title\nSome bold and italic text.\nlink\ncode\nquote\nlist item'
       const normalize = (str: string) => str.replace(/\s+/g, ' ').trim()
       expect(normalize(markdownToPlainText(mixed))).toBe(normalize(expected))
-    })
-  })
-
-  describe('processLatexBrackets', () => {
-    describe('basic LaTeX conversion', () => {
-      it('should convert (inline) display math \\[...\\] to $$...$$', () => {
-        expect(processLatexBrackets('The formula is \\[a+b=c\\]')).toBe('The formula is $$a+b=c$$')
-      })
-
-      it('should convert display math \\[...\\] to $$...$$', () => {
-        const input = `
-The formula is
-
-\\[
-a+b=c
-\\]
-`
-        const expected = `
-The formula is
-
-$$
-a+b=c
-$$
-`
-        expect(processLatexBrackets(input)).toBe(expected)
-      })
-
-      it('should convert inline math \\(...\\) to $...$', () => {
-        expect(processLatexBrackets('The formula is \\(a+b=c\\)')).toBe('The formula is $a+b=c$')
-      })
-
-      it('should handle complex mathematical text with escaped brackets', () => {
-        const input = `设 \\(A\\) 为 \\(n\\times n\\) 的实可逆矩阵，
-\\[
-B=\\begin{pmatrix} O & A \\\\[2pt] A' & O \\end{pmatrix}\\;(2n\\times 2n,\\;B=B'),
-\\]
-求 \\(B\\) 的正惯性指数 \\(p(B)\\) 和负惯性指数 \\(q(B)\\)。`
-
-        const expected = `设 $A$ 为 $n\\times n$ 的实可逆矩阵，
-$$
-B=\\begin{pmatrix} O & A \\\\[2pt] A' & O \\end{pmatrix}\\;(2n\\times 2n,\\;B=B'),
-$$
-求 $B$ 的正惯性指数 $p(B)$ 和负惯性指数 $q(B)$。`
-
-        expect(processLatexBrackets(input)).toBe(expected)
-      })
-    })
-
-    describe('code block protection', () => {
-      it('should not affect multi-line code blocks', () => {
-        const input = 'Text ```const arr = \\[1, 2, 3\\]\\nconst func = \\(x\\) => x``` more text'
-        expect(processLatexBrackets(input)).toBe(input)
-      })
-
-      it('should not affect inline code', () => {
-        const input = 'This is text with `const x = \\[1, 2, 3\\]` inline code'
-        expect(processLatexBrackets(input)).toBe(input)
-      })
-
-      it('should handle mixed code and LaTeX', () => {
-        const input = 'Math: \\[x + y\\] and code: `arr = \\[1, 2\\]` and more math: \\(z\\)'
-        const expected = 'Math: $$x + y$$ and code: `arr = \\[1, 2\\]` and more math: $z$'
-        expect(processLatexBrackets(input)).toBe(expected)
-      })
-
-      it('should protect complex code blocks', () => {
-        for (const [input, expected] of new Map([
-          [
-            '```javascript\\nconst latex = "\\\\[formula\\\\]"\\n```',
-            '```javascript\\nconst latex = "\\\\[formula\\\\]"\\n```'
-          ],
-          ['`\\[escaped brackets\\]`', '`\\[escaped brackets\\]`'],
-          [
-            '```\\narray = \\[\\n  \\(item1\\),\\n  \\(item2\\)\\n\\]\\n```',
-            '```\\narray = \\[\\n  \\(item1\\),\\n  \\(item2\\)\\n\\]\\n```'
-          ]
-        ])) {
-          expect(processLatexBrackets(input)).toBe(expected)
-        }
-      })
-    })
-
-    describe('link protection', () => {
-      it('should not affect LaTeX in link text', () => {
-        const input = '[\\[pdf\\] Document](https://example.com/doc.pdf)'
-        expect(processLatexBrackets(input)).toBe(input)
-      })
-
-      it('should not affect LaTeX in link URLs', () => {
-        const input = '[Click here](https://example.com/path\\[with\\]brackets)'
-        expect(processLatexBrackets(input)).toBe(input)
-      })
-
-      it('should handle mixed links and LaTeX', () => {
-        const input = 'See [\\[pdf\\] file](url) for formula \\[x + y = z\\]'
-        const expected = 'See [\\[pdf\\] file](url) for formula $$x + y = z$$'
-        expect(processLatexBrackets(input)).toBe(expected)
-      })
-
-      it('should protect complex link patterns', () => {
-        for (const [input, expected] of new Map([
-          ['[Title with \\(math\\)](https://example.com)', '[Title with \\(math\\)](https://example.com)'],
-          ['[Link](https://example.com/\\[path\\]/file)', '[Link](https://example.com/\\[path\\]/file)'],
-          [
-            '[\\[Section 1\\] Overview](url) and \\[math formula\\]',
-            '[\\[Section 1\\] Overview](url) and $$math formula$$'
-          ]
-        ])) {
-          expect(processLatexBrackets(input)).toBe(expected)
-        }
-      })
-    })
-
-    describe('edge cases', () => {
-      it('should handle empty string', () => {
-        expect(processLatexBrackets('')).toBe('')
-      })
-
-      it('should handle content without LaTeX', () => {
-        for (const [input, expected] of new Map([
-          ['Regular text without math', 'Regular text without math'],
-          ['Text with [regular] brackets', 'Text with [regular] brackets'],
-          ['Text with (parentheses)', 'Text with (parentheses)'],
-          ['No special characters here', 'No special characters here']
-        ])) {
-          expect(processLatexBrackets(input)).toBe(expected)
-        }
-      })
-
-      it('should handle malformed LaTeX patterns', () => {
-        for (const [input, expected] of new Map([
-          ['\\[unclosed bracket', '\\[unclosed bracket'],
-          ['unopened bracket\\]', 'unopened bracket\\]'],
-          ['\\(unclosed paren', '\\(unclosed paren'],
-          ['unopened paren\\)', 'unopened paren\\)'],
-          ['\\[\\]', '$$$$'], // Empty LaTeX block
-          ['\\(\\)', '$$'] // Empty LaTeX inline
-        ])) {
-          expect(processLatexBrackets(input)).toBe(expected)
-        }
-      })
-
-      it('should handle nested brackets', () => {
-        for (const [input, expected] of new Map([
-          ['\\[outer \\[inner\\] formula\\]', '$$outer \\[inner\\] formula$$'],
-          ['\\(a + \\(b + c\\)\\)', '$a + \\(b + c\\)$']
-        ])) {
-          expect(processLatexBrackets(input)).toBe(expected)
-        }
-      })
-    })
-
-    describe('complex cases', () => {
-      it('should handle complex mixed content', () => {
-        const complexInput = `
-# Mathematical Document
-
-Here's a simple formula \\(E = mc^2\\) in text.
-
-## Section 1: Equations
-
-The quadratic formula is \\[x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}\\].
-
-- Item 1: See formula \\(\\alpha + \\beta = \\gamma\\) in this list
-- Item 2: Check [\\[PDF\\] Complex Analysis](https://example.com/math.pdf)
-  - Subitem 2.1: Basic concepts and definitions
-  - Subitem 2.2: The Cauchy-Riemann equations \\[\\frac{\\partial u}{\\partial x} = \\frac{\\partial v}{\\partial y}, \\quad \\frac{\\partial u}{\\partial y} = -\\frac{\\partial v}{\\partial x}\\]
-  - Subitem 2.3: Green's theorem connects line integrals and double integrals
-  \\[
-  \\oint_C (P dx + Q dy) = \\iint_D \\left(\\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y}\\right) dx dy
-  \\]
-  - Subitem 2.4: Applications in engineering and physics
-- Item 3: The sum \\[\\sum_{i=1}^{n} \\frac{1}{i^2} = \\frac{\\pi^2}{6}\\] is famous
-
-\`\`\`javascript
-// Code should not be affected
-const matrix = \\[
-  \\[1, 2\\],
-  \\[3, 4\\]
-\\];
-const func = \\(x\\) => x * 2;
-\`\`\`
-
-Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
-
-Final thoughts on \\(\\nabla \\cdot \\vec{F} = \\rho\\) in inline math and display math:
-
-\\[\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}\\]
-
-\\[
-\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}
-\\]
-`
-
-        const expectedOutput = `
-# Mathematical Document
-
-Here's a simple formula $E = mc^2$ in text.
-
-## Section 1: Equations
-
-The quadratic formula is $$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$.
-
-- Item 1: See formula $\\alpha + \\beta = \\gamma$ in this list
-- Item 2: Check [\\[PDF\\] Complex Analysis](https://example.com/math.pdf)
-  - Subitem 2.1: Basic concepts and definitions
-  - Subitem 2.2: The Cauchy-Riemann equations $$\\frac{\\partial u}{\\partial x} = \\frac{\\partial v}{\\partial y}, \\quad \\frac{\\partial u}{\\partial y} = -\\frac{\\partial v}{\\partial x}$$
-  - Subitem 2.3: Green's theorem connects line integrals and double integrals
-  $$
-  \\oint_C (P dx + Q dy) = \\iint_D \\left(\\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y}\\right) dx dy
-  $$
-  - Subitem 2.4: Applications in engineering and physics
-- Item 3: The sum $$\\sum_{i=1}^{n} \\frac{1}{i^2} = \\frac{\\pi^2}{6}$$ is famous
-
-\`\`\`javascript
-// Code should not be affected
-const matrix = \\[
-  \\[1, 2\\],
-  \\[3, 4\\]
-\\];
-const func = \\(x\\) => x * 2;
-\`\`\`
-
-Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
-
-Final thoughts on $\\nabla \\cdot \\vec{F} = \\rho$ in inline math and display math:
-
-$$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$
-
-$$
-\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}
-$$
-`
-
-        expect(processLatexBrackets(complexInput)).toBe(expectedOutput)
-      })
     })
   })
 

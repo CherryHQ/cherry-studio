@@ -1,4 +1,5 @@
-import type { BaseConfigItem, OptionItem } from './baseConfigItem'
+import type { OptionItem, OptionsConfigItem } from './baseConfigItem'
+import { catalogValueOr, controlValue } from './fieldValue'
 
 /**
  * Resolve a field's options — a static `OptionItem[]` or a
@@ -7,7 +8,7 @@ import type { BaseConfigItem, OptionItem } from './baseConfigItem'
  * field renderers so the resolve-then-localize step lives in one place.
  */
 export function resolveOptions(
-  item: BaseConfigItem,
+  item: OptionsConfigItem,
   painting: Record<string, unknown>,
   translate: (key: string) => string
 ): OptionItem[] {
@@ -16,4 +17,19 @@ export function resolveOptions(
     ...option,
     label: option.labelKey ? translate(option.labelKey) : option.label
   }))
+}
+
+/** Resolve a persisted option value or fall back to the typed registry default. */
+export function resolveOptionValue(
+  item: OptionsConfigItem,
+  value: unknown,
+  painting: Record<string, unknown>,
+  translate: (key: string) => string
+): string | number | undefined {
+  const candidate = catalogValueOr(item.key, value, item.initialValue)
+  const normalized = controlValue(candidate)
+  const match = resolveOptions(item, painting, translate).find(
+    (option) => normalized !== '' && controlValue(option.value) === normalized
+  )
+  return match?.value ?? item.initialValue
 }

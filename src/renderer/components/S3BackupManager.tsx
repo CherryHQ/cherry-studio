@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
+import type { Key } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ColumnDef } from '@cherrystudio/ui'
 import {
   Button,
@@ -16,11 +22,6 @@ import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
 import type { S3Config } from '@shared/types/backup'
-import dayjs from 'dayjs'
-import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
-import type { Key } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface BackupFile {
   fileName: string
@@ -299,7 +300,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
             )}
           </div>
           {backupFiles.length > PAGE_SIZE && (
-            <div className="flex items-center justify-end gap-2 text-muted-foreground text-sm">
+            <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
               <span>
                 {safeCurrentPage} / {totalPages}
               </span>

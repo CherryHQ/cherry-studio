@@ -1,5 +1,6 @@
 import type { ChildProcess } from 'child_process'
 import { EventEmitter } from 'events'
+
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: vi.fn() }))

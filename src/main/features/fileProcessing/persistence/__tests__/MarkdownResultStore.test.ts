@@ -1,5 +1,6 @@
-import { application } from '@application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 

@@ -1,19 +1,19 @@
 export const paintingClasses = {
   page: 'flex h-full flex-1 flex-col',
-  content: 'flex min-h-0 flex-1 flex-col overflow-hidden bg-background',
+  content: 'flex min-h-0 flex-1 flex-col overflow-hidden',
   tabsWrap: 'shrink-0 flex justify-center px-6 pt-3 pb-2',
   tabsList: 'rounded-full border border-border-subtle bg-secondary p-1 shadow-sm backdrop-blur-sm',
   tabsTrigger:
     'rounded-full px-4 py-1.5 text-xs font-medium text-muted-foreground transition data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
   frame: 'relative flex min-h-0 flex-1 overflow-hidden px-2 pt-2 pb-1',
-  surface: 'relative isolate flex min-w-0 flex-1 overflow-hidden rounded-none bg-background',
+  surface: 'relative isolate flex min-w-0 flex-1 overflow-hidden rounded-none',
   centerPane: 'relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
   /** Fills space between mode tabs and prompt; keeps canvas in the flex-shrink chain. */
   centerStage: 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
   /** Pins the prompt visually to the bottom of the middle column. */
-  promptDock: 'relative z-20 shrink-0 bg-background px-2 pt-2 pb-2',
+  promptDock: 'relative z-20 shrink-0 px-2 pt-2 pb-2',
   historyStrip:
-    'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto border-border-subtle border-r bg-background px-2 py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+    'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto border-border-subtle border-r px-2 py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
   historyAddButton:
     'sticky top-0 z-10 mb-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-dashed border-border-subtle bg-background text-muted-foreground hover:bg-secondary-hover hover:text-foreground',
   historyItem:

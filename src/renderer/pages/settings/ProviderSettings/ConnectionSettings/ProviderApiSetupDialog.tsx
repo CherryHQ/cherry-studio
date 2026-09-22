@@ -1,4 +1,18 @@
 import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Circle,
+  CircleAlert,
+  CircleX,
+  Eye,
+  EyeOff,
+  LoaderCircle
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
   Button,
   Dialog,
   DialogContent,
@@ -16,19 +30,6 @@ import { joinApiKeyString } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle2,
-  Circle,
-  CircleAlert,
-  CircleX,
-  Eye,
-  EyeOff,
-  LoaderCircle
-} from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ProviderAvatar } from '../components/ProviderAvatar'
 import { mergeProviderApiKeyEntries, parseProviderApiKeys } from '../hooks/providerSetting/useProviderApiKey'

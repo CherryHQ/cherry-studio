@@ -104,20 +104,27 @@ describe('useTranslateHistories', () => {
     })
   })
 
-  it('reloads all pages when another window changes history membership', async () => {
+  it('revalidates current pages in place when another window changes history membership (REGRESSION #19687)', async () => {
     const refresh = vi.fn().mockResolvedValue(undefined)
     const reset = vi.fn()
-    mockUseInfiniteQuery.mockReturnValue(buildInfiniteState({ refresh, reset }))
+    const mutate = vi.fn().mockResolvedValue(undefined)
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteState({ refresh, reset, mutate }))
     renderHook(() => useTranslateHistories())
     reset.mockClear()
+    refresh.mockClear()
 
     await act(async () => {
       MockUseDataApiUtils.emitDataChange([{ endpoint: '/translate/histories', kind: 'membership' }])
       await Promise.resolve()
     })
 
-    expect(reset).toHaveBeenCalledTimes(1)
-    expect(refresh).toHaveBeenCalledTimes(1)
+    // Must use `mutate()` (SWR-infinite revalidation) so already-loaded
+    // pages survive the broadcast. Calling `reset()` shrinks the cache
+    // back to size=1, the scroll container collapses, and the browser
+    // then triggers a redundant page-2 fetch (issue #19687).
+    expect(mutate).toHaveBeenCalledTimes(1)
+    expect(reset).not.toHaveBeenCalled()
+    expect(refresh).not.toHaveBeenCalled()
   })
 
   it('exposes SWR errors so consumers can distinguish loading from failure', () => {

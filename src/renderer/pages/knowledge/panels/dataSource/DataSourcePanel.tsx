@@ -1,3 +1,8 @@
+import type { TFunction } from 'i18next'
+import { ChevronLeft, Settings2 } from 'lucide-react'
+import { type DragEvent, useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, CircularProgress, ConfirmDialog } from '@cherrystudio/ui'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
@@ -5,12 +10,8 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import type { LocalModelStatus } from '@shared/data/presets/localModel'
+import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared/data/presets/localModel'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
-import type { TFunction } from 'i18next'
-import { ChevronLeft, Settings2 } from 'lucide-react'
-import { type DragEvent, useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
@@ -413,7 +414,7 @@ const DataSourcePanelContent = ({
 }
 
 const LocalEmbeddingDataSourcePanel = (props: DataSourcePanelProps) => {
-  const { status, percent } = useLocalModel('embedding')
+  const { status, percent } = useLocalModel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.embedding)
 
   return (
     <DataSourcePanelContent {...props} localEmbeddingState={status === 'ready' ? undefined : { status, percent }} />

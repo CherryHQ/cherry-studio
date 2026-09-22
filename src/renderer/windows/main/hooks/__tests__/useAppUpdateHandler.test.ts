@@ -1,7 +1,8 @@
-import type { AppEventSchemas } from '@shared/ipc/schemas/app'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AppEventSchemas } from '@shared/ipc/schemas/app'
 
 const mocks = vi.hoisted(() => ({
   appUpdateState: { manualCheck: false },

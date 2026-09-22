@@ -1,10 +1,11 @@
 import type { Span } from '@opentelemetry/api'
+import type { UIMessageChunk } from 'ai'
+
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
 
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'

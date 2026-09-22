@@ -1,12 +1,13 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   loadInput: vi.fn(),
@@ -54,7 +55,8 @@ describe('createBuiltinSupportSession', () => {
       { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' }
+      { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
   })
 

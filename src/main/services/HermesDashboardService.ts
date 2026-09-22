@@ -2,6 +2,8 @@ import { realpath } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import path from 'node:path'
 
+import { Mutex } from 'async-mutex'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -12,7 +14,6 @@ import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { HermesDashboardStartFailureReason, HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { redactSecretText } from '@shared/utils/redaction'
-import { Mutex } from 'async-mutex'
 
 const logger = loggerService.withContext('HermesDashboardService')
 
@@ -54,6 +55,7 @@ export class HermesDashboardService extends BaseService {
 
   protected onInit(): void {
     this.isLifecycleStopping = false
+    application.get('CacheService').setShared('feature.hermes_dashboard.status', this.getStatus())
   }
 
   protected async onStop(): Promise<void> {
@@ -227,11 +229,7 @@ export class HermesDashboardService extends BaseService {
   private updateStatus(status: HermesDashboardStatus, url?: string): void {
     this.status = status
     this.url = url
-    try {
-      application.get('IpcApiService').broadcast('hermes_dashboard.status_changed', this.getStatus())
-    } catch (error) {
-      logger.warn('Failed to broadcast Hermes Dashboard status', error as Error)
-    }
+    application.get('CacheService').setShared('feature.hermes_dashboard.status', this.getStatus())
   }
 
   private async stopOwnedProcessLocked(): Promise<void> {

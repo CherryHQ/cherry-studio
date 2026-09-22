@@ -1,11 +1,15 @@
-import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
-import { fileRequestSchemas } from '@shared/ipc/schemas/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
+import type * as FileUtilsModule from '@main/utils/file'
+import { fileRequestSchemas } from '@shared/ipc/schemas/file'
+import type { InputFor } from '@shared/ipc/types'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const {
   appGetMock,
   assertOutsideManagedStorageMutationMock,
+  copyNewMock,
   getMetadataByPathMock,
   readByPathMock,
   readChunkByPathMock,
@@ -15,6 +19,7 @@ const {
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   assertOutsideManagedStorageMutationMock: vi.fn(),
+  copyNewMock: vi.fn(),
   getMetadataByPathMock: vi.fn(),
   readByPathMock: vi.fn(),
   readChunkByPathMock: vi.fn(),
@@ -23,6 +28,10 @@ const {
   writeIfUnchangedByPathMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@main/utils/file', async (importOriginal) => ({
+  ...(await importOriginal<typeof FileUtilsModule>()),
+  copyNew: copyNewMock
+}))
 vi.mock('@main/services/file', async () => {
   // dispatchHandle is exercised for real so these tests cover handle routing.
   const { dispatchHandle } = await vi.importActual<typeof FileDispatchModule>('@main/services/file/internal/dispatch')
@@ -87,8 +96,8 @@ const fileManager = {
   batchGetDanglingStates: vi.fn(),
   batchTrash: vi.fn(),
   batchRestore: vi.fn(),
-  batchPermanentDelete: vi.fn(),
-  emptyTrash: vi.fn(),
+  batchPermanentDeleteFromTrash: vi.fn(),
+  batchRemoveFromLibrary: vi.fn(),
   rename: vi.fn(),
   readChunk: vi.fn(),
   open: vi.fn(),
@@ -144,6 +153,50 @@ describe('fileHandlers', () => {
     ).resolves.toBe(result)
 
     expect(readByPathMock).toHaveBeenCalledWith('/tmp/report.md', { encoding: 'binary' })
+  })
+
+  it('forwards withContentHash to the path read so the hash binds to the returned bytes', async () => {
+    const result = {
+      content: new Uint8Array([3, 4]),
+      mime: 'text/markdown',
+      version,
+      contentHash: 'xxh3-64:00000000deadbeef'
+    }
+    readByPathMock.mockResolvedValueOnce(result)
+
+    await expect(
+      fileHandlers['file.read'](
+        {
+          handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
+          options: { mode: 'full', encoding: 'binary', withContentHash: true }
+        },
+        ctx
+      )
+    ).resolves.toBe(result)
+
+    expect(readByPathMock).toHaveBeenCalledWith('/tmp/report.md', { encoding: 'binary', withContentHash: true })
+  })
+
+  it('pairs withContentHash exclusively with path-handle full reads in the derived input type', () => {
+    const valid: InputFor<'file.read'> = {
+      handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
+      options: { mode: 'full', encoding: 'binary', withContentHash: true }
+    }
+    const entryHash = {
+      handle: { kind: 'entry', entryId: ids[0] },
+      options: { mode: 'full', encoding: 'binary', withContentHash: true }
+    } as const
+    const rangeHash = {
+      handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath },
+      options: { mode: 'range', offset: 0, length: 1, withContentHash: true }
+    } as const
+    // @ts-expect-error — an entry handle cannot request a bound content hash
+    const invalidEntry: InputFor<'file.read'> = entryHash
+    // @ts-expect-error — range reads cannot request a bound content hash
+    const invalidRange: InputFor<'file.read'> = rangeHash
+    void valid
+    void invalidEntry
+    void invalidRange
   })
 
   it('reads binary content from a managed entry through the generic FileHandle route', async () => {
@@ -247,6 +300,50 @@ describe('fileHandlers', () => {
     })
   })
 
+  it('copy guards only the destination and delegates to the create-only primitive', async () => {
+    await fileHandlers['file.copy'](
+      {
+        sourcePath: '/data/Files/a.png' as AbsoluteFilePath,
+        destPath: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath
+      },
+      windowCtx
+    )
+
+    // source lives in managed storage legitimately — guarding it would refuse attachments
+    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledTimes(1)
+    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png')
+    expect(copyNewMock).toHaveBeenCalledWith('/data/Files/a.png', '/tmp/exports/assets/img-a.png')
+  })
+
+  it('copy refuses a trusted-but-unmanaged sender before touching anything', async () => {
+    await expect(
+      fileHandlers['file.copy'](
+        {
+          sourcePath: '/data/Files/a.png' as AbsoluteFilePath,
+          destPath: '/tmp/exports/assets/img-a.png' as AbsoluteFilePath
+        },
+        ctx
+      )
+    ).rejects.toThrow('requires a managed window sender')
+    expect(assertOutsideManagedStorageMutationMock).not.toHaveBeenCalled()
+    expect(copyNewMock).not.toHaveBeenCalled()
+  })
+
+  it('copy does not touch the filesystem when the destination guard rejects', async () => {
+    assertOutsideManagedStorageMutationMock.mockRejectedValueOnce(new Error('managed storage'))
+
+    await expect(
+      fileHandlers['file.copy'](
+        {
+          sourcePath: '/data/Files/a.png' as AbsoluteFilePath,
+          destPath: '/data/Files/inside-managed.png' as AbsoluteFilePath
+        },
+        windowCtx
+      )
+    ).rejects.toThrow('managed storage')
+    expect(copyNewMock).not.toHaveBeenCalled()
+  })
+
   it('batch_get_metadata dispatches FileHandle items inside the IPC adapter', async () => {
     const items = [
       { key: ids[0], handle: { kind: 'entry' as const, entryId: ids[0] } },
@@ -313,22 +410,22 @@ describe('fileHandlers', () => {
     fileManager.batchGetDanglingStates.mockResolvedValue({ [ids[0]]: 'present' })
     fileManager.batchTrash.mockResolvedValue(batchResult)
     fileManager.batchRestore.mockResolvedValue(batchResult)
-    fileManager.batchPermanentDelete.mockResolvedValue(batchResult)
-    fileManager.emptyTrash.mockResolvedValue(batchResult)
+    fileManager.batchPermanentDeleteFromTrash.mockResolvedValue(batchResult)
+    fileManager.batchRemoveFromLibrary.mockResolvedValue(batchResult)
 
     await expect(fileHandlers['file.batch_get_dangling_states']({ ids }, ctx)).resolves.toEqual({
       [ids[0]]: 'present'
     })
     await expect(fileHandlers['file.batch_trash']({ ids }, ctx)).resolves.toBe(batchResult)
     await expect(fileHandlers['file.batch_restore']({ ids }, ctx)).resolves.toBe(batchResult)
-    await expect(fileHandlers['file.batch_permanent_delete']({ ids }, ctx)).resolves.toBe(batchResult)
-    await expect(fileHandlers['file.empty_trash'](undefined, ctx)).resolves.toBe(batchResult)
+    await expect(fileHandlers['file.batch_permanent_delete_from_trash']({ ids }, ctx)).resolves.toBe(batchResult)
+    await expect(fileHandlers['file.batch_remove_from_library']({ ids }, ctx)).resolves.toBe(batchResult)
 
     expect(fileManager.batchGetDanglingStates).toHaveBeenCalledWith({ ids })
     expect(fileManager.batchTrash).toHaveBeenCalledWith(ids)
     expect(fileManager.batchRestore).toHaveBeenCalledWith(ids)
-    expect(fileManager.batchPermanentDelete).toHaveBeenCalledWith(ids)
-    expect(fileManager.emptyTrash).toHaveBeenCalled()
+    expect(fileManager.batchPermanentDeleteFromTrash).toHaveBeenCalledWith(ids)
+    expect(fileManager.batchRemoveFromLibrary).toHaveBeenCalledWith(ids)
   })
 
   it('delegates single-entry commands to FileManager', async () => {
@@ -392,7 +489,7 @@ describe('fileHandlers', () => {
     expect(fileManager.batchCreateInternalEntries).toHaveBeenCalledWith(items)
   })
 
-  it('creates a directory tree addressed to the caller window WebContents', async () => {
+  it('creates a directory tree owned by the caller window', async () => {
     const created = { treeId: 't-1', revision: 0, snapshot: { kind: 'directory', path: '/tmp/ws', basename: 'ws' } }
     directoryTreeManager.create.mockResolvedValueOnce(created)
 
@@ -400,7 +497,11 @@ describe('fileHandlers', () => {
       fileHandlers['file.tree.create']({ rootPath: '/tmp/ws' as AbsoluteFilePath, options: { maxDepth: 1 } }, windowCtx)
     ).resolves.toBe(created)
 
-    expect(directoryTreeManager.create).toHaveBeenCalledWith(senderWebContents, '/tmp/ws', { maxDepth: 1 })
+    expect(directoryTreeManager.create).toHaveBeenCalledWith(
+      { windowId: 'win-1', webContents: senderWebContents },
+      '/tmp/ws',
+      { maxDepth: 1 }
+    )
   })
 
   it('refuses to create a directory tree for a sender that is not a managed window', async () => {

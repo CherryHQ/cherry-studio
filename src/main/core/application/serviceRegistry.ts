@@ -3,12 +3,14 @@ import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
+import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
-import { EmbeddingInferenceService } from '@main/ai/inference/EmbeddingInferenceService'
-import { OcrInferenceService } from '@main/ai/inference/OcrInferenceService'
+import { EmbeddingInferenceService } from '@main/ai/localModel'
+import { LocalModelService } from '@main/ai/localModel'
+import { OcrInferenceService } from '@main/ai/localModel'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
@@ -23,8 +25,10 @@ import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
+import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
+import { BrowserSessionService } from '@main/features/browser'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
 import { MiniAppRuntimeService } from '@main/features/miniApp/runtime/MiniAppRuntimeService'
@@ -35,17 +39,21 @@ import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
 import { BinaryManager } from '@main/services/binaryManager'
+import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
+import { DoctorService } from '@main/services/diagnostics'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LanTransferService } from '@main/services/lanTransfer'
+import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { MediaProtocolService } from '@main/services/mediaProtocol'
+import { NetworkService } from '@main/services/network'
 import { NotificationService } from '@main/services/NotificationService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import { OpenClawService } from '@main/services/OpenClawService'
@@ -59,13 +67,15 @@ import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { SelectionService } from '@main/services/selection/SelectionService'
+import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
+import { TrashService } from '@main/services/trash'
 import { TrayService } from '@main/services/TrayService'
 import { WebSearchService } from '@main/services/webSearch'
-import { WebviewService } from '@main/services/WebviewService'
+import { WebviewService } from '@main/services/webview'
 
 /**
  * Centralized service registry.
@@ -93,12 +103,14 @@ import { WebviewService } from '@main/services/WebviewService'
 export const services = {
   MainNetworkDevtoolsService,
   WindowManager,
+  UtilityProcessManager,
   DbService,
   CacheService,
   DataApiService,
   IpcApiService,
   SubWindowService,
   PreferenceService,
+  SentryLogService,
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,
@@ -107,6 +119,7 @@ export const services = {
   CommandService,
   ConversationNavigationService,
   CitationPreviewService,
+  CherryCloudService,
   DeepSeekHarnessService,
   HermesDashboardService,
   LanTransferService,
@@ -126,11 +139,15 @@ export const services = {
   MediaProtocolService,
   ScreenshotOverlayService,
   ProxyService,
+  NetworkService,
   StorageMonitorService,
+  DoctorService,
+  LogRetentionService,
   PythonService,
   TrayService,
   WebSearchService,
   WebviewService,
+  BrowserSessionService,
   OAuthRuntimeService,
   MainWindowService,
   NotificationService,
@@ -145,6 +162,7 @@ export const services = {
   AgentSessionRuntimeService,
   AgentSessionDeliveryService,
   AgentJobsService,
+  AgentLifecycleService,
   ChannelManager,
   AiService,
   ClaudeCodeWarmQueryManager,
@@ -152,6 +170,7 @@ export const services = {
   AiStreamManager,
   EmbeddingInferenceService,
   OcrInferenceService,
+  LocalModelService,
   KnowledgeService,
   KnowledgeVectorStoreService,
   MiniAppRuntimeService,
@@ -160,7 +179,8 @@ export const services = {
   AutoBackupService,
   ProviderRegistryUpdaterService,
   SchedulerService,
-  JobManager
+  JobManager,
+  TrashService
 } as const
 
 /** Auto-derived service name to instance type mapping */

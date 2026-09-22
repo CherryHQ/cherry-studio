@@ -1,6 +1,7 @@
+import { net } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { net } from 'electron'
 
 const logger = loggerService.withContext('RegionService')
 
@@ -29,47 +30,85 @@ type CachedEgressRegion = {
  * detections, including those arriving via the system.get_ip_country IPC.
  */
 class RegionService {
-  private inflight: Promise<string> | null = null
+  private inflight = new Map<string | null, { promise: Promise<string> }>()
 
-  /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure. */
-  async getCountry(): Promise<string> {
-    const proxyKey = application.get('ProxyService').appliedProxyKey
-    const cached = application.get('CacheService').get<CachedEgressRegion>(CACHE_KEY)
-    if (cached && cached.proxyKey === proxyKey) {
-      return cached.country
-    }
-
-    // Dedup concurrent detections — callers share one in-flight request.
-    this.inflight ??= this.detectAndCache(proxyKey).finally(() => {
-      this.inflight = null
-    })
-    return this.inflight
-  }
-
-  /** True when the egress country resolves to China. */
-  async isInChina(): Promise<boolean> {
-    const country = await this.getCountry()
-    return country.toLowerCase() === 'cn'
-  }
-
-  private async detectAndCache(proxyKey: string | null): Promise<string> {
+  /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure, but an abort still throws. */
+  async getCountry(signal?: AbortSignal): Promise<string> {
     try {
-      const country = await this.fetchCountry()
-      application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
-      return country
-    } catch (error) {
-      logger.error('Failed to get IP address information:', error as Error)
+      return await this.getDetectedCountry(signal)
+    } catch {
+      signal?.throwIfAborted()
       return DEFAULT_COUNTRY
     }
   }
 
-  private async fetchCountry(): Promise<string> {
+  /** True only when the egress country is successfully detected as China. */
+  async isInChina(signal?: AbortSignal): Promise<boolean> {
+    try {
+      const country = await this.getDetectedCountry(signal)
+      return country.toLowerCase() === 'cn'
+    } catch {
+      signal?.throwIfAborted()
+      return false
+    }
+  }
+
+  /** The cached country for the proxy in effect, or null; never detects. */
+  getCachedCountry(): string | null {
+    const proxyKey = application.get('ProxyService').appliedProxyKey
+    const cached = application.get('CacheService').get<CachedEgressRegion>(CACHE_KEY)
+    return cached && cached.proxyKey === proxyKey ? cached.country : null
+  }
+
+  private async getDetectedCountry(signal?: AbortSignal): Promise<string> {
+    signal?.throwIfAborted()
+    const cached = this.getCachedCountry()
+    if (cached) return cached
+
+    const proxyKey = application.get('ProxyService').appliedProxyKey
+    // A caller with its own deadline neither joins nor becomes the shared request: aborting it
+    // must not cancel detection for everyone else.
+    if (signal) return this.detectAndCache(proxyKey, signal)
+
+    // Dedup concurrent detections for the active proxy — callers share one in-flight request.
+    const current = this.inflight.get(proxyKey)
+    if (current) {
+      return current.promise
+    }
+
+    const inflight = {
+      promise: this.detectAndCache(proxyKey)
+    }
+    inflight.promise = inflight.promise.finally(() => {
+      if (this.inflight.get(proxyKey) === inflight) {
+        this.inflight.delete(proxyKey)
+      }
+    })
+    this.inflight.set(proxyKey, inflight)
+    return inflight.promise
+  }
+
+  private async detectAndCache(proxyKey: string | null, signal?: AbortSignal): Promise<string> {
+    try {
+      const country = await this.fetchCountry(signal)
+      if (application.get('ProxyService').appliedProxyKey === proxyKey) {
+        application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
+      }
+      return country
+    } catch (error) {
+      signal?.throwIfAborted()
+      logger.error('Failed to get IP address information:', error as Error)
+      throw error
+    }
+  }
+
+  private async fetchCountry(signal?: AbortSignal): Promise<string> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
 
     try {
       const response = await net.fetch('https://api.ipinfo.io/lite/me?token=5aa4105b40adbc', {
-        signal: controller.signal
+        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
       })
 
       if (!response.ok) {

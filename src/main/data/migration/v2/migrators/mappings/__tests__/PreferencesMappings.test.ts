@@ -1,5 +1,6 @@
-import { MIGRATION_LOCAL_STORAGE_KEYS } from '@shared/data/migration/v2/types'
 import { describe, expect, it } from 'vitest'
+
+import { MIGRATION_LOCAL_STORAGE_KEYS } from '@shared/data/migration/v2/types'
 
 import { getSimpleMappingTargetKeys } from '../../PreferencesMigrator'
 import { BOOT_CONFIG_LOCALSTORAGE_MAPPINGS } from '../BootConfigMappings'

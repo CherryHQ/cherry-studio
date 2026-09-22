@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -14,8 +17,6 @@ import {
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
 import { ModelCheckCredentialsSaveError, type ModelCheckCredentialsState } from './useModelCheckCredentials'

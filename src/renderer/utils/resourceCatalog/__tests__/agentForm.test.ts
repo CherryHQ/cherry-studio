@@ -1,5 +1,6 @@
-import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { describe, expect, it } from 'vitest'
+
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
 
 import {
   type AgentFormState,
@@ -77,11 +78,25 @@ describe('buildInitialAgentFormState', () => {
     expect(state.envVarsText).toBe('DEBUG=1\nNODE_ENV=production')
   })
 
-  it('uses the legacy heartbeat defaults when configuration omits heartbeat keys', () => {
+  it('leaves heartbeat off when configuration omits heartbeat keys', () => {
     const state = buildInitialAgentFormState(createAgent({ configuration: {} }))
 
-    expect(state.heartbeatEnabled).toBe(true)
+    expect(state.heartbeatEnabled).toBe(false)
     expect(state.heartbeatInterval).toBe(30)
+  })
+
+  it('clamps an out-of-range stored heartbeat interval the same way the main process does', () => {
+    // A stored 5000 would otherwise render in the form while the main-side
+    // sync schedules 1440 — form and schedule must agree.
+    expect(
+      buildInitialAgentFormState(createAgent({ configuration: { heartbeat_interval: 5000 } })).heartbeatInterval
+    ).toBe(1440)
+    expect(
+      buildInitialAgentFormState(createAgent({ configuration: { heartbeat_interval: 0.4 } })).heartbeatInterval
+    ).toBe(1)
+    expect(
+      buildInitialAgentFormState(createAgent({ configuration: { heartbeat_interval: -3 } })).heartbeatInterval
+    ).toBe(30)
   })
 })
 
@@ -196,7 +211,9 @@ describe('diffAgentUpdate', () => {
     expect(result?.dto).toMatchObject({
       model: 'anthropic::claude-sonnet-4-6',
       planModel: 'anthropic::claude-haiku-4-6',
-      smallModel: undefined
+      // Clearing a tier emits null: the PATCH must reach the column as SQL
+      // NULL, not be dropped as an omitted field.
+      smallModel: null
     })
   })
 

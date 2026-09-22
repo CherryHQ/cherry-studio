@@ -1,7 +1,8 @@
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { ipcApi } from '@renderer/ipc'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { ipcApi } from '@renderer/ipc'
 
 interface MacProcessTrustHintModalProps {
   open: boolean
@@ -27,7 +28,7 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
         <DialogHeader>
           <DialogTitle>{t('selection.settings.enable.mac_process_trust_hint.title')}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-3 py-4 text-foreground text-sm">
+        <div className="flex flex-col gap-3 py-4 text-sm text-foreground">
           <p className="m-0">
             <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.0" />
           </p>
@@ -39,7 +40,7 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
           </p>
         </div>
         <div className="flex w-full items-center justify-between">
-          <Button variant="ghost" className="text-muted-foreground text-xs" onClick={handleOpenAccessibility}>
+          <Button variant="ghost" className="text-xs text-muted-foreground" onClick={handleOpenAccessibility}>
             {t('selection.settings.enable.mac_process_trust_hint.button.open_accessibility_settings')}
           </Button>
           <Button onClick={handleConfirm}>

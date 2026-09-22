@@ -225,3 +225,6 @@ export interface SystemSkillCandidate {
   status: SystemSkillStatus
   registeredSkillId?: string
 }
+
+/** Installed catalog entry enriched by the filesystem-owned skill workflow. */
+export type SkillCatalogEntry = InstalledSkill & { scope: 'system' | 'builtin' | 'local' }

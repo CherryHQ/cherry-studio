@@ -1,8 +1,13 @@
-import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { buildAgentRightPaneStatus, buildAgentToolFlowProjection } from '../agentRightPaneProjection'
+import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+
+import {
+  buildAgentRightPaneStatus,
+  buildAgentToolFlowProjection,
+  findLatestAgentPreviewUrl
+} from '../agentRightPaneProjection'
 
 const message = (id: string, parts: CherryMessagePart[]): CherryUIMessage =>
   ({
@@ -64,6 +69,63 @@ const textPart = (text: string, parentToolCallId?: string): CherryMessagePart =>
   }) as unknown as CherryMessagePart
 
 describe('agent right pane projections', () => {
+  describe('preview URL discovery', () => {
+    it('returns the latest loopback URL reported by a shell tool', () => {
+      const firstParts = [
+        toolPart(
+          'bash-1',
+          'Bash',
+          undefined,
+          'output-available',
+          { command: 'pnpm dev' },
+          'Local: http://localhost:5173/'
+        )
+      ]
+      const latestParts = [
+        toolPart(
+          'bash-2',
+          'BashOutput',
+          undefined,
+          'output-available',
+          { bash_id: 'server' },
+          '\u001b[32mready\u001b[0m at http://127.0.0.1:4173/dashboard).'
+        )
+      ]
+
+      expect(
+        findLatestAgentPreviewUrl([message('m1', firstParts), message('m2', latestParts)], {
+          m1: firstParts,
+          m2: latestParts
+        })
+      ).toBe('http://127.0.0.1:4173/dashboard')
+    })
+
+    it('normalizes wildcard hosts to a browser-reachable loopback address', () => {
+      const parts = [
+        toolPart(
+          'task-output',
+          'TaskOutput',
+          undefined,
+          'output-available',
+          undefined,
+          '<stdout>Server listening on http://0.0.0.0:8000</stdout>'
+        )
+      ]
+
+      expect(findLatestAgentPreviewUrl([message('m1', parts)], { m1: parts })).toBe('http://localhost:8000/')
+    })
+
+    it('ignores user text, remote URLs, and URLs from unrelated tool output', () => {
+      const parts = [
+        textPart('Open http://localhost:3000'),
+        toolPart('read-1', 'Read', undefined, 'output-available', undefined, 'http://localhost:4000'),
+        toolPart('bash-1', 'Bash', undefined, 'output-available', undefined, 'Docs: https://example.com')
+      ]
+
+      expect(findLatestAgentPreviewUrl([message('m1', parts)], { m1: parts })).toBeNull()
+    })
+  })
+
   it('builds a selected tool subtree with text and reasoning parts owned by that subtree', () => {
     const parts = [
       toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Explore the repo' }, 'Done exploring'),
@@ -274,6 +336,52 @@ describe('agent right pane projections', () => {
     const snapshotWins = buildAgentRightPaneStatus([message('m1', ledgerThenSnapshot)], { m1: ledgerThenSnapshot })
     expect(snapshotWins.tasks.map((task) => task.title)).toEqual(['Polish the pane'])
     expect(snapshotWins.totalTaskCount).toBe(1)
+  })
+
+  it('keeps the plan owned by the main agent when spawned runs write todos or tasks', () => {
+    const parts = [
+      toolPart('todos-main', 'TodoWrite', undefined, 'output-available', {
+        todos: [
+          { content: 'Design pane', activeForm: 'Designing pane', status: 'completed' },
+          { content: 'Wire flow', activeForm: 'Wiring flow', status: 'in_progress' }
+        ]
+      }),
+      // Spawned-run parts arrive parented under their Task tool call and must not own the plan.
+      toolPart('child-todos', 'TodoWrite', 'parent-task-call', 'output-available', {
+        todos: [{ content: 'Subagent todo', status: 'in_progress' }]
+      }),
+      toolPart(
+        'child-task-create',
+        'TaskCreate',
+        'parent-task-call',
+        'output-available',
+        { subject: 'Subagent ledger row' },
+        {
+          task: { id: '1', subject: 'Subagent ledger row' }
+        }
+      ),
+      // The dsh runtime parents spawned-run parts through its own metadata namespace.
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'dsh-child-todos',
+        toolName: 'todo_write',
+        state: 'output-available',
+        input: { todos: [{ content: 'Dsh child todo', status: 'in_progress' }] },
+        callProviderMetadata: {
+          cherry: {
+            transport: 'dsh-agent',
+            parentToolCallId: 'dsh-parent-task-call',
+            tool: { type: 'builtin', name: 'todo_write' }
+          }
+        }
+      } as unknown as CherryMessagePart
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks.map((task) => task.title)).toEqual(['Design pane', 'Wire flow'])
+    expect(status.completedTaskCount).toBe(1)
+    expect(status.totalTaskCount).toBe(2)
   })
 
   it('projects the latest successful dsh todo_write snapshot into status tasks', () => {

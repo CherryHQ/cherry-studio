@@ -81,10 +81,12 @@ restart(): Promise<void>
 
 onStarted?: (pid: number) => void
 onExited?: (code: number | null, signal: NodeJS.Signals | null) => void
+onError?: (error: Error) => void
 onLog?: (line: ProcessLogLine) => void
 ```
 
-Callbacks belong to the individual handle. `ProcessManager` does not publish a global process event hub.
+Callbacks belong to the individual handle. `ProcessManager` does not publish a global process event hub. Registering
+`onError` also makes that consumer responsible for logging any error detail, so it can redact process-specific secrets.
 
 ## State Model
 

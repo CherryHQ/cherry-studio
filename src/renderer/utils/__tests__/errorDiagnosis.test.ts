@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { SerializedError } from '@renderer/types/error'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: vi.fn()
@@ -189,7 +190,7 @@ describe('ErrorDiagnosisService', () => {
 
       await diagnoseError(makeError({ statusCode: 401 }), 'zh-CN', {
         errorSource: 'chat',
-        providerName: 'openai',
+        providerId: 'openai',
         modelId: 'gpt-4'
       })
 
@@ -310,6 +311,28 @@ describe('ErrorDiagnosisService', () => {
       )
 
       await diagnoseError(makeError({ message: 'Socks5 proxy rejected connection' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('routes a Chromium DNS failure to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'network', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_NAME_NOT_RESOLVED' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('routes a Chromium connection reset to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'stream', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_CONNECTION_RESET' }), 'en')
 
       const callArgs = mockFetchGenerate.mock.calls[0][0]
       expect(callArgs.prompt).toContain('Network or proxy error')

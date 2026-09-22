@@ -24,11 +24,12 @@
 
 import path from 'node:path'
 
+import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
+
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
 
 import { danglingCache } from './danglingCache'
 

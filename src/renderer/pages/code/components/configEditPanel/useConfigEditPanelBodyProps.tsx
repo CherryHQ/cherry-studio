@@ -1,3 +1,7 @@
+import type { ReactNode } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
@@ -5,9 +9,6 @@ import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useP
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import type { ReactNode } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ConfigEditDialogBodyProps } from './ConfigEditDialogBody'
 import { ModelSelectorTrigger } from './ModelSelectorTrigger'

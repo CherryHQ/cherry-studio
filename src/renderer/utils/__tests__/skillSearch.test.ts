@@ -1,3 +1,5 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import {
   ClaudePluginsSearchResponseSchema,
   ClawhubSearchResponseSchema,
@@ -5,7 +7,6 @@ import {
   SkillsShSearchResponseSchema
 } from '@shared/types/skill'
 import { normalizeClaudePlugins, normalizeClawhub, normalizeSkillsSh } from '@shared/utils/skillMarketplace'
-import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
 import claudePluginsFixture from './fixtures/claude-plugins-search.json'

@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import type { RawWindowInfo } from '@main/services/screenshot/types'
 import { listWindowsOffThread, readWindowInfo } from '@main/services/screenshot/windowEnumerator'
-import { describe, expect, it, vi } from 'vitest'
 
 const workerConstructor = vi.hoisted(() => vi.fn())
 
@@ -21,7 +22,9 @@ class FakeWorker {
 /** Start an enumeration and hand back the worker it spawned. */
 const spawn = () => {
   const worker = new FakeWorker()
-  workerConstructor.mockImplementationOnce(() => worker)
+  workerConstructor.mockImplementationOnce(function WorkerMock() {
+    return worker
+  })
   return { worker, windows: listWindowsOffThread() }
 }
 
@@ -110,7 +113,7 @@ describe('listWindowsOffThread', () => {
   it('degrades to no snap targets when the worker cannot be spawned', async () => {
     // Hover-to-snap is optional — it falls back to snapping to the whole display.
     // A rejection here would escape the caller's fire-and-forget `void`.
-    workerConstructor.mockImplementationOnce(() => {
+    workerConstructor.mockImplementationOnce(function WorkerMock() {
       throw new Error('cannot spawn')
     })
 

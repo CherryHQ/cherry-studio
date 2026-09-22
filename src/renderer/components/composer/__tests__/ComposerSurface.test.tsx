@@ -1,3 +1,10 @@
+import { mockToast } from '@test-mocks/renderer/toast'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
+import { useState } from 'react'
+import { flushSync } from 'react-dom'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import {
@@ -6,13 +13,9 @@ import {
   readComposerClipboardFragment,
   writeComposerRichClipboardContent
 } from '@renderer/utils/message/composerClipboard'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
-import { useState } from 'react'
-import { flushSync } from 'react-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ComposerContextProvider } from '../ComposerContext'
+import { COMPOSER_INPUT_MAX_LENGTH } from '../composerDraft'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
@@ -66,7 +69,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelUpdateList: vi.fn(),
   pinnedLauncherIds: [] as string[],
   selection: { from: 1 } as any,
-  translate: (key: string) => key,
+  translate: (key: string) => (key === 'chat.input.ai_disclaimer' ? '内容由 AI 生成，仅供参考' : key),
   transaction: undefined as any
 }))
 
@@ -91,6 +94,7 @@ function getMockEditorScrollHeight(node: HTMLElement) {
 }
 
 vi.mock('@cherrystudio/ui', () => ({
+  Kbd: ({ children, ...props }: HTMLAttributes<HTMLElement>) => <kbd {...props}>{children}</kbd>,
   Button: ({
     children,
     size,
@@ -289,6 +293,7 @@ vi.mock('@tiptap/react', () => ({
 }))
 
 vi.mock('../ComposerToolRuntime', () => ({
+  ComposerToolFooterActionsSync: () => null,
   ComposerToolMenu: () => <button type="button">add tool</button>,
   useComposerPinnedTools: () => mocks.pinnedLauncherIds
 }))
@@ -591,6 +596,23 @@ describe('ComposerSurface', () => {
     expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
   })
 
+  it('does not render a visual focus reminder', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('聚焦输入框')).not.toBeInTheDocument()
+  })
+
+  it('renders the AI-generated content disclaimer when the composer enables it', () => {
+    const view = render(<ComposerSurface {...baseProps} />)
+
+    expect(screen.queryByText('内容由 AI 生成，仅供参考')).not.toBeInTheDocument()
+
+    view.rerender(<ComposerSurface {...baseProps} showAiDisclaimer />)
+
+    expect(screen.getByText('内容由 AI 生成，仅供参考')).toBeInTheDocument()
+  })
+
   it('renders controls immediately while mounting the quick panel after the editor is ready', () => {
     mocks.stabilizeEditor = true
     const animationFrames: FrameRequestCallback[] = []
@@ -721,6 +743,14 @@ describe('ComposerSurface', () => {
       'data-ui',
       'chat.composer.action.send'
     )
+  })
+
+  it('keeps regular editor padding independent of the overlay corner control', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    const editorContent = screen.getByTestId('editor-content')
+    expect(editorContent.style.getPropertyValue('--composer-editor-padding')).toBe('6px 15px 0')
+    expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
   })
 
   it('exposes the pause anchor while a response is streaming', () => {
@@ -1278,10 +1308,79 @@ describe('ComposerSurface', () => {
     )
   })
 
+  it('serves the last serialized draft after the editor is destroyed instead of a text-only pair', async () => {
+    // A destroyed-editor getDraft() must never fabricate { text, tokens: [] }: callers persist that
+    // pair verbatim, and text without its tokens strands managed chips' prompt sentences as prose.
+    mocks.stabilizeEditor = true
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: { id: 'knowledge:kb-1', kind: 'knowledge', label: 'KB One', promptText: 'kb sentence' }
+            },
+            { type: 'text', text: ' tail' }
+          ]
+        }
+      ]
+    })
+
+    render(<Harness />)
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    act(() => {
+      mocks.editorOptions?.onUpdate({ editor: mocks.editorInstance })
+    })
+
+    const liveDraft = mocks.actions?.getDraft()
+    expect(liveDraft?.tokens).toHaveLength(1)
+
+    // After teardown a fresh serialization is impossible; the last serialized pair is the draft.
+    mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
+    if (mocks.editorInstance) mocks.editorInstance.isDestroyed = true
+
+    expect(mocks.actions?.getDraft()).toEqual(liveDraft)
+  })
+
+  it('seeds the last serialized draft at editor creation, so a torn-down getDraft is still paired', async () => {
+    // Initial content never fires onUpdate, so creation itself must record the serialization —
+    // otherwise a getDraft() before the first keystroke still fabricates a text-only pair.
+    mocks.stabilizeEditor = true
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: { id: 'knowledge:kb-1', kind: 'knowledge', label: 'KB One', promptText: 'kb sentence' }
+            }
+          ]
+        }
+      ]
+    })
+
+    render(<Harness />)
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    act(() => {
+      mocks.editorOptions?.onCreate({ editor: mocks.editorInstance })
+    })
+    const seededDraft = mocks.actions?.getDraft()
+    expect(seededDraft?.tokens).toHaveLength(1)
+
+    if (mocks.editorInstance) mocks.editorInstance.isDestroyed = true
+
+    expect(mocks.actions?.getDraft()).toEqual(seededDraft)
+  })
+
   it('keeps token structure when an external text update matches the current content', async () => {
-    // Reproduces the long-text paste flow: the editor holds a quote token, PasteService converts
-    // the pasted text into a file and re-applies the unchanged serialized text. The rebuild only
-    // re-tokenizes prompt variables, so it must be skipped or the quote token degrades to text.
+    // An external same-text update (e.g. a tool writing the text back) must skip the rebuild:
+    // it only re-tokenizes prompt variables, so the quote token would degrade to plain text.
     mocks.getJSON.mockReturnValue({
       type: 'doc',
       content: [
@@ -1788,14 +1887,6 @@ describe('ComposerSurface', () => {
         quickPanelEnabled
         getToolLaunchers={getToolLaunchers}
         rootPanelLeadingItems={[{ id: 'new-topic', label: 'New conversation', icon: 'plus' }]}
-        rootPanelAdditionalItems={[
-          {
-            id: 'composer:customize-toolbar',
-            label: 'Customize toolbar',
-            icon: 'settings',
-            fixedToBottom: true
-          }
-        ]}
         renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
           <>
             <button type="button" aria-label="open plus panel" onClick={() => unifiedPanelControl?.open()}>
@@ -1817,8 +1908,7 @@ describe('ComposerSurface', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
     expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
-      'attachment',
-      'composer:customize-toolbar'
+      'attachment'
     ])
 
     mocks.quickPanelOpen.mockClear()
@@ -1829,8 +1919,6 @@ describe('ComposerSurface', () => {
         list: [expect.objectContaining({ id: 'thinking-low' })],
         // Opening a launcher directly is an explicit request, so its parentPanel is the
         // undeduped root (includes pinned launchers), not the browsable "+" panel's list.
-        // The fixedToBottom customize-toolbar footer is also dropped here since this is a
-        // category view (seeded with the "Thinking" search text).
         parentPanel: expect.objectContaining({
           list: [
             expect.objectContaining({ id: 'new-topic' }),
@@ -1849,8 +1937,7 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
       'new-topic',
       'thinking',
-      'attachment',
-      'composer:customize-toolbar'
+      'attachment'
     ])
   })
 
@@ -3047,6 +3134,51 @@ describe('ComposerSurface', () => {
 
     const fileUpdater = setFiles.mock.calls[0]?.[0] as (files: (typeof pastedFile)[]) => (typeof pastedFile)[]
     expect(fileUpdater([pastedFile])).toEqual([])
+  })
+
+  it('refuses to replace the pasted text token when the file exceeds the input limit', async () => {
+    const pastedFile = {
+      id: 'file-2',
+      name: 'pasted_text.txt',
+      origin_name: '已粘贴的文本.txt',
+      path: '/tmp/pasted_text.txt',
+      composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+    }
+    const pastedToken = {
+      id: 'file:file-2',
+      kind: 'file' as const,
+      label: '已粘贴的文本.txt',
+      payload: pastedFile
+    }
+    const setFiles = vi.fn()
+
+    // Silently truncating here would drop the tail of the file the moment the
+    // token is replaced — the refusal must keep the token and the file intact.
+    mocks.fsReadText.mockResolvedValue('x'.repeat(COMPOSER_INPUT_MAX_LENGTH + 1))
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'composerToken', attrs: pastedToken }] }]
+    })
+
+    render(<ComposerSurface {...baseProps} tokens={[pastedToken]} managedTokenKinds={['file']} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    render(
+      <>
+        {mocks.editorPresetOptions.renderToken(pastedToken, {
+          selected: false,
+          nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } }
+        })}
+      </>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.paste_text_file' }))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/pasted_text.txt'))
+    expect(mocks.deleteRange).not.toHaveBeenCalled()
+    expect(mocks.insertContent).not.toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(mockToast.error).toHaveBeenCalledWith('chat.input.paste_text_too_long')
   })
 
   it('does not notify token changes when only text changes', async () => {

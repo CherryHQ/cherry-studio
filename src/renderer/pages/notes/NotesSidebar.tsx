@@ -1,13 +1,14 @@
+import { FilePlus, FileText, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { findNode } from '@renderer/services/NotesTreeService'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { FilePlus, FileText, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
-import type { FC } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useFullTextSearch } from './hooks/useFullTextSearch'
 import { useNotesEditing } from './hooks/useNotesEditing'

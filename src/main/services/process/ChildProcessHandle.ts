@@ -1,8 +1,9 @@
+import type { ChildProcess } from 'child_process'
+
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
-import type { ChildProcess } from 'child_process'
 
 import type { ChildProcessOptions, ProcessLogLine } from './types'
 import { DEFAULT_KILL_TIMEOUT_MS, ProcessState } from './types'
@@ -25,6 +26,7 @@ export class ChildProcessHandle {
 
   onStarted: ((pid: number) => void) | undefined = undefined
   onExited: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined = undefined
+  onError: ((error: Error) => void) | undefined = undefined
   onLog: ((line: ProcessLogLine) => void) | undefined = undefined
 
   constructor(def: ChildProcessOptions, canStart: () => boolean = () => true) {
@@ -166,12 +168,14 @@ export class ChildProcessHandle {
   }
 
   private handleProcessError(err: Error): void {
+    const onError = this.onError
+    this.invokeCallback('onError', onError ? () => onError(err) : undefined)
     if (this._exited) return
     this._exited = true
     this._state = ProcessState.Crashed
     this._pid = undefined
     this._process = undefined
-    this.logger.error(`Process error: ${err.message}`, err)
+    if (!onError) this.logger.error(`Process error: ${err.message}`, err)
     const onExited = this.onExited
     this.invokeCallback('onExited', onExited ? () => onExited(null, null) : undefined)
   }

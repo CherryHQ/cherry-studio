@@ -1,16 +1,14 @@
+import { renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * The usage cache survives reconnects, so an entry published by the previous model outlives a model
  * switch. The denominator now comes from the passed model rather than the payload, so an unfiltered
  * reading would divide the old model's tokens by the new model's window.
  */
 import { cacheService } from '@data/CacheService'
-import {
-  AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
-  type AgentSessionContextUsage
-} from '@shared/ai/agentSessionContextUsage'
+import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { Model } from '@shared/data/types/model'
-import { renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAgentSessionContextUsage } from '../useAgentSessionContextUsage'
 
@@ -35,7 +33,7 @@ beforeEach(() => {
     maxTokens: 250_000,
     percentage: 80,
     model: 'small-model'
-  } as unknown as AgentSessionContextUsage)
+  })
 })
 
 afterEach(() => {
@@ -75,7 +73,7 @@ describe('useAgentSessionContextUsage', () => {
       maxTokens: 200_000,
       percentage: 50,
       model: 'claude-sonnet-4-6'
-    } as unknown as AgentSessionContextUsage)
+    })
 
     const { result } = renderHook(() =>
       useAgentSessionContextUsage(SESSION_ID, model('claude-code::claude-sonnet-4-6', 1_000_000))

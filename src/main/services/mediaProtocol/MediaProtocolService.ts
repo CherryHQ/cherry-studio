@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
+import { protocol } from 'electron'
+
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { protocol } from 'electron'
 
 import { CHERRY_MEDIA_SCHEME, MEDIA_KINDS, type MediaEntry, type MediaKind } from './types'
 

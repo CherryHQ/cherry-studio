@@ -15,9 +15,10 @@
  * non-empty, only those bases are reachable. The tool is not exposed when that scope is empty.
  */
 
-import { KB_LIST_TOOL_NAME, kbListInputSchema, kbListOutputSchema, kbTreeOutputSchema } from '@shared/ai/builtinTools'
 import { tool } from 'ai'
 import * as z from 'zod'
+
+import { KB_LIST_TOOL_NAME, kbListInputSchema, kbListOutputSchema, kbTreeOutputSchema } from '@shared/ai/builtinTools'
 
 import {
   KNOWLEDGE_LIST_DESCRIPTION,

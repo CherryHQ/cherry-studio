@@ -2,6 +2,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 
 import type { OptionItem } from '../../form/baseConfigItem'
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
+import { controlValue } from '../fieldValue'
 import { resolveOptions } from '../resolveOptions'
 import { deriveChipLabel, type Dim, parseRatio } from '../sizeLabel'
 
@@ -67,9 +68,9 @@ export default function SizeChipsField({
   onChange,
   currentValue,
   disabled
-}: PaintingFieldComponentProps) {
+}: PaintingFieldComponentProps<'sizeChips'>) {
   const options = resolveOptions(item, painting, translate)
-  const value = currentValue == null ? '' : String(currentValue)
+  const value = controlValue(currentValue)
   const columns = autoColumns(options, item.columns)
 
   return (

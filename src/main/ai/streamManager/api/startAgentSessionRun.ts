@@ -38,6 +38,10 @@ export async function startAgentSessionRun(input: {
   let result: StartAgentSessionRunResult = { mode: 'not-started', reason: 'session-invalid' }
 
   await manager.withDispatchLock(topicId, async () => {
+    // A cleanup listener of the previous turn may release this caller mid-dispatch; admitting now
+    // would evict that stream before its terminal lifecycle ran (stale-generation guard skips it).
+    await manager.whenTerminalDispatchSettled(topicId)
+
     if (manager.isWriteQuiesced) {
       throw new Error(
         'AiStreamManager is write-quiesced (backup restore in progress); refusing a new agent-session turn'

@@ -1,8 +1,7 @@
-import { loggerService } from '@logger'
-import type { WebDavConfig } from '@shared/types/backup'
 import https from 'https'
 import path from 'path'
 import type Stream from 'stream'
+
 import type {
   BufferLike,
   CreateDirectoryOptions,
@@ -13,6 +12,9 @@ import type {
 } from 'webdav'
 import { createClient } from 'webdav'
 
+import { loggerService } from '@logger'
+import type { WebDavConfig } from '@shared/types/backup'
+
 const logger = loggerService.withContext('WebDav')
 
 export default class WebDav {
@@ -22,14 +24,16 @@ export default class WebDav {
   constructor(params: WebDavConfig) {
     this.webdavPath = params.webdavPath || '/'
 
+    // Fail-closed: TLS certificates are verified unless the user explicitly opts in.
+    // The agent only serves https:// requests — plain-http hosts are unaffected.
     this.instance = createClient(params.webdavHost, {
       username: params.webdavUser,
       password: params.webdavPass,
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
-      httpsAgent: new https.Agent({
-        rejectUnauthorized: false
-      })
+      // Opt-in skips ALL certificate checks (expired/hostname too) — Node agents
+      // cannot selectively allow self-signed certs; copy must state the full scope.
+      ...(params.allowSelfSignedTls === true ? { httpsAgent: new https.Agent({ rejectUnauthorized: false }) } : {})
     })
 
     this.putFileContents = this.putFileContents.bind(this)

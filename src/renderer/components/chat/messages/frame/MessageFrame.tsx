@@ -1,3 +1,8 @@
+import dayjs from 'dayjs'
+import type { FC } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Scrollbar } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -6,12 +11,10 @@ import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpe
 import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
-import dayjs from 'dayjs'
-import type { FC } from 'react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
+import MessageImageBlock from '../blocks/MessageImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
+import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
@@ -25,6 +28,7 @@ import {
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
+import MessageAttachments from './MessageAttachments'
 import MessageAvatar from './MessageAvatar'
 import MessageContent from './MessageContent'
 import MessageErrorBoundary from './MessageErrorBoundary'
@@ -91,7 +95,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isAssistantMessage = message.role === 'assistant'
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
   const canStartEditing =
-    canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating))
+    actions.canEditMessage?.(message) ??
+    (canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating)))
   const isEditing = editingMessageId === message.id
   const handleStartEditing = useCallback(
     (messageId: string) => {
@@ -184,6 +189,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     [actions, isMultiSelectMode, isSelected, message.id]
   )
 
+  // No checkbox is rendered past this point; useMessageSelectionController's selectableIds mirrors this exclusion.
   if (message.isContextBoundary) {
     return (
       <div
@@ -193,10 +199,10 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
         onKeyDown={handleStartNewContextKeyDown}
         role="button"
         tabIndex={canStartNewContext ? 0 : -1}>
-        <div className="mx-5 my-4 flex items-center gap-2 text-foreground-tertiary text-sm">
-          <hr className="flex-1 border-border border-dashed" />
+        <div className="mx-5 my-4 flex items-center gap-2 text-sm text-foreground-tertiary">
+          <hr className="flex-1 border-dashed border-border" />
           <span>{t('chat.message.new.context')}</span>
-          <hr className="flex-1 border-border border-dashed" />
+          <hr className="flex-1 border-dashed border-border" />
         </div>
       </div>
     )
@@ -222,7 +228,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   )
 
   const userFooter = showUserFooterActions ? (
-    <div className="MessageFooter relative mt-1 flex min-h-6.5 max-w-full shrink-0 items-center text-foreground-tertiary text-xs leading-none">
+    <div className="MessageFooter relative mt-1 flex min-h-6.5 max-w-full shrink-0 items-center text-xs leading-none text-foreground-tertiary">
       <div className={USER_MESSAGE_FOOTER_ACTIONS_CLASS}>
         <MessageMenuBar
           message={message}
@@ -231,7 +237,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           variant="header"
         />
@@ -258,7 +264,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onMenuOpenChange={setIsMessageMenuOpen}
           onSelectContext={onSelectContext}
         />
@@ -289,7 +295,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           messageFont={messageFont}
           fontSize={fontSize}
@@ -353,6 +359,8 @@ const UserBubbleMessage = ({
   const openUserProfile = useCallback(() => {
     void actions.openUserProfile?.()
   }, [actions])
+  const messageParts = useMessageParts(message.id)
+  const attachments = getHoistedAttachments(messageParts, message)
 
   return (
     <div className="flex w-full flex-col items-end">
@@ -363,23 +371,39 @@ const UserBubbleMessage = ({
               <AgentSessionDeliveryBadge delivery={message.delivery} />
             </div>
           )}
+          {(attachments.images.length > 0 || attachments.files.length > 0) && (
+            <div className="flex max-w-full flex-col items-end">
+              {attachments.images.length > 0 && (
+                <MessageImageBlock sources={attachments.images} thumbnail className="mb-2 justify-end" />
+              )}
+              {attachments.files.map((file) => (
+                <MessageAttachments
+                  key={file.key}
+                  handle={file.handle}
+                  name={file.name}
+                  ext={file.ext}
+                  createdAt={message.createdAt}
+                />
+              ))}
+            </div>
+          )}
           <Scrollbar
             data-ui="part:message-content"
-            className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
+            className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
               fontSize,
               overflowY: 'visible'
             }}>
             <MessageErrorBoundary>
-              <MessageContent message={message} />
+              <MessageContent message={message} hoistAttachments />
             </MessageErrorBoundary>
           </Scrollbar>
         </div>
         <MessageAvatar avatar={avatar} className="mt-1.5" onClick={canOpenUserProfile ? openUserProfile : undefined} />
       </div>
       {!isEditing && (
-        <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-tertiary text-xs leading-none">
+        <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-xs leading-none text-foreground-tertiary">
           <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>
             <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
             <MessageMenuBar

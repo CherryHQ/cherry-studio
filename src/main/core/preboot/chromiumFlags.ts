@@ -1,6 +1,7 @@
+import { app } from 'electron'
+
 import { isLinux, isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
-import { app } from 'electron'
 
 /**
  * Configure Chromium startup flags — the umbrella term Electron uses for

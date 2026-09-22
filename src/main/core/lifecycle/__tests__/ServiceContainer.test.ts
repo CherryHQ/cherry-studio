@@ -206,10 +206,7 @@ describe('ServiceContainer', () => {
     class LinuxOnlyService extends BaseService {}
 
     @Injectable('MultiConditionService')
-    @Conditional(
-      onPlatform('win32'),
-      when(() => true, 'always true')
-    )
+    @Conditional(onPlatform('win32'), when(() => true, 'always true'))
     class MultiConditionService extends BaseService {}
 
     @Injectable('DependsOnDarwin')

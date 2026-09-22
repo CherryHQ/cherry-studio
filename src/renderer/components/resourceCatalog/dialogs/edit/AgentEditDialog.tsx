@@ -1,6 +1,10 @@
+import { ToolCase, Wrench } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
-  EditableNumber,
   FormControl,
   FormField,
   FormItem,
@@ -9,12 +13,15 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
+  InputNumber,
   Switch,
   TabsContent,
   Textarea
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
@@ -35,7 +42,9 @@ import {
   diffAgentSaveIntent,
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
+import { MAX_HEARTBEAT_INTERVAL_MINUTES, MIN_HEARTBEAT_INTERVAL_MINUTES } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
+import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import {
   CLAUDE_KNOWLEDGE_TOOL_NAMES,
   CLAUDE_TOOL_CATEGORIES,
@@ -44,12 +53,8 @@ import {
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
-import { ToolCase, Wrench } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
 import { EmojiAvatarPicker } from '../components/DialogFormFields'
@@ -72,9 +77,11 @@ import {
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
   resource: AgentDetail | null
+  isModelDisabled?: ModelSelectorFilter
 }
 
 type AgentEditFormValues = {
@@ -229,7 +236,14 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
 }
 
-export function AgentEditDialog({ resource, open, onOpenChange, modelFilter, initialTab }: AgentEditDialogProps) {
+export function AgentEditDialog({
+  resource,
+  open,
+  onOpenChange,
+  modelFilter,
+  isModelDisabled,
+  initialTab
+}: AgentEditDialogProps) {
   if (!resource) return null
 
   return (
@@ -238,6 +252,7 @@ export function AgentEditDialog({ resource, open, onOpenChange, modelFilter, ini
       open={open}
       onOpenChange={onOpenChange}
       modelFilter={modelFilter}
+      isModelDisabled={isModelDisabled}
       initialTab={initialTab}
     />
   )
@@ -248,8 +263,9 @@ function AgentEditDialogContent({
   open,
   onOpenChange,
   modelFilter,
+  isModelDisabled,
   initialTab
-}: EditDialogBaseProps & { resource: AgentDetail }) {
+}: EditDialogBaseProps & { resource: AgentDetail; isModelDisabled?: ModelSelectorFilter }) {
   const { t } = useTranslation()
   const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
@@ -507,6 +523,7 @@ function AgentEditDialogContent({
           <AgentBasicFields
             form={form}
             modelFilter={modelFilter}
+            isModelDisabled={isModelDisabled}
             portalContainer={dialogContentElement}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
@@ -516,6 +533,11 @@ function AgentEditDialogContent({
             onSettingsNavigate={closeBeforeAction}
             caps={caps}
             agentType={resource.type}
+            agentId={resource.id}
+            beforeHeartbeatOpen={async () => {
+              await flush()
+              return failedSaveKeyRef.current === null
+            }}
           />
         </TabsContent>
         <TabsContent
@@ -557,6 +579,7 @@ function AgentEditDialogContent({
 function AgentBasicFields({
   form,
   modelFilter,
+  isModelDisabled,
   portalContainer,
   modelLabels,
   setModelLabels,
@@ -565,10 +588,13 @@ function AgentBasicFields({
   setEmojiPickerOpen,
   onSettingsNavigate,
   caps,
-  agentType
+  agentType,
+  agentId,
+  beforeHeartbeatOpen
 }: {
   form: UseFormReturn<AgentEditFormValues>
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -578,9 +604,12 @@ function AgentBasicFields({
   onSettingsNavigate?: (navigate: () => void) => void
   caps: AgentRuntimeCapabilities
   agentType: AgentType
+  agentId: string
+  beforeHeartbeatOpen: () => Promise<boolean>
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
+  const [heartbeatOpen, setHeartbeatOpen] = useState(false)
 
   return (
     <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
@@ -601,8 +630,10 @@ function AgentBasicFields({
       <CompactModelField
         form={form}
         name="modelId"
+        includeAgentOnlyModels
         label={t('library.config.agent.field.model.label')}
         filter={modelFilter}
+        isModelDisabled={isModelDisabled}
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
@@ -616,9 +647,12 @@ function AgentBasicFields({
           <CompactModelField
             form={form}
             name="planModelId"
+            includeAgentOnlyModels
             label={t('library.config.agent.field.plan_model.label')}
+            emptyLabel={t('library.config.agent.field.plan_model.empty')}
             allowClear
             filter={modelFilter}
+            isModelDisabled={isModelDisabled}
             portalContainer={portalContainer}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
@@ -630,9 +664,12 @@ function AgentBasicFields({
           <CompactModelField
             form={form}
             name="smallModelId"
+            includeAgentOnlyModels
             label={t('library.config.agent.field.small_model.label')}
+            emptyLabel={t('library.config.agent.field.small_model.empty')}
             allowClear
             filter={modelFilter}
+            isModelDisabled={isModelDisabled}
             portalContainer={portalContainer}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
@@ -650,11 +687,27 @@ function AgentBasicFields({
         permissionModeCards={getPermissionModeCards(agentType)}
       />
       {caps.heartbeat ? (
-        <HeartbeatSettingsField
-          form={form}
-          enabled={heartbeatEnabled}
-          onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
-        />
+        <div>
+          <HeartbeatSettingsField
+            form={form}
+            enabled={heartbeatEnabled}
+            onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
+          />
+          <div className="flex justify-end pb-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                if (await beforeHeartbeatOpen()) setHeartbeatOpen(true)
+              }}>
+              {t('agent.heartbeat.edit')}
+            </Button>
+          </div>
+          {heartbeatOpen ? (
+            <HeartbeatEditorDialog agentId={agentId} enabled={heartbeatEnabled} onOpenChange={setHeartbeatOpen} />
+          ) : null}
+        </div>
       ) : null}
     </div>
   )
@@ -812,16 +865,17 @@ function HeartbeatSettingsField({
                 {t('library.config.agent.field.heartbeat_interval.label')}
               </FormLabel>
               <FormControl>
-                <EditableNumber
-                  min={1}
-                  max={1440}
+                <InputNumber
+                  min={MIN_HEARTBEAT_INTERVAL_MINUTES}
+                  max={MAX_HEARTBEAT_INTERVAL_MINUTES}
                   step={1}
-                  precision={0}
-                  align="start"
-                  changeOnBlur
                   className="h-9 w-full"
                   value={field.value || null}
-                  onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)}
+                  // Emptying the field is how you retype the interval, not how you
+                  // turn the heartbeat off — the switch above does that.
+                  onBlur={(v) => {
+                    if (v !== null) field.onChange(v)
+                  }}
                 />
               </FormControl>
               <FormMessage className="col-start-2" />
@@ -921,6 +975,7 @@ function AgentToolsFields({
   const knowledgeBaseIds = form.watch('knowledgeBaseIds')
   const skillIds = form.watch('skillIds')
   const canManageSkills = Boolean(agent.id)
+  const [browserEnabled] = usePreference('app.browser.agent_control.enabled')
 
   // Built-in catalog: registry user-facing tools grouped into category sections.
   // The toggle is a real enable/disable that writes the opt-out `disabledTools` set
@@ -969,6 +1024,31 @@ function AgentToolsFields({
     <div className="grid gap-4">
       {activeToolTab === 'tools.builtin' ? (
         <div className="grid gap-5">
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-muted-foreground text-xs">{t('settings.browser.title')}</span>
+              <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/browser')}>
+                {t('settings.title')}
+              </Button>
+            </div>
+            <CatalogToggleGrid
+              items={[
+                {
+                  id: BROWSER_TOOL_GROUP,
+                  name: t('settings.browser.control'),
+                  description: t('settings.browser.controlHelp'),
+                  pickable: browserEnabled,
+                  inactiveBadge: browserEnabled ? undefined : t('library.config.tools.inactive_badge')
+                }
+              ]}
+              enabledIds={
+                browserEnabled && !disabledSet.has(BROWSER_TOOL_GROUP) ? new Set([BROWSER_TOOL_GROUP]) : new Set()
+              }
+              onToggle={setToolEnabled}
+              emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
+              portalContainer={portalContainer}
+            />
+          </div>
           {builtinSections.map((section) => (
             <div key={section.category} className="grid gap-2">
               <div className="font-medium text-muted-foreground text-xs">{section.label}</div>

@@ -1,5 +1,6 @@
-import { buildGithubSkillResult, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 import { describe, expect, it } from 'vitest'
+
+import { buildGithubSkillResult, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 
 describe('parseGithubSkillUrl', () => {
   it('reads owner, repo and the undivided ref-and-path from a blob URL', () => {

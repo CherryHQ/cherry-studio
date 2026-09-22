@@ -306,14 +306,17 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
       consider(id, parseMdEntry(m), p)
     }
   }
+  const openRouter = PROVIDERS.find((provider) => provider.id === 'openrouter')
   const openRouterStandalones = new Set(
-    PROVIDERS.find((provider) => provider.id === 'openrouter')?.overrides?.flatMap((override) =>
-      override.name && override.modelId ? [override.modelId] : []
-    )
+    [
+      ...(openRouter?.standaloneModelIds ?? []),
+      ...(openRouter?.overrides?.flatMap((override) => (override.name && override.modelId ? [override.modelId] : [])) ??
+        [])
+    ].map(canonOf)
   )
   for (const m of or.data ?? []) {
-    // A named `~vendor/*` override is an OpenRouter-owned moving alias, not a creator model.
-    if (m.id.startsWith('~') && openRouterStandalones.has(canonOf(m.id))) continue
+    // Provider-declared standalone routes are not creator models.
+    if (openRouterStandalones.has(canonOf(m.id))) continue
     consider(m.id, parseOrEntry(m), 'openrouter')
   }
 
@@ -488,7 +491,7 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
  */
 function buildProviders(): ProviderEntry[] {
   // oxlint-disable-next-line no-unused-vars
-  return PROVIDERS.map(({ modelsDevProvider, fetchModels, overrides, ...conn }) => {
+  return PROVIDERS.map(({ modelsDevProvider, fetchModels, standaloneModelIds, overrides, ...conn }) => {
     const serverTools = conn.serverTools?.map((tool) => {
       const config = { ...tool }
       delete config.modelIdPrefixes
@@ -517,6 +520,9 @@ function buildProviderModels(
   orImageModels: OpenRouterApi,
   baseIds: Set<string>
 ): { overrides: any[] } {
+  const openRouterStandaloneIds = new Set(
+    PROVIDERS.find((provider) => provider.id === 'openrouter')?.standaloneModelIds?.map(canonOf) ?? []
+  )
   const seen = new Set<string>()
   const rows: any[] = []
   const variantsKey = (o: any): string => (o.modelVariants ?? []).slice().sort().join(',')
@@ -545,6 +551,9 @@ function buildProviderModels(
         (override.endpointTypes ||
           override.reasoningContracts ||
           override.requestControls ||
+          override.parameterSupport ||
+          override.name ||
+          override.ownedBy ||
           Object.hasOwn(override, 'pricing'))
     )
     const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
@@ -563,7 +572,7 @@ function buildProviderModels(
       const row: any = { providerId: p.id, modelId, apiModelId, pricing: meta.pricing, ...template }
       if (!baseIds.has(modelId)) {
         if (!meta.name) continue
-        row.name = meta.name // vendor-exclusive → standalone
+        row.name ??= meta.name // vendor-exclusive → standalone
       }
       addModel(row)
     }
@@ -606,11 +615,25 @@ function buildProviderModels(
     const modelId = canonOf(model.id)
     if (!imageGeneration || !modelId) continue
     const meta = parseOrEntry(model)
+    const existing =
+      rows.find((row) => row.providerId === 'openrouter' && row.apiModelId === model.id) ??
+      rows.find(
+        (row) =>
+          !baseIds.has(modelId) &&
+          row.providerId === 'openrouter' &&
+          row.modelId === modelId &&
+          row.apiModelId === undefined
+      )
     const imageRow = {
       providerId: 'openrouter',
       modelId,
       apiModelId: model.id,
-      ...(!baseIds.has(modelId) ? { name: model.name ?? model.id, ownedBy: model.id.split('/')[0] } : {}),
+      ...(!baseIds.has(modelId)
+        ? {
+            name: existing?.name ?? model.name ?? model.id,
+            ownedBy: openRouterStandaloneIds.has(modelId) ? 'openrouter' : (existing?.ownedBy ?? model.id.split('/')[0])
+          }
+        : {}),
       capabilities: { add: ['image-generation'] },
       endpointTypes: ['openai-image-generation'],
       ...(meta?.inputModalities ? { inputModalities: meta.inputModalities } : {}),
@@ -620,7 +643,6 @@ function buildProviderModels(
     // `/models` may already have contributed pricing for this exact OpenRouter model. Enrich that
     // row in place so its pricing and the image catalog's controls coexist instead of first-wins
     // deduplication silently dropping one side.
-    const existing = rows.find((row) => row.providerId === 'openrouter' && row.apiModelId === model.id)
     if (existing) Object.assign(existing, imageRow)
     else addModel(imageRow)
   }

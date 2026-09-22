@@ -1,9 +1,11 @@
-import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
-import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { describe, expect, it, vi } from 'vitest'
+
+import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
+import { exportService, getMessageTitle } from '@renderer/services/ExportService'
+import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
 
@@ -108,6 +110,10 @@ vi.mock('@renderer/components/command', async () => {
 })
 
 vi.mock('@renderer/services/ExportService', () => ({
+  exportService: {
+    captureScrollableAsBlob: vi.fn(),
+    captureScrollableAsDataUrl: vi.fn()
+  },
   getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))
@@ -184,6 +190,32 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
 }
 
 describe('messageMenuBarActions', () => {
+  it('uses the injected fork label and availability without owning session policy', async () => {
+    const forkSession = vi.fn()
+    const availability = vi.fn(() => ({ visible: true, enabled: true, reason: undefined as string | undefined }))
+    const context = createActionContext({
+      actions: { forkSession: { label: 'Fork this conversation', availability, run: forkSession } },
+      isProcessing: true,
+      isLastMessage: false
+    })
+    const forkAction = () => resolveMessageMenuBarMenuActions(context).find((action) => action.id === 'fork-session')!
+    expect(forkAction().availability.enabled).toBe(true)
+    expect(forkAction().label).toBe('Fork this conversation')
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    forkSession.mockClear()
+    availability.mockReturnValue({ visible: true, enabled: false, reason: 'Wait for the turn to finish' })
+    expect(forkAction().availability.enabled).toBe(false)
+    expect(forkAction().availability.reason).toBe('Wait for the turn to finish')
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).not.toHaveBeenCalled()
+    availability.mockReturnValue({ visible: true, enabled: true, reason: undefined })
+    expect(forkAction().availability.enabled).toBe(true)
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'new-branch')).toBe(false)
+  })
+
   it('keeps write actions hidden when capabilities are absent', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({
@@ -238,26 +270,27 @@ describe('messageMenuBarActions', () => {
     )
   })
 
-  it('keeps user edit toolbar action for root messages', () => {
-    const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createActionContext({
-        message: {
-          id: 'message-1',
-          role: 'user',
-          topicId: 'topic-1',
-          parentId: null,
-          createdAt: '2026-01-01T00:00:00.000Z',
-          status: 'success'
-        },
-        actions: {
-          editMessage: vi.fn()
-        } as MessageListActions,
-        isAssistantMessage: false,
-        isUserMessage: true
-      })
+  it.each(['inline', 'resend', 'blocked'])('respects the root user message edit capability: %s', (mode) => {
+    const context = createActionContext({
+      message: {
+        id: 'message-1',
+        role: 'user',
+        topicId: 'topic-1',
+        parentId: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        status: 'success'
+      },
+      actions: {
+        editMessage: mode === 'resend' ? undefined : vi.fn(),
+        canEditMessage: mode === 'inline' ? undefined : () => mode === 'resend'
+      },
+      isAssistantMessage: false,
+      isUserMessage: true
+    })
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).toEqual(
+      mode === 'blocked' ? ['copy'] : ['copy', 'user-edit']
     )
-
-    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'edit')).toBe(mode !== 'blocked')
   })
 
   it('keeps user edit toolbar action for non-root messages', () => {
@@ -273,7 +306,7 @@ describe('messageMenuBarActions', () => {
         },
         actions: {
           editMessage: vi.fn()
-        } as MessageListActions,
+        },
         isAssistantMessage: false,
         isUserMessage: true
       })
@@ -295,7 +328,7 @@ describe('messageMenuBarActions', () => {
         },
         actions: {
           editMessage: vi.fn()
-        } as MessageListActions,
+        },
         isAssistantMessage: false,
         isUserMessage: true
       })
@@ -308,7 +341,7 @@ describe('messageMenuBarActions', () => {
     const context = createActionContext({
       actions: {
         editMessage: vi.fn()
-      } as MessageListActions
+      }
     })
 
     expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).not.toContain('user-edit')
@@ -319,7 +352,7 @@ describe('messageMenuBarActions', () => {
     const context = createActionContext({
       actions: {
         editMessage: vi.fn()
-      } as MessageListActions,
+      },
       isTranslating: true
     })
 
@@ -337,7 +370,7 @@ describe('messageMenuBarActions', () => {
           renderRegenerateModelPicker: vi.fn(),
           setActiveBranch: vi.fn(),
           translateMessage: vi.fn()
-        } as MessageListActions,
+        },
         translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
         isGrouped: true
       })
@@ -367,7 +400,7 @@ describe('messageMenuBarActions', () => {
       createActionContext({
         actions: {
           regenerateMessage: vi.fn()
-        } as MessageListActions
+        }
       })
     )
 
@@ -561,7 +594,7 @@ describe('messageMenuBarActions', () => {
       actions: {
         requestTranslationLanguages,
         translateMessage: vi.fn()
-      } as MessageListActions
+      }
     })
     const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'translate')
     const translationItems = resolveMessageMenuBarTranslationItems(context)
@@ -598,7 +631,7 @@ describe('messageMenuBarActions', () => {
         requestTranslationLanguages: vi.fn(),
         retryTranslationLanguages,
         translateMessage: vi.fn()
-      } as MessageListActions
+      }
     })
 
     const failedItems = resolveMessageMenuBarTranslationItems(failedContext)
@@ -619,7 +652,7 @@ describe('messageMenuBarActions', () => {
           requestTranslationLanguages: vi.fn(),
           retryTranslationLanguages,
           translateMessage: vi.fn()
-        } as MessageListActions
+        }
       })
     )
     expect(recoveredItems.map((item) => item.key)).toEqual(['en'])
@@ -676,7 +709,7 @@ describe('messageMenuBarActions', () => {
         deleteMessage: vi.fn(),
         exportToNotes: vi.fn(),
         saveToKnowledge: vi.fn()
-      } as MessageListActions
+      }
     })
 
     const toolbarActions = resolveMessageMenuBarToolbarActions(context)
@@ -697,7 +730,7 @@ describe('messageMenuBarActions', () => {
           saveTextFile: vi.fn(),
           startMessageBranch: vi.fn(),
           toggleMultiSelectMode: vi.fn()
-        } as MessageListActions,
+        },
         selection: {
           enabled: true,
           isMultiSelectMode: false,
@@ -732,7 +765,7 @@ describe('messageMenuBarActions', () => {
           exportToWord: vi.fn(),
           exportToYuque: vi.fn(),
           saveImage: vi.fn()
-        } as MessageListActions,
+        },
         menuConfig: {
           ...defaultMessageMenuConfig,
           exportMenuOptions: {
@@ -774,7 +807,7 @@ describe('messageMenuBarActions', () => {
         actions: {
           startMessageBranch: vi.fn(),
           toggleMultiSelectMode: vi.fn()
-        } as MessageListActions,
+        },
         isLastMessage: true,
         selection: {
           enabled: true,
@@ -799,7 +832,7 @@ describe('messageMenuBarActions', () => {
         copyBranchToNewTopic,
         notifySuccess,
         startMessageBranch: vi.fn()
-      } as MessageListActions
+      }
     })
 
     const menuActions = resolveMessageMenuBarMenuActions(context)
@@ -819,7 +852,7 @@ describe('messageMenuBarActions', () => {
           copyBranchToNewTopic: vi.fn(),
           startMessageBranch: vi.fn(),
           toggleMultiSelectMode: vi.fn()
-        } as MessageListActions,
+        },
         isAssistantMessage: false,
         isUserMessage: true,
         selection: {
@@ -839,7 +872,7 @@ describe('messageMenuBarActions', () => {
         actions: {
           deleteMessage: vi.fn(),
           regenerateMessage: vi.fn()
-        } as MessageListActions,
+        },
         isProcessing: true
       })
     )
@@ -854,7 +887,7 @@ describe('messageMenuBarActions', () => {
     const language = { langCode: 'fr', label: 'French' } as any
     const translationItems = resolveMessageMenuBarTranslationItems(
       createActionContext({
-        actions: { translateMessage } as MessageListActions,
+        actions: { translateMessage },
         translateLanguages: [language],
         getTranslationLanguageLabel: () => 'French'
       })
@@ -891,7 +924,7 @@ describe('messageMenuBarActions', () => {
       createActionContext({
         hasTranslationBlocks: true,
         messageParts: [{ type: 'data-translation', data: { content: 'translated text' } }] as any,
-        actions: { copyText: vi.fn(), removeMessageTranslation, notifySuccess } as MessageListActions
+        actions: { copyText: vi.fn(), removeMessageTranslation, notifySuccess }
       })
     )
 
@@ -911,7 +944,7 @@ describe('messageMenuBarActions', () => {
   it('enables the translate toolbar action as abort while translation is running', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({
-        actions: { abortMessageTranslation: vi.fn() } as MessageListActions,
+        actions: { abortMessageTranslation: vi.fn() },
         isTranslating: true
       })
     )
@@ -923,7 +956,7 @@ describe('messageMenuBarActions', () => {
     const copyText = vi.fn()
     const setCopied = vi.fn()
     const context = createActionContext({
-      actions: { copyText } as MessageListActions,
+      actions: { copyText },
       setCopied
     })
 
@@ -936,12 +969,116 @@ describe('messageMenuBarActions', () => {
   it('saves the original main text through the local file action', async () => {
     const saveTextFile = vi.fn()
     const context = createActionContext({
-      actions: { saveTextFile } as MessageListActions
+      actions: { saveTextFile }
     })
 
     await executeMessageMenuBarAction('save.file', context)
 
     expect(saveTextFile).toHaveBeenCalledWith(expect.stringMatching(/\.md$/), 'hello')
+  })
+
+  it('keeps copy-as-image source ownership through a queued capture', async () => {
+    const currentElement = document.createElement('div')
+    const imageBlob = new Blob(['image'], { type: 'image/png' })
+    const copyImage = vi.fn()
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const captureRef = {
+      get current() {
+        return currentElement
+      }
+    }
+    const captureScrollableAsBlobMock = vi.mocked(exportService.captureScrollableAsBlob)
+    captureScrollableAsBlobMock.mockImplementation(async (ref, callback) => {
+      expect(ref.current).toBe(currentElement)
+      callback(imageBlob)
+    })
+
+    const context = createActionContext({
+      actions: { copyImage },
+      messageContainerRef: captureRef,
+      acquireMessageCaptureLease: acquireLease,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await expect(executeMessageMenuBarAction('export.copy-image', context)).resolves.toBe(true)
+
+    expect(acquireLease).toHaveBeenCalledWith(context.message.id)
+    expect(copyImage).toHaveBeenCalledWith(imageBlob)
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a queued copy-as-image failure when a topic switch removes its source', async () => {
+    const currentElement = document.createElement('div')
+    let renderedElement: HTMLElement | null = currentElement
+    const copyImage = vi.fn()
+    const notifyError = vi.fn()
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const getRenderedMessageElement = vi.fn(() => renderedElement)
+    let captureQueued!: () => void
+    let startQueuedCapture!: () => void
+    const captureQueuedPromise = new Promise<void>((resolve) => {
+      captureQueued = resolve
+    })
+    const startQueuedCapturePromise = new Promise<void>((resolve) => {
+      startQueuedCapture = resolve
+    })
+    const captureScrollableAsBlobMock = vi.mocked(exportService.captureScrollableAsBlob)
+    captureScrollableAsBlobMock.mockImplementation(async (ref) => {
+      captureQueued()
+      await startQueuedCapturePromise
+      void ref.current
+    })
+
+    const context = createActionContext({
+      actions: { copyImage, notifyError },
+      acquireMessageCaptureLease: acquireLease,
+      getRenderedMessageElement,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    const actionPromise = executeMessageMenuBarAction('export.copy-image', context)
+    await captureQueuedPromise
+
+    renderedElement = null
+    startQueuedCapture()
+
+    await expect(actionPromise).resolves.toBe(false)
+
+    expect(getRenderedMessageElement).toHaveBeenCalledWith(context.message.id)
+    expect(copyImage).not.toHaveBeenCalled()
+    expect(notifyError).toHaveBeenCalledWith(expect.stringContaining('Message is no longer available'))
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps save-as-image source ownership through capture failure cleanup', async () => {
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const notifyError = vi.fn()
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
+    captureScrollableAsDataUrlMock.mockRejectedValue(new Error('capture failed'))
+
+    const context = createActionContext({
+      actions: { notifyError, saveImage: vi.fn() },
+      acquireMessageCaptureLease: acquireLease,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await expect(executeMessageMenuBarAction('export.image', context)).resolves.toBe(false)
+
+    expect(acquireLease).toHaveBeenCalledWith(context.message.id)
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+    expect(getMessageTitle).not.toHaveBeenCalled()
   })
 
   it('copies user composer tokens through rich clipboard when available', async () => {
@@ -1006,7 +1143,7 @@ describe('messageMenuBarActions', () => {
     const notifyError = vi.fn()
     const setCopied = vi.fn()
     const context = createActionContext({
-      actions: { copyText, notifyError } as MessageListActions,
+      actions: { copyText, notifyError },
       setCopied
     })
 

@@ -18,7 +18,7 @@ const overrideOf = (providerId: string, modelId: string) => {
 }
 
 describe('moonshot parameter support', () => {
-  it.each(['kimi-k2-5', 'kimi-k2-6', 'kimi-k3'])(
+  it.each(['kimi-k2-5', 'kimi-k2-6', 'kimi-k2-7-code', 'kimi-k2-7-code-highspeed', 'kimi-k3'])(
     'omits the fixed temperature and top_p parameters for %s',
     (modelId) => {
       const { parameterSupport } = overrideOf('moonshot', modelId)

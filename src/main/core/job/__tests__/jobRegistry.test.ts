@@ -14,8 +14,9 @@
  * silently.
  */
 
-import type { JobPayloadOf, JobType } from '@main/core/job/jobRegistry'
 import { describe, expectTypeOf, it } from 'vitest'
+
+import type { JobPayloadOf, JobType } from '@main/core/job/jobRegistry'
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {

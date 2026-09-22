@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { describe, expect, it } from 'vitest'
 
 import {
   applyModelFilters,

@@ -5,8 +5,8 @@ import SelectField from './fields/SelectField'
 import SizeChipsField from './fields/SizeChipsField'
 import SizeField from './fields/SizeField'
 
-export interface PaintingFieldComponentProps {
-  item: BaseConfigItem
+export interface PaintingFieldComponentProps<TType extends BaseConfigItem['type'] = BaseConfigItem['type']> {
+  item: Extract<BaseConfigItem, { type: TType }>
   fieldKey: string
   painting: Record<string, unknown>
   translate: (key: string) => string
@@ -16,10 +16,18 @@ export interface PaintingFieldComponentProps {
   disabled?: boolean
 }
 
-export type PaintingFieldComponent = ComponentType<PaintingFieldComponentProps>
+export type PaintingFieldComponent<TType extends BaseConfigItem['type']> = ComponentType<
+  PaintingFieldComponentProps<TType>
+>
 
-export const fieldRegistry: Partial<Record<BaseConfigItem['type'], PaintingFieldComponent>> = {
+type RegisteredFieldRegistry = {
+  select: PaintingFieldComponent<'select'>
+  sizeChips: PaintingFieldComponent<'sizeChips'>
+  customSize: PaintingFieldComponent<'customSize'>
+}
+
+export const fieldRegistry = {
   select: SelectField,
   sizeChips: SizeChipsField,
   customSize: SizeField
-}
+} satisfies RegisteredFieldRegistry

@@ -1,7 +1,8 @@
-import { Badge, Button, PageHeader } from '@cherrystudio/ui'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { FlaskConical, SlidersHorizontal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Badge, Button, PageHeader } from '@cherrystudio/ui'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { statusBadgeClassNames } from './statusStyles'
 
@@ -21,7 +22,7 @@ const DetailHeader = ({ base, onOpenRagConfig, onOpenRecallTest, onRebuild }: De
   return (
     <PageHeader
       title={base.name}
-      className="relative mb-0 h-9 pb-1 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']"
+      className="relative mb-0 h-9 pb-1 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']"
       action={
         base.status === 'failed' ? (
           <Button

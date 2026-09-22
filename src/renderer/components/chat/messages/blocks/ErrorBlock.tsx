@@ -1,3 +1,8 @@
+import { Link } from '@tanstack/react-router'
+import { AlertTriangle, ChevronRight, X } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
@@ -5,14 +10,10 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
-import { classifyError } from '@renderer/utils/errorClassifier'
-import { Link } from '@tanstack/react-router'
-import { AlertTriangle, ChevronRight, X } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
 
 import { useMessageListActions } from '../MessageListProvider'
-import type { MessageErrorDiagnosisResult, MessageListItem } from '../types'
+import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
@@ -24,15 +25,22 @@ interface Props {
   partId: string
   error: SerializedError | undefined
   message: MessageListItem
-  cachedDiagnosis?: MessageErrorDiagnosisResult
 }
 
-const ErrorBlock: React.FC<Props> = ({ partId, error, message, cachedDiagnosis }) => {
-  return <MessageErrorInfo partId={partId} error={error} message={message} cachedDiagnosis={cachedDiagnosis} />
+const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
+  return <MessageErrorInfo partId={partId} error={error} message={message} />
 }
 
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
+
+  const claudeCodeExit = getClaudeCodeExitInfo(error)
+  if (claudeCodeExit) {
+    const { reference, exitCode, exitSignal } = claudeCodeExit
+    if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
+    if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
+    return t('error.claude_code_exit.start', { reference })
+  }
 
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
   const errorKey = `error.${error?.message}`
@@ -78,8 +86,7 @@ const MessageErrorInfo: React.FC<{
   partId: string
   error: Props['error']
   message: MessageListItem
-  cachedDiagnosis?: MessageErrorDiagnosisResult
-}> = ({ partId, error, message, cachedDiagnosis }) => {
+}> = ({ partId, error, message }) => {
   const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget, notifyError } =
     useMessageListActions()
   const { setTimeoutTimer } = useTimer()
@@ -87,59 +94,27 @@ const MessageErrorInfo: React.FC<{
   const [aiSummary, setAiSummary] = useState<string>('')
 
   const errorMessage = error?.message ?? undefined
-  const errorStatus =
-    (error as Record<string, unknown> | undefined)?.status ?? (error as Record<string, unknown> | undefined)?.statusCode
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
-  const errorModelId = (error as Record<string, unknown> | undefined)?.modelId as string | undefined
-  const errorResponseBody = (error as Record<string, unknown> | undefined)?.responseBody
-  const errorData = (error as Record<string, unknown> | undefined)?.data
-  const errorFinishReason = (error as Record<string, unknown> | undefined)?.finishReason
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
+  const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
-  const classificationStatus =
-    typeof errorStatus === 'number' || typeof errorStatus === 'string' ? errorStatus : undefined
-  const classificationResponseBody = typeof errorResponseBody === 'string' ? errorResponseBody : undefined
-  let classificationData: string | undefined
-  if (typeof errorData === 'string') {
-    classificationData = errorData
-  } else if (errorData !== undefined && errorData !== null) {
-    try {
-      classificationData = JSON.stringify(errorData)
-    } catch {
-      // Ignore non-serializable provider data.
-    }
-  }
-  const classificationFinishReason = typeof errorFinishReason === 'string' ? errorFinishReason : undefined
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
-  const classification = useMemo(() => {
-    const classificationError: SerializedError = {
-      name: null,
-      message: errorMessage ?? null,
-      stack: null,
-      ...(classificationStatus !== undefined
-        ? {
-            status: classificationStatus,
-            statusCode: classificationStatus
-          }
-        : {}),
-      ...(classificationResponseBody !== undefined ? { responseBody: classificationResponseBody } : {}),
-      ...(classificationData !== undefined ? { data: classificationData } : {}),
-      ...(classificationFinishReason !== undefined ? { finishReason: classificationFinishReason } : {})
-    }
-
-    return classifyError(classificationError, providerId)
-  }, [
-    classificationData,
-    classificationFinishReason,
-    classificationResponseBody,
-    classificationStatus,
-    errorMessage,
-    providerId
-  ])
+  const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
+  const localizedErrorMessage = useMemo(
+    () => t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined),
+    [classification.i18nKey, providerId, t]
+  )
 
   useEffect(() => {
-    if (hasAppOwnedI18nKey || classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError)
+    if (
+      claudeCodeExitCategory !== undefined ||
+      hasAppOwnedI18nKey ||
+      classification.category !== 'unknown' ||
+      !errorMessage ||
+      !error ||
+      !diagnoseMessageError
+    )
       return
     let cancelled = false
     diagnoseMessageError({
@@ -159,16 +134,16 @@ const MessageErrorInfo: React.FC<{
     // Intentionally exclude `error` from deps — its identity changes per render
     // but the action input's scalar message/language fields are both stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classification.category, diagnoseMessageError, errorMessage, hasAppOwnedI18nKey, i18n.language, message, partId])
-
-  const diagnosisContext = useMemo(
-    () => ({
-      errorSource: 'chat' as const,
-      providerName: errorProviderId,
-      modelId: errorModelId
-    }),
-    [errorProviderId, errorModelId]
-  )
+  }, [
+    claudeCodeExitCategory,
+    classification.category,
+    diagnoseMessageError,
+    errorMessage,
+    hasAppOwnedI18nKey,
+    i18n.language,
+    message,
+    partId
+  ])
 
   const onRemoveErrorPart = useCallback(
     (e: React.MouseEvent) => {
@@ -194,8 +169,7 @@ const MessageErrorInfo: React.FC<{
       message,
       error,
       partId,
-      cachedDiagnosis,
-      diagnosisContext
+      localizedErrorMessage
     })
   }
 
@@ -234,7 +208,7 @@ const MessageErrorInfo: React.FC<{
         <div className="flex shrink-0 items-center justify-center text-error">
           <AlertTriangle size={15} className="lucide-custom" />
         </div>
-        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || t(classification.i18nKey)}</div>
+        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || localizedErrorMessage}</div>
       </div>
 
       {/* Description */}

@@ -1,11 +1,12 @@
-import { toast } from '@renderer/services/toast'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { useProviderModelPullReconcile } from '../useProviderModelPullReconcile'
 
@@ -160,7 +161,7 @@ describe('useProviderModelPullReconcile', () => {
     })
 
     await act(async () => {
-      await result.current.addModels(result.current.allModels as any)
+      await result.current.addModels(result.current.allModels)
     })
 
     expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith({ id: 'openai', isEnabled: false }, fetchedOverlap)
