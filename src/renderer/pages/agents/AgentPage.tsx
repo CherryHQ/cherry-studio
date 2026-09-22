@@ -44,9 +44,9 @@ import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/util
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
-import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { InstalledSkill } from '@shared/data/types/agent'
 

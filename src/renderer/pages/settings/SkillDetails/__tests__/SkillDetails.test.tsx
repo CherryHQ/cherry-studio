@@ -1,7 +1,8 @@
-import type { InstalledSkill } from '@shared/data/types/agent'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { InstalledSkill } from '@shared/data/types/agent'
 
 const mocks = vi.hoisted(() => ({
   folder: { data: undefined, error: undefined, isLoading: false } as {

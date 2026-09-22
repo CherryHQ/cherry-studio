@@ -25,9 +25,7 @@ export function SkillsSettings() {
             variant="settings"
             title={t('settings.skills.title')}
             className="min-h-0 flex-1"
-            onOpenSkill={(skill) =>
-              void navigate({ to: '/settings/skills/$skillId', params: { skillId: skill.id } })
-            }
+            onOpenSkill={(skill) => void navigate({ to: '/settings/skills/$skillId', params: { skillId: skill.id } })}
             onLaunchSkill={launchSkill}
             filterResource={filterResource}
             allowColumnToggle

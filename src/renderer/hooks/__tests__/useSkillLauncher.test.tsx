@@ -1,8 +1,9 @@
-import type { InstalledSkill } from '@shared/data/types/agent'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { InstalledSkill } from '@shared/data/types/agent'
 
 const mocks = vi.hoisted(() => ({
   enableSkill: vi.fn(),

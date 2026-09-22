@@ -1,5 +1,6 @@
-import { SkillLauncherProvider } from '@renderer/hooks/useSkillLauncher'
 import { createFileRoute, Outlet } from '@tanstack/react-router'
+
+import { SkillLauncherProvider } from '@renderer/hooks/useSkillLauncher'
 
 function SkillsLayout() {
   return (

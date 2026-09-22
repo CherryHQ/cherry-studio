@@ -2,6 +2,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+type MockTreeState = {
+  error: Error | null
+  isLoading: boolean
+  root: ReturnType<typeof createRoot> | null
+  version: number
+}
+
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
   ipcRequest: vi.fn(),
@@ -9,9 +16,9 @@ const mocks = vi.hoisted(() => ({
   tree: {
     error: null as Error | null,
     isLoading: false,
-    root: null as unknown,
+    root: null,
     version: 7
-  }
+  } as MockTreeState
 }))
 
 vi.mock('@renderer/hooks/useDirectoryTree', () => ({ useDirectoryTree: () => mocks.tree }))

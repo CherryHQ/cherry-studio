@@ -1,11 +1,12 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { setupTestDatabase } from '@test-helpers/db'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   loadInput: vi.fn(),

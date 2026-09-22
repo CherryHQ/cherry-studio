@@ -1,5 +1,6 @@
-import { Badge } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
+
+import { Badge } from '@cherrystudio/ui'
 
 const SOURCE_LABEL_KEYS: Record<string, string> = {
   builtin: 'settings.skills.source.builtin',

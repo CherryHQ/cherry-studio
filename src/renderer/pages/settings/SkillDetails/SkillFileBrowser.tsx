@@ -1,3 +1,7 @@
+import { FileText, Languages, Loader2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, EmptyState, Markdown, Skeleton } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
@@ -10,9 +14,6 @@ import { decodeFileText } from '@renderer/utils/fileTextSnapshot'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDir, type TreeNode } from '@shared/utils/file'
-import { FileText, Languages, Loader2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SkillFileBrowser')
 const TEXT_PREVIEW_MAX_BYTES = 2 * 1024 * 1024
