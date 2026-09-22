@@ -716,9 +716,9 @@ export class AgentSessionService {
       [...(result.created ? [result.session.id] : []), ...result.deletedDuplicateSessionIds],
       'membership'
     )
-    // A reused placeholder keeps its id, so a cleared override needs its own
-    // projection event or other windows keep showing the stale model.
-    if (result.clearedModelOverride) this.notifyReadModelChange([result.session.id], 'projection')
+    // A reused placeholder keeps its id, so a cleared override needs projection
+    // plus runtime reconciliation or other windows keep the stale model.
+    if (result.clearedModelOverride) this.notifySessionModelOverridesCleared([result.session.id])
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     if (result.deletedDuplicateSessionIds.length > 0) pinService.notifyPurged()
     return {
@@ -896,7 +896,7 @@ export class AgentSessionService {
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection')
-    if (dto.modelId !== undefined) this._onSessionModelUpdated.fire({ sessionId: id })
+    if (dto.modelId !== undefined || result.reassigned) this._onSessionModelUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
 
@@ -904,14 +904,14 @@ export class AgentSessionService {
     tx: DbOrTx,
     id: string,
     patch: UpdateAgentSessionDto
-  ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[] } {
+  ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[]; reassigned: boolean } {
     const [current] = tx
       .select({ agentId: sessionsTable.agentId, taskScheduleId: sessionsTable.taskScheduleId })
       .from(sessionsTable)
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
-    if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
+    if (!current) return { row: undefined, clearedTaskScheduleIds: [], reassigned: false }
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
 
     const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
@@ -928,7 +928,7 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .returning()
       .all()
-    return { row, clearedTaskScheduleIds }
+    return { row, clearedTaskScheduleIds, reassigned }
   }
 
   /**
