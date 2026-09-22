@@ -144,9 +144,11 @@ async function fetchFromClaudePlugins(
   const repoUrl = `https://github.com/${owner}/${repo}`
   const tempDir = await openTempDir()
   await cloneRepository(repoUrl, tempDir)
+  const skillDir = await resolveSkillDirectory(tempDir, skillName, directoryPath)
+  await assertSkillDirectoryWithinLimits(skillDir)
 
   return {
-    skillDir: await resolveSkillDirectory(tempDir, skillName, directoryPath),
+    skillDir,
     sourceUrl: `${repoUrl}/tree/main/${directoryPath}`,
     onInstalled: () => {
       reportInstall(owner, repo, skillName).catch((err) => {
@@ -207,7 +209,9 @@ async function fetchFromSkillsSh(
   const tempDir = await openTempDir()
   await cloneRepository(repoUrl, tempDir)
 
-  return { skillDir: await resolveSkillDirectory(tempDir, skillName, null), sourceUrl: repoUrl }
+  const skillDir = await resolveSkillDirectory(tempDir, skillName, null)
+  await assertSkillDirectoryWithinLimits(skillDir)
+  return { skillDir, sourceUrl: repoUrl }
 }
 
 async function fetchFromClawhub(

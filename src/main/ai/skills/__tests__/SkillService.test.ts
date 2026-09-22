@@ -1157,6 +1157,8 @@ describe('SkillService', () => {
       const skillService = new SkillService()
       const workDir = await createTempDir('clone-install-')
       vi.mocked(skillPaths.createTempDir).mockResolvedValue(workDir)
+      const actualArchive = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.resolveSkillDirectory).mockImplementation(actualArchive.resolveSkillDirectory)
       const gitCalls: Array<{ args: string[]; options?: { env?: Record<string, string>; timeout?: number } }> = []
 
       executeCommandMock.mockImplementation(async (_command: string, args: string[], options?: object) => {
@@ -1168,9 +1170,11 @@ describe('SkillService', () => {
         return ''
       })
 
-      vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir').mockResolvedValue({})
+      const installSkillDirSpy = vi
+        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
+        .mockResolvedValue({})
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
-      return { skillService, gitCalls }
+      return { skillService, workDir, gitCalls, installSkillDirSpy }
     }
 
     const installFromClone = (skillService: SkillService) =>
@@ -1210,6 +1214,66 @@ describe('SkillService', () => {
       await expect(installFromClone(skillService)).rejects.toThrow('Command timed out')
       expect(gitCalls).toHaveLength(1)
     })
+
+    it('rejects an oversized Claude Plugins skill before installing it', async () => {
+      const { skillService, workDir, installSkillDirSpy } = await setupClonedInstall()
+      const skillDir = path.join(workDir, 'skills', 'demo')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      const payload = await fs.promises.open(path.join(skillDir, 'payload.bin'), 'w')
+      await payload.truncate(101 * 1024 * 1024)
+      await payload.close()
+
+      await expect(installFromClone(skillService)).rejects.toThrow(
+        /Skill holds \d+ bytes, over the 104857600-byte limit/
+      )
+      expect(installSkillDirSpy).not.toHaveBeenCalled()
+    })
+
+    it('rejects a skills.sh skill with too many files before installing it', async () => {
+      const { skillService, workDir, installSkillDirSpy } = await setupClonedInstall()
+      const skillDir = path.join(workDir, 'skills', 'demo')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      const seed = path.join(skillDir, 'SKILL.md')
+      await fs.promises.writeFile(seed, '# skill')
+      for (let start = 0; start < 20_000; start += 500) {
+        await Promise.all(
+          Array.from({ length: 500 }, (_, offset) =>
+            fs.promises.link(seed, path.join(skillDir, `${start + offset}.txt`))
+          )
+        )
+      }
+      vi.mocked(findAllSkillDirectories).mockResolvedValue([{ folderPath: skillDir, sourcePath: 'skills/demo' }])
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'demo' } as never)
+
+      await expect(skillService.install({ installSource: 'skills.sh:owner/repo/demo' })).rejects.toThrow(
+        'Skill holds 20001 files, over the 20000-file limit'
+      )
+      expect(installSkillDirSpy).not.toHaveBeenCalled()
+    }, 60_000)
+
+    it.each(['claude-plugins:owner/repo/skills/demo', 'skills.sh:owner/repo/demo'])(
+      'does not count unrelated repository files for %s',
+      async (installSource) => {
+        const { skillService, workDir, installSkillDirSpy } = await setupClonedInstall()
+        const sibling = path.join(workDir, 'unrelated.bin')
+        const payload = await fs.promises.open(sibling, 'w')
+        await payload.truncate(101 * 1024 * 1024)
+        await payload.close()
+        vi.mocked(findAllSkillDirectories).mockResolvedValue([
+          { folderPath: path.join(workDir, 'skills', 'demo'), sourcePath: 'skills/demo' }
+        ])
+        vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'demo' } as never)
+        const canonicalWorkDir = await fs.promises.realpath(workDir)
+
+        await skillService.install({ installSource })
+
+        expect(installSkillDirSpy).toHaveBeenCalledWith(
+          path.join(canonicalWorkDir, 'skills', 'demo'),
+          'marketplace',
+          expect.any(String)
+        )
+      }
+    )
 
     it('rejects a clawhub source without its publisher identity', async () => {
       const skillService = new SkillService()
