@@ -355,6 +355,25 @@ export const aiRequestSchemas = {
     }),
     output: z.strictObject({ sessionId: z.uuid() })
   }),
+  'ai.agent.session.edit_target': defineRoute({
+    input: z.strictObject({ sessionId: z.uuid(), messageId: z.uuid() }),
+    output: z.strictObject({ messageId: z.uuid(), version: z.string(), parts: z.array(z.custom<CherryMessagePart>()) })
+  }),
+  'ai.agent.session.set_pending_input_count': defineRoute({
+    input: z.strictObject({ sessionId: z.uuid(), count: z.number().int().nonnegative() }),
+    output: z.void()
+  }),
+  'ai.agent.session.edit_resend': defineRoute({
+    input: z.strictObject({
+      sessionId: z.uuid(),
+      target: z.strictObject({ messageId: z.uuid(), version: z.string().min(1) }),
+      userMessageParts: z.array(z.custom<CherryMessagePart>()),
+      reasoningEffort: ReasoningEffortOptionSchema.optional(),
+      serviceTier: ServiceTierSelectionSchema.optional(),
+      fastMode: z.boolean().optional()
+    }),
+    output: z.custom<AiStreamOpenResponse>()
+  }),
   'ai.agent.session.close_warm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()

@@ -4,7 +4,7 @@ import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol
 import { net } from 'electron'
 
 import type { LoggerService } from '@logger'
-import { createInMemoryMcpServer, getBuiltinHttpHeaders, getBuiltinRegistryEnv } from '@main/ai/mcp/servers/factory'
+import { createInMemoryMcpServer, getBuiltinAutoInstallEnv, getBuiltinHttpHeaders } from '@main/ai/mcp/servers/factory'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
@@ -153,7 +153,7 @@ async function createStdio(
   if (launch.unavailableReason) throw new Error(launch.unavailableReason)
   if (launch.resolution === 'unresolved')
     logger.warn('Could not resolve the stdio command; attempting the configured command', { command: launch.command })
-  Object.assign(serverEnv, launch.env, getBuiltinRegistryEnv(server))
+  Object.assign(serverEnv, launch.env, getBuiltinAutoInstallEnv(server))
 
   logger.debug(`Starting server`, { command: launch.command, args: launch.args })
 

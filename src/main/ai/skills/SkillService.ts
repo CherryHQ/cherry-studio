@@ -27,7 +27,7 @@ import type {
   SystemSkillPlacement
 } from '@shared/types/skill'
 
-import { extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
+import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
 import { buildFileTree, createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
 import { fetchRemoteSkill } from './skillRemoteSource'
@@ -258,6 +258,7 @@ export class SkillService {
     try {
       await extractZip(canonicalZipPath, tempDir)
       const skillDir = await resolveSkillDirectory(tempDir, null, null)
+      await assertSkillDirectoryWithinLimits(skillDir)
       return await this.installSkillDir(skillDir, 'zip', sourceUrl)
     } finally {
       await safeRemoveDirectory(tempDir)
