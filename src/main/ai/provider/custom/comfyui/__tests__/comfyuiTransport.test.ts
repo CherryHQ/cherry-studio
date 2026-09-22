@@ -655,6 +655,35 @@ describe('poll', () => {
     expect((error as Error).message).toContain('poll_timeout')
   })
 
+  it('cancels the prompt when the polling deadline expires', async () => {
+    // A generation the caller stopped waiting for is work the server does not
+    // have to finish: the deadline has to stop it, not just stop looking at it.
+    const posts: Array<{ url: string; body: Record<string, unknown> }> = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') {
+        posts.push({ url, body: JSON.parse(String(init.body)) as Record<string, unknown> })
+        return respond({})
+      }
+      if (url.includes('/system_stats')) return respond({ system: { comfyui_version: '0.3.57' } })
+      if (url.includes('/queue')) return respond({ queue_running: [[1, 'pid-1', {}, {}, []]], queue_pending: [] })
+      // The history never reports outputs, so the poll runs to its deadline.
+      return respond({})
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const promise = transport.poll('pid-1').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(POLL_TIMEOUT_MS)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(PaintingGenerateError)
+    expect((error as Error).message).toContain('poll_timeout')
+    expect(posts).toEqual([
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
+    ])
+  })
+
   it('surfaces a workflow error status as a structured REMOTE_ERROR', async () => {
     const doFetch = vi.fn(async () =>
       respond({

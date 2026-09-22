@@ -370,6 +370,12 @@ class ComfyuiTransport implements ImageGenerationTransport {
       options.onProgress?.(Math.min(0.9, ticks * 0.05))
       await waitWithSignal(POLL_INTERVAL_MS, options.signal)
     }
+    // A generation the caller has stopped waiting for is work the server does
+    // not have to finish: stopping it first is what keeps a stalled prompt from
+    // holding the GPU, and it is the same best-effort cancel a user gets when
+    // they press Cancel. Both writes are bounded, so the failure is still
+    // reported promptly on a server that cannot be reached.
+    await this.cancel(taskId).catch(() => undefined)
     throw createPaintingGenerateError('REMOTE_ERROR', {
       message: t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
     })
