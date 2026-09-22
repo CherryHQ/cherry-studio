@@ -508,7 +508,8 @@
           "official": "https://ppio.com/"
         }
       },
-      "name": "PPIO"
+      "name": "PPIO",
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -1445,7 +1446,8 @@
           "modelScope": "model-dependent",
           "vendors": ["gemini"]
         }
-      ]
+      ],
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global"],
@@ -1961,7 +1963,8 @@
           "official": "https://fireworks.ai/"
         }
       },
-      "name": "Fireworks"
+      "name": "Fireworks",
+      "supplementModelsFromRegistry": true
     },
     {
       "availableInEditions": ["global"],
@@ -2633,5 +2636,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "f490ed21e7e5cbfb"
+  "version": "2707d81b155c6c98"
 }

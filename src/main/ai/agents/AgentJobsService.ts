@@ -27,6 +27,7 @@ import {
 import { triggersEqual, type JobScheduleSnapshot, type UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import type { AgentTaskForm, AgentTaskPatch, HeartbeatDocument, HeartbeatRunResult } from '@shared/ipc/schemas/ai'
 
+import { agentDataDirectoryPath, assertAgentStorageDirectory } from './agentDataDirectory'
 import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from './agentTaskDefaults'
 import { agentTaskJobHandler } from './agentTaskJobHandler'
 import { readHeartbeat } from './heartbeat'
@@ -271,6 +272,7 @@ export class AgentJobsService extends BaseService {
       }
       return created
     })
+    agentTaskService.notifyReadModelChange([id], 'membership')
     jobManager.syncJobScheduleTimerById(id)
 
     const entity = agentTaskService.getTask(agentId, id)
@@ -351,10 +353,11 @@ export class AgentJobsService extends BaseService {
         agentChannelService.replaceTaskSubscriptionsTx(tx, taskId, patch.channelIds)
       }
     })
+    if (reuseConfigChanged || bindingCleared || patch.workspace !== undefined)
+      agentTaskService.notifyReadModelChange([taskId])
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }
-    if (reuseConfigChanged || bindingCleared) agentTaskService.notifyReadModelChange([taskId])
 
     logger.info('Task updated', { taskId, agentId })
     return this.getActiveTask(agentId, taskId)
@@ -391,7 +394,10 @@ export class AgentJobsService extends BaseService {
     // Channel subscriptions cascade via the agentChannelTaskTable FK; historical
     // jobs keep their rows with scheduleId set NULL (ON DELETE SET NULL).
     const deleted = await application.get('JobManager').unregisterJobScheduleById(taskId)
-    if (deleted) logger.info('Task deleted', { taskId, agentId })
+    if (deleted) {
+      agentTaskService.notifyReadModelChange([taskId], 'membership')
+      logger.info('Task deleted', { taskId, agentId })
+    }
     return deleted
   }
 
@@ -494,10 +500,10 @@ export class AgentJobsService extends BaseService {
     if (!agent || !isHeartbeatEnabled(agent.configuration ?? {})) return 'disabled'
     const schedule = agentTaskService.getHeartbeatSchedule(agentId)
     if (!schedule?.enabled) return 'paused'
-    const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
-    if (template?.workspace.type !== 'user') return 'paused'
-    const workspace = agentWorkspaceService.getById(template.workspace.workspaceId)
-    if (!workspace?.path || !(await readHeartbeat(workspace.path))) return 'empty'
+    const agentsDataRoot = application.getPath('feature.agents.data')
+    const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
+    await assertAgentStorageDirectory(agentsDataRoot, agentDataPath)
+    if (!(await readHeartbeat(agentDataPath))) return 'empty'
     this.assertHeartbeatAvailable()
     if (jobService.list({ scheduleId: schedule.id, status: ['pending', 'delayed', 'running'], limit: 1 }).length) {
       return 'busy'

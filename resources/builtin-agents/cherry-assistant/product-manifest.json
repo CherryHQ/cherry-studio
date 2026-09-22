@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.1.1",
+    "version": "2.1.2",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -62,6 +62,7 @@
       "/settings/about",
       "/settings/api-gateway",
       "/settings/appearance",
+      "/settings/archive",
       "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
@@ -465,7 +466,7 @@
     }
   ],
   "providers": {
-    "version": "f490ed21e7e5cbfb",
+    "version": "2707d81b155c6c98",
     "count": 64,
     "entries": [
       {
@@ -822,7 +823,8 @@
         "qoder-cli",
         "github-copilot-cli",
         "pi",
-        "hermes"
+        "hermes",
+        "minimax-code"
       ]
     }
   },

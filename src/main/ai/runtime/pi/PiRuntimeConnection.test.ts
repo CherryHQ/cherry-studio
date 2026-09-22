@@ -871,6 +871,12 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.sessionCreate).not.toHaveBeenCalled()
   })
 
+  it('gives an edited first turn an independent native identity', async () => {
+    const connection = await new PiRuntimeConnection({ ...input, nativeSessionId: 'edited-native-session' }).start()
+    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: 'edited-native-session' })
+    await connection.close()
+  })
+
   it('opens the newest matching session file when a resume id has multiple files', async () => {
     mocks.readdirSync.mockReturnValue([
       '2026-07-06T00-00-00-000Z_sess-1.jsonl',
