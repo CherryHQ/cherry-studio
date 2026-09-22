@@ -175,6 +175,124 @@ describe('MessageHeader', () => {
     expect(getByText('GPT-4')).toBeTruthy()
   })
 
+  it('shows the snapshotted provider beside the model when provider identity is available', () => {
+    const { getByText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', providerName: 'OpenAI Relay' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: {
+              id: 'gpt-4',
+              name: 'GPT-4',
+              provider: 'openai',
+              providerName: 'OpenAI Relay'
+            }
+          }
+        })}
+      />
+    )
+
+    expect(getByText('GPT-4')).toBeTruthy()
+    expect(getByText('OpenAI Relay')).toBeTruthy()
+    expect(getByText('|', { selector: 'span[aria-hidden="true"]' })).toBeTruthy()
+  })
+
+  it('keeps model-only identity when provider metadata is missing', () => {
+    const { getByText, queryByText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          }
+        })}
+      />
+    )
+
+    expect(getByText('GPT-4')).toBeTruthy()
+    expect(queryByText('OpenAI')).toBeNull()
+  })
+
+  it('truncates long provider labels without hiding the model name', () => {
+    const longProviderName = 'Very Long Provider Channel Name That Should Truncate'
+    const { container, getByText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: {
+            id: 'gpt-4',
+            name: 'GPT-4',
+            provider: 'custom-relay',
+            providerName: longProviderName
+          },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: {
+              id: 'gpt-4',
+              name: 'GPT-4',
+              provider: 'custom-relay',
+              providerName: longProviderName
+            }
+          }
+        })}
+      />
+    )
+
+    expect(getByText('GPT-4')).toBeTruthy()
+    const providerLabel = container.querySelector('.max-w-\\[min\\(9rem\\,28vw\\)\\]')
+    expect(providerLabel?.textContent).toBe(longProviderName)
+  })
+
+  it('keeps provider labels message-local for multi-model replies', () => {
+    const { container: firstContainer, getByText: getFirstText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          id: 'assistant-a',
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', providerName: 'OpenAI A' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', providerName: 'OpenAI A' }
+          }
+        })}
+      />
+    )
+    const { container: secondContainer, getByText: getSecondText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          id: 'assistant-b',
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', providerName: 'OpenAI B' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', providerName: 'OpenAI B' }
+          }
+        })}
+      />
+    )
+
+    expect(getFirstText('OpenAI A')).toBeTruthy()
+    expect(getSecondText('OpenAI B')).toBeTruthy()
+    expect(firstContainer.textContent).toContain('OpenAI A')
+    expect(firstContainer.textContent).not.toContain('OpenAI B')
+    expect(secondContainer.textContent).toContain('OpenAI B')
+    expect(secondContainer.textContent).not.toContain('OpenAI A')
+  })
+
   it('shows the snapshot agent name as primary', () => {
     const { getByText } = render(
       <MessageHeader

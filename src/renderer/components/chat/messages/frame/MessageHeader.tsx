@@ -118,12 +118,14 @@ const MessageHeader: FC<Props> = memo(
     const messageModel = useMemo(() => getMessageListItemModel(message), [message])
     const displayModel = messageModel ?? model
     const displayModelName = displayModel?.name || displayModel?.id
-    const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
-
     // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
     // Once a snapshot exists the header is frozen: consult the live profile only when it's entirely absent,
     // so editing/deleting the live entity never changes a past message's name or avatar.
     const authorSnapshot = message.messageSnapshot
+    const displayProviderName = authorSnapshot?.model?.providerName
+    const modelIdentityLabel =
+      displayModelName && displayProviderName ? `${displayModelName} | ${displayProviderName}` : displayModelName
+    const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
     const authorAvatar = authorSnapshot ? authorSnapshot.emoji : assistantProfile?.avatar
     const getUserName = useCallback(() => {
@@ -187,12 +189,22 @@ const MessageHeader: FC<Props> = memo(
             </span>
             {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
             {isAssistantMessage && message.turnOrigin && <AutonomousTurnOriginBadge origin={message.turnOrigin} />}
-            {isAssistantMessage && showModelIdentity && displayModelName && (
-              <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
+            {isAssistantMessage && showModelIdentity && modelIdentityLabel && (
+              <span
+                className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5"
+                title={modelIdentityLabel}>
                 <span aria-hidden="true" className="shrink-0">
                   <ModelAvatar className="rounded-full" model={displayModel} size={16} />
                 </span>
-                <span className="truncate">{displayModelName}</span>
+                <span className="min-w-0 truncate">{displayModelName}</span>
+                {displayProviderName ? (
+                  <>
+                    <span aria-hidden="true" className="shrink-0">
+                      |
+                    </span>
+                    <span className="min-w-0 max-w-[min(9rem,28vw)] truncate">{displayProviderName}</span>
+                  </>
+                ) : null}
               </span>
             )}
             {isGroupContextMessage && (
