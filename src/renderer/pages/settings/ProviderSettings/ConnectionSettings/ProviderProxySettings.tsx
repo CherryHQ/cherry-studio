@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Label, RadioGroup, RadioGroupItem, TextField } from '@cherrystudio/ui'
+import { Input, Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
 import { useProvider, useProviderMutations } from '@renderer/hooks/useProvider'
 import type { ProviderProxyConfig } from '@shared/data/types/provider'
 
@@ -101,8 +101,9 @@ export default function ProviderProxySettings({ providerId }: ProviderProxySetti
 
       {proxyMode === 'custom' && (
         <div>
-          <TextField
-            label={t('settings.provider.proxy_url')}
+          <Label className="mb-2 block text-sm font-medium">{t('settings.provider.proxy_url')}</Label>
+          <Input
+            type="url"
             value={proxyUrl}
             onChange={(e) => {
               const newUrl = e.currentTarget.value
