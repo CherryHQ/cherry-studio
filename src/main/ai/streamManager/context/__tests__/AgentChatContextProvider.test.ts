@@ -646,7 +646,7 @@ describe('AgentChatContextProvider', () => {
       makeSubscriber(),
       openReq({
         trigger: 'edit-agent-message',
-        editTarget: { messageId: 'msg-1', version: 1 }
+        editTarget: { messageId: 'msg-1', version: '1' }
       })
     )
 
