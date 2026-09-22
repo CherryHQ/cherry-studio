@@ -17,13 +17,6 @@ export function isChromiumRuntimeDir(livePath: string): livePath is ChromiumRunt
   return CHROMIUM_RUNTIME_DIR_NAMES.includes(livePath as ChromiumRuntimeDirName)
 }
 
-export function journalNeedsChromiumStorageQuiesce(journal: RestoreJournal): boolean {
-  if (process.platform !== 'win32') {
-    return false
-  }
-  return journal.fileResources.some((entry) => entryNeedsChromiumStorageQuiesce(entry))
-}
-
 export function entryNeedsChromiumStorageQuiesce(entry: FileResource): boolean {
   if (process.platform !== 'win32') {
     return false

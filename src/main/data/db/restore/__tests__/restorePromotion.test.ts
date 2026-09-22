@@ -1101,6 +1101,32 @@ describe('runRestorePromotion', () => {
       expect(journalState()).toBe('completed')
       vi.restoreAllMocks()
     })
+
+    it('skips quiesce when Chromium staging move already landed before marker write on Windows', async () => {
+      if (process.platform !== 'win32') {
+        return
+      }
+
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      const asideLocalStorageDir = join(stagingDir(), 'aside', 'Local Storage')
+      mkdirSync(asideLocalStorageDir, { recursive: true })
+      writeFileSync(join(asideLocalStorageDir, 'leveldb-live'), 'LIVE')
+      mkdirSync(liveLocalStorageDir(), { recursive: true })
+      writeFileSync(join(liveLocalStorageDir(), 'leveldb-restored'), 'RESTORED')
+      const journal = await buildJournal({ fileResources: localStorageManifest() })
+      renameSync(livePath(), asidePath())
+      renameSync(workPath(), livePath())
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
+      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+
+      await runRestorePromotion()
+
+      expect(quiesceSpy).not.toHaveBeenCalled()
+      expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-restored'), 'utf8')).toBe('RESTORED')
+      expect(journalState()).toBe('completed')
+      quiesceSpy.mockRestore()
+    })
   })
 
   describe('isLiveDbStranded (the shell boot-refusal predicate)', () => {

@@ -516,19 +516,23 @@ async function applyEntry(ctx: PromotionContext, entry: FileResource): Promise<v
     case 'note-overwrite':
     case 'overwrite': {
       const live = resolveEntry(ctx, entry.livePath)
+      const staging = resolveEntry(ctx, entry.stagingPath)
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
       // Aside-first: the original must be parked before the overwrite lands.
       if (aside && fs.existsSync(live) && !fs.existsSync(aside)) {
         renameDurable(live, aside)
       }
-      if (entryNeedsChromiumStorageQuiesce(entry) && isChromiumRuntimeDir(entry.livePath)) {
+      // Quiesce only while the staging move is still pending. A crash after the
+      // move but before its step marker would otherwise clearData the restored
+      // live directory before moveIdempotent's idempotent return.
+      if (fs.existsSync(staging) && entryNeedsChromiumStorageQuiesce(entry) && isChromiumRuntimeDir(entry.livePath)) {
         logger.info('Quiescing Chromium runtime storage after aside, before staging move', {
           restoreId: ctx.journal.restoreId,
           livePath: entry.livePath
         })
         await quiesceChromiumStorageForRestore(entry.livePath)
       }
-      moveIdempotent(resolveEntry(ctx, entry.stagingPath), live)
+      moveIdempotent(staging, live)
       return
     }
     default:
