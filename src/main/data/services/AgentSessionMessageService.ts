@@ -202,7 +202,7 @@ export class AgentSessionDeliveryRoutingError extends Error {
   }
 }
 
-type ExpectedAgentOwner =
+export type ExpectedAgentOwner =
   | string
   | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
 
@@ -1174,12 +1174,7 @@ export class AgentSessionMessageService {
     return result.entity
   }
 
-  saveMessages(
-    params: CreateAgentSessionMessagesDto,
-    expectedAgent?:
-      | string
-      | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
-  ): AgentSessionMessageEntity[] {
+  saveMessages(params: CreateAgentSessionMessagesDto, expectedAgent?: ExpectedAgentOwner): AgentSessionMessageEntity[] {
     const { entities: saved, activityTimestamp } = application
       .get('DbService')
       .withWriteTx((tx) => this.saveMessagesWithActivityTx(tx, params, expectedAgent))
@@ -1197,9 +1192,7 @@ export class AgentSessionMessageService {
   saveMessagesTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto,
-    expectedAgent?:
-      | string
-      | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
+    expectedAgent?: ExpectedAgentOwner
   ): AgentSessionMessageEntity[] {
     return this.saveMessagesWithActivityTx(tx, params, expectedAgent).entities
   }
@@ -1207,9 +1200,7 @@ export class AgentSessionMessageService {
   private saveMessagesWithActivityTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto,
-    expectedAgent?:
-      | string
-      | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
+    expectedAgent?: ExpectedAgentOwner
   ): { entities: AgentSessionMessageEntity[]; activityTimestamp: number | null } {
     const { sessionId, runtimeResumeToken, messages } = params
     this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
@@ -1973,14 +1964,7 @@ export class AgentSessionMessageService {
   }
 
   /** Reject ownership changes before any message row is written in this transaction. */
-  private assertExpectedAgentTx(
-    db: DbOrTx,
-    sessionId: string,
-    expectedAgent:
-      | string
-      | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
-      | undefined
-  ): void {
+  private assertExpectedAgentTx(db: DbOrTx, sessionId: string, expectedAgent?: ExpectedAgentOwner): void {
     if (!expectedAgent) return
     const expectedAgentId = typeof expectedAgent === 'string' ? expectedAgent : expectedAgent.id
     const [session] = db

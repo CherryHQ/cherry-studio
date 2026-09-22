@@ -12,7 +12,11 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
-import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import {
+  AgentSessionDeliveryRoutingError,
+  agentSessionMessageService,
+  type ExpectedAgentOwner
+} from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
@@ -79,6 +83,22 @@ export type PersistedAgentDispatch = {
   traceId: string
   userMessage: AgentSessionMessageEntity
   savedMessages: AgentSessionMessageEntity[]
+}
+
+export function ownershipSnapshotFromValidated(validated: ValidatedAgentDispatch): Extract<ExpectedAgentOwner, object> {
+  return {
+    id: validated.agentId,
+    updatedAt: validated.agentUpdatedAt,
+    model: validated.agentModel,
+    type: validated.agentType,
+    sessionModelId: validated.sessionModelId
+  }
+}
+
+function resolveExpectedAgent(validated: ValidatedAgentDispatch, callerOwner?: string): ExpectedAgentOwner {
+  return callerOwner === undefined || callerOwner === validated.agentId
+    ? ownershipSnapshotFromValidated(validated)
+    : callerOwner
 }
 
 export interface AgentSessionTurnAuthority {
@@ -189,9 +209,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   persistDispatchTx(
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
-    expectedAgent?:
-      | string
-      | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
+    expectedAgent?: ExpectedAgentOwner
   ): PersistedAgentDispatch {
     const assistantMessageId = uuidv7()
     const savedMessages = agentSessionMessageService.saveMessagesTx(
@@ -332,13 +350,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       await validateEditedInput(validated.userMessageParts)
       validated.shouldAutoNameInitialTurn = false
       const persisted = await runtime.editSession(validated.sessionId, req.editTarget, (tx, nativeSessionId) => {
-        const result = this.persistDispatchTx(tx, validated, {
-          id: validated.agentId,
-          updatedAt: validated.agentUpdatedAt,
-          model: validated.agentModel,
-          type: validated.agentType,
-          sessionModelId: validated.sessionModelId
-        })
+        const result = this.persistDispatchTx(tx, validated, ownershipSnapshotFromValidated(validated))
         agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
         return result
       })
@@ -369,13 +381,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           }
         },
         {
-          expectedAgent: {
-            id: validated.agentId,
-            updatedAt: validated.agentUpdatedAt,
-            model: validated.agentModel,
-            type: validated.agentType,
-            sessionModelId: validated.sessionModelId
-          }
+          expectedAgent: ownershipSnapshotFromValidated(validated)
         }
       )
 
@@ -397,19 +403,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     }
 
-    // A caller owner string skips drift checks; upgrade it to the snapshot while
-    // it agrees so channel/scheduled dispatches fail closed like interactive ones.
-    const callerOwner = ctx?.expectedAgentId
-    const expectedAgent =
-      callerOwner === undefined || callerOwner === validated.agentId
-        ? {
-            id: validated.agentId,
-            updatedAt: validated.agentUpdatedAt,
-            model: validated.agentModel,
-            type: validated.agentType,
-            sessionModelId: validated.sessionModelId
-          }
-        : callerOwner
+    const expectedAgent = resolveExpectedAgent(validated, ctx?.expectedAgentId)
     const persisted = application
       .get('DbService')
       .withWriteTx((tx) => this.persistDispatchTx(tx, validated, expectedAgent))

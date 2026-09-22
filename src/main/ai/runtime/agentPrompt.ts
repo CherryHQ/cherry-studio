@@ -5,6 +5,7 @@ import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { replacePromptVariables } from '@main/utils/prompt'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('AgentPrompt')
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
@@ -43,6 +44,20 @@ export interface BuildAgentRuntimePromptOptions {
   customBaseContext?: string
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null
+  /** Display name for `{{model_name}}` interpolation; defaults to `agent.modelName`. */
+  promptModelName?: string | null
+}
+
+export function resolvePromptModelName(
+  effectiveModelId: UniqueModelId,
+  agent: AgentEntity,
+  model?: { name?: string | null } | null
+): string | null {
+  const { modelId: rawModelId } = parseUniqueModelId(effectiveModelId)
+  if (effectiveModelId === agent.model) {
+    return agent.modelName ?? model?.name ?? rawModelId
+  }
+  return model?.name ?? rawModelId
 }
 
 const promptBuilder = new PromptBuilder()
@@ -55,7 +70,8 @@ export async function buildAgentRuntimePrompt({
   citationsGuidance,
   workspaceInstructions,
   customBaseContext,
-  effectiveLanguage
+  effectiveLanguage,
+  promptModelName
 }: BuildAgentRuntimePromptOptions): Promise<AgentRuntimePrompt> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
@@ -71,7 +87,7 @@ export async function buildAgentRuntimePrompt({
   if (builtinRole) await provisionBuiltinAgent(agentDataPath, builtinRole)
 
   const resolvedInstructions = instructions?.trim()
-    ? await replacePromptVariables(instructions, agent.modelName ?? undefined)
+    ? await replacePromptVariables(instructions, promptModelName ?? agent.modelName ?? undefined)
     : ''
   const hasAgentInstructions = Boolean(resolvedInstructions.trim())
   const parts = await promptBuilder.buildPromptParts(

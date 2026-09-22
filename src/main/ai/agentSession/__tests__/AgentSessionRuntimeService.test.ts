@@ -2184,6 +2184,49 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getSessionById.mockReset()
   })
 
+  it('keeps a receive-only wake on the warm connection model when the override changes under background work', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    mocks.saveMessage.mockReturnValue({
+      id: 'assistant-ro',
+      role: 'assistant',
+      status: 'pending',
+      data: { parts: [] }
+    })
+
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    const connection = {
+      send: vi.fn(),
+      close: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('rebuild'),
+      refreshTraceContext: vi.fn()
+    }
+    entry.connection = connection
+    service.markTurnTerminal('session-1', 'success')
+    ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, connection)
+
+    await (service as any).handleSessionModelUpdated('session-1')
+    ;(service as any).handleRuntimeEvent(entry, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'background-work' }
+    })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+    expect(entry.modelId).toBe(switchedModelId)
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.objectContaining({ modelId: baseTurnInput.modelId })
+      })
+    )
+    expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: baseTurnInput.modelId }))
+    mocks.getSessionById.mockReset()
+  })
+
   it('reads the agent once per session on a push reconcile, not twice', async () => {
     // `agentService.getAgent` is four uncached queries. `handleAgentUpdated` already holds the
     // updated entity, so walking every session of that agent must not re-read it per session.
