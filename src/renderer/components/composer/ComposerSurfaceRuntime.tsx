@@ -45,6 +45,7 @@ import {
   PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
+import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { createComposerFolderToken } from './folderToken'
@@ -683,10 +684,17 @@ export default function ComposerSurfaceRuntime({
 
   const insertPastedPaths = useCallback(
     (paths: string[]) => {
-      const addition = paths.join('\n')
+      const addition = getComposerInputTextWithinLimit(textRef.current, paths.join('\n'))
+      if (!addition) return
       const editor = editorRef.current
-      if (editor && !editor.isDestroyed) {
-        editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(addition).run()
+      // Insert at the caret only while the composer holds focus — a paste routed through the
+      // global handler must not land on a stale selection.
+      if (editor && !editor.isDestroyed && editor.isFocused) {
+        editor
+          .chain()
+          .setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true)
+          .insertContent(createComposerPlainTextContent(addition))
+          .run()
         return
       }
       const currentText = textRef.current
