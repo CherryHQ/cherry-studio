@@ -20,6 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
 import { readAppliedChain } from '@data/db/restore/appliedChain'
+import * as chromiumStorageQuiesce from '@data/db/restore/chromiumStorageQuiesce'
 import { hashDbFile } from '@data/db/restore/hashDbFile'
 import type * as RestoreJournalModule from '@data/db/restore/restoreJournal'
 import type { RestoreJournal } from '@data/db/restore/restoreJournal'
@@ -68,6 +69,10 @@ const fsyncDirFailure = vi.hoisted(() => ({
   shouldFail: null as ((dir: string) => boolean) | null
 }))
 
+const renameFailure = vi.hoisted(() => ({
+  injectEpermOnceFor: null as string | null
+}))
+
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFsModule>()
   const openSync = (...args: Parameters<typeof actual.openSync>) => {
@@ -77,7 +82,15 @@ vi.mock('node:fs', async (importOriginal) => {
     }
     return actual.openSync(...args)
   }
-  return { ...actual, default: { ...actual, openSync }, openSync }
+  const renameSync = (...args: Parameters<typeof actual.renameSync>) => {
+    const [source] = args
+    if (typeof source === 'string' && renameFailure.injectEpermOnceFor === source) {
+      renameFailure.injectEpermOnceFor = null
+      throw Object.assign(new Error(`EPERM: injected rename failure for ${source}`), { code: 'EPERM' })
+    }
+    return actual.renameSync(...args)
+  }
+  return { ...actual, default: { ...actual, openSync, renameSync }, openSync, renameSync }
 })
 
 vi.mock('@data/db/restore/restoreJournal', async (importOriginal) => {
@@ -238,6 +251,8 @@ const liveKbDir = () => join(userData, 'Data', 'KnowledgeBase', 'base-1')
 const liveAddedNote = () => join(userData, 'Notes', 'added.md')
 const liveNote = () => join(userData, 'Notes', 'note.md')
 const noteAside = () => join(userData, 'restore-aside', RID, 'note.md')
+const liveLocalStorageDir = () => join(userData, 'Local Storage')
+const stagedLocalStorageDir = () => join(stagingDir(), 'resources', 'Local Storage')
 
 /** Crash arrangement helper: the additive step (blob + KB dir moved staging→live) already ran. */
 function arrangeAdditiveMoved(): void {
@@ -257,6 +272,7 @@ describe('runRestorePromotion', () => {
     userData = mkdtempSync(join(tmpdir(), 'cs-restore-promotion-'))
     markerFailure.shouldFail = null
     fsyncDirFailure.shouldFail = null
+    renameFailure.injectEpermOnceFor = null
   })
 
   afterEach(() => {
@@ -990,6 +1006,65 @@ describe('runRestorePromotion', () => {
       expect(existsSync(stagingDir())).toBe(true)
       expect(readMarker(livePath())).toBe('new')
       expect(readMarker(asidePath())).toBe('old')
+    })
+  })
+
+  describe('Chromium runtime directory overwrites', () => {
+    function localStorageManifest(): RestoreJournal['fileResources'] {
+      return [
+        {
+          kind: 'overwrite',
+          stagingPath: `restore-staging/${RID}/resources/Local Storage`,
+          livePath: 'Local Storage',
+          asidePath: `restore-staging/${RID}/aside/Local Storage`
+        }
+      ]
+    }
+
+    function seedLocalStorageFixtures(): void {
+      mkdirSync(liveLocalStorageDir(), { recursive: true })
+      writeFileSync(join(liveLocalStorageDir(), 'leveldb-live'), 'LIVE')
+      mkdirSync(stagedLocalStorageDir(), { recursive: true })
+      writeFileSync(join(stagedLocalStorageDir(), 'leveldb-restored'), 'RESTORED')
+    }
+
+    it('quiesces Chromium storage before applying Local Storage overwrites on Windows', async () => {
+      if (process.platform !== 'win32') {
+        return
+      }
+
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedLocalStorageFixtures()
+      writeRestoreJournal(await buildJournal({ fileResources: localStorageManifest() }))
+      const quiesceSpy = vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+
+      await runRestorePromotion()
+
+      expect(quiesceSpy).toHaveBeenCalledOnce()
+      expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-restored'), 'utf8')).toBe('RESTORED')
+      expect(journalState()).toBe('completed')
+      expect(existsSync(stagingDir())).toBe(false)
+      quiesceSpy.mockRestore()
+    })
+
+    it('retries transient EPERM on Windows directory renames during promotion', async () => {
+      if (process.platform !== 'win32') {
+        return
+      }
+
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      seedLocalStorageFixtures()
+      writeRestoreJournal(await buildJournal({ fileResources: localStorageManifest() }))
+      vi.spyOn(chromiumStorageQuiesce, 'quiesceChromiumStorageForRestore').mockResolvedValue()
+      renameFailure.injectEpermOnceFor = liveLocalStorageDir()
+
+      await runRestorePromotion()
+
+      expect(readFileSync(join(liveLocalStorageDir(), 'leveldb-restored'), 'utf8')).toBe('RESTORED')
+      expect(journalState()).toBe('completed')
+      vi.restoreAllMocks()
     })
   })
 

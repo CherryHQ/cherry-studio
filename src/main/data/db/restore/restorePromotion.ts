@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
+import { journalNeedsChromiumStorageQuiesce, quiesceChromiumStorageForRestore } from './chromiumStorageQuiesce'
 import { hashDbFile } from './hashDbFile'
 import type { PromotionStep, RestoreJournal } from './restoreJournal'
 import { PROMOTION_STEP_ORDER, readRestoreJournal, removeRestoreJournal, writeRestoreJournal } from './restoreJournal'
@@ -29,6 +30,11 @@ type FileResource = RestoreJournal['fileResources'][number]
  * PROMOTION_STEP_ORDER.indexOf — see the warning on that constant.
  */
 const COMMIT_STEP: PromotionStep = 'work-promoted'
+
+const TRANSIENT_FS_LOCK_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const FS_RETRY_MAX_ATTEMPTS = 8
+const FS_RETRY_BASE_DELAY_MS = 100
+const FS_RETRY_MAX_DELAY_MS = 1500
 
 interface PromotionContext {
   readonly journal: StagedJournal | PromotingJournal
@@ -393,6 +399,12 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
   for (let i = PROMOTION_STEP_ORDER.indexOf(current.step) + 1; i < PROMOTION_STEP_ORDER.length; i++) {
     const step = PROMOTION_STEP_ORDER[i]
     try {
+      if (step === 'entries-applied' && journalNeedsChromiumStorageQuiesce(ctx.journal)) {
+        logger.info('Quiescing Chromium runtime storage before applying file entries', {
+          restoreId: ctx.journal.restoreId
+        })
+        await quiesceChromiumStorageForRestore()
+      }
       runStep(ctx, step)
     } catch (error) {
       // The commit step's rename is the point of no return, and renameDurable
@@ -688,12 +700,41 @@ function renameOnceIdempotent(source: string, target: string): void {
  */
 function renameDurable(source: string, target: string): void {
   fs.mkdirSync(path.dirname(target), { recursive: true })
-  fs.renameSync(source, target)
+  retrySyncOnTransientFsLock(() => {
+    fs.renameSync(source, target)
+  })
   fsyncDir(path.dirname(target))
   const sourceDir = path.dirname(source)
   if (sourceDir !== path.dirname(target)) {
     fsyncDir(sourceDir)
   }
+}
+
+function retrySyncOnTransientFsLock(operation: () => void): void {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      operation()
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code
+      const retriable =
+        process.platform === 'win32' &&
+        code !== undefined &&
+        TRANSIENT_FS_LOCK_CODES.has(code) &&
+        attempt < FS_RETRY_MAX_ATTEMPTS
+      if (!retriable) {
+        throw error
+      }
+      sleepSync(Math.min(FS_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1), FS_RETRY_MAX_DELAY_MS))
+    }
+  }
+}
+
+function sleepSync(ms: number): void {
+  if (ms <= 0) {
+    return
+  }
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 }
 
 function fsyncDir(dir: string): void {
