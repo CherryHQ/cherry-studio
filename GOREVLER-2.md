@@ -198,7 +198,9 @@ Bunları kendi değişikliğinin sonucu sanma. İkisi de bu oturum başlamadan �
    testleri; Latin olmayan/aksanlı diller (zh-cn, zh-tw, ja-jp, el-gr, ru-ru, ro-ro, vi-vn)
    için `updateSession` çağrılmıyor. Latin/ASCII diller geçiyor.
 
-**Sonraki sırada:** Y2 (görsel kataloğu).
+| **Y2** | ✅ | Ücretsiz görsel sağlayıcı kataloğu. `src/shared/data/presets/freeImageProviders.ts` — Google (Gemini Vision), Alibaba (Tongyi Vision), Ideogram, Kling free-tier image generation. Fonksiyonlar: `isFreeImageAccessProvider()`, `freeImageAccessKindOf()`. F1'in görsel versiyonu. Mekanik veri, i18n/test yok. `80d2c04f` |
+
+**Sonraki sırada:** L4, L6, L7, Z2, Z4 veya P6.
 
 ### Model değişirse: hangi maddeye başlanır, hangisine başlanmaz
 
