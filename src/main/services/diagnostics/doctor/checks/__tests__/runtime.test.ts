@@ -6,6 +6,7 @@ import type { Provider } from '@shared/data/types/provider'
 const services = vi.hoisted(() => ({
   ready: true,
   getToolInventory: vi.fn(),
+  getToolSnapshots: vi.fn(),
   checkClaudeLogin: vi.fn(),
   listAgents: vi.fn(),
   getProviderByProviderId: vi.fn()
@@ -17,7 +18,8 @@ vi.mock('@application', async () => {
       get isReady() {
         return services.ready
       },
-      getToolInventory: services.getToolInventory
+      getToolInventory: services.getToolInventory,
+      getToolSnapshots: services.getToolSnapshots
     },
     CodeCliService: {
       get isReady() {
@@ -64,6 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   services.ready = true
   services.getToolInventory.mockResolvedValue([])
+  services.getToolSnapshots.mockResolvedValue({})
   services.checkClaudeLogin.mockResolvedValue(true)
   services.listAgents.mockReturnValue({ agents: [], total: 0 })
   services.getProviderByProviderId.mockReturnValue(provider('claude-code', ['external-cli']))
@@ -100,6 +103,27 @@ describe('runtime-managed-tools', () => {
       actions: [{ kind: 'navigate', target: '/settings/dependencies' }],
       evidence: [{ key: 'tools', value: 'bun, uv', dataClass: 'local_only' }]
     })
+    expect(services.getToolSnapshots).not.toHaveBeenCalled()
+  })
+
+  it('does not send users to Dependencies for an unmanaged runtime failure', async () => {
+    services.getToolInventory.mockResolvedValue([{ name: 'python', status: 'failed', recipe: 'python' }])
+    services.getToolSnapshots.mockResolvedValue({
+      python: {
+        name: 'python',
+        availability: { source: 'none' },
+        application: { status: 'broken', version: '3.12.14' }
+      }
+    })
+
+    await expect(managedTools.run(ctx)).resolves.toMatchObject({
+      status: 'warn',
+      attribution: 'app-bug',
+      detail: { variant: 'failed', params: { count: 1 } },
+      actions: [],
+      evidence: [{ key: 'tools', value: 'python', dataClass: 'local_only' }]
+    })
+    expect(services.getToolSnapshots).toHaveBeenCalledWith(['python'])
   })
 })
 

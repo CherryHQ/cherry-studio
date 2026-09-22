@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { agentService } from '@main/data/services/AgentService'
 import { providerService } from '@main/data/services/ProviderService'
+import { PRESETS_BINARY_TOOLS } from '@shared/data/presets/binaryTools'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
@@ -19,11 +20,19 @@ export const managedTools = defineDoctorCheck({
     const failed = inventory.filter((tool) => tool.status === 'failed')
     if (failed.length === 0) return { status: 'pass' }
 
+    const presetNames = new Set(PRESETS_BINARY_TOOLS.map((tool) => tool.name))
+    const nonPresetFailures = failed.filter((tool) => !presetNames.has(tool.name))
+    const snapshots =
+      nonPresetFailures.length > 0 ? await manager.getToolSnapshots(nonPresetFailures.map((tool) => tool.name)) : {}
+    const actionableInDependencies = failed.every(
+      (tool) => presetNames.has(tool.name) || snapshots[tool.name]?.definition !== undefined
+    )
+
     return {
       status: 'warn',
-      attribution: 'user-fixable',
+      attribution: actionableInDependencies ? 'user-fixable' : 'app-bug',
       detail: { variant: 'failed', params: { count: failed.length } },
-      actions: [{ kind: 'navigate', target: '/settings/dependencies' }],
+      actions: actionableInDependencies ? ([{ kind: 'navigate', target: '/settings/dependencies' }] as const) : [],
       devMessage: 'Managed tools have a broken installation or failed operation',
       evidence: [{ key: 'tools', value: failed.map((tool) => tool.name).join(', '), dataClass: 'local_only' }]
     }
