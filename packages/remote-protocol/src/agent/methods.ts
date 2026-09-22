@@ -7,6 +7,8 @@ import {
   agentCursorSchema,
   commandReceiptSchema,
   interactionSchema,
+  interactionResponseSchema,
+  workspaceSelectionSchema,
   messageSchema,
   partSchema,
   sessionSchema
@@ -27,7 +29,9 @@ export const agentMethods = {
   ),
   'agent.workspaces.list': method(
     z.strictObject({ agentId: opaqueId, ...pageParams }),
-    pageOf(z.looseObject({ workspaceId: opaqueId, name: unicodeText.max(4096) }))
+    pageOf(z.looseObject({ workspaceId: opaqueId, name: unicodeText.max(4096) })).extend({
+      systemWorkspace: z.boolean().optional()
+    })
   ),
   'agent.sessions.list': method(
     z.strictObject({ agentId: opaqueId.optional(), workspaceId: opaqueId.optional(), ...pageParams }),
@@ -35,12 +39,20 @@ export const agentMethods = {
   ),
   'agent.sessions.get': method(z.strictObject(session), z.looseObject({ session: sessionSchema })),
   'agent.sessions.create': method(
-    z.strictObject({
-      commandId: opaqueId,
-      agentId: opaqueId,
-      workspaceId: opaqueId,
-      title: unicodeText.max(4096).optional()
-    }),
+    z.union([
+      z.strictObject({
+        commandId: opaqueId,
+        agentId: opaqueId,
+        workspace: workspaceSelectionSchema,
+        title: unicodeText.max(4096).optional()
+      }),
+      z.strictObject({
+        commandId: opaqueId,
+        agentId: opaqueId,
+        workspaceId: opaqueId,
+        title: unicodeText.max(4096).optional()
+      })
+    ]),
     commandReceiptSchema
   ),
   'agent.messages.list': method(
@@ -83,14 +95,24 @@ export const agentMethods = {
     z.looseObject({ interaction: interactionSchema })
   ),
   'agent.interactions.respond': method(
-    z.strictObject({
-      ...command,
-      interactionId: opaqueId,
-      expectedRevision: decimal,
-      expectedExecutionId: opaqueId,
-      inputDigest: digest,
-      decision: z.enum(['approve', 'deny'])
-    }),
+    z.union([
+      z.strictObject({
+        ...command,
+        interactionId: opaqueId,
+        expectedRevision: decimal,
+        expectedExecutionId: opaqueId,
+        inputDigest: digest,
+        response: interactionResponseSchema
+      }),
+      z.strictObject({
+        ...command,
+        interactionId: opaqueId,
+        expectedRevision: decimal,
+        expectedExecutionId: opaqueId,
+        inputDigest: digest,
+        decision: z.enum(['approve', 'deny'])
+      })
+    ]),
     commandReceiptSchema
   ),
   'agent.commands.get': method(z.strictObject({ commandId: opaqueId }), commandReceiptSchema),

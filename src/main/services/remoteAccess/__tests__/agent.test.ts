@@ -182,6 +182,112 @@ describe('remote agent access', () => {
     await call('connection.authenticate', { deviceId: device.id })
   })
 
+  it('creates a system workspace exactly once and returns its actual identity', async () => {
+    const catalog = await call('agent.workspaces.list', { agentId: 'agent-1' })
+    expect(catalog.systemWorkspace).toBe(true)
+    const params = { commandId: randomUUID(), agentId: 'agent-1', workspace: { kind: 'system' } }
+    const receipt = await call('agent.sessions.create', params)
+    expect(receipt.status).toBe('applied')
+    expect(await call('agent.sessions.create', params)).toEqual(receipt)
+    const { session } = await call('agent.sessions.get', { sessionId: receipt.sessionId })
+    expect(session.workspaceKind).toBe('system')
+    expect(agentSessionService.getConversationById(receipt.sessionId).workspace).toMatchObject({
+      id: session.workspaceId,
+      type: 'system'
+    })
+    expect(catalog.items.some((item: { workspaceId: string }) => item.workspaceId === session.workspaceId)).toBe(false)
+    await expect(
+      call('agent.sessions.create', { ...params, workspace: { kind: 'registered', id: 'different' } })
+    ).rejects.toMatchObject({ data: { reason: 'IDEMPOTENCY_CONFLICT' } })
+  })
+
+  it('requires complete answers for the current question and replays its receipt without dispatching twice', async () => {
+    const { session } = await call('agent.sessions.get', { sessionId })
+    await call('agent.messages.send', {
+      commandId: randomUUID(),
+      sessionId,
+      expectedIdleRevision: session.idleRevision,
+      text: 'ask'
+    })
+    const anchor = randomUUID()
+    const input = {
+      questions: [
+        { question: '目录？', header: '目录', options: [{ label: 'src' }, { label: 'docs' }], multiSelect: false }
+      ],
+      metadata: { keep: 'x'.repeat(5000) }
+    }
+    emit({ type: 'tool-input-available', toolCallId: 'question-call', toolName: 'AskUserQuestion', input }, anchor)
+    emit({ type: 'tool-approval-request', toolCallId: 'question-call', approvalId: 'question' }, anchor)
+    const { interaction } = await call('agent.interactions.get', { sessionId, interactionId: 'question' })
+    expect(interaction.kind).toBe('question')
+    expect(interaction.input).toHaveProperty('ref')
+    const first = await call('agent.sessions.subscribe', { sessionId })
+    const restored = await installCheckpoint(first.subscriptionId, first.checkpoint)
+    expect(restored.projection.interactions.question.kind).toBe('question')
+    const target = {
+      sessionId,
+      interactionId: 'question',
+      expectedRevision: interaction.revision,
+      expectedExecutionId: interaction.executionId,
+      inputDigest: interaction.inputDigest
+    }
+    for (const response of [
+      { decision: 'approve' },
+      { response: { kind: 'answer', answers: { other: 'src' } } },
+      { response: { kind: 'answer', answers: { '目录？': ' ' } } }
+    ]) {
+      expect(
+        await call('agent.interactions.respond', { ...target, commandId: randomUUID(), ...response })
+      ).toMatchObject({ status: 'rejected', error: { reason: 'CONFLICT' } })
+    }
+    const params = { ...target, commandId: randomUUID(), response: { kind: 'answer', answers: { '目录？': 'src 🌍' } } }
+    expect(
+      await call('agent.interactions.respond', { ...params, commandId: randomUUID(), expectedRevision: '0' })
+    ).toMatchObject({ status: 'rejected', error: { reason: 'CONFLICT' } })
+    expect(fake.runtime.respondToolApproval).not.toHaveBeenCalled()
+    const receipt = await call('agent.interactions.respond', params)
+    expect(receipt.status).toBe('applied')
+    expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith(
+      'question',
+      { approved: true, updatedInput: { ...input, answers: params.response.answers } },
+      anchor
+    )
+    expect(await call('agent.interactions.respond', params)).toEqual(receipt)
+    expect(fake.runtime.respondToolApproval).toHaveBeenCalledTimes(1)
+    await expect(
+      call('agent.interactions.respond', { ...params, response: { kind: 'answer', answers: { '目录？': 'docs' } } })
+    ).rejects.toMatchObject({ data: { reason: 'IDEMPOTENCY_CONFLICT' } })
+  })
+
+  it('forwards a denial reason without treating it as updated tool input', async () => {
+    const { session } = await call('agent.sessions.get', { sessionId })
+    await call('agent.messages.send', {
+      commandId: randomUUID(),
+      sessionId,
+      expectedIdleRevision: session.idleRevision,
+      text: 'read'
+    })
+    const anchor = randomUUID()
+    emit({ type: 'tool-input-available', toolCallId: 'read-call', toolName: 'read', input: { path: 'a' } }, anchor)
+    emit({ type: 'tool-approval-request', toolCallId: 'read-call', approvalId: 'read-approval' }, anchor)
+    const { interaction } = await call('agent.interactions.get', { sessionId, interactionId: 'read-approval' })
+    const receipt = await call('agent.interactions.respond', {
+      commandId: randomUUID(),
+      sessionId,
+      interactionId: interaction.interactionId,
+      expectedRevision: interaction.revision,
+      expectedExecutionId: interaction.executionId,
+      inputDigest: interaction.inputDigest,
+      response: { kind: 'deny', reason: '请勿读取' }
+    })
+    expect(receipt.status).toBe('applied')
+    expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith(
+      'read-approval',
+      { approved: false, reason: '请勿读取' },
+      anchor
+    )
+  })
+
   it('refuses agent methods to a device paired without the agent capability', async () => {
     const { device } = apiGatewayPairedDeviceService.approveRemote({
       name: 'Config only',

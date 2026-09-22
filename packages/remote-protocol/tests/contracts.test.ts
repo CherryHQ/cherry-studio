@@ -53,3 +53,52 @@ describe('remote contracts', () => {
     ).toBe(false)
   })
 })
+
+describe('question and workspace command contracts', () => {
+  const target = {
+    commandId: 'c',
+    sessionId: 's',
+    interactionId: 'i',
+    expectedRevision: '1',
+    expectedExecutionId: 'e',
+    inputDigest: 'a'.repeat(64)
+  }
+  it('keeps answers in command identity and rejects mixed or oversized response shapes', () => {
+    const params = { ...target, response: { kind: 'answer' as const, answers: { '目录？': '项目🌍' } } }
+    const schema = agentMethods['agent.interactions.respond'].params
+    expect(schema.parse(params)).toEqual(params)
+    expect(schema.safeParse({ ...params, decision: 'approve' }).success).toBe(false)
+    expect(schema.safeParse({ ...target, response: { kind: 'approve', answers: { q: 'x' } } }).success).toBe(false)
+    expect(schema.safeParse({ ...target, response: { kind: 'answer', answers: {} } }).success).toBe(false)
+    expect(
+      schema.safeParse({ ...target, response: { kind: 'answer', answers: { q: 'x'.repeat(8193) } } }).success
+    ).toBe(false)
+    expect(encodeAgentCommand('agent.interactions.respond', params)).not.toEqual(
+      encodeAgentCommand('agent.interactions.respond', {
+        ...params,
+        response: { kind: 'answer', answers: { '目录？': 'different' } }
+      })
+    )
+    expect(schema.parse({ ...target, decision: 'approve' })).toEqual({ ...target, decision: 'approve' })
+  })
+  it('separates registered and system creation without accepting paths or ambiguous destinations', () => {
+    const schema = agentMethods['agent.sessions.create'].params
+    const base = { commandId: 'c', agentId: 'a' }
+    for (const destination of [
+      { workspace: { kind: 'system' } },
+      { workspace: { kind: 'registered', id: 'w' } },
+      { workspaceId: 'w' }
+    ])
+      expect(schema.parse({ ...base, ...destination })).toEqual({ ...base, ...destination })
+    for (const destination of [
+      {},
+      { workspace: { kind: 'system', path: '/tmp' } },
+      { workspace: { kind: 'registered' } },
+      { workspaceId: 'w', workspace: { kind: 'system' } }
+    ])
+      expect(schema.safeParse({ ...base, ...destination }).success).toBe(false)
+    expect(
+      agentMethods['agent.workspaces.list'].result.parse({ items: [], nextCursor: null }).systemWorkspace
+    ).toBeUndefined()
+  })
+})

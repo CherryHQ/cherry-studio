@@ -16,6 +16,7 @@ export const sessionSchema = z.looseObject({
   sessionId: opaqueId,
   agentId: opaqueId,
   workspaceId: opaqueId,
+  workspaceKind: z.enum(['registered', 'system']).optional(),
   title: unicodeText.max(4096),
   updatedAt: timestamp,
   historyRevision: decimal,
@@ -63,6 +64,45 @@ export const partSchema = z.discriminatedUnion('kind', [
   z.looseObject({ ...partBase, kind: z.literal('file'), name: unicodeText.max(1024), ref: contentRefSchema }),
   z.looseObject({ ...partBase, kind: z.literal('data'), name: opaqueId, content })
 ])
+export const workspaceSelectionSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('registered'), id: opaqueId }),
+  z.strictObject({ kind: z.literal('system') })
+])
+export const questionInputSchema = z
+  .looseObject({
+    questions: z
+      .array(
+        z.looseObject({
+          question: unicodeText.min(1).max(4096),
+          header: unicodeText.max(256).optional(),
+          options: z
+            .array(
+              z.looseObject({ label: unicodeText.min(1).max(4096), description: unicodeText.max(4096).optional() })
+            )
+            .max(16),
+          multiSelect: z.boolean().optional()
+        })
+      )
+      .min(1)
+      .max(4)
+  })
+  .refine(
+    ({ questions }) => new Set(questions.map((q) => q.question)).size === questions.length,
+    'Question keys must be unique'
+  )
+export const interactionResponseSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('approve') }),
+  z.strictObject({ kind: z.literal('deny'), reason: unicodeText.min(1).max(4096).optional() }),
+  z.strictObject({
+    kind: z.literal('answer'),
+    answers: z
+      .record(unicodeText.min(1).max(4096), unicodeText.min(1).max(8192))
+      .refine((answers) => Object.keys(answers).length > 0 && Object.keys(answers).length <= 4)
+  })
+])
+export type AgentWorkspaceSelection = z.infer<typeof workspaceSelectionSchema>
+export type AgentInteractionResponse = z.infer<typeof interactionResponseSchema>
+
 export const interactionSummarySchema = z.looseObject({
   interactionId: opaqueId,
   revision: decimal,
@@ -70,6 +110,7 @@ export const interactionSummarySchema = z.looseObject({
   toolCallId: opaqueId,
   status: z.enum(['pending', 'approved', 'denied', 'expired']),
   summary: unicodeText.max(2048),
+  kind: z.enum(['decision', 'question']).optional(),
   inputDigest: digest,
   expiresAt: timestamp.optional()
 })

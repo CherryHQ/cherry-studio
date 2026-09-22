@@ -28,3 +28,13 @@ Deviations from the design doc, kept deliberately small:
 
 SQLite writes stay in their owning data services. Agent execution stays in the
 existing stream manager and runtime. No relay service is provided here.
+
+Question interactions are declared in live events, checkpoints and persisted views. Their form
+stays in the input resource. `agent.interactions.respond` validates the revision/execution/digest
+and complete answer keys, then forwards original input plus answers (or denial reason) to the
+existing Agent runtime. It never accepts caller-supplied replacement tool input.
+
+Workspace catalogs advertise system creation. `agent.sessions.create` resolves explicit system or
+registered selections through `AgentSessionService`; the phone cannot supply a directory. Responses
+include the actual workspace ID and kind. Legacy mutation forms remain accepted for existing
+clients and persisted command recovery. See the [protocol package](../../../../packages/remote-protocol/README.md).

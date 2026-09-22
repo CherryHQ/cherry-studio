@@ -29,6 +29,7 @@ import {
   getSession,
   INLINE_TEXT_LIMIT,
   inputDigest,
+  interactionKind,
   revisionOf,
   sha256,
   toSessionSummary,
@@ -387,6 +388,7 @@ export class SessionJournal {
           kind: 'interaction.updated',
           payload: {
             interactionId: chunk.approvalId,
+            kind: interactionKind(input?.toolName),
             revision: this.next(),
             executionId: execution.executionId,
             toolCallId: chunk.toolCallId,

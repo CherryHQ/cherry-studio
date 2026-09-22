@@ -1,4 +1,7 @@
 export {
+  workspaceSelectionSchema,
+  interactionResponseSchema,
+  questionInputSchema,
   agentAuthorizationSchema,
   agentCursorSchema,
   sessionSchema,
@@ -10,6 +13,8 @@ export {
   commandReceiptSchema
 } from './agent/resources'
 export type {
+  AgentWorkspaceSelection,
+  AgentInteractionResponse,
   AgentAuthorization,
   AgentCursor,
   AgentSession,

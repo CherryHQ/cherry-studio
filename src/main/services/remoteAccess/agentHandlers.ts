@@ -8,6 +8,7 @@ import {
   type AgentParams,
   type AgentResult,
   type CommandReceipt,
+  questionInputSchema,
   encodeAgentCommand
 } from '@cherrystudio/remote-protocol/agent'
 import { RemoteRpcError, type RemoteRpcServer } from '@cherrystudio/remote-transport'
@@ -194,9 +195,44 @@ export function registerAgentMethods(
         return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Interaction changed since it was read' } }
       }
       const anchorId = journal.liveInteraction(params.interactionId)?.messageId ?? interaction.executionId
-      const approved = params.decision === 'approve'
+      const response = 'response' in params ? params.response : { kind: params.decision }
+      const approved = response.kind !== 'deny'
+      let updatedInput: Record<string, unknown> | undefined
+      if (response.kind === 'answer') {
+        if (interaction.kind !== 'question')
+          return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Interaction does not accept answers' } }
+        const bytes =
+          'text' in interaction.input
+            ? interaction.input.text
+            : new TextDecoder().decode(
+                journal.pins.get(`${interaction.input.ref.contentId}:${interaction.input.ref.revision}`) ??
+                  readPersistedContent(
+                    params.sessionId,
+                    interaction.input.ref.contentId,
+                    interaction.input.ref.revision
+                  )
+              )
+        const input = questionInputSchema.safeParse(JSON.parse(bytes))
+        if (
+          !input.success ||
+          Object.keys(response.answers).length !== input.data.questions.length ||
+          input.data.questions.some(
+            (question) =>
+              !Object.hasOwn(response.answers, question.question) || !response.answers[question.question].trim()
+          )
+        )
+          return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Every question requires an answer' } }
+        updatedInput = { ...input.data, answers: response.answers }
+      } else if (response.kind === 'approve' && interaction.kind === 'question') {
+        return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Question requires answers' } }
+      }
+      const decision = {
+        approved,
+        ...(updatedInput ? { updatedInput } : {}),
+        ...('reason' in response ? { reason: response.reason } : {})
+      }
       if (
-        !application.get('AgentSessionRuntimeService').respondToolApproval(params.interactionId, { approved }, anchorId)
+        !application.get('AgentSessionRuntimeService').respondToolApproval(params.interactionId, decision, anchorId)
       ) {
         return { status: 'rejected', error: { reason: 'NOT_FOUND', message: 'Interaction is no longer pending' } }
       }
@@ -204,7 +240,7 @@ export function registerAgentMethods(
       return {
         status: 'applied',
         executionId: interaction.executionId,
-        result: { interactionId: params.interactionId, decision: params.decision }
+        result: { interactionId: params.interactionId, decision: approved ? 'approve' : 'deny' }
       }
     })
   })

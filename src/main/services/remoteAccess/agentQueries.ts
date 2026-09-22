@@ -4,6 +4,7 @@ import { getToolName, isToolUIPart } from 'ai'
 
 import type {
   AgentInteraction,
+  AgentParams,
   AgentMessage,
   AgentPart,
   AgentSession,
@@ -84,6 +85,7 @@ export function toSessionSummary(session: AgentSessionEntity, activeExecutionId?
     sessionId: session.id,
     agentId: session.agentId,
     workspaceId: session.workspaceId,
+    workspaceKind: session.workspace.type === 'system' ? 'system' : 'registered',
     title: session.name,
     updatedAt: new Date(session.updatedAt).toISOString(),
     historyRevision,
@@ -205,8 +207,19 @@ export function readPersistedContent(sessionId: string, contentId: string, revis
   const message = notFound(() => agentSessionMessageService.getSessionMessage(sessionId, messageId))
   if (revisionOf(message.updatedAt) !== revision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'Content revision expired')
+  const approval = (message.data.parts ?? []).find(
+    (part) =>
+      isToolUIPart(part) &&
+      'approval' in part &&
+      `${message.id}:approval:${(part.approval as { id?: string })?.id}` === contentId
+  )
+  if (approval && isToolUIPart(approval)) return utf8(JSON.stringify(approval.input ?? null))
   const projected = projectPersistedParts(message).find(({ part }) => part.partId === contentId)
   return projected ? utf8(projected.text) : undefined
+}
+
+export function interactionKind(toolName: string | undefined): 'decision' | 'question' {
+  return toolName === 'AskUserQuestion' || toolName === 'builtin_AskUserQuestion' ? 'question' : 'decision'
 }
 
 /** Approval cards persisted after a turn ended; their anchor message stands in as the execution. */
@@ -222,6 +235,7 @@ export function listPersistedInteractions(sessionId: string): AgentInteraction[]
       const partId = `${message.id}:approval:${approval.id}`
       interactions.push({
         interactionId: approval.id,
+        kind: interactionKind(getToolName(part)),
         revision: revisionOf(message.updatedAt),
         executionId: message.id,
         toolCallId: part.toolCallId,
@@ -246,11 +260,14 @@ export function listAgents(cursor?: string, limit?: number) {
 
 export function listWorkspaces(agentId: string, cursor?: string, limit?: number) {
   if (!agentService.agentExists(agentId)) throw new RemoteRpcError('NOT_FOUND', 'Agent not found')
-  return pageOf(
-    agentWorkspaceService.list().map((workspace) => ({ workspaceId: workspace.id, name: workspace.name })),
-    cursor,
-    limit
-  )
+  return {
+    ...pageOf(
+      agentWorkspaceService.list().map((workspace) => ({ workspaceId: workspace.id, name: workspace.name })),
+      cursor,
+      limit
+    ),
+    systemWorkspace: true
+  }
 }
 
 export function listSessions(query: { agentId?: string; workspaceId?: string; cursor?: string; limit?: number }): {
@@ -270,12 +287,17 @@ export function listSessions(query: { agentId?: string; workspaceId?: string; cu
   }
 }
 
-export function createSession(input: { agentId: string; workspaceId: string; title?: string }): AgentSessionEntity {
+export function createSession(input: AgentParams<'agent.sessions.create'>): AgentSessionEntity {
   return notFound(() =>
     agentSessionService.create({
       agentId: input.agentId,
       name: input.title ?? '',
-      workspace: { type: 'user', workspaceId: input.workspaceId }
+      workspace:
+        'workspace' in input
+          ? input.workspace.kind === 'system'
+            ? { type: 'system' }
+            : { type: 'user', workspaceId: input.workspace.id }
+          : { type: 'user', workspaceId: input.workspaceId }
     })
   )
 }
