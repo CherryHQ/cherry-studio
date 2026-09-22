@@ -41,6 +41,120 @@ describe('capAttachReplayChunks', () => {
 
     expect(out.length).toBeLessThanOrEqual(MAX_ATTACH_REPLAY_CHUNKS)
   })
+
+  it('drops orphaned tool-output when tool-input was truncated by the cap', () => {
+    const exec = 'provider-a::model-a'
+    const filler = Array.from({ length: 1100 }, (_, i) => ({
+      topicId: 't',
+      executionId: exec,
+      chunk: { type: 'text-delta', id: 'x', delta: `f-${i}` }
+    }))
+    const bufferedChunks: StreamChunkPayload[] = [
+      {
+        topicId: 't',
+        executionId: exec,
+        chunk: { type: 'tool-input-start', toolCallId: 't1', toolName: 'read' }
+      },
+      ...filler,
+      {
+        topicId: 't',
+        executionId: exec,
+        chunk: { type: 'tool-output-available', toolCallId: 't1', output: 'done' } as unknown as UIMessageChunk
+      },
+      textDelta('after', '-after')
+    ]
+
+    const out = capAttachReplayChunks(bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS).replay
+
+    expect(out.some((p) => p.chunk.type === 'tool-output-available')).toBe(false)
+    expect(out.some((p) => p.chunk.type === 'text-delta' && p.chunk.delta === '-after')).toBe(true)
+  })
+
+  it('synthesizes dynamic tool-input-start with the dynamic discriminator', () => {
+    const exec = 'provider-a::model-a'
+    const filler = Array.from({ length: 1100 }, (_, i) => ({
+      topicId: 't',
+      executionId: exec,
+      chunk: { type: 'text-delta', id: 'x', delta: `f-${i}` }
+    }))
+    const bufferedChunks: StreamChunkPayload[] = [
+      {
+        topicId: 't',
+        executionId: exec,
+        chunk: {
+          type: 'tool-input-start',
+          toolCallId: 't1',
+          toolName: 'mcp_tool',
+          dynamic: true
+        } as unknown as UIMessageChunk
+      },
+      ...filler,
+      {
+        topicId: 't',
+        executionId: exec,
+        chunk: { type: 'tool-input-delta', toolCallId: 't1', inputTextDelta: 'x' } as unknown as UIMessageChunk
+      }
+    ]
+
+    const out = capAttachReplayChunks(bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS).replay
+    const synthesized = out.find((p) => p.chunk.type === 'tool-input-start')
+
+    expect(synthesized?.chunk).toMatchObject({
+      type: 'tool-input-start',
+      toolCallId: 't1',
+      toolName: 'mcp_tool',
+      dynamic: true
+    })
+  })
+
+  it('synthesizes tool-input-start from full-buffer identity when the cap lands mid-run', () => {
+    const exec = 'provider-a::model-a'
+    const filler = Array.from({ length: 1100 }, (_, i) => ({
+      topicId: 't',
+      executionId: exec,
+      chunk: { type: 'text-delta', id: 'x', delta: `f-${i}` }
+    }))
+    const bufferedChunks: StreamChunkPayload[] = [
+      {
+        topicId: 't',
+        executionId: exec,
+        chunk: { type: 'tool-input-start', toolCallId: 't1', toolName: 'Bash' }
+      },
+      ...filler,
+      {
+        topicId: 't',
+        executionId: exec,
+        chunk: { type: 'tool-input-delta', toolCallId: 't1', inputTextDelta: 'ls' } as unknown as UIMessageChunk
+      }
+    ]
+
+    const out = capAttachReplayChunks(bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS).replay
+
+    expect(out.some((p) => p.chunk.type === 'tool-input-start' && p.chunk.toolName === 'Bash')).toBe(true)
+    expect(out.some((p) => p.chunk.type === 'tool-input-delta')).toBe(true)
+  })
+
+  it('keeps replay from every execution scope in a multi-model stream', () => {
+    const execA = 'provider-a::model-a'
+    const execB = 'provider-b::model-b'
+    const chunksA = Array.from({ length: 10 }, (_, i) => ({
+      topicId: 't',
+      executionId: execA,
+      chunk: { type: 'text-delta', id: 'a', delta: `a-${i}` }
+    }))
+    const chunksB = Array.from({ length: 5000 }, (_, i) => ({
+      topicId: 't',
+      executionId: execB,
+      chunk: { type: 'text-delta', id: 'b', delta: `b-${i}` }
+    }))
+    const bufferedChunks: StreamChunkPayload[] = [...chunksA, ...chunksB]
+
+    const out = capAttachReplayChunks(bufferedChunks, 100).replay
+    const scopes = new Set(out.map((p) => p.executionId))
+
+    expect(scopes.has(execA)).toBe(true)
+    expect(scopes.has(execB)).toBe(true)
+  })
 })
 
 describe('dropCoveredOverflow', () => {
