@@ -44,4 +44,28 @@ describe('readRetryPolicy', () => {
 
     expect(readRetryPolicy()).toMatchObject({ enabled: true, maxAttempts: 3 })
   })
+
+  it('appends local worker model as last-resort fallback when configured', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.routing.local_worker_model', 'lmstudio::local-model')
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.fallback_model_ids', ['anthropic::claude'])
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.routing.auto_switch_enabled', true)
+
+    expect(readRetryPolicy().fallbackModelIds).toEqual(['anthropic::claude', 'lmstudio::local-model'])
+  })
+
+  it('does not duplicate local worker model if already in fallback list', () => {
+    const localModel = 'lmstudio::local-model'
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.routing.local_worker_model', localModel)
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.fallback_model_ids', [localModel])
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.routing.auto_switch_enabled', true)
+
+    expect(readRetryPolicy().fallbackModelIds).toEqual([localModel])
+  })
+
+  it('omits local worker model when auto switch is off', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.routing.local_worker_model', 'lmstudio::local-model')
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.routing.auto_switch_enabled', false)
+
+    expect(readRetryPolicy().fallbackModelIds).toEqual([])
+  })
 })

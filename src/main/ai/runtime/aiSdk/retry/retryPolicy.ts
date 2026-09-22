@@ -1,5 +1,6 @@
 import { application } from '@application'
 import type { RetryFallbackModelId } from '@shared/data/preference/preferenceTypes'
+import { isUniqueModelId } from '@shared/data/types/model'
 
 import { buildAutoFallbackModelIds } from './autoFallbackModels'
 import { orderFallbackModels } from './orderFallbackModels'
@@ -34,7 +35,18 @@ export function readRetryPolicy(): RetryPolicy {
 
   // Answering with a different model changes the character of the reply, so it stays opt-in.
   // Same-model retries and API-key rotation are unaffected — neither changes who answers.
-  const fallbackModelIds = preferences.get('chat.routing.auto_switch_enabled') ? orderedFallbacks : []
+  const autoSwitchEnabled = preferences.get('chat.routing.auto_switch_enabled')
+  let fallbackModelIds = autoSwitchEnabled ? orderedFallbacks : []
+
+  // When all remote sources are exhausted, fall back to local model (L3).
+  // This ensures "never reject a request" (Rule 2) even when all API keys are spent.
+  // Only append local model if auto switch is enabled to respect user's opt-in choice.
+  if (autoSwitchEnabled) {
+    const localWorkerModel = preferences.get('chat.routing.local_worker_model')
+    if (isUniqueModelId(localWorkerModel) && !fallbackModelIds.includes(localWorkerModel)) {
+      fallbackModelIds = [...fallbackModelIds, localWorkerModel]
+    }
+  }
 
   return {
     enabled: preferences.get('chat.retry.enabled'),
