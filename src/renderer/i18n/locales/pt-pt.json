@@ -4815,6 +4815,8 @@
   "settings.models.retry.fallback_models": "Modelos de reserva",
   "settings.models.retry.fallback_models_count": "{{count}} modelos selecionados",
   "settings.models.retry.fallback_models_description": "Modelos experimentados por ordem quando o modelo principal falha",
+  "settings.models.retry.image_max_attempts": "Tentativas de geração de imagem",
+  "settings.models.retry.image_max_attempts_description": "Novas tentativas de geração direta de imagem em erros transitórios. Cada tentativa pode ser faturada novamente — 0 para desativar.",
   "settings.models.retry.label": "Repetição de chamadas ao modelo",
   "settings.models.retry.max_attempts": "Número máximo de tentativas",
   "settings.models.retry.tooltip": "Os erros repetíveis voltam a tentar o modelo atual até ao limite configurado. Se continuar a falhar, ou se o erro não for repetível, os modelos de reserva são tentados uma vez cada, pela ordem definida. Se o mesmo modelo tiver várias chaves de API, os erros 401/429 mudam primeiro para a chave seguinte. As repetições e os modelos de reserva só se aplicam antes do início da transmissão de conteúdo.",

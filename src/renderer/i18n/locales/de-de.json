@@ -4815,6 +4815,8 @@
   "settings.models.retry.fallback_models": "Fallback-Modelle",
   "settings.models.retry.fallback_models_count": "{{count}} Modelle ausgewählt",
   "settings.models.retry.fallback_models_description": "Modelle, die der Reihe nach ausprobiert werden, wenn das primäre Modell fehlschlägt",
+  "settings.models.retry.image_max_attempts": "Bild-Wiederholungsversuche",
+  "settings.models.retry.image_max_attempts_description": "Wiederholungen für direkte Bilderzeugung bei vorübergehenden Fehlern. Jeder Versuch kann erneut abgerechnet werden — 0 deaktiviert die Wiederholung.",
   "settings.models.retry.label": "Modellaufruf-Wiederholung",
   "settings.models.retry.max_attempts": "Maximale Wiederholungsversuche",
   "settings.models.retry.tooltip": "Bei wiederholbaren Fehlern wird das aktuelle Modell bis zum konfigurierten Limit erneut versucht. Schlägt es weiterhin fehl oder ist der Fehler nicht wiederholbar, werden die Ersatzmodelle der Reihe nach jeweils einmal versucht. Bei mehreren API-Schlüsseln für dasselbe Modell wird bei 401/429 zuerst zum nächsten Schlüssel gewechselt. Wiederholungen und Ersatzmodelle gelten nur, bevor die Inhaltsausgabe beginnt.",

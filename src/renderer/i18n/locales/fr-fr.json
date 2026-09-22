@@ -4815,6 +4815,8 @@
   "settings.models.retry.fallback_models": "Modèles de secours",
   "settings.models.retry.fallback_models_count": "{{count}} modèles sélectionnés",
   "settings.models.retry.fallback_models_description": "Modèles essayés dans l'ordre lorsque le modèle principal échoue",
+  "settings.models.retry.image_max_attempts": "Tentatives de génération d'image",
+  "settings.models.retry.image_max_attempts_description": "Nouvelles tentatives de génération directe d'image en cas d'erreurs temporaires. Chaque tentative peut être facturée à nouveau — 0 pour désactiver.",
   "settings.models.retry.label": "Relance d'appel de modèle",
   "settings.models.retry.max_attempts": "Nombre maximum de tentatives",
   "settings.models.retry.tooltip": "Les erreurs réessayables relancent le modèle actuel jusqu'à la limite configurée. S'il échoue encore, ou si l'erreur n'est pas réessayable, les modèles de secours sont essayés une fois chacun dans l'ordre. Si plusieurs clés API existent pour le même modèle, les erreurs 401/429 passent d'abord à la clé suivante. Les nouvelles tentatives et les secours ne s'appliquent qu'avant le début de la diffusion du contenu.",

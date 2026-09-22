@@ -4815,6 +4815,8 @@
   "settings.models.retry.fallback_models": "Modelos de respaldo",
   "settings.models.retry.fallback_models_count": "{{count}} modelos seleccionados",
   "settings.models.retry.fallback_models_description": "Modelos probados en orden cuando el modelo principal falla",
+  "settings.models.retry.image_max_attempts": "Reintentos de generación de imágenes",
+  "settings.models.retry.image_max_attempts_description": "Reintentos de generación directa de imágenes ante errores temporales. Cada reintento puede facturarse de nuevo; 0 para desactivar.",
   "settings.models.retry.label": "Reintento de llamada al modelo",
   "settings.models.retry.max_attempts": "Número máximo de reintentos",
   "settings.models.retry.tooltip": "Los errores reintentables vuelven a probar el modelo actual hasta el límite configurado. Si sigue fallando o el error no es reintentable, los modelos de respaldo se prueban una vez cada uno y en orden. Si el mismo modelo tiene varias claves API, los errores 401/429 cambian primero a la clave siguiente. Los reintentos y respaldos solo se aplican antes de que empiece la transmisión de contenido.",

@@ -297,6 +297,13 @@
       "description": "Exponential backoff between retry attempts (v2 新增，非迁移)"
     },
     {
+      "targetKey": "image.retry.max_attempts",
+      "type": "number",
+      "defaultValue": 2,
+      "status": "classified",
+      "description": "Max direct image-generation retries for transient errors; 0 disables retries (v2 新增，非迁移)"
+    },
+    {
       "targetKey": "chat.context_settings.enabled",
       "type": "boolean",
       "defaultValue": true,

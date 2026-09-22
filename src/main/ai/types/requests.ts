@@ -16,7 +16,7 @@ export interface AiTransportOptions {
   headers?: Record<string, string | undefined>
   /** Idle-chunk timeout (ms) for streaming flows; resets per chunk. Falls back to `DEFAULT_TIMEOUT` (30 min). */
   timeout?: number
-  /** AI SDK transparent-retry override. Defaults to 0 — retries can duplicate stream state in tool loops. */
+  /** AI SDK transparent-retry override. Defaults to 0 (direct image requests default to the `image.retry.max_attempts` preference) — retries can duplicate stream state in tool loops. */
   maxRetries?: number
 }
 

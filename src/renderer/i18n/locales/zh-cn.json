@@ -4815,6 +4815,8 @@
   "settings.models.retry.fallback_models": "回退模型",
   "settings.models.retry.fallback_models_count": "已选择 {{count}} 个模型",
   "settings.models.retry.fallback_models_description": "主模型失败时按顺序尝试的模型",
+  "settings.models.retry.image_max_attempts": "图像重试次数",
+  "settings.models.retry.image_max_attempts_description": "对瞬态错误的直接图像生成进行重试。每次重试都可能再次计费——设为 0 可禁用。",
   "settings.models.retry.label": "模型调用重试",
   "settings.models.retry.max_attempts": "最大重试次数",
   "settings.models.retry.tooltip": "遇到可重试错误时，会先按设置次数重试当前模型；仍然失败或错误不可重试时，再按顺序各尝试一次回退模型。同一模型配置了多个 API Key 时，401/429 会优先切换到下一个 Key。重试与回退仅在模型开始输出内容前生效。",

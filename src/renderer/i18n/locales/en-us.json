@@ -4815,6 +4815,8 @@
   "settings.models.retry.fallback_models": "Fallback models",
   "settings.models.retry.fallback_models_count": "{{count}} models selected",
   "settings.models.retry.fallback_models_description": "Models tried in order when the primary model fails",
+  "settings.models.retry.image_max_attempts": "Image retry attempts",
+  "settings.models.retry.image_max_attempts_description": "Retries for direct image generations on transient errors. Each retry may be billed again — set to 0 to disable.",
   "settings.models.retry.label": "Model Call Retry",
   "settings.models.retry.max_attempts": "Max retry attempts",
   "settings.models.retry.tooltip": "Retryable errors retry the current model up to the configured limit. If it still fails, or the error is not retryable, fallback models are tried once each in order. With multiple API keys for the same model, 401/429 errors switch to the next key first. Retries and fallbacks only apply before content starts streaming.",

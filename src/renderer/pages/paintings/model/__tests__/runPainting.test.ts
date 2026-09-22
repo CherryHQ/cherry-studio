@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -35,6 +36,62 @@ describe('runPainting error surfacing', () => {
     await expect(fail(err)).rejects.toMatchObject({
       code: 'REMOTE_ERROR',
       message: 'HTTP 500 upstream boom'
+    })
+  })
+
+  it('maps a 504 gateway timeout to the friendly timeout string, not the raw body', async () => {
+    const detail = {
+      name: 'AI_APICallError',
+      message: '',
+      stack: null,
+      statusCode: 504,
+      responseBody: '<html>proxy noise</html>'
+    }
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
+
+    await expect(fail(err)).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: i18n.t('error.http.504')
+    })
+  })
+
+  it('maps a 504 with a provider message to the friendly timeout string too', async () => {
+    const detail = { name: 'AI_APICallError', message: 'Gateway Timeout', stack: null, statusCode: 504 }
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
+
+    await expect(fail(err)).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: i18n.t('error.http.504')
+    })
+  })
+
+  it('maps an exhausted-retry 504 nested in lastError to the friendly timeout string', async () => {
+    const detail = {
+      name: 'AI_RetryError',
+      message: 'Failed after 3 attempts',
+      stack: null,
+      lastError: { name: 'AI_APICallError', message: 'Gateway Timeout', stack: null, statusCode: 504 }
+    }
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
+
+    await expect(fail(err)).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: i18n.t('error.http.504')
+    })
+  })
+
+  it('maps an exhausted-retry 504 nested in errors to the friendly timeout string', async () => {
+    const detail = {
+      name: 'AI_RetryError',
+      message: 'Failed after 3 attempts',
+      stack: null,
+      errors: [{ name: 'AI_APICallError', message: '', stack: null, statusCode: 504 }]
+    }
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
+
+    await expect(fail(err)).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: i18n.t('error.http.504')
     })
   })
 
