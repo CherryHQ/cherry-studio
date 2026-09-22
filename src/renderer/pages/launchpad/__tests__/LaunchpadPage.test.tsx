@@ -23,7 +23,10 @@ const mocks = vi.hoisted(() => ({
   setAppOrder: vi.fn(() => Promise.resolve()),
   appOrder: [] as SidebarAppId[],
   sortableCalls: [] as any[],
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  closeWorkspace: vi.fn(),
+  openRoute: vi.fn(),
+  navigationLayout: 'both' as 'sidebar' | 'tabs' | 'both'
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -80,8 +83,14 @@ vi.mock('@renderer/components/command', () => ({
 }))
 
 vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
-  default: ({ app, onOpen }: { app: { appId: string; name: string }; onOpen?: (appId: string) => void }) => (
-    <button type="button" onClick={() => onOpen?.(app.appId)}>
+  default: ({
+    app,
+    onOpen
+  }: {
+    app: { appId: string; name: string; logo?: string }
+    onOpen?: (appId: string, displayName: string, icon?: string) => void
+  }) => (
+    <button type="button" onClick={() => onOpen?.(app.appId, app.name, app.logo)}>
       {app.name}
     </button>
   )
@@ -118,6 +127,14 @@ vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
           : mocks.sidebarFavorites.filter((item) => item.id !== id)
       )
     }
+  })
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useTabs: () => ({
+    closeWorkspace: mocks.closeWorkspace,
+    navigationLayout: mocks.navigationLayout,
+    openRoute: mocks.openRoute
   })
 }))
 
@@ -213,6 +230,7 @@ describe('LaunchpadPage', () => {
     mocks.sidebarFavorites = [appFavorite('assistants')]
     mocks.appOrder = []
     mocks.sortableCalls.length = 0
+    mocks.navigationLayout = 'both'
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
     mocks.setAppOrder.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
@@ -302,6 +320,16 @@ describe('LaunchpadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Knowledge' }))
 
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
+  })
+
+  it('opens app workspaces through TabsProvider in Sidebar layout', async () => {
+    mocks.navigationLayout = 'sidebar'
+    render(<LaunchpadPage />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Knowledge' }))
+
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/knowledge', undefined)
+    expect(mocks.navigate).not.toHaveBeenCalled()
   })
 
   it('opens the dedicated DeepSeek Harness CodeMate view from its app shortcut', async () => {

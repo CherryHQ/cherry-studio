@@ -37,6 +37,7 @@ const MiniAppPage: FC = () => {
   const updateTab = tabsContext?.updateTab
   const { openMiniAppKeepAlive, openSplit, closeSplit } = useMiniAppPopup()
   const { allApps, openedKeepAliveMiniApps, splitOpen, splitMiniAppId, isLoading, error } = useMiniApps()
+  const isSplitVisible = splitOpen && splitMiniAppId !== appId
 
   // Authoritative descriptor for a transient app (no database row, opened via openSmartMiniApp).
   // Every window's keep-alive entry is only a local snapshot of this cross-window value.
@@ -92,6 +93,12 @@ const MiniAppPage: FC = () => {
     openMiniAppKeepAlive(app)
   }, [isActiveTab, app, openMiniAppKeepAlive, isLoading, error])
 
+  useEffect(() => {
+    // Split state is window-wide; activating its app as the primary workspace
+    // must retire the split instead of leaving an empty second pane.
+    if (isActiveTab && splitOpen && splitMiniAppId === appId) closeSplit()
+  }, [appId, closeSplit, isActiveTab, splitMiniAppId, splitOpen])
+
   // -------------- Tab Shell logic --------------
   // The shared cache syncs from Main asynchronously and does not block renderer startup,
   // so in a window that just opened — exactly the detached-tab case — the descriptor is
@@ -102,16 +109,15 @@ const MiniAppPage: FC = () => {
     if (sharedCacheReady) return
     return cacheService.onSharedCacheReady(() => setSharedCacheReady(true))
   }, [sharedCacheReady])
-  // The keep-alive fallback lets a transient app (no database row) hold the pane;
-  // a split id equal to the active app is dropped, one `<webview>` fills one pane.
+  // The keep-alive fallback lets a transient app (no database row) hold the pane.
   const splitApp = useMemo((): MiniApp | null => {
-    if (!splitOpen || !splitMiniAppId || splitMiniAppId === appId) return null
+    if (!isSplitVisible || !splitMiniAppId) return null
     return (
       allApps.find((a) => a.appId === splitMiniAppId) ??
       openedKeepAliveMiniApps.find((a) => a.appId === splitMiniAppId) ??
       null
     )
-  }, [allApps, appId, openedKeepAliveMiniApps, splitMiniAppId, splitOpen])
+  }, [allApps, isSplitVisible, openedKeepAliveMiniApps, splitMiniAppId])
 
   // Both panes mount a search overlay and the host `keydown` listener is global,
   // so exactly one may answer Ctrl/Cmd+F — otherwise one press opens both.
@@ -119,8 +125,8 @@ const MiniAppPage: FC = () => {
   const activatePrimaryPane = useCallback(() => setActivePane('primary'), [])
   const activateSplitPane = useCallback(() => setActivePane('split'), [])
   useEffect(() => {
-    if (!splitOpen) setActivePane('primary')
-  }, [splitOpen])
+    if (!isSplitVisible) setActivePane('primary')
+  }, [isSplitVisible])
 
   // While loading, show a loading indicator instead of returning null
   if (isLoading) {
@@ -169,13 +175,13 @@ const MiniAppPage: FC = () => {
       <MiniAppPane
         app={app}
         splitMode="open"
-        splitActive={splitOpen}
-        onSplit={splitOpen ? closeSplit : openSplit}
-        hostShortcutEnabled={!splitOpen || activePane === 'primary'}
+        splitActive={isSplitVisible}
+        onSplit={isSplitVisible ? closeSplit : openSplit}
+        hostShortcutEnabled={!isSplitVisible || activePane === 'primary'}
         onActivate={activatePrimaryPane}
-        className={splitOpen ? 'w-1/2' : 'w-full'}
+        className={isSplitVisible ? 'w-1/2' : 'w-full'}
       />
-      {splitOpen &&
+      {isSplitVisible &&
         (splitApp ? (
           <MiniAppPane
             app={splitApp}

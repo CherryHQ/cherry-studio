@@ -1,6 +1,7 @@
 import { createContext, use } from 'react'
 
 import type { Tab, TabType } from '@shared/data/cache/cacheValueTypes'
+import type { NavigationLayout } from '@shared/data/preference/preferenceTypes'
 
 /**
  * Options for opening a tab
@@ -18,6 +19,8 @@ export interface OpenTabOptions {
   icon?: string
   /** Optional tab metadata copied into the newly-created tab. */
   metadata?: Tab['metadata']
+  /** Stable identity for a sidebar workspace. Usually inferred from the route. */
+  workspaceKey?: Tab['workspaceKey']
   /**
    * Materialize the tab as pinned. Set when a detached sub-window re-creates a tab
    * from its init payload so the pinned state survives the detach → re-attach round-trip.
@@ -28,9 +31,12 @@ export interface OpenTabOptions {
 export interface TabsContextValue {
   // State
   tabs: Tab[]
+  /** Tabs surfaced in the top tab bar; Sidebar background workspaces remain in `tabs`. */
+  tabBarTabs: Tab[]
   activeTabId: string
   activeTab: Tab | undefined
   isLoading: boolean
+  navigationLayout: NavigationLayout
 
   // Basic operations
   addTab: (tab: Tab) => void
@@ -42,6 +48,10 @@ export interface TabsContextValue {
 
   // High-level Tab operations
   openTab: (url: string, options?: OpenTabOptions) => string
+  openRoute: (url: string, options?: OpenTabOptions) => string
+  activateWorkspace: (workspaceKey: string, route: string, options?: OpenTabOptions) => string
+  closeWorkspace: (workspaceKey: string) => void
+  closeFocusedRoute: () => void
 
   // Pin operations
   pinTab: (id: string) => void

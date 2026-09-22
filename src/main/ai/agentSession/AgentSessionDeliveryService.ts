@@ -338,7 +338,8 @@ export class AgentSessionDeliveryService extends BaseService {
             models: prepared.models,
             listeners: prepared.listeners,
             siblingsGroupId: prepared.siblingsGroupId,
-            lifecycle: prepared.lifecycle
+            lifecycle: prepared.lifecycle,
+            isPersistentConversation: agentChatContextProvider.isPersistentConversation
           })
         } catch (error) {
           // send() launches before its final lifecycle callback. A callback failure can therefore

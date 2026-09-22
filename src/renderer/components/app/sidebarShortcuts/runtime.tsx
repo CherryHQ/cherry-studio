@@ -268,7 +268,7 @@ export function useSidebarNavigationSnapshot(): SidebarNavigationSnapshot {
 }
 
 export function useSidebarActivationGateway(): SidebarActivationGateway {
-  const { activeTab, tabs, openTab, setActiveTab, updateTab } = useTabs()
+  const { activeTab, tabs, navigationLayout, openRoute, openTab, setActiveTab, updateTab } = useTabs()
 
   const openWorkspace = useCallback<SidebarActivationGateway['openWorkspace']>(
     (destination, options) => {
@@ -284,6 +284,15 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
           setActiveTab(existing.id)
           return
         }
+      }
+      if (navigationLayout === 'sidebar') {
+        openRoute(destination.url, {
+          title: destination.title,
+          icon: destination.icon
+        })
+        return
+      }
+      if (!options?.inNewTab) {
         if (activeTab && !activeTab.isPinned) {
           if (miniAppIdFromTabUrl(activeTab.url)) {
             // Keep this tab alive for the WebView pool, so the destination gets its own tab. Reuse was
@@ -310,7 +319,7 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
         icon: destination.icon
       })
     },
-    [activeTab, openTab, setActiveTab, tabs, updateTab]
+    [activeTab, navigationLayout, openRoute, openTab, setActiveTab, tabs, updateTab]
   )
   return useMemo(() => ({ openWorkspace }), [openWorkspace])
 }

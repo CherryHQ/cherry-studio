@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
+  openRoute: vi.fn(),
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
   attachTab: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock('../useTabs', () => ({
   useTabs: () => ({
     tabs: mocks.tabs,
     openTab: mocks.openTab,
+    openRoute: mocks.openRoute,
     setActiveTab: mocks.setActiveTab,
     updateTab: mocks.updateTab,
     attachTab: mocks.attachTab
@@ -148,10 +150,10 @@ describe('useMainWindowNavigation', () => {
   })
 
   it('opens a regular tab for non-settings navigation init data', () => {
-    mocks.initData = { kind: 'navigation', to: '/agents', requestId: 1 }
+    mocks.initData = { kind: 'navigation', to: '/app/agents', requestId: 1 }
     render(<MainWindowNavigationHarness />)
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/agents')
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/agents')
   })
 
   it('re-attaches a tab from tab-attach init data and acknowledges it', () => {
@@ -177,9 +179,9 @@ describe('useMainWindowNavigation', () => {
   it('opens a regular tab when a non-settings open_route_requested event arrives', () => {
     render(<MainWindowNavigationHarness />)
 
-    mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: '/knowledge' })
+    mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: '/app/knowledge' })
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/knowledge')
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/knowledge')
   })
 
   it('routes a settings path from the open_route_requested event through the settings singleton', () => {
@@ -235,11 +237,11 @@ describe('useMainWindowNavigation', () => {
     window.dispatchEvent(
       new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
         cancelable: true,
-        detail: { path: '/agents' }
+        detail: { path: '/app/agents' }
       })
     )
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/agents')
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/agents')
   })
 
   it('removes the main-route event bridge on unmount', () => {
@@ -248,11 +250,11 @@ describe('useMainWindowNavigation', () => {
 
     const event = new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
       cancelable: true,
-      detail: { path: '/agents' }
+      detail: { path: '/app/agents' }
     })
     window.dispatchEvent(event)
 
     expect(event.defaultPrevented).toBe(false)
-    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.openRoute).not.toHaveBeenCalled()
   })
 })

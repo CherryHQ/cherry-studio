@@ -51,7 +51,7 @@ const MiniAppsPage: FC = () => {
     removeCustomMiniApp
   } = useMiniApps()
   const { shortcuts, setPinned } = useSidebarShortcuts()
-  const { openTab } = useTabs()
+  const { closeWorkspace, navigationLayout, openTab } = useTabs()
   const openTabRef = useRef(openTab)
   openTabRef.current = openTab
   const miniAppsRef = useRef(miniApps)
@@ -69,8 +69,9 @@ const MiniAppsPage: FC = () => {
       ),
     [shortcuts]
   )
-  const toggleMiniApp = useCallback(
+  const handleToggleSidebarFavorite = useCallback(
     (appId: string) => {
+      const wasFavorite = sidebarFavoriteIds.has(appId)
       const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
       const fallbackLabel = app ? (app.nameKey ? t(app.nameKey) : app.name) : undefined
       setPinned(
@@ -78,8 +79,9 @@ const MiniAppsPage: FC = () => {
         !sidebarFavoriteIds.has(appId),
         fallbackLabel
       )
+      if (wasFavorite && navigationLayout === 'sidebar') closeWorkspace(`mini-app:${appId}`)
     },
-    [t, setPinned, sidebarFavoriteIds]
+    [closeWorkspace, navigationLayout, setPinned, sidebarFavoriteIds, t]
   )
   const openMiniApp = useCallback((appId: string, displayName: string, icon?: string) => {
     openTabRef.current(`/app/mini-app/${appId}`, {
@@ -227,7 +229,7 @@ const MiniAppsPage: FC = () => {
                         onUpdateStatus={updateAppStatus}
                         onHide={hideMiniApp}
                         onRemoveCustom={removeCustomMiniApp}
-                        onToggleSidebarFavorite={toggleMiniApp}
+                        onToggleSidebarFavorite={handleToggleSidebarFavorite}
                         isPinned={pinnedIds.has(app.appId)}
                         isSidebarFavorite={sidebarFavoriteIds.has(app.appId)}
                         isOpened={openedIds.has(app.appId)}

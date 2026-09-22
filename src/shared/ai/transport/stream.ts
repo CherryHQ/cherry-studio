@@ -136,6 +136,18 @@ export interface TopicStatusSnapshotEntry {
   lastCompletedAt?: number
 }
 
+/** Persistent-conversation statuses that can affect a workspace-level task indicator. */
+export type TopicStatusSnapshotIndex = Record<string, TopicStatusSnapshotEntry>
+
+/** Renderer acknowledgement used by Main to remove a completed entry from the runtime index. */
+export interface TopicCompletionSeenEvent {
+  topicId: string
+  completedAt: number
+}
+
+export const TOPIC_STATUS_INDEX_CACHE_KEY = 'topic.stream.status_index' as const
+export const TOPIC_COMPLETION_SEEN_CACHE_KEY = 'topic.stream.completion_seen' as const
+
 type AiStreamRegenerateTarget =
   /** Reset and retry one failed assistant row in place. */
   | { retryMessageId: string; appendToLiveGroupMessageId?: never }

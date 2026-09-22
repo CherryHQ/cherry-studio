@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
@@ -13,15 +14,33 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   reorder: vi.fn(),
   resolutions: [] as any[],
-  shortcuts: [] as any[]
+  shortcuts: [] as any[],
+  activateWorkspace: vi.fn(),
+  closeWorkspace: vi.fn(),
+  updateTab: vi.fn(),
+  navigationLayout: 'both' as 'sidebar' | 'tabs' | 'both',
+  tabs: [] as any[],
+  workspaceTaskStatuses: new Map()
 }))
 
 vi.mock('@data/hooks/useCache', () => ({ usePersistCache: () => [170, vi.fn()] }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => ['User', vi.fn()] }))
-vi.mock('@renderer/hooks/tab', () => ({ useTabs: () => ({ activeTab: { url: '/app/chat' } }) }))
+vi.mock('@renderer/hooks/tab', () => ({
+  useTabs: () => ({
+    activeTab: { url: '/app/chat' },
+    activateWorkspace: mocks.activateWorkspace,
+    closeWorkspace: mocks.closeWorkspace,
+    navigationLayout: mocks.navigationLayout,
+    tabs: mocks.tabs,
+    updateTab: mocks.updateTab
+  })
+}))
 vi.mock('@renderer/hooks/useAvatar', () => ({ default: () => null }))
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
   useSidebarShortcuts: () => ({ shortcuts: mocks.shortcuts, remove: mocks.remove, reorder: mocks.reorder })
+}))
+vi.mock('@renderer/hooks/useWorkspaceTaskStatuses', () => ({
+  useWorkspaceTaskStatuses: () => mocks.workspaceTaskStatuses
 }))
 vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.fn() }))
 vi.mock('../sidebarShortcuts', () => ({
@@ -39,6 +58,7 @@ vi.mock('../../Sidebar', () => ({
   UserAvatar: () => <span />,
   Sidebar: ({
     entries,
+    fixedAction,
     onEntriesReorder
   }: {
     entries: Array<{
@@ -47,13 +67,15 @@ vi.mock('../../Sidebar', () => ({
       disabled?: boolean
       onOpen: () => void
       contextMenuItems: Array<{ id: string; label: string; enabled?: boolean; onSelect: () => void }>
+      status?: { value: string; label: string }
     }>
+    fixedAction?: (layout: 'full') => ReactNode
     onEntriesReorder: (event: { oldIndex: number; newIndex: number }) => void
   }) => (
     <div>
       <ol aria-label="shortcuts">
         {entries.map((entry) => (
-          <li key={entry.key} aria-label={entry.label}>
+          <li key={entry.key} aria-label={entry.label} data-status={entry.status?.value}>
             <button
               type="button"
               aria-disabled={entry.disabled || undefined}
@@ -68,6 +90,7 @@ vi.mock('../../Sidebar', () => ({
           </li>
         ))}
       </ol>
+      {fixedAction?.('full')}
       <button type="button" onClick={() => onEntriesReorder({ oldIndex: 0, newIndex: 1 })}>
         reorder
       </button>
@@ -96,6 +119,9 @@ describe('app Sidebar shortcuts', () => {
     mocks.resolutions = []
     mocks.registryResolve.mockReturnValue({ activate: mocks.activate })
     mocks.reorder.mockResolvedValue(undefined)
+    mocks.navigationLayout = 'both'
+    mocks.tabs = []
+    mocks.workspaceTaskStatuses.clear()
   })
 
   it('keeps a missing resource in place, disables activation, and allows removal', () => {
@@ -110,6 +136,51 @@ describe('app Sidebar shortcuts', () => {
     expect(mocks.activate).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
     expect(mocks.remove).toHaveBeenCalledWith(missing.target)
+  })
+
+  it('allows removing the last built-in app shortcut', () => {
+    const assistant = shortcut('core.app', 'assistants')
+    mocks.shortcuts = [assistant]
+    mocks.resolutions = [
+      { status: 'resolved', shortcut: assistant, resource: { label: 'Chat', renderIcon: () => null } }
+    ]
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
+
+    expect(mocks.remove).toHaveBeenCalledWith(assistant.target)
+  })
+
+  it('closes a Sidebar workspace before removing its built-in shortcut', () => {
+    const assistant = shortcut('core.app', 'assistants')
+    mocks.navigationLayout = 'sidebar'
+    mocks.shortcuts = [assistant]
+    mocks.resolutions = [
+      { status: 'resolved', shortcut: assistant, resource: { label: 'Chat', renderIcon: () => null } }
+    ]
+
+    render(<Sidebar />)
+    const assistantItem = screen.getByRole('listitem', { name: 'Chat' })
+    fireEvent.click(within(assistantItem).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
+
+    expect(mocks.closeWorkspace).toHaveBeenCalledWith('app:assistants')
+    expect(mocks.remove).toHaveBeenCalledWith(assistant.target)
+  })
+
+  it('shows workspace status and the Launchpad action only in Sidebar layout', () => {
+    const assistant = shortcut('core.app', 'assistants')
+    mocks.navigationLayout = 'sidebar'
+    mocks.shortcuts = [assistant]
+    mocks.resolutions = [
+      { status: 'resolved', shortcut: assistant, resource: { label: 'Chat', renderIcon: () => null } }
+    ]
+    mocks.workspaceTaskStatuses.set('assistants', 'running')
+
+    render(<Sidebar />)
+
+    expect(screen.getByRole('listitem', { name: 'Chat' })).toHaveAttribute('data-status', 'running')
+    fireEvent.click(screen.getByRole('button', { name: 'title.launchpad' }))
+    expect(mocks.activateWorkspace).toHaveBeenCalledWith('launchpad', '/app/launchpad', { title: 'title.launchpad' })
   })
 
   it('keeps the dropped order visible until the preference write confirms it', async () => {

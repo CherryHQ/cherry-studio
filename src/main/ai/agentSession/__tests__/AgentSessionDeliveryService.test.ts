@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   hasLiveStream: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
+  clearConversationTaskStatuses: vi.fn(),
   abortAndDrain: vi.fn(),
   hasTerminalPersistenceInFlight: vi.fn(),
   whenTerminalDispatchSettled: vi.fn(),
@@ -121,6 +122,7 @@ vi.mock('@data/services/AgentTaskService', () => ({
 
 vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
   agentChatContextProvider: {
+    isPersistentConversation: true,
     validateDispatch: mocks.validateDispatch,
     persistDispatchTx: mocks.persistDispatchTx,
     activateDispatch: mocks.activateDispatch
@@ -149,6 +151,7 @@ const manager = {
   hasUnsettledTopicWork: mocks.hasUnsettledTopicWork,
   hasLiveStream: mocks.hasLiveStream,
   pauseRuntimeTurn: mocks.pauseRuntimeTurn,
+  clearConversationTaskStatuses: mocks.clearConversationTaskStatuses,
   abortAndDrain: mocks.abortAndDrain,
   hasTerminalPersistenceInFlight: mocks.hasTerminalPersistenceInFlight,
   whenTerminalDispatchSettled: mocks.whenTerminalDispatchSettled,
@@ -334,7 +337,7 @@ describe('AgentSessionDeliveryService', () => {
     })
     expect(mocks.claim).toHaveBeenCalledWith({}, 'target', 'delivery-1', 'assistant-1')
     expect(mocks.publishDispatchChanges).toHaveBeenCalledWith('target', [accepted, assistant])
-    expect(mocks.send).toHaveBeenCalledOnce()
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ isPersistentConversation: true }))
   })
 
   it('reruns a coalesced kick that arrives before the blocked kick releases single-flight ownership', async () => {
@@ -758,6 +761,7 @@ describe('AgentSessionDeliveryService', () => {
     releaseRuntime()
 
     await expect(deleting).resolves.toEqual({ deletedIds: ['target'] })
+    expect(mocks.clearConversationTaskStatuses).toHaveBeenCalledWith(['agent-session:target'])
     await competingAdmission
     expect(competingAdmissionEntered).toBe(true)
   })

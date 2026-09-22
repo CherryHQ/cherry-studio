@@ -21,6 +21,10 @@ export interface ResolvedSidebarEntry {
   onOpen: () => void
   disabled?: boolean
   onOpenNewTab?: () => void
+  status?: {
+    value: 'action-required' | 'completed' | 'error' | 'running'
+    label: string
+  }
   contextMenuItems?: readonly CommandContextMenuExtraItem[]
 }
 

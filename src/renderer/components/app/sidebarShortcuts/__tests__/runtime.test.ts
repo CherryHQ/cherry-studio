@@ -33,15 +33,21 @@ function resolved(target: SidebarShortcutItem['target'], label: string) {
 function tabContext(tabs: Tab[]): TabsContextValue {
   return {
     tabs,
+    tabBarTabs: tabs,
     activeTab: tabs[0],
     activeTabId: tabs[0].id,
     isLoading: false,
+    navigationLayout: 'tabs',
     addTab: vi.fn(),
     closeTab: vi.fn(),
     closeTabs: vi.fn(),
     setActiveTab: vi.fn(),
     updateTab: vi.fn(),
     openTab: vi.fn(() => 'new-tab'),
+    openRoute: vi.fn(() => 'new-tab'),
+    activateWorkspace: vi.fn(() => 'new-tab'),
+    closeWorkspace: vi.fn(),
+    closeFocusedRoute: vi.fn(),
     pinTab: vi.fn(),
     unpinTab: vi.fn(),
     reorderTabs: vi.fn(),
@@ -113,6 +119,49 @@ async function activateShortcut(context: TabsContextValue, providerId: string, r
 }
 
 describe('sidebar conversation navigation', () => {
+  it('preserves sidebar workspaces when switching shortcuts', () => {
+    const tabs = tabContext([{ id: 'files', type: 'route', url: '/app/files', title: 'Files' }])
+    tabs.navigationLayout = 'sidebar'
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+
+    act(() => {
+      result.current.openWorkspace({
+        url: '/app/chat?topicId=topic-1',
+        title: 'Chat'
+      })
+    })
+
+    expect(tabs.openRoute).toHaveBeenCalledWith('/app/chat?topicId=topic-1', {
+      title: 'Chat',
+      icon: undefined
+    })
+    expect(tabs.updateTab).not.toHaveBeenCalled()
+    expect(tabs.openTab).not.toHaveBeenCalled()
+  })
+
+  it('reactivates an inactive Sidebar workspace without resetting its route', () => {
+    const tabs = tabContext([
+      { id: 'files', type: 'route', url: '/app/files', title: 'Files' },
+      { id: 'chat', type: 'route', url: '/app/chat?topicId=preserved', title: 'Chat' }
+    ])
+    tabs.navigationLayout = 'sidebar'
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+
+    act(() => {
+      result.current.openWorkspace({
+        url: '/app/chat',
+        title: 'Chat',
+        matchesCurrent: (url) => url.startsWith('/app/chat')
+      })
+    })
+
+    expect(tabs.setActiveTab).toHaveBeenCalledWith('chat')
+    expect(tabs.openRoute).not.toHaveBeenCalled()
+    expect(tabs.updateTab).not.toHaveBeenCalled()
+  })
+
   it('does not reset an already active app detail route', async () => {
     const tabs = tabContext([{ id: 'files', type: 'route', url: '/app/files?entryId=file-1', title: 'File' }])
     const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)

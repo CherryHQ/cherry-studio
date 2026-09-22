@@ -31,10 +31,10 @@ describe('navigate protocol handler', () => {
     vi.clearAllMocks()
   })
 
-  it('blocks paths outside the route allowlist', () => {
-    handleNavigateProtocolUrl(new URL('cherrystudio://navigate/agents-legacy'))
+  it('blocks legacy paths outside the route allowlist', () => {
+    handleNavigateProtocolUrl(new URL('cherrystudio://navigate/agents'))
 
-    expect(loggerMock.warn).toHaveBeenCalledWith('Blocked navigation to disallowed route: /agents-legacy')
+    expect(loggerMock.warn).toHaveBeenCalledWith('Blocked navigation to disallowed route: /agents')
     expect(openRouteInMainWindowMock).not.toHaveBeenCalled()
     expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
   })
@@ -47,9 +47,9 @@ describe('navigate protocol handler', () => {
   })
 
   it('opens non-settings routes with the query string preserved', () => {
-    handleNavigateProtocolUrl(new URL('cherrystudio://navigate/agents?x=1&y=2'))
+    handleNavigateProtocolUrl(new URL('cherrystudio://navigate/app/agents?x=1&y=2'))
 
-    expect(openRouteInMainWindowMock).toHaveBeenCalledWith('/agents?x=1&y=2')
+    expect(openRouteInMainWindowMock).toHaveBeenCalledWith('/app/agents?x=1&y=2')
     expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
   })
 

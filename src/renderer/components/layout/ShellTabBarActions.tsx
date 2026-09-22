@@ -16,7 +16,7 @@ import { HelpMenu } from './HelpMenu'
 
 const logger = loggerService.withContext('ShellTabBarActions')
 
-export function ShellTabBarActions() {
+export function ShellTabBarActions({ showSettings = false }: { showSettings?: boolean }) {
   const { t } = useTranslation()
   const [sidebarWidth] = usePersistCache('ui.sidebar.width')
   const { appUpdateState } = useAppUpdateState()
@@ -64,32 +64,32 @@ export function ShellTabBarActions() {
             </Button>
           </Tooltip>
         )}
-        {isSidebarHidden ? (
-          <>
-            <Tooltip content={t('settings.doctor.entry.title')} placement="bottom" delay={800}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t('settings.doctor.entry.title')}
-                onClick={handleDiagnosticsClick}
-                className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
-                <Stethoscope size={16} strokeWidth={1.8} />
-              </Button>
-            </Tooltip>
-            <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="bottom" delay={800}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t('settings.title')}
-                onClick={handleSettingsClick}
-                className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
-                <Settings size={16} strokeWidth={1.8} />
-              </Button>
-            </CommandTooltip>
-          </>
-        ) : null}
+        {isSidebarHidden && (
+          <Tooltip content={t('settings.doctor.entry.title')} placement="bottom" delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t('settings.doctor.entry.title')}
+              onClick={handleDiagnosticsClick}
+              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
+              <Stethoscope size={16} strokeWidth={1.8} />
+            </Button>
+          </Tooltip>
+        )}
+        {(showSettings || isSidebarHidden) && (
+          <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="bottom" delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t('settings.title')}
+              onClick={handleSettingsClick}
+              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
+              <Settings size={16} strokeWidth={1.8} />
+            </Button>
+          </CommandTooltip>
+        )}
         <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
           <Button
             type="button"

@@ -19,6 +19,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useTabs } from '@renderer/hooks/tab'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
@@ -55,6 +56,7 @@ const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
 export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { closeWorkspace, navigationLayout, openRoute } = useTabs()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const {
     pinned,
@@ -86,7 +88,7 @@ export default function LaunchpadPage() {
     () => new Set(openedKeepAliveMiniApps.map((app) => app.appId)),
     [openedKeepAliveMiniApps]
   )
-  const toggleMiniApp = useCallback(
+  const toggleMiniAppShortcut = useCallback(
     (appId: string) => {
       const app = pinned.find((item) => item.appId === appId)
       const fallbackLabel = app ? (app.nameKey ? t(app.nameKey) : app.name) : undefined
@@ -115,43 +117,61 @@ export default function LaunchpadPage() {
     []
   )
 
-  const navigateToUrl = useCallback(
-    (url: string) => {
+  const openUrl = useCallback(
+    (url: string, options?: { title?: string; icon?: string }) => {
       const parsedUrl = new URL(url, BASE_URL)
-      if (parsedUrl.search) {
-        return navigate({
-          to: parsedUrl.pathname,
-          search: Object.fromEntries(parsedUrl.searchParams.entries())
-        })
+
+      if (navigationLayout !== 'sidebar') {
+        if (parsedUrl.search) {
+          void navigate({
+            to: parsedUrl.pathname,
+            search: Object.fromEntries(parsedUrl.searchParams.entries())
+          })
+          return
+        }
+
+        void navigate({ to: parsedUrl.pathname })
+        return
       }
 
-      return navigate({ to: parsedUrl.pathname })
+      openRoute(`${parsedUrl.pathname}${parsedUrl.search}`, options)
     },
-    [navigate]
+    [navigate, navigationLayout, openRoute]
   )
 
   const openLaunchpadItem = (favorite: SidebarAppId) => {
     if (shouldSuppressLaunchClick(favorite)) return
 
-    // Launchpad opens each app at its base entry (chat -> new conversation,
-    // agents -> new session). Resuming the last-used instance is the sidebar's
-    // job, not the launcher's.
     const path = getSidebarMenuPath(favorite, defaultPaintingProvider)
     if (!path) return
-    void navigateToUrl(path)
+    if (navigationLayout === 'tabs') pinToSidebar(favorite)
+    openUrl(path)
   }
 
   const openMiniApp = useCallback(
-    (appId: string) => {
+    (appId: string, displayName: string, icon?: string) => {
       if (shouldSuppressLaunchClick(appId)) return
 
-      void navigateToUrl(`/app/mini-app/${appId}`)
+      if (navigationLayout === 'tabs' && !miniAppFavoriteIdSet.has(appId)) {
+        setPinned(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId), true, displayName)
+      }
+      openUrl(`/app/mini-app/${appId}`, { title: displayName, icon })
     },
-    [navigateToUrl, shouldSuppressLaunchClick]
+    [miniAppFavoriteIdSet, navigationLayout, openUrl, setPinned, shouldSuppressLaunchClick]
+  )
+
+  const handleToggleMiniApp = useCallback(
+    (appId: string) => {
+      const wasFavorite = miniAppFavoriteIdSet.has(appId)
+      toggleMiniAppShortcut(appId)
+      if (wasFavorite && navigationLayout === 'sidebar') closeWorkspace(`mini-app:${appId}`)
+    },
+    [closeWorkspace, miniAppFavoriteIdSet, navigationLayout, toggleMiniAppShortcut]
   )
 
   const openDeepSeekHarness = () => {
-    void navigateToUrl(DEEPSEEK_HARNESS_URL)
+    if (navigationLayout === 'tabs') pinToSidebar('code_tools')
+    openUrl(DEEPSEEK_HARNESS_URL)
   }
 
   const pinToSidebar = useCallback(
@@ -165,9 +185,11 @@ export default function LaunchpadPage() {
   const unpinFromSidebar = useCallback(
     (favorite: SidebarAppId) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
+      if (!isPinned(target)) return
       setPinned(target, false)
+      if (navigationLayout === 'sidebar') closeWorkspace(`app:${favorite}`)
     },
-    [setPinned]
+    [closeWorkspace, isPinned, navigationLayout, setPinned]
   )
 
   const getAppContextMenuItems = useCallback(
@@ -280,7 +302,7 @@ export default function LaunchpadPage() {
         onUpdateStatus={updateAppStatus}
         onHide={hideMiniApp}
         onRemoveCustom={removeCustomMiniApp}
-        onToggleSidebarFavorite={toggleMiniApp}
+        onToggleSidebarFavorite={handleToggleMiniApp}
         isPinned
         isSidebarFavorite={miniAppFavoriteIdSet.has(app.appId)}
         isOpened={openedMiniAppIdSet.has(app.appId)}

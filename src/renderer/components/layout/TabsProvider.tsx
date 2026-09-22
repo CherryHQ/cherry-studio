@@ -6,6 +6,7 @@ import { v4 as uuid } from 'uuid'
 import { loggerService } from '@logger'
 import { AgentBrowserRuntimeHost } from '@renderer/components/AgentBrowserRuntimeHost'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import {
   type CloseConversationTabs,
   CloseConversationTabsContext,
@@ -15,10 +16,24 @@ import {
   type TabsContextValue,
   useConversationNavigationOwner
 } from '@renderer/hooks/tab'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
+import {
+  getTabWorkspaceKey,
+  getWorkspaceKeyForShortcut,
+  getWorkspaceKeyForUrl,
+  getWorkspaceShortcutTarget,
+  isNavigationWorkspaceKey,
+  isTabVisibleInTabBar,
+  isWorkspaceRootUrl,
+  LAUNCHPAD_WORKSPACE_KEY,
+  type NavigationWorkspaceKey,
+  normalizeSidebarWorkspaceSession
+} from '@renderer/utils/navigationWorkspace'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
+import type { NavigationLayout } from '@shared/data/preference/preferenceTypes'
 
 const logger = loggerService.withContext('TabsProvider')
 
@@ -27,6 +42,7 @@ const DEFAULT_TAB: Tab = {
   type: 'route',
   url: '/app/chat',
   title: '',
+  workspaceKey: 'app:assistants',
   lastAccessTime: Date.now(),
   isDormant: false
 }
@@ -37,6 +53,7 @@ function createLaunchpadFallbackTab(): Tab {
     type: 'route',
     url: '/app/launchpad',
     title: getDefaultRouteTitle('/app/launchpad'),
+    workspaceKey: LAUNCHPAD_WORKSPACE_KEY,
     lastAccessTime: Date.now(),
     isDormant: false
   }
@@ -207,6 +224,9 @@ export function TabsProvider({
 }: TabsProviderProps) {
   // Route-derived tab titles are localized, so recompute them on language change.
   const { i18n } = useTranslation()
+  const [preferredNavigationLayout] = usePreference('ui.navigation.layout')
+  const navigationLayout: NavigationLayout = includePinnedTabs ? preferredNavigationLayout : 'tabs'
+  const { shortcuts: sidebarShortcuts, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
 
   // Pinned tabs - persistent storage. The setter natively supports functional
   // updates resolved against the latest persisted value, so callers can use
@@ -240,7 +260,7 @@ export function TabsProvider({
   // have to be reworked (e.g. re-seed when the hydrated value arrives) before that change lands.
   const initialSessionRef = useRef<InitialSession | null>(null)
   if (!initialSessionRef.current) {
-    initialSessionRef.current = computeInitialSession({
+    const restoredSession = computeInitialSession({
       includePinnedTabs,
       initialDefaultTab,
       // Check the active-pinned tab against the migrated set that actually renders, not the raw
@@ -249,6 +269,26 @@ export function TabsProvider({
       persistedNormalTabs: persistedNormalTabs ?? [],
       persistedActiveTabId: persistedActiveTabId ?? ''
     })
+    if (navigationLayout === 'sidebar') {
+      const normalized = normalizeSidebarWorkspaceSession(
+        [...restoredSession.pinnedTabs, ...restoredSession.normalTabs],
+        restoredSession.activeTabId
+      )
+      const fallbackTab = normalized.tabs.length === 0 ? createLaunchpadFallbackTab() : undefined
+      initialSessionRef.current = {
+        normalTabs: fallbackTab ? [fallbackTab] : normalized.tabs,
+        pinnedTabs: [],
+        activeTabId: fallbackTab?.id ?? normalized.activeTabId
+      }
+    } else {
+      const revealActiveTab = (tab: Tab) =>
+        tab.id === restoredSession.activeTabId && !isTabVisibleInTabBar(tab) ? { ...tab, isTabBarVisible: true } : tab
+      initialSessionRef.current = {
+        ...restoredSession,
+        normalTabs: restoredSession.normalTabs.map(revealActiveTab),
+        pinnedTabs: restoredSession.pinnedTabs.map(revealActiveTab)
+      }
+    }
   }
 
   // Normal tabs - in-memory storage, seeded from the restored session
@@ -301,6 +341,7 @@ export function TabsProvider({
     const currentPinnedTabs = includePinnedTabs ? pinnedTabsForRender : []
     return [...currentPinnedTabs.map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
   }, [includePinnedTabs, pinnedTabsForRender, normalTabs, i18n.language])
+  const tabBarTabs = useMemo(() => tabs.filter(isTabVisibleInTabBar), [tabs])
 
   // Local actions can span the normal and persisted pinned stores before React commits.
   // Keep a projected merged state for those batches, then reset it to committed state.
@@ -345,10 +386,15 @@ export function TabsProvider({
       const tab = tabs.find((t) => t.id === id)
       if (!tab) return
 
+      const resolvedUpdates =
+        updates.url !== undefined && !Object.prototype.hasOwnProperty.call(updates, 'workspaceKey')
+          ? { ...updates, workspaceKey: getWorkspaceKeyForUrl(updates.url) }
+          : updates
+
       if (storesPinned(tab)) {
-        setPinnedTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+        setPinnedTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...resolvedUpdates } : t)))
       } else {
-        setNormalTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+        setNormalTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...resolvedUpdates } : t)))
       }
     },
     [tabs, setPinnedTabs, storesPinned]
@@ -358,32 +404,70 @@ export function TabsProvider({
     (id: string) => {
       const targetTab = projectedTabsRef.current.find((t) => t.id === id)
       if (!targetTab) return
-      if (id === activeTabId && !targetTab.isDormant) return
+      if (
+        id === activeTabId &&
+        !targetTab.isDormant &&
+        (navigationLayout === 'sidebar' || isTabVisibleInTabBar(targetTab))
+      ) {
+        return
+      }
 
       // If a dormant tab was awakened, log it
       if (targetTab.isDormant) {
         logger.info('Tab awakened', { tabId: id, route: targetTab.url })
       }
 
+      const activeTab = projectedTabsRef.current.find((tab) => tab.id === activeTabId)
+      const discardedFocusedTab =
+        navigationLayout !== 'both' && activeTab && !getTabWorkspaceKey(activeTab) && getTabWorkspaceKey(targetTab)
+          ? activeTab
+          : undefined
       const lastAccessTime = Date.now()
-      const nextTabs = projectedTabsRef.current.map((tab) =>
-        tab.id === id ? { ...tab, lastAccessTime, isDormant: false } : tab
-      )
+      const nextTabs = projectedTabsRef.current
+        .filter((tab) => tab.id !== discardedFocusedTab?.id)
+        .map((tab) =>
+          tab.id === id
+            ? {
+                ...tab,
+                lastAccessTime,
+                isDormant: false,
+                isTabBarVisible: navigationLayout !== 'sidebar' ? true : tab.isTabBarVisible
+              }
+            : tab
+        )
       const hibernatedIds = prepareTabsForCommit(nextTabs, id)
       const hibernatingTabs = nextTabs.filter((tab) => hibernatedIds.has(tab.id))
       const update = (tab: Tab) =>
-        hibernateTab(tab.id === id ? { ...tab, lastAccessTime, isDormant: false } : tab, hibernatedIds)
+        hibernateTab(
+          tab.id === id
+            ? {
+                ...tab,
+                lastAccessTime,
+                isDormant: false,
+                isTabBarVisible: navigationLayout !== 'sidebar' ? true : tab.isTabBarVisible
+              }
+            : tab,
+          hibernatedIds
+        )
 
-      if (storesPinned(targetTab) || hibernatingTabs.some(storesPinned)) {
-        setPinnedTabs((prev) => prev.map(update))
+      if (
+        storesPinned(targetTab) ||
+        hibernatingTabs.some(storesPinned) ||
+        (discardedFocusedTab && storesPinned(discardedFocusedTab))
+      ) {
+        setPinnedTabs((prev) => prev.filter((tab) => tab.id !== discardedFocusedTab?.id).map(update))
       }
-      if (!storesPinned(targetTab) || hibernatingTabs.some((tab) => !storesPinned(tab))) {
-        setNormalTabs((prev) => prev.map(update))
+      if (
+        !storesPinned(targetTab) ||
+        hibernatingTabs.some((tab) => !storesPinned(tab)) ||
+        (discardedFocusedTab && !storesPinned(discardedFocusedTab))
+      ) {
+        setNormalTabs((prev) => prev.filter((tab) => tab.id !== discardedFocusedTab?.id).map(update))
       }
 
       setActiveTabIdState(id)
     },
-    [activeTabId, prepareTabsForCommit, setPinnedTabs, storesPinned]
+    [activeTabId, navigationLayout, prepareTabsForCommit, setPinnedTabs, storesPinned]
   )
 
   const addTab = useCallback(
@@ -397,7 +481,8 @@ export function TabsProvider({
       const newTab: Tab = {
         ...tab,
         lastAccessTime: Date.now(),
-        isDormant: false
+        isDormant: false,
+        isTabBarVisible: navigationLayout !== 'sidebar'
       }
 
       const nextTabs = [...projectedTabsRef.current, newTab]
@@ -420,7 +505,7 @@ export function TabsProvider({
 
       setActiveTabIdState(tab.id)
     },
-    [prepareTabsForCommit, setActiveTab, setPinnedTabs, storesPinned]
+    [navigationLayout, prepareTabsForCommit, setActiveTab, setPinnedTabs, storesPinned]
   )
 
   const closeTabs = useCallback(
@@ -428,16 +513,15 @@ export function TabsProvider({
       const closingIdSet = new Set(ids)
       if (closingIdSet.size === 0) return
 
-      const closingTabs = tabs.filter((tab) => closingIdSet.has(tab.id))
+      const currentTabs = projectedTabsRef.current
+      const closingTabs = currentTabs.filter((tab) => closingIdSet.has(tab.id))
       if (closingTabs.length === 0) return
 
-      const remainingTabs = tabs.filter((tab) => !closingIdSet.has(tab.id))
-      const fallbackTab = remainingTabs.length === 0 ? createLaunchpadFallbackTab() : null
-
+      const remainingTabs = currentTabs.filter((tab) => !closingIdSet.has(tab.id))
+      const navigationTabs = navigationLayout !== 'sidebar' ? currentTabs.filter(isTabVisibleInTabBar) : currentTabs
+      let fallbackTab: Tab | null = null
       let newActiveId = activeTabId
-      if (fallbackTab) {
-        newActiveId = fallbackTab.id
-      } else if (closingIdSet.has(activeTabId)) {
+      if (closingIdSet.has(activeTabId)) {
         // Prefer the caller-designated survivor (e.g. the tab whose menu ran
         // "close others"); otherwise hand the slot to the right neighbor and
         // fall back to the left one at the end of the strip.
@@ -445,10 +529,25 @@ export function TabsProvider({
         if (preferredTab) {
           newActiveId = preferredTab.id
         } else {
-          const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
-          const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
-          const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
-          newActiveId = (rightTab ?? leftTab)?.id ?? ''
+          const activeIndex = navigationTabs.findIndex((tab) => tab.id === activeTabId)
+          const leftTab = [...navigationTabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
+          const rightTab = navigationTabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
+          const hiddenLaunchpad =
+            navigationLayout !== 'sidebar'
+              ? remainingTabs.find(
+                  (tab) => getTabWorkspaceKey(tab) === LAUNCHPAD_WORKSPACE_KEY && !isTabVisibleInTabBar(tab)
+                )
+              : undefined
+          const nextTab = rightTab ?? leftTab ?? hiddenLaunchpad
+          if (nextTab) {
+            newActiveId = nextTab.id
+          } else {
+            fallbackTab = {
+              ...createLaunchpadFallbackTab(),
+              isTabBarVisible: navigationLayout !== 'sidebar'
+            }
+            newActiveId = fallbackTab.id
+          }
         }
       }
 
@@ -459,30 +558,45 @@ export function TabsProvider({
       // only switching activeTabId would leave the content area blank.
       const reselectedTab =
         newActiveId !== activeTabId ? remainingTabs.find((tab) => tab.id === newActiveId) : undefined
-      const wakeInPinned = !!reselectedTab?.isDormant && storesPinned(reselectedTab)
-      const wakeInNormal = !!reselectedTab?.isDormant && !storesPinned(reselectedTab)
-      const wake = (tab: Tab) =>
-        tab.id === newActiveId ? { ...tab, isDormant: false, lastAccessTime: Date.now() } : tab
+      const shouldRevealReselectedTab =
+        navigationLayout !== 'sidebar' && !!reselectedTab && !isTabVisibleInTabBar(reselectedTab)
+      const updateReselectedPinned =
+        !!reselectedTab && (reselectedTab.isDormant || shouldRevealReselectedTab) && storesPinned(reselectedTab)
+      const updateReselectedNormal =
+        !!reselectedTab && (reselectedTab.isDormant || shouldRevealReselectedTab) && !storesPinned(reselectedTab)
+      const select = (tab: Tab) =>
+        tab.id === newActiveId
+          ? {
+              ...tab,
+              isDormant: false,
+              isTabBarVisible: navigationLayout !== 'sidebar' ? true : tab.isTabBarVisible,
+              lastAccessTime: Date.now()
+            }
+          : tab
 
-      if (pinnedIds.size > 0 || wakeInPinned) {
+      const shouldUpdateReselectedTab = !!reselectedTab && (reselectedTab.isDormant || shouldRevealReselectedTab)
+      const projectedRemainingTabs = shouldUpdateReselectedTab ? remainingTabs.map(select) : remainingTabs
+      projectedTabsRef.current = fallbackTab ? [...projectedRemainingTabs, fallbackTab] : projectedRemainingTabs
+
+      if (pinnedIds.size > 0 || updateReselectedPinned) {
         setPinnedTabs((prev) => {
           // The persist-cache updater receives a readonly view and must return
           // a fresh mutable array, so the no-filter branch copies.
           const next = pinnedIds.size > 0 ? prev.filter((tab) => !pinnedIds.has(tab.id)) : [...prev]
-          return wakeInPinned ? next.map(wake) : next
+          return updateReselectedPinned ? next.map(select) : next
         })
       }
-      if (normalIds.size > 0 || fallbackTab || wakeInNormal) {
+      if (normalIds.size > 0 || fallbackTab || updateReselectedNormal) {
         setNormalTabs((prev) => {
           let next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
-          if (wakeInNormal) next = next.map(wake)
-          return fallbackTab ? [fallbackTab] : next
+          if (updateReselectedNormal) next = next.map(select)
+          return fallbackTab ? [...next, fallbackTab] : next
         })
       }
 
       setActiveTabIdState(newActiveId)
     },
-    [tabs, activeTabId, setPinnedTabs, storesPinned]
+    [activeTabId, navigationLayout, setPinnedTabs, storesPinned]
   )
 
   const closeTab = useCallback((id: string) => closeTabs([id]), [closeTabs])
@@ -505,9 +619,9 @@ export function TabsProvider({
   /**
    * Open a Tab - reuses existing tab or creates new one
    */
-  const openTab = useCallback(
+  const openTabRaw = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id, icon, metadata, isPinned } = options
+      const { forceNew = false, title, type = 'route', id, icon, metadata, workspaceKey, isPinned } = options
 
       if (!forceNew) {
         const existingTab = tabs.find((t) => t.type === type && t.url === url)
@@ -523,8 +637,9 @@ export function TabsProvider({
         url,
         title: title || getDefaultRouteTitle(url),
         icon,
+        workspaceKey: workspaceKey ?? getWorkspaceKeyForUrl(url),
         metadata,
-        isPinned,
+        isPinned: navigationLayout !== 'sidebar' ? isPinned : false,
         lastAccessTime: Date.now(),
         isDormant: false
       }
@@ -532,8 +647,297 @@ export function TabsProvider({
       addTab(newTab)
       return newTab.id
     },
-    [tabs, setActiveTab, addTab]
+    [addTab, navigationLayout, setActiveTab, tabs]
   )
+
+  const ensureWorkspaceShortcuts = useCallback(
+    (workspaceKeys: readonly NavigationWorkspaceKey[]) => {
+      const shortcutKeys = new Set(
+        sidebarShortcuts.flatMap((shortcut) => getWorkspaceKeyForShortcut(shortcut.target) ?? [])
+      )
+      for (const workspaceKey of workspaceKeys) {
+        if (shortcutKeys.has(workspaceKey)) continue
+        const target = getWorkspaceShortcutTarget(workspaceKey)
+        if (!target) continue
+        shortcutKeys.add(workspaceKey)
+        setSidebarShortcutPinned(target, true)
+      }
+    },
+    [setSidebarShortcutPinned, sidebarShortcuts]
+  )
+
+  const activateWorkspace = useCallback(
+    (workspaceKey: string, route: string, options: OpenTabOptions = {}) => {
+      const resolvedWorkspaceKey = isNavigationWorkspaceKey(workspaceKey) ? workspaceKey : getWorkspaceKeyForUrl(route)
+      if (!resolvedWorkspaceKey) return openTabRaw(route, options)
+
+      if (navigationLayout === 'sidebar') ensureWorkspaceShortcuts([resolvedWorkspaceKey])
+
+      const existingTab = projectedTabsRef.current.find((tab) => getTabWorkspaceKey(tab) === resolvedWorkspaceKey)
+      if (existingTab) {
+        setActiveTab(existingTab.id)
+        return existingTab.id
+      }
+
+      const activeTab = projectedTabsRef.current.find((tab) => tab.id === activeTabId)
+      if (activeTab && !getTabWorkspaceKey(activeTab)) {
+        closeTabs([activeTab.id])
+      }
+
+      return openTabRaw(route, {
+        ...options,
+        forceNew: true,
+        workspaceKey: resolvedWorkspaceKey
+      })
+    },
+    [activeTabId, closeTabs, ensureWorkspaceShortcuts, navigationLayout, openTabRaw, setActiveTab]
+  )
+
+  const openFocusedRoute = useCallback(
+    (route: string, returnWorkspaceId?: string, options: OpenTabOptions = {}) => {
+      const currentTabs = projectedTabsRef.current
+      const active = currentTabs.find((tab) => tab.id === activeTabId)
+      const focusedTab =
+        active && !getTabWorkspaceKey(active) ? active : currentTabs.find((tab) => !getTabWorkspaceKey(tab))
+      const duplicateFocusedTabIds = currentTabs
+        .filter((tab) => !getTabWorkspaceKey(tab) && tab.id !== focusedTab?.id)
+        .map((tab) => tab.id)
+      const sourceWorkspaceId =
+        returnWorkspaceId ??
+        (active && getTabWorkspaceKey(active) ? active.id : undefined) ??
+        (typeof active?.metadata?.returnWorkspaceId === 'string' ? active.metadata.returnWorkspaceId : undefined)
+      const metadata = {
+        ...options.metadata,
+        ...(sourceWorkspaceId ? { returnWorkspaceId: sourceWorkspaceId } : {})
+      }
+
+      if (focusedTab) {
+        if (duplicateFocusedTabIds.length > 0) closeTabs(duplicateFocusedTabIds, focusedTab.id)
+        updateTab(focusedTab.id, {
+          type: options.type ?? 'route',
+          url: route,
+          title: options.title ?? getDefaultRouteTitle(route),
+          icon: options.icon,
+          workspaceKey: undefined,
+          metadata,
+          lastAccessTime: Date.now(),
+          isDormant: false
+        })
+        setActiveTab(focusedTab.id)
+        return focusedTab.id
+      }
+
+      return openTabRaw(route, {
+        ...options,
+        forceNew: true,
+        workspaceKey: undefined,
+        metadata
+      })
+    },
+    [activeTabId, closeTabs, openTabRaw, setActiveTab, updateTab]
+  )
+
+  const closeFocusedRoute = useCallback(() => {
+    const active = projectedTabsRef.current.find((tab) => tab.id === activeTabId)
+    if (!active || getTabWorkspaceKey(active)) return
+
+    const requestedReturnId =
+      typeof active.metadata?.returnWorkspaceId === 'string' ? active.metadata.returnWorkspaceId : undefined
+    const returnWorkspace = projectedTabsRef.current.find(
+      (tab) => tab.id === requestedReturnId && getTabWorkspaceKey(tab)
+    )
+    const fallbackWorkspace =
+      returnWorkspace ??
+      projectedTabsRef.current.reduce<Tab | undefined>((latest, tab) => {
+        if (!getTabWorkspaceKey(tab)) return latest
+        return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
+      }, undefined)
+
+    closeTabs([active.id], fallbackWorkspace?.id)
+  }, [activeTabId, closeTabs])
+
+  const closeWorkspace = useCallback(
+    (workspaceKey: string) => {
+      if (!isNavigationWorkspaceKey(workspaceKey)) return
+      const closingIds = projectedTabsRef.current
+        .filter((tab) => getTabWorkspaceKey(tab) === workspaceKey)
+        .map((tab) => tab.id)
+      if (closingIds.length === 0) return
+
+      const remainingWorkspace = projectedTabsRef.current.reduce<Tab | undefined>((latest, tab) => {
+        if (closingIds.includes(tab.id) || !getTabWorkspaceKey(tab)) return latest
+        return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
+      }, undefined)
+      closeTabs(closingIds, remainingWorkspace?.id)
+    },
+    [closeTabs]
+  )
+
+  const openRoute = useCallback(
+    (url: string, options: OpenTabOptions = {}) => {
+      if (navigationLayout === 'both') return openTabRaw(url, options)
+
+      const workspaceKey = getWorkspaceKeyForUrl(url)
+      if (!workspaceKey) return openFocusedRoute(url, undefined, options)
+      if (navigationLayout === 'tabs') {
+        const hiddenWorkspaceTab =
+          options.forceNew === true
+            ? undefined
+            : projectedTabsRef.current.find(
+                (tab) => getTabWorkspaceKey(tab) === workspaceKey && !isTabVisibleInTabBar(tab)
+              )
+        if (hiddenWorkspaceTab) {
+          if (hiddenWorkspaceTab.url !== url && !isWorkspaceRootUrl(url, workspaceKey)) {
+            updateTab(hiddenWorkspaceTab.id, {
+              type: options.type ?? hiddenWorkspaceTab.type,
+              url,
+              title: options.title ?? getDefaultRouteTitle(url),
+              icon: options.icon,
+              workspaceKey,
+              metadata: { ...hiddenWorkspaceTab.metadata, ...options.metadata },
+              lastAccessTime: Date.now(),
+              isDormant: false,
+              isPinned: false
+            })
+          }
+          setActiveTab(hiddenWorkspaceTab.id)
+          return hiddenWorkspaceTab.id
+        }
+
+        const activeTab = projectedTabsRef.current.find((tab) => tab.id === activeTabId)
+        if (activeTab && !getTabWorkspaceKey(activeTab)) closeTabs([activeTab.id])
+        return openTabRaw(url, { ...options, workspaceKey })
+      }
+
+      const existingTab = projectedTabsRef.current.find((tab) => getTabWorkspaceKey(tab) === workspaceKey)
+      if (!existingTab) return activateWorkspace(workspaceKey, url, options)
+
+      if (existingTab.url !== url || options.title || options.icon || options.metadata) {
+        updateTab(existingTab.id, {
+          type: options.type ?? existingTab.type,
+          url,
+          title: options.title ?? getDefaultRouteTitle(url),
+          icon: options.icon,
+          workspaceKey,
+          metadata: { ...existingTab.metadata, ...options.metadata },
+          lastAccessTime: Date.now(),
+          isDormant: false,
+          isPinned: false
+        })
+      }
+      return activateWorkspace(workspaceKey, url, options)
+    },
+    [activateWorkspace, activeTabId, closeTabs, navigationLayout, openFocusedRoute, openTabRaw, setActiveTab, updateTab]
+  )
+
+  const openTab = openRoute
+
+  const previousNavigationLayoutRef = useRef<NavigationLayout | null>(null)
+  useLayoutEffect(() => {
+    const previousLayout = previousNavigationLayoutRef.current
+    previousNavigationLayoutRef.current = navigationLayout
+
+    if (navigationLayout === 'sidebar') {
+      const normalized = normalizeSidebarWorkspaceSession(tabs, activeTabId)
+      if (normalized.tabs.length === 0) {
+        const fallbackTab = createLaunchpadFallbackTab()
+        setPinnedTabs([])
+        setNormalTabs([fallbackTab])
+        setActiveTabIdState(fallbackTab.id)
+        return
+      }
+
+      const workspaceKeys = normalized.tabs.flatMap((tab) => {
+        const workspaceKey = getTabWorkspaceKey(tab)
+        return workspaceKey ? [workspaceKey] : []
+      })
+      ensureWorkspaceShortcuts(workspaceKeys)
+
+      const needsRewrite =
+        normalized.activeTabId !== activeTabId ||
+        normalized.tabs.length !== tabs.length ||
+        normalized.tabs.some((normalizedTab, index) => {
+          const tab = tabs[index]
+          return (
+            !tab ||
+            tab.id !== normalizedTab.id ||
+            tab.workspaceKey !== normalizedTab.workspaceKey ||
+            Boolean(tab.isPinned) !== Boolean(normalizedTab.isPinned)
+          )
+        })
+      if (!needsRewrite) return
+
+      setPinnedTabs([])
+      setNormalTabs(normalized.tabs)
+      setActiveTabIdState(normalized.activeTabId)
+      return
+    }
+
+    if (navigationLayout === 'both') {
+      const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
+      if (!activeTab) return
+
+      const retainedIds = new Set(
+        previousLayout === 'sidebar' ? [] : tabs.filter(isTabVisibleInTabBar).map((tab) => tab.id)
+      )
+      retainedIds.add(activeTab.id)
+      if (!getTabWorkspaceKey(activeTab)) {
+        const requestedReturnId =
+          typeof activeTab.metadata?.returnWorkspaceId === 'string' ? activeTab.metadata.returnWorkspaceId : undefined
+        const returnWorkspace = tabs.find((tab) => tab.id === requestedReturnId && Boolean(getTabWorkspaceKey(tab)))
+        const fallbackWorkspace =
+          returnWorkspace ??
+          tabs.reduce<Tab | undefined>((latest, tab) => {
+            if (!getTabWorkspaceKey(tab)) return latest
+            return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
+          }, undefined)
+        if (fallbackWorkspace) retainedIds.add(fallbackWorkspace.id)
+      }
+
+      const combinedTabs = tabs
+        .filter((tab) => retainedIds.has(tab.id))
+        .map((tab) => ({
+          ...tab,
+          isPinned: previousLayout === 'sidebar' ? false : tab.isPinned,
+          isTabBarVisible: true
+        }))
+      const exposureUnchanged =
+        combinedTabs.length === tabs.length &&
+        combinedTabs.every((tab, index) => {
+          const previousTab = tabs[index]
+          return (
+            !!previousTab &&
+            tab.id === previousTab.id &&
+            isTabVisibleInTabBar(tab) === isTabVisibleInTabBar(previousTab) &&
+            Boolean(tab.isPinned) === Boolean(previousTab.isPinned)
+          )
+        })
+      if (exposureUnchanged) return
+
+      setPinnedTabs(combinedTabs.filter(storesPinned))
+      setNormalTabs(combinedTabs.filter((tab) => !storesPinned(tab)))
+      return
+    }
+
+    if (previousLayout !== 'sidebar') return
+
+    const topLayoutTabs = tabs.map((tab) => ({
+      ...tab,
+      isPinned: false,
+      isTabBarVisible: tab.id === activeTabId
+    }))
+    const visibilityUnchanged = topLayoutTabs.every(
+      (tab, index) =>
+        tab.id === normalTabs[index]?.id &&
+        !!normalTabs[index] &&
+        isTabVisibleInTabBar(tab) === isTabVisibleInTabBar(normalTabs[index]) &&
+        Boolean(tab.isPinned) === Boolean(normalTabs[index]?.isPinned)
+    )
+    if (visibilityUnchanged && topLayoutTabs.length === normalTabs.length) return
+
+    setPinnedTabs([])
+    setNormalTabs(topLayoutTabs)
+  }, [activeTabId, ensureWorkspaceShortcuts, navigationLayout, normalTabs, setPinnedTabs, storesPinned, tabs])
 
   /**
    * Pin a tab in the tab bar. Pinned pages survive the soft budget but remain
@@ -578,23 +982,26 @@ export function TabsProvider({
   const reorderTabs = useCallback(
     (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => {
       if (oldIndex === newIndex) return
+      const reorder = (currentTabs: readonly Tab[]) => {
+        const reorderableTabs =
+          navigationLayout !== 'sidebar' ? currentTabs.filter(isTabVisibleInTabBar) : [...currentTabs]
+        const reorderedTabs = [...reorderableTabs]
+        const [removed] = reorderedTabs.splice(oldIndex, 1)
+        if (!removed) return [...currentTabs]
+        reorderedTabs.splice(newIndex, 0, removed)
+
+        const reorderableIds = new Set(reorderedTabs.map((tab) => tab.id))
+        let reorderedIndex = 0
+        return currentTabs.map((tab) => (reorderableIds.has(tab.id) ? reorderedTabs[reorderedIndex++] : tab))
+      }
+
       if (type === 'pinned') {
-        setPinnedTabs((prev) => {
-          const newTabs = [...prev]
-          const [removed] = newTabs.splice(oldIndex, 1)
-          newTabs.splice(newIndex, 0, removed)
-          return newTabs
-        })
+        setPinnedTabs(reorder)
       } else {
-        setNormalTabs((prev) => {
-          const newTabs = [...prev]
-          const [removed] = newTabs.splice(oldIndex, 1)
-          newTabs.splice(newIndex, 0, removed)
-          return newTabs
-        })
+        setNormalTabs(reorder)
       }
     },
-    [setPinnedTabs]
+    [navigationLayout, setPinnedTabs]
   )
 
   /**
@@ -620,17 +1027,25 @@ export function TabsProvider({
   const attachTab = useCallback(
     (tabData: Tab) => {
       // Check if tab already exists
-      const exists = tabs.find((t) => t.id === tabData.id)
+      const exists = projectedTabsRef.current.find((t) => t.id === tabData.id)
       if (exists) {
         setActiveTab(tabData.id)
         logger.info('Tab already exists, activating', { tabId: tabData.id })
         return
       }
 
+      const workspaceKey = getTabWorkspaceKey(tabData)
+      const conflictingWorkspaceTab =
+        navigationLayout === 'sidebar' && workspaceKey
+          ? projectedTabsRef.current.find((tab) => tab.id !== tabData.id && getTabWorkspaceKey(tab) === workspaceKey)
+          : undefined
+      if (conflictingWorkspaceTab) closeTabs([conflictingWorkspaceTab.id])
+
       // Restore tab with updated timestamp. addTab applies the shared awake budget
       // before the attached route can be committed.
       const restoredTab: Tab = {
         ...tabData,
+        workspaceKey,
         lastAccessTime: Date.now(),
         isDormant: false
       }
@@ -638,7 +1053,7 @@ export function TabsProvider({
       addTab(restoredTab)
       logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
     },
-    [addTab, tabs, setActiveTab]
+    [addTab, closeTabs, navigationLayout, setActiveTab]
   )
 
   // Listen for tab attach requests (from Main Process)
@@ -654,9 +1069,11 @@ export function TabsProvider({
   const value: TabsContextValue = {
     // State
     tabs,
+    tabBarTabs,
     activeTabId,
     activeTab,
     isLoading: false,
+    navigationLayout,
 
     // Basic operations
     addTab,
@@ -667,6 +1084,10 @@ export function TabsProvider({
 
     // High-level Tab operations
     openTab,
+    openRoute,
+    activateWorkspace,
+    closeWorkspace,
+    closeFocusedRoute,
 
     // Pin operations
     pinTab,

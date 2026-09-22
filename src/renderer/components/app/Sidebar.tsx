@@ -1,16 +1,22 @@
 import { arrayMove } from '@dnd-kit/sortable'
-import { CircleOff, LoaderCircle, WifiOff } from 'lucide-react'
+import { CircleOff, LoaderCircle, Plus, WifiOff } from 'lucide-react'
 import type { Ref } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { startTransition, useOptimistic } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import { useWorkspaceTaskStatuses, type WorkspaceTaskStatus } from '@renderer/hooks/useWorkspaceTaskStatuses'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { getTabWorkspaceKey } from '@renderer/utils/navigationWorkspace'
+import { SIDEBAR_SHORTCUT_PROVIDER_IDS, type SidebarAppId } from '@renderer/utils/sidebar'
+import type { SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import {
@@ -27,8 +33,8 @@ import {
 import UserPopup from '../UserPopup'
 import {
   useResolvedSidebarShortcuts,
-  useSidebarShortcutActivation,
   useSidebarNavigationSnapshot,
+  useSidebarShortcutActivation,
   useSidebarShortcutRegistry
 } from './sidebarShortcuts'
 
@@ -46,6 +52,14 @@ function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly 
   ]
 }
 
+function getWorkspaceStatusLabel(status: WorkspaceTaskStatus, t: (key: string) => string): string | undefined {
+  if (status === 'idle') return undefined
+  if (status === 'action-required') return t('agent.toolPermission.pendingBadge')
+  if (status === 'error') return t('message.tools.status.error')
+  if (status === 'running') return t('message.tools.status.running')
+  return t('message.tools.status.done')
+}
+
 export default function Sidebar({
   ref,
   isFullscreen = false
@@ -60,6 +74,8 @@ export default function Sidebar({
   const resolutions = useResolvedSidebarShortcuts(shortcuts, registry)
   const activateShortcut = useSidebarShortcutActivation()
   const navigation = useSidebarNavigationSnapshot()
+  const { activateWorkspace, closeWorkspace, navigationLayout, tabs, updateTab } = useTabs()
+  const workspaceTaskStatuses = useWorkspaceTaskStatuses(navigationLayout === 'sidebar')
 
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
@@ -77,6 +93,18 @@ export default function Sidebar({
     if (normalizedWidth !== sidebarWidth) setSidebarWidth(normalizedWidth)
   }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
+  useEffect(() => {
+    if (navigationLayout !== 'sidebar') return
+    for (const tab of tabs) {
+      const workspaceKey = getTabWorkspaceKey(tab)
+      if (!workspaceKey?.startsWith('app:')) continue
+      const status = workspaceTaskStatuses.get(workspaceKey.slice('app:'.length) as SidebarAppId)
+      const preventDormancy = status === 'action-required' || status === 'running'
+      if (Boolean(tab.metadata?.preventDormancy) === preventDormancy) continue
+      updateTab(tab.id, { metadata: { ...tab.metadata, preventDormancy } })
+    }
+  }, [navigationLayout, tabs, updateTab, workspaceTaskStatuses])
+
   const avatar = useAvatar()
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
@@ -93,6 +121,19 @@ export default function Sidebar({
 
   const [hoverVisible, setHoverVisible] = useState(false)
   const layout = getSidebarLayout(activeSidebarWidth)
+  const removeShortcut = useCallback(
+    (target: SidebarShortcutTarget) => {
+      if (navigationLayout === 'sidebar') {
+        if (target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.APP) {
+          closeWorkspace(`app:${target.locator.resourceId}`)
+        } else if (target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP) {
+          closeWorkspace(`mini-app:${target.locator.resourceId}`)
+        }
+      }
+      remove(target)
+    },
+    [closeWorkspace, navigationLayout, remove]
+  )
   const resolvedEntries = useMemo(
     () =>
       resolutions.map((resolution) => {
@@ -122,7 +163,14 @@ export default function Sidebar({
           )
         }
         const activateInNewTab =
-          isResolved && provider && resolution.resource.supportsNewTab ? () => activate(true) : undefined
+          navigationLayout !== 'sidebar' && isResolved && provider && resolution.resource.supportsNewTab
+            ? () => activate(true)
+            : undefined
+        const workspaceStatus =
+          navigationLayout === 'sidebar' && shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.APP
+            ? workspaceTaskStatuses.get(shortcut.target.locator.resourceId as SidebarAppId)
+            : undefined
+        const statusLabel = workspaceStatus ? getWorkspaceStatusLabel(workspaceStatus, t) : undefined
 
         return {
           key: shortcut.id,
@@ -130,13 +178,19 @@ export default function Sidebar({
           renderIcon,
           disabled: !isResolved || !provider,
           isActive: !!provider?.isActive?.(shortcut.target, navigation),
-          statusLabel: isResolved
-            ? undefined
-            : resolution.status === 'loading'
-              ? t('common.loading')
-              : resolution.status === 'missing'
-                ? t('sidebar.resource_missing')
-                : t('sidebar.resource_unavailable'),
+          statusLabel:
+            statusLabel ??
+            (isResolved
+              ? undefined
+              : resolution.status === 'loading'
+                ? t('common.loading')
+                : resolution.status === 'missing'
+                  ? t('sidebar.resource_missing')
+                  : t('sidebar.resource_unavailable')),
+          status:
+            workspaceStatus && workspaceStatus !== 'idle'
+              ? { value: workspaceStatus, label: statusLabel ?? workspaceStatus }
+              : undefined,
           onOpen: () => activate(),
           onOpenNewTab: activateInNewTab,
           contextMenuItems: [
@@ -154,12 +208,12 @@ export default function Sidebar({
               type: 'item' as const,
               id: `sidebar.remove.${shortcut.id}`,
               label: t('launchpad.unpin_from_sidebar'),
-              onSelect: () => remove(shortcut.target)
+              onSelect: () => removeShortcut(shortcut.target)
             }
           ]
         }
       }),
-    [activateShortcut, navigation, registry, remove, resolutions, shortcuts, t]
+    [activateShortcut, navigation, navigationLayout, registry, removeShortcut, resolutions, t, workspaceTaskStatuses]
   )
   const [entries, setOptimisticEntryOrder] = useOptimistic(resolvedEntries, applyEntryOrder)
 
@@ -181,6 +235,10 @@ export default function Sidebar({
   )
 
   const handleOpenSettingsTab = useCallback(() => openSettingsTab(), [])
+  const handleOpenLaunchpad = useCallback(
+    () => activateWorkspace('launchpad', '/app/launchpad', { title: t('title.launchpad') }),
+    [activateWorkspace, t]
+  )
   const handleOpenFeedback = useCallback(() => {
     setFeedbackDialogMounted(true)
     setFeedbackOpen(true)
@@ -200,6 +258,33 @@ export default function Sidebar({
         onOverlayOpenChange={onOverlayOpenChange}
       />
     ),
+    fixedAction:
+      navigationLayout === 'sidebar'
+        ? (fixedActionLayout: SidebarVisibleLayout) =>
+            fixedActionLayout === 'icon' ? (
+              <Tooltip content={t('title.launchpad')} placement="right" delay={600}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t('title.launchpad')}
+                  onClick={handleOpenLaunchpad}
+                  className="size-9 rounded-full text-muted-foreground hover:bg-accent/60 hover:text-foreground">
+                  <Plus size={18} strokeWidth={1.6} />
+                </Button>
+              </Tooltip>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label={t('title.launchpad')}
+                onClick={handleOpenLaunchpad}
+                className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground hover:bg-accent/60 hover:text-foreground">
+                <Plus size={16} strokeWidth={1.6} />
+                <span>{t('title.launchpad')}</span>
+              </Button>
+            )
+        : undefined,
     onEntriesReorder: handleReorder
   }
 

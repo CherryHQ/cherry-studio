@@ -7,6 +7,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import MiniApp from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useTabs } from '@renderer/hooks/tab'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
@@ -46,6 +47,7 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
     removeCustomMiniApp
   } = useMiniApps()
   const { shortcuts, setPinned } = useSidebarShortcuts()
+  const { closeWorkspace, navigationLayout } = useTabs()
   const { openMiniAppInSplit } = useMiniAppPopup()
   const openMiniAppInSplitRef = useRef(openMiniAppInSplit)
   openMiniAppInSplitRef.current = openMiniAppInSplit
@@ -67,8 +69,9 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
       ),
     [shortcuts]
   )
-  const toggleMiniApp = useCallback(
+  const handleToggleSidebarFavorite = useCallback(
     (appId: string) => {
+      const wasFavorite = sidebarFavoriteIds.has(appId)
       const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
       const fallbackLabel = app ? (app.nameKey ? t(app.nameKey) : app.name) : undefined
       setPinned(
@@ -76,8 +79,9 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
         !sidebarFavoriteIds.has(appId),
         fallbackLabel
       )
+      if (wasFavorite && navigationLayout === 'sidebar') closeWorkspace(`mini-app:${appId}`)
     },
-    [t, setPinned, sidebarFavoriteIds]
+    [closeWorkspace, navigationLayout, setPinned, sidebarFavoriteIds, t]
   )
 
   const renderMiniApp = (app: MiniAppType) => {
@@ -98,7 +102,7 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
           onUpdateStatus={updateAppStatus}
           onHide={hideMiniApp}
           onRemoveCustom={removeCustomMiniApp}
-          onToggleSidebarFavorite={toggleMiniApp}
+          onToggleSidebarFavorite={handleToggleSidebarFavorite}
           isPinned={app.status === 'pinned'}
           isSidebarFavorite={sidebarFavoriteIds.has(app.appId)}
           isOpened={openedIds.has(app.appId)}

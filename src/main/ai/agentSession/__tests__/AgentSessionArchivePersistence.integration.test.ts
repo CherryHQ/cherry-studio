@@ -19,6 +19,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     AiStreamManager: {
+      clearConversationTaskStatuses: vi.fn(),
       isWriteQuiesced: false,
       withDispatchLock: (_topicId: string, operation: () => Promise<unknown>) => operation(),
       hasUnsettledTopicWork: mocks.hasUnsettledTopicWork
