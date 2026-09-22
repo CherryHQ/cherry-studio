@@ -10,7 +10,6 @@ import {
 } from '@cherrystudio/remote-protocol'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type ApiGatewayPairedDeviceRow, apiGatewayPairedDeviceTable } from '@data/db/schemas/apiGatewayPairedDevice'
-import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import {
@@ -57,41 +56,13 @@ export class ApiGatewayPairedDeviceService {
       .map(rowToApiGatewayPairedDevice)
   }
 
-  create(input: ApiGatewayPairedDeviceMetadata & { tokenHash: string }): ApiGatewayPairedDevice {
-    const metadata = ApiGatewayPairedDeviceMetadataSchema.safeParse({ name: input.name, platform: input.platform })
-    if (!metadata.success) throw toDataApiError(metadata.error, 'create paired device')
-
-    const [row] = withSqliteErrors(
-      () =>
-        this.db
-          .insert(apiGatewayPairedDeviceTable)
-          .values({ ...metadata.data, tokenHash: input.tokenHash })
-          .returning()
-          .all(),
-      defaultHandlersFor('ApiGatewayPairedDevice', metadata.data.name)
-    )
-    const device = rowToApiGatewayPairedDevice(row)
-    notifyDataApiDataChange([{ endpoint: '/api-gateway/paired-devices', kind: 'membership', entityIds: [device.id] }])
-    logger.info('Created API Gateway paired device', { id: device.id, platform: device.platform })
-    return device
-  }
-
-  hasTokenHash(tokenHash: string): boolean {
-    return Boolean(
-      this.db
-        .select({ id: apiGatewayPairedDeviceTable.id })
-        .from(apiGatewayPairedDeviceTable)
-        .where(eq(apiGatewayPairedDeviceTable.tokenHash, tokenHash))
-        .limit(1)
-        .get()
-    )
-  }
-
   approveRemote(input: ApiGatewayPairedDeviceMetadata & { peerIdentity: string; capabilities: RemoteCapability[] }): {
     device: ApiGatewayPairedDevice
     authorization: RemoteAuthorization
   } {
-    const metadata = ApiGatewayPairedDeviceMetadataSchema.parse({ name: input.name, platform: input.platform })
+    const parsed = ApiGatewayPairedDeviceMetadataSchema.safeParse({ name: input.name, platform: input.platform })
+    if (!parsed.success) throw toDataApiError(parsed.error, 'approve paired device')
+    const metadata = parsed.data
     const capabilities = remoteCapabilitiesSchema.parse(input.capabilities)
     if (!input.peerIdentity || input.peerIdentity.length > 256)
       throw DataApiErrorFactory.invalidOperation('Invalid device identity')

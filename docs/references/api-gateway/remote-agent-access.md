@@ -90,11 +90,9 @@ at pairing, not optional protocol-feature negotiation or per-action Agent permis
 Agent journals, checkpoints and execution receipts remain Agent-domain mechanisms;
 configuration transfer does not have to adopt the streaming-session model.
 
-The current HTTP `GET /v1/export/providers` route is the existing implementation,
-not the target shared transport. The target carries configuration-transfer business
-messages inside the same encrypted remote route, including over a relay; it does not
-forward the old HTTP provider/export routes through that relay. Existing provider
-tokens do not automatically acquire new permissions.
+Configuration transfer travels as business messages inside the same encrypted
+remote route, including over a relay; the former HTTP provider-export route and
+its bearer tokens have been removed rather than forwarded through that relay.
 
 This decision expands the Agent-only contract draft below. Before freezing v1,
 define the configuration-transfer method/DTO and package boundary, unified pairing
@@ -471,6 +469,6 @@ sourcing and cannot promise recovery of unpersisted output after a desktop crash
 ## Related references
 
 - [Remote Agent API Design](../ai/remote-agent-access.md) — authoritative target wire and package API.
-- [API Gateway Reference](./README.md) — current implementation, including the old pairing behavior.
+- [API Gateway Reference](./README.md) — current implementation.
 - [AI Reference](../ai/README.md) — execution, stream listeners, persistence, and approval ownership.
 - [Lifecycle](../lifecycle/README.md) — resource ownership and shutdown.

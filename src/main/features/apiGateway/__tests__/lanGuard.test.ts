@@ -1,7 +1,7 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { isLanAllowedRoute, isLoopbackAddress, screenLanRequest } from '../lanGuard'
+import { isLoopbackAddress, screenLanRequest } from '../lanGuard'
 
 /** A minimal request-like carrying an injected peer address, as srvx exposes via `.ip`. */
 const requestFrom = (method: string, ip: string | undefined): Request => ({ method, ip }) as unknown as Request
@@ -24,42 +24,24 @@ describe('isLoopbackAddress', () => {
   })
 })
 
-describe('isLanAllowedRoute', () => {
-  it('permits only the pairing bootstrap and the provider export', () => {
-    expect(isLanAllowedRoute('POST', '/pair')).toBe(true)
-    expect(isLanAllowedRoute('GET', '/v1/export/providers')).toBe(true)
-  })
-
-  it('rejects the export under the wrong method and the pairing under the wrong method', () => {
-    expect(isLanAllowedRoute('GET', '/pair')).toBe(false)
-    expect(isLanAllowedRoute('POST', '/v1/export/providers')).toBe(false)
-  })
-
-  it('rejects the generation, MCP, and knowledge routes', () => {
-    for (const path of ['/v1/chat/completions', '/v1/messages', '/v1/mcps/x/mcp', '/v1/knowledge-bases']) {
-      expect(isLanAllowedRoute('POST', path)).toBe(false)
-    }
-  })
-})
-
 describe('screenLanRequest', () => {
   beforeEach(() => {
     MockMainPreferenceServiceUtils.resetMocks()
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.host', '0.0.0.0')
   })
 
-  it('lets a loopback caller reach a loopback-only route', () => {
-    expect(screenLanRequest(requestFrom('POST', '127.0.0.1'), '/v1/chat/completions')).toBeUndefined()
+  it('lets a loopback caller through', () => {
+    expect(screenLanRequest(requestFrom('POST', '127.0.0.1'))).toBeUndefined()
   })
 
-  it('blocks a LAN caller from a loopback-only route', () => {
-    expect(screenLanRequest(requestFrom('POST', '192.168.1.8'), '/v1/chat/completions')).toEqual({
+  it('blocks every LAN caller', () => {
+    expect(screenLanRequest(requestFrom('POST', '192.168.1.8'))).toEqual({
       error: expect.stringContaining('not reachable over the LAN')
     })
   })
 
-  it('lets a LAN caller reach the pairing bootstrap and provider export', () => {
-    expect(screenLanRequest(requestFrom('POST', '192.168.1.8'), '/pair')).toBeUndefined()
-    expect(screenLanRequest(requestFrom('GET', '192.168.1.8'), '/v1/export/providers')).toBeUndefined()
+  it('reports disabled LAN access before the route restriction', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.host', '127.0.0.1')
+    expect(screenLanRequest(requestFrom('GET', '192.168.1.8'))).toEqual({ error: 'Forbidden: LAN access is disabled' })
   })
 })

@@ -17,8 +17,18 @@ vi.mock('@application', async () => {
       ...preferences,
       getMultiple: (keys: Record<string, UnifiedPreferenceKeyType>) =>
         Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, preferences.get(key)]))
+    },
+    RemoteAccessService: {
+      attach: () => () => {},
+      createInvitation: async () => ({
+        invitationId: 'invitation',
+        invitationSecret: 'secret',
+        expiresAt: '2026-09-22T00:02:00.000Z',
+        desktopIdentity: '12D3KooWDesktop',
+        protocolVersions: [1]
+      })
     }
-  })
+  } as never)
 })
 
 vi.mock('node:os', async (importOriginal) => ({
@@ -77,7 +87,7 @@ describe('independent LAN listener lifecycle', () => {
       expect(new TextDecoder().decode((await reader.read()).value)).toBe('before')
 
       await service.setLanEnabled(true)
-      const { port: lanPort } = service.createPairingOffer()
+      const { port: lanPort } = await service.createRemoteInvitation()
       expect(lanPort).not.toBe(localPort)
       const lanResponse = await fetch(`http://127.0.0.1:${lanPort}/health`)
       expect(await lanResponse.text()).toBe('ok')

@@ -9,12 +9,10 @@ import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { ApiGatewayPairedDeviceMetadata } from '@shared/data/types/apiGatewayPairedDevice'
 import type { OutputFor } from '@shared/ipc/types'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
-import { ApiGatewayPairing, type ApiGatewayPairingResult } from './ApiGatewayPairing'
 import type { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
@@ -28,7 +26,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
   private lanGateway: ApiGateway | null = null
   private readonly lanMutex = new Mutex()
-  private readonly pairing = new ApiGatewayPairing()
   /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
   private readonly internalUsageToken = uuidv4()
   /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
@@ -331,17 +328,12 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   private async stopLanGateway(): Promise<void> {
-    this.pairing.clearCode()
     try {
       await this.lanGateway?.stop()
     } finally {
       this.lanGateway = null
       this.publishRunningState(this.isRunning())
     }
-  }
-
-  createPairingOffer(): OutputFor<'api_gateway.create_pairing_offer'> {
-    return { ...this.getLanEndpoint(), ...this.pairing.createCode() }
   }
 
   async createRemoteInvitation(): Promise<OutputFor<'api_gateway.remote.create_invitation'>> {
@@ -367,14 +359,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
       port: lanGateway.getPort(),
       addresses
     }
-  }
-
-  pairDevice(code: string, device: ApiGatewayPairedDeviceMetadata): ApiGatewayPairingResult | null {
-    const result = this.pairing.consumeCode(code, device)
-    if (result) {
-      application.get('IpcApiService').broadcast('api_gateway.pairing_completed', undefined)
-    }
-    return result
   }
 
   getInternalRequestToken(): string {

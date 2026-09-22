@@ -66,7 +66,7 @@ const device = {
   id: '11111111-1111-4111-8111-111111111111',
   name: 'My phone',
   platform: 'android',
-  remoteAccess: { capabilities: ['agent'] as const },
+  remoteAccess: { capabilities: ['agent' as const] },
   createdAt: '2026-09-15T00:00:00.000Z',
   updatedAt: '2026-09-15T00:00:00.000Z'
 }
