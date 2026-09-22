@@ -810,6 +810,10 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!session?.agentId) return
 
     const agent = agentService.getAgent(session.agentId)
+    if (entry.agentId !== session.agentId) {
+      entry.agentId = session.agentId
+      if (agent) entry.agentType = agent.type
+    }
     const effectiveModel = session.modelId ?? agent?.model ?? null
     if (!effectiveModel) {
       this.invalidateModelClearedEntry(entry)
