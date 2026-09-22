@@ -540,6 +540,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       session,
       provider,
       {
+        connectionModelId: uniqueModelId,
         contextWindow,
         maxOutputTokens,
         lastAgentSessionId: resumeSessionId,

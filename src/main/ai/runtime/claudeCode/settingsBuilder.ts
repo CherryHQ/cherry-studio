@@ -59,6 +59,7 @@ import {
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -115,6 +116,8 @@ export function registerMcpSessionCatalogSync(
 // ── Input types ─────────────────────────────────────────────────────
 
 export interface ClaudeCodeSessionOptions {
+  /** Connection or session override when the agent default is unset. */
+  connectionModelId?: UniqueModelId
   lastAgentSessionId?: string
   /** Whether the connection model accepts native image input. */
   supportsImages?: boolean
@@ -186,7 +189,7 @@ export async function buildClaudeCodeSessionSettings(
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
     ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
-    buildEnvironment(provider, agent),
+    buildEnvironment(provider, agent, options?.connectionModelId ?? session.modelId ?? undefined),
     discoverPlugins(cwd, agent.id)
   ])
   const mcpWarm = await mcpWarmPromise
