@@ -34,9 +34,15 @@ vi.mock('@renderer/components/Selector', () => ({
   default: () => null
 }))
 
-vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger
-}))
+vi.mock('@renderer/components/ModelSelector', async () => {
+  const selection = await import('@renderer/components/ModelSelector/selection')
+  return {
+    ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger,
+    countStaleSelectedModelIds: selection.countStaleSelectedModelIds,
+    hasStaleSelectedModelIds: selection.hasStaleSelectedModelIds,
+    resolveSelectedModelIds: selection.resolveSelectedModelIds
+  }
+})
 
 vi.mock('../ContextManagementSettings', () => ({
   ContextManagementSettings: () => (
