@@ -142,7 +142,7 @@ function MarkdownPreviewContent({
   if (content.trim().length === 0) return <MarkdownPreviewEmpty />
 
   const markdown = (
-    <div className="mx-auto w-full max-w-4xl px-4">
+    <div className="mx-auto w-full max-w-4xl px-4 pt-4">
       <StaticMarkdown id={markdownId}>{content}</StaticMarkdown>
     </div>
   )
