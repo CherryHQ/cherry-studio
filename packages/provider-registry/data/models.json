@@ -2418,7 +2418,14 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
       "contextWindow": 1048576,
       "family": "qwen",
       "id": "qwen3-8-flash-next",
@@ -22224,5 +22231,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "f0811fe964c98cb3"
+  "version": "b3bb50d192f62008"
 }
