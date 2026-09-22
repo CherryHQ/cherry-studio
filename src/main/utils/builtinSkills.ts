@@ -11,6 +11,29 @@ import { toAsarUnpackedPath } from './asar'
 
 const logger = loggerService.withContext('builtinSkills')
 
+/** Owns the skills the Prometheus pack ships, so a name clash with a Cherry builtin is refused. */
+const PROMETHEUS_NAMESPACE = 'prometheus'
+
+/**
+ * The skill folder names the Prometheus submodule ships.
+ *
+ * Read from the submodule rather than a hardcoded list so adding or removing a skill
+ * upstream needs no change here. An unreadable submodule yields an empty set, which means
+ * every skill installs under the default namespace exactly as before this existed —
+ * degraded, never blocking a launch.
+ */
+async function listPrometheusSkillNames(): Promise<Set<string>> {
+  const packSkills = toAsarUnpackedPath(
+    path.join(application.getPath('app.root.resources'), 'prometheus-skills-mini', 'skills')
+  )
+  try {
+    const entries = await fs.readdir(packSkills, { withFileTypes: true })
+    return new Set(entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name))
+  } catch {
+    return new Set()
+  }
+}
+
 /**
  * Copy built-in skills from app resources to the global skills storage
  * directory and register them in the `skills` DB table.
@@ -45,6 +68,13 @@ export async function installBuiltinSkills(): Promise<void> {
     return sourcePath.startsWith(resourceSkillsPath + path.sep)
   })
 
+  // Which of these came from the Prometheus pack. Both sets live in `resources/skills/`
+  // — `scripts/sync-prometheus-skills.ts` copies the pack's into the same directory — so
+  // the submodule is what distinguishes them. Namespacing makes a folder-name clash a
+  // refusal by the ownership guard in `syncBuiltinSkill` rather than a silent overwrite;
+  // there is no clash today, but the two sets are maintained in different repositories.
+  const prometheusSkills = await listPrometheusSkillNames()
+
   let installed = 0
   // Process sequentially to avoid interleaved delete+insert on the skills
   // table when multiple builtins require a metadata refresh.
@@ -53,7 +83,8 @@ export async function installBuiltinSkills(): Promise<void> {
       const filesUpdated = await skillService.syncBuiltinSkill(
         entry.name,
         path.join(resourceSkillsPath, entry.name),
-        appVersion
+        appVersion,
+        prometheusSkills.has(entry.name) ? PROMETHEUS_NAMESPACE : null
       )
       if (filesUpdated) installed++
     } catch (error) {

@@ -1,0 +1,3 @@
+[submodule "resources/prometheus-skills-mini"]
+	path = resources/prometheus-skills-mini
+	url = https://github.com/Prometheus-AGS/prometheus-skills-mini
