@@ -136,6 +136,15 @@ export class BackupOperationBusyError extends Error {
   }
 }
 
+export class BackupActiveWritersError extends Error {
+  constructor() {
+    super(
+      `${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running. Wait for it to finish, then retry the backup or restore.`
+    )
+    this.name = 'BackupActiveWritersError'
+  }
+}
+
 class BackupManager {
   private readonly operationMutex = new Mutex()
 
@@ -1590,9 +1599,7 @@ class BackupManager {
       application.get('AiStreamManager').hasLiveStreams() ||
       application.get('AgentLifecycleService').listActiveWork().length > 0
     ) {
-      throw new Error(
-        `${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running. Wait for it to finish, then retry the backup or restore.`
-      )
+      throw new BackupActiveWritersError()
     }
   }
 

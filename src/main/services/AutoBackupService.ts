@@ -17,7 +17,7 @@ import {
 } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
-import { BackupOperationBusyError, legacyBackupManager } from './LegacyBackupManager'
+import { BackupActiveWritersError, BackupOperationBusyError, legacyBackupManager } from './LegacyBackupManager'
 import { decryptToken } from './nutstore/NutstoreService'
 
 const logger = loggerService.withContext('AutoBackupService')
@@ -27,6 +27,7 @@ const LAST_ATTEMPT_TIMES_KEY = 'backup.auto_sync.last_attempt_times'
 const MAX_ATTEMPTS = 4
 const INITIAL_DELAY_MS = 1_000
 const STARTUP_GRACE_PERIOD_MS = 60_000
+const ACTIVE_WRITERS_POLL_MS = 30_000
 
 const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = {
   webdav: ['data.backup.webdav.auto_sync', 'data.backup.webdav.host', 'data.backup.webdav.sync_interval'],
@@ -262,6 +263,13 @@ export class AutoBackupService extends BaseService {
         this.recordLastAttemptTime(type, Date.now())
         this.markStopped(type)
         this.scheduleNext(type, 'fromNow', generation)
+        return
+      }
+
+      if (error instanceof BackupActiveWritersError) {
+        logger.debug('Active data writers detected; automatic backup postponed', { type })
+        this.markStopped(type)
+        this.scheduleNext(type, 'immediate', generation, ACTIVE_WRITERS_POLL_MS)
         return
       }
 
