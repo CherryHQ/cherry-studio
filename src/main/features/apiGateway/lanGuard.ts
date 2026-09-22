@@ -30,11 +30,12 @@ function readRemoteAddress(request: Request): string | undefined {
 
 /** Returns a 403 body for a non-loopback request unless it is the remote-access upgrade. */
 export function screenLanRequest(request: Request, pathname: string): { error: string } | undefined {
+  const preferences = application.get('PreferenceService')
+  const enabled =
+    preferences.get('feature.api_gateway.enabled') && preferences.get('feature.api_gateway.host') === '0.0.0.0'
+  if (pathname === REMOTE_CONNECT_PATH && !enabled) return { error: 'Forbidden: LAN access is disabled' }
   if (isLoopbackAddress(readRemoteAddress(request))) return undefined
-  // A local task can keep the listener alive after stopping; LAN access must still be revoked.
-  if (application.get('PreferenceService').get('feature.api_gateway.host') !== '0.0.0.0') {
-    return { error: 'Forbidden: LAN access is disabled' }
-  }
+  if (!enabled) return { error: 'Forbidden: LAN access is disabled' }
   if (
     request.method === 'GET' &&
     pathname === REMOTE_CONNECT_PATH &&

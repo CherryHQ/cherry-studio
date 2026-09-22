@@ -175,6 +175,7 @@ patchedDependencies:
   '@deepseek-ai/dsh-sdk-client@0.1.2-rc.1': 0792ce2f52077468c6f897dccce0d4e4823f1f0e99cc276b6aaae4b80a4ba337
   '@earendil-works/pi-ai@0.80.6': 8ae915ecde8054da94741cecb272baf207ce5b7e596758c87ecdad572489e24d
   '@earendil-works/pi-coding-agent@0.80.3': 1717b3290d2aaa3819537bd040f531534184c38f2e8c0e6d6b52fdb1ed02b564
+  '@elysia/node@1.4.6': 4a77f8d1ff09ca83ae6023c7fc9911548dab7364057e4ac542928462f06e50f1
   '@napi-rs/system-ocr@1.1.0': aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
   '@opeoginni/github-copilot-openai-compatible@1.0.0': 73beae4e712f7adc915602407dd74fd0c8ab448c7ed03f6beacd83ed51bf3fcb
@@ -524,7 +525,7 @@ importers:
         version: 1.4.2(elysia@1.4.28(@sinclair/typebox@0.34.49)(exact-mirror@1.0.2(typebox@1.3.7))(file-type@22.0.1(supports-color@8.1.1))(openapi-types@12.1.3)(typescript@5.9.3))
       '@elysia/node':
         specifier: ^1.4.6
-        version: 1.4.6(elysia@1.4.28(@sinclair/typebox@0.34.49)(exact-mirror@1.0.2(typebox@1.3.7))(file-type@22.0.1(supports-color@8.1.1))(openapi-types@12.1.3)(typescript@5.9.3))
+        version: 1.4.6(patch_hash=4a77f8d1ff09ca83ae6023c7fc9911548dab7364057e4ac542928462f06e50f1)(elysia@1.4.28(@sinclair/typebox@0.34.49)(exact-mirror@1.0.2(typebox@1.3.7))(file-type@22.0.1(supports-color@8.1.1))(openapi-types@12.1.3)(typescript@5.9.3))
       '@elysia/openapi':
         specifier: ^1.4.15
         version: 1.4.15(elysia@1.4.28(@sinclair/typebox@0.34.49)(exact-mirror@1.0.2(typebox@1.3.7))(file-type@22.0.1(supports-color@8.1.1))(openapi-types@12.1.3)(typescript@5.9.3))
@@ -19596,7 +19597,7 @@ snapshots:
     dependencies:
       elysia: 1.4.28(@sinclair/typebox@0.34.49)(exact-mirror@1.0.2(typebox@1.3.7))(file-type@22.0.1(supports-color@8.1.1))(openapi-types@12.1.3)(typescript@5.9.3)
 
-  '@elysia/node@1.4.6(elysia@1.4.28(@sinclair/typebox@0.34.49)(exact-mirror@1.0.2(typebox@1.3.7))(file-type@22.0.1(supports-color@8.1.1))(openapi-types@12.1.3)(typescript@5.9.3))':
+  '@elysia/node@1.4.6(patch_hash=4a77f8d1ff09ca83ae6023c7fc9911548dab7364057e4ac542928462f06e50f1)(elysia@1.4.28(@sinclair/typebox@0.34.49)(exact-mirror@1.0.2(typebox@1.3.7))(file-type@22.0.1(supports-color@8.1.1))(openapi-types@12.1.3)(typescript@5.9.3))':
     dependencies:
       crossws: 0.4.5(srvx@0.11.16)
       elysia: 1.4.28(@sinclair/typebox@0.34.49)(exact-mirror@1.0.2(typebox@1.3.7))(file-type@22.0.1(supports-color@8.1.1))(openapi-types@12.1.3)(typescript@5.9.3)

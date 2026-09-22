@@ -28,6 +28,7 @@ describe('isLoopbackAddress', () => {
 describe('screenLanRequest', () => {
   beforeEach(() => {
     MockMainPreferenceServiceUtils.resetMocks()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.enabled', true)
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.host', '0.0.0.0')
   })
 
@@ -52,6 +53,17 @@ describe('screenLanRequest', () => {
       error: expect.stringContaining('not reachable over the LAN')
     })
   })
+
+  it.each(['127.0.0.1', '192.168.1.8'])(
+    'blocks remote upgrades from %s when only a local lease keeps the gateway running',
+    (address) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.enabled', false)
+      expect(screenLanRequest(requestFrom('GET', address, { upgrade: 'websocket' }), '/v1/remote/connect')).toEqual({
+        error: 'Forbidden: LAN access is disabled'
+      })
+      expect(screenLanRequest(requestFrom('GET', '127.0.0.1'), '/health')).toBeUndefined()
+    }
+  )
 
   it('reports disabled LAN access before the route restriction', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.host', '127.0.0.1')

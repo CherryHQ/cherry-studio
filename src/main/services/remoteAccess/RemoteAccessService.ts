@@ -80,6 +80,11 @@ export class RemoteAccessService extends BaseService {
 
   /** Called by the gateway's ws route once the upgrade completed; refuses beyond the connection budget. */
   accept(socket: RemoteSocket, address: string): void {
+    const preferences = application.get('PreferenceService')
+    if (!preferences.get('feature.api_gateway.enabled') || preferences.get('feature.api_gateway.host') !== '0.0.0.0') {
+      socket.close(1008, 'Remote access is disabled')
+      return
+    }
     const sameAddress = [...this.connections.values()].filter((value) => value.address === address).length
     if (this.connections.size >= 32 || sameAddress >= 4) {
       socket.close(1013, 'Too many remote connections')
@@ -99,6 +104,7 @@ export class RemoteAccessService extends BaseService {
       this.connections.delete(socket)
     })
     void this.run(socket, entry).catch((error: unknown) => {
+      if (entry.abort.signal.aborted && error === entry.abort.signal.reason) return
       logger.warn('Remote session ended with an error', { address, error: (error as Error).message })
       socket.close(1011, 'Remote session failed')
     })

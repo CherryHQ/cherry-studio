@@ -5,7 +5,7 @@ import type { RemoteSocket } from '@cherrystudio/remote-transport'
 
 export const REMOTE_CONNECT_PATH = '/v1/remote/connect'
 
-/** The node adapter re-reads frames as text, so the transport listens on the underlying socket. */
+/** RemoteSocketStream needs the underlying socket's EventTarget and backpressure APIs. */
 function underlyingSocket(raw: unknown): RemoteSocket | undefined {
   const peer = raw as { websocket?: unknown; _internal?: { ws?: unknown } }
   const socket = peer.websocket ?? peer._internal?.ws

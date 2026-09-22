@@ -24,7 +24,6 @@ const INTERNAL_USAGE_TOKEN_HEADER = 'x-cherry-internal-usage-token'
 @DependsOn(['RemoteAccessService'])
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
-  private lanGateway: ApiGateway | null = null
   private readonly lanMutex = new Mutex()
   /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
   private readonly internalUsageToken = uuidv4()
@@ -89,19 +88,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
     try {
       await this.ensureValidApiKey()
       const { ApiGateway } = await import('./server')
-      const { host, port } = this.getCurrentConfig()
-      this.apiGateway = new ApiGateway({ host: host === '0.0.0.0' ? '127.0.0.1' : host, port })
+      const { port } = this.getCurrentConfig()
+      // Keep the shared listener stable; lanGuard gates remote access without interrupting local streams.
+      this.apiGateway = new ApiGateway({ host: '0.0.0.0', port })
       await this.apiGateway.start()
-      if (this.getCurrentConfig().enabled && this.getCurrentConfig().host === '0.0.0.0') {
-        try {
-          await this.lanMutex.runExclusive(async () => {
-            const config = this.getCurrentConfig()
-            if (config.enabled && config.host === '0.0.0.0') await this.startLanGateway()
-          })
-        } catch (error) {
-          logger.warn('Failed to restore LAN access; the local gateway remains available', error as Error)
-        }
-      }
       this.publishRunningState(true)
       logger.info('API Gateway activated')
     } catch (error) {
@@ -116,7 +106,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async onDeactivate(): Promise<void> {
-    await this.lanMutex.runExclusive(() => this.stopLanGateway())
+    await this.lanMutex.runExclusive(() => this.closeRemoteAccess())
     if (this.apiGateway) {
       await this.apiGateway.stop()
       this.apiGateway = null
@@ -140,7 +130,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
       application.get('CacheService').setShared('feature.api_gateway.running', running)
       application
         .get('CacheService')
-        .setShared('feature.api_gateway.lan_running', this.lanGateway?.isRunning() ?? false)
+        .setShared(
+          'feature.api_gateway.lan_running',
+          running && this.getCurrentConfig().enabled && this.getCurrentConfig().host === '0.0.0.0'
+        )
     } catch (error) {
       logger.warn('Failed to publish API gateway running state', error as Error)
     }
@@ -172,7 +165,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     } else {
       await preferenceService.set('feature.api_gateway.enabled', enabled)
     }
-    if (!enabled) await this.lanMutex.runExclusive(() => this.stopLanGateway())
+    if (!enabled) await this.lanMutex.runExclusive(() => this.closeRemoteAccess())
     // `subscribeChange` fires only on an actual change, so drive the reconciler here as well.
     await this.converge(enabled)
   }
@@ -294,45 +287,25 @@ export class ApiGatewayService extends BaseService implements Activatable {
       const preferences = application.get('PreferenceService')
       if (!enabled) {
         await preferences.set('feature.api_gateway.host', '127.0.0.1')
-        await this.stopLanGateway()
+        await this.closeRemoteAccess()
         return
       }
       if (!this.getCurrentConfig().enabled || !this.isRunning()) {
         throw new Error('Start the API Gateway in its settings before enabling LAN access')
       }
-      try {
-        await this.startLanGateway()
-        // A gateway stop can land while the LAN socket is binding.
-        if (!this.getCurrentConfig().enabled || !this.isRunning()) throw new Error('API Gateway was stopped')
-        await preferences.set('feature.api_gateway.host', '0.0.0.0')
-        this.publishRunningState(this.isRunning())
-      } catch (error) {
-        await this.stopLanGateway()
-        throw error
+      await preferences.set('feature.api_gateway.host', '0.0.0.0')
+      if (!this.getCurrentConfig().enabled || !this.isRunning()) {
+        await preferences.set('feature.api_gateway.host', '127.0.0.1')
+        await this.closeRemoteAccess()
+        throw new Error('API Gateway was stopped')
       }
+      this.publishRunningState(this.isRunning())
     })
   }
 
-  private async startLanGateway(): Promise<void> {
-    if (this.lanGateway?.isRunning()) return
-    const { ApiGateway } = await import('./server')
-    this.lanGateway = new ApiGateway({ host: '0.0.0.0', port: 0 })
-    try {
-      await this.lanGateway.start()
-    } catch (error) {
-      await this.stopLanGateway()
-      throw error
-    }
-  }
-
-  private async stopLanGateway(): Promise<void> {
+  private async closeRemoteAccess(): Promise<void> {
     application.get('RemoteAccessService').closeIngress()
-    try {
-      await this.lanGateway?.stop()
-    } finally {
-      this.lanGateway = null
-      this.publishRunningState(this.isRunning())
-    }
+    this.publishRunningState(this.isRunning())
   }
 
   async createRemoteInvitation(): Promise<OutputFor<'api_gateway.remote.create_invitation'>> {
@@ -342,9 +315,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   private getLanEndpoint() {
-    const lanGateway = this.lanGateway
     if (!this.isRunning()) throw new Error('API Gateway is not running')
-    if (!lanGateway?.isRunning() || this.getCurrentConfig().host !== '0.0.0.0') {
+    if (!this.getCurrentConfig().enabled || this.getCurrentConfig().host !== '0.0.0.0') {
       throw new Error('LAN access is disabled')
     }
 
@@ -355,7 +327,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
     return {
       hostname: hostname(),
-      port: lanGateway.getPort(),
+      port: this.apiGateway!.getPort(),
       addresses
     }
   }

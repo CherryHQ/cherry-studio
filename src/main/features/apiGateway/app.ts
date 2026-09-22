@@ -87,6 +87,17 @@ export function buildApp({
   mcpSessions = new McpSessionStore()
 }: BuildAppOptions = {}) {
   const app = new Elysia({ adapter: node() })
+    // HTTP is loopback-only; remote devices use the encrypted WebSocket upgrade instead.
+    // Loopback and in-process callers are unrestricted. Runs before request-id
+    // stamping so a rejected LAN request short-circuits cheaply.
+    .onRequest(({ request, set }) => {
+      const failure = screenLanRequest(request, new URL(request.url).pathname)
+      if (failure) {
+        set.status = 403
+        return failure
+      }
+      return undefined
+    })
     .use(
       cors({
         origin: true,
@@ -106,17 +117,6 @@ export function buildApp({
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       })
     )
-    // HTTP is loopback-only; remote devices use the encrypted WebSocket upgrade instead.
-    // Loopback and in-process callers are unrestricted. Runs before request-id
-    // stamping so a rejected LAN request short-circuits cheaply.
-    .onRequest(({ request, set }) => {
-      const failure = screenLanRequest(request, new URL(request.url).pathname)
-      if (failure) {
-        set.status = 403
-        return failure
-      }
-      return undefined
-    })
     // Stamp a request id and record the start time for latency logging.
     .onRequest(({ set }) => {
       set.headers['x-request-id'] = uuidv4()

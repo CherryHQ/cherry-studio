@@ -132,22 +132,21 @@ session.
 
 ### LAN exposure is confined to the remote-access upgrade
 
-The local gateway keeps its configured port (default `23333`) on loopback.
-Enabling LAN access starts a separate `ApiGateway` listener on `0.0.0.0` with an
-OS-assigned port; the remote invitation reports that actual port. Disabling LAN
-closes only that listener and its pending invitation. Existing local
-streams and new local requests continue on the original listener.
+The gateway uses one listener on `0.0.0.0` at its configured port (default
+`23333`). Local HTTP clients and remote WebSocket clients share that port.
+LAN toggles change access policy without rebinding the listener, so existing
+local streams continue and paired devices retain the same endpoint after restart.
 
-Both listeners reuse `buildApp()`. A root `onRequest` guard (`lanGuard.ts`)
-screens each request by its socket peer: loopback and in-process callers are
-unrestricted, but **every HTTP request from a non-loopback (LAN) peer returns
-`403`**; remote devices only use the WebSocket upgrade. The desktop's own
-consumers use the configured local port; `gatewayClientOrigin` maps the LAN
-preference `0.0.0.0` back to `127.0.0.1`.
+The root `onRequest` guard (`lanGuard.ts`) runs before CORS and screens each
+request by its socket peer. Ordinary HTTP routes remain loopback-only. The only
+LAN route allowed is the `/v1/remote/connect` WebSocket upgrade, and it requires
+both the gateway and LAN preferences to be enabled. The remote route is also
+blocked on loopback when LAN access is disabled. Desktop consumers continue to
+use `127.0.0.1` through `gatewayClientOrigin`.
 
-The guard also checks the current LAN configuration on every remote request.
-Disabling LAN first restores `feature.api_gateway.host` to `127.0.0.1`, so new
-remote requests receive `403` while the LAN listener drains and closes.
+Disabling LAN first restores `feature.api_gateway.host` to `127.0.0.1`, then
+closes remote sessions and clears pending invitations. The shared TCP listener
+remains bound, but new remote requests receive `403`.
 
 ## Request flow (generation routes)
 
@@ -276,8 +275,8 @@ single authority for their running state.
 |---|---|
 | `onInit` | Subscribe to `feature.api_gateway.enabled`; IpcApi handlers live in `src/main/ipc/handlers/apiGateway.ts`. |
 | `onReady` | Read the persisted desired state and flush the reconciler. |
-| `onActivate` | Start the local listener at the configured port (`0.0.0.0` maps to loopback), then restore LAN if enabled. A LAN restore failure leaves the local gateway running. |
-| `onDeactivate` | Stop both listeners, publish both running states as `false`. |
+| `onActivate` | Start the shared listener on `0.0.0.0` at the configured port; the request guard enforces LAN intent. |
+| `onDeactivate` | Close remote sessions and stop the shared listener; publish both running states as `false`. |
 
 `ensureValidApiKey()` generates a `cs-sk-<uuid>` key into
 `feature.api_gateway.api_key` the first time it is missing.
@@ -290,24 +289,21 @@ changes, IpcApi actions, and temporary run leases, converging actual state to
 server up without persisting an enabled intent. Start/stop persist user intent
 before convergence; restart rebinds only when no lease is active.
 
-LAN commands are serialized with listener cleanup. Enabling LAN requires an
-enabled, running local gateway; it binds the new listener before persisting
-`host = 0.0.0.0`. A bind or preference-write failure closes the new listener
-without changing the local gateway's enabled intent. Disabling LAN persists
-`host = 127.0.0.1` and stops only the LAN listener.
+LAN commands are serialized with remote-session cleanup. Enabling LAN requires
+an enabled, running gateway and persists `host = 0.0.0.0`. Disabling LAN persists
+`host = 127.0.0.1` and closes remote sessions without interrupting local requests.
 
-An explicit gateway stop atomically persists `enabled = false` and the return
-from LAN to loopback, then closes the LAN listener.
-A `deferred` stop preserves the local listener for existing task leases; the
-final lease release stops it. A later ordinary gateway start stays on loopback.
-An explicit restart retains LAN intent, but creates a new LAN listener whose
-port may differ; mobile clients must obtain its new endpoint from a fresh QR.
+An explicit gateway stop atomically persists `enabled = false` and disables LAN,
+then closes remote sessions. A `deferred` stop preserves the listener for local
+task leases, while the guard refuses remote access. The final lease release
+stops the listener. An explicit restart retains LAN intent and reuses the
+configured gateway port; a fresh QR is only needed if the endpoint changes.
 
 ### Running state — Shared Cache, not IPC
 
 `publishRunningState()` writes `feature.api_gateway.running` (boolean) into the
 **Shared Cache** via `CacheService.setShared(...)`. It also publishes
-`feature.api_gateway.lan_running` for the LAN listener. **Main is authoritative**;
+`feature.api_gateway.lan_running` for remote-access availability. **Main is authoritative**;
 the renderer reads it reactively with `useSharedCacheValue('feature.api_gateway.running')`.
 There is deliberately **no status/config pull IPC** — pulling running state or
 config over IPC would be an anti-pattern, since running lives in the shared
@@ -334,7 +330,7 @@ pending claims in every settings window.
 | Key | Type | Default | Notes |
 |---|---|---|---|
 | `feature.api_gateway.enabled` | `boolean` | `false` | Auto-start on launch / toggled from settings |
-| `feature.api_gateway.host` | `string` | `'127.0.0.1'` | `0.0.0.0` requests the separate LAN listener; the local listener stays on loopback |
+| `feature.api_gateway.host` | `string` | `'127.0.0.1'` | `0.0.0.0` enables remote access on the shared listener; other values disable it |
 | `feature.api_gateway.port` | `number` | `23333` | Local TCP port (UI clamps 1000–65535); LAN uses an OS-assigned port |
 | `feature.api_gateway.api_key` | `string \| null` | `null` | Auto-generated `cs-sk-<uuid>` on first activate |
 
@@ -381,9 +377,8 @@ The QR code contains JSON, not a URL:
 `v` is the QR format version; `t` identifies a Cherry Studio pairing payload.
 `name` is the desktop hostname. `ips` contains its non-loopback IPv4 addresses;
 the mobile client must choose an address reachable on its network and open
-`ws://<ip>:<port>/v1/remote/connect`. `port` is the active LAN listener port,
-not the configured local API port; it can change after re-enabling LAN or
-restarting the gateway. `desktopIdentity` pins the desktop's Ed25519 key for the
+`ws://<ip>:<port>/v1/remote/connect`. `port` is the active gateway port, shared with local API clients. It stays
+the same across LAN toggles and restarts unless the configured port changes. `desktopIdentity` pins the desktop's Ed25519 key for the
 Noise handshake; the invitation is single-use, expires after two minutes, and is
 discarded when LAN is disabled or the gateway stops.
 
