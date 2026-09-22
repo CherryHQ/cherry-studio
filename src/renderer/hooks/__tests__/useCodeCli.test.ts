@@ -174,7 +174,6 @@ describe('useCodeCli', () => {
       })
 
       expect(returnedId).toBe('openrouter')
-      expect(mockSetter).toHaveBeenCalled()
       const toolState = lastToolState(mockSetter)
       expect(providerConfig(toolState, 'openrouter').modelId).toBe('openrouter::claude-4')
     })
@@ -232,9 +231,8 @@ describe('useCodeCli', () => {
   })
 
   describe('upsertProviderConfig + setCurrentProvider (sequential write)', () => {
-    // Regression: enabling a provider upserts its config then sets current
-    // back-to-back. usePreference's setter takes a plain value, so the second
-    // write used to read a stale snapshot and wipe the just-written provider.
+    // The plain-value preference setter must see prior patches when updating
+    // the selected provider, even before the preference hook renders again.
     it('preserves the upserted provider when selecting it immediately after', async () => {
       const mockSetter = setupUpdaterMock({})
       const { result } = renderHook(() => useCodeCli())
@@ -250,6 +248,48 @@ describe('useCodeCli', () => {
       const toolState = lastToolState(mockSetter, 1)
       expect(toolState.providers['anthropic']).toBeDefined()
       expect(toolState.current).toBe('anthropic')
+    })
+
+    it('waits for an active preference write before merging a concurrent patch', async () => {
+      const mockSetter = setupUpdaterMock({})
+      const firstWrite = Promise.withResolvers<void>()
+      const firstStarted = Promise.withResolvers<void>()
+      mockSetter.mockImplementationOnce(() => {
+        firstStarted.resolve()
+        return firstWrite.promise
+      })
+      const { result } = renderHook(() => useCodeCli())
+
+      const upsert = result.current.upsertProviderConfig('anthropic', { modelId: 'anthropic::claude-4' })
+      const select = result.current.setCurrentProvider('anthropic')
+      await firstStarted.promise
+      expect(mockSetter.mock.calls).toHaveLength(1)
+
+      await act(async () => {
+        firstWrite.resolve()
+        await Promise.all([upsert, select])
+      })
+      const toolState = lastToolState(mockSetter)
+      expect(providerConfig(toolState, 'anthropic').modelId).toBe('anthropic::claude-4')
+      expect(toolState.current).toBe('anthropic')
+    })
+
+    it('reports a failed write while allowing the next queued patch to persist', async () => {
+      const mockSetter = setupUpdaterMock({})
+      const firstWrite = Promise.withResolvers<void>()
+      mockSetter.mockImplementationOnce(() => firstWrite.promise)
+      const { result } = renderHook(() => useCodeCli())
+      const failure = new Error('Preference write failed')
+
+      const failed = result.current.setDirectory('/project')
+      const next = result.current.setTerminal('zsh')
+      const rejection = expect(failed).rejects.toBe(failure)
+      await act(async () => {
+        firstWrite.reject(failure)
+        await Promise.all([rejection, next])
+      })
+
+      expect(lastToolState(mockSetter).terminal).toBe('zsh')
     })
   })
 
