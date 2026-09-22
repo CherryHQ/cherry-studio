@@ -1,5 +1,5 @@
-import { Minus, Plus } from 'lucide-react'
-import { memo, useMemo } from 'react'
+import { ChevronDown, Minus, Plus } from 'lucide-react'
+import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, EmptyState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@cherrystudio/ui'
@@ -38,6 +38,16 @@ interface QuotaRow {
   forecast: QuotaForecast
 }
 
+interface PoolGroup {
+  poolId: string
+  providerName: string
+  period: ApiKeyLimitPeriod
+  rows: QuotaRow[]
+  poolLimit: number
+  poolUsed: number
+  poolRemaining: number
+}
+
 interface WebServiceRow {
   serviceKey: string
   label: string
@@ -65,8 +75,19 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
   const { providers } = useProviders()
   const [limits, setLimits] = usePreference('chat.routing.api_key_limits')
   const [serviceUsage] = usePreference('chat.routing.service_usage')
+  const [expandedPools, setExpandedPools] = useState<Set<string>>(new Set())
   const safeLimits = limits ?? {}
   const safeServiceUsage: ServiceUsageMap = serviceUsage ?? {}
+
+  const togglePoolExpanded = (poolId: string) => {
+    const next = new Set(expandedPools)
+    if (next.has(poolId)) {
+      next.delete(poolId)
+    } else {
+      next.add(poolId)
+    }
+    setExpandedPools(next)
+  }
 
   const allKeyEntries = useMemo(() => {
     const entries: Array<{
@@ -179,6 +200,32 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
     [allKeyEntries, usageCounts, periodStarts]
   )
 
+  const poolGroups: PoolGroup[] = useMemo(() => {
+    const groupMap = new Map<string, QuotaRow[]>()
+    for (const row of rows) {
+      const groupKey = `${row.providerName}::${row.period}`
+      if (!groupMap.has(groupKey)) {
+        groupMap.set(groupKey, [])
+      }
+      groupMap.get(groupKey)!.push(row)
+    }
+
+    return Array.from(groupMap.entries()).map(([groupKey, groupRows]) => {
+      const [providerName, period] = groupKey.split('::') as [string, ApiKeyLimitPeriod]
+      const poolLimit = groupRows.reduce((sum, r) => sum + r.limit, 0)
+      const poolUsed = groupRows.reduce((sum, r) => sum + r.used, 0)
+      return {
+        poolId: groupKey,
+        providerName,
+        period,
+        rows: groupRows,
+        poolLimit,
+        poolUsed,
+        poolRemaining: Math.max(0, poolLimit - poolUsed)
+      }
+    })
+  }, [rows])
+
   const webServiceRows: WebServiceRow[] = useMemo(
     () =>
       Object.entries(safeServiceUsage)
@@ -260,62 +307,105 @@ export const QuotaOverviewTable = memo(function QuotaOverviewTable() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.limitKey}>
-                    <TableCell className="min-w-0">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-foreground">{row.providerName}</div>
-                        <div className="truncate text-xs text-muted-foreground">{row.keyLabel}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {TIER_LABELS[row.tier] ? t(TIER_LABELS[row.tier]) : row.tier}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">{t(PERIOD_LABELS[row.period])}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-6"
-                          onClick={() => adjustLimit(row.limitKey, -1)}>
-                          <Minus className="size-3" />
-                        </Button>
-                        <span className="w-12 text-center font-medium tabular-nums text-sm">{row.limit}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-6"
-                          onClick={() => adjustLimit(row.limitKey, 1)}>
-                          <Plus className="size-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-sm">{row.used}</TableCell>
-                    <TableCell className="text-right tabular-nums text-sm">
-                      <span className={row.remaining === 0 ? 'text-error font-medium' : ''}>{row.remaining}</span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {row.renewsAt
-                        ? row.renewsAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                        : '—'}
-                    </TableCell>
-                    <TableCell className="text-right text-xs">
-                      <span
-                        className={
-                          row.forecast.kind === 'runs-out' || row.forecast.kind === 'exhausted'
-                            ? 'font-medium text-error'
-                            : 'text-muted-foreground'
-                        }>
-                        {describeForecast(row.forecast)}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {poolGroups.flatMap((pool) => {
+                  const isExpanded = expandedPools.has(pool.poolId)
+                  const sourceCountLabel = t('settings.usage.quota.pool_source_count', { count: pool.rows.length })
+
+                  const poolRow = (
+                    <TableRow
+                      key={pool.poolId}
+                      onClick={() => togglePoolExpanded(pool.poolId)}
+                      className="cursor-pointer hover:bg-accent">
+                      <TableCell className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <ChevronDown
+                            className="size-4 flex-shrink-0 transition-transform"
+                            style={{ transform: isExpanded ? 'rotate(0)' : 'rotate(-90deg)' }}
+                          />
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-foreground">{pool.providerName}</div>
+                            <div className="truncate text-xs text-muted-foreground">{sourceCountLabel}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell />
+                      <TableCell />
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="w-12 text-center font-semibold tabular-nums text-sm">{pool.poolLimit}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-sm font-semibold">{pool.poolUsed}</TableCell>
+                      <TableCell className="text-right tabular-nums text-sm">
+                        <span className={pool.poolRemaining === 0 ? 'text-error font-semibold' : 'font-semibold'}>
+                          {pool.poolRemaining}
+                        </span>
+                      </TableCell>
+                      <TableCell />
+                      <TableCell />
+                    </TableRow>
+                  )
+
+                  const detailRows = isExpanded
+                    ? pool.rows.map((row) => (
+                        <TableRow key={row.limitKey} className="bg-muted/30">
+                          <TableCell className="min-w-0 pl-10">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium text-foreground">{row.keyLabel}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-xs text-muted-foreground">
+                              {TIER_LABELS[row.tier] ? t(TIER_LABELS[row.tier]) : row.tier}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-xs text-muted-foreground">{t(PERIOD_LABELS[row.period])}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-6"
+                                onClick={() => adjustLimit(row.limitKey, -1)}>
+                                <Minus className="size-3" />
+                              </Button>
+                              <span className="w-12 text-center font-medium tabular-nums text-sm">{row.limit}</span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-6"
+                                onClick={() => adjustLimit(row.limitKey, 1)}>
+                                <Plus className="size-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-sm">{row.used}</TableCell>
+                          <TableCell className="text-right tabular-nums text-sm">
+                            <span className={row.remaining === 0 ? 'text-error font-medium' : ''}>{row.remaining}</span>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {row.renewsAt
+                              ? row.renewsAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                              : '—'}
+                          </TableCell>
+                          <TableCell className="text-right text-xs">
+                            <span
+                              className={
+                                row.forecast.kind === 'runs-out' || row.forecast.kind === 'exhausted'
+                                  ? 'font-medium text-error'
+                                  : 'text-muted-foreground'
+                              }>
+                              {describeForecast(row.forecast)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    : []
+
+                  return [poolRow, ...detailRows]
+                })}
               </TableBody>
             </Table>
           </div>
