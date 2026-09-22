@@ -253,7 +253,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent closeOnOverlayClick={false} aria-describedby={undefined} size="lg">
+      <DialogContent closeOnOverlayClick={false} aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{t(isEditing ? 'settings.miniApps.custom.edit_title' : 'miniApp.add.title')}</DialogTitle>
         </DialogHeader>
