@@ -8,6 +8,7 @@ import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRu
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
+import { ErrorSummarizerService } from '@main/ai/localModel'
 import { LocalModelService } from '@main/ai/localModel'
 import { OcrInferenceService } from '@main/ai/localModel'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
@@ -164,6 +165,7 @@ export const services = {
   ClaudeCodeSessionStateService,
   AiStreamManager,
   EmbeddingInferenceService,
+  ErrorSummarizerService,
   OcrInferenceService,
   LocalModelService,
   KnowledgeService,
