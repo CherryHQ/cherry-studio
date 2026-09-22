@@ -3027,12 +3027,15 @@ export class AgentSessionRuntimeService extends BaseService {
     // the connection it is already streaming on, and a reconcile racing that wake would report
     // drift and close a valid warm connection.
     const target = this.connectionTarget(entry)
-    // A fresh receive-only turn has no execution.turn yet; honor the entry's latest
-    // effective model (updated by handleSessionModelUpdated) instead of a completed context turn.
-    const modelId =
-      entry.runtimeState.execution.kind === 'autonomous-turn' && !entry.runtimeState.execution.turn
-        ? entry.modelId
-        : target.modelId
+    const contextTurn =
+      entry.runtimeState.execution.kind === 'autonomous-turn' ? entry.runtimeState.execution.contextTurn : undefined
+    const overrideStaleOnConnection =
+      contextTurn !== undefined &&
+      entry.modelId !== contextTurn.modelId &&
+      (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) ||
+        (entry.runtimeState.connection.kind === 'connected' &&
+          entry.runtimeState.connection.pendingRebuild !== undefined))
+    const modelId = overrideStaleOnConnection ? target.modelId : (entry.modelId ?? target.modelId)
     const { reasoningEffort, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } = target
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 

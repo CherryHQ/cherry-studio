@@ -18,6 +18,7 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
+import { resolvePromptModelName } from '@main/ai/runtime/agentPrompt'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
@@ -404,7 +405,7 @@ async function deriveConnectionConfigFromSnapshot(
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
-    promptModelName: agent.modelName || null,
+    promptModelName: resolvePromptModelName(uniqueModelId, agent, model),
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
