@@ -15,6 +15,10 @@ export default defineProvider({
       adapterFamily: 'openai-compatible',
       baseUrl: 'http://localhost:1234',
       reasoningFormat: { type: 'openai-chat' }
+    },
+    'openai-embeddings': {
+      adapterFamily: 'openai-compatible',
+      baseUrl: 'http://localhost:1234'
     }
   },
   metadata: {

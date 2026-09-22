@@ -807,6 +807,10 @@
           "reasoningFormat": {
             "type": "openai-chat"
           }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:1234"
         }
       },
       "id": "lmstudio",
@@ -2552,5 +2556,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e47c80cffa19d83b-omniroute"
+  "version": "d4f91e4b88ec939d"
 }
