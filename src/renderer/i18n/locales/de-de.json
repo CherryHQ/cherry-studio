@@ -1,4 +1,4 @@
-﻿{
+{
   "agent.add.error.failed": "Agent hinzufügen fehlgeschlagen",
   "agent.add.title": "Agent hinzufügen",
   "agent.askUserQuestion.answered": "beantwortet",
@@ -5203,6 +5203,7 @@
   "settings.usage.quota.key_label": "{{provider}} · {{label}}",
   "settings.usage.quota.no_limits": "Keine Kontingentlimits konfiguriert",
   "settings.usage.quota.no_limits_description": "Legen Sie Anfragelimits für API-Schlüssel in den Anbietereinstellungen fest.",
+  "settings.usage.quota.pool_source_count": "{{count}} Quelle",
   "settings.usage.quota.remaining": "{{count}} verbleibend",
   "settings.usage.quota.tier.free": "Kostenlos",
   "settings.usage.quota.tier.paid": "Bezahlt",

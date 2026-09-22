@@ -1,4 +1,4 @@
-﻿{
+{
   "agent.add.error.failed": "添加智能体失败",
   "agent.add.title": "添加智能体",
   "agent.askUserQuestion.answered": "已回答",
@@ -5203,6 +5203,7 @@
   "settings.usage.quota.key_label": "{{provider}} · {{label}}",
   "settings.usage.quota.no_limits": "未配置配额限制",
   "settings.usage.quota.no_limits_description": "在提供商设置中为 API 密钥设置请求限制。",
+  "settings.usage.quota.pool_source_count": "{{count}} 个来源",
   "settings.usage.quota.remaining": "剩余 {{count}} 个",
   "settings.usage.quota.tier.free": "免费",
   "settings.usage.quota.tier.paid": "付费",

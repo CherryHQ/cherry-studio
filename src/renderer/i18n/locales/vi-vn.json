@@ -1,4 +1,4 @@
-﻿{
+{
   "agent.add.error.failed": "Không thể thêm Agent",
   "agent.add.title": "Thêm Agent",
   "agent.askUserQuestion.answered": "đã trả lời",
@@ -5203,6 +5203,7 @@
   "settings.usage.quota.key_label": "{{provider}} · {{label}}",
   "settings.usage.quota.no_limits": "Chưa cấu hình giới hạn hạn ngạch",
   "settings.usage.quota.no_limits_description": "Đặt giới hạn yêu cầu cho các khóa API trong cài đặt nhà cung cấp.",
+  "settings.usage.quota.pool_source_count": "{{count}} nguồn",
   "settings.usage.quota.remaining": "{{count}} còn lại",
   "settings.usage.quota.tier.free": "Miễn phí",
   "settings.usage.quota.tier.paid": "Trả phí",

@@ -1,4 +1,4 @@
-﻿{
+{
   "agent.add.error.failed": "エージェントの追加に失敗しました",
   "agent.add.title": "エージェントを追加",
   "agent.askUserQuestion.answered": "回答済み",
@@ -5203,6 +5203,7 @@
   "settings.usage.quota.key_label": "{{provider}} · {{label}}",
   "settings.usage.quota.no_limits": "クォータ制限が設定されていません",
   "settings.usage.quota.no_limits_description": "プロバイダ設定でAPIキーのリクエスト制限を設定します。",
+  "settings.usage.quota.pool_source_count": "{{count}} ソース",
   "settings.usage.quota.remaining": "{{count}} 残り",
   "settings.usage.quota.tier.free": "無料",
   "settings.usage.quota.tier.paid": "有料",

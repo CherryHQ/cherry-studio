@@ -1,4 +1,4 @@
-﻿{
+{
   "agent.add.error.failed": "新增 Agent 失敗",
   "agent.add.title": "新增 Agent",
   "agent.askUserQuestion.answered": "已回答",
@@ -5203,6 +5203,7 @@
   "settings.usage.quota.key_label": "{{provider}} · {{label}}",
   "settings.usage.quota.no_limits": "未設定配額限制",
   "settings.usage.quota.no_limits_description": "在供應商設定中為 API 金鑰設定請求限制。",
+  "settings.usage.quota.pool_source_count": "{{count}} 個來源",
   "settings.usage.quota.remaining": "剩餘 {{count}} 個",
   "settings.usage.quota.tier.free": "免費",
   "settings.usage.quota.tier.paid": "付費",

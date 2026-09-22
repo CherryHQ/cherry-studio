@@ -1,4 +1,4 @@
-﻿{
+{
   "agent.add.error.failed": "Nu s-a putut adăuga un agent",
   "agent.add.title": "Adaugă agent",
   "agent.askUserQuestion.answered": "răspuns",
@@ -5203,6 +5203,7 @@
   "settings.usage.quota.key_label": "{{provider}} · {{label}}",
   "settings.usage.quota.no_limits": "Nicio limită de cotă configurată",
   "settings.usage.quota.no_limits_description": "Setați limitele de solicitări pentru cheile API în setările furnizorului.",
+  "settings.usage.quota.pool_source_count": "{{count}} sursă",
   "settings.usage.quota.remaining": "{{count}} rămase",
   "settings.usage.quota.tier.free": "Gratuit",
   "settings.usage.quota.tier.paid": "Plătit",

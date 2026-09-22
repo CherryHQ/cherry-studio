@@ -5213,6 +5213,7 @@
   "settings.usage.quota.key_label": "{{provider}} · {{label}}",
   "settings.usage.quota.no_limits": "No quota limits configured",
   "settings.usage.quota.no_limits_description": "Set request limits on API keys in provider settings.",
+  "settings.usage.quota.pool_source_count": "{{count}} source",
   "settings.usage.quota.remaining": "{{count}} left",
   "settings.usage.quota.tier.free": "Free",
   "settings.usage.quota.tier.paid": "Paid",

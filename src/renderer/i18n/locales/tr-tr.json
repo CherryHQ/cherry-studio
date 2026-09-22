@@ -1,4 +1,4 @@
-﻿{
+{
   "agent.add.error.failed": "Ajan eklenemedi",
   "agent.add.title": "Ajan Ekle",
   "agent.askUserQuestion.answered": "yanıtlandı",
@@ -5203,6 +5203,7 @@
   "settings.usage.quota.key_label": "{{provider}} · {{label}}",
   "settings.usage.quota.no_limits": "Herhangi bir kota sınırı ayarlanmadı",
   "settings.usage.quota.no_limits_description": "Sağlayıcı ayarlarında API anahtarları için istek limitlerini belirleyin.",
+  "settings.usage.quota.pool_source_count": "{{count}} kaynak",
   "settings.usage.quota.remaining": "{{count}} kalan",
   "settings.usage.quota.tier.free": "Ücretsiz",
   "settings.usage.quota.tier.paid": "Ücretli",

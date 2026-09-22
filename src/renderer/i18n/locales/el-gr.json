@@ -1,4 +1,4 @@
-﻿{
+{
   "agent.add.error.failed": "Î‘Ï€Î¿Ï„Ï…Ï‡Î¯Î± Ï€ÏÎ¿ÏƒÎ¸Î®ÎºÎ·Ï‚ Ï€ÏÎ¬ÎºÏ„Î¿ÏÎ±",
   "agent.add.title": "Î ÏÎ¿ÏƒÎ¸Î®ÎºÎ· Agent",
   "agent.askUserQuestion.answered": "Î±Ï€Î±Î½Ï„Î®Î¸Î·ÎºÎµ",
@@ -5203,6 +5203,7 @@
   "settings.usage.quota.key_label": "{{provider}} · {{label}}",
   "settings.usage.quota.no_limits": "Δεν έχουν ρυθμιστεί όρια χρήσης",
   "settings.usage.quota.no_limits_description": "Ορίστε όρια αιτημάτων για κλειδιά API στις ρυθμίσεις παρόχου.",
+  "settings.usage.quota.pool_source_count": "{{count}} πηγή",
   "settings.usage.quota.remaining": "{{count}} απομένει",
   "settings.usage.quota.tier.free": "Δωρεάν",
   "settings.usage.quota.tier.paid": "Πληρωμένο",

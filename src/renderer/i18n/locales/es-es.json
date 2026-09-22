@@ -1,4 +1,4 @@
-﻿{
+{
   "agent.add.error.failed": "Error al añadir agente",
   "agent.add.title": "Agregar Agente",
   "agent.askUserQuestion.answered": "respondido",
@@ -5203,6 +5203,7 @@
   "settings.usage.quota.key_label": "{{provider}} · {{label}}",
   "settings.usage.quota.no_limits": "Sin límites de cuota configurados",
   "settings.usage.quota.no_limits_description": "Establece límites de solicitudes en claves API en la configuración del proveedor.",
+  "settings.usage.quota.pool_source_count": "{{count}} fuente",
   "settings.usage.quota.remaining": "{{count}} restantes",
   "settings.usage.quota.tier.free": "Gratuito",
   "settings.usage.quota.tier.paid": "Pago",

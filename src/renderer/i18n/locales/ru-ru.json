@@ -1,4 +1,4 @@
-﻿{
+{
   "agent.add.error.failed": "ĞĞµ ÑƒĞ´Ğ°Ğ»Ğ¾ÑÑŒ Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ¸Ñ‚ÑŒ Ğ°Ğ³ĞµĞ½Ñ‚Ğ°",
   "agent.add.title": "Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ¸Ñ‚ÑŒ Ğ°Ğ³ĞµĞ½Ñ‚Ğ°",
   "agent.askUserQuestion.answered": "Ğ¾Ñ‚Ğ²ĞµÑ‚Ğ¸Ğ»",
@@ -5203,6 +5203,7 @@
   "settings.usage.quota.key_label": "{{provider}} · {{label}}",
   "settings.usage.quota.no_limits": "Квоты не установлены",
   "settings.usage.quota.no_limits_description": "Установите лимиты запросов для ключей API в настройках поставщика.",
+  "settings.usage.quota.pool_source_count": "{{count}} источник",
   "settings.usage.quota.remaining": "{{count}} осталось",
   "settings.usage.quota.tier.free": "Бесплатно",
   "settings.usage.quota.tier.paid": "Платно",
