@@ -47,7 +47,11 @@ export const AddKnowledgeDocumentsRequestSchema = z
   })
   .superRefine((value, ctx) => {
     const byteLength = value.documents.reduce(
-      (total, document) => total + Buffer.byteLength(document.title) + Buffer.byteLength(document.content),
+      (total, document) =>
+        total +
+        Buffer.byteLength(document.title) +
+        Buffer.byteLength(document.content) +
+        Buffer.byteLength(document.group_id ?? ''),
       0
     )
     if (byteLength > KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES) {

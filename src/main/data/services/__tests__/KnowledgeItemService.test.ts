@@ -112,6 +112,19 @@ describe('KnowledgeItemService', () => {
       })
     })
 
+    it('lists metadata without returning document bodies', async () => {
+      await seedItem({ data: { source: 'joplin:42', content: 'private document body' } })
+
+      const result = service.listMetadata(KNOWLEDGE_BASE_ID, { limit: 20 })
+
+      expect(result.items[0]).toMatchObject({
+        baseId: KNOWLEDGE_BASE_ID,
+        type: 'note',
+        source: 'joplin:42'
+      })
+      expect(result.items[0]).not.toHaveProperty('data')
+    })
+
     it('paginates with a cursor across pages without overlap', async () => {
       await seedItem({ id: ITEM_1_ID, createdAt: 3000, data: { source: 'c', content: 'c' } })
       await seedItem({ id: ITEM_2_ID, createdAt: 2000, data: { source: 'b', content: 'b' } })

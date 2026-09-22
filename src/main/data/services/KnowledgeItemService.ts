@@ -68,6 +68,17 @@ export type DeletingKnowledgeItemRootGroup = {
   rootItemIds: string[]
 }
 
+export type KnowledgeItemMetadata = Pick<
+  KnowledgeItem,
+  'id' | 'baseId' | 'groupId' | 'type' | 'status' | 'error' | 'createdAt' | 'updatedAt'
+> & { source: string }
+
+export type KnowledgeItemMetadataListResponse = {
+  items: KnowledgeItemMetadata[]
+  total: number
+  nextCursor?: string
+}
+
 function rowToKnowledgeItem(row: KnowledgeItemRowLike): KnowledgeItem {
   const data = typeof row.data === 'string' ? (JSON.parse(row.data) as KnowledgeItemData) : row.data
 
@@ -165,6 +176,78 @@ export class KnowledgeItemService {
 
     return {
       items: pageRows.map((row) => rowToKnowledgeItem(row)),
+      total: count,
+      nextCursor:
+        rows.length > limit
+          ? encodeKnowledgeItemListCursor({
+              directoryRank: pageRows[pageRows.length - 1].type === 'directory' ? 0 : 1,
+              createdAt: pageRows[pageRows.length - 1].createdAt,
+              id: pageRows[pageRows.length - 1].id
+            })
+          : undefined
+    }
+  }
+
+  /** List only API-safe metadata, without materializing large document bodies from `data`. */
+  listMetadata(baseId: string, query: ListKnowledgeItemsQuery): KnowledgeItemMetadataListResponse {
+    knowledgeBaseService.getById(baseId)
+    const { limit, type, groupId } = query
+
+    const filterConditions: SQL[] = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
+    if (type !== undefined) filterConditions.push(eq(knowledgeItemTable.type, type))
+    if (groupId !== undefined) {
+      filterConditions.push(
+        groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, groupId)
+      )
+    }
+
+    const directoryRank = sql<number>`case when ${knowledgeItemTable.type} = 'directory' then 0 else 1 end`
+    const conditions = [...filterConditions]
+    const cursor = decodeKnowledgeItemListCursor(query.cursor)
+    if (cursor) {
+      conditions.push(
+        or(
+          gt(directoryRank, cursor.directoryRank),
+          and(eq(directoryRank, cursor.directoryRank), lt(knowledgeItemTable.createdAt, cursor.createdAt)),
+          and(
+            eq(directoryRank, cursor.directoryRank),
+            eq(knowledgeItemTable.createdAt, cursor.createdAt),
+            gt(knowledgeItemTable.id, cursor.id)
+          )
+        )!
+      )
+    }
+
+    const rows = this.db
+      .select({
+        id: knowledgeItemTable.id,
+        baseId: knowledgeItemTable.baseId,
+        groupId: knowledgeItemTable.groupId,
+        type: knowledgeItemTable.type,
+        status: knowledgeItemTable.status,
+        error: knowledgeItemTable.error,
+        createdAt: knowledgeItemTable.createdAt,
+        updatedAt: knowledgeItemTable.updatedAt,
+        source: sql<string>`json_extract(${knowledgeItemTable.data}, '$.source')`
+      })
+      .from(knowledgeItemTable)
+      .where(and(...conditions))
+      .orderBy(asc(directoryRank), desc(knowledgeItemTable.createdAt), asc(knowledgeItemTable.id))
+      .limit(limit + 1)
+      .all()
+    const [{ count }] = this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(knowledgeItemTable)
+      .where(and(...filterConditions))
+      .all()
+    const pageRows = rows.slice(0, limit)
+
+    return {
+      items: pageRows.map((row) => ({
+        ...row,
+        createdAt: timestampToISO(row.createdAt),
+        updatedAt: timestampToISO(row.updatedAt)
+      })),
       total: count,
       nextCursor:
         rows.length > limit

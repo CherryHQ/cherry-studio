@@ -51,7 +51,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 │   ├── responses.ts                 ← POST /v1/responses (OpenAI Responses)
 │   ├── gemini.ts                    ← POST /v1beta/models/{model}:{method}
 │   ├── models.ts                    ← GET  /v1/models
-│   ├── knowledge.ts                 ← GET/POST /v1/knowledge-bases[/search|/:id]
+│   ├── knowledge.ts                 ← knowledge-base CRUD, document add/list/delete/reindex, and search
 │   ├── mcp.ts                       ← MCP catalog + Streamable HTTP proxy
 │   ├── pairing.ts                   ← POST /pair (public LAN pairing bootstrap)
 │   ├── providerExport.ts            ← GET /v1/export/providers (paired-device provider export)

@@ -185,13 +185,13 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   .get(
     '/:id/documents',
     ({ params, query }) => {
-      const page = knowledgeItemService.list(params.id, query)
+      const page = knowledgeItemService.listMetadata(params.id, query)
       const documents = page.items.map((document) => ({
         id: document.id,
         type: document.type,
         status: document.status,
         group_id: document.groupId ?? null,
-        source: document.data.source,
+        source: document.source,
         error: document.error
       }))
       return { documents, total: page.total, next_cursor: page.nextCursor }

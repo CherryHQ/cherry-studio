@@ -13,7 +13,7 @@ import { DataApiError, DataApiErrorFactory } from '@shared/data/api/errors'
 const {
   mockList,
   mockGetById,
-  mockListItems,
+  mockListItemMetadata,
   mockGetItemById,
   mockSearch,
   mockCreateBase,
@@ -24,7 +24,7 @@ const {
 } = vi.hoisted(() => ({
   mockList: vi.fn<(query: unknown) => unknown>(),
   mockGetById: vi.fn<(id: string) => unknown>(),
-  mockListItems: vi.fn<(baseId: string, query: unknown) => unknown>(),
+  mockListItemMetadata: vi.fn<(baseId: string, query: unknown) => unknown>(),
   mockGetItemById: vi.fn<(id: string) => unknown>(),
   mockSearch: vi.fn<(baseId: string, query: string) => Promise<unknown[]>>(),
   mockCreateBase: vi.fn<(input: unknown) => Promise<unknown>>(),
@@ -38,7 +38,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: { list: mockList, getById: mockGetById }
 }))
 vi.mock('@data/services/KnowledgeItemService', () => ({
-  knowledgeItemService: { list: mockListItems, getById: mockGetItemById }
+  knowledgeItemService: { listMetadata: mockListItemMetadata, getById: mockGetItemById }
 }))
 vi.mock('@application', () => ({
   application: {
@@ -152,7 +152,7 @@ describe('knowledge routes (v2)', () => {
   })
 
   it('GET /knowledge-bases/:id/documents returns bounded metadata without document content', async () => {
-    mockListItems.mockReturnValue({
+    mockListItemMetadata.mockReturnValue({
       items: [
         {
           id: 'note-1',
@@ -160,7 +160,7 @@ describe('knowledge routes (v2)', () => {
           type: 'note',
           status: 'completed',
           groupId: null,
-          data: { source: 'joplin:42', content: 'private document body' },
+          source: 'joplin:42',
           error: null
         }
       ],
@@ -171,7 +171,7 @@ describe('knowledge routes (v2)', () => {
     const { status, body } = await call('GET', '/knowledge-bases/kb-1/documents?limit=1&cursor=cursor-1')
 
     expect(status).toBe(200)
-    expect(mockListItems).toHaveBeenCalledWith('kb-1', { limit: 1, cursor: 'cursor-1' })
+    expect(mockListItemMetadata).toHaveBeenCalledWith('kb-1', { limit: 1, cursor: 'cursor-1' })
     expect(body).toEqual({
       documents: [
         {
@@ -210,6 +210,15 @@ describe('knowledge routes (v2)', () => {
         title: `note-${index}`,
         content: '中'.repeat(333_334)
       }))
+    })
+
+    expect(status).toBe(422)
+    expect(mockAddItems).not.toHaveBeenCalled()
+  })
+
+  it('POST /knowledge-bases/:id/documents includes group ids in the UTF-8 aggregate limit', async () => {
+    const { status } = await call('POST', '/knowledge-bases/kb-1/documents', {
+      documents: [{ title: 'note', content: '', group_id: '中'.repeat(3_333_333) }]
     })
 
     expect(status).toBe(422)
