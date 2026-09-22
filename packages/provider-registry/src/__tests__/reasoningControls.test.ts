@@ -109,6 +109,9 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
       ]
     ],
     ['glm-4.6', [{ kind: 'toggle' }]],
+    // MiMo V2.6 UltraSpeed documents the thinking switch; the V2.5 UltraSpeed SKU does not.
+    ['mimo-v2.6-pro-ultraspeed', [{ kind: 'toggle' }]],
+    ['mimo-v2-6-pro-ultraspeed', [{ kind: 'toggle' }]],
     // Xunfei MaaS (iflytek creator) ids — mirror the canonical family knobs.
     ['xopdeepseekv32', [{ kind: 'toggle' }]],
     ['xopdeepseekv4pro', [{ kind: 'effort', values: ['none', 'high', 'max'] }]],
@@ -146,6 +149,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     'grok-4-fast', // the on/off knob is OpenRouter-only, not a model property
     'ling-3.0-flash', // the on/off wire is serving-provider specific
     'minimax-m2.1', // no documented knob
+    'mimo-v2.5-pro-ultraspeed', // 2.5 UltraSpeed ships without the thinking switch
     'kimi-k3.1', // no audited provider wire for future K3 variants
     'kimi-k4', // no audited provider wire for future Kimi generations
     'xopdeepseekv2pro', // Xunfei MaaS pre-v3 deepseek — no knob

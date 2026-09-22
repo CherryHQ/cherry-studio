@@ -12,7 +12,7 @@ import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 
-import ImageBlock from '../blocks/ImageBlock'
+import MessageImageBlock from '../blocks/MessageImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
@@ -374,7 +374,7 @@ const UserBubbleMessage = ({
           {(attachments.images.length > 0 || attachments.files.length > 0) && (
             <div className="flex max-w-full flex-col items-end">
               {attachments.images.length > 0 && (
-                <ImageBlock images={attachments.images} thumbnail className="mb-2 justify-end" />
+                <MessageImageBlock sources={attachments.images} thumbnail className="mb-2 justify-end" />
               )}
               {attachments.files.map((file) => (
                 <MessageAttachments

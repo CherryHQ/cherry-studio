@@ -248,7 +248,10 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '\\bgrok-(?:3-mini|4|4-fast)(?:-[\\w-]+)?\\b' },
   { pattern: 'grok-build' },
   // xiaomi
-  { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)', toggle: true },
+  {
+    pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2[.-]6-(?:flash|pro|pro-ultraspeed)(?!-)|mimo-v2-(?:flash|pro|omni)',
+    toggle: true
+  },
   { pattern: 'mimo-v2[.-]5-pro-ultraspeed' },
   // zhipu
   { pattern: 'glm-5[.-]3(?:-|$)', effort: ['low', 'high', 'max'], toggle: false },
