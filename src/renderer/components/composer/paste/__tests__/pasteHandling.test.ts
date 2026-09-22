@@ -499,6 +499,134 @@ describe('pasteHandling', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
+  it('inserts the absolute path of an unlisted path-backed paste instead of attaching it on the wildcard surface', async () => {
+    vi.mocked(window.api.file.getPathForFile).mockReturnValue('/Users/me/models/model.onnx')
+    const setFiles = vi.fn()
+    const setText = vi.fn()
+    const preventDefault = vi.fn()
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: () => '',
+        files: [{ name: 'model.onnx', type: 'application/octet-stream' } as File]
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png', anyFileExt], setFiles, setText)
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(window.api.file.get).not.toHaveBeenCalled()
+    expect(setText).toHaveBeenCalledWith('/Users/me/models/model.onnx')
+    expect(toast.info).not.toHaveBeenCalled()
+  })
+
+  it('still attaches a listed path-backed file on the wildcard surface', async () => {
+    const supportedFile = {
+      ...selectedFile,
+      id: 'file-wildcard-supported',
+      name: 'shot.png',
+      origin_name: 'shot.png',
+      path: '/tmp/shot.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
+    vi.mocked(window.api.file.get).mockResolvedValue(supportedFile)
+    const clipboardFiles = [{ name: supportedFile.name, type: 'image/png' }] as File[]
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const setText = vi.fn()
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => '', files: clipboardFiles }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png', anyFileExt], setFiles, setText)
+
+    expect(handled).toBe(true)
+    expect(files.map((file) => file.path)).toEqual([supportedFile.path])
+    expect(setText).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
+  })
+
+  it('appends an unlisted path after the existing text while attaching the listed file pasted with it', async () => {
+    const supportedFile = {
+      ...selectedFile,
+      id: 'file-mixed',
+      name: 'a.png',
+      origin_name: 'a.png',
+      path: '/tmp/a.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
+    vi.mocked(window.api.file.get).mockResolvedValue(supportedFile)
+    const clipboardFiles = [
+      { name: supportedFile.name, type: 'image/png' },
+      { name: 'model.onnx', type: 'application/octet-stream' }
+    ] as File[]
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const setText = vi.fn()
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => '', files: clipboardFiles }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.png', anyFileExt],
+      setFiles,
+      setText,
+      undefined,
+      undefined,
+      'summarize '
+    )
+
+    expect(handled).toBe(true)
+    expect(files.map((file) => file.path)).toEqual([supportedFile.path])
+    expect(setText).toHaveBeenCalledWith('summarize \n/tmp/model.onnx')
+  })
+
+  it('inserts the path of an unlisted paste even when the same paste also carries a pathless entry', async () => {
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) =>
+      file.name === 'model.onnx' ? '/Users/me/model.onnx' : ''
+    )
+    const clipboardFiles = [
+      { name: 'note.txt', type: 'text/plain' },
+      { name: 'model.onnx', type: 'application/octet-stream' }
+    ] as File[]
+    const setFiles = vi.fn()
+    const setText = vi.fn()
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => '', files: clipboardFiles }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.png', anyFileExt],
+      setFiles,
+      setText,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (key) => key
+    )
+
+    expect(handled).toBe(true)
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(setText).toHaveBeenCalledWith('/Users/me/model.onnx')
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+  })
+
   describe('handler registration and lifecycle', () => {
     it('registers a handler and allows manual unregistration', () => {
       const handler = vi.fn().mockResolvedValue(true)

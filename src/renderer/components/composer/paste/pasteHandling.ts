@@ -1,7 +1,13 @@
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types/file'
-import { getFileExtension, isSupportedExtension, isSupportedFile, removeFileExtension } from '@renderer/utils/file'
+import {
+  anyFileExt,
+  getFileExtension,
+  isSupportedExtension,
+  isSupportedFile,
+  removeFileExtension
+} from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import { hasSupportedClipboardImage, LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../composerPaste'
@@ -11,12 +17,27 @@ const logger = loggerService.withContext('pasteHandling')
 type PathBackedPasteResult =
   | { kind: 'attachment'; attachment: ComposerAttachment }
   | { kind: 'empty' }
+  | { kind: 'pathReference'; path: string }
   | { kind: 'unsupported' }
+
+// The wildcard surface answers an unlisted paste with the file's absolute path; keep the
+// input content the caller handed us and append the paths after it.
+function insertPathReferences(paths: string[], setText?: (text: string) => void, text?: string): void {
+  if (paths.length === 0 || !setText) return
+  const addition = paths.join('\n')
+  setText(text ? `${text}\n${addition}` : addition)
+}
 
 async function readPathBackedClipboardEntry(
   filePath: string,
   extensionSet: Set<string>
 ): Promise<PathBackedPasteResult> {
+  // A wildcard list accepts everything, but a file no catalog lists is not a presentable
+  // attachment: hand the agent its absolute path instead of copying the bytes into storage.
+  if (extensionSet.has(anyFileExt) && !extensionSet.has(getFileExtension(filePath))) {
+    return { kind: 'pathReference', path: filePath }
+  }
+
   if (!(await isSupportedFile(filePath, extensionSet))) {
     return { kind: 'unsupported' }
   }
@@ -109,6 +130,7 @@ export const handlePaste = async (
             pathBackedEntries.map(({ filePath }) => readPathBackedClipboardEntry(filePath, extensionSet))
           )
           const attachments: ComposerAttachment[] = []
+          const pathReferences: string[] = []
           let hasFileError = false
 
           for (const result of results) {
@@ -119,6 +141,8 @@ export const handlePaste = async (
               if (t) {
                 toast.info(t('chat.input.file_not_supported'))
               }
+            } else if (result.value.kind === 'pathReference') {
+              pathReferences.push(result.value.path)
             } else if (result.value.kind === 'attachment') {
               attachments.push(result.value.attachment)
             }
@@ -127,12 +151,14 @@ export const handlePaste = async (
           if (attachments.length > 0) {
             setFiles((prevFiles) => [...prevFiles, ...attachments])
           }
+          insertPathReferences(pathReferences, setText, text)
           if (hasFileError && t) {
             toast.error(t('chat.input.file_error'))
           }
           return true
         }
 
+        const pathReferences: string[] = []
         for (const { file, filePath } of clipboardEntries) {
           // 如果没有路径，可能是剪贴板中的图像数据
           if (!filePath) {
@@ -164,10 +190,13 @@ export const handlePaste = async (
           const result = await readPathBackedClipboardEntry(filePath, extensionSet)
           if (result.kind === 'attachment') {
             setFiles((prevFiles) => [...prevFiles, result.attachment])
+          } else if (result.kind === 'pathReference') {
+            pathReferences.push(result.path)
           } else if (result.kind === 'unsupported' && t) {
             toast.info(t('chat.input.file_not_supported'))
           }
         }
+        insertPathReferences(pathReferences, setText, text)
       } catch (error) {
         logger.error('onPaste:', error as Error)
         if (t) {
