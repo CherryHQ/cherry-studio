@@ -328,30 +328,26 @@ export class AgentChatContextProvider implements ChatContextProvider {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
-      // Validation crossed an async boundary; recheck both rows so a changed
-      // override or agent default fails closed instead of enqueueing the stale model.
-      const current = agentSessionService.getById(validated.sessionId)
-      if (current.agentId !== validated.agentId || (current.modelId ?? null) !== validated.sessionModelId) {
-        throw DataApiErrorFactory.concurrentModification('Session', validated.sessionId)
-      }
-      const liveAgent = agentService.getAgent(validated.agentId)
-      if (
-        !liveAgent ||
-        liveAgent.updatedAt !== validated.agentUpdatedAt ||
-        (liveAgent.model ?? null) !== validated.agentModel ||
-        liveAgent.type !== validated.agentType
-      ) {
-        throw DataApiErrorFactory.concurrentModification('Agent', validated.agentId)
-      }
-      const savedUserMessage = agentSessionMessageService.saveMessage({
-        sessionId: validated.sessionId,
-        message: {
-          id: validated.userMessageId,
-          role: 'user',
-          status: 'success',
-          data: { parts: validated.userMessageParts }
+      const savedUserMessage = agentSessionMessageService.saveMessage(
+        {
+          sessionId: validated.sessionId,
+          message: {
+            id: validated.userMessageId,
+            role: 'user',
+            status: 'success',
+            data: { parts: validated.userMessageParts }
+          }
+        },
+        {
+          expectedAgent: {
+            id: validated.agentId,
+            updatedAt: validated.agentUpdatedAt,
+            model: validated.agentModel,
+            type: validated.agentType,
+            sessionModelId: validated.sessionModelId
+          }
         }
-      })
+      )
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
         headless: validated.headless,

@@ -22,6 +22,7 @@ import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -70,6 +71,10 @@ export type AddressableAgentSession = {
   agentName: string
   sessionId: string
   sessionName: string
+}
+
+export type SessionModelUpdatedEvent = {
+  sessionId: string
 }
 
 function publishTaskReadModelChanges(taskIds: readonly string[]): void {
@@ -157,6 +162,9 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  private readonly _onSessionModelUpdated = new Emitter<SessionModelUpdatedEvent>()
+  readonly onSessionModelUpdated: Event<SessionModelUpdatedEvent> = this._onSessionModelUpdated.event
+
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length > 0) notifyDataApiDataChange(effects)
@@ -867,6 +875,7 @@ export class AgentSessionService {
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection')
+    if (dto.modelId !== undefined) this._onSessionModelUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
 
