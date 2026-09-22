@@ -47,7 +47,7 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', '[']
+      defaultBinding: { default: ['CommandOrControl', '['], darwin: ['CommandOrControl', 'Alt', '['] }
     }
   }),
   defineCommand({
@@ -244,7 +244,7 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', ']']
+      defaultBinding: { default: ['CommandOrControl', ']'], darwin: ['CommandOrControl', 'Alt', ']'] }
     }
   }),
   defineCommand({
@@ -253,9 +253,7 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      // Cmd+[ / Cmd+] are already left/right sidebar toggles; Alt+arrows avoid that clash
-      // and match the usual Win/Linux browser back/forward chord on every platform.
-      defaultBinding: ['Alt', 'Left'],
+      defaultBinding: { default: ['Alt', 'Left'], darwin: ['CommandOrControl', '['] },
       when: '!webview.focused'
     }
   }),
@@ -265,7 +263,7 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['Alt', 'Right'],
+      defaultBinding: { default: ['Alt', 'Right'], darwin: ['CommandOrControl', ']'] },
       when: '!webview.focused'
     }
   }),

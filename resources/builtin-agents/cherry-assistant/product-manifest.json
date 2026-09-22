@@ -146,10 +146,17 @@
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
       "keybinding": {
-        "defaultBinding": [
-          "CommandOrControl",
-          "["
-        ]
+        "defaultBinding": {
+          "default": [
+            "CommandOrControl",
+            "["
+          ],
+          "darwin": [
+            "CommandOrControl",
+            "Alt",
+            "["
+          ]
+        }
       }
     },
     {
@@ -419,10 +426,17 @@
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
       "keybinding": {
-        "defaultBinding": [
-          "CommandOrControl",
-          "]"
-        ]
+        "defaultBinding": {
+          "default": [
+            "CommandOrControl",
+            "]"
+          ],
+          "darwin": [
+            "CommandOrControl",
+            "Alt",
+            "]"
+          ]
+        }
       }
     },
     {
@@ -431,10 +445,16 @@
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
       "keybinding": {
-        "defaultBinding": [
-          "Alt",
-          "Left"
-        ],
+        "defaultBinding": {
+          "default": [
+            "Alt",
+            "Left"
+          ],
+          "darwin": [
+            "CommandOrControl",
+            "["
+          ]
+        },
         "when": "!webview.focused"
       }
     },
@@ -444,10 +464,16 @@
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
       "keybinding": {
-        "defaultBinding": [
-          "Alt",
-          "Right"
-        ],
+        "defaultBinding": {
+          "default": [
+            "Alt",
+            "Right"
+          ],
+          "darwin": [
+            "CommandOrControl",
+            "]"
+          ]
+        },
         "when": "!webview.focused"
       }
     },

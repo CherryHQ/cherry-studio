@@ -23,6 +23,8 @@ vi.mock('@data/hooks/usePreference', () => ({
   useMultiplePreferences: () => [preferenceValues, vi.fn()]
 }))
 
+vi.mock('@renderer/utils/platform', () => ({ platform: 'darwin' }))
+
 import { useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
 
 import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
@@ -62,7 +64,7 @@ function dispatchShortcut(init: KeyboardEventInit) {
   const event = new KeyboardEvent('keydown', {
     key: 'n',
     code: 'KeyN',
-    ctrlKey: true,
+    metaKey: true,
     cancelable: true,
     ...init
   })
@@ -194,11 +196,31 @@ describe('CommandProvider', () => {
     fireEvent.keyDown(screen.getByTestId('editable'), {
       key: 'n',
       code: 'KeyN',
-      ctrlKey: true,
+      metaKey: true,
       cancelable: true
     })
 
     expect(onExecute).toHaveBeenCalledOnce()
+  })
+
+  it('leaves macOS word navigation in an input intact while Cmd+[ navigates tab history', () => {
+    const goBack = vi.fn()
+    const toggleSidebar = vi.fn()
+    renderProvider(
+      <>
+        <RegisteredCommand command="tab.history.back" onExecute={goBack} />
+        <RegisteredCommand command="app.sidebar.toggle" onExecute={toggleSidebar} />
+        <input aria-label="Editor" />
+      </>
+    )
+
+    const input = screen.getByRole('textbox', { name: 'Editor' })
+    expect(fireEvent.keyDown(input, { key: 'ArrowLeft', code: 'ArrowLeft', altKey: true, cancelable: true })).toBe(true)
+    expect(goBack).not.toHaveBeenCalled()
+
+    expect(fireEvent.keyDown(input, { key: '[', code: 'BracketLeft', metaKey: true, cancelable: true })).toBe(false)
+    expect(goBack).toHaveBeenCalledOnce()
+    expect(toggleSidebar).not.toHaveBeenCalled()
   })
 
   it('warns when executing a command without an active handler', () => {

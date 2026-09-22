@@ -192,6 +192,40 @@ describe('command shortcut preferences', () => {
     })
   })
 
+  it('uses native history shortcuts on macOS without conflicting with sidebar toggles', () => {
+    expect(getCommandDefaultShortcutPreference('tab.history.back', 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      '['
+    ])
+    expect(getCommandDefaultShortcutPreference('tab.history.forward', 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      ']'
+    ])
+
+    for (const command of ['tab.history.back', 'tab.history.forward'] as const) {
+      const preference = getCommandDefaultShortcutPreference(command, 'darwin')!
+      expect(findKeybindingConflicts({ command, preference, platform: 'darwin' })).toEqual([])
+    }
+
+    expect(getCommandDefaultShortcutPreference('tab.history.back', 'win32')?.binding).toEqual(['Alt', 'Left'])
+    expect(getCommandDefaultShortcutPreference('tab.history.forward', 'linux')?.binding).toEqual(['Alt', 'Right'])
+  })
+
+  it('resolves hydrated macOS defaults but leaves Option+arrows for native word navigation', () => {
+    const preferences = {
+      'tab.history.back': DefaultPreferences.default['shortcut.tab.history.back'],
+      'tab.history.forward': DefaultPreferences.default['shortcut.tab.history.forward'],
+      'app.sidebar.toggle': DefaultPreferences.default['shortcut.app.sidebar.toggle'],
+      'topic.sidebar.toggle': DefaultPreferences.default['shortcut.topic.sidebar.toggle']
+    }
+    const options = { preferences, context: {}, platform: 'darwin' as const, scope: 'renderer' as const }
+
+    expect(resolveCommandByKeybinding({ ...options, binding: ['Alt', 'Left'] })).toBeUndefined()
+    expect(resolveCommandByKeybinding({ ...options, binding: ['Alt', 'Right'] })).toBeUndefined()
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', '['] })).toBe('tab.history.back')
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', ']'] })).toBe('tab.history.forward')
+  })
+
   it('applies the platform default to preferences hydrated from the schema default', () => {
     // usePreference never yields undefined: unset keys arrive as the schema default.
     expect(
