@@ -3,7 +3,7 @@ import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { DataApiDataChangeEffect, DataRequest, DataResponse } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
@@ -254,7 +254,7 @@ const api = {
   },
   // Data API related APIs
   dataApi: {
-    request: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
+    request: (req: DataRequest): Promise<DataResponse<unknown>> => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
     // DataApi data change notifications: single fixed channel, main → all windows.
     onDataChanged: (callback: (effects: DataApiDataChangeEffect[]) => void) => {
       const listener = (_: any, effects: DataApiDataChangeEffect[]) => callback(effects)
