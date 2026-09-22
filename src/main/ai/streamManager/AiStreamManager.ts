@@ -1429,6 +1429,9 @@ export class AiStreamManager extends BaseService {
     if ((exec.pendingApprovalToolCallIds?.size ?? 0) === 0) {
       exec.runtimeTiming.closeOpenSpans()
       exec.runtimeTiming.complete()
+      // DSML fragments can end with `tool-input-end` but no `tool-output-*`; no
+      // more chunks will arrive for this execution, so release any stale pins.
+      exec.openToolInputIds?.clear()
     }
     endRootSpan(exec, 'ok')
 
@@ -1494,6 +1497,7 @@ export class AiStreamManager extends BaseService {
     exec.pendingApprovalToolCallIds?.clear()
     exec.runtimeTiming.closeOpenSpans()
     exec.runtimeTiming.complete()
+    exec.openToolInputIds?.clear()
 
     endRootSpan(exec, 'aborted')
     stream.status = this.resolveTerminalStatus(stream)
@@ -1544,6 +1548,7 @@ export class AiStreamManager extends BaseService {
     exec.pendingApprovalToolCallIds?.clear()
     exec.runtimeTiming.closeOpenSpans()
     exec.runtimeTiming.complete()
+    exec.openToolInputIds?.clear()
 
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)

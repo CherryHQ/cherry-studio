@@ -2287,6 +2287,57 @@ describe('AiStreamManager', () => {
       expect(response.bufferedChunks.some(({ chunk }) => chunk.type === 'tool-output-available')).toBe(true)
     })
 
+    it('keeps the tool opener pinned through legacy tool-input-end while the execution is still streaming', () => {
+      // Releasing on `tool-input-end` alone would break live tools that still
+      // need their opener until `tool-output-*` arrives.
+      const ringMgr = createManager({ maxBufferChunks: 2 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'tc1',
+        toolName: 'grep'
+      })
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-end',
+        toolCallId: 'tc1'
+      } as UIMessageChunk)
+
+      expect(ringMgr.inspect('a')!.executions[0].openToolInputCount).toBe(1)
+    })
+
+    it('releases tool opener pins when a DSML fragment turn ends without terminal output', async () => {
+      // Regression: DSML markup that never executes emits `tool-input-start` →
+      // `tool-input-end` with no `tool-output-*`, leaving a permanent pin that
+      // blocks ring eviction for the rest of the execution.
+      const ringMgr = createManager({ maxBufferChunks: 2 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'tc1',
+        toolName: 'grep'
+      })
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-end',
+        toolCallId: 'tc1'
+      } as UIMessageChunk)
+      expect(ringMgr.inspect('a')!.executions[0].openToolInputCount).toBe(1)
+
+      await ringMgr.onExecutionDone('a', 'provider-a::model-a')
+      expect(ringMgr.inspect('a')!.executions[0].openToolInputCount).toBe(0)
+    })
+
     it('replays a post-eviction buffer that the real readUIMessageStream accepts', async () => {
       // Regression for "replay has gaps due to buffer overflow": when the ring
       // evicts a part's opening chunk, the attach replay must still parse
