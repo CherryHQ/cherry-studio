@@ -1082,6 +1082,37 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemSetSubtreeStatusTxMock).toHaveBeenCalledWith(expect.anything(), 'kb-1', ['note-1'], 'deleting')
   })
 
+  it('reports current item states for detailed add admission without changing the legacy add result', async () => {
+    const service = new KnowledgeService()
+    const inputs = [
+      { type: 'note' as const, data: { source: 'note-1', content: 'hello 1' } },
+      { type: 'note' as const, data: { source: 'note-2', content: 'hello 2' } }
+    ]
+
+    await expect(service.addItemsWithAdmission('kb-1', inputs)).resolves.toEqual({
+      status: 'accepted',
+      items: [
+        { id: 'note-1', status: 'processing', error: null },
+        { id: 'note-2', status: 'processing', error: null }
+      ]
+    })
+
+    vi.clearAllMocks()
+    await expect(service.addItems('kb-1', inputs)).resolves.toEqual({ status: 'added' })
+  })
+
+  it('rejects cross-base delete and reindex in the workflow before deriving roots or enqueueing work', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1', 'kb-2'))
+
+    await expect(service.deleteItems('kb-1', ['note-1'])).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(service.reindexItems('kb-1', ['note-1'])).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+    expect(knowledgeItemGetOutermostSelectedItemIdsMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(enqueueTxMock).not.toHaveBeenCalled()
+  })
+
   describe('enableEmbeddingModel', () => {
     it('sets the model with the backfill bypass and reindexes every existing root item', async () => {
       const service = new KnowledgeService()
@@ -1773,6 +1804,30 @@ describe('KnowledgeService', () => {
       error: 'Failed to schedule knowledge item job: enqueue failed'
     })
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalledWith('kb-1', ['note-1'], 'failed', expect.anything())
+  })
+
+  it('returns item-level reconciliation details when detailed add scheduling partially fails', async () => {
+    const service = new KnowledgeService()
+    enqueueMock
+      .mockReturnValueOnce({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
+      .mockImplementationOnce(() => {
+        throw new Error('enqueue failed')
+      })
+
+    await expect(
+      service.addItemsWithAdmission('kb-1', [
+        { type: 'note', data: { source: 'note-1', content: 'hello 1' } },
+        { type: 'note', data: { source: 'note-2', content: 'hello 2' } }
+      ])
+    ).rejects.toMatchObject({
+      code: ErrorCode.SERVICE_UNAVAILABLE,
+      details: {
+        documents: [
+          { id: 'note-1', status: 'processing', error: null },
+          { id: 'note-2', status: 'failed', error: 'Failed to schedule knowledge item job' }
+        ]
+      }
+    })
   })
 
   it('rolls back already-created addItems rows when a later create fails mid-batch', async () => {

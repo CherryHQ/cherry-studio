@@ -17,6 +17,8 @@ import {
   KnowledgeBaseResponseSchema,
   KnowledgeDocumentIdParamSchema,
   KnowledgeDocumentsQuerySchema,
+  KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES,
+  KnowledgeDocumentsPayloadTooLargeResponseSchema,
   KnowledgeSearchSchema,
   ListKnowledgeDocumentsResponseSchema,
   ListKnowledgeBasesResponseSchema,
@@ -209,9 +211,9 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   )
   .post(
     '/:id/documents',
-    async ({ params, body }) => {
+    async ({ params, body, status }) => {
       const orchestrator = application.get('KnowledgeService')
-      const result = await orchestrator.addItems(
+      const result = await orchestrator.addItemsWithAdmission(
         params.id,
         body.documents.map((document) => ({
           type: 'note' as const,
@@ -220,15 +222,57 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
         })),
         'rename'
       )
-      if (result.status !== 'added') {
+      if (result.status !== 'accepted') {
         throw new Error('Rename conflict strategy unexpectedly returned conflicts')
       }
-      return result
+      return status(202, {
+        status: 'accepted' as const,
+        documents: result.items.map((item) => ({
+          id: item.id,
+          status: item.status,
+          error: item.error
+        }))
+      })
     },
     {
       params: KnowledgeBaseIdParamSchema,
       body: AddKnowledgeDocumentsRequestSchema,
-      response: { 200: AddKnowledgeDocumentsResponseSchema },
+      response: {
+        202: AddKnowledgeDocumentsResponseSchema,
+        413: KnowledgeDocumentsPayloadTooLargeResponseSchema
+      },
+      parse: [
+        async ({ request, contentType, set, status }) => {
+          const reader = request.body?.getReader()
+          if (!reader) return undefined
+
+          const chunks: Uint8Array[] = []
+          let size = 0
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              size += value.byteLength
+              if (size > KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES) {
+                set.headers.connection = 'close'
+                throw status(413, {
+                  error: {
+                    code: 'PAYLOAD_TOO_LARGE',
+                    message: `Knowledge document request body exceeds ${KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES} bytes`
+                  }
+                })
+              }
+              chunks.push(value)
+            }
+          } finally {
+            reader.releaseLock()
+          }
+
+          const requestBody = Buffer.concat(chunks, size).toString('utf8')
+          return contentType === 'application/json' ? JSON.parse(requestBody) : requestBody
+        },
+        'json'
+      ],
       detail: {
         tags: [DOC_TAGS.cherry],
         summary: 'Add Raw-Text Documents',
@@ -239,10 +283,6 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   .delete(
     '/:id/documents/:documentId',
     async ({ params, status }) => {
-      const document = knowledgeItemService.getById(params.documentId)
-      if (document.baseId !== params.id) {
-        throw DataApiErrorFactory.notFound('KnowledgeItem', params.documentId)
-      }
       const orchestrator = application.get('KnowledgeService')
       await orchestrator.deleteItems(params.id, [params.documentId])
       return status(202, { status: 'queued' as const })
@@ -260,10 +300,6 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   .post(
     '/:id/documents/:documentId/reindex',
     async ({ params, status }) => {
-      const document = knowledgeItemService.getById(params.documentId)
-      if (document.baseId !== params.id) {
-        throw DataApiErrorFactory.notFound('KnowledgeItem', params.documentId)
-      }
       const orchestrator = application.get('KnowledgeService')
       await orchestrator.reindexItems(params.id, [params.documentId])
       return status(202, { status: 'queued' as const })

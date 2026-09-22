@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DataApiError, DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 
 /**
  * Exercises the knowledge routes through a wrapper app that includes the real
@@ -14,22 +14,20 @@ const {
   mockList,
   mockGetById,
   mockListItemMetadata,
-  mockGetItemById,
   mockSearch,
   mockCreateBase,
   mockDeleteBase,
-  mockAddItems,
+  mockAddItemsWithAdmission,
   mockDeleteItems,
   mockReindexItems
 } = vi.hoisted(() => ({
   mockList: vi.fn<(query: unknown) => unknown>(),
   mockGetById: vi.fn<(id: string) => unknown>(),
   mockListItemMetadata: vi.fn<(baseId: string, query: unknown) => unknown>(),
-  mockGetItemById: vi.fn<(id: string) => unknown>(),
   mockSearch: vi.fn<(baseId: string, query: string) => Promise<unknown[]>>(),
   mockCreateBase: vi.fn<(input: unknown) => Promise<unknown>>(),
   mockDeleteBase: vi.fn<(baseId: string) => Promise<void>>(),
-  mockAddItems: vi.fn<(baseId: string, items: unknown[]) => Promise<unknown>>(),
+  mockAddItemsWithAdmission: vi.fn<(baseId: string, items: unknown[]) => Promise<unknown>>(),
   mockDeleteItems: vi.fn<(baseId: string, itemIds: string[]) => Promise<void>>(),
   mockReindexItems: vi.fn<(baseId: string, itemIds: string[]) => Promise<void>>()
 }))
@@ -38,7 +36,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: { list: mockList, getById: mockGetById }
 }))
 vi.mock('@data/services/KnowledgeItemService', () => ({
-  knowledgeItemService: { listMetadata: mockListItemMetadata, getById: mockGetItemById }
+  knowledgeItemService: { listMetadata: mockListItemMetadata }
 }))
 vi.mock('@application', () => ({
   application: {
@@ -46,7 +44,7 @@ vi.mock('@application', () => ({
       search: mockSearch,
       createBase: mockCreateBase,
       deleteBase: mockDeleteBase,
-      addItems: mockAddItems,
+      addItemsWithAdmission: mockAddItemsWithAdmission,
       deleteItems: mockDeleteItems,
       reindexItems: mockReindexItems
     }))
@@ -56,10 +54,10 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() })) }
 }))
 
-import { restErrorHandler } from '../../errors'
+import { gatewayErrorHandler } from '../../errors'
 import { knowledgeRoutes } from '../knowledge'
 
-const app = new Elysia().error({ DATA_API: DataApiError }).onError(restErrorHandler).use(knowledgeRoutes)
+const app = new Elysia().error({ DATA_API: DataApiError }).onError(gatewayErrorHandler).use(knowledgeRoutes)
 
 const kb = (id: string, name: string) => ({
   id,
@@ -90,7 +88,6 @@ async function call(method: string, path: string, body?: unknown): Promise<{ sta
 describe('knowledge routes (v2)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetItemById.mockReturnValue({ id: 'note-1', baseId: 'kb-1' })
   })
 
   it('GET /knowledge-bases applies a true offset/limit window', async () => {
@@ -189,22 +186,28 @@ describe('knowledge routes (v2)', () => {
   })
 
   it('POST /knowledge-bases/:id/documents adds raw text through the durable workflow', async () => {
-    mockAddItems.mockResolvedValue({ status: 'added' })
+    mockAddItemsWithAdmission.mockResolvedValue({
+      status: 'accepted',
+      items: [{ id: 'note-1', status: 'processing', error: null }]
+    })
 
     const { status, body } = await call('POST', '/knowledge-bases/kb-1/documents', {
       documents: [{ title: 'joplin:42', content: '# Updated', group_id: 'folder-1' }]
     })
 
-    expect(status).toBe(200)
-    expect(mockAddItems).toHaveBeenCalledWith(
+    expect(status).toBe(202)
+    expect(mockAddItemsWithAdmission).toHaveBeenCalledWith(
       'kb-1',
       [{ type: 'note', groupId: 'folder-1', data: { source: 'joplin:42', content: '# Updated' } }],
       'rename'
     )
-    expect(body).toEqual({ status: 'added' })
+    expect(body).toEqual({
+      status: 'accepted',
+      documents: [{ id: 'note-1', status: 'processing', error: null }]
+    })
   })
 
-  it('POST /knowledge-bases/:id/documents rejects an oversized UTF-8 aggregate', async () => {
+  it('POST /knowledge-bases/:id/documents rejects an oversized body before JSON parsing', async () => {
     const { status } = await call('POST', '/knowledge-bases/kb-1/documents', {
       documents: Array.from({ length: 11 }, (_, index) => ({
         title: `note-${index}`,
@@ -212,8 +215,8 @@ describe('knowledge routes (v2)', () => {
       }))
     })
 
-    expect(status).toBe(422)
-    expect(mockAddItems).not.toHaveBeenCalled()
+    expect(status).toBe(413)
+    expect(mockAddItemsWithAdmission).not.toHaveBeenCalled()
   })
 
   it('POST /knowledge-bases/:id/documents includes group ids in the UTF-8 aggregate limit', async () => {
@@ -221,8 +224,32 @@ describe('knowledge routes (v2)', () => {
       documents: [{ title: 'note', content: '', group_id: '中'.repeat(3_333_333) }]
     })
 
-    expect(status).toBe(422)
-    expect(mockAddItems).not.toHaveBeenCalled()
+    expect(status).toBe(413)
+    expect(mockAddItemsWithAdmission).not.toHaveBeenCalled()
+  })
+
+  it('POST /knowledge-bases/:id/documents exposes item reconciliation when scheduling fails', async () => {
+    mockAddItemsWithAdmission.mockRejectedValue(
+      new DataApiError(ErrorCode.SERVICE_UNAVAILABLE, 'Some documents could not be queued for indexing', 503, {
+        documents: [
+          { id: 'note-1', status: 'processing', error: null },
+          { id: 'note-2', status: 'failed', error: 'Failed to schedule knowledge item job' }
+        ]
+      })
+    )
+
+    const { status, body } = await call('POST', '/knowledge-bases/kb-1/documents', {
+      documents: [
+        { title: 'note-1', content: 'one' },
+        { title: 'note-2', content: 'two' }
+      ]
+    })
+
+    expect(status).toBe(503)
+    expect(body.error.details.documents).toEqual([
+      { id: 'note-1', status: 'processing', error: null },
+      { id: 'note-2', status: 'failed', error: 'Failed to schedule knowledge item job' }
+    ])
   })
 
   it('DELETE /knowledge-bases/:id/documents/:documentId delegates subtree deletion', async () => {
@@ -241,16 +268,17 @@ describe('knowledge routes (v2)', () => {
     expect(body).toEqual({ status: 'queued' })
   })
 
-  it('rejects document operations when the document belongs to another knowledge base', async () => {
-    mockGetItemById.mockReturnValue({ id: 'note-1', baseId: 'kb-2' })
+  it('preserves workflow ownership errors for document operations', async () => {
+    mockDeleteItems.mockRejectedValue(DataApiErrorFactory.notFound('KnowledgeItem', 'note-1'))
+    mockReindexItems.mockRejectedValue(DataApiErrorFactory.notFound('KnowledgeItem', 'note-1'))
 
     const deletion = await call('DELETE', '/knowledge-bases/kb-1/documents/note-1')
     const reindex = await call('POST', '/knowledge-bases/kb-1/documents/note-1/reindex')
 
     expect(deletion.status).toBe(404)
     expect(reindex.status).toBe(404)
-    expect(mockDeleteItems).not.toHaveBeenCalled()
-    expect(mockReindexItems).not.toHaveBeenCalled()
+    expect(mockDeleteItems).toHaveBeenCalledWith('kb-1', ['note-1'])
+    expect(mockReindexItems).toHaveBeenCalledWith('kb-1', ['note-1'])
   })
 
   it('DELETE /knowledge-bases/:id delegates base and artifact cleanup', async () => {

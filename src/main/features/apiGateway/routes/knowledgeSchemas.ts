@@ -1,6 +1,10 @@
 import * as z from 'zod'
 
-import { KNOWLEDGE_NOTE_CONTENT_MAX, KNOWLEDGE_RUNTIME_ITEMS_MAX } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_NOTE_CONTENT_MAX,
+  KNOWLEDGE_RUNTIME_ITEMS_MAX,
+  KnowledgeItemStatusSchema
+} from '@shared/data/types/knowledge'
 
 /**
  * Request and response schemas for the knowledge routes. Request schemas validate
@@ -126,7 +130,23 @@ export const ListKnowledgeDocumentsResponseSchema = z.object({
   next_cursor: z.string().optional()
 })
 
-export const AddKnowledgeDocumentsResponseSchema = z.object({ status: z.literal('added') })
+export const AddKnowledgeDocumentsResponseSchema = z.object({
+  status: z.literal('accepted'),
+  documents: z.array(
+    z.object({
+      id: z.string(),
+      status: KnowledgeItemStatusSchema,
+      error: z.string().nullable()
+    })
+  )
+})
+
+export const KnowledgeDocumentsPayloadTooLargeResponseSchema = z.object({
+  error: z.object({
+    code: z.literal('PAYLOAD_TOO_LARGE'),
+    message: z.string()
+  })
+})
 
 export const DeleteKnowledgeDocumentResponseSchema = z.object({ status: z.literal('queued') })
 export const ReindexKnowledgeDocumentResponseSchema = z.object({ status: z.literal('queued') })

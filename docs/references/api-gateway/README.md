@@ -131,6 +131,12 @@ guard, described below.
 | `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | initialize/session request or sessionless one-shot JSON-RPC |
 | `GET /v1/export/providers` | Cherry mobile export | enabled providers + enabled credentials/models; paired-device Bearer token only |
 
+Raw-text document adds cap the request stream at 10,000,000 bytes before JSON
+parsing. A successful add returns `202 Accepted` with each created document's ID
+and current workflow status; indexing continues asynchronously. If queue admission
+fails after some rows were created, the `503` error's `details.documents` contains
+the current status of every created row so clients can reconcile the partial batch.
+
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
 
