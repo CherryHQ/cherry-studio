@@ -97,6 +97,7 @@
       "/settings/mcp/npx-search",
       "/settings/mcp/servers",
       "/settings/scheduled-tasks/$taskId",
+      "/settings/skills/$skillId",
       "/app/mini-app",
       "/app/paintings",
       "/settings/mcp/settings/$serverId"
