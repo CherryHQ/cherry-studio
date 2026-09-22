@@ -1,10 +1,11 @@
-import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import { Blocks, Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import { MousePointer2 } from 'lucide-react'
 import {
   type ComponentType,
+  type MouseEventHandler,
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
-  type MouseEventHandler,
   type ReactNode,
   useCallback,
   useEffect,
@@ -56,7 +57,9 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   knowledge: <Boxes className={tokenIconClassName} />,
   reference: <MessagesSquare className={tokenIconClassName} />,
   quote: <TextQuote className={tokenIconClassName} />,
-  promptVariable: <BracesVariableIcon className={tokenIconClassName} />
+  webviewAnnotation: <MousePointer2 className={tokenIconClassName} />,
+  promptVariable: <BracesVariableIcon className={tokenIconClassName} />,
+  messagePart: <Blocks className={tokenIconClassName} />
 }
 
 function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
@@ -94,6 +97,7 @@ interface ActiveComposerTokenProps extends ComposerTokenProps {
   /** Set when a richer hover surface (NormalTooltip) wraps the chip, so the native title would double up. */
   hideNativeTitle?: boolean
   interactionProps?: {
+    href?: string
     role: 'link'
     tabIndex: number
     'aria-label': string
@@ -125,7 +129,7 @@ function InlineTokenRemoveButton({
       title={label}
       data-composer-token-remove=""
       className={cn(
-        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 text-current leading-none opacity-0 outline-none transition-opacity',
+        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 leading-none text-current opacity-0 transition-opacity outline-none',
         'hover:opacity-100',
         'focus-visible:pointer-events-auto focus-visible:opacity-100',
         'group-focus-within/composer-token:pointer-events-auto group-focus-within/composer-token:opacity-100 group-hover/composer-token:pointer-events-auto group-hover/composer-token:opacity-100',
@@ -214,11 +218,12 @@ function renderActiveComposerTokenElement({
 }: ActiveComposerTokenProps) {
   const title =
     hideNativeTitle || token.kind === 'quote' ? undefined : (token.description ?? token.promptText ?? token.label)
+  const Element = interactionProps?.href ? 'a' : 'span'
 
   return (
-    <span
+    <Element
       className={cn(
-        'group/composer-token mx-0.5 inline-flex select-none items-baseline gap-1 align-baseline leading-[inherit]',
+        'group/composer-token mx-0.5 inline-flex items-baseline gap-1 align-baseline leading-[inherit] select-none',
         maxWidthClassName,
         colorClassName,
         readOnly && 'focus-visible:underline focus-visible:underline-offset-2 focus-visible:outline-none',
@@ -229,7 +234,7 @@ function renderActiveComposerTokenElement({
       data-composer-token-kind={token.kind}
       onMouseDown={onMouseDown}
       {...interactionProps}>
-      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline text-current leading-[inherit]">
+      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline leading-[inherit] text-current">
         <InlineTokenIconSlot
           icon={token.icon ? token.icon : icon}
           removeLabel={removeLabel}
@@ -238,7 +243,7 @@ function renderActiveComposerTokenElement({
         />
       </span>
       {children ?? <span className="min-w-0 truncate">{token.label}</span>}
-    </span>
+    </Element>
   )
 }
 
@@ -294,6 +299,7 @@ export function LinkComposerToken(props: ComposerTokenProps) {
     children: <span className="min-w-0 truncate">{link.label}</span>,
     hideNativeTitle: true,
     interactionProps: {
+      href: props.readOnly ? link.url : undefined,
       role: 'link',
       tabIndex: 0,
       'aria-label': link.url,
@@ -404,12 +410,12 @@ function PastedTextTokenPreviewCard({
   return (
     <div className="w-80 overflow-hidden text-left">
       <Scrollbar className="max-h-44 min-h-24 overflow-x-hidden bg-muted/50" data-file-token-text-scrollbar="">
-        <pre className="m-0 whitespace-pre-wrap break-words p-3 font-[inherit] text-popover-foreground text-xs leading-5">
+        <pre className="m-0 p-3 font-[inherit] text-xs leading-5 break-words whitespace-pre-wrap text-popover-foreground">
           {previewText}
         </pre>
       </Scrollbar>
       {secondaryAction && (
-        <div className="flex justify-end border-border-subtle border-t p-2" data-file-token-actions="">
+        <div className="flex justify-end border-t border-border-subtle p-2" data-file-token-actions="">
           {secondaryAction}
         </div>
       )}
@@ -463,7 +469,7 @@ function FileTokenPreviewCard({
   if (hasFailedPreview) {
     return (
       <div
-        className="bg-muted px-5 py-4 text-center text-muted-foreground text-sm"
+        className="text-muted-foreground bg-muted px-5 py-4 text-center text-sm"
         data-file-token-image-preview-error="">
         {t('chat.input.image_preview_failed')}
       </div>
@@ -486,9 +492,9 @@ function FileTokenPreviewCard({
           className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1"
           data-file-token-actions={hasActions ? '' : undefined}>
           <div className="flex h-6 min-w-0 items-center">
-            <span className="truncate font-semibold text-popover-foreground text-sm leading-5">{label}</span>
+            <span className="truncate text-sm leading-5 font-semibold text-popover-foreground">{label}</span>
           </div>
-          <div className="flex min-h-4 min-w-0 items-center gap-1.5 text-muted-foreground text-xs leading-4">
+          <div className="text-muted-foreground flex min-h-4 min-w-0 items-center gap-1.5 text-xs leading-4">
             <span className="shrink-0 font-medium uppercase">{presentation.typeLabel}</span>
             {sizeLabel && (
               <>
@@ -786,7 +792,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[1.4] transition-[color,box-shadow,border-color]',
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle text-xs leading-[1.4] font-medium text-foreground transition-[color,box-shadow,border-color] select-none',
         'group-focus-visible:border-primary',
         (props.readOnly || canOpenFilePreview) && 'focus-visible:border-primary focus-visible:outline-none',
         canOpenFilePreview && 'cursor-pointer',
@@ -806,7 +812,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       <span
         className={cn(
           'inline-flex size-4.5 shrink-0 items-center justify-center overflow-hidden rounded-[5px] border-0 leading-none',
-          shouldUseNeutralImageIcon ? 'bg-accent text-muted-foreground' : presentation.iconClassName
+          shouldUseNeutralImageIcon ? 'text-muted-foreground bg-accent' : presentation.iconClassName
         )}
         data-file-token-icon={presentation.variant}>
         <InlineTokenIconSlot
@@ -819,7 +825,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
         />
       </span>
       {props.children ?? (
-        <span className={cn('whitespace-nowrap! min-w-0 max-w-full truncate break-normal', props.maxWidthClassName)}>
+        <span className={cn('max-w-full min-w-0 truncate break-normal whitespace-nowrap!', props.maxWidthClassName)}>
           {label}
         </span>
       )}
@@ -887,7 +893,7 @@ export function FolderComposerToken(props: ComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline text-xs leading-[inherit] font-medium text-foreground transition-[color,box-shadow,border-color] select-none',
         'group-focus-visible:border-primary',
         props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
         'border-border bg-background hover:bg-accent',
@@ -898,7 +904,7 @@ export function FolderComposerToken(props: ComposerTokenProps) {
       data-composer-token-kind={props.token.kind}
       onMouseDown={props.onMouseDown}>
       <span
-        className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 bg-accent text-muted-foreground leading-none"
+        className="text-muted-foreground inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 bg-accent leading-none"
         data-folder-token-icon="">
         <InlineTokenIconSlot
           icon={props.token.icon ? props.token.icon : <Folder className={tokenIconClassName} aria-hidden />}
@@ -909,7 +915,7 @@ export function FolderComposerToken(props: ComposerTokenProps) {
         />
       </span>
       {props.children ?? (
-        <span className={cn('whitespace-nowrap! min-w-0 max-w-full truncate break-normal', props.maxWidthClassName)}>
+        <span className={cn('max-w-full min-w-0 truncate break-normal whitespace-nowrap!', props.maxWidthClassName)}>
           {props.token.label}
         </span>
       )}
@@ -931,10 +937,52 @@ export function FolderComposerToken(props: ComposerTokenProps) {
 }
 
 export function KnowledgeComposerToken(props: ComposerTokenProps) {
-  return renderActiveComposerTokenElement({
-    ...props,
-    icon: tokenIconByKind.knowledge
-  })
+  const removeLabel = props.removeLabel ?? 'Remove'
+
+  const chipElement = (
+    <span
+      className={cn(
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline text-xs leading-[inherit] font-medium text-foreground transition-[color,box-shadow,border-color] select-none',
+        'group-focus-visible:border-primary',
+        props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
+        'border-border bg-background hover:bg-accent',
+        props.selected && 'border-primary ring-1 ring-primary/40',
+        props.className
+      )}
+      title={props.token.description ? undefined : props.token.label}
+      data-composer-token-kind={props.token.kind}
+      onMouseDown={props.onMouseDown}>
+      <span
+        className="text-muted-foreground inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 bg-accent leading-none"
+        data-knowledge-token-icon="">
+        <InlineTokenIconSlot
+          icon={props.token.icon ? props.token.icon : <Boxes className={tokenIconClassName} aria-hidden />}
+          removeLabel={removeLabel}
+          onRemove={props.onRemove}
+          removeButtonClassName="size-full rounded-[5px]"
+          removeIconClassName="size-3"
+        />
+      </span>
+      {props.children ?? (
+        <span className={cn('max-w-full min-w-0 truncate break-normal whitespace-nowrap!', props.maxWidthClassName)}>
+          {props.token.label}
+        </span>
+      )}
+    </span>
+  )
+
+  if (!props.token.description) return chipElement
+
+  return (
+    <NormalTooltip
+      content={props.token.description}
+      side="top"
+      sideOffset={6}
+      delayDuration={300}
+      triggerProps={props.readOnly ? { tabIndex: 0, 'aria-label': props.token.label } : undefined}>
+      {chipElement}
+    </NormalTooltip>
+  )
 }
 
 export function ReferenceComposerToken(props: ComposerTokenProps) {
@@ -964,8 +1012,22 @@ export function QuoteComposerToken(props: ComposerTokenProps) {
   )
 }
 
+export function WebviewAnnotationComposerToken(props: ComposerTokenProps) {
+  return renderActiveComposerTokenElement({
+    ...props,
+    icon: tokenIconByKind.webviewAnnotation
+  })
+}
+
 export function PromptVariableComposerToken(props: ComposerTokenProps) {
   return <ActiveComposerToken {...props} icon={tokenIconByKind.promptVariable} colorClassName="text-info" />
+}
+
+export function MessagePartComposerToken(props: ComposerTokenProps) {
+  return renderActiveComposerTokenElement({
+    ...props,
+    icon: tokenIconByKind.messagePart
+  })
 }
 
 export const composerInputTokenComponentByKind = {
@@ -976,7 +1038,9 @@ export const composerInputTokenComponentByKind = {
   knowledge: KnowledgeComposerToken,
   reference: ReferenceComposerToken,
   quote: QuoteComposerToken,
-  promptVariable: PromptVariableComposerToken
+  webviewAnnotation: WebviewAnnotationComposerToken,
+  promptVariable: PromptVariableComposerToken,
+  messagePart: MessagePartComposerToken
 } satisfies Record<ChatInputTokenKind, ComponentType<ComposerTokenProps>>
 
 export function ComposerToken(props: ComposerTokenProps) {

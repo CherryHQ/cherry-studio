@@ -3,20 +3,22 @@ import * as path from 'node:path'
 
 import { net } from 'electron'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
 import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 
 import {
   assertSkillDirectoryWithinLimits,
   extractZip,
-  MAX_EXTRACTED_SIZE,
-  MAX_FILES_COUNT,
+  MAX_SKILL_FILES,
+  MAX_SKILL_SIZE,
   resolveSkillDirectory,
   validateRepositorySkillDirectory
 } from './skillArchive'
@@ -143,10 +145,12 @@ async function fetchFromClaudePlugins(
 
   const repoUrl = `https://github.com/${owner}/${repo}`
   const tempDir = await openTempDir()
-  await cloneRepository(repoUrl, tempDir)
+  await cloneRepository(getGithubTransportUrl(repoUrl), tempDir)
+  const skillDir = await resolveSkillDirectory(tempDir, skillName, directoryPath)
+  await assertSkillDirectoryWithinLimits(skillDir)
 
   return {
-    skillDir: await resolveSkillDirectory(tempDir, skillName, directoryPath),
+    skillDir,
     sourceUrl: `${repoUrl}/tree/main/${directoryPath}`,
     onInstalled: () => {
       reportInstall(owner, repo, skillName).catch((err) => {
@@ -176,16 +180,23 @@ async function fetchFromGithub(
 
   const { owner, repo, refNamespace, refAndPath, descriptorFileName } = location
   const repoUrl = `https://github.com/${owner}/${repo}`
-  const { ref, namespace, oid, target } = await resolveGithubCommit(repoUrl, refAndPath, refNamespace)
+  const transportRepoUrl = getGithubTransportUrl(repoUrl)
+  const { ref, namespace, oid, target } = await resolveGithubCommit(transportRepoUrl, refAndPath, refNamespace)
   logger.info('Installing from GitHub', { owner, repo, ref, namespace, oid, target })
 
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
   const sourceUrl = namespace
     ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
-    : `${repoUrl}/tree/${encodeGithubPath(sourcePath)}`
+    : `${repoUrl}/blob/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
 
   const tempDir = await openTempDir()
-  const { contentDir, skillDir } = await materializeGithubTarget(repoUrl, oid, target, descriptorFileName, tempDir)
+  const { contentDir, skillDir } = await materializeGithubTarget(
+    transportRepoUrl,
+    oid,
+    target,
+    descriptorFileName,
+    tempDir
+  )
   await validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
   await assertSkillDirectoryWithinLimits(skillDir)
 
@@ -197,7 +208,11 @@ async function fetchFromSkillsSh(
   openTempDir: () => Promise<string>
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
   const parts = identifier.split('/')
-  if (parts.length !== 3 || parts.some((part) => !part)) {
+  if (
+    parts.length !== 3 ||
+    !parts.every((part) => /^[a-zA-Z0-9_.-]+$/.test(part)) ||
+    parts.some((part) => part === '.' || part === '..')
+  ) {
     throw new Error(`Invalid skills.sh identifier: ${identifier}`)
   }
   logger.info('Installing from skills.sh', { identifier })
@@ -205,9 +220,33 @@ async function fetchFromSkillsSh(
   const [owner, repo, skillName] = parts
   const repoUrl = `https://github.com/${owner}/${repo}`
   const tempDir = await openTempDir()
-  await cloneRepository(repoUrl, tempDir)
+  await cloneRepository(getGithubTransportUrl(repoUrl), tempDir)
+  const skillDir = await resolveSkillDirectory(tempDir, skillName, null)
+  if (skillDir === (await fs.promises.realpath(tempDir))) {
+    await fs.promises.rm(path.join(tempDir, '.git'), { recursive: true, force: true })
+  }
+  await assertSkillDirectoryWithinLimits(skillDir)
+  return {
+    skillDir,
+    sourceUrl: `https://skills.sh/${identifier}`
+  }
+}
 
-  return { skillDir: await resolveSkillDirectory(tempDir, skillName, null), sourceUrl: repoUrl }
+function getGithubTransportUrl(repoUrl: string): string {
+  const value = application.get('PreferenceService').get(BINARY_INSTALL_PREFERENCE_KEY).githubMirror.trim()
+  if (!value) return repoUrl
+
+  let mirror: URL
+  try {
+    mirror = new URL(value)
+    if (mirror.protocol !== 'http:' && mirror.protocol !== 'https:') throw new Error()
+  } catch {
+    throw new Error('GitHub mirror must be a valid HTTP(S) URL')
+  }
+  if (mirror.username || mirror.password) {
+    throw new Error('GitHub mirror must not contain embedded credentials')
+  }
+  return `${mirror.toString().replace(/\/+$/, '')}/${repoUrl}`
 }
 
 async function fetchFromClawhub(
@@ -266,6 +305,7 @@ async function fetchFromClawhub(
     throw new Error(`No SKILL.md found at the clawhub archive root: ${identifier}`)
   }
   const skillDir = await validateRepositorySkillDirectory(extractDir, extractDir, skillMdPath)
+  await assertSkillDirectoryWithinLimits(skillDir)
   const metadata = await parseSkillMetadata(skillDir, slug, 'skills', { calculateSize: false })
   if ((metadata.slug ?? metadata.name).toLowerCase() !== slug.toLowerCase()) {
     throw new Error(`clawhub archive did not match the requested skill: ${identifier}`)
@@ -284,7 +324,7 @@ async function resolveGithubCommit(
   refAndPath: string[],
   refNamespace: 'heads' | 'tags' | null
 ): Promise<{ ref: string; namespace: 'heads' | 'tags' | null; oid: string; target: GithubSkillTarget }> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+  const gitCommand = await resolveGitCommand()
   const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl])
   const refs = output.split('\n').flatMap((line) => {
     const [oid, fullName] = line.split('\t').map((part) => part.trim())
@@ -329,7 +369,7 @@ async function materializeGithubTarget(
   descriptorFileName: 'SKILL.md' | 'skill.md',
   tempDir: string
 ): Promise<{ contentDir: string; skillDir: string }> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+  const gitCommand = await resolveGitCommand()
   const gitDir = path.join(tempDir, 'repo.git')
   const contentDir = path.join(tempDir, 'content')
   const git = (args: string[], options?: { maxOutputBytes?: number }) =>
@@ -400,12 +440,12 @@ function assertGithubTargetTree(
     const location = target.kind === 'root' ? descriptorFileName : `${target.path}/${descriptorFileName}`
     throw new Error(`No ${descriptorFileName} found at the selected GitHub location: ${location}`)
   }
-  if (sizedEntries.length > MAX_FILES_COUNT) {
-    throw new Error(`Skill directory has too many files: exceeds ${MAX_FILES_COUNT}`)
+  if (sizedEntries.length > MAX_SKILL_FILES) {
+    throw new Error(`Skill holds ${sizedEntries.length} files, over the ${MAX_SKILL_FILES}-file limit`)
   }
   const totalSize = sizedEntries.reduce((sum, entry) => sum + entry.size, 0)
-  if (totalSize > MAX_EXTRACTED_SIZE) {
-    throw new Error(`Skill directory too large: exceeds ${MAX_EXTRACTED_SIZE} bytes`)
+  if (totalSize > MAX_SKILL_SIZE) {
+    throw new Error(`Skill holds ${totalSize} bytes, over the ${MAX_SKILL_SIZE}-byte limit`)
   }
 }
 
@@ -435,8 +475,19 @@ async function runGit(gitCommand: string, args: string[], options?: { maxOutputB
  * `git clone` already checks out, so resolving the branch first only adds a second way to hang.
  */
 async function cloneRepository(repoUrl: string, destDir: string): Promise<void> {
-  const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+  const gitCommand = await resolveGitCommand()
   await runGit(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
+}
+
+async function resolveGitCommand(): Promise<string> {
+  try {
+    return (await findExecutableInEnv('git')) ?? 'git'
+  } catch (err) {
+    logger.warn('git lookup failed, falling back to bare git', {
+      error: err instanceof Error ? err.message : String(err)
+    })
+    return 'git'
+  }
 }
 
 async function reportInstall(owner: string, repo: string, skillName: string): Promise<void> {

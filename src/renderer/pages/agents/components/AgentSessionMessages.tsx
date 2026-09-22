@@ -1,5 +1,4 @@
 import { memo, useEffect, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -42,8 +41,12 @@ type Props = {
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openBrowserUrl?: MessageListActions['openBrowserUrl']
+  openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage?: MessageListActions['deleteMessage']
+  startEditing?: (messageId: string) => Promise<void>
+  editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
 }
 
@@ -62,11 +65,14 @@ const AgentSessionMessages = ({
   onOpenCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
+  openBrowserUrl,
+  openExternalUrl,
   openDiagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval
 }: Props) => {
-  const { t } = useTranslation()
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
@@ -119,7 +125,7 @@ const AgentSessionMessages = ({
     }),
     [sessionTopicId, sessionAssistantId, sessionName, sessionLastActivityAt, sessionCreatedAt, sessionUpdatedAt]
   )
-  const diagnosticReport = useMemo(() => ({ location: t('error.diagnostic_report.locations.agent') }), [t])
+  const diagnosticReport = useMemo(() => ({ location: 'agent' }), [])
 
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
@@ -135,9 +141,13 @@ const AgentSessionMessages = ({
     openCitationsPanel: onOpenCitationsPanel,
     openAgentToolFlow,
     openArtifactFile,
+    openBrowserUrl,
+    openExternalUrl,
     openDiagnosticReport,
     diagnosticReport,
     deleteMessage,
+    startEditing,
+    editBusy,
     respondToolApproval,
     messageNavigation,
     workspacePath: session?.workspace?.path,
