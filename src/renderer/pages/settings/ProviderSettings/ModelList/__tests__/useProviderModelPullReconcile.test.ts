@@ -108,7 +108,7 @@ describe('useProviderModelPullReconcile', () => {
     reconcileTriggerMock.mockResolvedValue([])
     enableProviderWhenModelsAvailableMock.mockResolvedValue(undefined)
     fetchProviderCatalogModelsMock.mockResolvedValue([catalogModel])
-    fetchResolvedProviderModelsMock.mockResolvedValue([fetchedModel])
+    fetchResolvedProviderModelsMock.mockResolvedValue({ models: [fetchedModel] })
     resolveCreateModelEndpointTypesMock.mockReturnValue(undefined)
     useModelsMock.mockReturnValue({ models: [localModel] })
     useProviderMock.mockReturnValue({
@@ -148,7 +148,7 @@ describe('useProviderModelPullReconcile', () => {
       endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
     }
     fetchProviderCatalogModelsMock.mockResolvedValueOnce([catalogOverlap])
-    fetchResolvedProviderModelsMock.mockResolvedValueOnce([fetchedOverlap])
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce({ models: [fetchedOverlap] })
     resolveCreateModelEndpointTypesMock.mockReturnValueOnce([ENDPOINT_TYPE.OPENAI_RESPONSES])
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 
@@ -397,7 +397,7 @@ describe('useProviderModelPullReconcile', () => {
       enableProvider: enableProviderMock
     })
     fetchProviderCatalogModelsMock.mockResolvedValue([])
-    fetchResolvedProviderModelsMock.mockResolvedValue([kept])
+    fetchResolvedProviderModelsMock.mockResolvedValue({ models: [kept] })
 
     const { result } = renderHook(() => useProviderModelPullReconcile('comfyui'))
 
@@ -453,7 +453,7 @@ describe('useProviderModelPullReconcile', () => {
       enableProvider: enableProviderMock
     })
     fetchProviderCatalogModelsMock.mockResolvedValue([])
-    fetchResolvedProviderModelsMock.mockResolvedValue([])
+    fetchResolvedProviderModelsMock.mockResolvedValue({ models: [] })
     // The API keeps a row it may not drop — a default model — instead of failing.
     reconcileTriggerMock.mockResolvedValueOnce([vanished])
 
@@ -474,9 +474,10 @@ describe('useProviderModelPullReconcile', () => {
     // a model id, and silently listing fewer workflows reads as a vanished file.
     useModelsMock.mockReturnValue({ models: [] })
     fetchProviderCatalogModelsMock.mockResolvedValue([])
-    fetchResolvedProviderModelsMock.mockResolvedValue(
-      Object.assign([], { skippedWorkflows: ['sample #frag', 'sample ?query'] })
-    )
+    fetchResolvedProviderModelsMock.mockResolvedValue({
+      models: [],
+      skippedWorkflows: ['sample #frag', 'sample ?query']
+    })
 
     const { result } = renderHook(() => useProviderModelPullReconcile('comfyui'))
 
@@ -515,7 +516,7 @@ describe('useProviderModelPullReconcile', () => {
     const catalogLoad = deferred<any[]>()
     const upstreamLoad = deferred<any[]>()
     fetchProviderCatalogModelsMock.mockReturnValue(catalogLoad.promise)
-    fetchResolvedProviderModelsMock.mockReturnValue(upstreamLoad.promise)
+    fetchResolvedProviderModelsMock.mockReturnValue(upstreamLoad.promise.then((models) => ({ models })))
 
     const { result, rerender } = renderHook(() => useProviderModelPullReconcile('comfyui'))
 
@@ -687,7 +688,9 @@ describe('useProviderModelPullReconcile', () => {
     const oldFetchedLoad = deferred<any[]>()
 
     fetchProviderCatalogModelsMock.mockReturnValueOnce(oldCatalogLoad.promise).mockResolvedValueOnce([newCatalog])
-    fetchResolvedProviderModelsMock.mockReturnValueOnce(oldFetchedLoad.promise).mockResolvedValueOnce([newFetched])
+    fetchResolvedProviderModelsMock
+      .mockReturnValueOnce(oldFetchedLoad.promise.then((models) => ({ models })))
+      .mockResolvedValueOnce({ models: [newFetched] })
 
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 

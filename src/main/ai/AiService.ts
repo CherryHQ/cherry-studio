@@ -1241,27 +1241,28 @@ export class AiService extends BaseService {
     // shipped catalog instead of calling the upstream API. The rest of the pull
     // flow (enrich → reconcile → enable) is unchanged.
     if (provider.modelListSource === 'registry') {
-      return providerRegistryService.listProviderRegistryModels({
-        providerId,
-        presetProviderId: provider.presetProviderId ?? null
-      })
+      return {
+        models: providerRegistryService.listProviderRegistryModels({
+          providerId,
+          presetProviderId: provider.presetProviderId ?? null
+        })
+      }
     }
-    const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    const remote = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
     if (!provider.supplementModelsFromRegistry) {
-      return remoteModels
+      return remote
     }
     const registryModels = providerRegistryService.listProviderRegistryModels({
       providerId,
       presetProviderId: provider.presetProviderId ?? null
     })
-    // The registry merge returns a new array, so a notice the provider attached has
-    // to be carried over to it — otherwise the entries it holds but cannot list
-    // become invisible in exactly the path that replaces them with catalog models.
-    const merged: ListedModels = mergeProviderModelsWithRegistry(remoteModels, registryModels)
-    if (remoteModels.skippedWorkflows && remoteModels.skippedWorkflows.length > 0) {
-      merged.skippedWorkflows = remoteModels.skippedWorkflows
+    // The merge returns a new array, so a skip notice has to be carried over to it:
+    // otherwise the entries the provider holds but cannot list become invisible in
+    // exactly the path that replaces them with catalog models.
+    return {
+      models: mergeProviderModelsWithRegistry(remote.models, registryModels),
+      ...(remote.skippedWorkflows ? { skippedWorkflows: remote.skippedWorkflows } : {})
     }
-    return merged
   }
 
   /** Captures one model configuration for related probes without re-reading changing settings. */
@@ -1288,7 +1289,7 @@ export class AiService extends BaseService {
       isExternalCli: isExternalCliProvider(provider),
       supportsChat: chatPrimary || !isNonChatModel(model),
       listModels: async (signal: AbortSignal) => {
-        const models = await listModelsFromProvider(
+        const { models } = await listModelsFromProvider(
           { ...provider, defaultChatEndpoint: endpoint.endpointType },
           signal,
           { throwOnError: true }

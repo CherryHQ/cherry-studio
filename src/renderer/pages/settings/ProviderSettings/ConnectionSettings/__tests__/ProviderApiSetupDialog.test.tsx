@@ -192,7 +192,7 @@ describe('ProviderApiSetupDialog', () => {
     )
     updateModelsMock.mockResolvedValue([])
     fetchProviderCatalogModelsMock.mockResolvedValue([])
-    fetchResolvedProviderModelsMock.mockResolvedValue([createModel('alpha'), createModel('beta')])
+    fetchResolvedProviderModelsMock.mockResolvedValue({ models: [createModel('alpha'), createModel('beta')] })
     checkApiMock.mockResolvedValue({ latency: 10 })
     getModelHealthCheckSkipReasonMock.mockReturnValue(null)
   })
@@ -457,7 +457,7 @@ describe('ProviderApiSetupDialog', () => {
   it('reuses the same saved key entry after model loading fails', async () => {
     fetchResolvedProviderModelsMock
       .mockRejectedValueOnce(new Error('401 rejected sk-first'))
-      .mockResolvedValueOnce([createModel('alpha')])
+      .mockResolvedValueOnce({ models: [createModel('alpha')] })
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
 
@@ -505,7 +505,7 @@ describe('ProviderApiSetupDialog', () => {
     storedApiKeys = [{ id: 'saved-key', key: 'sk-existing', isEnabled: true }]
     fetchResolvedProviderModelsMock
       .mockRejectedValueOnce(new Error('401 rejected sk-existing'))
-      .mockResolvedValueOnce([createModel('alpha')])
+      .mockResolvedValueOnce({ models: [createModel('alpha')] })
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
 
@@ -641,7 +641,7 @@ describe('ProviderApiSetupDialog', () => {
 
   it('retries only the model batch that did not persist', async () => {
     const models = Array.from({ length: 501 }, (_, index) => createModel(`model-${index}`))
-    fetchResolvedProviderModelsMock.mockResolvedValue(models)
+    fetchResolvedProviderModelsMock.mockResolvedValue({ models })
     createModelsMock
       .mockImplementationOnce(async (dtos: Array<{ modelId: string; name: string }>) =>
         dtos.map((dto) => ({ ...createModel(dto.modelId), name: dto.name }))

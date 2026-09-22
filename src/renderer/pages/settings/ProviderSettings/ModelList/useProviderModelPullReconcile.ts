@@ -172,15 +172,12 @@ export function useProviderModelPullReconcile(providerId: string) {
       const catalog = (catalogResult.status === 'fulfilled' ? catalogResult.value : []).filter((model) =>
         model.name?.trim()
       )
-      const fetched = (fetchedResult.status === 'fulfilled' ? fetchedResult.value : []).filter((model) =>
+      const fetched = (fetchedResult.status === 'fulfilled' ? fetchedResult.value.models : []).filter((model) =>
         model.name?.trim()
       )
       // A provider that lists its own files can hold entries that cannot become
       // models. Silence there reads as "the workflow disappeared", so name them.
-      const skippedWorkflows =
-        fetchedResult.status === 'fulfilled'
-          ? ((fetchedResult.value as { skippedWorkflows?: string[] }).skippedWorkflows ?? [])
-          : []
+      const skippedWorkflows = fetchedResult.status === 'fulfilled' ? (fetchedResult.value.skippedWorkflows ?? []) : []
       if (skippedWorkflows.length > 0) {
         toast.warning(t('settings.models.manage.workflows_not_listed', { count: skippedWorkflows.length }))
       }

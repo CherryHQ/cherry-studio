@@ -456,18 +456,17 @@ export const ModelSchema = z.object({
 export type Model = z.infer<typeof ModelSchema>
 
 /**
- * A provider's model listing, plus the entries that provider holds but cannot
- * offer as models. A provider whose ids are its own file names (ComfyUI's saved
- * workflows) has to drop the ones that cannot form a `UniqueModelId`; a caller
- * that only sees the resulting array would not know they were there, and the
- * omission would be invisible.
+ * The result of listing a provider's models, including the entries that provider
+ * holds but cannot offer as models. A provider whose ids are its own file names
+ * (ComfyUI's saved workflows) has to drop the ones that cannot form a
+ * `UniqueModelId`; a caller that only received the models would not know they
+ * were held back, and the omission would be invisible.
  *
- * The notice rides the listing itself rather than a second return value: the
- * producers are the provider fetchers, whose contract is the model array, and
- * `ai.provider.model.list` resolves to this same value (the IPC router
- * validates request input, not handler output).
+ * Providers with nothing to hold back still return the envelope (`{ models }`),
+ * so every fetcher and `ai.provider.model.list` share one shape.
  */
-export interface ListedModels extends Array<Partial<Model>> {
+export interface ListedModels<M = Partial<Model>> {
+  models: M[]
   /** Entries the provider lists but that are dropped from the model list. */
   skippedWorkflows?: string[]
 }

@@ -1810,7 +1810,9 @@ describe('AiService tool approval', () => {
     )
 
     try {
-      const [listedModel] = await listModelsFromProviderActual(provider)
+      const {
+        models: [listedModel]
+      } = await listModelsFromProviderActual(provider)
       expect(listedModel).toMatchObject({
         apiModelId: 'deepseek-v4-flash',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
@@ -2654,7 +2656,7 @@ describe('AiService.listModels', () => {
 
     const result = await service.listModels({ providerId: 'claude-code' })
 
-    expect(result).toEqual(registryModels)
+    expect(result).toEqual({ models: registryModels })
     expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
       providerId: 'claude-code',
       presetProviderId: null
@@ -2674,7 +2676,7 @@ describe('AiService.listModels', () => {
       apiModelId
     }))
     mockProviderGetByProviderId.mockReturnValue(provider)
-    mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListModelsFromProvider.mockResolvedValue({ models: apiModels })
     mockListProviderRegistryModels.mockReturnValue(
       ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'].map((apiModelId) => ({
         id: `${provider.id}::${apiModelId}`,
@@ -2682,10 +2684,10 @@ describe('AiService.listModels', () => {
       }))
     )
 
-    expect(await service.listModels({ providerId: provider.id })).toEqual(apiModels)
+    expect(await service.listModels({ providerId: provider.id })).toEqual({ models: apiModels })
 
-    mockListModelsFromProvider.mockResolvedValue([])
-    expect(await service.listModels({ providerId: provider.id })).toEqual([])
+    mockListModelsFromProvider.mockResolvedValue({ models: [] })
+    expect(await service.listModels({ providerId: provider.id })).toEqual({ models: [] })
 
     mockListModelsFromProvider.mockRejectedValue(new Error('Unauthorized'))
     await expect(service.listModels({ providerId: provider.id, throwOnError: true })).rejects.toThrow('Unauthorized')
@@ -2698,11 +2700,13 @@ describe('AiService.listModels', () => {
     const apiModels = [{ id: 'openai::slow-model', apiModelId: 'slow-model' }]
     mockProviderGetByProviderId.mockReturnValue(provider)
     mockListModelsFromProvider.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(apiModels), 31_000))
+      () => new Promise((resolve) => setTimeout(() => resolve({ models: apiModels }), 31_000))
     )
     mockListProviderRegistryModels.mockReturnValue([])
 
-    const result = expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toEqual(apiModels)
+    const result = expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toEqual({
+      models: apiModels
+    })
 
     await vi.advanceTimersByTimeAsync(31_000)
     await result
@@ -2714,7 +2718,7 @@ describe('AiService.listModels', () => {
     // Live /models returns the chat model with a flat id.
     const apiModels = [{ id: 'ppio::qwen3-235b-a22b-thinking-2507', apiModelId: 'qwen3-235b-a22b-thinking-2507' }]
     mockProviderGetByProviderId.mockReturnValue(provider)
-    mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListModelsFromProvider.mockResolvedValue({ models: apiModels })
     mockListProviderRegistryModels.mockReturnValue([
       // Same model as the API's, but registry keeps the publisher prefix → must dedup, not double-list.
       { id: 'ppio::qwen', apiModelId: 'qwen/qwen3-235b-a22b-thinking-2507', name: 'Qwen3 235B A22B Thinking' },
@@ -2722,10 +2726,10 @@ describe('AiService.listModels', () => {
       { id: 'ppio::z-image-turbo', apiModelId: 'z-image-turbo', name: 'Z-Image Turbo' }
     ])
 
-    const result = await service.listModels({ providerId: 'ppio' })
+    const { models } = await service.listModels({ providerId: 'ppio' })
 
-    expect(result.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
-    expect(result[0]).toEqual(apiModels[0])
+    expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
+    expect(models[0]).toEqual(apiModels[0])
 
     mockListModelsFromProvider.mockRejectedValue(new Error('Unauthorized'))
     await expect(service.listModels({ providerId: 'ppio', throwOnError: true })).rejects.toThrow('Unauthorized')

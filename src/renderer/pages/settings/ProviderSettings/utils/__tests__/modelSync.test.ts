@@ -28,7 +28,7 @@ vi.mock('@renderer/ipc', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   dataApiGetMock.mockResolvedValue([])
-  listModelsMock.mockResolvedValue([])
+  listModelsMock.mockResolvedValue({ models: [] })
 })
 
 describe('fetchResolvedProviderModels', () => {
@@ -55,15 +55,17 @@ describe('fetchResolvedProviderModels', () => {
   })
 
   it('keeps endpoint types returned by the provider when registry metadata also has endpoint types', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'new-api::agent/deepseek-v3.2',
-        providerId: 'new-api',
-        apiModelId: 'agent/deepseek-v3.2',
-        name: 'agent/deepseek-v3.2',
-        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-      }
-    ])
+    listModelsMock.mockResolvedValueOnce({
+      models: [
+        {
+          id: 'new-api::agent/deepseek-v3.2',
+          providerId: 'new-api',
+          apiModelId: 'agent/deepseek-v3.2',
+          name: 'agent/deepseek-v3.2',
+          endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        }
+      ]
+    })
     dataApiGetMock.mockResolvedValueOnce([
       {
         id: 'new-api::agent/deepseek-v3.2',
@@ -74,7 +76,7 @@ describe('fetchResolvedProviderModels', () => {
       }
     ])
 
-    const models = await fetchResolvedProviderModels('new-api')
+    const { models } = await fetchResolvedProviderModels('new-api')
 
     expect(models[0]).toMatchObject({
       name: 'DeepSeek V3.2',
@@ -83,15 +85,17 @@ describe('fetchResolvedProviderModels', () => {
   })
 
   it('uses registry reasoning controls while preserving discovered thinking support', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'ollama::qwen3:32b',
-        providerId: 'ollama',
-        apiModelId: 'qwen3:32b',
-        name: 'qwen3:32b',
-        capabilities: [MODEL_CAPABILITY.REASONING]
-      }
-    ])
+    listModelsMock.mockResolvedValueOnce({
+      models: [
+        {
+          id: 'ollama::qwen3:32b',
+          providerId: 'ollama',
+          apiModelId: 'qwen3:32b',
+          name: 'qwen3:32b',
+          capabilities: [MODEL_CAPABILITY.REASONING]
+        }
+      ]
+    })
     dataApiGetMock.mockResolvedValueOnce([
       {
         id: 'ollama::qwen3:32b',
@@ -107,7 +111,9 @@ describe('fetchResolvedProviderModels', () => {
       }
     ])
 
-    const [model] = await fetchResolvedProviderModels('ollama')
+    const {
+      models: [model]
+    } = await fetchResolvedProviderModels('ollama')
 
     expect(model).toMatchObject({
       presetModelId: 'qwen3-32b',
@@ -120,14 +126,16 @@ describe('fetchResolvedProviderModels', () => {
   })
 
   it('uses the resolved friendly name when the provider only echoes the raw id', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'dashscope::qwen1.5-1.8b-chat',
-        providerId: 'dashscope',
-        apiModelId: 'qwen1.5-1.8b-chat',
-        name: 'qwen1.5-1.8b-chat'
-      }
-    ])
+    listModelsMock.mockResolvedValueOnce({
+      models: [
+        {
+          id: 'dashscope::qwen1.5-1.8b-chat',
+          providerId: 'dashscope',
+          apiModelId: 'qwen1.5-1.8b-chat',
+          name: 'qwen1.5-1.8b-chat'
+        }
+      ]
+    })
     dataApiGetMock.mockResolvedValueOnce([
       {
         id: 'dashscope::qwen1.5-1.8b-chat',
@@ -137,20 +145,22 @@ describe('fetchResolvedProviderModels', () => {
       }
     ])
 
-    const models = await fetchResolvedProviderModels('dashscope')
+    const { models } = await fetchResolvedProviderModels('dashscope')
 
     expect(models[0].name).toBe('Qwen1.5 1.8b Chat')
   })
 
   it('keeps a provider display name for an unmatched custom model', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'custom::custom-model',
-        providerId: 'custom',
-        apiModelId: 'custom-model',
-        name: 'Provider Display Name'
-      }
-    ])
+    listModelsMock.mockResolvedValueOnce({
+      models: [
+        {
+          id: 'custom::custom-model',
+          providerId: 'custom',
+          apiModelId: 'custom-model',
+          name: 'Provider Display Name'
+        }
+      ]
+    })
     dataApiGetMock.mockResolvedValueOnce([
       {
         id: 'custom::custom-model',
@@ -160,7 +170,7 @@ describe('fetchResolvedProviderModels', () => {
       }
     ])
 
-    const models = await fetchResolvedProviderModels('custom')
+    const { models } = await fetchResolvedProviderModels('custom')
 
     expect(models[0].name).toBe('Provider Display Name')
   })

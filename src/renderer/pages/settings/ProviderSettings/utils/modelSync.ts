@@ -162,21 +162,18 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  * surfaces upstream failures so the UI can show a real reason rather than
  * a silent empty list.
  */
-export async function fetchResolvedProviderModels(providerId: string): Promise<Model[]> {
+export async function fetchResolvedProviderModels(providerId: string): Promise<ListedModels<Model>> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
-    const fetched = await ipcApi.request('ai.provider.model.list', { providerId, throwOnError: true })
+    const { models: fetched, skippedWorkflows } = await ipcApi.request('ai.provider.model.list', {
+      providerId,
+      throwOnError: true
+    })
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
-    const resolved = await enrichFetchedModels(providerId, fetched)
-    // Main reports entries the provider itself holds but could not be listed as
-    // models (ComfyUI workflow names with `#` or `?`). The route declares a plain
-    // `Model[]`, so the `ListedModels` notice main resolves it to is read here; the
-    // enrichment below rebuilds the array, so it is re-attached to the result.
-    const skipped = (fetched as ListedModels).skippedWorkflows
-    if (skipped && skipped.length > 0) {
-      ;(resolved as ListedModels).skippedWorkflows = skipped
-    }
-    return resolved
+    // Enrichment rebuilds the array, so the notice main reported alongside the
+    // models (ComfyUI workflow names with `#` or `?`) is carried onto the result.
+    const models = await enrichFetchedModels(providerId, fetched)
+    return skippedWorkflows ? { models, skippedWorkflows } : { models }
   } catch (error) {
     logger.error('Failed to fetch and resolve provider models', {
       providerId,
