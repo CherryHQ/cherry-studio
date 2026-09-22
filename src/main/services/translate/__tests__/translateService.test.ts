@@ -235,6 +235,27 @@ describe('translateService.open', () => {
     ])
   })
 
+  it('asks the vision model to infer and translate image text when no source text is supplied', () => {
+    translateService.open(fakeSender, {
+      streamId: 'translate:image-only',
+      text: '',
+      targetLangCode: 'en-us',
+      imagePath: '/tmp/screenshot.png' as any
+    })
+
+    const request = (
+      streamPromptMock.mock.calls as unknown as Array<
+        [
+          {
+            messages: Array<{ parts: Array<{ type: string; text?: string }> }>
+          }
+        ]
+      >
+    )[0][0]
+    expect(request.messages[0].parts[0].text).toMatch(/identify.*language.*image/i)
+    expect(request.messages[0].parts[0].text).toMatch(/translate.*English/i)
+  })
+
   it('rejects a streamId that does not carry the translate prefix', async () => {
     expect(() =>
       translateService.open(fakeSender, {

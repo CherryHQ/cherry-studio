@@ -123,13 +123,16 @@ export class TranslateService {
     const streamManager = application.get('AiStreamManager')
     const imagePath = req.imagePath
     if (imagePath) {
+      const imagePrompt = req.text.trim()
+        ? content
+        : `Identify the language of the text in the attached image and translate it into ${targetLanguage.value}. Provide only the translation and preserve the original formatting.`
       const mediaType = mime.getType(imagePath) ?? 'application/octet-stream'
       const messages: CherryUIMessage[] = [
         {
           id: 'translate-user',
           role: 'user',
           parts: [
-            { type: 'text', text: content },
+            { type: 'text', text: imagePrompt },
             {
               type: 'file',
               mediaType,
