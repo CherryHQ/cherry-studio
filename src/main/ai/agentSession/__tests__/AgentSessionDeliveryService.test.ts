@@ -124,7 +124,20 @@ vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
     validateDispatch: mocks.validateDispatch,
     persistDispatchTx: mocks.persistDispatchTx,
     activateDispatch: mocks.activateDispatch
-  }
+  },
+  ownershipSnapshotFromValidated: (validated: {
+    agentId: string
+    agentUpdatedAt: string
+    agentModel: string | null
+    agentType: string
+    sessionModelId?: string | null
+  }) => ({
+    id: validated.agentId,
+    updatedAt: validated.agentUpdatedAt,
+    model: validated.agentModel,
+    type: validated.agentType,
+    sessionModelId: validated.sessionModelId ?? null
+  })
 }))
 
 const runtime = {
@@ -331,7 +344,8 @@ describe('AgentSessionDeliveryService', () => {
       id: 'agent-1',
       updatedAt: now,
       model: 'provider::model',
-      type: 'claude-code'
+      type: 'claude-code',
+      sessionModelId: null
     })
     expect(mocks.claim).toHaveBeenCalledWith({}, 'target', 'delivery-1', 'assistant-1')
     expect(mocks.publishDispatchChanges).toHaveBeenCalledWith('target', [accepted, assistant])
