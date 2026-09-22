@@ -1117,6 +1117,86 @@ describe('ClaudeCodeStreamAdapter', () => {
     ])
   })
 
+  describe('task-notification result attribution', () => {
+    const zeroUsage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+
+    // A resumed CLI replays pending <task-notification> prompts as their own query before pulling
+    // the host's input: success, zero turns, no model output, origin stamped by the CLI
+    // (anthropics/claude-agent-sdk-typescript#383).
+    function notificationResult(overrides: Record<string, unknown> = {}) {
+      return successResult({
+        origin: { kind: 'task-notification' },
+        num_turns: 0,
+        result: '',
+        duration_ms: 6,
+        duration_api_ms: 0,
+        usage: zeroUsage,
+        ...overrides
+      })
+    }
+
+    it('keeps an open user turn open when a resumed CLI replays a pending notification first', () => {
+      const { adapter, parts, sessionIds, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_notification',
+        session_id: 'sdk-result',
+        uuid: 'notif-uuid',
+        task_id: 'bg-1',
+        status: 'stopped',
+        summary: 'Stopped by user'
+      } as any)
+      const result = adapter.handleMessage(notificationResult())
+
+      expect(result).toEqual({ type: 'continue' })
+      expect(adapter.isTurnActive).toBe(true)
+      expect(sessionIds).toEqual(['sdk-result'])
+      // The notification stays a task-event part; no finish and no autonomous wake for it.
+      expect(parts).toEqual([expect.objectContaining({ type: 'data-agent-task-event' })])
+      expect(statusEvents.map((event) => event.type)).toEqual(['background-task-event'])
+
+      const final = adapter.handleMessage(successResult({ result: 'real answer' }))
+      expect(final).toMatchObject({ type: 'result', sessionId: 'sdk-result' })
+      expect(adapter.isTurnActive).toBe(false)
+      expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
+      expect(statusEvents).not.toContainEqual({ type: 'autonomous-turn-state', state: 'started' })
+    })
+
+    it('keeps the turn open when the notification query itself errors', () => {
+      const { adapter } = createAdapter()
+
+      const result = adapter.handleMessage(
+        notificationResult({ subtype: 'error_during_execution', is_error: true, errors: ['boom'] })
+      )
+
+      expect(result).toEqual({ type: 'continue' })
+      expect(adapter.isTurnActive).toBe(true)
+    })
+
+    it('still settles a user turn that legitimately ends with zero turns', () => {
+      const { adapter, parts } = createAdapter()
+
+      const result = adapter.handleMessage(successResult({ num_turns: 0, result: '', usage: zeroUsage }))
+
+      expect(result).toMatchObject({ type: 'result' })
+      expect(adapter.isTurnActive).toBe(false)
+      expect(parts.some((part) => part.type === 'finish')).toBe(true)
+    })
+
+    it('drops a task-notification result without a turn, without throwing on its errors', () => {
+      const { adapter, parts, sessionIds } = createAdapter({}, { openTurn: false })
+
+      const result = adapter.handleMessage(
+        notificationResult({ subtype: 'error_during_execution', is_error: true, errors: ['boom'] })
+      )
+
+      expect(result).toEqual({ type: 'continue' })
+      expect(sessionIds).toEqual(['sdk-result'])
+      expect(parts).toEqual([])
+    })
+  })
+
   it('throws SDK error results after capturing session id', () => {
     const { adapter, sessionIds } = createAdapter()
 

@@ -783,7 +783,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       ...queryQueue.iterable,
       interrupt: vi.fn(async () => undefined),
       close: vi.fn(),
-      return: vi.fn()
+      return: vi.fn(async () => undefined)
     }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -809,6 +809,44 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(query.close).toHaveBeenCalledOnce()
   })
 
+  it('keeps teardown completion observable after a slow cleanup and waits for actual process exit', async () => {
+    vi.useFakeTimers()
+    try {
+      const cleanup = createDeferred<IteratorResult<void>>()
+      const exited = createDeferred<void>()
+      const queue = createAsyncQueue<any>()
+      const query = { ...queue.iterable, close: vi.fn(), return: () => cleanup.promise }
+      mocks.consumeWarmQuery.mockResolvedValue({
+        warmQuery: { query: () => query },
+        processDiagnostics: { reference: 'slow-close', exited: exited.promise }
+      })
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+      let state = 'pending'
+      const closing = connection.closeForEdit!().then(
+        () => {
+          state = 'closed'
+        },
+        () => {
+          state = 'failed'
+        }
+      )
+      await vi.advanceTimersByTimeAsync(20_001)
+      expect(state).toBe('pending')
+      cleanup.resolve({ value: undefined, done: true })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(state).toBe('pending')
+      exited.resolve()
+      await closing
+      expect(state).toBe('closed')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('hands the fallback decision back to the host when the interrupt is not acknowledged in time', async () => {
     vi.useFakeTimers()
     try {
@@ -818,7 +856,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         ...queryQueue.iterable,
         interrupt: vi.fn(() => new Promise<void>(() => {})),
         close: vi.fn(),
-        return: vi.fn()
+        return: vi.fn(async () => undefined)
       }
       mocks.createClaudeQuery.mockReturnValue(query)
       const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -847,7 +885,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         throw new Error('awaitControlResponse: CLI error verdict')
       }),
       close: vi.fn(),
-      return: vi.fn()
+      return: vi.fn(async () => undefined)
     }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -865,7 +903,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
   it('reports success when a stop lands on a warm connection with no active turn', async () => {
     const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), return: vi.fn() }
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(async () => undefined)
+    }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',

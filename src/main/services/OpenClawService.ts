@@ -1170,11 +1170,13 @@ export class OpenClawService extends BaseService {
     }
 
     const noKeyPlaceholder = this.getNoKeyPlaceholder(provider)
-    if (provider.authType === 'api-key' && !noKeyPlaceholder) {
+    if (provider.authType === 'api-key' && !noKeyPlaceholder && provider.authOptional !== true) {
       throw new Error(`Provider ${provider.id} has no enabled API key configured`)
     }
 
-    return noKeyPlaceholder ?? ''
+    // Keyless providers honour authOptional even without a per-provider
+    // placeholder; OpenClaw itself still needs a non-empty value.
+    return noKeyPlaceholder ?? (provider.authOptional === true ? 'no-key-required' : '')
   }
 
   private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType {
