@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 import { ExternalLink, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -6,20 +7,21 @@ import { Button } from '@cherrystudio/ui'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { ipcApi } from '@renderer/ipc'
+import { openExternalWebsite } from '@renderer/services/website'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
 
 function accountPortalUrl(): string {
   const configured = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
-  const origin = configured || (import.meta.env.DEV ? 'http://localhost:9084' : 'https://cloud.cherryai.com')
-  const url = new URL(origin)
-  if (url.hostname === 'cloud-dev.cherryai.com') return 'https://accounts-dev.cherryai.com/account/plans'
-  if (url.hostname === 'cloud.cherryai.com') return 'https://accounts.cherryai.com/account/plans'
-  return `${url.origin}/account/plans`
+  const usesDevAccount =
+    import.meta.env.DEV || new URL(configured || 'https://cloud.cherryai.com').hostname === 'cloud-dev.cherryai.com'
+  return usesDevAccount
+    ? 'https://accounts-dev.cherryai.com/account/plans'
+    : 'https://accounts.cherryai.com/account/plans'
 }
 
-function percent(used: number, limit: number): number {
-  return limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0
+function percent(value: number, limit: number): number {
+  return limit > 0 ? Math.min(100, Math.round((value / limit) * 100)) : 0
 }
 
 function formatUnits(
@@ -33,6 +35,18 @@ function formatUnits(
     currency: pool.currency ?? 'USD',
     maximumFractionDigits: 6
   }).format(value / 1_000_000)
+}
+
+function quotaWindowLabel(
+  window: CherryCloudAccountPlans['entitlements'][number]['quota_pools'][number]['windows'][number],
+  t: TFunction
+): string {
+  if (window.window_type === 'calendar_day') return t('settings.subscription.limit_daily')
+  if (window.duration_seconds === 7 * 24 * 60 * 60) return t('settings.subscription.limit_weekly')
+  if (window.duration_seconds % (24 * 60 * 60) === 0) {
+    return t('settings.subscription.limit_days', { count: window.duration_seconds / (24 * 60 * 60) })
+  }
+  return t('settings.subscription.limit_hours', { count: Math.max(1, Math.round(window.duration_seconds / 3600)) })
 }
 
 export function SubscriptionSettings() {
@@ -66,7 +80,7 @@ export function SubscriptionSettings() {
   )
   const availablePlan = useMemo(() => plans?.available_plans.find((item) => !item.is_free), [plans])
   const portalUrl = accountPortalUrl()
-  const openPortal = () => void ipcApi.request('system.shell.open_website', portalUrl)
+  const openPortal = () => void openExternalWebsite(portalUrl)
 
   if (status?.phase !== 'signed-in') {
     return (
@@ -96,7 +110,6 @@ export function SubscriptionSettings() {
               </p>
               {activePaid?.plan.subscription_price && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {activePaid.plan.subscription_price.product_name} ·{' '}
                   {activePaid.plan.subscription_price.currency.toUpperCase()}{' '}
                   {activePaid.plan.subscription_price.unit_amount / 100} / {activePaid.plan.subscription_price.interval}
                 </p>
@@ -109,12 +122,7 @@ export function SubscriptionSettings() {
           </div>
         </div>
         <div>
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-medium">{t('settings.subscription.usage')}</h3>
-            <button type="button" className="text-xs text-link hover:underline" onClick={openPortal}>
-              {t('settings.subscription.details')} ↗
-            </button>
-          </div>
+          <h3 className="mb-2 text-sm font-medium">{t('settings.subscription.usage')}</h3>
           <div className="rounded-xl border border-border bg-card p-4">
             {loading ? (
               <p className="py-6 text-center text-sm text-muted-foreground">{t('settings.subscription.loading')}</p>
@@ -130,39 +138,39 @@ export function SubscriptionSettings() {
               activePaid.quota_pools.map((pool) => (
                 <div key={pool.allocation_id} className="space-y-3 py-2">
                   {pool.windows.map((window) => {
-                    const used = window.used_units + window.active_reserved_units
-                    const value = percent(used, window.limit_units)
+                    const label = quotaWindowLabel(window, t)
+                    const remainingPercent = percent(window.remaining_units, window.limit_units)
                     return (
                       <div key={`${pool.allocation_id}-${window.window_type}-${window.duration_seconds}`}>
                         <div className="flex items-baseline justify-between gap-3 text-xs">
-                          <span>
-                            {pool.display_name} ·{' '}
-                            {window.window_type === 'calendar_day'
-                              ? t('settings.subscription.daily')
-                              : t('settings.subscription.duration', {
-                                  duration: Math.round(window.duration_seconds / 3600)
-                                })}
-                          </span>
+                          <span className="font-medium">{label}</span>
                           <span className="tabular-nums text-muted-foreground">
-                            {formatUnits(used, pool, i18n.language)} /{' '}
-                            {formatUnits(window.limit_units, pool, i18n.language)} ({value}%)
+                            {t('settings.subscription.remaining', { percent: remainingPercent })}
                           </span>
                         </div>
                         <div
                           className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
                           role="progressbar"
-                          aria-valuenow={value}
+                          aria-label={label}
+                          aria-valuenow={remainingPercent}
                           aria-valuemin={0}
                           aria-valuemax={100}>
-                          <div className="h-full bg-primary" style={{ width: `${value}%` }} />
+                          <div className="h-full bg-primary" style={{ width: `${remainingPercent}%` }} />
                         </div>
-                        {window.next_recovery_at && (
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            {t('settings.subscription.next_recovery', {
-                              time: new Date(window.next_recovery_at).toLocaleString(i18n.language)
+                        <div className="mt-1 flex flex-wrap justify-between gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                          <span>
+                            {t('settings.subscription.total', {
+                              total: formatUnits(window.limit_units, pool, i18n.language)
                             })}
-                          </p>
-                        )}
+                          </span>
+                          {window.next_recovery_at && (
+                            <span>
+                              {t('settings.subscription.next_recovery', {
+                                time: new Date(window.next_recovery_at).toLocaleString(i18n.language)
+                              })}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )
                   })}

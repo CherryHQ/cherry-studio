@@ -319,8 +319,12 @@ describe('UserPopup', () => {
     expect(image).toHaveAttribute('src', avatar)
   })
 
-  it('opens personal information settings from the identity avatar or name', async () => {
+  it.each([
+    { edition: 'cn' as const, path: '/settings/usage' },
+    { edition: 'global' as const, path: '/settings/subscription' }
+  ])('opens $path from the identity avatar or name in the $edition edition', async ({ edition, path }) => {
     const user = userEvent.setup()
+    mocks.appEdition = edition
     MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Yinsen')
     showUserPopup()
 
@@ -332,7 +336,7 @@ describe('UserPopup', () => {
 
     await user.click(within(identity).getByTestId('avatar-image'))
 
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/usage')
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith(path)
     await waitFor(() => expect(screen.queryByTestId('dialog')).not.toBeInTheDocument())
   })
 
