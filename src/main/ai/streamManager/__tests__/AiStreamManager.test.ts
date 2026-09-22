@@ -2306,7 +2306,7 @@ describe('AiStreamManager', () => {
       ringMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-input-end',
         toolCallId: 'tc1'
-      } as UIMessageChunk)
+      } as unknown as UIMessageChunk)
 
       expect(ringMgr.inspect('a')!.executions[0].openToolInputCount).toBe(1)
     })
@@ -2331,7 +2331,7 @@ describe('AiStreamManager', () => {
       ringMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-input-end',
         toolCallId: 'tc1'
-      } as UIMessageChunk)
+      } as unknown as UIMessageChunk)
       expect(ringMgr.inspect('a')!.executions[0].openToolInputCount).toBe(1)
 
       await ringMgr.onExecutionDone('a', 'provider-a::model-a')
