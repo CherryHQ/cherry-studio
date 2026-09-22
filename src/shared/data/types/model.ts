@@ -137,10 +137,10 @@ export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${strin
 
 /**
  * The reserved route characters of a modelId (`#`, `?`) — a value carrying one
- * cannot be part of an id that round-trips through a URL. A provider whose ids
- * are file handles (ComfyUI workflows) has to drop them before they are listed.
+ * cannot be part of an id that round-trips through a URL. Callers ask this
+ * question by going through `UniqueModelIdSchema` or `createUniqueModelId`.
  */
-export function hasReservedRouteChar(value: string): boolean {
+function hasReservedRouteChar(value: string): boolean {
   return RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => value.includes(char))
 }
 
@@ -454,3 +454,20 @@ export const ModelSchema = z.object({
 })
 
 export type Model = z.infer<typeof ModelSchema>
+
+/**
+ * A provider's model listing, plus the entries that provider holds but cannot
+ * offer as models. A provider whose ids are its own file names (ComfyUI's saved
+ * workflows) has to drop the ones that cannot form a `UniqueModelId`; a caller
+ * that only sees the resulting array would not know they were there, and the
+ * omission would be invisible.
+ *
+ * The notice rides the listing itself rather than a second return value: the
+ * producers are the provider fetchers, whose contract is the model array, and
+ * `ai.provider.model.list` resolves to this same value (the IPC router
+ * validates request input, not handler output).
+ */
+export interface ListedModels extends Array<Partial<Model>> {
+  /** Entries the provider lists but that are dropped from the model list. */
+  skippedWorkflows?: string[]
+}

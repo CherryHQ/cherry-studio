@@ -43,7 +43,7 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import type { ImageGenerationMode } from '@shared/data/types/model'
+import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
 import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
@@ -1220,7 +1220,7 @@ export class AiService extends BaseService {
   }
 
   // ── Model listing ──
-  async listModels(request: ListModelsRequest): Promise<Partial<Model>[]> {
+  async listModels(request: ListModelsRequest): Promise<ListedModels> {
     let providerId = request.providerId
     if (!providerId && request.assistantId) {
       let assistant: Assistant | undefined
@@ -1247,23 +1247,21 @@ export class AiService extends BaseService {
       })
     }
     const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
-    // A provider whose list IS its own files (ComfyUI's saved workflows) can skip
-    // entries; the caller needs to hear about those or the omission is invisible.
-    const skippedWorkflows = (remoteModels as { skippedWorkflows?: string[] }).skippedWorkflows
-    const withSkipNotice = (models: Partial<Model>[]): Partial<Model>[] => {
-      if (skippedWorkflows && skippedWorkflows.length > 0) {
-        ;(models as { skippedWorkflows?: string[] }).skippedWorkflows = skippedWorkflows
-      }
-      return models
-    }
     if (!provider.supplementModelsFromRegistry) {
-      return withSkipNotice(remoteModels)
+      return remoteModels
     }
     const registryModels = providerRegistryService.listProviderRegistryModels({
       providerId,
       presetProviderId: provider.presetProviderId ?? null
     })
-    return withSkipNotice(mergeProviderModelsWithRegistry(remoteModels, registryModels))
+    // The registry merge returns a new array, so a notice the provider attached has
+    // to be carried over to it — otherwise the entries it holds but cannot list
+    // become invisible in exactly the path that replaces them with catalog models.
+    const merged: ListedModels = mergeProviderModelsWithRegistry(remoteModels, registryModels)
+    if (remoteModels.skippedWorkflows && remoteModels.skippedWorkflows.length > 0) {
+      merged.skippedWorkflows = remoteModels.skippedWorkflows
+    }
+    return merged
   }
 
   /** Captures one model configuration for related probes without re-reading changing settings. */

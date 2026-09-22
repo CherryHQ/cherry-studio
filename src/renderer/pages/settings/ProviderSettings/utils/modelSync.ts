@@ -6,7 +6,12 @@ import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { ProviderPreset } from '@shared/data/api/schemas/providers'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import {
+  type EndpointType as RuntimeEndpointType,
+  type ListedModels,
+  type Model,
+  parseUniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
 
@@ -164,11 +169,12 @@ export async function fetchResolvedProviderModels(providerId: string): Promise<M
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
     const resolved = await enrichFetchedModels(providerId, fetched)
     // Main reports entries the provider itself holds but could not be listed as
-    // models (ComfyUI workflow names with `#` or `?`). Carried on the array so the
-    // return stays `Model[]` for every existing caller.
-    const skipped = (fetched as { skippedWorkflows?: string[] }).skippedWorkflows
+    // models (ComfyUI workflow names with `#` or `?`). The route declares a plain
+    // `Model[]`, so the `ListedModels` notice main resolves it to is read here; the
+    // enrichment below rebuilds the array, so it is re-attached to the result.
+    const skipped = (fetched as ListedModels).skippedWorkflows
     if (skipped && skipped.length > 0) {
-      ;(resolved as { skippedWorkflows?: string[] }).skippedWorkflows = skipped
+      ;(resolved as ListedModels).skippedWorkflows = skipped
     }
     return resolved
   } catch (error) {

@@ -18,12 +18,11 @@ import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { mergeHeaders } from '@main/utils/http'
-import type { EndpointType, Model } from '@shared/data/types/model'
+import type { EndpointType, ListedModels, Model } from '@shared/data/types/model'
 import {
   createUniqueModelId,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
-  hasReservedRouteChar,
   MODALITY,
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
@@ -80,7 +79,7 @@ const logger = loggerService.withContext('ModelListService')
 
 type ModelFetcher = {
   match: (provider: Provider) => boolean
-  fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Partial<Model>[]>
+  fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<ListedModels>
 }
 
 function getErrorType(error: unknown) {
@@ -467,8 +466,20 @@ const ovmsFetcher: ModelFetcher = {
  * on the paintings page (`supportsImageGenerationEndpoint`) and routes generation to
  * the comfyui transport instead of an OpenAI adapter.
  */
-/** A model list that also reports what the provider had but could not be listed. */
-export type ListedModels = Partial<Model>[] & { skippedWorkflows?: string[] }
+/**
+ * A workflow handle becomes the model's `apiModelId`, so whether the workflow can be
+ * listed is whether that id can be built at all: a handle carrying a reserved route
+ * character is refused by the id contract, and listing it anyway would produce a row
+ * no consumer can turn into an id.
+ */
+function isListableWorkflow(providerId: string, workflow: string): boolean {
+  try {
+    createUniqueModelId(providerId, workflow)
+    return true
+  } catch {
+    return false
+  }
+}
 
 const comfyuiFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.comfyui),
@@ -477,11 +488,8 @@ const comfyuiFetcher: ModelFetcher = {
     // The ComfyUI server takes no credentials, and the stored key belongs to
     // some other provider's host: `defaultHeaders` would hand it to this one.
     const workflows = await listWorkflows(baseUrl, signal, { headers: headersWithoutCredentials(provider) })
-    // A workflow handle is the model's `apiModelId`, and a unique id cannot carry a
-    // reserved route character, so such a workflow is skipped rather than listed as
-    // a row that no consumer can turn into an id.
-    const listed = workflows.filter((workflow) => !hasReservedRouteChar(workflow))
-    const skipped = workflows.filter(hasReservedRouteChar)
+    const listed = workflows.filter((workflow) => isListableWorkflow(provider.id, workflow))
+    const skipped = workflows.filter((workflow) => !isListableWorkflow(provider.id, workflow))
     if (skipped.length > 0) {
       logger.warn('Skipped ComfyUI workflows whose names contain a reserved route character', {
         providerId: provider.id,
@@ -499,8 +507,7 @@ const comfyuiFetcher: ModelFetcher = {
       })
     )
     // A skip the user cannot see reads as a workflow that vanished: the names travel
-    // with the list (the route does not re-parse handler output) so the model manager
-    // can say which files to rename. Not part of `Model`; the array carries it.
+    // with the list so the model manager can say which files to rename.
     if (skipped.length > 0) (models as ListedModels).skippedWorkflows = skipped
     return models
   }
@@ -1077,7 +1084,7 @@ export async function listModels(
   provider: Provider,
   abortSignal?: AbortSignal,
   options?: { throwOnError?: boolean }
-): Promise<Partial<Model>[]> {
+): Promise<ListedModels> {
   try {
     const fetcher = fetchers.find((f) => f.match(provider))!
     return await fetcher.fetch(provider, abortSignal, options)
