@@ -508,17 +508,22 @@ describe('poll', () => {
   })
 
   it('reports a failed execution even when images sit beside the error', async () => {
-    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes('/history/')) {
-        return respond({
-          'pid-1': {
-            status: { status_str: 'error', completed: false, messages: [['execution_error', { node_id: 9 }]] },
-            // Nodes that finished before the failure leave outputs behind.
-            outputs: { '9': { images: [{ filename: 'out.png', subfolder: '', type: 'output' }] } }
-          }
-        })
+    const posts: Array<{ url: string; body: Record<string, unknown> }> = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') {
+        posts.push({ url, body: JSON.parse(String(init.body)) as Record<string, unknown> })
+        return respond({})
       }
-      throw new Error(`unexpected url ${input}`)
+      if (url.includes('/system_stats')) return respond({ system: { comfyui_version: '0.3.57' } })
+      if (url.includes('/queue')) return respond({ queue_running: [[1, 'pid-1', {}, {}, []]], queue_pending: [] })
+      return respond({
+        'pid-1': {
+          status: { status_str: 'error', completed: false, messages: [['execution_error', { node_id: 9 }]] },
+          // Nodes that finished before the failure leave outputs behind.
+          outputs: { '9': { images: [{ filename: 'out.png', subfolder: '', type: 'output' }] } }
+        }
+      })
     })
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
@@ -530,7 +535,12 @@ describe('poll', () => {
     expect((error as PaintingGenerateError).code).toBe('REMOTE_ERROR')
     expect(String((error as Error).message)).toContain('workflow_failed')
     // Nothing was downloaded: the failure is the answer, not a partial success.
-    expect(doFetch.mock.calls.map((call) => String(call[0]))).toEqual(['http://localhost:8188/history/pid-1'])
+    expect(doFetch.mock.calls.map((call) => String(call[0])).filter((url) => url.includes('/view'))).toEqual([])
+    // And no generation is left behind on the server either.
+    expect(posts).toEqual([
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
+    ])
   })
 
   it('throws an AbortError before fetching when the signal is already aborted', async () => {
@@ -565,6 +575,9 @@ describe('poll', () => {
     expect(error).toBeInstanceOf(Error)
     expect((error as Error).name).toBe('AbortError')
     expect(doFetch).toHaveBeenCalledTimes(1)
+    // A user cancel is not a failed generation: the Cancel button owns that
+    // request, and cancelling here would race it.
+    expect(doFetch.mock.calls.some((call) => call[1]?.method === 'POST')).toBe(false)
   })
 
   it('reports a mid-poll abort from the inter-tick sleep as an AbortError', async () => {
@@ -626,16 +639,26 @@ describe('poll', () => {
   })
 
   it('fails fast on a terminal 4xx history response rather than looping to the timeout', async () => {
-    const doFetch = vi.fn(async () => new Response('not found', { status: 404 }))
+    const doFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      // The signature is what types the recorded calls, and every answer is a 404.
+      void _input
+      void _init
+      return new Response('not found', { status: 404 })
+    })
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     const promise = transport.poll('pid-1').catch((e) => e)
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3)
     const error = await promise
 
+    // The 404 ends the loop after one try; the extra calls are the best-effort
+    // cancellation that keeps the abandoned task off the server.
+    expect(doFetch.mock.calls.map((call) => String(call[0])).filter((url) => url.includes('/history/'))).toEqual([
+      'http://localhost:8188/history/pid-1'
+    ])
+
     expect(error).toBeInstanceOf(PaintingGenerateError)
     expect((error as PaintingGenerateError).code).toBe('REMOTE_ERROR')
-    expect(doFetch).toHaveBeenCalledTimes(1)
   })
 
   it('bounds a hanging history request by the poll timeout, not as an AbortError', async () => {
@@ -677,6 +700,53 @@ describe('poll', () => {
     const error = await promise
 
     expect(error).toBeInstanceOf(PaintingGenerateError)
+    expect((error as Error).message).toContain('poll_timeout')
+    expect(posts).toEqual([
+      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
+      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
+    ])
+  })
+
+  it('cancels the prompt when the history body stalls past the deadline', async () => {
+    // The deadline aborts the body read and `withDeadline` reports it as this
+    // request's timeout — a structured failure that exits the loop before the
+    // normal-run-out block. The task is just as abandoned there.
+    const posts: Array<{ url: string; body: Record<string, unknown> }> = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') {
+        posts.push({ url, body: JSON.parse(String(init.body)) as Record<string, unknown> })
+        return respond({})
+      }
+      if (url.includes('/system_stats')) return respond({ system: { comfyui_version: '0.3.57' } })
+      if (url.includes('/queue')) return respond({ queue_running: [[1, 'pid-1', {}, {}, []]], queue_pending: [] })
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            ;(init?.signal as AbortSignal | undefined)?.addEventListener(
+              'abort',
+              () => {
+                const e = new Error('The operation was aborted')
+                e.name = 'AbortError'
+                controller.error(e)
+              },
+              { once: true }
+            )
+          }
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const promise = transport.poll('pid-1').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(POLL_TIMEOUT_MS)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(PaintingGenerateError)
+    expect((error as PaintingGenerateError).code).toBe('REMOTE_ERROR')
+    // The history read shares the poll's budget, so its deadline reports the
+    // poll timeout — the same message the loop's own exhaustion produces.
     expect((error as Error).message).toContain('poll_timeout')
     expect(posts).toEqual([
       { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },

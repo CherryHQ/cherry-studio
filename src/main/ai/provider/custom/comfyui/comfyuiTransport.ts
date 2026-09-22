@@ -362,20 +362,27 @@ class ComfyuiTransport implements ImageGenerationTransport {
           throw createAbortError('Task polling aborted')
         }
         // Structured failures (workflow error, no image, a terminal 4xx history
-        // response) end the poll loop; anything else — a network blip, a 5xx or
-        // a 429 on the history GET — retries until the overall deadline.
-        if (error instanceof PaintingGenerateError) throw error
+        // response, or the history read hanging past the deadline) end the poll
+        // loop; anything else — a network blip, a 5xx or a 429 on the history
+        // GET — retries until the overall deadline. Whatever ends it, the server
+        // is still working on a generation nobody is waiting for any more.
+        if (error instanceof PaintingGenerateError) {
+          // Not awaited: the failure is already decided, and the caller — a user
+          // watching a spinner — should not wait for cleanup on a server that is
+          // by definition misbehaving. `cancel()` bounds its own writes.
+          void this.cancel(taskId).catch(() => undefined)
+          throw error
+        }
       }
       ticks += 1
       options.onProgress?.(Math.min(0.9, ticks * 0.05))
       await waitWithSignal(POLL_INTERVAL_MS, options.signal)
     }
     // A generation the caller has stopped waiting for is work the server does
-    // not have to finish: stopping it first is what keeps a stalled prompt from
-    // holding the GPU, and it is the same best-effort cancel a user gets when
-    // they press Cancel. Both writes are bounded, so the failure is still
-    // reported promptly on a server that cannot be reached.
-    await this.cancel(taskId).catch(() => undefined)
+    // not have to finish: this is the same best-effort cancel a user gets when
+    // they press Cancel, and it is not awaited — the timeout is the answer, and
+    // a server that has been misbehaving for ten minutes must not delay it.
+    void this.cancel(taskId).catch(() => undefined)
     throw createPaintingGenerateError('REMOTE_ERROR', {
       message: t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
     })
