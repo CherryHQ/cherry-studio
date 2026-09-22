@@ -9,10 +9,16 @@ export const apiGatewayPairedDeviceTable = sqliteTable(
     id: uuidPrimaryKey(),
     name: text().notNull(),
     platform: text().notNull(),
-    tokenHash: text().notNull(),
+    tokenHash: text(),
+    peerIdentity: text(),
+    configurationGrantId: text(),
+    agentGrantId: text(),
     ...createUpdateTimestamps
   },
-  (t) => [uniqueIndex('api_gateway_paired_device_token_hash_unique_idx').on(t.tokenHash)]
+  (t) => [
+    uniqueIndex('api_gateway_paired_device_token_hash_unique_idx').on(t.tokenHash),
+    uniqueIndex('api_gateway_paired_device_peer_identity_unique_idx').on(t.peerIdentity)
+  ]
 )
 
 export type ApiGatewayPairedDeviceRow = typeof apiGatewayPairedDeviceTable.$inferSelect

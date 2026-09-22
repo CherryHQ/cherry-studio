@@ -100,6 +100,8 @@ export function buildPathRegistry() {
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
 
+    'feature.remote_access.identity_file': path.join(appUserDataRuntime, 'remote-identity.enc'),
+
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
       ? path.join(appExtraResources, 'provider-registry')

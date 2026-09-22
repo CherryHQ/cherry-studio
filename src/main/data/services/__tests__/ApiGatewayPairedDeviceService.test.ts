@@ -9,6 +9,45 @@ import { ErrorCode } from '@shared/data/api/errors'
 describe('ApiGatewayPairedDeviceService', () => {
   const dbh = setupTestDatabase()
 
+  it('grants only the capabilities confirmed during pairing and binds them to the proven key', () => {
+    const { device, authorization } = apiGatewayPairedDeviceService.approveRemote({
+      name: 'Phone',
+      platform: 'ios',
+      peerIdentity: 'key-one',
+      capabilities: ['agent']
+    })
+    expect(authorization.grants).toEqual([{ domain: 'agent', grantId: expect.any(String) }])
+    expect(device.remoteAccess?.capabilities).toEqual(['agent'])
+    expect(apiGatewayPairedDeviceService.getRemoteAuthorization(device.id, 'key-one')).toEqual(authorization)
+    expect(apiGatewayPairedDeviceService.getRemoteAuthorization(device.id, 'key-two')).toBeUndefined()
+    expect(dbh.db.select().from(apiGatewayPairedDeviceTable).get()?.tokenHash).toBeNull()
+    const legacy = apiGatewayPairedDeviceService.create({ name: 'Legacy', platform: 'ios', tokenHash: 'f'.repeat(64) })
+    expect(apiGatewayPairedDeviceService.getRemoteAuthorization(legacy.id, 'key-one')).toBeUndefined()
+  })
+
+  it('revokes capabilities independently and rotates authority on a new pairing', () => {
+    const input = {
+      name: 'Phone',
+      platform: 'ios',
+      peerIdentity: 'key-one',
+      capabilities: ['agent', 'configuration'] as const
+    }
+    const first = apiGatewayPairedDeviceService.approveRemote({ ...input, capabilities: [...input.capabilities] })
+    apiGatewayPairedDeviceService.revokeRemoteCapability(first.device.id, 'agent')
+    expect(apiGatewayPairedDeviceService.getRemoteAuthorization(first.device.id, 'key-one')?.grants).toEqual(
+      first.authorization.grants.filter((grant) => grant.domain === 'configuration')
+    )
+    const second = apiGatewayPairedDeviceService.approveRemote({ ...input, capabilities: [...input.capabilities] })
+    expect(second.device.id).toBe(first.device.id)
+    expect(
+      second.authorization.grants.every(
+        (grant) => !first.authorization.grants.some((old) => old.grantId === grant.grantId)
+      )
+    ).toBe(true)
+    apiGatewayPairedDeviceService.delete(first.device.id)
+    expect(apiGatewayPairedDeviceService.getRemoteAuthorization(first.device.id, 'key-one')).toBeUndefined()
+  })
+
   it.each([
     { name: '   ', platform: 'ios' },
     { name: 'a'.repeat(65), platform: 'ios' },

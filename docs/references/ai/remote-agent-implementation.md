@@ -10,10 +10,11 @@ sources:
 
 # Remote Protocol and Desktop Implementation Design
 
-> **设计草案，尚未实现。** 本文细化文件、函数和资源所有权；签名省略 imports 和部分 DTO，
-> 不是可直接编译的实现。网络契约以 [API 设计](./remote-agent-access.md) 为准，部署与授权以
+> **状态：Desktop LAN 直连已实现（不含中继与 Mobile）。** 本文细化文件、函数和资源所有权；签名省略
+> imports 和部分 DTO。网络契约以 [API 设计](./remote-agent-access.md) 为准，部署与授权以
 > [架构方案](../api-gateway/remote-agent-access.md) 为准；场景编号对应 [时序图](./remote-agent-sequences.md)。
-> 本次不改 Mobile，不发布包，不新增运行时代码。
+> 实现落点见 `src/main/services/remoteAccess/README.md`；与本文件清单的差异（合并的文件、
+> 回执与预留未在同一事务、消息态审批不进增量流）在该 README 中列出。
 
 本地 WebSocket client 的测试链路、场景矩阵与通过标准见
 [测试规范](./remote-agent-testing.md)。
