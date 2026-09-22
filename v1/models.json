@@ -2418,11 +2418,18 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
       "contextWindow": 1048576,
       "family": "qwen",
       "id": "qwen3-8-flash-next",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 1048576,
       "metadata": {},
       "name": "Qwen 3.8 Flash Next",
@@ -22259,5 +22266,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "ecb64236eab094c8"
+  "version": "d451ce523b576b57"
 }
