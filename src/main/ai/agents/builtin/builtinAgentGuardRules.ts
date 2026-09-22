@@ -74,11 +74,11 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT] },
     match: { tool: 'Bash' },
     effect: 'ask',
-    reason: 'Cherry Support shell commands require live per-call user approval.',
+    reason: 'Boss Support shell commands require live per-call user approval.',
     headless: {
       predicate: 'either',
       reason:
-        'Headless channel or scheduled turns cannot run shell commands for Cherry Support. Keep only a sanitized local draft using the structured file tools.'
+        'Headless channel or scheduled turns cannot run shell commands for Boss Support. Keep only a sanitized local draft using the structured file tools.'
     }
   },
   {

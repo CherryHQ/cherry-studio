@@ -398,7 +398,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       const decision = await evaluate(makeCtx({ ...supportCtx, input: { command: 'ls -la' } }))
       expect(decision).toEqual({
         effect: 'ask',
-        reason: 'Cherry Support shell commands require live per-call user approval.',
+        reason: 'Boss Support shell commands require live per-call user approval.',
         ruleId: 'support-bash'
       })
     })

@@ -8,7 +8,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const logger = loggerService.withContext('AgentPrompt')
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
-  'Within Cherry Studio, serve as Cherry Assistant, its built-in general-purpose Agent and onboarding guide. Help the user complete any request using the available tools.'
+  'Within The Boss, serve as Boss Assistant, its built-in general-purpose Agent and onboarding guide. Help the user complete any request using the available tools.'
 
 const AGENT_INSTRUCTION_PRECEDENCE_PROMPT = `## Instruction Precedence
 

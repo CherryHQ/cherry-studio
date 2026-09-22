@@ -13,7 +13,7 @@
   "agent.askUserQuestion.title": "来自智能体的问题",
   "agent.builtin.cherry_assistant.description": "The Boss 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills",
   "agent.builtin.cherry_support.description": "The Boss 官方支持 Agent，提供配置引导、问题诊断、FAQ 和反馈提交",
-  "agent.builtin.cherry_support.diagnostics.prepared": "Cherry 支持已准备好一份可编辑的问题描述。请先检查内容，再选择诊断数据并提交。",
+  "agent.builtin.cherry_support.diagnostics.prepared": "Boss 支持已准备好一份可编辑的问题描述。请先检查内容，再选择诊断数据并提交。",
   "agent.builtin.cherry_support.diagnostics.review": "查看问题报告",
   "agent.channels.add": "添加",
   "agent.channels.bindAgent": "绑定智能体",

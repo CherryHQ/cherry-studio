@@ -379,7 +379,7 @@ export class AgentService {
     if (getBuiltinRole(insertData.configuration) === BUILTIN_AGENT_ROLE.SUPPORT && id !== CHERRY_SUPPORT_AGENT_ID) {
       throw DataApiErrorFactory.invalidOperation(
         'create built-in Agent',
-        'Cherry Support must use its reserved system identity'
+        'Boss Support must use its reserved system identity'
       )
     }
     insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id, position })

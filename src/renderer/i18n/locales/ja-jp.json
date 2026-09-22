@@ -620,7 +620,7 @@
   "chat.compaction.compacted_plain": "コンテキストが圧縮されました",
   "chat.compaction.compacting": "コンテキストを圧縮中…",
   "chat.conversation.new": "新しいチャット",
-  "chat.default.name": "Cherry アシスタント",
+  "chat.default.name": "Boss アシスタント",
   "chat.default.topic.name": "デフォルトトピック",
   "chat.home.welcome_title": "今日は何について話しましょうか？",
   "chat.input.ai_disclaimer": "AI生成コンテンツです。参考情報としてご利用ください",
