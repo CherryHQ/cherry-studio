@@ -1690,6 +1690,7 @@
   "knowledge.groups.rename_title": "Rename Group",
   "knowledge.meta.updated_at": "Updated {{time}}",
   "knowledge.name_required": "Knowledge base name is required",
+  "knowledge.privacy.local_only": "Process with local model only (never send to remote providers)",
   "knowledge.provider_not_found": "Provider not found",
   "knowledge.rag.chunk_overlap": "Overlap Size",
   "knowledge.rag.chunk_overlap_invalid": "Chunk overlap must be greater than or equal to 0",

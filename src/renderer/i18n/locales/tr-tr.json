@@ -1690,6 +1690,7 @@
   "knowledge.groups.rename_title": "Grubu Yeniden Adlandır",
   "knowledge.meta.updated_at": "{{time}} tarihinde güncellendi",
   "knowledge.name_required": "Bilgi tabanı adı gereklidir",
+  "knowledge.privacy.local_only": "[to be translated]:Process with local model only (never send to remote providers)",
   "knowledge.provider_not_found": "Sağlayıcı bulunamadı",
   "knowledge.rag.chunk_overlap": "Örtüşme Boyutu",
   "knowledge.rag.chunk_overlap_invalid": "Parça örtüşmesi 0 veya daha büyük olmalıdır",

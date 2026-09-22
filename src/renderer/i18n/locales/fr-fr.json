@@ -1690,6 +1690,7 @@
   "knowledge.groups.rename_title": "Renommer le groupe",
   "knowledge.meta.updated_at": "Mis à jour {{time}}",
   "knowledge.name_required": "Le nom de la base de connaissances est requis",
+  "knowledge.privacy.local_only": "[to be translated]:Process with local model only (never send to remote providers)",
   "knowledge.provider_not_found": "Fournisseur introuvable",
   "knowledge.rag.chunk_overlap": "Taille de chevauchement",
   "knowledge.rag.chunk_overlap_invalid": "Le chevauchement des blocs doit être supérieur ou égal à 0",

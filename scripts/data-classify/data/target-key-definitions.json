@@ -940,6 +940,13 @@
       "defaultValue": "none",
       "status": "classified",
       "description": "Reasoning effort for the translate model; 'none' reproduces the hardcoded behaviour that predates this setting (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "chat.privacy.local_only_knowledge_bases",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Knowledge base IDs marked for local-only processing (never sent to remote providers, always use local model)"
     }
   ]
 }

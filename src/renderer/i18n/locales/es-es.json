@@ -1690,6 +1690,7 @@
   "knowledge.groups.rename_title": "Renombrar Grupo",
   "knowledge.meta.updated_at": "Actualizado {{time}}",
   "knowledge.name_required": "Se requiere el nombre de la base de conocimientos",
+  "knowledge.privacy.local_only": "[to be translated]:Process with local model only (never send to remote providers)",
   "knowledge.provider_not_found": "No se ha encontrado el proveedor",
   "knowledge.rag.chunk_overlap": "Tamaño de superposición",
   "knowledge.rag.chunk_overlap_invalid": "El solapamiento de fragmentos debe ser mayor o igual que 0",

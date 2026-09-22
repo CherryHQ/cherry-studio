@@ -1690,6 +1690,7 @@
   "knowledge.groups.rename_title": "重新命名群組",
   "knowledge.meta.updated_at": "更新於 {{time}}",
   "knowledge.name_required": "知識庫名稱為必填欄位",
+  "knowledge.privacy.local_only": "[to be translated]:Process with local model only (never send to remote providers)",
   "knowledge.provider_not_found": "未找到供應商",
   "knowledge.rag.chunk_overlap": "重疊大小",
   "knowledge.rag.chunk_overlap_invalid": "重疊大小必須大於或等於 0",

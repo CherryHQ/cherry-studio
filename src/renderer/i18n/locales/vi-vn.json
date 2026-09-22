@@ -1690,6 +1690,7 @@
   "knowledge.groups.rename_title": "Đổi tên nhóm",
   "knowledge.meta.updated_at": "Cập nhật {{time}}",
   "knowledge.name_required": "Tên cơ sở tri thức là bắt buộc",
+  "knowledge.privacy.local_only": "[to be translated]:Process with local model only (never send to remote providers)",
   "knowledge.provider_not_found": "Không tìm thấy nhà cung cấp",
   "knowledge.rag.chunk_overlap": "Kích thước chồng lấp",
   "knowledge.rag.chunk_overlap_invalid": "Độ chồng lấn của đoạn phải lớn hơn hoặc bằng 0",

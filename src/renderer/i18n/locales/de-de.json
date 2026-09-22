@@ -1690,6 +1690,7 @@
   "knowledge.groups.rename_title": "Gruppe umbenennen",
   "knowledge.meta.updated_at": "Aktualisiert {{time}}",
   "knowledge.name_required": "Der Name der Wissensdatenbank ist erforderlich",
+  "knowledge.privacy.local_only": "[to be translated]:Process with local model only (never send to remote providers)",
   "knowledge.provider_not_found": "Anbieter nicht gefunden",
   "knowledge.rag.chunk_overlap": "Überlappungsgröße",
   "knowledge.rag.chunk_overlap_invalid": "Der Chunk-Überlapp muss größer oder gleich 0 sein",

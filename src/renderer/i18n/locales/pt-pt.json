@@ -1690,6 +1690,7 @@
   "knowledge.groups.rename_title": "Renomear Grupo",
   "knowledge.meta.updated_at": "Atualizado {{time}}",
   "knowledge.name_required": "Nome da base de conhecimento é obrigatório",
+  "knowledge.privacy.local_only": "[to be translated]:Process with local model only (never send to remote providers)",
   "knowledge.provider_not_found": "Fornecedor não encontrado",
   "knowledge.rag.chunk_overlap": "Tamanho de Sobreposição",
   "knowledge.rag.chunk_overlap_invalid": "A sobreposição de blocos deve ser maior ou igual a 0",

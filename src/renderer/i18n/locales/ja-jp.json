@@ -1690,6 +1690,7 @@
   "knowledge.groups.rename_title": "グループ名を変更",
   "knowledge.meta.updated_at": "更新日時 {{time}}",
   "knowledge.name_required": "ナレッジベース名は必須です",
+  "knowledge.privacy.local_only": "[to be translated]:Process with local model only (never send to remote providers)",
   "knowledge.provider_not_found": "プロバイダーが見つかりません",
   "knowledge.rag.chunk_overlap": "オーバーラップサイズ",
   "knowledge.rag.chunk_overlap_invalid": "チャンクオーバーラップは0以上でなければなりません",

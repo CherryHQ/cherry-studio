@@ -1690,6 +1690,7 @@
   "knowledge.groups.rename_title": "ĞŸĞµÑ€ĞµĞ¸Ğ¼ĞµĞ½Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ğ³Ñ€ÑƒĞ¿Ğ¿Ñƒ",
   "knowledge.meta.updated_at": "ĞĞ±Ğ½Ğ¾Ğ²Ğ»ĞµĞ½Ğ¾ {{time}}",
   "knowledge.name_required": "Ğ¢Ñ€ĞµĞ±ÑƒĞµÑ‚ÑÑ Ğ½Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ±Ğ°Ğ·Ñ‹ Ğ·Ğ½Ğ°Ğ½Ğ¸Ğ¹",
+  "knowledge.privacy.local_only": "[to be translated]:Process with local model only (never send to remote providers)",
   "knowledge.provider_not_found": "ĞŸÑ€Ğ¾Ğ²Ğ°Ğ¹Ğ´ĞµÑ€ Ğ½Ğµ Ğ½Ğ°Ğ¹Ğ´ĞµĞ½",
   "knowledge.rag.chunk_overlap": "Ğ Ğ°Ğ·Ğ¼ĞµÑ€ Ğ¿ĞµÑ€ĞµĞºÑ€Ñ‹Ñ‚Ğ¸Ñ",
   "knowledge.rag.chunk_overlap_invalid": "ĞŸĞµÑ€ĞµĞºÑ€Ñ‹Ñ‚Ğ¸Ğµ Ñ„Ñ€Ğ°Ğ³Ğ¼ĞµĞ½Ñ‚Ğ¾Ğ² Ğ´Ğ¾Ğ»Ğ¶Ğ½Ğ¾ Ğ±Ñ‹Ñ‚ÑŒ Ğ±Ğ¾Ğ»ÑŒÑˆĞµ Ğ¸Ğ»Ğ¸ Ñ€Ğ°Ğ²Ğ½Ğ¾ 0",
