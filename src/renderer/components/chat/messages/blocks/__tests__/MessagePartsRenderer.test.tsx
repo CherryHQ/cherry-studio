@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -108,6 +109,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string, params?: Record<string, number>) => {
       if (key === 'message.tools.groupHeader') return `${params?.count} tool calls`
       if (key === 'message.processing') return 'Processing'
+      if (key === 'agent_session_fork.continue_in_source') return 'Continue in the original chat'
       if (key === 'message.tools.processed') return 'Processed'
       if (key === 'message.tools.error') return 'Error'
       if (key === 'message.tools.thinkingHeader') return 'Thinking...'
@@ -1923,6 +1925,51 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('terminal layout', () => {
+    it('keeps the fork link below the copied answer across new messages and reloads, and blocks repeat clicks', async () => {
+      const user = userEvent.setup()
+      const lookup = Promise.withResolvers<void>()
+      const actions = { openForkSourceSession: vi.fn(() => lookup.promise) }
+      const parts: CherryMessagePart[] = [
+        { type: 'reasoning', text: 'Thinking', state: 'done' },
+        { type: 'text', text: 'Copied answer' },
+        { type: 'data-agent-session-fork', data: { sourceSessionId: 'parent' } }
+      ]
+      const { rerender, unmount } = renderParts(parts, msg(), actions)
+      const link = screen.getByRole('button', { name: 'Continue in the original chat' })
+      expectNodeBefore(screen.getByText('Copied answer'), link)
+      await user.click(link)
+      expect(link).toBeDisabled()
+      await user.click(link)
+      expect(actions.openForkSourceSession.mock.calls).toEqual([['parent']])
+      await act(async () => lookup.resolve())
+      expect(link).toBeEnabled()
+      const history = () => (
+        <>
+          {renderPartsTree(JSON.parse(JSON.stringify(parts)), msg(), actions)}
+          {renderPartsTree([{ type: 'text', text: 'New answer' }], msg({ id: 'msg-2' }), actions)}
+        </>
+      )
+      rerender(history())
+      expectNodeBefore(
+        screen.getByText('Copied answer'),
+        screen.getByRole('button', { name: 'Continue in the original chat' })
+      )
+      expectNodeBefore(
+        screen.getByRole('button', { name: 'Continue in the original chat' }),
+        screen.getByText('New answer')
+      )
+      unmount()
+      render(history())
+      expectNodeBefore(
+        screen.getByText('Copied answer'),
+        screen.getByRole('button', { name: 'Continue in the original chat' })
+      )
+      expectNodeBefore(
+        screen.getByRole('button', { name: 'Continue in the original chat' }),
+        screen.getByText('New answer')
+      )
+    })
+
     it('replaces direct live process content with collapsed history and keeps the final answer outside', () => {
       activateTurn('streaming')
       const parts = [toolPart('read'), { type: 'text', text: 'final answer' }] as unknown as CherryMessagePart[]

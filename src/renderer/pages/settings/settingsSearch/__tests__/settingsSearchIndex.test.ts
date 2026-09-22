@@ -139,6 +139,8 @@ describe('settings search index aliases', () => {
     ['bubble mode', 'message-style'],
     ['message style', 'message-style'],
     ['conversation bubbles', 'message-style'],
+    ['serif font', 'use-serif-font'],
+    ['message font', 'use-serif-font'],
     ['气泡', 'message-style'],
     ['气泡样式', 'message-style'],
     ['对话样式', 'message-style'],

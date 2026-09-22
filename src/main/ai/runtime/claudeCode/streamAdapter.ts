@@ -630,6 +630,17 @@ export class ClaudeCodeStreamAdapter {
       return { type: 'continue' }
     }
 
+    // A resumed CLI replays pending background-task notifications as their own zero-turn query before
+    // pulling the host's input (claude-agent-sdk#383); that result belongs to the task, not the turn.
+    if (message.type === 'result' && message.origin?.kind === 'task-notification') {
+      this.setSessionId(message.session_id)
+      logger.info('Received a task-notification result; not settling a turn for it', {
+        sessionId: this.sessionId,
+        subtype: message.subtype
+      })
+      return { type: 'continue' }
+    }
+
     // System messages carry session-scoped status and dispatch at any time; everything else is turn
     // content, which has no stream to land in once the turn has ended.
     if (message.type !== 'system' && !this.turnActive) {

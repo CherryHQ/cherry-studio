@@ -3,12 +3,16 @@ import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
+import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -38,6 +42,7 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
@@ -101,6 +106,7 @@ import {
   transitionAgentSessionRuntime,
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
+import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
@@ -192,6 +198,7 @@ export interface AgentSessionInteractionState {
 }
 
 type AgentSessionTurn = {
+  forkAnchor?: RuntimeForkAnchor
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
   systemReminder?: boolean
@@ -334,6 +341,98 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
 @DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
+  private readonly forks = new AgentSessionForkOperations()
+  private readonly failedClosures = new Map<string, AgentRuntimeConnection>()
+  private readonly pendingEditInputs = new Map<
+    Electron.WebContents,
+    { counts: Map<string, number>; dispose: () => void }
+  >()
+
+  setPendingInputCount(sender: Electron.WebContents, sessionId: string, count: number): void {
+    let record = this.pendingEditInputs.get(sender)
+    if (!record) {
+      if (!count) return
+      const onDestroyed = () => this.pendingEditInputs.delete(sender)
+      sender.once('destroyed', onDestroyed)
+      record = { counts: new Map(), dispose: () => sender.removeListener('destroyed', onDestroyed) }
+      this.pendingEditInputs.set(sender, record)
+    }
+    if (count) record.counts.set(sessionId, count)
+    else record.counts.delete(sessionId)
+    if (!record.counts.size) {
+      record.dispose()
+      this.pendingEditInputs.delete(sender)
+    }
+  }
+
+  assertSessionWritable(sessionId: string): void {
+    if (this.failedClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
+    if (this.forks.edits.has(sessionId)) throw new AgentSessionEditError('busy')
+  }
+
+  assertSessionEditable(sessionId: string, ownEdit = false): void {
+    if (!ownEdit || this.failedClosures.has(sessionId)) this.assertSessionWritable(sessionId)
+    const entry = this.entries.get(sessionId)
+    if (
+      this.isShuttingDown ||
+      this.isWriteQuiesced ||
+      this.closingSessions.has(sessionId) ||
+      this.connectionAttempts.has(sessionId) ||
+      [...this.forks.pending.values()].some((operation) => operation.sourceSessionId === sessionId) ||
+      toolApprovalRegistry.hasSession(sessionId) ||
+      [...this.pendingEditInputs.values()].some(({ counts }) => counts.has(sessionId)) ||
+      [...this.inFlightBackgroundFlowFlushes.values()].includes(sessionId) ||
+      (entry &&
+        (isAgentSessionRuntimeBusy(entry.runtimeState) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)))
+    ) {
+      throw new AgentSessionEditError('busy')
+    }
+  }
+
+  async getEditTarget(sessionId: string, messageId: string): Promise<AgentSessionEditDraft> {
+    this.assertSessionEditable(sessionId)
+    const snapshot = application
+      .get('DbService')
+      .withWriteTx((tx) => agentSessionMessageService.readEditSnapshotTx(tx, sessionId, messageId))
+    const parts = snapshot.user.data.parts ?? []
+    await validateEditedInput(parts)
+    return { messageId, version: snapshot.version, parts }
+  }
+
+  editSession<T>(
+    sessionId: string,
+    target: AgentSessionEditTarget,
+    persist: (tx: DbOrTx, nativeSessionId: string) => T
+  ): Promise<T> {
+    this.assertSessionEditable(sessionId)
+    return this.forks.edit(
+      sessionId,
+      target,
+      async () => {
+        this.assertSessionEditable(sessionId, true)
+        const entry = this.entries.get(sessionId)
+        const connection = entry && this.closeConnection(entry)
+        await this.closeRuntimeConnection(connection, sessionId, true)
+        await this.closeSession(sessionId)
+      },
+      persist
+    )
+  }
+
+  forkSession(sourceSessionId: string, messageId: string): Promise<string> {
+    this.assertSessionWritable(sourceSessionId)
+    if (this.isShuttingDown || this.isWriteQuiesced) return Promise.reject(new Error('Session writes are paused'))
+    return this.forks.fork(sourceSessionId, messageId)
+  }
+
+  cancelSessionForks(sourceSessionId: string): Promise<void> {
+    return this.forks.cancel(sourceSessionId)
+  }
+
+  recoverSessionForks(): Promise<void> {
+    return this.forks.recover()
+  }
+
   private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
   public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
   private readonly _onTurnTerminal = new Emitter<AgentSessionTurnTerminalEvent>()
@@ -373,6 +472,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
     // any agent session runs) instead of relying on an import-time side effect.
     registerRuntimeDrivers()
+    await this.forks.recover()
 
     // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
     // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
@@ -487,6 +587,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
+    this.assertSessionWritable(input.sessionId)
     const turnId = crypto.randomUUID()
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
@@ -620,6 +721,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
+    if (this.forks.edits.has(sessionId) || this.failedClosures.has(sessionId)) return
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -968,20 +1070,23 @@ export class AgentSessionRuntimeService extends BaseService {
       if (connectionAttempt) fallbackClosings.push(connectionAttempt)
       closing = Promise.allSettled(fallbackClosings).then(() => undefined)
     }
-    const combinedClosing = Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(
-      () => undefined
-    )
-    const barrier = {
-      promise: combinedClosing.finally(() => {
-        if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
-      }),
-      resumeToken: entry.lastResumeToken ?? priorClosing?.resumeToken
-    }
-    this.closingSessions.set(sessionId, barrier)
+    const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken)
     if (this.entries.get(sessionId) === entry) {
       this.entries.delete(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
+    return barrier
+  }
+
+  private trackSessionClosing(sessionId: string, closing: Promise<void>, resumeToken?: string): Promise<void> {
+    const priorClosing = this.closingSessions.get(sessionId)
+    const barrier = {
+      promise: Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(() => {
+        if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
+      }),
+      resumeToken: resumeToken ?? priorClosing?.resumeToken
+    }
+    this.closingSessions.set(sessionId, barrier)
     return barrier.promise
   }
 
@@ -1096,6 +1201,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private disposeWarmLeases(): void {
+    for (const record of this.pendingEditInputs.values()) record.dispose()
+    this.pendingEditInputs.clear()
     for (const timer of this.pendingWarmTeardowns.values()) clearTimeout(timer)
     this.pendingWarmTeardowns.clear()
     for (const record of this.warmLeaseSenders.values()) record.dispose()
@@ -1112,6 +1219,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * `beginTurn`.
    */
   isSessionBusy(sessionId: string): boolean {
+    if (this.forks.edits.has(sessionId) || this.failedClosures.has(sessionId)) return true
     const entry = this.entries.get(sessionId)
     if (!entry) return false
     return isAgentSessionRuntimeBusy(entry.runtimeState)
@@ -1126,6 +1234,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
   hasBusySessions(): boolean {
+    if (this.forks.edits.size || this.failedClosures.size) return true
     if (this.closingSessions.size > 0) return true
     if (this.inFlightBackgroundFlowFlushes.size > 0) return true
     for (const sessionId of this.entries.keys()) {
@@ -1240,6 +1349,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const seen = new WeakSet<Promise<unknown>>()
     const pending = new Map<Promise<unknown>, string>()
     const collect = (): void => {
+      for (const fork of this.forks.pending.values()) {
+        if (seen.has(fork.promise)) continue
+        seen.add(fork.promise)
+        pending.set(fork.promise, fork.sourceSessionId)
+        const remove = () => pending.delete(fork.promise)
+        fork.promise.then(remove, remove)
+      }
       for (const [sessionId, launch] of this.inFlightTurnStarts) {
         if (seen.has(launch)) continue
         seen.add(launch)
@@ -1301,6 +1417,9 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     for (const sessionId of this.closingSessions.keys()) {
       if (!activeSessionIds.has(sessionId)) work.push({ id: sessionId, summary: 'closing=true' })
+    }
+    for (const operation of this.forks.pending.values()) {
+      work.push({ id: operation.sourceSessionId, summary: 'forking=true' })
     }
     return work
   }
@@ -1397,6 +1516,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
+    await this.forks.cancel()
     this.disposeWarmLeases()
     const streamManager = application.get('AiStreamManager')
     for (const entry of this.entries.values()) {
@@ -1411,6 +1531,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
+    await this.forks.cancel()
     this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
     await this.closeAll()
@@ -1504,6 +1625,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
+      this.assertSessionWritable(entry.sessionId)
       const closing = this.closingSessions.get(entry.sessionId)
       if (closing) {
         await closing.promise
@@ -1643,6 +1765,7 @@ export class AgentSessionRuntimeService extends BaseService {
       fastMode: target.fastMode,
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
+      nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId),
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
@@ -1678,9 +1801,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
-    if (entry.lastResumeToken) return
     const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
-    if (runtimeResumeToken) entry.lastResumeToken = runtimeResumeToken
+    if (runtimeResumeToken && !entry.lastResumeToken) entry.lastResumeToken = runtimeResumeToken
   }
 
   private async runConnectionLoop(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): Promise<void> {
@@ -1809,6 +1931,13 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       }
       case 'turn-complete':
+        {
+          const turn = this.currentTurn(entry)
+          if (turn)
+            turn.forkAnchor = event.forkAnchor
+              ? { ...event.forkAnchor, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
+              : undefined
+        }
         this.clearApiRetry(entry)
         if (entry.runtimeState.execution.kind === 'turn') {
           this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
@@ -2445,7 +2574,9 @@ export class AgentSessionRuntimeService extends BaseService {
     // A fresh request starts clean — drop any retry status left over from the previous turn.
     this.clearApiRetry(entry)
     await this.refreshTurnTraceContext(entry, turn)
-    await this.currentConnection(entry)?.send({
+    const connection = this.currentConnection(entry)
+    if (!connection) throw new Error('Agent runtime connection unavailable')
+    await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true
     })
@@ -3128,6 +3259,7 @@ export class AgentSessionRuntimeService extends BaseService {
         assistantMessageId,
         modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
+        forkAnchor: () => currentTurn.forkAnchor,
         afterPersist
       }),
       onPersistFailed: (error) =>
@@ -3235,15 +3367,32 @@ export class AgentSessionRuntimeService extends BaseService {
     void this.closeRuntimeConnection(connection, entry.sessionId)
   }
 
-  private closeRuntimeConnection(connection: AgentRuntimeConnection | undefined, sessionId: string): Promise<void> {
-    if (!connection) return Promise.resolve()
+  private async closeRuntimeConnection(
+    connection: AgentRuntimeConnection | undefined,
+    sessionId: string,
+    strict = false
+  ): Promise<void> {
+    if (!connection) return
+    const settled = Promise.withResolvers<void>()
+    void this.trackSessionClosing(sessionId, settled.promise, this.entries.get(sessionId)?.lastResumeToken)
+    let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      return Promise.resolve(connection.close()).catch((error) => {
-        logger.warn('Agent runtime connection close failed', { sessionId, error })
-      })
+      const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()
+      await Promise.race([
+        Promise.resolve(closing).then(() => {
+          if (this.failedClosures.get(sessionId) === connection) this.failedClosures.delete(sessionId)
+        }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new AgentSessionEditError('close_failed')), 20_000)
+        })
+      ])
     } catch (error) {
+      this.failedClosures.set(sessionId, connection)
       logger.warn('Agent runtime connection close failed', { sessionId, error })
-      return Promise.resolve()
+      if (strict) throw new AgentSessionEditError('close_failed')
+    } finally {
+      clearTimeout(timer)
+      settled.resolve()
     }
   }
 }

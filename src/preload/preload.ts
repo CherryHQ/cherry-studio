@@ -3,7 +3,7 @@ import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { DataApiDataChangeEffect, DataRequest, DataResponse } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
@@ -190,7 +190,7 @@ const api = {
     getUser: (token: string) => ipcRenderer.invoke(IpcChannel.Copilot_GetUser, token)
   },
   // CherryIN OAuth + Codex / Grok CLI OAuth migrated to IpcApi — see
-  // `ipcApi.request('oauth.*' | 'cherryin.*')` and `ipcApi.on('oauth.deep_link_result')`.
+  // `ipcApi.request('oauth.*' | 'cherryin.*')`.
   // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
   nutstore: {
     getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl),
@@ -254,7 +254,7 @@ const api = {
   },
   // Data API related APIs
   dataApi: {
-    request: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
+    request: (req: DataRequest): Promise<DataResponse<unknown>> => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
     // DataApi data change notifications: single fixed channel, main → all windows.
     onDataChanged: (callback: (effects: DataApiDataChangeEffect[]) => void) => {
       const listener = (_: any, effects: DataApiDataChangeEffect[]) => callback(effects)

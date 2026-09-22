@@ -113,6 +113,7 @@ const agentPageMocks = vi.hoisted(() => ({
 const activeSessionMocks = vi.hoisted(() => ({
   session: null as any,
   isLoading: false,
+  mutate: vi.fn(),
   error: undefined as Error | undefined,
   sessionSource: 'none' as 'query' | 'pending' | 'none'
 }))
@@ -272,6 +273,7 @@ vi.mock('@renderer/hooks/agent/useSession', () => {
       return {
         session: pendingSession ?? activeSessionMocks.session ?? undefined,
         isLoading: activeSessionMocks.isLoading,
+        mutate: activeSessionMocks.mutate,
         error: activeSessionMocks.error,
         sessionSource: pendingSession
           ? 'pending'
@@ -791,6 +793,7 @@ describe('AgentPage', () => {
     agentPageMocks.invalidateCache.mockResolvedValue(undefined)
     activeSessionMocks.session = null
     activeSessionMocks.isLoading = false
+    activeSessionMocks.mutate.mockReset()
     activeSessionMocks.error = undefined
     activeSessionMocks.sessionSource = 'none'
 
@@ -1467,6 +1470,44 @@ describe('AgentPage', () => {
     )
     expect(recoveryNavigations).toHaveLength(1)
   })
+
+  it.each(['success', 'not-found', 'failure', 'cancelled'])(
+    'settles fork navigation from a fresh destination query, ignoring cached errors: %s',
+    async (scenario) => {
+      const lookup = Promise.withResolvers<void>()
+      activeSessionMocks.mutate.mockImplementation((fetch) => fetch())
+      agentPageMocks.dataApiGet.mockReturnValueOnce(lookup.promise)
+      activeSessionMocks.error = DataApiErrorFactory.notFound('Session', 'parent')
+      agentPageMocks.routeSearch = { sessionId: 'parent', forkReturnSessionId: 'child' }
+      const { unmount } = render(<AgentPage />)
+      expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-sessions/parent')
+      expect(agentPageMocks.navigate).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+      if (scenario === 'cancelled') unmount()
+      await act(async () => {
+        if (scenario === 'success' || scenario === 'cancelled') lookup.resolve()
+        else lookup.reject(scenario === 'not-found' ? activeSessionMocks.error : new Error('Connection failed'))
+      })
+      if (scenario === 'cancelled') {
+        expect(agentPageMocks.navigate).not.toHaveBeenCalled()
+        return
+      }
+      expect(agentPageMocks.navigate.mock.calls).toEqual([
+        [
+          {
+            to: '/app/agents',
+            search: { sessionId: scenario === 'success' ? 'parent' : 'child' },
+            replace: true
+          }
+        ]
+      ])
+      if (scenario === 'success') expect(toast.error).not.toHaveBeenCalled()
+      else
+        expect(toast.error).toHaveBeenCalledWith(
+          scenario === 'not-found' ? 'agent_session_fork.source_not_found' : 'Connection failed'
+        )
+    }
+  )
 
   it('creates and activates an empty session after creating an agent from the classic-layout add entry', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'

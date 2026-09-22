@@ -156,7 +156,9 @@ export function agentSessionReadModelEffects(
 export class AgentSessionService {
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
-    if (effects.length > 0) notifyDataApiDataChange(effects)
+    if (effects.length === 0) return
+    if (kind === 'membership') effects.push({ endpoint: '/agent-workspaces', kind: 'membership' })
+    notifyDataApiDataChange(effects)
   }
 
   notifyPurged(sessionIds: readonly string[]): void {
@@ -276,9 +278,14 @@ export class AgentSessionService {
    * DB-only create primitive for caller-owned transaction composition.
    * The caller supplies the reserved id and owns the outer commit boundary.
    */
-  createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto, type: AgentSessionType = 'conversation'): void {
+  createTx(
+    tx: DbOrTx,
+    id: string,
+    dto: CreateAgentSessionDto,
+    type: AgentSessionType = 'conversation',
+    createdAt = Date.now()
+  ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
-    const createdAt = Date.now()
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -851,7 +858,10 @@ export class AgentSessionService {
       () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
       defaultHandlersFor('Session', id)
     )
-    this.notifyReadModelChange([id], 'projection')
+    notifyDataApiDataChange([
+      ...agentSessionReadModelEffects([id], 'projection'),
+      { endpoint: '/agent-workspaces', kind: 'membership' }
+    ])
     return this.getById(id)
   }
 

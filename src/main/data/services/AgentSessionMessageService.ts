@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto'
+
 import { isToolUIPart } from 'ai'
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
@@ -11,6 +13,7 @@ import {
   agentSessionMessageTable as sessionMessagesTable,
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
 } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -60,6 +63,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
+import { AgentSessionEditError } from './AgentSessionEditError'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -89,7 +93,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
-    'data', json(${sessionMessagesTable.data}),
+    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId'),
     'searchableText', ${sessionMessagesTable.searchableText},
     'status', ${sessionMessagesTable.status},
     'modelId', ${sessionMessagesTable.modelId},
@@ -145,6 +149,7 @@ type ListSessionMessagesOptions = {
 
 type SaveAgentSessionMessageParams = {
   sessionId: string
+  runtimeAnchor?: unknown
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
   message: CreateAgentSessionMessageDto & {
@@ -282,7 +287,171 @@ function terminalResultData(
   return { parts: [{ type: 'text', text }] }
 }
 
+function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessageEntity['data'] {
+  const result = { ...data }
+  delete result.runtimeAnchor
+  delete result.nativeSessionId
+  return result
+}
+
 export class AgentSessionMessageService {
+  readEditSnapshotTx(tx: DbOrTx, sessionId: string, messageId: string) {
+    this.assertActiveSession(tx, sessionId)
+    const source = tx
+      .select({ session: sessionTable, workspace: agentWorkspaceTable })
+      .from(sessionTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionTable.id, sessionId))
+      .get()!
+    const rows = tx
+      .select()
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+      .all()
+    const index = rows.findIndex((row) => row.id === messageId)
+    const user = rows[index]
+    if (!user || user.role !== 'user' || user.delivery || source.session.type !== 'conversation')
+      throw new AgentSessionEditError('invalid_target')
+    if (
+      rows.some(
+        (row) =>
+          row.status === 'pending' ||
+          row.status === 'streaming' ||
+          row.deliveryStatus === 'accepted' ||
+          row.deliveryStatus === 'delivering'
+      )
+    )
+      throw new AgentSessionEditError('busy')
+    return {
+      ...source,
+      rows,
+      user,
+      prefix: rows.slice(0, index),
+      version: createHash('sha256').update(JSON.stringify({ source, rows })).digest('hex')
+    }
+  }
+
+  replaceEditTailTx(
+    tx: DbOrTx,
+    sessionId: string,
+    target: { messageId: string; version: string },
+    prefix: readonly SessionMessageRow[]
+  ): void {
+    const snapshot = this.readEditSnapshotTx(tx, sessionId, target.messageId)
+    if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
+    for (const row of snapshot.rows.slice(snapshot.prefix.length)) {
+      this.deleteSessionMessageTx(tx, sessionId, row.id)
+    }
+    for (const row of prefix) {
+      tx.update(sessionMessagesTable)
+        .set({ data: row.data, runtimeResumeToken: row.runtimeResumeToken })
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, row.id)))
+        .run()
+    }
+  }
+
+  hasRuntimeResumeToken(sessionId: string, resumeToken: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.runtimeResumeToken, resumeToken))
+        )
+        .limit(1)
+        .get()
+    )
+  }
+
+  setEditRuntimeTx(tx: DbOrTx, sessionId: string, userMessageId: string, nativeSessionId: string): void {
+    tx.update(sessionMessagesTable)
+      .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.nativeSessionId', ${nativeSessionId})` })
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, userMessageId)))
+      .run()
+  }
+
+  getNativeSessionId(sessionId: string): string | undefined {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ data: sessionMessagesTable.data })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          sql`json_type(${sessionMessagesTable.data}, '$.nativeSessionId') = 'text'`
+        )
+      )
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .limit(1)
+      .get()?.data.nativeSessionId
+  }
+
+  /** Main-only native fork read. API callers must never receive these raw rows. */
+  readForkPrefixTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    excludedIds: readonly string[] = []
+  ): SessionMessageRow[] | undefined {
+    const rows = tx
+      .select()
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+      .all()
+    const end = rows.findIndex((row) => row.id === messageId)
+    if (end < 0) return undefined
+    const excluded = new Set(excludedIds)
+    return rows.slice(0, end + 1).filter((row) => !excluded.has(row.id))
+  }
+
+  /** Inserts historical facts only, never delivery, billing, queue or approval ownership. */
+  insertForkMessagesTx(tx: DbOrTx, sessionId: string, rows: readonly SessionMessageRow[]): void {
+    for (const row of rows) {
+      tx.insert(sessionMessagesTable)
+        .values({
+          id: row.id,
+          sessionId,
+          role: row.role,
+          data: row.data,
+          status: row.status,
+          modelId: row.modelId,
+          messageSnapshot: row.messageSnapshot,
+          runtimeResumeToken: row.runtimeResumeToken,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt
+        })
+        .run()
+      replaceAgentSessionMessageFileRefsTx(tx, row.id, row.data)
+    }
+  }
+
+  private invalidateForkPrefixTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+    const row = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (!row) return
+    tx.update(sessionMessagesTable)
+      .set({
+        data: sql`json_remove(${sessionMessagesTable.data}, '$.runtimeAnchor')`,
+        updatedAt: Date.now()
+      })
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          // Match readForkPrefixTx's inclusive (createdAt, id) boundary.
+          or(
+            gt(sessionMessagesTable.createdAt, row.createdAt),
+            and(eq(sessionMessagesTable.createdAt, row.createdAt), gte(sessionMessagesTable.id, row.id))
+          ),
+          sql`json_type(${sessionMessagesTable.data}, '$.runtimeAnchor') is not null`
+        )
+      )
+      .run()
+  }
+
   search(query: SessionMessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
@@ -511,7 +680,10 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const tail = pageRows[pageRows.length - 1]
     return {
-      items: pageRows.map((row) => ({ ...row, createdAt: timestampToISO(row.createdAt) })),
+      items: pageRows.map((row) => ({
+        ...row,
+        createdAt: timestampToISO(row.createdAt)
+      })),
       nextCursor: hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
     }
   }
@@ -596,12 +768,15 @@ export class AgentSessionMessageService {
     }
 
     const result = withSqliteErrors(
-      () => this.deleteSessionMessageTx(database, sessionId, messageId),
+      () => application.get('DbService').withWriteTx((tx) => this.deleteSessionMessageTx(tx, sessionId, messageId)),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } }
+    ])
   }
 
   getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
@@ -617,7 +792,7 @@ export class AgentSessionMessageService {
     messageId: string,
     dto: UpdateAgentSessionMessageDto
   ): AgentSessionMessageEntity {
-    return application.get('DbService').withWriteTx((tx) => {
+    const message = application.get('DbService').withWriteTx((tx) => {
       this.assertActiveSession(tx, sessionId)
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
@@ -625,7 +800,8 @@ export class AgentSessionMessageService {
       const updatedAt = Date.now()
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
-      const mergedData = { ...existing.data, ...dto.data }
+      const mergedData = publicMessageData({ ...existing.data, ...dto.data })
+      this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
         .set({ data: mergedData, updatedAt })
@@ -636,9 +812,14 @@ export class AgentSessionMessageService {
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+    ])
+    return message
   }
 
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
+    this.invalidateForkPrefixTx(tx, sessionId, messageId)
     const result = tx
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
@@ -733,7 +914,7 @@ export class AgentSessionMessageService {
       id: row.id,
       sessionId: row.sessionId,
       role: row.role as AgentSessionMessageEntity['role'],
-      data: row.data,
+      data: publicMessageData(row.data),
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
       modelId: row.modelId,
@@ -837,8 +1018,11 @@ export class AgentSessionMessageService {
     }
 
     const existingRow = this.findExistingMessageRow(db, sessionId, messageId)
+    const data: SessionMessageRow['data'] = publicMessageData(message.data)
+    if (params.runtimeAnchor) data.runtimeAnchor = params.runtimeAnchor
 
     if (existingRow) {
+      if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
@@ -870,7 +1054,7 @@ export class AgentSessionMessageService {
             .set({
               role: message.role,
               status,
-              data: message.data,
+              data,
               modelId,
               messageSnapshot,
               stats,
@@ -893,7 +1077,7 @@ export class AgentSessionMessageService {
           ...existingRow,
           role: message.role,
           status,
-          data: message.data,
+          data,
           searchableText: existingRow.searchableText,
           modelId,
           messageSnapshot,
@@ -916,7 +1100,7 @@ export class AgentSessionMessageService {
       sessionId,
       role: message.role,
       status,
-      data: message.data,
+      data,
       modelId: message.modelId,
       messageSnapshot: message.messageSnapshot,
       stats: mergeMessageRuntimeStats(undefined, runtimeStats) ?? null,

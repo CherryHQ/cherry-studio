@@ -63,13 +63,14 @@ import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
+import AgentSessionForkBlock from './AgentSessionForkBlock'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
-import ImageBlock from './ImageBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
+import MessageImageBlock, { type MessageImageSource } from './MessageImageBlock'
 import {
   findOpenTextTailIndex,
   isHiddenPart,
@@ -205,6 +206,11 @@ function extractImageUrl(part: CherryMessagePart): string | undefined {
   return filePart.url || undefined
 }
 
+function toImageSource(part: CherryMessagePart): MessageImageSource | undefined {
+  const url = extractImageUrl(part)
+  return url ? { handle: fileHandleFromPart(part), url } : undefined
+}
+
 export interface HoistedFileAttachment {
   key: string
   handle: FileHandle
@@ -229,14 +235,14 @@ function isHoistableFilePart(part: CherryMessagePart): boolean {
 
 /** Attachments a hoisting container renders in place of the inline file blocks. */
 export function getHoistedAttachments(parts: readonly CherryMessagePart[], message: MessageListItem) {
-  const images: string[] = []
+  const images: MessageImageSource[] = []
   const files: HoistedFileAttachment[] = []
 
   parts.forEach((part, index) => {
     if ((part.type as string) !== 'file') return
     if (isImageFilePart(part)) {
-      const url = extractImageUrl(part)
-      if (url) images.push(url)
+      const source = toImageSource(part)
+      if (source) images.push(source)
       return
     }
     const attachment = toFileAttachment(part, `${message.id}-part-${index}`)
@@ -630,6 +636,9 @@ function renderPart(
     case 'data-conversation-reset':
       return <ConversationResetBlock key={partId} />
 
+    case 'data-agent-session-fork':
+      return <AgentSessionForkBlock key={partId} sourceSessionId={part.data.sourceSessionId} />
+
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data
       return (
@@ -733,9 +742,9 @@ function renderPart(
     case 'file': {
       const filePart = part as { url?: string; mediaType?: string; filename?: string }
       if (filePart.mediaType?.startsWith('image/')) {
-        const url = filePart.url
-        if (!url) return null
-        return <ImageBlock key={partId} images={[url]} isSingle={true} thumbnail={message.role === 'user'} />
+        const source = toImageSource(part)
+        if (!source) return null
+        return <MessageImageBlock key={partId} sources={[source]} isSingle={true} thumbnail={message.role === 'user'} />
       }
       const attachment = toFileAttachment(part, partId)
       if (!attachment) {
@@ -899,20 +908,20 @@ function renderGroupedEntry(
     const firstPart = entry[0].part
 
     if (isImageFilePart(firstPart)) {
-      const images = entry.map((e) => extractImageUrl(e.part)).filter(Boolean) as string[]
+      const images = entry.map((e) => toImageSource(e.part)).filter((s) => s !== undefined)
       if (images.length === 0) return null
 
       const thumbnail = message.role === 'user'
       if (images.length === 1) {
         return (
           <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-            <ImageBlock images={images} isSingle={true} thumbnail={thumbnail} />
+            <MessageImageBlock sources={images} isSingle={true} thumbnail={thumbnail} />
           </AnimatedBlockWrapper>
         )
       }
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-          <ImageBlock images={images} isSingle={false} thumbnail={thumbnail} />
+          <MessageImageBlock sources={images} isSingle={false} thumbnail={thumbnail} />
         </AnimatedBlockWrapper>
       )
     }
