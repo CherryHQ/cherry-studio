@@ -16250,6 +16250,63 @@
       "providerId": "grok-cli"
     },
     {
+      "apiModelId": "grok-4.7",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "grok-4.7-build-fast",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "image-recognition"]
+      },
+      "description": "Grok 4.7 Fast is the low-latency variant of Grok 4.7 billed at twice the standard rate, available through the SuperGrok subscription via the Grok CLI proxy.",
+      "endpointTypes": ["openai-responses"],
+      "family": "grok",
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-7-build-fast",
+      "name": "Grok 4.7 Fast",
+      "outputModalities": ["text"],
+      "ownedBy": "xai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
       "capabilities": {
         "force": ["function-call", "reasoning", "image-recognition"]
       },
@@ -40574,5 +40631,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "35e0c8c182a2e844"
+  "version": "6ed61877eb8ffc6c"
 }
