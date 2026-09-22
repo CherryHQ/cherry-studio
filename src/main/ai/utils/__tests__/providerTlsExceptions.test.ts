@@ -107,13 +107,27 @@ describe('installProviderCertificateVerifyProc', () => {
     ) => void
   }
 
-  it('accepts certificates for opted-in provider hosts and rejects unrelated hosts', () => {
+  it('accepts only enabled opted-in provider hosts and verifies other certificates', () => {
     listProvidersMock.mockReturnValue([
       {
         isEnabled: true,
         settings: { allowSelfSignedTls: true },
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal:8443/v1' }
+        }
+      },
+      {
+        isEnabled: true,
+        settings: { allowSelfSignedTls: false },
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://strict.internal/v1' }
+        }
+      },
+      {
+        isEnabled: false,
+        settings: { allowSelfSignedTls: true },
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://disabled.internal/v1' }
         }
       }
     ])
@@ -123,9 +137,11 @@ describe('installProviderCertificateVerifyProc', () => {
     proc({ hostname: 'llm.internal' }, callback)
     expect(callback).toHaveBeenCalledWith(CERT_VERIFY_ACCEPT)
 
-    callback.mockClear()
-    proc({ hostname: 'api.openai.com' }, callback)
-    expect(callback).toHaveBeenCalledWith(CERT_VERIFY_USE_CHROMIUM)
+    for (const hostname of ['strict.internal', 'disabled.internal', 'api.openai.com']) {
+      callback.mockClear()
+      proc({ hostname }, callback)
+      expect(callback).toHaveBeenCalledWith(CERT_VERIFY_USE_CHROMIUM)
+    }
   })
 
   it('fails closed when the provider list is unavailable', () => {

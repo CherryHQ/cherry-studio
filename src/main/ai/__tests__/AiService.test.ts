@@ -3,6 +3,7 @@ import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -237,6 +238,8 @@ vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
 
 const { listModels: listModelsFromProviderActual } =
   await vi.importActual<typeof ListModelsModule>('../provider/listModels')
+const { customFetch: realCustomFetch } = await vi.importActual<typeof CustomFetchModule>('../utils/customFetch')
+const { customFetch: mockedCustomFetch } = await import('../utils/customFetch')
 const { AiService, imageInputEntryParams, resolveRequiredNativeFileSupport } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
 
@@ -252,6 +255,8 @@ function createService(): InstanceType<typeof AiService> {
 describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(mockedCustomFetch).mockReset()
+    vi.mocked(net.fetch).mockReset()
     mockCreateAgent.mockReset()
     mockAssistantGetById.mockReturnValue(undefined)
     mockReadRetryPolicy.mockReturnValue({
@@ -1799,7 +1804,8 @@ describe('AiService tool approval', () => {
         [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://new-api.example.com/v1' }
       }
     })
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    vi.mocked(mockedCustomFetch).mockImplementation(realCustomFetch)
+    vi.mocked(net.fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
           data: [
@@ -1813,30 +1819,26 @@ describe('AiService tool approval', () => {
       )
     )
 
-    try {
-      const [listedModel] = await listModelsFromProviderActual(provider)
-      expect(listedModel).toMatchObject({
-        apiModelId: 'deepseek-v4-flash',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
-        capabilities: []
-      })
-      expect(isGatewayRoutableModel(listedModel as Model)).toBe(true)
+    const [listedModel] = await listModelsFromProviderActual(provider)
+    expect(listedModel).toMatchObject({
+      apiModelId: 'deepseek-v4-flash',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      capabilities: []
+    })
+    expect(isGatewayRoutableModel(listedModel as Model)).toBe(true)
 
-      const service = createService()
-      const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
-      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
-      mockModelGetByKey.mockReturnValue({
-        ...listedModel,
-        capabilities: [MODEL_CAPABILITY.EMBEDDING]
-      })
+    const service = createService()
+    const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      ...listedModel,
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
 
-      await service.checkModel({ uniqueModelId: 'new-api::deepseek-v4-flash' })
+    await service.checkModel({ uniqueModelId: 'new-api::deepseek-v4-flash' })
 
-      expect(embedSpy).not.toHaveBeenCalled()
-      expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
-    } finally {
-      fetchSpy.mockRestore()
-    }
+    expect(embedSpy).not.toHaveBeenCalled()
+    expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
   })
 
   it('passes the selected API key override into text health checks', async () => {
@@ -2108,7 +2110,8 @@ describe('AiService tool approval', () => {
   it('uses lightweight /api/show probe for Ollama providers', async () => {
     const service = createService()
     const generateSpy = vi.spyOn(service, 'generateText')
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+    vi.mocked(mockedCustomFetch).mockImplementation(realCustomFetch)
+    vi.mocked(net.fetch).mockResolvedValue(new Response(null, { status: 200 }))
 
     mockProviderGetByProviderId.mockReturnValue({
       id: 'ollama',
@@ -2137,7 +2140,7 @@ describe('AiService tool approval', () => {
 
     const result = await service.checkModel({ uniqueModelId: 'ollama::llama3' })
 
-    expect(fetchSpy).toHaveBeenCalledWith(
+    expect(net.fetch).toHaveBeenCalledWith(
       'http://localhost:11434/api/show',
       expect.objectContaining({
         method: 'POST',
@@ -2151,7 +2154,8 @@ describe('AiService tool approval', () => {
 
   it('passes apiKeyOverride into the Ollama probe', async () => {
     const service = createService()
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+    vi.mocked(mockedCustomFetch).mockImplementation(realCustomFetch)
+    vi.mocked(net.fetch).mockResolvedValue(new Response(null, { status: 200 }))
 
     mockProviderGetByProviderId.mockReturnValue({
       id: 'ollama',
@@ -2184,14 +2188,15 @@ describe('AiService tool approval', () => {
     })
 
     expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ollama', 'sk-selected')
-    const [url, init] = fetchSpy.mock.calls.at(-1) as [string, RequestInit]
+    const [url, init] = vi.mocked(net.fetch).mock.calls.at(-1) as [string, RequestInit]
     expect(url).toContain('/api/show')
     expect(new Headers(init.headers).get('x-api-key')).toBe('sk-selected')
   })
 
   it('surfaces Ollama string error from /api/show', async () => {
     const service = createService()
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    vi.mocked(mockedCustomFetch).mockImplementation(realCustomFetch)
+    vi.mocked(net.fetch).mockResolvedValue(
       new Response(JSON.stringify({ error: 'model "nope" not found' }), { status: 404 })
     )
 

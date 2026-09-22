@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
@@ -54,6 +55,7 @@ async function listen(server: Server): Promise<number> {
 beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockReturnValue('')
+  vi.mocked(net.fetch).mockImplementation((input, init) => fetch(input, init))
 })
 
 afterEach(async () => {
@@ -100,6 +102,7 @@ describe('listModels - LM Studio response isolation', () => {
 
     const models = await listModels(provider)
 
+    expect(net.fetch).toHaveBeenCalledWith(`http://127.0.0.1:${port}/api/v1/models`, expect.any(Object))
     expect(models.map((model) => model.apiModelId)).toEqual(['first-model', 'second-model'])
     expect(models[0]?.name).toBe('First Model')
     expect(
