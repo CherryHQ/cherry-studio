@@ -45,6 +45,8 @@ type Props = {
   openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage?: MessageListActions['deleteMessage']
+  startEditing?: (messageId: string) => Promise<void>
+  editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
 }
 
@@ -67,6 +69,8 @@ const AgentSessionMessages = ({
   openExternalUrl,
   openDiagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval
 }: Props) => {
   const { session } = useSession(sessionId)
@@ -142,6 +146,8 @@ const AgentSessionMessages = ({
     openDiagnosticReport,
     diagnosticReport,
     deleteMessage,
+    startEditing,
+    editBusy,
     respondToolApproval,
     messageNavigation,
     workspacePath: session?.workspace?.path,

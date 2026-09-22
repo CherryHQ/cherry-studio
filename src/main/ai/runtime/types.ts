@@ -71,6 +71,8 @@ export interface AgentRuntimeConnectInput {
   /** Whether this connection's turn requests Fast processing. */
   fastMode?: boolean
   resumeToken?: string
+  /** Independent native identity for an edited first turn with no history to resume. */
+  nativeSessionId?: string
   trace?: AgentRuntimeTraceContext
   /**
    * Synchronous host hook fired when a pending steer is actually injected. The host uses this
@@ -234,6 +236,8 @@ export interface AgentRuntimeConnection {
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   stopTask?(taskId: string): Promise<boolean>
   close(): void | Promise<void>
+  /** Confirm native process exit before replacing this session's history. */
+  closeForEdit?(): Promise<void>
 }
 
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {

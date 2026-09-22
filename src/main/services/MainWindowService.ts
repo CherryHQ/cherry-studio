@@ -315,6 +315,9 @@ export class MainWindowService extends BaseService {
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
       logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      // A window being torn down can report its renderer gone after the webContents is
+      // destroyed, where reload() throws and hides the real crash behind a dialog.
+      if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
       const currentTime = Date.now()
       const lastCrashTime = this.lastRendererProcessCrashTime
       this.lastRendererProcessCrashTime = currentTime

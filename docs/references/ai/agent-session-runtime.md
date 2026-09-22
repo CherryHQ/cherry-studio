@@ -614,8 +614,9 @@ old policy.
 ## pi driver resource boundary
 
 pi runs in-process through the SDK, but Cherry still owns the runtime boundary.
-The driver must not import the user's standalone pi setup from `~/.pi/agent`,
-and must not silently trust executable or prompt resources from a workspace.
+The driver must not import the user's standalone pi setup from `~/.pi/agent`
+(apart from the Windows `shellPath` field below), and must not silently trust
+executable or prompt resources from a workspace.
 
 Allowed in v1:
 
@@ -664,11 +665,19 @@ Allowed in v1:
   Context files are workspace **text**, a different trust class than executable
   extensions (which stay off). This is the only project-discovered resource pi
   loads; everything else below is still disabled.
+- On Windows, the top-level `shellPath` from the user's global pi
+  `settings.json` — read as a single field, validated to name an available
+  `bash.exe`, and passed to the in-memory settings manager and the managed Bash
+  tool. Without it pi resolves `bash` from PATH and silently lands in the WSL
+  shim. An invalid configured path fails startup rather than switching
+  execution environments behind the user's back; an absent one falls back to
+  Cherry's own Git Bash discovery.
 
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
-- User-global pi resources under the standalone pi home (`~/.pi/agent`) or user
-  skill folders such as `~/.agents/skills`.
+- User-global pi resources under the standalone pi home (`~/.pi/agent`) other
+  than the `shellPath` field above, or user skill folders such as
+  `~/.agents/skills`.
 - Disk prompts from any pi home, including Cherry-owned `SYSTEM.md` and
   `APPEND_SYSTEM.md`; Cherry's `PromptBuilder` is the only persona source.
 - Workspace project resources: `.pi/extensions`, `.pi/skills`, `.pi/prompts`,

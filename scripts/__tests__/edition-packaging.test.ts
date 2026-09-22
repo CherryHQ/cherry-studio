@@ -23,7 +23,7 @@ type WorkflowStep = {
   if?: string
   name?: string
   run?: string
-  with?: Record<string, unknown>
+  uses?: string
 }
 
 type GitCodeWorkflow = {
@@ -203,21 +203,15 @@ describe('edition packaging', () => {
     const buildJob = workflow.jobs['build-windows-signed']
     const syncJob = workflow.jobs['sync-to-gitcode']
     const buildStep = buildJob.steps.find((step) => step.name === 'Build Windows with code signing')
-    const uploadStep = buildJob.steps.find((step) => step.name === 'Upload signed Windows artifacts')
-    const downloadStep = syncJob.steps.find((step) => step.name === 'Download signed Windows artifacts')
-    const replaceStep = syncJob.steps.find((step) => step.name === 'Replace Windows files with signed versions')
+    const preserveStep = buildJob.steps.find((step) => step.name === 'Preserve signed Windows artifacts locally')
 
     expect(buildJob.strategy?.matrix?.edition).toEqual([GLOBAL_EDITION, CHINA_EDITION])
     expect(buildStep?.run).toMatch(/^\s*pnpm build:win:cn\s*$/m)
     expect(buildStep?.run).toMatch(/^\s*pnpm build:win\s*$/m)
     expect(buildStep?.run).toContain('electron-builder.cn.config.cjs')
-    expect(uploadStep?.with?.name).toContain('matrix.edition')
-    expect(uploadStep?.if).toContain('steps.build-windows.outputs.supported')
-    expect(downloadStep?.with).toMatchObject({
-      pattern: 'signed-windows-artifacts-*',
-      'merge-multiple': true
-    })
-    expect(replaceStep?.run).toContain('cp signed-windows-artifacts/*.exe')
-    expect(replaceStep?.run).toContain('cp signed-windows-artifacts/*.yml')
+    expect(preserveStep?.if).toContain('steps.build-windows.outputs.supported')
+    expect(
+      [...buildJob.steps, ...syncJob.steps].some((step) => /actions\/(upload|download)-artifact@/.test(step.uses ?? ''))
+    ).toBe(false)
   })
 })

@@ -26,9 +26,12 @@ function createDownloadTable({ productName, repository, tag }) {
     const editionGroups = EDITIONS.map((edition) =>
       getReleaseDownloadGroups({ edition, platform: platform.id, productName, version })
     )
+    if (platform.id === 'mac') editionGroups.forEach((groups) => groups.reverse())
 
     for (let index = 0; index < editionGroups[0].length; index += 1) {
       const architecture = editionGroups[0][index].architecture
+      const architectureLabel =
+        platform.id === 'mac' ? (architecture === 'arm64' ? 'Apple M Series' : 'Intel') : architecture
       const downloads = editionGroups.map((groups) =>
         groups[index].artifacts
           .map(({ fileName, label }) => {
@@ -37,7 +40,7 @@ function createDownloadTable({ productName, repository, tag }) {
           })
           .join(' · ')
       )
-      lines.push(`| ${platform.label} | ${architecture} | ${downloads[0]} | ${downloads[1]} |`)
+      lines.push(`| ${platform.label} | ${architectureLabel} | ${downloads[0]} | ${downloads[1]} |`)
     }
   }
 
