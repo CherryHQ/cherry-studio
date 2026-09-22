@@ -341,6 +341,13 @@
       "description": "UniqueModelId of a local model used by default for background work (history compression, topic naming); empty string means use the remote defaults"
     },
     {
+      "targetKey": "chat.routing.lm_studio_embedding_model",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "LM Studio model ID used for text embeddings in local mode (empty = use default)"
+    },
+    {
       "targetKey": "chat.context_settings.enabled",
       "type": "boolean",
       "defaultValue": true,

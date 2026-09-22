@@ -63,6 +63,36 @@ vi.mock('@cherrystudio/ui', () => ({
       {description && <span>{description}</span>}
       <input type="checkbox" checked={checked} onChange={(event) => onCheckedChange(event.target.checked)} />
     </label>
+  ),
+  Label: ({ children, htmlFor }: { children?: ReactNode; htmlFor?: string }) => (
+    <label htmlFor={htmlFor}>{children}</label>
+  ),
+  Select: ({
+    children,
+    value,
+    onValueChange,
+    disabled
+  }: {
+    children?: ReactNode
+    value: string
+    onValueChange: (value: string) => void
+    disabled?: boolean
+  }) => (
+    <select value={value} onChange={(e) => onValueChange(e.target.value)} disabled={disabled}>
+      {children}
+    </select>
+  ),
+  SelectTrigger: ({ children, id }: { children?: ReactNode; id?: string }) => (
+    <div role="combobox" id={id}>
+      {children}
+    </div>
+  ),
+  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
+  SelectContent: ({ children }: { children?: ReactNode }) => children,
+  SelectItem: ({ children, value }: { children?: ReactNode; value: string }) => (
+    <option value={value} role="option">
+      {children}
+    </option>
   )
 }))
 
@@ -280,5 +310,29 @@ describe('LocalModelsSection', () => {
     await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument())
     expect(screen.queryAllByRole('listitem')).toHaveLength(0)
     expect(screen.getByText('settings.dependencies.localModels.title')).toBeInTheDocument()
+  })
+
+  describe('LM Studio embedding model selector', () => {
+    it('renders LM Studio embedding model selector', async () => {
+      const mockLmStudioModels = {
+        models: [
+          { id: 'qwen-7b', name: 'Qwen 7B', capabilities: [] },
+          { id: 'mistral-7b', name: 'Mistral 7B', capabilities: [] }
+        ]
+      }
+
+      MockUsePreferenceUtils.setPreferenceValue('chat.routing.lm_studio_embedding_model', '')
+      mockRoutes((route) => {
+        if (route === 'ai.provider.model.list') return Promise.resolve(mockLmStudioModels)
+        return Promise.resolve()
+      })
+
+      render(<LocalModelsSection />)
+
+      // Wait for selector to render with label
+      await waitFor(() =>
+        expect(screen.getByText('settings.dependencies.lmStudio.embedding_model.label')).toBeInTheDocument()
+      )
+    })
   })
 })

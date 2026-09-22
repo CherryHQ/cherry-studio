@@ -3,13 +3,24 @@ import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, DescriptionSwitch } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  DescriptionSwitch,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelBundleId, LocalModelCapability, LocalModelStatus } from '@shared/data/presets/localModel'
+import type { Model } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('LocalModelsSection')
 
@@ -252,6 +263,81 @@ const LocalModelsSection: FC = () => {
           ))}
         </div>
       )}
+      <div className="mt-6 border-border border-t pt-6">
+        <LmStudioEmbeddingModelSelector />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * LM Studio embedding model selector.
+ * Allows users to pick which LM Studio model to use for text embeddings.
+ */
+const LmStudioEmbeddingModelSelector: FC = () => {
+  const { t } = useTranslation()
+  const [lmStudioEmbeddingModel, setLmStudioEmbeddingModel] = usePreference('chat.routing.lm_studio_embedding_model')
+  const [lmStudioModels, setLmStudioModels] = useState<Model[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // Fetch LM Studio available models
+  useEffect(() => {
+    let mounted = true
+    setLoading(true)
+    void ipcApi
+      .request('ai.provider.model.list', { providerId: 'lmstudio' })
+      .then(({ models = [] }) => {
+        if (mounted) {
+          setLmStudioModels(models as Model[])
+        }
+      })
+      .catch((error) => {
+        logger.warn('Failed to fetch LM Studio models', error as Error)
+        if (mounted) setLmStudioModels([])
+      })
+      .finally(() => {
+        if (mounted) setLoading(false)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="lm-studio-embedding-model" className="text-sm font-medium">
+        {t('settings.dependencies.lmStudio.embedding_model.label', 'LM Studio Embedding Model')}
+      </Label>
+      <Select
+        value={lmStudioEmbeddingModel || ''}
+        onValueChange={setLmStudioEmbeddingModel}
+        disabled={loading || lmStudioModels.length === 0}>
+        <SelectTrigger id="lm-studio-embedding-model" className="w-full">
+          <SelectValue
+            placeholder={
+              loading
+                ? t('common.loading')
+                : lmStudioModels.length === 0
+                  ? t('settings.dependencies.lmStudio.no_models', 'No models available')
+                  : t('common.select')
+            }
+          />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="">{t('settings.dependencies.lmStudio.embedding_model.default', 'Use default')}</SelectItem>
+          {lmStudioModels.map((model) => (
+            <SelectItem key={model.id} value={model.id}>
+              {model.name || model.id}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-muted-foreground text-xs">
+        {t(
+          'settings.dependencies.lmStudio.embedding_model.description',
+          'Choose which LM Studio model to use for text embeddings. Leave empty to use the default.'
+        )}
+      </p>
     </div>
   )
 }
