@@ -6,6 +6,7 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getClientId } from '@main/utils/systemInfo'
 import { ApiGatewayPairedDeviceMetadataSchema } from '@shared/data/types/apiGatewayPairedDevice'
 
 const logger = loggerService.withContext('PairingRoutes')
@@ -38,7 +39,8 @@ export const pairingRoutes = new Elysia().post(
     return {
       token: device.token,
       name: hostname(),
-      version: app.getVersion()
+      version: app.getVersion(),
+      clientId: getClientId()
     }
   },
   {

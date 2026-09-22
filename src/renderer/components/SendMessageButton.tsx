@@ -5,6 +5,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { TooltipLabelWithShortcut } from '@renderer/components/command'
 
 interface Props {
+  label?: string
   disabled: boolean
   onDisabledClick?: () => void
   sendMessage: () => void
@@ -12,8 +13,9 @@ interface Props {
   shortcutLabel: string
 }
 
-const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, shortcutLabel }) => {
+const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, label, shortcutLabel }) => {
   const { t } = useTranslation()
+  const sendLabel = label ?? t('chat.input.send')
 
   const handleClick = () => {
     if (disabled) {
@@ -41,7 +43,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, 
     <Tooltip
       asChild
       isDisabled={disabled}
-      content={<TooltipLabelWithShortcut label={t('chat.input.send')} shortcutLabel={shortcutLabel} />}>
+      content={<TooltipLabelWithShortcut label={sendLabel} shortcutLabel={shortcutLabel} />}>
       <i
         data-ui="chat.composer.action.send"
         className="iconfont icon-ic_send"
@@ -52,7 +54,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, 
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         role="button"
-        aria-label={t('chat.input.send')}
+        aria-label={sendLabel}
         aria-disabled={disabled}
         tabIndex={disabled ? -1 : 0}
         style={{

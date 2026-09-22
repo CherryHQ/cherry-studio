@@ -432,8 +432,16 @@ export class AgentLifecycleService extends BaseService {
     retrySessionIds: string[] = []
   ): Promise<void> {
     const closed = await Promise.allSettled(
-      sessionIds.map((sessionId) => application.get('AgentSessionRuntimeService').closeSession(sessionId))
+      sessionIds.map(async (sessionId) => {
+        const runtime = application.get('AgentSessionRuntimeService')
+        await runtime.cancelSessionForks(sessionId)
+        await runtime.closeSession(sessionId)
+      })
     )
+    await application
+      .get('AgentSessionRuntimeService')
+      .recoverSessionForks()
+      .catch((error) => logger.warn('Fork cleanup remains pending after session deletion', { error }))
     for (const deliveryResult of deliveryResults)
       application.get('AgentSessionDeliveryService').kick(deliveryResult.sessionId)
     retrySessionIds.forEach((sessionId) => application.get('AgentSessionDeliveryService').kick(sessionId))

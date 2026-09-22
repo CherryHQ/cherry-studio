@@ -1614,7 +1614,7 @@ describe('Topics', () => {
     })
   })
 
-  it('groups topic context menu actions and exposes one destructive Delete action', () => {
+  it('offers Archive instead of permanent deletion in the topic context menu', () => {
     const { getByText } = renderTopicList()
 
     fireEvent.contextMenu(getByText('Alpha topic'))
@@ -1624,28 +1624,10 @@ describe('Topics', () => {
     expect(menuContent).not.toHaveTextContent('Edit Assistant')
 
     expect(Array.from(menuContent?.querySelectorAll('[data-testid="context-menu-separator"]') ?? [])).toHaveLength(2)
-    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
-      'Generate conversation name',
-      'Edit conversation name',
-      'Pin Conversation',
-      'Add to sidebar',
-      expect.stringMatching(/^Move to/),
-      'Open in New Window',
-      'Conversation positionLeftRight',
-      'Clear messages',
-      '',
-      'Save to notes',
-      'Save to knowledge base',
-      'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
-      'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
-      '',
-      'Archive',
-      'Delete Permanently'
-    ])
-    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' })).toHaveAttribute(
-      'variant',
-      'destructive'
-    )
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' })).toBeEnabled()
+    expect(
+      within(menuContent as HTMLElement).queryByRole('button', { name: 'Delete Permanently' })
+    ).not.toBeInTheDocument()
   })
 
   it('adds a topic shortcut without changing its conversation pin', async () => {
@@ -2691,56 +2673,60 @@ describe('Topics', () => {
     expect(topicStreamStatusMocks.markSeen).toHaveBeenCalledWith('topic-a')
   })
 
-  it('shows fifty topics in left-panel time groups and expands the remaining items', () => {
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-    mockUseQuery.mockImplementation((path) => {
-      if (path === '/pins') {
+  it.each(['time', 'assistant'])(
+    'expands all topics in %s groups with one click and collapses back',
+    async (displayMode) => {
+      const user = userEvent.setup()
+      MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, displayMode)
+      mockUseQuery.mockImplementation((path) => {
+        if (path === '/pins') {
+          return {
+            data: [],
+            isLoading: false,
+            isRefreshing: false,
+            error: undefined,
+            refetch: vi.fn().mockResolvedValue(undefined),
+            mutate: vi.fn().mockResolvedValue(undefined)
+          }
+        }
         return {
-          data: [],
+          data: undefined,
           isLoading: false,
           isRefreshing: false,
           error: undefined,
           refetch: vi.fn().mockResolvedValue(undefined),
           mutate: vi.fn().mockResolvedValue(undefined)
         }
-      }
-      return {
-        data: undefined,
+      })
+      mockUseInfiniteQuery.mockReturnValue({
+        pages: [{ items: withEarlierTopic(createTopicPageItems(56)) }],
         isLoading: false,
         isRefreshing: false,
         error: undefined,
-        refetch: vi.fn().mockResolvedValue(undefined),
-        mutate: vi.fn().mockResolvedValue(undefined)
-      }
-    })
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: withEarlierTopic(createTopicPageItems(51)) }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn(),
-      reset: vi.fn(),
-      mutate: vi.fn()
-    })
+        hasNext: false,
+        loadNext: vi.fn(),
+        refresh: vi.fn(),
+        reset: vi.fn(),
+        mutate: vi.fn()
+      })
 
-    renderTopicList()
+      renderTopicList()
 
-    expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.getByText('Topic 50')).toBeInTheDocument()
-    expect(screen.queryByText('Topic 51')).not.toBeInTheDocument()
+      expect(screen.getByText(displayMode === 'time' ? 'Topic 50' : 'Topic 5')).toBeInTheDocument()
+      expect(screen.queryByText(displayMode === 'time' ? 'Topic 51' : 'Topic 6')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show more conversations' }))
+      await user.click(screen.getByRole('button', { name: 'Show more conversations' }))
 
-    expect(screen.getByText('Topic 51')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
+      expect(screen.getByText('Topic 56')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Show more conversations' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse conversations' }))
+      await user.click(screen.getByRole('button', { name: 'Collapse conversations' }))
 
-    expect(screen.getByText('Topic 50')).toBeInTheDocument()
-    expect(screen.queryByText('Topic 51')).not.toBeInTheDocument()
-  })
+      expect(screen.getByText(displayMode === 'time' ? 'Topic 50' : 'Topic 5')).toBeInTheDocument()
+      expect(screen.queryByText(displayMode === 'time' ? 'Topic 51' : 'Topic 6')).not.toBeInTheDocument()
+    }
+  )
 
   it('keeps the expanded topic window after selecting a topic revealed by show more', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
@@ -3708,6 +3694,7 @@ describe('Topics', () => {
 
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.click(moreButton)
+    expect(screen.queryByRole('button', { name: 'Delete Permanently' })).not.toBeInTheDocument()
     const deleteAssistantButton = within(assistantHeader as HTMLElement).getByRole('button', {
       name: 'Archive'
     })

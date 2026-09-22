@@ -159,8 +159,10 @@ export function buildPathRegistry() {
     'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
     // MCP memory server's knowledge-graph JSON for the built-in MCP server
     'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
-    // Server catalog `@cherry/mcp-auto-install` reads when a custom registry is configured
+    // `@cherry/mcp-auto-install` owns both: its Registry API cache, and the config file it
+    // writes to instead of probing the user's other MCP clients
     'feature.mcp.registry_file': path.join(CHERRY_HOME, 'config', 'mcp-registry.json'),
+    'feature.mcp.auto_install_settings_file': path.join(CHERRY_HOME, 'config', 'mcp-auto-install-settings.json'),
 
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
@@ -197,6 +199,7 @@ export function buildPathRegistry() {
     'feature.agents.dsh.root': path.join(appUserDataData, 'Agents', '.dsh'), // Cherry-owned dsh home (DSH_HOME) + per-connection compositions
     'feature.agents.dsh.sessions': path.join(appUserDataData, 'Agents', '.dsh', 'sessions'), // JSONL session-persistence root
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
+    'feature.agents.forks': path.join(appUserDataData, 'Agents', '.forks'), // owned fork snapshots; retained for Pi lineage
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
     'feature.agents.assistant.manifest.file': path.join(
@@ -272,6 +275,7 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    'external.claude.config': path.join(sysHome, '.claude'),
     'external.browser.chrome': isMac
       ? path.join(sysHome, 'Library/Application Support/Google/Chrome')
       : isWin
@@ -316,6 +320,7 @@ export function buildPathRegistry() {
         : path.join(sysHome, '.mozilla/firefox'),
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
+    'external.pi.settings_file': path.join(sysHome, '.pi', 'agent', 'settings.json'),
     'external.hermes.default_home': isWin
       ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
       : path.join(sysHome, '.hermes'),

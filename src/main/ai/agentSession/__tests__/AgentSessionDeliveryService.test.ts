@@ -128,6 +128,8 @@ vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
 }))
 
 const runtime = {
+  cancelSessionForks: vi.fn().mockResolvedValue(undefined),
+  recoverSessionForks: vi.fn().mockResolvedValue(undefined),
   listActiveWork: () => [],
   drainInFlight: async () => ({ stragglerIds: [] }),
   isSessionBusy: mocks.runtimeBusy,
@@ -772,6 +774,9 @@ describe('AgentSessionDeliveryService', () => {
     mocks.closeSession.mockImplementation(async () => {
       order.push('runtime-closed')
     })
+    runtime.cancelSessionForks.mockImplementationOnce(async () => {
+      order.push('forks-cancelled')
+    })
     mocks.removeAgentStorageSubdirectory.mockImplementation(async () => {
       order.push('workspace-removed')
     })
@@ -786,7 +791,20 @@ describe('AgentSessionDeliveryService', () => {
       '/mock/feature.agents.system_workspaces',
       workspacePath
     )
-    expect(order).toEqual(['runtime-closed', 'workspace-removed'])
+    expect(order).toEqual(['forks-cancelled', 'runtime-closed', 'workspace-removed'])
+  })
+
+  it('keeps a committed archive successful when fork cleanup fails', async () => {
+    mocks.deleteByIds.mockReturnValue({
+      deletedIds: ['target'],
+      taskScheduleIds: [],
+      deliveryResults: [],
+      purgedSystemWorkspacePaths: []
+    })
+    runtime.recoverSessionForks.mockRejectedValueOnce(new Error('manifest unavailable'))
+    deliveryOwner = new AgentSessionDeliveryService()
+    await expect(new AgentLifecycleService().archiveSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
+    expect(mocks.closeSession).toHaveBeenCalledWith('target')
   })
 
   it('keeps a committed permanent deletion successful when workspace cleanup fails', async () => {

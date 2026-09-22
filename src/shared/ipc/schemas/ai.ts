@@ -26,7 +26,7 @@ import {
 } from '@shared/data/api/schemas/agentSessions'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
-import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
+import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   ImageGenerationModeSchema,
@@ -35,6 +35,7 @@ import {
   UniqueModelIdSchema
 } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+import { FileVersionSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
 
@@ -59,6 +60,15 @@ import { defineRoute } from '../define'
  * `output`, and these are built by trusted main, so a field mirror buys nothing
  * (see ipc-migration-guide.md).
  */
+
+export const HeartbeatDocumentSchema = z.strictObject({
+  content: z.string(),
+  version: FileVersionSchema,
+  contentHash: ContentHashSchema
+})
+export type HeartbeatDocument = z.infer<typeof HeartbeatDocumentSchema>
+export const HeartbeatRunResultSchema = z.enum(['started', 'empty', 'disabled', 'busy', 'paused'])
+export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
 
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
   type: AgentEntitySchema.shape.type,
@@ -334,9 +344,39 @@ export const aiRequestSchemas = {
     input: z.void(),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
+  'ai.agent.skill_session.create': defineRoute({
+    input: z.strictObject({ skillId: z.string().min(1) }),
+    output: z.strictObject({ sessionId: z.string().min(1) })
+  }),
   'ai.agent.session.prewarm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
+  }),
+  'ai.agent.session.fork': defineRoute({
+    input: z.strictObject({
+      sourceSessionId: z.uuid(),
+      messageId: z.uuid()
+    }),
+    output: z.strictObject({ sessionId: z.uuid() })
+  }),
+  'ai.agent.session.edit_target': defineRoute({
+    input: z.strictObject({ sessionId: z.uuid(), messageId: z.uuid() }),
+    output: z.strictObject({ messageId: z.uuid(), version: z.string(), parts: z.array(z.custom<CherryMessagePart>()) })
+  }),
+  'ai.agent.session.set_pending_input_count': defineRoute({
+    input: z.strictObject({ sessionId: z.uuid(), count: z.number().int().nonnegative() }),
+    output: z.void()
+  }),
+  'ai.agent.session.edit_resend': defineRoute({
+    input: z.strictObject({
+      sessionId: z.uuid(),
+      target: z.strictObject({ messageId: z.uuid(), version: z.string().min(1) }),
+      userMessageParts: z.array(z.custom<CherryMessagePart>()),
+      reasoningEffort: ReasoningEffortOptionSchema.optional(),
+      serviceTier: ServiceTierSelectionSchema.optional(),
+      fastMode: z.boolean().optional()
+    }),
+    output: z.custom<AiStreamOpenResponse>()
   }),
   'ai.agent.session.close_warm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
@@ -384,6 +424,18 @@ export const aiRequestSchemas = {
   // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──
   // Mixed-effect mutations (schedule row + channel subscriptions + timer) belong on
   // IpcApi, not DataApi — the Job DataApi is GET-only (api-design-guidelines.md).
+  'ai.agent.heartbeat.read': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1) }),
+    output: HeartbeatDocumentSchema
+  }),
+  'ai.agent.heartbeat.write': defineRoute({
+    input: HeartbeatDocumentSchema.extend({ agentId: z.string().min(1) }),
+    output: HeartbeatDocumentSchema
+  }),
+  'ai.agent.heartbeat.run': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1) }),
+    output: HeartbeatRunResultSchema
+  }),
   'ai.agent.task.create': defineRoute({
     input: agentTaskFormSchema.extend({ agentId: z.string().min(1) }),
     // Commands return the authoritative committed read model so the caller

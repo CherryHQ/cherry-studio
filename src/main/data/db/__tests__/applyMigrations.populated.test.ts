@@ -108,6 +108,68 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('classifies only proven heartbeat sessions while preserving conversation data', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0024_lying_shatterstar'))
+    const now = Date.now()
+    sqlite
+      .prepare(`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+      VALUES ('workspace', 'Workspace', '/tmp/heartbeat-migration', 'user', 'a0', ?, ?)`)
+      .run(now, now)
+    const insertSession = sqlite.prepare(`INSERT INTO agent_session
+      (id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+      VALUES (?, ?, 'workspace', ?, ?, ?, ?)`)
+    for (const id of ['heartbeat', 'ordinary', 'unknown', 'shared', 'unlinked']) {
+      insertSession.run(id, 'heartbeat', id, now, now, now)
+    }
+    sqlite
+      .prepare(`INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at)
+      VALUES ('message', 'heartbeat', 'assistant', ?, 'success', ?, ?)`)
+      .run(JSON.stringify({ parts: [{ type: 'text', text: 'kept result' }] }), now, now)
+    sqlite
+      .prepare(`INSERT INTO job_schedule
+      (id, type, name, trigger, job_input_template, catch_up_policy, created_at, updated_at)
+      VALUES ('heartbeat-schedule', 'agent.task', 'heartbeat_agent-1', ?, ?, ?, ?, ?)`)
+      .run(
+        JSON.stringify({ kind: 'interval', ms: 60_000 }),
+        JSON.stringify({ agentId: 'agent-1', prompt: '__heartbeat__' }),
+        JSON.stringify({ kind: 'skip-missed' }),
+        now,
+        now
+      )
+    const insertJob = sqlite.prepare(`INSERT INTO job
+      (id, type, status, queue, schedule_id, scheduled_at, input, metadata, created_at, updated_at)
+      VALUES (?, 'agent.task', 'completed', 'agent', ?, ?, ?, ?, ?, ?)`)
+    for (const [id, sessionId, prompt, scheduleId] of [
+      ['heartbeat-run', 'heartbeat', '__heartbeat__', 'heartbeat-schedule'],
+      ['ordinary-run', 'ordinary', 'summarize', null],
+      ['shared-heartbeat', 'shared', '__heartbeat__', 'heartbeat-schedule'],
+      ['shared-ordinary', 'shared', 'summarize', null],
+      ['unlinked-heartbeat', 'unlinked', '__heartbeat__', null]
+    ]) {
+      insertJob.run(id, scheduleId, now, JSON.stringify({ prompt }), JSON.stringify({ sessionId }), now, now)
+    }
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare('SELECT id, type FROM agent_session ORDER BY id').all()).toEqual([
+      { id: 'heartbeat', type: 'background' },
+      { id: 'ordinary', type: 'conversation' },
+      { id: 'shared', type: 'conversation' },
+      { id: 'unknown', type: 'conversation' },
+      { id: 'unlinked', type: 'conversation' }
+    ])
+    expect(sqlite.prepare('SELECT session_id, data FROM agent_session_message').get()).toEqual({
+      session_id: 'heartbeat',
+      data: JSON.stringify({ parts: [{ type: 'text', text: 'kept result' }] })
+    })
+    sqlite.prepare('DELETE FROM job').run()
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare("SELECT type FROM agent_session WHERE id = 'heartbeat'").get()).toEqual({
+      type: 'background'
+    })
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
     const now = Date.now()

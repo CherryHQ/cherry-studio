@@ -150,7 +150,14 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('electron', () => ({
-  app: { dock: { hide: vi.fn(), show: vi.fn() }, on: vi.fn(), removeListener: vi.fn() },
+  app: {
+    dock: { hide: vi.fn(), show: vi.fn() },
+    on: vi.fn(),
+    removeListener: vi.fn(),
+    getLocale: vi.fn(() => 'en-US'),
+    runningUnderARM64Translation: false
+  },
+  dialog: { showMessageBox: vi.fn() },
   BrowserWindow: { fromWebContents: vi.fn() },
   nativeImage: { createFromPath: vi.fn(() => ({})) },
   nativeTheme: { shouldUseDarkColors: false },
@@ -159,6 +166,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('@electron-toolkit/utils', () => ({ optimizer: { watchWindowShortcuts: vi.fn() } }))
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: vi.fn(() => 'global') }))
 
 vi.mock('@main/utils/windowUtil', () => ({
   getWindowsBackgroundMaterial: vi.fn(() => undefined),
@@ -182,10 +190,11 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
-import { app, session } from 'electron'
+import { app, dialog, session } from 'electron'
 import { shell } from 'electron'
 
 import { WindowType } from '@main/core/window/types'
+import { getAppEdition } from '@main/utils/appEdition'
 import type * as ExternalUrlSafety from '@main/utils/externalUrlSafety'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -333,6 +342,73 @@ describe('MainWindowService', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.clearAllMocks()
+  })
+
+  describe('Apple Silicon architecture warning', () => {
+    beforeEach(() => {
+      platformState.isMac = true
+      Object.assign(app, { runningUnderARM64Translation: true })
+      prefValues['app.language'] = 'en-US'
+      vi.mocked(getAppEdition).mockReturnValue('global')
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1, checkboxChecked: false })
+    })
+
+    afterEach(() => {
+      Object.assign(app, { runningUnderARM64Translation: false })
+      delete prefValues['app.language']
+    })
+
+    it.each([
+      ['cn', 'en-US', 'https://cherryai.com.cn/download'],
+      ['cn', 'zh-CN', 'https://cherryai.com.cn/download'],
+      ['global', 'zh-CN', 'https://cherryai.com/download'],
+      ['global', 'en-US', 'https://cherryai.com/download']
+    ] as const)('opens the %s download page with %s UI only after confirmation', async (edition, language, url) => {
+      vi.mocked(getAppEdition).mockReturnValue(edition)
+      prefValues['app.language'] = language
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 0, checkboxChecked: false })
+      ;(svc as any).setupWindowEvents(win)
+
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      win.emit('show')
+
+      await vi.waitFor(() => expect(shell.openExternal).toHaveBeenCalledWith(url))
+      expect(dialog.showMessageBox).toHaveBeenCalledWith(
+        win,
+        expect.objectContaining({ type: 'warning', cancelId: 1, detail: expect.stringContaining('Apple') })
+      )
+    })
+
+    it('defers a hidden launch until first show and does not repeat after reopening or rebuilding', async () => {
+      ;(svc as any).suppressInitialLaunchShow = true
+      ;(svc as any).setupWindowEvents(win)
+      win.emit('ready-to-show')
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
+
+      win.emit('show')
+      win.emit('show')
+      const rebuilt = createMockWindow()
+      ;(svc as any).setupWindowEvents(rebuilt)
+      rebuilt.emit('show')
+      await Promise.resolve()
+
+      expect(dialog.showMessageBox).toHaveBeenCalledTimes(1)
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      [true, false],
+      [false, true]
+    ])('does not warn when isMac=%s and translated=%s', async (isMac, translated) => {
+      platformState.isMac = isMac
+      Object.assign(app, { runningUnderARM64Translation: translated })
+      ;(svc as any).setupWindowEvents(win)
+      win.emit('show')
+      await Promise.resolve()
+
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
   })
 
   it('keeps tab delivery ready during child loading and in-page navigation, but queues during a main-document reload', async () => {
@@ -1207,6 +1283,41 @@ describe('MainWindowService', () => {
       }
 
       expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    })
+
+    // Regression guard for the "A JavaScript error occurred in the main process" dialog:
+    // render-process-gone can arrive after the window is already destroyed.
+    it('neither reloads nor forceExits when the window is already destroyed', () => {
+      attachCrashMonitor(svc, win)
+      const listener = getCrashListener(win)
+      // Only the window is gone: the webContents arm is covered on its own below,
+      // so each half of the guard is exercised by itself.
+      win.isDestroyed.mockReturnValue(true)
+      win.webContents.reload.mockImplementation(() => {
+        throw new TypeError('Object has been destroyed')
+      })
+
+      expect(() => listener(null, { reason: 'crashed' })).not.toThrow()
+
+      expect(win.webContents.reload).not.toHaveBeenCalled()
+      expect(applicationMock.forceExit).not.toHaveBeenCalled()
+      // The crash is still reported — only the recovery attempt is skipped.
+      expect(loggerMock.error).toHaveBeenCalledWith('Renderer process crashed with: {"reason":"crashed"}')
+    })
+
+    it('neither reloads nor forceExits when only the webContents is destroyed', () => {
+      attachCrashMonitor(svc, win)
+      const listener = getCrashListener(win)
+      // Window object still alive (teardown in flight) but its renderer side is gone.
+      win.webContents.isDestroyed.mockReturnValue(true)
+      win.webContents.reload.mockImplementation(() => {
+        throw new TypeError('Object has been destroyed')
+      })
+
+      expect(() => listener(null, { reason: 'crashed' })).not.toThrow()
+
+      expect(win.webContents.reload).not.toHaveBeenCalled()
+      expect(applicationMock.forceExit).not.toHaveBeenCalled()
     })
   })
 
