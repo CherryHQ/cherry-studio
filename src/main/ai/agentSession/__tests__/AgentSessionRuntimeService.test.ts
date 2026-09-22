@@ -2099,6 +2099,29 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getSessionById.mockReset()
   })
 
+  it('restamps agent ownership when a warm session is reassigned', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2', modelId: null })
+    mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'other-runtime', model: switchedModelId })
+    const service: any = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    service.markTurnTerminal('session-1', 'success')
+    entry.connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('current'),
+      refreshTraceContext: vi.fn()
+    }
+
+    await service.handleSessionModelUpdated('session-1')
+
+    expect(entry.agentId).toBe('agent-2')
+    expect(entry.agentType).toBe('other-runtime')
+    expect(entry.modelId).toBe(switchedModelId)
+    mocks.getSessionById.mockReset()
+  })
+
   it('reconciles an idle warm connection when the session override changes', async () => {
     mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
