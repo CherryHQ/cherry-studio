@@ -1343,12 +1343,15 @@ describe('TranslatePage', () => {
     expect(translateCoreMock.translateText).not.toHaveBeenCalled()
   })
 
-  it('sends the attached clipboard image path when the selected model is vision-capable', async () => {
+  it('translates an image-only input to the selected target in auto bidirectional mode', async () => {
     mockModel.capabilities = ['image-recognition'] as any
     ;(mockModel as any).inputModalities = ['image']
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
-      'feature.translate.page.source_language': 'zh-cn'
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'en-us',
+      'feature.translate.page.bidirectional_enabled': true,
+      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
     })
     fileMock.getFileExtension.mockImplementation((name?: string) => {
       const match = /\.[^.]+$/.exec(name ?? '')
@@ -1392,7 +1395,10 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalled())
     const translateArgs = translateCoreMock.translateText.mock.calls.at(-1)
     expect(translateArgs?.[0]).toBe('')
+    expect(translateArgs?.[1]).toBe('en-us')
     expect(translateArgs?.[4]).toBe('/tmp/pasted.png')
+    expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
   })
 
   it('ignores empty text data when handling drops', async () => {

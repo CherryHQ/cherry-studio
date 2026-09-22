@@ -444,6 +444,12 @@ const TranslatePage: FC = () => {
     ): Promise<void> => {
       if ((!rawText.trim() && !image) || !selectedModelId || isDetecting || isTranslating) return
 
+      if (image && !rawText.trim()) {
+        setDetectedLanguage(null)
+        await translate(rawText, null, targetLanguage, image)
+        return
+      }
+
       if (allowBidirectional && !isBidirectional) {
         setDetectedLanguage(null)
         const history = await translate(rawText, null, targetLanguage, image)
@@ -452,7 +458,6 @@ const TranslatePage: FC = () => {
       }
 
       let actualSourceLanguage = sourceLanguage
-      // Image-only requests have no text to detect; keep the configured source language.
       if (rawText.trim() && ((allowBidirectional && isBidirectional) || sourceLanguage === 'auto')) {
         setIsDetecting(true)
         try {
