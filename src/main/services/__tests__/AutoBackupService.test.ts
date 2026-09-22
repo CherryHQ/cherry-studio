@@ -385,6 +385,30 @@ describe('AutoBackupService', () => {
     expect(service.getStateSnapshot().pendingNotifications).toEqual([])
   })
 
+  it('preserves ordinary retry count when alternating with active writer blocks', async () => {
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.local.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    const backupError = new Error('WebDAV automatic backup failed')
+    mocks.backupToWebdav
+      .mockRejectedValueOnce(backupError)
+      .mockRejectedValueOnce(new BackupActiveWritersError())
+      .mockRejectedValueOnce(backupError)
+      .mockRejectedValueOnce(new BackupActiveWritersError())
+      .mockRejectedValueOnce(backupError)
+      .mockRejectedValueOnce(new BackupActiveWritersError())
+      .mockRejectedValueOnce(backupError)
+
+    await vi.advanceTimersByTimeAsync(211_000)
+
+    expect(mocks.backupToWebdav).toHaveBeenCalledTimes(7)
+    expect(mocks.broadcastToType).toHaveBeenCalledWith(
+      expect.anything(),
+      'backup.auto_sync_state_changed',
+      expect.objectContaining({ type: 'webdav', status: 'failed', errorMessage: 'WebDAV automatic backup failed' })
+    )
+  })
+
   it('starts automatic backup after active data writers clear', async () => {
     setPreference('data.backup.s3.auto_sync', false)
     setPreference('data.backup.local.auto_sync', false)

@@ -268,7 +268,7 @@ export class AutoBackupService extends BaseService {
 
       if (error instanceof BackupActiveWritersError) {
         logger.debug('Active data writers detected; automatic backup postponed', { type })
-        this.markStopped(type)
+        this.markStopped(type, false)
         this.scheduleNext(type, 'immediate', generation, ACTIVE_WRITERS_POLL_MS)
         return
       }
@@ -416,9 +416,11 @@ export class AutoBackupService extends BaseService {
     return this.active && this.schedules[type].generation === generation
   }
 
-  private markStopped(type: AutoBackupType): void {
+  private markStopped(type: AutoBackupType, resetRetryCount = true): void {
     const state = this.schedules[type]
-    state.retryCount = 0
+    if (resetRetryCount) {
+      state.retryCount = 0
+    }
     if (!state.running) return
     state.running = false
     this.emit({ type, status: 'stopped' })
