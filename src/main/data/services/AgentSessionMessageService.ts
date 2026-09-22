@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import { isToolUIPart } from 'ai'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
@@ -11,6 +13,7 @@ import {
   agentSessionMessageTable as sessionMessagesTable,
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
 } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -60,6 +63,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
+import { AgentSessionEditError } from './AgentSessionEditError'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -89,7 +93,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
-    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor'),
+    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId'),
     'searchableText', ${sessionMessagesTable.searchableText},
     'status', ${sessionMessagesTable.status},
     'modelId', ${sessionMessagesTable.modelId},
@@ -286,10 +290,106 @@ function terminalResultData(
 function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessageEntity['data'] {
   const result = { ...data }
   delete result.runtimeAnchor
+  delete result.nativeSessionId
   return result
 }
 
 export class AgentSessionMessageService {
+  readEditSnapshotTx(tx: DbOrTx, sessionId: string, messageId: string) {
+    this.assertActiveSession(tx, sessionId)
+    const source = tx
+      .select({ session: sessionTable, workspace: agentWorkspaceTable })
+      .from(sessionTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionTable.id, sessionId))
+      .get()!
+    const rows = tx
+      .select()
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+      .all()
+    const index = rows.findIndex((row) => row.id === messageId)
+    const user = rows[index]
+    if (!user || user.role !== 'user' || user.delivery || source.session.type !== 'conversation')
+      throw new AgentSessionEditError('invalid_target')
+    if (
+      rows.some(
+        (row) =>
+          row.status === 'pending' ||
+          row.status === 'streaming' ||
+          row.deliveryStatus === 'accepted' ||
+          row.deliveryStatus === 'delivering'
+      )
+    )
+      throw new AgentSessionEditError('busy')
+    return {
+      ...source,
+      rows,
+      user,
+      prefix: rows.slice(0, index),
+      version: createHash('sha256').update(JSON.stringify({ source, rows })).digest('hex')
+    }
+  }
+
+  replaceEditTailTx(
+    tx: DbOrTx,
+    sessionId: string,
+    target: { messageId: string; version: string },
+    prefix: readonly SessionMessageRow[]
+  ): void {
+    const snapshot = this.readEditSnapshotTx(tx, sessionId, target.messageId)
+    if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
+    for (const row of snapshot.rows.slice(snapshot.prefix.length)) {
+      this.deleteSessionMessageTx(tx, sessionId, row.id)
+    }
+    for (const row of prefix) {
+      tx.update(sessionMessagesTable)
+        .set({ data: row.data, runtimeResumeToken: row.runtimeResumeToken })
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, row.id)))
+        .run()
+    }
+  }
+
+  hasRuntimeResumeToken(sessionId: string, resumeToken: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.runtimeResumeToken, resumeToken))
+        )
+        .limit(1)
+        .get()
+    )
+  }
+
+  setEditRuntimeTx(tx: DbOrTx, sessionId: string, userMessageId: string, nativeSessionId: string): void {
+    tx.update(sessionMessagesTable)
+      .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.nativeSessionId', ${nativeSessionId})` })
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, userMessageId)))
+      .run()
+  }
+
+  getNativeSessionId(sessionId: string): string | undefined {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ data: sessionMessagesTable.data })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          sql`json_type(${sessionMessagesTable.data}, '$.nativeSessionId') = 'text'`
+        )
+      )
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .limit(1)
+      .get()?.data.nativeSessionId
+  }
+
   /** Main-only native fork read. API callers must never receive these raw rows. */
   readForkPrefixTx(
     tx: DbOrTx,
@@ -922,6 +1022,7 @@ export class AgentSessionMessageService {
     if (params.runtimeAnchor) data.runtimeAnchor = params.runtimeAnchor
 
     if (existingRow) {
+      if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId

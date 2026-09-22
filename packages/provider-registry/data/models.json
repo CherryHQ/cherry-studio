@@ -20606,7 +20606,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output"],
       "contextWindow": 500000,
       "family": "grok",
       "id": "grok-4-6",
@@ -20634,10 +20634,45 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high"]
+            "values": ["low", "medium", "high", "xhigh"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output"],
+      "contextWindow": 500000,
+      "family": "grok",
+      "id": "grok-4-7",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 500000,
+      "metadata": {},
+      "name": "Grok 4.7",
+      "outputModalities": ["text"],
+      "ownedBy": "xai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh"]
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high", "xhigh"]
       }
     },
     {
@@ -20916,6 +20951,132 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 2.61
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "mimo",
+      "id": "mimo-v2-6-flash",
+      "inputModalities": ["text", "image", "audio", "video"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "MiMo-V2.6-Flash",
+      "outputModalities": ["text"],
+      "ownedBy": "xiaomi",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0028
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.28
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "mimo",
+      "id": "mimo-v2-6-pro",
+      "inputModalities": ["text", "image", "audio", "video"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "MiMo-V2.6-Pro",
+      "outputModalities": ["text"],
+      "ownedBy": "xiaomi",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0036
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "mimo",
+      "id": "mimo-v2-6-pro-ultraspeed",
+      "inputModalities": ["text", "image", "audio", "video"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "MiMo-V2.6-Pro-UltraSpeed",
+      "outputModalities": ["text"],
+      "ownedBy": "xiaomi",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.036
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4.35
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8.7
         }
       },
       "reasoning": {
@@ -22098,5 +22259,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "11174ce97b90176e"
+  "version": "ecb64236eab094c8"
 }
