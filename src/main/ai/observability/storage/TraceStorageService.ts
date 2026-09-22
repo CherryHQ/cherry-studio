@@ -3,17 +3,19 @@ import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
 
-import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
 
 import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { TaskTimingQuery, TaskTimingResult } from '@shared/ai/taskTiming'
 import type { Attributes, AttributeValue, SpanEntity } from '@shared/data/types/trace'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { convertSpanToSpanEntity } from '../core/spanConvert'
+import { projectTaskTiming, TaskTimingRecorder, timingOnlySpan } from '../core/taskTiming'
 import { TraceSpanStore } from './TraceSpanStore'
 import type { TraceStore } from './TraceStore'
 
@@ -134,22 +136,50 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   // so store eviction and flush clearing need no bookkeeping here. A miss just re-measures once.
   private readonly spanEventBytes = new WeakMap<SpanEntity, number>()
 
+  readonly taskTiming = new TaskTimingRecorder((span) => {
+    try {
+      this.saveEntity(span)
+    } catch (error) {
+      this.timingWriteErrors.add(span.traceId)
+      logger.warn('Failed to record task timing', { error })
+    }
+  })
+  private readonly writes = new Map<string, Promise<void>>()
+  private readonly dirtyTraces = new Set<string>()
+  private readonly timingWriteErrors = new Set<string>()
+
+  private get detailed(): boolean {
+    return application.get('PreferenceService').get('app.developer_mode.enabled')
+  }
+
+  async getTaskTiming(sessionId: string, query: TaskTimingQuery): Promise<TaskTimingResult> {
+    const session = agentSessionService.getById(sessionId)
+    if (!session?.traceId) return { tasks: [], nodes: [], nextOffset: null, availability: 'unavailable' }
+    const topicId = `agent-session:${sessionId}`
+    const spans = await this.getSpans(topicId, session.traceId)
+    const live = this.store.getSpans({ topicId, traceId: session.traceId })
+    const result = projectTaskTiming(spans, query, new Set(live.filter((s) => !s.isEnd).map((s) => s.id)))
+    if (this.timingWriteErrors.has(session.traceId)) result.availability = 'incomplete'
+    return result
+  }
+
+  private persistTiming(span: SpanEntity): void {
+    if (!span.topicId?.startsWith('agent-session:')) return
+    void this.flushTrace(span.topicId, span.traceId).catch((error) => {
+      this.timingWriteErrors.add(span.traceId)
+      logger.warn('Failed to persist task timing', { error })
+    })
+  }
+
   protected async onInit() {
     this.registerIpcHandlers()
   }
 
   /**
-   * Activate only when developer_mode is enabled at startup.
-   * Runtime preference changes take effect after restart — no runtime activate/deactivate.
+   * Basic Agent timing is available regardless of developer mode.
    */
   protected async onReady() {
-    const enabled = application.get('PreferenceService').get('app.developer_mode.enabled')
-    logger.info(
-      `Developer mode is ${enabled ? 'enabled' : 'disabled'}, trace storage ${enabled ? 'activated' : 'skipped'}`
-    )
-    if (enabled) {
-      await this.activate()
-    }
+    await this.activate()
   }
 
   async onActivate() {
@@ -158,9 +188,9 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   /**
    * Only called during app shutdown (auto-deactivation in _doStop).
-   * Runtime deactivation is not supported — developer_mode changes require restart.
    */
   async onDeactivate() {
+    await Promise.allSettled(this.writes.values())
     this.store.clear()
     this.clearPendingEvents()
   }
@@ -174,13 +204,17 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
     if (!this.isActivated) return
-    const spanEntity = convertSpanToSpanEntity(span)
+    const converted = convertSpanToSpanEntity(span)
+    const spanEntity = this.detailed ? converted : timingOnlySpan(converted)
     spanEntity.isEnd = false
     this.setRetainedEvents(spanEntity, spanEntity.events)
     this.applyTraceMeta(spanEntity)
+    if (!this.detailed && !spanEntity.topicId?.startsWith('agent-session:')) return
     this.store.setSpan(spanEntity)
     this.updateModelName(spanEntity)
-    this.drainPendingEvents(spanEntity.id)
+    if (this.detailed) this.drainPendingEvents(spanEntity.id)
+    else this.removePendingSpan(spanEntity.id)
+    this.persistTiming(spanEntity)
   }
 
   endSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
@@ -195,14 +229,13 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     }
 
     this.applyTraceMeta(spanEntity)
-    spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
-    spanEntity.status = SpanStatusCode[span.status.code]
-    spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
-    this.setRetainedEvents(spanEntity, span.events)
-    spanEntity.links = span.links
-    spanEntity.isEnd = true
-    this.updateModelName(spanEntity)
+    const converted = convertSpanToSpanEntity(span)
+    const updated = this.detailed ? converted : timingOnlySpan(converted)
+    Object.assign(spanEntity, updated, { topicId: spanEntity.topicId ?? updated.topicId })
+    this.applyTraceMeta(spanEntity)
+    this.setRetainedEvents(spanEntity, updated.events)
     this.store.setSpan(spanEntity)
+    this.persistTiming(spanEntity)
   }
 
   clear: () => void = () => {
@@ -248,7 +281,15 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   saveEntity(entity: SpanEntity) {
     if (!this.isActivated) return
+    if (!this.detailed) entity = timingOnlySpan(entity)
     this.applyTraceMeta(entity)
+    if (!this.detailed && !entity.topicId?.startsWith('agent-session:')) return
+    if (!this.detailed) {
+      this.removePendingSpan(entity.id)
+      this.store.setSpan(entity)
+      this.persistTiming(entity)
+      return
+    }
     const existing = this.store.getSpan(entity.id)
     if (existing) {
       // Preserve events already on the span (incl. orphan log events drained earlier): a later
@@ -265,6 +306,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     this.updateModelName(entity)
     // Claude Code spans land here via /v1/traces; attach any log events that arrived first.
     this.drainPendingEvents(entity.id)
+    this.persistTiming(entity)
   }
 
   /**
@@ -275,7 +317,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
    * miss buffers the event for later draining (see {@link drainPendingEvents}) instead of dropping it.
    */
   addSpanEvent(_traceId: string, spanId: string, event: TimedEvent): void {
-    if (!this.isActivated) return
+    if (!this.isActivated || !this.detailed) return
     const span = this.store.getSpan(spanId)
     if (!span) {
       this.bufferPendingEvent(spanId, event)
@@ -512,14 +554,30 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     savedEntity.attributes = savedAttrs
   }
 
-  private async flushTrace(topicId: string, traceId: string) {
-    const spans = this.store.getSpans({ topicId, traceId })
-    if (spans.length === 0) return
-    await this.writeTraceFile(spans, topicId, traceId)
-    // Clear exactly what we wrote — not the whole traceId. Spans of this trace that have no
-    // topicId yet (and were therefore filtered out of the file) survive in memory to be flushed
-    // once their topicId is registered, instead of being destroyed unwritten.
-    this.store.clearSpans(spans.map((span) => span.id))
+  private async flushTrace(topicId: string, traceId: string): Promise<void> {
+    this.dirtyTraces.add(traceId)
+    const prior = this.writes.get(traceId)
+    if (prior) return prior
+    const write = Promise.resolve().then(async () => {
+      while (this.dirtyTraces.delete(traceId)) {
+        const current = this.store.getSpans({ topicId, traceId })
+        if (!current.length) continue
+        const versions = new Map(current.map((span) => [span.id, JSON.stringify(span)]))
+        const snapshot = current.map((span) => structuredClone(span))
+        await this.writeTraceFile(snapshot, topicId, traceId)
+        this.store.clearSpans(
+          current
+            .filter((span) => span.isEnd && JSON.stringify(this.store.getSpan(span.id)) === versions.get(span.id))
+            .map((span) => span.id)
+        )
+      }
+    })
+    this.writes.set(traceId, write)
+    try {
+      await write
+    } finally {
+      if (this.writes.get(traceId) === write) this.writes.delete(traceId)
+    }
   }
 
   private async writeTraceFile(spans: SpanEntity[], topicId: string, traceId: string) {

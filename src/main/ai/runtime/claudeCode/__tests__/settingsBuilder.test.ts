@@ -71,6 +71,7 @@ const mocks = vi.hoisted(() => ({
   resolveRequire: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
+  recordToolTimingBoundary: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
   rtkRewrite: vi.fn(),
@@ -182,9 +183,16 @@ vi.mock('@application', () => ({
       if (name === 'ClaudeCodeSessionStateService') return sessionStateService
       if (name === 'AgentSessionRuntimeService') {
         try {
-          return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels, ...mocks.applicationGet(name) }
+          return {
+            recordToolTimingBoundary: mocks.recordToolTimingBoundary,
+            getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels,
+            ...mocks.applicationGet(name)
+          }
         } catch {
-          return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+          return {
+            recordToolTimingBoundary: mocks.recordToolTimingBoundary,
+            getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels
+          }
         }
       }
       return mocks.applicationGet(name)
@@ -348,6 +356,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         // headless gates are asserted by tests that override this.
         return {
           getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
+          recordToolTimingBoundary: mocks.recordToolTimingBoundary,
           recordToolExecutionTiming: mocks.recordToolExecutionTiming
         }
       }
@@ -1300,6 +1309,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       if (name === 'AgentSessionRuntimeService') {
         return {
           getInteractionState: () => interactionState,
+          recordToolTimingBoundary: mocks.recordToolTimingBoundary,
           recordToolExecutionTiming: mocks.recordToolExecutionTiming
         }
       }
@@ -2688,6 +2698,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       if (name === 'AgentSessionRuntimeService') {
         return {
           getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
+          recordToolTimingBoundary: mocks.recordToolTimingBoundary,
           recordToolExecutionTiming: mocks.recordToolExecutionTiming
         }
       }

@@ -100,6 +100,7 @@ const BUILTIN_TOOL_POLICIES = {
   cherryCliList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_LIST_TOOL_NAME, 'auto'),
   cherryCliSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_SEARCH_TOOL_NAME, 'auto'),
   cherryCliInstall: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_INSTALL_TOOL_NAME, 'required'),
+  cherryTaskTiming: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, 'task_timing', 'auto'),
   cherryToMarkdown: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, TO_MARKDOWN_TOOL_NAME, 'auto'),
   cherryGenerateImage: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, GENERATE_IMAGE_TOOL_NAME, 'required'),
 

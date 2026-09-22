@@ -23,6 +23,7 @@ export interface AiTurnTraceMeta {
 }
 
 export interface AgentRuntimeTraceContext {
+  taskId?: string
   topicId: string
   traceId: string
   modelName?: string
@@ -103,7 +104,7 @@ function buildTurnHandle(rootSpan: Span, meta: AiTurnTraceMeta): AiTurnTraceHand
 
 /**
  * Provider/tool span under an agent-runtime connection's container trace root.
- * Returns undefined when the session is untraced (developer mode off), so callers
+ * Returns undefined when no runtime trace context exists, so callers
  * can treat tracing as entirely optional.
  */
 export function startAgentRuntimeChildSpan(
@@ -131,7 +132,8 @@ export function startAgentRuntimeChildSpan(
           'trace.topicId': context.topicId,
           ...(context.modelName ? { 'trace.modelName': context.modelName } : {}),
           'cs.agent_session_id': context.sessionId,
-          'cs.agent_turn_id': context.turnId
+          'cs.agent_turn_id': context.turnId,
+          ...(context.taskId ? { 'cs.task_id': context.taskId } : {})
         }
       },
       parent
@@ -187,11 +189,7 @@ export function startTraceRootSpan(
   const originalEnd = span.end.bind(span)
   span.end = (endTime?: any) => {
     originalEnd(endTime)
-    // With developer mode off there is no TracerProvider, so `startSpan`
-    // returned the API's NonRecordingSpan — not a ReadableSpan, nothing to
-    // convert or persist. Without this guard the convert below threw on
-    // every turn end (`startTime[0]` of undefined) and warned each time.
-    // (`isRecording()` can't discriminate: an ended SDK span reports false too.)
+    // Without a registered SDK provider, the API returns a NonRecordingSpan.
     if (!('startTime' in span)) return
     try {
       const spanEntity = convertSpanToSpanEntity(span as unknown as ReadableSpan)

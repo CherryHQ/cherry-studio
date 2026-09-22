@@ -23,6 +23,11 @@ export function convertSpanToSpanEntity(span: ReadableSpan): SpanEntity {
     // landed with `isEnd: undefined` and their traces were never evictable. Derive it from the OTel
     // `ended` flag; callers that build in-flight spans still override it (e.g. createSpan → false).
     isEnd: span.ended,
+    durationMs: span.ended
+      ? typeof span.attributes?.['cs.timing.duration_ms'] === 'number'
+        ? span.attributes['cs.timing.duration_ms']
+        : span.duration?.[0] * 1e3 + span.duration?.[1] / 1e6
+      : undefined,
     attributes: { ...span.attributes },
     status: SpanStatusCode[span.status.code],
     events: span.events,

@@ -1497,7 +1497,7 @@ function resolveAgentFilesReadiness(scope: AgentRightPanelScope): RightPanelRead
 }
 
 function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelReadiness {
-  if (!scope.developerMode || scope.meta.conversationState === 'unavailable') return 'unavailable'
+  if (scope.meta.conversationState === 'unavailable') return 'unavailable'
   if (scope.meta.conversationState === 'pending') return 'pending'
   return scope.meta.sessionId ? 'ready' : 'unavailable'
 }

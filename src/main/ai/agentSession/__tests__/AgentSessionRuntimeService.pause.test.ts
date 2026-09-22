@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 /**
  * pause() / drainInFlight() write-quiesce contract tests (backup restore, issue #16849).
  *
@@ -6,9 +7,9 @@
  * resumes that exact target once.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 import { BaseService } from '@main/core/lifecycle/BaseService'
+
+import { TaskTimingRecorder } from '../../observability/core/taskTiming'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
@@ -166,7 +167,9 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
       id: message.id ?? 'generated-message-id'
     }))
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    const timing = new TaskTimingRecorder(() => {})
     mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'TraceStorageService') return { taskTiming: timing }
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,

@@ -41,6 +41,7 @@ export interface SpanEntity {
   isEnd: boolean
   events: TimedEvent[] | undefined
   startTime: number
+  durationMs?: number
   endTime: number | null
   links: Link[] | undefined
   topicId?: string

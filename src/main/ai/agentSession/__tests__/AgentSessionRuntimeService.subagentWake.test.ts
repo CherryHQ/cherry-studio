@@ -8,6 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
+import { TaskTimingRecorder } from '../../observability/core/taskTiming'
+
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
@@ -99,7 +101,9 @@ beforeEach(() => {
   mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
   mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
   mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+  const timing = new TaskTimingRecorder(() => {})
   mocks.applicationGet.mockImplementation((name: string) => {
+    if (name === 'TraceStorageService') return { taskTiming: timing }
     if (name === 'AiStreamManager') {
       return {
         startRuntimeTurn: mocks.startRuntimeTurn,

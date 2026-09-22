@@ -15,6 +15,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
+import { TaskTimingRecorder } from '../../observability/core/taskTiming'
 import type * as ForkResourcesModule from '../fork/resources'
 
 const mocks = vi.hoisted(() => ({
@@ -500,7 +501,9 @@ describe('AgentSessionRuntimeService', () => {
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    const timing = new TaskTimingRecorder(() => {})
     mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'TraceStorageService') return { taskTiming: timing }
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
@@ -4632,7 +4635,8 @@ describe('AgentSessionRuntimeService', () => {
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
-          rootSpanId: 'a'.repeat(16),
+          rootSpanId: expect.stringMatching(/^[a-f0-9]{16}$/),
+          taskId: expect.any(String),
           sessionId: 'session-1',
           turnId: handle.turnId,
           modelName: 'claude-sonnet-4-5'
@@ -4749,7 +4753,8 @@ describe('AgentSessionRuntimeService', () => {
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
-          rootSpanId: 'a'.repeat(16),
+          rootSpanId: expect.stringMatching(/^[a-f0-9]{16}$/),
+          taskId: expect.any(String),
           sessionId: 'session-1',
           turnId: handle.turnId,
           modelName: 'claude-sonnet-4-5'
