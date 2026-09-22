@@ -1233,12 +1233,13 @@ describe('SkillService', () => {
       const { skillService, workDir, installSkillDirSpy } = await setupClonedInstall()
       const skillDir = path.join(workDir, 'skills', 'demo')
       await fs.promises.mkdir(skillDir, { recursive: true })
-      const seed = path.join(skillDir, 'SKILL.md')
-      await fs.promises.writeFile(seed, '# skill')
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), '# skill')
       for (let start = 0; start < 20_000; start += 500) {
+        const seed = path.join(skillDir, `${start}.txt`)
+        await fs.promises.writeFile(seed, '')
         await Promise.all(
-          Array.from({ length: 500 }, (_, offset) =>
-            fs.promises.link(seed, path.join(skillDir, `${start + offset}.txt`))
+          Array.from({ length: 499 }, (_, offset) =>
+            fs.promises.link(seed, path.join(skillDir, `${start + offset + 1}.txt`))
           )
         )
       }
