@@ -251,6 +251,33 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(warmRequest.connectionRebuildSignature).toBe(current.config.rebuildSignature)
   })
 
+  it('prewarms the agent default model when the session carries an override', async () => {
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'provider-1::model-2',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: modelId,
+      contextWindow: 128_000
+    }))
+
+    const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+    const agentDefaultRequest = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      'provider-1::model-1'
+    )
+    const overrideRequest = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(warmRequest?.connectionRebuildSignature).toBe(agentDefaultRequest?.connectionConfig.rebuildSignature)
+    expect(overrideRequest?.connectionConfig.rebuildSignature).not.toBe(
+      agentDefaultRequest?.connectionConfig.rebuildSignature
+    )
+  })
+
   it('passes native image support from the captured connection model into settings', async () => {
     mocks.getModelByKey.mockReturnValue({
       id: 'model-1',

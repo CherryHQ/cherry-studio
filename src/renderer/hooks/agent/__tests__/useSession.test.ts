@@ -652,6 +652,7 @@ describe('useSessions', () => {
       result.current.createSession({
         name: 'New session',
         description: 'Notes',
+        model: 'anthropic::claude-opus',
         workspace: { type: 'user', workspaceId: 'workspace-1' }
       })
     )
@@ -661,6 +662,7 @@ describe('useSessions', () => {
         agentId: 'agent-1',
         name: 'New session',
         description: 'Notes',
+        model: 'anthropic::claude-opus',
         workspace: { type: 'user', workspaceId: 'workspace-1' }
       }
     })

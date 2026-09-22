@@ -19,7 +19,10 @@ const mocks = vi.hoisted(() => ({
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
   runtimeAssertWritable: vi.fn(),
+  runtimeAssertSessionEditable: vi.fn(),
+  runtimeEditSession: vi.fn(),
   runtimeValidateSession: vi.fn(),
+  setEditRuntimeTx: vi.fn(),
   getModelNames: vi.fn(() => new Map<string, string>())
 }))
 
@@ -43,7 +46,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
     saveMessagesTx: mocks.saveMessagesTx,
-    hasSessionMessages: mocks.hasSessionMessages
+    hasSessionMessages: mocks.hasSessionMessages,
+    setEditRuntimeTx: mocks.setEditRuntimeTx
   }
 }))
 
@@ -59,7 +63,7 @@ vi.mock('@data/services/ModelService', () => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet }
+  application: { get: mocks.applicationGet, isReady: () => true }
 }))
 
 const { AgentChatContextProvider } = await import('../AgentChatContextProvider')
@@ -146,7 +150,9 @@ describe('AgentChatContextProvider', () => {
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy,
-          assertSessionWritable: mocks.runtimeAssertWritable
+          assertSessionWritable: mocks.runtimeAssertWritable,
+          assertSessionEditable: mocks.runtimeAssertSessionEditable,
+          editSession: mocks.runtimeEditSession
         }
       }
       if (name === 'DbService') return { getDb: () => ({}), withWriteTx: (fn) => fn({}) }
@@ -158,6 +164,7 @@ describe('AgentChatContextProvider', () => {
     })
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
+    mocks.runtimeEditSession.mockImplementation(async (_sessionId, _target, fn) => fn({}, 'native-session'))
     // clearAllMocks preserves return values: re-seed the name map so override
     // tests can't leak state into later cases.
     mocks.getModelNames.mockReturnValue(new Map())
@@ -456,6 +463,37 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'anthropic::claude-opus' }))
     expect(mocks.runtimeValidateSession).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-1' }), {
       headless: false
+    })
+  })
+
+  it('checks the agent default model when editing with a per-session override', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'anthropic::claude-opus',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      name: 'My Agent',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['anthropic::claude-opus', 'Claude Opus']]))
+
+    await provider.prepareDispatch(makeSubscriber(), {
+      ...openReq({ userMessageParts: [{ type: 'text', text: 'edited' }] }),
+      trigger: 'edit-agent-message',
+      editTarget: { messageId: 'msg-1', version: 'v1' }
+    } as MainDispatchRequest)
+
+    expect(mocks.saveMessagesTx).toHaveBeenCalledWith({}, expect.anything(), {
+      id: 'agent-1',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      model: 'anthropic::claude-sonnet',
+      type: 'claude-code'
     })
   })
 

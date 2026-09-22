@@ -55,6 +55,8 @@ export type ValidatedAgentDispatch = {
   agentUpdatedAt: string
   agentType: string
   agentName: string
+  /** Parent agent default model — used for optimistic concurrency, not turn routing. */
+  agentDefaultModel: UniqueModelId | null
   uniqueModelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
@@ -174,6 +176,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentUpdatedAt: agent.updatedAt,
       agentType: agent.type,
       agentName: agent.name,
+      agentDefaultModel: agent.model,
       uniqueModelId,
       reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
@@ -199,7 +202,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   persistDispatchTx(
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
   ): PersistedAgentDispatch {
     const assistantMessageId = uuidv7()
     const savedMessages = agentSessionMessageService.saveMessagesTx(
@@ -344,7 +347,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         const result = this.persistDispatchTx(tx, validated, {
           id: validated.agentId,
           updatedAt: validated.agentUpdatedAt,
-          model: validated.uniqueModelId,
+          model: validated.agentDefaultModel,
           type: validated.agentType
         })
         agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)

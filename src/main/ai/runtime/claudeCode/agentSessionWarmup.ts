@@ -967,7 +967,13 @@ function mergeRuntimeSettings(
 export async function buildClaudeCodeWarmQueryRequestForAgentSession(
   sessionId: string
 ): Promise<WarmQueryRequest | undefined> {
-  const request = await buildClaudeCodeQueryRequestForAgentSession(sessionId)
+  const session = agentSessionService.getById(sessionId)
+  if (!session?.agentId) return undefined
+  const agent = agentService.getAgent(session.agentId)
+  if (!agent) return undefined
+  // Prewarm the agent default — headless runs ignore session overrides, and interactive
+  // turns pass their effective model when connecting.
+  const request = await buildClaudeCodeQueryRequestForAgentSession(sessionId, undefined, agent.model ?? undefined)
   if (!request) return undefined
   return {
     key: request.key,

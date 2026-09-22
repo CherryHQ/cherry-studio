@@ -314,6 +314,7 @@ export const useSessions = (
             agentId,
             name: form.name,
             description: form.description,
+            model: form.model,
             workspace: form.workspace
           }
         })
