@@ -216,6 +216,20 @@ describe('API gateway routes (integration)', () => {
       const custom = await read(await get(buildApp({ host: '0.0.0.0', port: 8080 }), '/openapi/json', {}))
       expect(custom.body.servers).toEqual([{ url: 'http://127.0.0.1:8080' }])
     })
+
+    it('OpenAPI spec includes the knowledge write request invariants', async () => {
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      const createSchema = body.paths['/v1/knowledge-bases/'].post.requestBody.content['application/json'].schema
+      const embeddingPair = createSchema.anyOf.find((schema: any) => schema.required?.includes('embedding_model_id'))
+
+      expect(embeddingPair.required).toEqual(['name', 'embedding_model_id', 'dimensions'])
+
+      const addDocumentsSchema =
+        body.paths['/v1/knowledge-bases/{id}/documents'].post.requestBody.content['application/json'].schema
+      expect(addDocumentsSchema.properties.documents.description).toContain(
+        'combined UTF-8 byte length of every document title, content, and group_id must not exceed 10000000'
+      )
+    })
   })
 
   describe('OpenAPI docs — per-language translation + switcher', () => {

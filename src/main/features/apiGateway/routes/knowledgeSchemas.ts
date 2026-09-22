@@ -18,21 +18,18 @@ const KnowledgeDocumentIdSchema = z.string().min(1, 'Knowledge document ID is re
 export const KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES = 10_000_000
 
 /** `POST /` body. A missing model pair creates a BM25-only base. */
-export const CreateKnowledgeBaseRequestSchema = z
-  .object({
+export const CreateKnowledgeBaseRequestSchema = z.union([
+  z.object({
     name: z.string().trim().min(1, 'Name is required'),
-    embedding_model_id: z.string().trim().min(1).nullable().optional(),
-    dimensions: z.number().int().positive().nullable().optional()
+    embedding_model_id: z.string().trim().min(1),
+    dimensions: z.number().int().positive()
+  }),
+  z.object({
+    name: z.string().trim().min(1, 'Name is required'),
+    embedding_model_id: z.null().optional(),
+    dimensions: z.null().optional()
   })
-  .superRefine((value, ctx) => {
-    if ((value.embedding_model_id == null) !== (value.dimensions == null)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['dimensions'],
-        message: 'Embedding model and dimensions must be provided together'
-      })
-    }
-  })
+])
 
 const RawTextDocumentSchema = z.object({
   title: z.string().trim().min(1, 'Document title is required'),
@@ -43,7 +40,13 @@ const RawTextDocumentSchema = z.object({
 /** `POST /:id/documents` body. The existing workflow preserves name collisions by renaming. */
 export const AddKnowledgeDocumentsRequestSchema = z
   .object({
-    documents: z.array(RawTextDocumentSchema).min(1).max(KNOWLEDGE_RUNTIME_ITEMS_MAX)
+    documents: z
+      .array(RawTextDocumentSchema)
+      .min(1)
+      .max(KNOWLEDGE_RUNTIME_ITEMS_MAX)
+      .describe(
+        `The combined UTF-8 byte length of every document title, content, and group_id must not exceed ${KNOWLEDGE_DOCUMENT_BATCH_MAX_BYTES}.`
+      )
   })
   .superRefine((value, ctx) => {
     const byteLength = value.documents.reduce(
