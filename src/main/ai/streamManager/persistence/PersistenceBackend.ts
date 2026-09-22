@@ -16,6 +16,7 @@ import {
   readCherryMeta,
   withCherryMeta
 } from '@shared/data/types/uiParts'
+import type { SerializedError } from '@shared/types/error'
 
 const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', 'output-error', 'output-denied'])
 
@@ -132,6 +133,12 @@ export interface PersistenceBackend {
 
   /** True only when an empty successful response is itself a valid terminal result. */
   readonly canPersistEmptySuccessTerminal?: boolean
+
+  /** Convert an otherwise successful empty terminal into a persisted error. */
+  readonly emptySuccessError?: SerializedError
+
+  /** Existing placeholder id used when the empty terminal has no accumulated message. */
+  readonly emptySuccessMessageId?: string
 
   persistAssistant(input: PersistAssistantInput): void | Promise<void>
 
