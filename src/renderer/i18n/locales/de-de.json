@@ -5309,6 +5309,7 @@
   "settings.shortcuts.toggle_left_sidebar": "Linke Seitenleiste umschalten",
   "settings.shortcuts.toggle_new_context": "Kontext löschen",
   "settings.shortcuts.toggle_right_sidebar": "Rechte Seitenleiste umschalten",
+  "settings.shortcuts.unavailable_on_wayland": "Diese Tastenkombination konnte in dieser Wayland-Sitzung nicht registriert werden. Versuchen Sie eine Xorg-Sitzung.",
   "settings.shortcuts.zoom_in": "Oberfläche vergrößern",
   "settings.shortcuts.zoom_out": "Oberfläche verkleinern",
   "settings.shortcuts.zoom_reset": "Zoom zurücksetzen",

@@ -11,6 +11,7 @@ import {
   type LocalModelBundleId,
   type LocalModelStatusSnapshot
 } from '@shared/data/presets/localModel'
+import type { ShortcutRegistrationConflictPayload } from '@shared/types/shortcut'
 
 import ScreenshotSettings from '../ScreenshotSettings'
 
@@ -25,7 +26,7 @@ function publishLocalModelStatus(id: LocalModelBundleId, snapshot: LocalModelSta
 
 type ScreenCaptureStatus = 'authorized' | 'not-determined' | 'denied'
 
-type ConflictListener = (payload: { key: string; hasConflict: boolean }) => void
+type ConflictListener = (payload: ShortcutRegistrationConflictPayload) => void
 let conflictListener: ConflictListener | null = null
 
 const { mockRequest, platform } = vi.hoisted(() => ({
@@ -181,11 +182,38 @@ describe('ScreenshotSettings', () => {
 
     // Another application already owns the accelerator. The binding is still displayed,
     // so without this the row claims a working shortcut that in fact does nothing.
-    act(() => conflictListener?.({ key: 'shortcut.screenshot.capture', hasConflict: true }))
+    act(() =>
+      conflictListener?.({
+        key: 'shortcut.screenshot.capture',
+        accelerator: 'CommandOrControl+Shift+A',
+        hasConflict: true,
+        reason: 'occupied'
+      })
+    )
     expect(screen.getByLabelText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
 
     act(() => conflictListener?.({ key: 'shortcut.screenshot.capture', hasConflict: false }))
     expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
+  })
+
+  it('explains a failed capture shortcut registration in a Wayland session', async () => {
+    stubIpc({ permission: 'authorized' })
+    render(<ScreenshotSettings />)
+
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
+    act(() =>
+      conflictListener?.({
+        key: 'shortcut.screenshot.capture',
+        accelerator: 'CommandOrControl+Shift+A',
+        hasConflict: true,
+        reason: 'wayland'
+      })
+    )
+    expect(screen.getByLabelText('settings.shortcuts.unavailable_on_wayland')).toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
+
+    act(() => conflictListener?.({ key: 'shortcut.screenshot.capture', hasConflict: false }))
+    expect(screen.queryByLabelText('settings.shortcuts.unavailable_on_wayland')).not.toBeInTheDocument()
   })
 
   it('ignores a conflict reported for a different shortcut', async () => {
@@ -193,7 +221,14 @@ describe('ScreenshotSettings', () => {
     render(<ScreenshotSettings />)
 
     await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
-    act(() => conflictListener?.({ key: 'shortcut.app.search', hasConflict: true }))
+    act(() =>
+      conflictListener?.({
+        key: 'shortcut.app.search',
+        accelerator: 'CommandOrControl+Shift+F',
+        hasConflict: true,
+        reason: 'occupied'
+      })
+    )
 
     expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
   })

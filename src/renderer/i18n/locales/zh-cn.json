@@ -5309,6 +5309,7 @@
   "settings.shortcuts.toggle_left_sidebar": "切换左侧边栏",
   "settings.shortcuts.toggle_new_context": "清除上下文",
   "settings.shortcuts.toggle_right_sidebar": "切换右侧边栏",
+  "settings.shortcuts.unavailable_on_wayland": "此快捷键无法在当前 Wayland 会话中注册。请尝试切换到 Xorg 会话。",
   "settings.shortcuts.zoom_in": "放大界面",
   "settings.shortcuts.zoom_out": "缩小界面",
   "settings.shortcuts.zoom_reset": "重置缩放",

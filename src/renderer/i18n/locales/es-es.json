@@ -5309,6 +5309,7 @@
   "settings.shortcuts.toggle_left_sidebar": "Alternar barra lateral izquierda",
   "settings.shortcuts.toggle_new_context": "Limpiar contexto",
   "settings.shortcuts.toggle_right_sidebar": "Alternar barra lateral derecha",
+  "settings.shortcuts.unavailable_on_wayland": "No se pudo registrar este atajo en esta sesión de Wayland. Prueba con una sesión de Xorg.",
   "settings.shortcuts.zoom_in": "Ampliar interfaz",
   "settings.shortcuts.zoom_out": "Reducir interfaz",
   "settings.shortcuts.zoom_reset": "Restablecer zoom",

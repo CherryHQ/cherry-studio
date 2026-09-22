@@ -5309,6 +5309,7 @@
   "settings.shortcuts.toggle_left_sidebar": "Bật/tắt thanh bên trái",
   "settings.shortcuts.toggle_new_context": "Ngữ cảnh rõ ràng",
   "settings.shortcuts.toggle_right_sidebar": "Bật/tắt thanh bên phải",
+  "settings.shortcuts.unavailable_on_wayland": "Không thể đăng ký phím tắt này trong phiên Wayland hiện tại. Hãy thử phiên Xorg.",
   "settings.shortcuts.zoom_in": "Phóng to",
   "settings.shortcuts.zoom_out": "Thu nhỏ",
   "settings.shortcuts.zoom_reset": "Đặt lại thu phóng",
