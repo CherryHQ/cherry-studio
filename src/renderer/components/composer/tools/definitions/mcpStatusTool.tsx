@@ -340,7 +340,7 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   const dataEnabled = dataRequested && (scope === TopicType.Session || mode !== 'disabled')
   const { mcpServers, isLoading: isMcpServersLoading } = useMcpServers(undefined, { enabled: dataEnabled })
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
-  const { agent } = useAgent(dataEnabled && scope === TopicType.Session ? (session?.agentId ?? null) : null)
+  const { agent } = useAgent(scope === TopicType.Session ? (session?.agentId ?? null) : null)
   const { updateAssistant } = useAssistantMutationsById(assistant?.id ?? '')
   const { updateAgent } = useAgentMutationsById(session?.agentId ?? '')
   const [pendingServerId, setPendingServerId] = useState<string | null>(null)

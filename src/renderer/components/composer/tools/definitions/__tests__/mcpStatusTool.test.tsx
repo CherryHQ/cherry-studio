@@ -30,7 +30,7 @@ vi.mock('@logger', () => ({
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: (id: string | null) => {
     mocks.agentIds.push(id)
-    return { agent: mocks.agent }
+    return { agent: id ? mocks.agent : undefined }
   }
 }))
 
@@ -473,12 +473,15 @@ describe('mcpStatusTool', () => {
     ])
   })
 
-  it('defers MCP server and session-agent reads until the launcher opens', async () => {
+  it('highlights a bound session agent before the MCP panel opens while deferring server status', async () => {
+    mocks.agent = { mcps: ['server-1'] }
     renderMcpRuntime({ scope: TopicType.Session, session: { agentId: 'agent-1' } })
     await waitFor(() => expect(mocks.registerLaunchers).toHaveBeenCalled())
 
+    const launcher = mocks.registerLaunchers.mock.calls.at(-1)?.[0][0] as ComposerToolLauncher
+    expect(launcher.active).toBe(true)
     expect(mocks.mcpServerOptions.at(-1)).toEqual({ enabled: false })
-    expect(mocks.agentIds.at(-1)).toBeNull()
+    expect(mocks.agentIds.at(-1)).toBe('agent-1')
 
     act(() => {
       openLatestRegisteredPanel()
