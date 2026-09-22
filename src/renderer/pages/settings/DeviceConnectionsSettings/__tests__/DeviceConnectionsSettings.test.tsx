@@ -42,18 +42,31 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: keyof typeof
 
 import DeviceConnectionsSettings from '../DeviceConnectionsSettings'
 
-const createOffer = (code: string): OutputFor<'api_gateway.create_pairing_offer'> => ({
+const createInvitation = (invitationId: string): OutputFor<'api_gateway.remote.create_invitation'> => ({
   hostname: 'desktop',
   port: 24444,
   addresses: ['192.168.1.8'],
-  code,
-  expiresAt: Date.now() + 60_000
+  invitationId,
+  invitationSecret: 'secret',
+  desktopIdentity: '12D3KooWDesktop',
+  protocolVersions: [1],
+  expiresAt: new Date(Date.now() + 60_000).toISOString()
 })
+
+const claim: OutputFor<'api_gateway.remote.list_claims'>[number] = {
+  claimId: 'claim-1',
+  deviceName: 'My phone',
+  platform: 'ios',
+  capabilities: ['configuration', 'agent'],
+  verificationCode: '123456',
+  expiresAt: new Date(Date.now() + 60_000).toISOString()
+}
 
 const device = {
   id: '11111111-1111-4111-8111-111111111111',
   name: 'My phone',
   platform: 'android',
+  remoteAccess: { capabilities: ['agent'] as const },
   createdAt: '2026-09-15T00:00:00.000Z',
   updatedAt: '2026-09-15T00:00:00.000Z'
 }
@@ -120,8 +133,8 @@ describe('DeviceConnectionsSettings', () => {
     expect(requestMock.mock.calls).toEqual([['api_gateway.lan.set_enabled', { enabled }]])
   })
 
-  it('renders the QR from the Main-owned active endpoint offer', async () => {
-    requestMock.mockResolvedValue(createOffer('live-code'))
+  it('renders the QR from the Main-owned invitation', async () => {
+    requestMock.mockResolvedValue(createInvitation('live-invitation'))
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
 
@@ -129,18 +142,21 @@ describe('DeviceConnectionsSettings', () => {
 
     const qr = await screen.findByRole('img', { name: 'Pair a device' })
     expect(JSON.parse(qr.getAttribute('data-value') ?? '')).toEqual({
-      v: 1,
+      v: 2,
       t: 'cherry-studio-pair',
       name: 'desktop',
       port: 24444,
       ips: ['192.168.1.8'],
-      code: 'live-code'
+      invitationId: 'live-invitation',
+      invitationSecret: 'secret',
+      desktopIdentity: '12D3KooWDesktop',
+      protocolVersions: [1]
     })
   })
 
   it('discards a pre-stop QR response without interrupting the new request after restart', async () => {
-    let resolveOld!: (offer: OutputFor<'api_gateway.create_pairing_offer'>) => void
-    let resolveNew!: (offer: OutputFor<'api_gateway.create_pairing_offer'>) => void
+    let resolveOld!: (invitation: OutputFor<'api_gateway.remote.create_invitation'>) => void
+    let resolveNew!: (invitation: OutputFor<'api_gateway.remote.create_invitation'>) => void
     requestMock
       .mockReturnValueOnce(
         new Promise((resolve) => {
@@ -162,35 +178,63 @@ describe('DeviceConnectionsSettings', () => {
     rerender(<DeviceConnectionsSettings />)
     await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
 
-    await act(async () => resolveOld(createOffer('old-code')))
+    await act(async () => resolveOld(createInvitation('old-invitation')))
 
     expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeDisabled()
 
-    await act(async () => resolveNew(createOffer('new-code')))
+    await act(async () => resolveNew(createInvitation('new-invitation')))
 
     const qr = screen.getByRole('img', { name: 'Pair a device' })
-    expect(JSON.parse(qr.getAttribute('data-value') ?? '').code).toBe('new-code')
+    expect(JSON.parse(qr.getAttribute('data-value') ?? '').invitationId).toBe('new-invitation')
   })
 
-  it('does not restore a consumed QR when pairing completes before the offer response arrives', async () => {
-    let resolveOffer!: (offer: OutputFor<'api_gateway.create_pairing_offer'>) => void
-    requestMock.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveOffer = resolve
-      })
-    )
+  it('replaces the QR with the claim and approves only the capabilities left checked', async () => {
+    requestMock.mockImplementation(async (name: string) => {
+      if (name === 'api_gateway.remote.create_invitation') return createInvitation('live-invitation')
+      if (name === 'api_gateway.remote.list_claims') return [claim]
+      return undefined
+    })
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
     await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
+    await screen.findByRole('img', { name: 'Pair a device' })
 
     await act(async () => {
-      useIpcOnMock.mock.calls.find(([event]) => event === 'api_gateway.pairing_completed')![1]()
+      useIpcOnMock.mock.calls.find(([event]) => event === 'api_gateway.remote.pairing_changed')![1]()
     })
-    await act(async () => resolveOffer(createOffer('consumed-code')))
 
     expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Pairing request' })).toHaveTextContent('123456')
+    await user.click(screen.getByRole('checkbox', { name: 'Import providers and models' }))
+    await user.click(screen.getByRole('button', { name: 'Approve' }))
+
+    expect(requestMock).toHaveBeenCalledWith('api_gateway.remote.decide_pairing', {
+      claimId: 'claim-1',
+      capabilities: ['agent']
+    })
+    expect(toast.success).toHaveBeenCalledWith('Device paired')
+    expect(screen.queryByRole('group', { name: 'Pairing request' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeEnabled()
+  })
+
+  it('rejects a claim without granting anything', async () => {
+    requestMock.mockImplementation(async (name: string) =>
+      name === 'api_gateway.remote.list_claims' ? [claim] : undefined
+    )
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+    await act(async () => {
+      useIpcOnMock.mock.calls.find(([event]) => event === 'api_gateway.remote.pairing_changed')![1]()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Reject' }))
+
+    expect(requestMock).toHaveBeenCalledWith('api_gateway.remote.decide_pairing', {
+      claimId: 'claim-1',
+      capabilities: null
+    })
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('shows loading until an empty device list has actually been fetched', () => {
@@ -243,10 +287,10 @@ describe('DeviceConnectionsSettings', () => {
   })
 
   it('removes an expired QR and lets the user request a fresh one', async () => {
-    let resolveOffer!: (offer: OutputFor<'api_gateway.create_pairing_offer'>) => void
+    let resolveInvitation!: (invitation: OutputFor<'api_gateway.remote.create_invitation'>) => void
     requestMock.mockReturnValueOnce(
       new Promise((resolve) => {
-        resolveOffer = resolve
+        resolveInvitation = resolve
       })
     )
     const user = userEvent.setup()
@@ -255,7 +299,7 @@ describe('DeviceConnectionsSettings', () => {
 
     // Keep Testing Library's post-click timer on the real clock; only simulate QR expiry.
     vi.useFakeTimers()
-    await act(async () => resolveOffer(createOffer('expiring-code')))
+    await act(async () => resolveInvitation(createInvitation('expiring-invitation')))
     expect(screen.getByRole('img', { name: 'Pair a device' })).toBeInTheDocument()
 
     await act(async () => vi.advanceTimersByTime(60_000))
