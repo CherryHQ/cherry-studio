@@ -37,6 +37,7 @@ import { UniqueModelIdSchema } from '@shared/data/types/model'
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import type { BuiltinMcpServerName } from '@shared/utils/mcp'
+import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 
 import { createExternalMcpConnection } from './connections/ExternalMcpConnection'
@@ -132,24 +133,15 @@ type McpToolListChangedEvent = {
 }
 
 export function redactSensitive(input: unknown): unknown {
-  const sensitiveKeys = new Set([
-    'authorization',
-    'Authorization',
-    'apiKey',
-    'api_key',
-    'apikey',
-    'token',
-    'access_token',
-    'requestState'
-  ])
   const maxStringLength = 300
 
   const redact = (value: unknown, seen: WeakSet<object>): unknown => {
     if (value == null) return value
     if (typeof value === 'string') {
-      return value.length > maxStringLength
-        ? `${value.slice(0, maxStringLength)}…<${value.length - maxStringLength} more>`
-        : value
+      const text = redactSecretText(value)
+      return text.length > maxStringLength
+        ? `${text.slice(0, maxStringLength)}…<${text.length - maxStringLength} more>`
+        : text
     }
     if (typeof value !== 'object') return value
     if (seen.has(value)) return '[Circular]'
@@ -157,7 +149,10 @@ export function redactSensitive(input: unknown): unknown {
     if (Array.isArray(value)) return value.map((item) => redact(item, seen))
 
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, sensitiveKeys.has(key) ? '<redacted>' : redact(item, seen)])
+      Object.entries(value).map(([key, item]) => [
+        key,
+        key === 'requestState' || isSensitiveKey(key) ? REDACTED : redact(item, seen)
+      ])
     )
   }
 
@@ -313,11 +308,12 @@ export class McpRuntimeService extends BaseService {
         getServerLogger(server).debug('Resource updated')
       },
       log: (level, source, data) => {
+        const redacted = redactSensitive(data)
         this.emitServerLog(server, {
           timestamp: Date.now(),
           level: level as McpServerLogEntry['level'],
-          message: safeSerialize(data) ?? 'No data',
-          data: redactSensitive(data),
+          message: safeSerialize(redacted) ?? 'No data',
+          data: redacted,
           source: source || 'server'
         })
       }

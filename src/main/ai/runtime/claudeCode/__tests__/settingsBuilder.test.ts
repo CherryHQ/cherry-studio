@@ -161,7 +161,7 @@ vi.mock('@main/ai/agents/prompt', () => ({
   })
 }))
 
-vi.mock('@main/ai/runtime/claudeCode/mcpV1/assistant', () => ({ default: mocks.createAssistantServer }))
+vi.mock('@main/ai/mcp/servers/assistant', () => ({ default: mocks.createAssistantServer }))
 
 vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
   AssistantFileToolsServer: mocks.createAssistantFileToolsServer

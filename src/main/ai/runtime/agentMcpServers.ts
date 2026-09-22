@@ -9,14 +9,12 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
+import AgentMemoryMcpServer from '@main/ai/mcp/servers/agentMemory'
+import AssistantMcpServer from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
+import CherryBuiltinMcpServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import McpManagerServer from '@main/ai/mcp/servers/mcpManager'
-import {
-  AgentMemoryMcpServer,
-  AssistantMcpServer,
-  CherryBuiltinMcpServer,
-  SkillsMcpServer
-} from '@main/ai/runtime/claudeCode'
+import SkillsMcpServer from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'

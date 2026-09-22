@@ -8,11 +8,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  CLI_INSTALL_TOOL_NAME,
-  CLI_LIST_TOOL_NAME,
-  CLI_SEARCH_TOOL_NAME
-} from '@main/ai/runtime/claudeCode/mcpV1/cherryCliTools'
+import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,

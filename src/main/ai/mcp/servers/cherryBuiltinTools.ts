@@ -1,4 +1,4 @@
-// v1 compatibility island: this server is consumed only by the Claude Agent SDK.
+// SDK v1 compatibility server shared by agent runtimes.
 /**
  * In-process MCP server exposing Cherry Studio's builtin tools to Claude Code.
  *

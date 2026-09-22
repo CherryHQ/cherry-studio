@@ -1,4 +1,4 @@
-// v1 compatibility wrapper for agent runtimes.
+// SDK v1 compatibility server shared by agent runtimes.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { loggerService } from '@logger'

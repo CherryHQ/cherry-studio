@@ -1,7 +1,7 @@
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import * as z from 'zod'
 
-// v1 compatibility island: these definitions back the Claude Agent SDK server only.
+// SDK v1 tool definitions shared by agent runtimes.
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { CODE_CLI_TOOL_PRESET_BY_EXECUTABLE } from '@shared/data/presets/codeCliTools'

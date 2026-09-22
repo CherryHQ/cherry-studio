@@ -12,7 +12,7 @@ sources:
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
   - src/main/ai/messages/readConversation.ts
-  - src/main/ai/runtime/claudeCode/mcpV1/cherryAutonomyTools.ts
+  - src/main/ai/mcp/servers/cherryAutonomyTools.ts
   - packages/dsh-bridge/src/plugin.ts
 ---
 

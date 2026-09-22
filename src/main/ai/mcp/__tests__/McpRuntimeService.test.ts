@@ -437,6 +437,31 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
     BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
     getByIdMock.mockReset()
+    interactionMocks.broadcastToType.mockClear()
+  })
+
+  it('redacts server notification credentials before buffering and broadcasting the log', async () => {
+    const service = new McpRuntimeService()
+    const server = { id: 'server-1', name: 'srv' } as McpServer
+    getByIdMock.mockReturnValue(server)
+    const data = {
+      message: 'connected',
+      authorization: 'Bearer bearer-secret',
+      nested: { client_secret: 'client-secret', refresh_token: 'refresh-secret', requestState: 'state-secret' },
+      details: 'Authorization: Bearer inline-secret'
+    }
+    ;(service as any).connectionEvents(server).log('info', 'server', data)
+
+    const logs = await service.getServerLogs(server.id)
+    expect(logs).toHaveLength(1)
+    expect(logs[0].message).toContain('connected')
+    expect(logs[0].data).toMatchObject({ message: 'connected', authorization: '<redacted>' })
+    expect(interactionMocks.broadcastToType.mock.calls).toHaveLength(1)
+    const exposed = JSON.stringify({ logs, broadcasts: interactionMocks.broadcastToType.mock.calls })
+    for (const secret of ['bearer-secret', 'client-secret', 'refresh-secret', 'state-secret', 'inline-secret']) {
+      expect(exposed).not.toContain(secret)
+    }
+    expect(data.authorization).toBe('Bearer bearer-secret')
   })
 
   // Regression: connect used to mutate `server.env` in place before emitServerLog recomputed

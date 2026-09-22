@@ -93,10 +93,18 @@ const BAN_DRIZZLE_MIGRATOR = {
 const MCP_V1_COMPATIBILITY_FILES = [
   'src/main/ai/mcp/__tests__/createMcpBridgeServer.test.ts',
   'src/main/ai/mcp/createMcpBridgeServer.ts',
+  'src/main/ai/mcp/servers/agentMemory.ts',
+  'src/main/ai/mcp/servers/assistant.ts',
   'src/main/ai/mcp/servers/AssistantFileToolsServer.ts',
+  'src/main/ai/mcp/servers/cherryAutonomyTools.ts',
+  'src/main/ai/mcp/servers/cherryBuiltinTools.ts',
+  'src/main/ai/mcp/servers/cherryCliTools.ts',
   'src/main/ai/mcp/servers/cherryDocumentTools.ts',
+  'src/main/ai/mcp/servers/cherryKnowledgeTools.ts',
   'src/main/ai/mcp/servers/mcpManager.ts',
   'src/main/ai/mcp/servers/neutralToolMcpServer.ts',
+  'src/main/ai/mcp/servers/skills.ts',
+  'src/main/ai/mcp/servers/__tests__/assistant.test.ts',
   'src/main/ai/runtime/agentMcpServers.ts',
   'src/main/ai/runtime/dsh/DshCherryToolBridge.ts',
   'src/main/ai/runtime/dsh/__tests__/DshCherryToolBridge.test.ts',
@@ -984,8 +992,7 @@ export default defineConfig([
           patterns: [
             {
               group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
-              message:
-                'MCP SDK v1 is confined to src/main/ai/runtime/claudeCode/mcpV1. Renderer protocol schemas must come from @modelcontextprotocol/core.'
+              message: 'MCP SDK v1 is main-only. Renderer protocol schemas must come from @modelcontextprotocol/core.'
             },
             {
               group: ['@shared/ipc/schemas', '@shared/ipc/schemas/*'],
@@ -1009,8 +1016,7 @@ export default defineConfig([
           patterns: [
             {
               group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
-              message:
-                'MCP SDK v1 is main-only and confined to src/main/ai/runtime/claudeCode/mcpV1. Shared protocol schemas must come from @modelcontextprotocol/core.'
+              message: 'MCP SDK v1 is main-only. Shared protocol schemas must come from @modelcontextprotocol/core.'
             }
           ]
         }
@@ -1028,7 +1034,7 @@ export default defineConfig([
           patterns: [
             {
               group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
-              message: 'MCP SDK v1 is confined to src/main/ai/runtime/claudeCode/mcpV1.'
+              message: 'MCP SDK v1 is limited to explicitly allowed main-process compatibility adapters.'
             }
           ]
         }
@@ -1053,7 +1059,7 @@ export default defineConfig([
             {
               group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
               message:
-                'MCP SDK v1 is confined to src/main/ai/runtime/claudeCode/mcpV1. Generic MCP code must use @modelcontextprotocol/client, @modelcontextprotocol/server, or @modelcontextprotocol/core.'
+                'MCP SDK v1 is limited to explicit compatibility adapters. Generic MCP code must use @modelcontextprotocol/client, @modelcontextprotocol/server, or @modelcontextprotocol/core.'
             },
             BAN_RENDERER_FROM_MAIN,
             BAN_DRIZZLE_MIGRATOR
@@ -1099,7 +1105,7 @@ export default defineConfig([
           patterns: [
             {
               group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
-              message: 'MCP SDK v1 is confined to src/main/ai/runtime/claudeCode/mcpV1.'
+              message: 'MCP SDK v1 is limited to explicitly allowed main-process compatibility adapters.'
             }
           ]
         }

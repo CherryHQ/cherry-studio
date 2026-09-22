@@ -86,7 +86,7 @@ vi.mock('@main/i18n', () => ({
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
 }))
 
-vi.mock('@main/ai/runtime/claudeCode/mcpV1/assistant', () => ({
+vi.mock('@main/ai/mcp/servers/assistant', () => ({
   default: class {
     readonly mcpServer = {}
   }
@@ -113,7 +113,7 @@ vi.mock('@main/ai/tools/knowledgeLookup', async (importOriginal) => ({
   listOrOutlineKnowledge: mockListOrOutlineKnowledge
 }))
 
-vi.mock('@main/ai/runtime/claudeCode/mcpV1/agentMemory', () => ({
+vi.mock('@main/ai/mcp/servers/agentMemory', () => ({
   default: class {
     mcpServer = {}
 
