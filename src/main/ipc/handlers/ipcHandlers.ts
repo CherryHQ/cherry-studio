@@ -31,6 +31,7 @@ import { openclawHandlers } from './openclaw'
 import { ovmsHandlers } from './ovms'
 import { printHandlers } from './print'
 import { profileHandlers } from './profile'
+import { prometheusHandlers } from './prometheus'
 import { providerHandlers } from './provider'
 import { quickAssistantHandlers } from './quickAssistant'
 import { screenshotHandlers } from './screenshot'
@@ -68,6 +69,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...deepSeekHarnessHandlers,
   ...diagnosticsHandlers,
   ...doctorHandlers,
+  ...prometheusHandlers,
   ...exportHandlers,
   ...externalAppHandlers,
   ...fileHandlers,

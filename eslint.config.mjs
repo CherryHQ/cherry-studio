@@ -563,7 +563,10 @@ export default defineConfig([
       'src/renderer/routeTree.gen.ts',
       'packages/**/dist',
       'packages/**/storybook-static/**',
-      'scripts/data-classify/**'
+      'scripts/data-classify/**',
+      // Vendored submodule: another repository's source, with its own toolchain, lint rules
+      // and CI. Its Node `node:test` files trip rules that do not apply to it.
+      'resources/prometheus-skills-mini/**'
     ]
   },
   // turn off oxlint supported rules.

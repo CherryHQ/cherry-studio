@@ -203,6 +203,13 @@ export function buildPathRegistry() {
     'feature.agents.forks': path.join(appUserDataData, 'Agents', '.forks'), // owned fork snapshots; retained for Pi lineage
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
+
+    // Prometheus mini pack. `.builtin` is the vendored submodule (read-only, asar-unpacked);
+    // `.runtime` is the writable copy the doctor is spawned from. The copy exists because a
+    // `node scripts/doctor.mjs` run writes nothing itself, but the checks it hosts resolve
+    // paths relative to the pack root, and the bundled copy is replaced on every app update.
+    'feature.prometheus.pack.builtin': path.join(appRootResources, 'prometheus-skills-mini'),
+    'feature.prometheus.pack.runtime': path.join(appUserDataData, 'PrometheusPack'),
     'feature.agents.assistant.manifest.file': path.join(
       appRootResources,
       'builtin-agents',
@@ -378,6 +385,7 @@ const NO_ENSURE = [
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
+  'feature.prometheus.pack.builtin',
   'feature.mini_app.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.

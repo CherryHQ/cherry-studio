@@ -8,6 +8,7 @@ import {
   Crop,
   FileBox,
   FileCode,
+  Flame,
   Globe,
   HardDrive,
   Info,
@@ -190,6 +191,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/dependencies',
     titleKey: 'settings.dependencies.title',
     icon: createElement(Terminal),
+    groupKey: 'settings.menuGroups.system'
+  },
+  {
+    route: '/settings/prometheus',
+    titleKey: 'settings.prometheus.title',
+    icon: createElement(Flame),
     groupKey: 'settings.menuGroups.system'
   },
   {

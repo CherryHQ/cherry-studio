@@ -37,6 +37,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { installPrometheusPack } from '@main/utils/prometheusPack'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -404,7 +405,11 @@ export class AiService extends BaseService {
     // always runs after builtin skills have synced to agent_global_skill this boot,
     // regardless of whether the install succeeded. Fire-and-forget as a pair so
     // neither blocks init.
-    void installBuiltinSkills()
+    // The Prometheus pack is installed first: its `scripts/doctor.mjs` is what the
+    // /settings/prometheus section spawns, and it must be on disk before that section
+    // can report anything. It never blocks the chain — a failed install is logged inside.
+    void installPrometheusPack()
+      .then(() => installBuiltinSkills())
       .catch((error) => {
         logger.error('Failed to install built-in skills', error as Error)
       })

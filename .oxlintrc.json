@@ -15,6 +15,7 @@
     ".yarn/**",
     ".gitignore",
     "scripts/cloudflare-worker.js",
+    "resources/prometheus-skills-mini/**",
     "src/main/services/nutstore/sso/lib/**",
     "src/renderer/ui/**",
     "packages/**/dist",

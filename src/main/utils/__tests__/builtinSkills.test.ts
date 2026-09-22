@@ -59,7 +59,45 @@ describe('installBuiltinSkills', () => {
 
     await installBuiltinSkills()
 
-    expect(mockSyncBuiltinSkill).toHaveBeenCalledWith('my-skill', `${resourceSkillsPath}/my-skill`, '2.0.0')
+    // Fourth argument is the namespace: `null` for Cherry's own builtins.
+    expect(mockSyncBuiltinSkill).toHaveBeenCalledWith('my-skill', `${resourceSkillsPath}/my-skill`, '2.0.0', null)
+  })
+
+  it('namespaces a skill that the Prometheus submodule ships, and only that one', async () => {
+    vi.mocked(fs.access).mockResolvedValueOnce(undefined)
+    // First readdir: resources/skills — both sets live here after the sync script runs.
+    vi.mocked(fs.readdir).mockResolvedValueOnce([
+      { name: 'from-the-pack', isDirectory: () => true },
+      { name: 'cherry-own', isDirectory: () => true }
+    ] as any)
+    // Second readdir: the submodule, which is what distinguishes them.
+    vi.mocked(fs.readdir).mockResolvedValueOnce([{ name: 'from-the-pack', isDirectory: () => true }] as any)
+
+    await installBuiltinSkills()
+
+    expect(mockSyncBuiltinSkill).toHaveBeenCalledWith(
+      'from-the-pack',
+      `${resourceSkillsPath}/from-the-pack`,
+      '2.0.0',
+      'prometheus'
+    )
+    expect(mockSyncBuiltinSkill).toHaveBeenCalledWith('cherry-own', `${resourceSkillsPath}/cherry-own`, '2.0.0', null)
+  })
+
+  it('falls back to the default namespace for every skill when the submodule cannot be read', async () => {
+    vi.mocked(fs.access).mockResolvedValueOnce(undefined)
+    vi.mocked(fs.readdir).mockResolvedValueOnce([{ name: 'from-the-pack', isDirectory: () => true }] as any)
+    // An absent submodule checkout must degrade, never block the launch.
+    vi.mocked(fs.readdir).mockRejectedValueOnce(new Error('ENOENT'))
+
+    await installBuiltinSkills()
+
+    expect(mockSyncBuiltinSkill).toHaveBeenCalledWith(
+      'from-the-pack',
+      `${resourceSkillsPath}/from-the-pack`,
+      '2.0.0',
+      null
+    )
   })
 
   it('should skip entries with path traversal in name', async () => {
