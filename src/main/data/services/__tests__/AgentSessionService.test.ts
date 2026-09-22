@@ -661,6 +661,8 @@ describe('AgentSessionService', () => {
         updatedAt: 100
       })
       notifyDataApiDataChangeMock.mockClear()
+      const notified: string[] = []
+      const dispose = agentSessionService.onSessionModelUpdated(({ sessionId }) => notified.push(sessionId))
 
       const result = agentSessionService.reuseOrCreatePlaceholderWithImpact({
         agentId: 'agent-session-test',
@@ -670,6 +672,8 @@ describe('AgentSessionService', () => {
       expect(result.created).toBe(false)
       expect(result.session.id).toBe('reuse-override-session')
       expect(result.session.modelId).toBeNull()
+      expect(notified).toEqual(['reuse-override-session'])
+      dispose.dispose()
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['reuse-override-session'] },
         {
@@ -1286,9 +1290,13 @@ describe('AgentSessionService', () => {
     bindTaskSession(session.id, task.id)
     notifyDataApiDataChangeMock.mockClear()
 
+    const notified: string[] = []
+    const dispose = agentSessionService.onSessionModelUpdated(({ sessionId }) => notified.push(sessionId))
     agentSessionService.update(session.id, { agentId: 'agent-session-reassigned' })
+    dispose.dispose()
 
     expect(agentTaskService.getTaskById(task.id)?.reuseSessionId).toBeNull()
+    expect(notified).toEqual([session.id])
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
       { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
