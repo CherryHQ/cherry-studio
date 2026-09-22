@@ -396,4 +396,103 @@ describe('toolSchemaCompatibilityFeature', () => {
     expect(sent.strict).toBe(true)
     expect(JSON.stringify(sent.input_schema)).not.toMatch(/"(minimum|maximum|minLength)"/)
   })
+
+  // Gemini's Schema proto types `enum` as string lists; a numeric or boolean
+  // `enum`/`const` 400s the whole request (browser `click.clickCount`).
+  it('replaces numeric and boolean enum/const with their bare type on the Gemini endpoint only', async () => {
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [
+        {
+          type: 'function',
+          name: 'click',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              button: { type: 'string', enum: ['left', 'right', 'middle'] },
+              clickCount: {
+                default: 1,
+                anyOf: [
+                  { type: 'number', const: 1 },
+                  { type: 'number', const: 2 }
+                ]
+              },
+              level: { type: 'integer', enum: [1, 2, 3] },
+              ratio: { enum: [0.5, 1.5] },
+              flag: { type: 'boolean', const: true },
+              tagged: { enum: ['a', 1] }
+            }
+          }
+        }
+      ]
+    }
+
+    const transformed = (
+      await transform(params, {
+        aiSdkProviderId: 'google',
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+    ).tools?.[0]
+    if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+
+    expect(transformed.inputSchema.properties).toEqual({
+      button: { type: 'string', enum: ['left', 'right', 'middle'] },
+      clickCount: { default: 1, anyOf: [{ type: 'number' }, { type: 'number' }] },
+      level: { type: 'integer' },
+      ratio: { type: 'number' },
+      flag: { type: 'boolean' },
+      tagged: { enum: ['a', 1] }
+    })
+
+    const untouched = (
+      await transform(params, {
+        aiSdkProviderId: 'anthropic',
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      })
+    ).tools?.[0]
+    expect(untouched).toBe(params.tools?.[0])
+  })
+
+  it('keeps numeric literal unions out of the wire enum field in Google function declarations', async () => {
+    let capturedBody: unknown
+    const captureFetch: typeof globalThis.fetch = async (_input, init) => {
+      capturedBody = JSON.parse(String(init?.body))
+      return new Response(JSON.stringify({ error: { message: 'captured' } }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' }
+      })
+    }
+
+    const model = wrapLanguageModel({
+      model: createGoogleGenerativeAI({ apiKey: 'test-key', fetch: captureFetch })('gemini-3.5-flash'),
+      middleware: await getMiddleware({
+        aiSdkProviderId: 'google',
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        tools: {
+          click: tool({
+            inputSchema: z.object({ clickCount: z.union([z.literal(1), z.literal(2)]).default(1) })
+          })
+        }
+      })
+    ).rejects.toBeDefined()
+
+    const declaration = (
+      capturedBody as {
+        tools: Array<{
+          functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, unknown> } }>
+        }>
+      }
+    ).tools[0].functionDeclarations[0]
+    expect(declaration.name).toBe('click')
+    // `z.union([z.literal(1), z.literal(2)])` used to reach Gemini as
+    // `anyOf: [{ enum: [1] }, { enum: [2] }]` and 400 the whole request.
+    expect(declaration.parameters.properties.clickCount).toEqual({ anyOf: [{ type: 'number' }, { type: 'number' }] })
+  })
 })

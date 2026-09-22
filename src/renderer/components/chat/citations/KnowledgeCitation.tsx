@@ -24,8 +24,8 @@ export const KnowledgeCitationCard: React.FC<{ citation: Citation; actions?: Cit
 }) => {
   const providerActions = useOptionalMessageListActions()
   const linkActions = {
-    openPath: actions?.openPath ?? providerActions?.openPath,
-    openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
+    openBrowserUrl: actions?.openBrowserUrl ?? providerActions?.openBrowserUrl,
+    openPath: actions?.openPath ?? providerActions?.openPath
   }
 
   return (
@@ -37,6 +37,7 @@ export const KnowledgeCitationCard: React.FC<{ citation: Citation; actions?: Cit
             <a
               className="flex-1 text-sm leading-[1.6] text-nowrap text-foreground no-underline"
               href={citation.url}
+              onAuxClick={(e) => handleLinkClick(citation.url, e, linkActions)}
               onClick={(e) => handleLinkClick(citation.url, e, linkActions)}>
               {documentTitle(citation.title)}
             </a>

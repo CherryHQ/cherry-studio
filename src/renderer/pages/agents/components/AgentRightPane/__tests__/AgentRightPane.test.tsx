@@ -166,7 +166,8 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>,
+  TooltipSurface: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
