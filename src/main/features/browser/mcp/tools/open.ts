@@ -1,45 +1,8 @@
-import * as z from 'zod'
+import { OpenSchema } from '@main/ai/mcp/browserToolDefinitions'
 
 import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
-
-export const OpenSchema = z.object({
-  url: z.url().describe('URL to navigate to'),
-  format: z
-    .enum(['html', 'txt', 'markdown', 'json'])
-    .optional()
-    .describe('If set, return page content in this format. If not set, just open the page and return tabId.'),
-  selector: z
-    .string()
-    .optional()
-    .describe(
-      'CSS selector to extract content from (e.g. "#search" for Google results). Only used when format is set.'
-    ),
-  maxChars: z
-    .number()
-    .optional()
-    .describe(
-      'Maximum characters to return. Content is truncated with notice if exceeded. Only used when format is set.'
-    ),
-  timeout: z.number().optional().describe('Navigation timeout in ms (default: 10000)'),
-  privateMode: z.boolean().optional().describe('Use incognito mode, no data persisted (default: false)'),
-  newTab: z.boolean().optional().describe('Open in new tab, required for parallel requests (default: false)'),
-  showWindow: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe(
-      'Show browser window (default: false). Set true only when the user needs to see or interact with the page (e.g. login, CAPTCHA).'
-    )
-})
-
-export const openToolDefinition = {
-  name: 'open',
-  description:
-    'Navigate to a URL and optionally fetch page content. By default the browser runs in the background (no window shown). If format is specified, returns { tabId, content } with page content in that format. Otherwise, returns { currentUrl, title, tabId } for subsequent operations. Use selector to extract only part of a page (e.g. "#search" for Google results). Set showWindow=true ONLY when the user needs to visually see or interact with the page (e.g. login, CAPTCHA, manual browsing). PARALLEL: Set newTab=true and call this tool multiple times simultaneously when visiting multiple URLs.',
-  inputSchema: OpenSchema
-}
 
 export async function handleOpen(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   try {

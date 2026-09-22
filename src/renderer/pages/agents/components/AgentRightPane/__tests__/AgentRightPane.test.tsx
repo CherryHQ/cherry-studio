@@ -549,10 +549,10 @@ function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
   )
 }
 
-function OpenWebsiteButton({ url }: { url: string }) {
-  const { openExternalUrl } = useAgentRightPaneActions()
+function OpenWebsiteButton({ url, inBrowser = false }: { url: string; inBrowser?: boolean }) {
+  const { openExternalUrl, openBrowserUrl } = useAgentRightPaneActions()
   return (
-    <button type="button" onClick={() => openExternalUrl(url)}>
+    <button type="button" onClick={() => (inBrowser ? openBrowserUrl?.(url) : openExternalUrl(url))}>
       Open website
     </button>
   )
@@ -642,6 +642,7 @@ describe('AgentRightPane', () => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
     window.api.file.openPath = openPathMock
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockImplementation(async (route: string) => {
@@ -671,6 +672,47 @@ describe('AgentRightPane', () => {
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
+  })
+
+  it('explicitly opens the session browser pane even when normal links prefer an external browser', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
+    const openWindow = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      const url = 'https://example.com/path?q=hello#section'
+      const user = userEvent.setup()
+      render(
+        <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+          <OpenWebsiteButton url={url} inBrowser />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      expect(screen.queryByTestId('webview-browser')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Open website' }))
+      const browser = await screen.findByTestId('webview-browser')
+      expect(browser).toHaveAttribute('data-url', url)
+      expect(browser).toHaveAttribute('data-target-id', 'agent-browser:session-a')
+      expect(openWindow).not.toHaveBeenCalled()
+    } finally {
+      openWindow.mockRestore()
+    }
+  })
+
+  it('hides the browser entry when conversation or global browser control is disabled', () => {
+    const pane = (browserEnabled: boolean) => (
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts browserEnabled={browserEnabled} />
+      </TestAgentRightPane>
+    )
+    const view = render(pane(true))
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' })).toBeVisible()
+    view.rerender(pane(false))
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.browser' })).not.toBeInTheDocument()
+    view.rerender(pane(true))
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' })).toBeVisible()
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    view.unmount()
+    render(pane(true))
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.browser' })).not.toBeInTheDocument()
   })
 
   it.each([
@@ -2100,6 +2142,38 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-collapse-completed-tool-history', 'true')
     expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-message-style', 'bubble')
+  })
+
+  it('opens tool-flow website links in the current session browser pane', async () => {
+    const flowPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'flow-1',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { prompt: 'Inspect the workspace' },
+      output: 'Inspection complete'
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: [flowPart] }}>
+        <OpenFlowButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    const { openBrowserUrl } = useAgentMessageListProviderValueMock.mock.calls.at(-1)![0]
+    expect(openBrowserUrl).toBeTypeOf('function')
+    const url = 'https://example.com/tool-flow?q=hello#result'
+    await act(() => openBrowserUrl(url))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', url)
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-target-id', 'agent-browser:session-a')
   })
 
   it('omits artifact opening from tool-flow messages when the files capability is unavailable', () => {

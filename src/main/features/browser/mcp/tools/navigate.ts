@@ -1,35 +1,9 @@
-import * as z from 'zod'
+import { historySchema, waitForSchema } from '@main/ai/mcp/browserToolDefinitions'
 
 import { settleAction } from '../../actions/settle'
-import { browserRefSchema } from '../../browserUse'
 import { BrowserSessionError } from '../../session/BrowserSessionError'
 import type { BrowserController } from '../browserController'
 import { browserResult } from './result'
-import { targetShape } from './snapshot'
-
-export const historySchema = z.strictObject(targetShape)
-export const waitForSchema = z
-  .strictObject({
-    ...targetShape,
-    text: z.string().min(1).optional(),
-    ref: browserRefSchema.optional(),
-    gone: z.boolean().default(false),
-    timeoutMs: z.number().int().min(1).max(30_000).default(10_000)
-  })
-  .refine((p) => p.text !== undefined || p.ref !== undefined, 'Provide text or ref')
-export const navigateToolDefinitions = [
-  ...['go_back', 'go_forward'].map((name) => ({
-    name,
-    description: 'Navigate through this tab history and return a snapshot diff.',
-    inputSchema: historySchema
-  })),
-  {
-    name: 'wait_for',
-    description:
-      'Wait until text or a ref is present in the snapshot, or absent with gone=true. Supply text or ref; if both are supplied, both conditions must hold.',
-    inputSchema: waitForSchema
-  }
-]
 
 export async function handleHistory(
   controller: BrowserController,

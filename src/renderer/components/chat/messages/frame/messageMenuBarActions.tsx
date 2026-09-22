@@ -127,6 +127,15 @@ function toolbarAvailability(
   }
 }
 
+function canStartEditing({
+  actions,
+  message,
+  isTranslating,
+  startEditingMessage
+}: MessageMenuBarActionContext): boolean {
+  return !isTranslating && !!startEditingMessage && (actions.canEditMessage?.(message) ?? !!actions.editMessage)
+}
+
 function notifyCommandError(id: string, context: MessageMenuBarActionContext, error: unknown) {
   logger.error(`Message menu action failed: ${id}`, error as Error)
   context.actions.notifyError?.(formatErrorMessageWithPrefix(error, context.t('message.error.unknown')))
@@ -223,6 +232,9 @@ registerCommand('message.abortTranslation', async ({ actions, message }) => {
 registerCommand('message.newBranch', async ({ actions, message, t }) => {
   await actions.startMessageBranch?.(message.id)
   actions.notifySuccess?.(t('chat.message.new.branch.created'))
+})
+registerCommand('message.forkSession', async ({ actions, message }) => {
+  await actions.forkSession?.run(message.id)
 })
 
 registerCommand('message.copyToNewTopic', async ({ actions, message, t }) => {
@@ -327,13 +339,9 @@ registerCommand('message.useful', ({ message, onSelectContext }) => {
 registerToolbarAction({
   id: 'user-edit',
   commandId: 'message.edit',
-  label: ({ t }) => t('common.edit'),
+  label: ({ t, actions }) => actions.editLabel ?? t('common.edit'),
   icon: <EditIcon size={15} />,
-  availability: toolbarAvailability(
-    'user-edit',
-    ({ actions, isTranslating, isUserMessage, startEditingMessage }) =>
-      !isTranslating && isUserMessage && !!actions.editMessage && !!startEditingMessage
-  )
+  availability: toolbarAvailability('user-edit', (context) => context.isUserMessage && canStartEditing(context))
 })
 
 registerToolbarAction({
@@ -454,17 +462,13 @@ registerToolbarAction({
 registerAction({
   id: 'edit',
   commandId: 'message.edit',
-  label: ({ t }) => t('common.edit'),
+  label: ({ t, actions }) => actions.editLabel ?? t('common.edit'),
   icon: <FilePenLine size={15} />,
   group: 'write',
   order: 10,
   surface: 'menu',
-  availability: ({ actions, isAssistantMessage, isEditable, isTranslating, isUserMessage, startEditingMessage }) =>
-    !isTranslating &&
-    isEditable &&
-    !!actions.editMessage &&
-    !!startEditingMessage &&
-    (isUserMessage || isAssistantMessage)
+  availability: (context) =>
+    context.isEditable && (context.isUserMessage || context.isAssistantMessage) && canStartEditing(context)
 })
 
 registerAction({
@@ -479,6 +483,17 @@ registerAction({
     if (!actions.startMessageBranch || !isAssistantMessage) return false
     return true
   }
+})
+
+registerAction({
+  id: 'fork-session',
+  commandId: 'message.forkSession',
+  label: ({ actions }) => actions.forkSession?.label ?? '',
+  icon: <Split size={15} />,
+  group: 'write',
+  order: 22,
+  surface: 'menu',
+  availability: ({ actions, message }) => actions.forkSession?.availability(message) ?? false
 })
 
 registerAction({

@@ -12,12 +12,14 @@ import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteG
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
+import { forkPiSession } from './piFork'
 
 const PI_ROOT = '/cherry/Data/Agents/.pi'
 const PI_SESSIONS = '/cherry/Data/Agents/.pi/sessions'
 const AGENT_DATA_PATH = '/cherry/Data/Agents/agent-1'
 const WORKSPACE = '/work/space'
 const MISSING_PI_AGENT_DIR = path.join(tmpdir(), `cherry-pi-agent-missing-${process.pid}`)
+let actualReadFileSync: typeof NodeFs.readFileSync
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
 const PI_BUILTIN_TOOL_NAMES = ['read', 'bash', 'edit', 'write']
@@ -59,6 +61,7 @@ const mocks = vi.hoisted(() => ({
   startSpan: vi.fn(),
   spans: [] as FakeSpan[],
   readdirSync: vi.fn(),
+  readFileSync: vi.fn(),
   // agent MCP collaborators
   findChannelBySessionId: vi.fn(),
   buildPromptParts: vi.fn(),
@@ -110,7 +113,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('node:fs', async (importOriginal) => ({
   ...(await importOriginal<typeof NodeFs>()),
-  readdirSync: mocks.readdirSync
+  readdirSync: mocks.readdirSync,
+  readFileSync: mocks.readFileSync
 }))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: mocks.runtimeDebug }) }
@@ -313,11 +317,13 @@ async function nextEventWithin(events: AsyncIterable<AgentRuntimeEvent>): Promis
 }
 
 beforeAll(async () => {
+  actualReadFileSync = (await vi.importActual<typeof NodeFs>('node:fs')).readFileSync
   await rm(MISSING_PI_AGENT_DIR, { recursive: true, force: true })
 })
 
 beforeEach(() => {
   vi.clearAllMocks()
+
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
   mocks.createOpts = undefined
@@ -327,6 +333,7 @@ beforeEach(() => {
   mocks.settingsCreate.mockReturnValue({ getShellPath: () => undefined })
   mocks.getAgentDir.mockReturnValue(MISSING_PI_AGENT_DIR)
   mocks.piSettingsFile = path.join(MISSING_PI_AGENT_DIR, 'settings.json')
+  mocks.readFileSync.mockImplementation(actualReadFileSync)
   mocks.autoDiscoverGitBash.mockReturnValue(null)
   mocks.validateGitBashPath.mockImplementation((shellPath?: string | null) => shellPath ?? null)
   mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
@@ -465,6 +472,20 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs()
+})
+
+it('rejects a Pi checkpoint with a missing native leaf before looking for history', async () => {
+  await expect(
+    forkPiSession({
+      sourceSessionId: 'source',
+      targetSessionId: 'child',
+      targetCwd: '/child',
+      artifactDirectory: '/owned',
+      checkpoint: { runtime: 'pi', runtimeSessionId: 'native' },
+      checkpoints: [],
+      signal: new AbortController().signal
+    })
+  ).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
 })
 
 describe('PiRuntimeConnection', () => {
@@ -859,16 +880,33 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.unregisterApiProviders).toHaveBeenCalledOnce()
   })
 
-  it('reopens the session file by scanning for the resume session id', async () => {
+  it('reopens the native session file by resume id', async () => {
     mocks.readdirSync.mockReturnValue(['2026-07-06T00-00-00-000Z_sess-1.jsonl'])
+    mocks.readFileSync.mockReturnValue(
+      [
+        JSON.stringify({ type: 'session', id: SESSION_ID }),
+        JSON.stringify({ type: 'message', id: 'leaf', message: { role: 'assistant', content: [] } }),
+        ''
+      ].join('\n')
+    )
+    mocks.sessionOpen.mockReturnValue({ getSessionId: () => SESSION_ID, getLeafId: () => 'leaf' })
 
-    await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
+    await new PiRuntimeConnection({
+      ...input,
+      resumeToken: SESSION_ID
+    }).start()
     expect(mocks.sessionOpen).toHaveBeenCalledWith(
       path.join(PI_SESSIONS, '2026-07-06T00-00-00-000Z_sess-1.jsonl'),
       PI_SESSIONS,
       WORKSPACE
     )
     expect(mocks.sessionCreate).not.toHaveBeenCalled()
+  })
+
+  it('gives an edited first turn an independent native identity', async () => {
+    const connection = await new PiRuntimeConnection({ ...input, nativeSessionId: 'edited-native-session' }).start()
+    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: 'edited-native-session' })
+    await connection.close()
   })
 
   it('opens the newest matching session file when a resume id has multiple files', async () => {
@@ -899,14 +937,14 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.createAgentSession).not.toHaveBeenCalled()
   })
 
-  it('falls back to a fresh session with the same id when a valid token has no file on disk', async () => {
+  it('initializes an allocated session id whose lazy history has not been written', async () => {
     // pi flushes the JSONL lazily, so a token can point at a session that never persisted. That must
     // degrade to a new empty session (same id) instead of bricking every future turn.
     mocks.readdirSync.mockReturnValue([])
 
     await new PiRuntimeConnection({ ...input, resumeToken: 'missing-id' }).start()
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
-    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: SESSION_ID })
+    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: 'missing-id' })
   })
 
   it('emits turn-complete only on agent_end, not per turn_end, plus a resume token', async () => {

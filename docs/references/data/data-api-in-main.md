@@ -107,6 +107,15 @@ export const allHandlers: ApiImplementation = {
 
 **Scope limit:** A DataApi service is the **data** business-logic layer — its domain workflows orchestrate **SQLite reads/writes only**, never fs/network/process/external-service side effects, even alongside a legitimate DB write and no matter how deeply nested. See [Hard Rule: No Non-Data Side Effects](./api-design-guidelines.md#hard-rule-no-non-data-side-effects).
 
+For example, active conversation removal uses `trash.topic.archive` or
+`trash.topic.delete_permanently` IPC. `TrashService` holds dispatch admission and
+rejects unsettled generation before calling the DB-only `TopicService` mutation.
+Archive retains the conversation for restore; confirmed permanent deletion removes
+it and its messages atomically. The existing DataApi permanent-delete endpoint
+accepts only archived conversations, so stale Recycle Bin views cannot delete
+already-restored conversations. UI archive and permanent-delete actions use
+separate labels, busy hints, and confirmation policies.
+
 ### Cross-Service Table Access
 
 Each table has exactly **one owning service** — the rule is split by access kind:

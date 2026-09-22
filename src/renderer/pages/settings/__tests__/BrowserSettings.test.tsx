@@ -251,7 +251,7 @@ describe('Browser settings workflows', () => {
       route === 'browser.import.sources' ? [] : { ...emptyResult(), cancelled: true }
     )
     renderSettings()
-    expect(screen.getByRole('switch', { name: 'Allow Agent browser control' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Allow AI browser control' })).not.toBeChecked()
     await user.click(screen.getByRole('button', { name: 'Import Import browser data' }))
     const pick = await screen.findByRole('button', { name: 'Choose file…' })
     await user.click(pick)

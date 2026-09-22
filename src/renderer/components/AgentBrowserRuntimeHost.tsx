@@ -7,7 +7,12 @@ import { useDataChange } from '@renderer/data/hooks/useDataChange'
 import { useAgentBrowserGuest } from '@renderer/hooks/agent/useAgentBrowserGuest'
 import { useTabs } from '@renderer/hooks/tab'
 import { useIpcOn } from '@renderer/ipc'
-import { agentBrowserRuntimeService as runtime } from '@renderer/services/AgentBrowserRuntimeService'
+import {
+  agentBrowserRuntimeService,
+  topicBrowserRuntimeService,
+  type AgentBrowserRuntimeService
+} from '@renderer/services/AgentBrowserRuntimeService'
+import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { getWebviewPartition } from '@shared/utils/webviewSecurity'
@@ -32,13 +37,40 @@ function clearMessageSelection(): void {
 
 /** Window composition mounts this outside page Activity; the runtime owns its instances. */
 export function AgentBrowserRuntimeHost() {
+  useIpcOn('browser.guest.ensure_requested', ({ sessionId, url, scope }) => {
+    const runtime = scope === 'topic' ? topicBrowserRuntimeService : agentBrowserRuntimeService
+    runtime.ensure(sessionId, url)
+  })
+  return (
+    <>
+      <BrowserRuntimeHost runtime={agentBrowserRuntimeService} />
+      <BrowserRuntimeHost runtime={topicBrowserRuntimeService} scope="topic" />
+    </>
+  )
+}
+
+function BrowserRuntimeHost({ runtime, scope }: { runtime: AgentBrowserRuntimeService; scope?: 'topic' }) {
   const { tabs } = useTabs()
   const ids = useSyncExternalStore(runtime.subscribe, runtime.getIds)
-  useEffect(() => runtime.reconcileOwners(new Set(tabs.map((tab) => tab.id))), [tabs])
-  useEffect(() => () => runtime.dispose(), [])
+  useEffect(() => {
+    if (scope === 'topic') {
+      const app = getSidebarApp('assistants')
+      const owners = new Map<string, string>()
+      for (const tab of tabs) {
+        if (tab.type !== 'route' || !app || !tabBelongsToApp(app, tab.url)) continue
+        const topicId = app.conversationRoute?.keyFromUrl(tab.url)
+        if (topicId) owners.set(tab.id, topicId)
+      }
+      runtime.syncOwners(owners)
+    } else {
+      runtime.reconcileOwners(new Set(tabs.map((tab) => tab.id)))
+    }
+  }, [runtime, scope, tabs])
+  useEffect(() => () => runtime.dispose(), [runtime])
   useDataChange('/agent-sessions', (effects) => {
     const changed = effects.filter((effect) => effect.kind === 'membership')
     if (!changed.length) return
+    if (scope) return
     for (const sessionId of runtime.getIds()) {
       if (!changed.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) continue
       void dataApiService.get(`/agent-sessions/${sessionId}`).catch((error) => {
@@ -47,23 +79,40 @@ export function AgentBrowserRuntimeHost() {
       })
     }
   })
-  useIpcOn('browser.guest.ensure_requested', ({ sessionId, url }) => {
-    runtime.ensure(sessionId, url)
+  useDataChange('/topics', (effects) => {
+    if (!scope || !effects.some((effect) => effect.kind === 'membership')) return
+    for (const sessionId of runtime.getIds()) {
+      void dataApiService.get(`/topics/${sessionId}`).catch((error) => {
+        if (isDataApiNotFoundError(error)) runtime.close(sessionId)
+        else logger.debug('Failed to check browser topic owner', { sessionId, error })
+      })
+    }
   })
-  return ids.map((sessionId) => <AgentBrowserGuest key={sessionId} sessionId={sessionId} />)
+
+  return ids.map((sessionId) => (
+    <AgentBrowserGuest key={sessionId} sessionId={sessionId} runtime={runtime} scope={scope} />
+  ))
 }
 
-const AgentBrowserGuest = memo(function AgentBrowserGuest({ sessionId }: { sessionId: string }) {
+const AgentBrowserGuest = memo(function AgentBrowserGuest({
+  sessionId,
+  runtime,
+  scope
+}: {
+  sessionId: string
+  runtime: AgentBrowserRuntimeService
+  scope?: 'topic'
+}) {
   const resource = useSyncExternalStore(runtime.subscribe, () => runtime.get(sessionId))
   const guest = resource?.guest ?? null
-  const tabId = useAgentBrowserGuest(sessionId, guest, 0)
+  const tabId = useAgentBrowserGuest(sessionId, guest, 0, scope)
   const onWebviewChange = useCallback(
     (webview: WebviewTag | null) => runtime.update(sessionId, { guest: webview, ready: false, title: '' }),
-    [sessionId]
+    [runtime, sessionId]
   )
   const onOverlaysChange = useCallback(
     (overlays: HTMLDivElement | null) => runtime.update(sessionId, { overlays }),
-    [sessionId]
+    [runtime, sessionId]
   )
   if (!resource) return null
   const { sourceUrl, securityProfile, anchor } = resource
@@ -102,6 +151,7 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({ sessionId }: { sessi
           {tabId && guest && (
             <BrowserCursorOverlay
               key={tabId}
+              scope={scope}
               sessionId={sessionId}
               tabId={tabId}
               guest={guest}

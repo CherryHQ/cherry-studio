@@ -3,9 +3,8 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, NormalTooltip } from '@cherrystudio/ui'
+import { CliIcon } from '@renderer/components/icons/CliIcon'
 import type { CodeCli } from '@shared/types/codeCli'
-
-import { CliIcon } from './CliIcon'
 
 export interface OwnLoginCardProps {
   toolId: CodeCli

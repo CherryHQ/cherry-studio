@@ -1,40 +1,17 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 import type { BrowserController } from '../browserController'
-import { dialogToolDefinition, handleDialog } from './dialog'
-import { executeToolDefinition, handleExecute } from './execute'
-import { handleConsoleMessages, handleFind, handleNetworkRequests, inspectToolDefinitions } from './inspect'
-import { handleInteraction, interactionToolDefinitions } from './interact'
-import { handleHistory, handleWaitFor, navigateToolDefinitions } from './navigate'
-import { handleOpen, openToolDefinition } from './open'
-import { handleReset, resetToolDefinition } from './reset'
-import { handleScreenshot, screenshotToolDefinition } from './screenshot'
-import { handleSnapshot, snapshotToolDefinition } from './snapshot'
-import {
-  closeTabToolDefinition,
-  handleCloseTab,
-  handleListTabs,
-  handleSwitchTab,
-  listTabsToolDefinition,
-  switchTabToolDefinition
-} from './tabs'
-import { handleListWebTools, handleCallWebTool, webMcpToolDefinitions } from './webMcp'
-
-export const toolDefinitions = [
-  openToolDefinition,
-  executeToolDefinition,
-  screenshotToolDefinition,
-  snapshotToolDefinition,
-  listTabsToolDefinition,
-  switchTabToolDefinition,
-  closeTabToolDefinition,
-  resetToolDefinition,
-  dialogToolDefinition,
-  ...interactionToolDefinitions,
-  ...inspectToolDefinitions,
-  ...webMcpToolDefinitions,
-  ...navigateToolDefinitions
-]
+import { handleDialog } from './dialog'
+import { handleExecute } from './execute'
+import { handleConsoleMessages, handleFind, handleNetworkRequests } from './inspect'
+import { handleInteraction } from './interact'
+import { handleHistory, handleWaitFor } from './navigate'
+import { handleOpen } from './open'
+import { handleReset } from './reset'
+import { handleScreenshot } from './screenshot'
+import { handleSnapshot } from './snapshot'
+import { handleCloseTab, handleListTabs, handleSwitchTab } from './tabs'
+import { handleListWebTools, handleCallWebTool } from './webMcp'
 
 export const toolHandlers: Record<
   string,

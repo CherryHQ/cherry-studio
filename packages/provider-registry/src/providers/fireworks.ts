@@ -107,6 +107,8 @@ const adjustableModels: Array<{ modelId: string; values: ReasoningEffort[] }> = 
 export default defineProvider({
   id: 'fireworks',
   name: 'Fireworks',
+  // Router-backed model IDs are not reliably included in /v1/models.
+  supplementModelsFromRegistry: true,
   availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {

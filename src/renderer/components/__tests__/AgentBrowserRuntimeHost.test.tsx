@@ -5,7 +5,11 @@ import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { Activity, useLayoutEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { agentBrowserRuntimeService as runtime } from '@renderer/services/AgentBrowserRuntimeService'
+import {
+  agentBrowserRuntimeService as runtime,
+  topicBrowserRuntimeService as topicRuntime
+} from '@renderer/services/AgentBrowserRuntimeService'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { BrowserCursorState } from '@shared/types/browserCursor'
 
 import { AgentBrowserRuntimeHost } from '../AgentBrowserRuntimeHost'
@@ -14,7 +18,7 @@ const bridge = vi.hoisted(() => ({
   listeners: new Map<string, (input: unknown) => void>(),
   binding: undefined as number | undefined,
   presented: false,
-  tabs: [{ id: 'tab-a' }]
+  tabs: [{ id: 'tab-a', type: 'route', url: '/app/agents?sessionId=session-a', title: 'Agent' }] as Tab[]
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({ useTabs: () => ({ tabs: bridge.tabs }) }))
@@ -82,7 +86,8 @@ function emitCursorState(state: BrowserCursorState): void {
 describe('AgentBrowserRuntimeHost', () => {
   beforeEach(() => {
     runtime.dispose()
-    bridge.tabs = [{ id: 'tab-a' }]
+    topicRuntime.dispose()
+    bridge.tabs = [{ id: 'tab-a', type: 'route', url: '/app/agents?sessionId=session-a', title: 'Agent' }]
     bridge.binding = undefined
     bridge.presented = false
     vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
@@ -108,7 +113,77 @@ describe('AgentBrowserRuntimeHost', () => {
     for (const key of ['getWebContentsId', 'isLoading', 'getTitle', 'getURL'])
       Reflect.deleteProperty(HTMLElement.prototype, key)
     runtime.dispose()
+    topicRuntime.dispose()
     vi.unstubAllGlobals()
+  })
+
+  it.each([
+    { type: 'route', url: '/app/chat' },
+    { type: 'route', url: '/app/chat?topicId=topic-b' },
+    { type: 'route', url: '/app/settings?topicId=topic-a' },
+    { type: 'webview', url: '/app/chat?topicId=topic-a' }
+  ] as const)('releases a topic guest when its tab retargets to $type $url', async (destination) => {
+    bridge.tabs = [{ id: 'tab-a', type: 'route', url: '/app/chat?topicId=topic-a', title: 'Chat' }]
+    const view = render(<AgentBrowserRuntimeHost />)
+    act(() => bridge.listeners.get('browser.guest.ensure_requested')?.({ sessionId: 'topic-a', scope: 'topic' }))
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const guest = view.getByTestId('webview-browser-guest')
+
+    bridge.tabs = [{ ...bridge.tabs[0], ...destination }]
+    view.rerender(<AgentBrowserRuntimeHost />)
+
+    await waitFor(() => expect(bridge.binding).toBeUndefined())
+    expect(guest.isConnected).toBe(false)
+    expect(topicRuntime.get('topic-a')).toBeUndefined()
+    act(() => bridge.listeners.get('browser.guest.ensure_requested')?.({ sessionId: 'topic-a', scope: 'topic' }))
+    expect(topicRuntime.get('topic-a')).toBeUndefined()
+  })
+
+  it('retains a topic guest until its last owning tab leaves, including an atomic owner transfer', async () => {
+    const tab: Tab = { id: 'tab-a', type: 'route', url: '/app/chat?topicId=topic-a', title: 'Chat' }
+    bridge.tabs = [tab]
+    const view = render(<AgentBrowserRuntimeHost />)
+    act(() => topicRuntime.ensure('topic-a'))
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const guest = view.getByTestId('webview-browser-guest')
+
+    bridge.tabs = [{ ...tab, id: 'tab-b' }]
+    view.rerender(<AgentBrowserRuntimeHost />)
+    expect(view.getByTestId('webview-browser-guest')).toBe(guest)
+    bridge.tabs = [tab, { ...tab, id: 'tab-b' }]
+    view.rerender(<AgentBrowserRuntimeHost />)
+    bridge.tabs = [
+      { ...tab, url: '/app/chat?topicId=topic-b' },
+      { ...tab, id: 'tab-b' }
+    ]
+    view.rerender(<AgentBrowserRuntimeHost />)
+    expect(view.getByTestId('webview-browser-guest')).toBe(guest)
+    expect(bridge.binding).toBe(42)
+
+    bridge.tabs = [bridge.tabs[0]]
+    view.rerender(<AgentBrowserRuntimeHost />)
+    await waitFor(() => expect(bridge.binding).toBeUndefined())
+    expect(guest.isConnected).toBe(false)
+  })
+
+  it('keeps a topic guest while its page is hidden by Activity and releases it when the tab closes', async () => {
+    bridge.tabs = [{ id: 'tab-a', type: 'route', url: '/app/chat?topicId=topic-a', title: 'Chat' }]
+    const view = render(<Harness visible />)
+    act(() => topicRuntime.ensure('topic-a'))
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const guest = view.getByTestId('webview-browser-guest')
+
+    view.rerender(<Harness visible={false} />)
+    expect(livePresentation).toBe(0)
+    expect(view.getByTestId('webview-browser-guest')).toBe(guest)
+    expect(bridge.binding).toBe(42)
+    view.rerender(<Harness visible />)
+    expect(view.getByTestId('webview-browser-guest')).toBe(guest)
+
+    bridge.tabs = []
+    view.rerender(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBeUndefined())
+    expect(guest.isConnected).toBe(false)
   })
 
   it('keeps the execution binding while Activity stops the view and releases it when the owner closes', async () => {

@@ -125,6 +125,9 @@ export interface ComposerSurfaceActions {
 }
 
 export interface ComposerSurfaceEditingState {
+  description?: string
+  sendLabel?: string
+  cancelDisabled?: boolean
   messageId: string
   highlightKey?: number
   onCancel: () => void
@@ -1443,6 +1446,8 @@ export default function ComposerSurfaceRuntime({
   const memoizedEditorProps = useMemo(
     () => ({
       attributes: {
+        // Keep the input focusable while a send temporarily makes it read-only.
+        tabindex: '0',
         class: cn(
           'composer-tiptap box-border block w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
           hasCustomHeight ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
@@ -2172,18 +2177,23 @@ export default function ComposerSurfaceRuntime({
       </button>
     </Tooltip>
   ) : (
-    <SendMessageButton sendMessage={sendDraft} disabled={sendDisabled} onDisabledClick={showBlockedSendReason} />
+    <SendMessageButton
+      sendMessage={sendDraft}
+      disabled={sendDisabled}
+      onDisabledClick={showBlockedSendReason}
+      label={editingState?.sendLabel}
+    />
   )
   const editingModeHeader = editingState ? (
     <div
       role="status"
       aria-live="polite"
-      aria-label={t('chat.input.editing_message')}
+      aria-label={editingState.description ?? t('chat.input.editing_message')}
       data-composer-editing-header=""
       className="flex h-9 shrink-0 items-center justify-between border-border-subtle border-b bg-transparent px-3 text-muted-foreground text-xs">
       <div className="flex min-w-0 items-center gap-1.5">
         <Pencil aria-hidden="true" data-composer-editing-icon="" className="size-3.5 shrink-0" />
-        <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
+        <span className="min-w-0 font-medium">{editingState.description ?? t('chat.input.editing')}</span>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {editingState.onLocate ? (
@@ -2216,6 +2226,7 @@ export default function ComposerSurfaceRuntime({
           <Button
             type="button"
             onClick={editingState.onCancel}
+            disabled={editingState.cancelDisabled}
             variant="ghost"
             size="icon-sm"
             className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"

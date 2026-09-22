@@ -10,18 +10,26 @@ export const browserHandlers: IpcHandlersFor<typeof browserRequestSchemas> = {
     return application.get('BrowserSessionService').pickAndImport(options, window)
   },
   'browser.data.clear': async ({ kind }) => application.get('BrowserSessionService').clearData(kind),
-  'browser.pane.attach': async ({ sessionId, webviewId }, { senderId }) =>
-    application.get('BrowserSessionService').agentBrowser.attach(sessionId, webviewId, senderId),
-  'browser.cursor.present': async ({ sessionId, tabId, presented }, { senderId }) =>
+  'browser.pane.attach': async ({ sessionId, scope, webviewId }, { senderId }) =>
     application
       .get('BrowserSessionService')
-      .agentBrowser.getCursor(sessionId, tabId, senderId)
+      [scope === 'topic' ? 'topicBrowser' : 'agentBrowser'].attach(sessionId, webviewId, senderId),
+  'browser.cursor.present': async ({ sessionId, scope, tabId, presented }, { senderId }) =>
+    application
+      .get('BrowserSessionService')
+      [scope === 'topic' ? 'topicBrowser' : 'agentBrowser'].getCursor(sessionId, tabId, senderId)
       ?.setPresented(presented),
   'browser.cursor.arrive': async (arrival, { senderId }) =>
     application
       .get('BrowserSessionService')
-      .agentBrowser.getCursor(arrival.sessionId, arrival.tabId, senderId)
+      [arrival.scope === 'topic' ? 'topicBrowser' : 'agentBrowser'].getCursor(
+        arrival.sessionId,
+        arrival.tabId,
+        senderId
+      )
       ?.arrive(arrival),
-  'browser.pane.detach': async ({ sessionId, tabId }, { senderId }) =>
-    application.get('BrowserSessionService').agentBrowser.detach(sessionId, tabId, senderId)
+  'browser.pane.detach': async ({ sessionId, scope, tabId }, { senderId }) =>
+    application
+      .get('BrowserSessionService')
+      [scope === 'topic' ? 'topicBrowser' : 'agentBrowser'].detach(sessionId, tabId, senderId)
 }

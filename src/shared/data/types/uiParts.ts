@@ -145,6 +145,7 @@ export type CherryDataPartTypes = {
   'compaction-anchor': CompactionAnchorPartData
   'conversation-reset': ConversationResetPartData
   'agent-task-event': AgentTaskEventPartData
+  'agent-session-fork': { sourceSessionId: string }
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
   code: CodePartData

@@ -1,7 +1,6 @@
+export { isKnownNavigationPath } from '@shared/utils/navigationPath'
 import { Compass } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-
-import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 
@@ -62,19 +61,6 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
 
 // Sorted by path length descending for longest prefix match
 const SORTED_ROUTES = Object.entries(ROUTE_LABELS).sort((a, b) => b[0].length - a[0].length)
-const KNOWN_NAVIGATION_ROUTES = [
-  ...Object.keys(ROUTE_LABELS),
-  '/app/mini-app/$appId',
-  '/app/paintings/$',
-  '/settings/mcp/$',
-  '/settings/mcp/settings/$serverId',
-  '/settings/scheduled-tasks/$taskId'
-]
-
-export function isKnownNavigationPath(path: string): boolean {
-  const cleanPath = path.split('?')[0]
-  return isAllowedNavigationPath(cleanPath, KNOWN_NAVIGATION_ROUTES)
-}
 
 function getRouteInfo(path: string): { icon: string; labelKey?: string; label?: string } {
   // Exact match first

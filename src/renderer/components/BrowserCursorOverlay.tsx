@@ -15,8 +15,10 @@ export function BrowserCursorOverlay({
   tabId,
   guest,
   active,
-  onPressed
+  onPressed,
+  scope
 }: {
+  scope?: 'agent' | 'topic'
   sessionId: string
   tabId: string
   guest: WebviewTag
@@ -40,7 +42,13 @@ export function BrowserCursorOverlay({
   }
 
   useIpcOn('browser.cursor.state', (state: BrowserCursorState) => {
-    if (state.sessionId !== sessionId || state.tabId !== tabId || state.sequence <= sequence.current) return
+    if (
+      (state.scope ?? 'agent') !== (scope ?? 'agent') ||
+      state.sessionId !== sessionId ||
+      state.tabId !== tabId ||
+      state.sequence <= sequence.current
+    )
+      return
     sequence.current = state.sequence
     acknowledge()
     if (state.kind === 'hidden') {
@@ -48,7 +56,7 @@ export function BrowserCursorOverlay({
       return
     }
     if (state.kind === 'move' && state.animate)
-      pending.current = { sessionId, tabId, sequence: state.sequence, documentId: state.documentId }
+      pending.current = { scope, sessionId, tabId, sequence: state.sequence, documentId: state.documentId }
     const bounds = guest.getBoundingClientRect()
     if (!active || document.hidden || bounds.width <= 0 || bounds.height <= 0 || !animation.current) {
       animation.current?.hide(true)
@@ -82,9 +90,11 @@ export function BrowserCursorOverlay({
     }
     updateMotion()
     media.addEventListener('change', updateMotion)
-    void ipcApi.request('browser.cursor.present', { sessionId, tabId, presented: active }).catch((error) => {
-      logger.debug('Cursor presentation target is unavailable', { error })
-    })
+    void ipcApi
+      .request('browser.cursor.present', { sessionId, tabId, presented: active, ...(scope ? { scope } : {}) })
+      .catch((error) => {
+        logger.debug('Cursor presentation target is unavailable', { error })
+      })
     const observer = new ResizeObserver(hide)
     observer.observe(guest)
     guest.addEventListener('did-start-navigation', hide)
@@ -99,10 +109,12 @@ export function BrowserCursorOverlay({
       guest.removeEventListener('did-start-navigation', hide)
       window.removeEventListener('blur', hide)
       document.removeEventListener('visibilitychange', hide)
-      void ipcApi.request('browser.cursor.present', { sessionId, tabId, presented: false }).catch(() => undefined)
+      void ipcApi
+        .request('browser.cursor.present', { sessionId, tabId, presented: false, ...(scope ? { scope } : {}) })
+        .catch(() => undefined)
     }
     // The animation belongs to this guest binding, not to individual IPC events.
-  }, [sessionId, tabId, guest, active])
+  }, [sessionId, tabId, guest, active, scope])
 
   return (
     <div

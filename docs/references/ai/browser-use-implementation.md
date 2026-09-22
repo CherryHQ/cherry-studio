@@ -1161,9 +1161,9 @@ Format references: [Chromium macOS OSCrypt](https://raw.githubusercontent.com/ch
 
 ## 13. Browser feature settings
 
-Browser is an Agent built-in capability rather than a selectable third-party MCP server. Its per-Agent
-group switch uses the existing `disabledTools` opt-out (`mcp__browser`). The runtime excludes legacy
-in-memory browser bindings from the Agent MCP set, including when browser control is off.
+Browser is a built-in capability for Agents and Assistants. The per-Agent group switch uses the existing
+`disabledTools` opt-out (`mcp__browser`); Assistants use `settings.enableBrowser` and own a browser per Topic.
+Both runtimes exclude legacy in-memory browser bindings, including when browser control is off.
 
 Browser settings owns one persistent grant, `app.browser.agent_control.enabled`, defaulting to on
 when unset. Existing saved choices are preserved.
@@ -1259,3 +1259,45 @@ readiness replay, and one trusted keyboard relay. Local packaged-app preparation
 policy preservation are covered by component tests; the native packaged-app path was not rerun.
 The temporary runtime was closed after both guests were released. The full test suite is
 intentionally skipped under the local validation override.
+
+## 15. Assistant conversation browser
+
+The assistant browser layer is stacked above PR #20582. Chat's AI SDK loop and Agent's
+native runtimes remain separate; both use the same session tool definitions,
+`SessionBrowserController`, CDP sessions, screenshot tiles and WebMCP implementation.
+Pure tool schemas and descriptions live in `src/main/ai/mcp/browserToolDefinitions.ts`;
+browser feature handlers consume that contract, without an AI-to-feature import.
+
+`BrowserGuestRegistry` owns guest validation, leases and cursor identity. Agent and Topic
+registries resolve their owners through their respective data services. Their shared guest
+claim map prevents one WebView from belonging to two conversations. IPC carries the browser
+scope as well as the conversation id and verifies the sending window before attaching or
+acknowledging cursor movement.
+
+An assistant's browser belongs to a Topic, not to the reusable assistant configuration. The
+main process validates the Topic's current assistant on every call. Synthetic requests without
+a Topic do not expose browser tools. Parallel model replies in one Topic use one serialized
+browser tool queue; different Topics have independent queues. Request cancellation reaches
+pending guest creation and CDP commands without cancelling another request's controller.
+Idle Topic controllers are released after five minutes; their renderer-owned pages survive.
+
+The existing retained WebView host also renders Topic browsers outside page Activity. A Topic
+browser capability supplies its anchor inside the existing right-panel shell, alongside resources,
+branches and trace. Closing its owning tab or deleting the Topic releases the retained guest.
+The host derives Topic ownership from the tab's conversation URL outside Activity. Clearing
+or retargeting that URL releases the guest only after its last owner leaves; hiding a page
+does not revoke ownership. Ownership transfers are reconciled atomically.
+Browser navigation, history, import UI and cursor rendering are shared with Agent browsers.
+
+`settings.enableBrowser` is an assistant-level opt-out, defaulting to enabled when absent.
+The existing global browser-control preference remains the grant for both entry points.
+Assistant browser tools preserve every screenshot tile as AI SDK image content rather than
+turning images into text placeholders.
+
+The startup `BrowserCapabilityUpgradeSeeder` converts existing in-memory `@cherry/browser`
+bindings to the built-in capability. An inactive server, disabled tool or forced-approval rule
+keeps the new group off until explicitly enabled; partial restrictions are not silently promoted
+to full browser access. Existing assistant browser choices and Agent group opt-outs are preserved.
+Legacy bindings are removed and their servers deactivated. Remote or stdio servers with the same
+name remain untouched. This upgrades installed v2 browser configurations; it does not rewrite
+shipped schema migrations or add a v1 compatibility read path.

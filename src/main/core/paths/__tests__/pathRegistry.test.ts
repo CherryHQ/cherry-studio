@@ -196,10 +196,15 @@ describe('buildPathRegistry', () => {
   })
 
   it('registers standalone Pi settings as external data', () => {
-    expect(buildPathRegistry()['external.pi.settings_file']).toBe(
-      path.join(os.homedir(), '.pi', 'agent', 'settings.json')
-    )
-    expect(shouldAutoEnsure('external.pi.settings_file')).toBe(false)
+    vi.stubEnv('PI_CODING_AGENT_DIR', '')
+    try {
+      expect(buildPathRegistry()['external.pi.settings_file']).toBe(
+        path.join(os.homedir(), '.pi', 'agent', 'settings.json')
+      )
+      expect(shouldAutoEnsure('external.pi.settings_file')).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('resolves a file URL in PI_CODING_AGENT_DIR before locating Pi settings', () => {
