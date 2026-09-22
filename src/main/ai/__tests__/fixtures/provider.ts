@@ -18,7 +18,7 @@ export function makeProvider(overrides: Partial<Provider> = {}): Provider {
     settings: { ...DEFAULT_PROVIDER_SETTINGS },
     isEnabled: true,
     ...overrides
-  } as Provider
+  }
 }
 
 export function makeEndpointConfig(overrides: Partial<EndpointConfig> = {}): EndpointConfig {

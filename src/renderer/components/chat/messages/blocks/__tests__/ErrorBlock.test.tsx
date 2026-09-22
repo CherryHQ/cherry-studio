@@ -1,8 +1,9 @@
-import enUS from '@renderer/i18n/locales/en-us.json'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import enUS from '@renderer/i18n/locales/en-us.json'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -255,6 +256,7 @@ describe('ErrorBlock', () => {
       removeMessageErrorPart,
       navigateErrorTarget
     }
+    mocks.translations.set('error.diagnosis.auth', 'API Key is invalid, please check and reconfigure')
 
     const { container } = render(
       <ErrorBlock
@@ -269,7 +271,8 @@ describe('ErrorBlock', () => {
       expect.objectContaining({
         message,
         partId: 'message-1-part-0',
-        error: expect.objectContaining({ message: 'Unauthorized' })
+        error: expect.objectContaining({ message: 'Unauthorized' }),
+        localizedErrorMessage: 'API Key is invalid, please check and reconfigure'
       })
     )
 

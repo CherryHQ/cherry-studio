@@ -4,14 +4,41 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
-  it('normalizes non-Error throws without leaking object coercions', () => {
-    expect(serializeError(null).message).toBe('Unknown error')
-    expect(serializeError(undefined).message).toBe('Unknown error')
-    expect(serializeError({ error: { message: 'request was rate limited' } }).message).toBe('request was rate limited')
-    expect(serializeError({ error: { message: 'Authorization: Bearer provider-secret' } }).message).toBe(
-      'Authorization: "<redacted>"'
-    )
-    expect(serializeError({ privatePrompt: 'do not expose me' }).message).toBe('Unknown error')
+  describe('unknown thrown values', () => {
+    it('serializes only the safe message from a structured provider event', () => {
+      const result = serializeError({
+        type: 'error',
+        sequence_number: 2,
+        error: {
+          code: 'credit_balance_exhausted',
+          message: 'You have no credits remaining.'
+        },
+        apiKey: 'object-secret',
+        prompt: 'private prompt'
+      })
+
+      expect(result).toEqual({
+        name: null,
+        message: 'You have no credits remaining.',
+        stack: null
+      })
+      expect(JSON.stringify(result)).not.toMatch(/object-secret|private prompt/)
+    })
+
+    it('drops an opaque object instead of stringifying it', () => {
+      const result = serializeError({ apiKey: 'object-secret', nested: { token: 'nested-secret' } })
+
+      expect(result).toEqual({ name: null, message: 'Unknown error', stack: null })
+      expect(JSON.stringify(result)).not.toMatch(/object-secret|nested-secret|\[object Object\]/)
+    })
+
+    it('normalizes nullish values and redacts provider messages', () => {
+      expect(serializeError(null).message).toBe('Unknown error')
+      expect(serializeError(undefined).message).toBe('Unknown error')
+      expect(serializeError({ error: { message: 'Authorization: Bearer provider-secret' } }).message).toBe(
+        'Authorization: "<redacted>"'
+      )
+    })
   })
 
   it('retains quota diagnosis in serialized retry errors without retaining the payload', () => {
@@ -227,10 +254,7 @@ describe('serializeError', () => {
       const retryError = new RetryError({
         message: 'Failed after retries',
         reason: 'maxRetriesExceeded',
-        errors: [
-          'Authorization: Bearer string-secret',
-          { apiKey: 'object-secret', nested: { token: 'nested-secret' } }
-        ] as unknown as Error[]
+        errors: ['Authorization: Bearer string-secret', { apiKey: 'object-secret', nested: { token: 'nested-secret' } }]
       })
 
       const result = serializeError(retryError)

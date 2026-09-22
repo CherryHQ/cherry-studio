@@ -1,7 +1,8 @@
+import { app } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { app } from 'electron'
 
 import { validateUtilityProcessDefinition } from './defineUtilityProcess'
 import { electronProcessAdapter } from './host/electronProcessAdapter'

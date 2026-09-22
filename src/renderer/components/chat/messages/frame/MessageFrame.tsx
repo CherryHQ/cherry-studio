@@ -1,3 +1,8 @@
+import dayjs from 'dayjs'
+import type { FC } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Scrollbar } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -6,10 +11,6 @@ import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpe
 import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
-import dayjs from 'dayjs'
-import type { FC } from 'react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ImageBlock from '../blocks/ImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
@@ -94,7 +95,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isAssistantMessage = message.role === 'assistant'
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
   const canStartEditing =
-    canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating))
+    actions.canEditMessage?.(message) ??
+    (canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating)))
   const isEditing = editingMessageId === message.id
   const handleStartEditing = useCallback(
     (messageId: string) => {
@@ -187,6 +189,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     [actions, isMultiSelectMode, isSelected, message.id]
   )
 
+  // No checkbox is rendered past this point; useMessageSelectionController's selectableIds mirrors this exclusion.
   if (message.isContextBoundary) {
     return (
       <div
@@ -196,10 +199,10 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
         onKeyDown={handleStartNewContextKeyDown}
         role="button"
         tabIndex={canStartNewContext ? 0 : -1}>
-        <div className="mx-5 my-4 flex items-center gap-2 text-foreground-tertiary text-sm">
-          <hr className="flex-1 border-border border-dashed" />
+        <div className="mx-5 my-4 flex items-center gap-2 text-sm text-foreground-tertiary">
+          <hr className="flex-1 border-dashed border-border" />
           <span>{t('chat.message.new.context')}</span>
-          <hr className="flex-1 border-border border-dashed" />
+          <hr className="flex-1 border-dashed border-border" />
         </div>
       </div>
     )
@@ -225,7 +228,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   )
 
   const userFooter = showUserFooterActions ? (
-    <div className="MessageFooter relative mt-1 flex min-h-6.5 max-w-full shrink-0 items-center text-foreground-tertiary text-xs leading-none">
+    <div className="MessageFooter relative mt-1 flex min-h-6.5 max-w-full shrink-0 items-center text-xs leading-none text-foreground-tertiary">
       <div className={USER_MESSAGE_FOOTER_ACTIONS_CLASS}>
         <MessageMenuBar
           message={message}
@@ -234,7 +237,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           variant="header"
         />
@@ -261,7 +264,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onMenuOpenChange={setIsMessageMenuOpen}
           onSelectContext={onSelectContext}
         />
@@ -292,7 +295,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           messageFont={messageFont}
           fontSize={fontSize}
@@ -400,7 +403,7 @@ const UserBubbleMessage = ({
         <MessageAvatar avatar={avatar} className="mt-1.5" onClick={canOpenUserProfile ? openUserProfile : undefined} />
       </div>
       {!isEditing && (
-        <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-tertiary text-xs leading-none">
+        <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-xs leading-none text-foreground-tertiary">
           <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>
             <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
             <MessageMenuBar

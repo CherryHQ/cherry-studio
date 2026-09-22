@@ -131,6 +131,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
     },
     aihubmix: {
       'web-search': [
+        'claude-fable-5',
+        'claude-fable-5-1',
         'claude-haiku-4-5',
         'claude-opus-4',
         'claude-opus-4-1',
@@ -140,6 +142,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'claude-opus-4-7',
         'claude-opus-4-8',
         'claude-opus-4-8-fast',
+        'claude-opus-5',
+        'claude-opus-5-fast',
         'claude-sonnet-4',
         'claude-sonnet-4-5',
         'claude-sonnet-4-6',
@@ -202,12 +206,16 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gpt-5-mini',
         'gpt-5-nano',
         'gpt-5-pro',
+        'gpt-6-astra',
+        'gpt-6-astra-pro',
         'o3',
         'o3-mini',
         'o3-pro',
         'o4-mini'
       ],
       'url-context': [
+        'claude-fable-5',
+        'claude-fable-5-1',
         'claude-haiku-4-5',
         'claude-opus-4',
         'claude-opus-4-1',
@@ -217,6 +225,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'claude-opus-4-7',
         'claude-opus-4-8',
         'claude-opus-4-8-fast',
+        'claude-opus-5',
+        'claude-opus-5-fast',
         'claude-sonnet-4',
         'claude-sonnet-4-5',
         'claude-sonnet-4-6',
@@ -277,13 +287,12 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'glm-5-3',
         'glm-5-3-fast',
         'glm-5-3-flash',
-        'glm-5-3-promo-50',
         'glm-5-maas',
         'glm-5-turbo'
       ]
     },
     deepseek: {
-      'web-search': ['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro']
+      'web-search': ['deepseek-flash', 'deepseek-flash-latest', 'deepseek-v4-pro']
     },
     'new-api': {
       'web-search': [
@@ -707,6 +716,20 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'kimi-latest'
       ]
     },
+    'moonshot-global': {
+      'web-search': [
+        'kimi-k2',
+        'kimi-k2-5',
+        'kimi-k2-6',
+        'kimi-k2-7-code',
+        'kimi-k2-7-code-highspeed',
+        'kimi-k2-instruct',
+        'kimi-k2-thinking-maas',
+        'kimi-k3',
+        'kimi-k3-fast',
+        'kimi-latest'
+      ]
+    },
     dashscope: {
       'web-search': [
         'deepseek-r1',
@@ -751,7 +774,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'glm-5-3',
         'glm-5-3-fast',
         'glm-5-3-flash',
-        'glm-5-3-promo-50',
         'glm-5-maas',
         'glm-5-turbo',
         'kimi-k2',
@@ -964,7 +986,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'glm-5-3',
         'glm-5-3-fast',
         'glm-5-3-flash',
-        'glm-5-3-promo-50',
         'glm-5-maas',
         'glm-5-turbo',
         'gpt-4-1',

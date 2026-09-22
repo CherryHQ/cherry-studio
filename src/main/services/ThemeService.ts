@@ -1,7 +1,8 @@
+import { nativeTheme } from 'electron'
+
 import { application } from '@application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { nativeTheme } from 'electron'
 
 @Injectable('ThemeService')
 @ServicePhase(Phase.WhenReady)

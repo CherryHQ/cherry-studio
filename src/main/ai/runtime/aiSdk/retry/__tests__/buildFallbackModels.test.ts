@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import type { RetryPolicy } from '../retryPolicy'
@@ -194,6 +195,30 @@ describe('buildFallbackModels', () => {
     })
 
     expect(await resolve()).toBeNull()
+  })
+
+  it('gates a fallback on its provider being enabled', async () => {
+    getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
+    getByProviderId.mockReturnValue(makeProvider({ id: 'anthropic', isEnabled: false }))
+
+    const [resolveDisabled] = buildFallbackModels({
+      ...baseArgs,
+      primaryUniqueModelId: 'openai::gpt-4',
+      retryPolicy: policy(['anthropic::claude'])
+    })
+
+    expect(await resolveDisabled()).toBeNull()
+    expect(buildAgentParams).not.toHaveBeenCalled()
+
+    getByProviderId.mockReturnValue(makeProvider({ id: 'anthropic', isEnabled: true }))
+    stubBuildAgentParams('claude-x')
+    const [resolveEnabled] = buildFallbackModels({
+      ...baseArgs,
+      primaryUniqueModelId: 'openai::gpt-4',
+      retryPolicy: policy(['anthropic::claude'])
+    })
+
+    expect(await resolveEnabled()).not.toBeNull()
   })
 
   it.each([

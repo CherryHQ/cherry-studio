@@ -5,6 +5,8 @@
  * declared in `src/shared/ipc/schemas/knowledge`, not through DataApi.
  */
 
+import * as z from 'zod'
+
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import {
   type KnowledgeBase,
@@ -13,7 +15,6 @@ import {
   type KnowledgeItem,
   KnowledgeItemTypeSchema
 } from '@shared/data/types/knowledge'
-import * as z from 'zod'
 
 const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   name: true,
@@ -80,6 +81,7 @@ export const KNOWLEDGE_BASES_DEFAULT_LIMIT = 20
 export const KNOWLEDGE_BASES_MAX_LIMIT = 100
 
 export const ListKnowledgeBasesQuerySchema = z.strictObject({
+  ids: z.array(z.string().min(1)).min(1).max(KNOWLEDGE_BASES_MAX_LIMIT).optional(),
   cursor: z.string().optional(),
   limit: z.int().positive().max(KNOWLEDGE_BASES_MAX_LIMIT).default(KNOWLEDGE_BASES_DEFAULT_LIMIT),
   search: z.string().trim().min(1).optional(),

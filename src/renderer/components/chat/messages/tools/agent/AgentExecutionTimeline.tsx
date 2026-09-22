@@ -1,7 +1,8 @@
-import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { parse as parsePartialJson } from 'partial-json'
 import { useDeferredValue, useMemo } from 'react'
+
+import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { AgentToolsType, isAskUserQuestionToolName } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext } from '../shared/GenericTools'

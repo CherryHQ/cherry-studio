@@ -1,4 +1,6 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
@@ -27,7 +29,6 @@ import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
-import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
@@ -162,7 +163,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
     endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
-      ? toolSignals.mcpToolIds.size > 0 ||
+      ? toolSignals.browserEnabled === true ||
+        toolSignals.mcpToolIds.size > 0 ||
         // Same `applies` gate the mcp_resource_* tools use, so a resource-only assistant is not
         // mistaken for a request that loads no function tool.
         toolSignals.mcpResourceServerIds.size > 0 ||
@@ -368,6 +370,7 @@ async function resolveRequestToolSignals(
   mcpToolIds: ReadonlySet<string>
   mcpResourceServerIds: ReadonlySet<string>
   hasAnyKnowledgeBase: boolean
+  browserEnabled?: boolean
 }> {
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
@@ -376,6 +379,12 @@ async function resolveRequestToolSignals(
   return {
     mcpToolIds: new Set(mcpIdList ?? []),
     mcpResourceServerIds: new Set(resolveMcpResourceServers(assistant).map((server) => server.id)),
+    browserEnabled: Boolean(
+      request.conversation.topicId &&
+      assistant &&
+      assistant.settings.enableBrowser !== false &&
+      application.get('PreferenceService').get('app.browser.agent_control.enabled')
+    ),
     hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase()
   }
 }
@@ -402,7 +411,7 @@ export async function resolveTools(
   mcpToolIds: ReadonlySet<string>
   mcpResourceServerIds: ReadonlySet<string>
 }> {
-  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase } =
+  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase, browserEnabled } =
     signals ?? (await resolveRequestToolSignals(request, assistant))
   if (mcpToolIds.size) {
     // Reconcile selected tool ids against every active server's cache-only catalog,
@@ -414,6 +423,7 @@ export async function resolveTools(
   const selected = registry.selectActive({
     assistant,
     paintingModel: paintingModel ?? undefined,
+    browserEnabled,
     mcpToolIds,
     mcpResourceServerIds,
     hasFileAttachments,

@@ -46,7 +46,9 @@ const setPrefs = (
 const model = { id: 'openai::gpt-4o' } as never
 
 describe('resolveRequestContextSettings — compression-model assembly', () => {
-  beforeEach(() => mockResolveCompressionModel.mockClear())
+  beforeEach(() => {
+    mockResolveCompressionModel.mockClear()
+  })
 
   it('falls back to the request model id when compress.model_id is null', async () => {
     setPrefs({ modelId: null })
@@ -88,7 +90,9 @@ describe('resolveRequestContextSettings — compression-model assembly', () => {
 })
 
 describe('resolveRequestContextSettings — assistant override layer (P2-D)', () => {
-  beforeEach(() => mockResolveCompressionModel.mockClear())
+  beforeEach(() => {
+    mockResolveCompressionModel.mockClear()
+  })
 
   it('lets an assistant compress.modelId beat the global pick', async () => {
     setPrefs({ modelId: 'openai::global-compressor' })

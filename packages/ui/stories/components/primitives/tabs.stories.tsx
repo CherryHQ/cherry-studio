@@ -1,5 +1,6 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Tabs> = {
   title: 'Components/Primitives/Tabs',
@@ -43,7 +44,7 @@ export const Default: Story = {
         <TabsTrigger value="password">Password</TabsTrigger>
       </TabsList>
       <TabsContent value="account">
-        <div className="rounded-md border p-4 mt-2">
+        <div className="mt-2 rounded-md border p-4">
           <h3 className="text-lg font-medium">Account</h3>
           <p className="text-sm text-muted-foreground">
             Make changes to your account here. Click save when you're done.
@@ -51,7 +52,7 @@ export const Default: Story = {
         </div>
       </TabsContent>
       <TabsContent value="password">
-        <div className="rounded-md border p-4 mt-2">
+        <div className="mt-2 rounded-md border p-4">
           <h3 className="text-lg font-medium">Password</h3>
           <p className="text-sm text-muted-foreground">
             Change your password here. After saving, you'll be logged out.
@@ -72,13 +73,13 @@ export const LineStyle: Story = {
         <TabsTrigger value="tab3">Tab 3</TabsTrigger>
       </TabsList>
       <TabsContent value="tab1">
-        <div className="p-4 mt-2 border rounded-md bg-muted/10">Content for Tab 1</div>
+        <div className="mt-2 rounded-md border bg-muted/10 p-4">Content for Tab 1</div>
       </TabsContent>
       <TabsContent value="tab2">
-        <div className="p-4 mt-2 border rounded-md bg-muted/10">Content for Tab 2</div>
+        <div className="mt-2 rounded-md border bg-muted/10 p-4">Content for Tab 2</div>
       </TabsContent>
       <TabsContent value="tab3">
-        <div className="p-4 mt-2 border rounded-md bg-muted/10">Content for Tab 3</div>
+        <div className="mt-2 rounded-md border bg-muted/10 p-4">Content for Tab 3</div>
       </TabsContent>
     </Tabs>
   )
@@ -94,13 +95,13 @@ export const UnderlineStyle: Story = {
         <TabsTrigger value="tab3">Tab 3</TabsTrigger>
       </TabsList>
       <TabsContent value="tab1">
-        <div className="p-4 mt-2 border rounded-md bg-muted/10">Content for Tab 1</div>
+        <div className="mt-2 rounded-md border bg-muted/10 p-4">Content for Tab 1</div>
       </TabsContent>
       <TabsContent value="tab2">
-        <div className="p-4 mt-2 border rounded-md bg-muted/10">Content for Tab 2</div>
+        <div className="mt-2 rounded-md border bg-muted/10 p-4">Content for Tab 2</div>
       </TabsContent>
       <TabsContent value="tab3">
-        <div className="p-4 mt-2 border rounded-md bg-muted/10">Content for Tab 3</div>
+        <div className="mt-2 rounded-md border bg-muted/10 p-4">Content for Tab 3</div>
       </TabsContent>
     </Tabs>
   )
@@ -116,13 +117,13 @@ export const WorkflowStyle: Story = {
         <TabsTrigger value="recall">Recall Test</TabsTrigger>
       </TabsList>
       <TabsContent value="data">
-        <div className="p-4 mt-2 border rounded-md bg-muted/10">Upload and manage data sources.</div>
+        <div className="mt-2 rounded-md border bg-muted/10 p-4">Upload and manage data sources.</div>
       </TabsContent>
       <TabsContent value="rag">
-        <div className="p-4 mt-2 border rounded-md bg-muted/10">Configure embedding, chunking, retrieval.</div>
+        <div className="mt-2 rounded-md border bg-muted/10 p-4">Configure embedding, chunking, retrieval.</div>
       </TabsContent>
       <TabsContent value="recall">
-        <div className="p-4 mt-2 border rounded-md bg-muted/10">Test retrieval quality.</div>
+        <div className="mt-2 rounded-md border bg-muted/10 p-4">Test retrieval quality.</div>
       </TabsContent>
     </Tabs>
   )
@@ -137,13 +138,13 @@ export const Vertical: Story = {
         <TabsTrigger value="podcasts">Podcasts</TabsTrigger>
         <TabsTrigger value="live">Live</TabsTrigger>
       </TabsList>
-      <TabsContent value="music" className="flex-1 p-4 border rounded-md bg-muted/10 mt-0">
+      <TabsContent value="music" className="mt-0 flex-1 rounded-md border bg-muted/10 p-4">
         Music content
       </TabsContent>
-      <TabsContent value="podcasts" className="flex-1 p-4 border rounded-md bg-muted/10 mt-0">
+      <TabsContent value="podcasts" className="mt-0 flex-1 rounded-md border bg-muted/10 p-4">
         Podcasts content
       </TabsContent>
-      <TabsContent value="live" className="flex-1 p-4 border rounded-md bg-muted/10 mt-0">
+      <TabsContent value="live" className="mt-0 flex-1 rounded-md border bg-muted/10 p-4">
         Live content
       </TabsContent>
     </Tabs>

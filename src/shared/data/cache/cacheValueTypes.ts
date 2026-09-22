@@ -1,6 +1,8 @@
+import type { UpdateInfo } from 'builder-util-runtime'
+
+import type { DoctorState } from '@shared/types/doctor'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
-import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'
@@ -133,7 +135,7 @@ export interface ChatScrollAnchor {
 
 export interface CacheComposerSerializedToken {
   id: string
-  kind: ComposerMessageTokenKind | 'promptVariable'
+  kind: ComposerMessageTokenKind | 'promptVariable' | 'messagePart'
   label: string
   icon?: string
   description?: string
@@ -227,3 +229,6 @@ export type CacheMiniAppAttention = {
   /** An update in flight: the version landing, and how far its download is (`null` = not measurable yet). */
   updating: { version: string; fraction: number | null } | null
 }
+
+/** System Doctor run state; see `@shared/types/doctor`. */
+export type CacheDoctorState = DoctorState

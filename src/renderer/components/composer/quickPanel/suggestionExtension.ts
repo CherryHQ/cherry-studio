@@ -1,10 +1,11 @@
-import { loggerService } from '@logger'
 import type { Editor, Range } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
 import { Suggestion, type SuggestionKeyDownProps, type SuggestionProps } from '@tiptap/suggestion'
 import { t } from 'i18next'
 import type { ReactNode } from 'react'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('ComposerSuggestionExtension')
 const suggestionItemsGeneration = new WeakMap<readonly ComposerSuggestionItem[], number>()

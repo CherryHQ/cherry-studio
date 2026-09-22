@@ -1,6 +1,7 @@
-import { ProviderSettingsPage } from '@renderer/pages/settings/ProviderSettings'
 import { createFileRoute } from '@tanstack/react-router'
 import * as z from 'zod'
+
+import { ProviderSettingsPage } from '@renderer/pages/settings/ProviderSettings'
 
 export const providerSettingsSearchSchema = z.object({
   // The deep-link payload is a JSON-object string, but TanStack Router's default

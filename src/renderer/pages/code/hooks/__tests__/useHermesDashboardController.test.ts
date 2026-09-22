@@ -1,7 +1,8 @@
-import { cacheService } from '@data/CacheService'
-import { CodeCli } from '@shared/types/codeCli'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
+import { CodeCli } from '@shared/types/codeCli'
 
 const mocks = vi.hoisted(() => ({ openSmartMiniApp: vi.fn(), request: vi.fn() }))
 

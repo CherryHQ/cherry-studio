@@ -1,6 +1,7 @@
+import type { ReactElement } from 'react'
+
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { ReactElement } from 'react'
 
 import { getCreateAgentResult, isCreateAgentResultPart } from './createAgentResult'
 import { CreateAgentToolInline } from './CreateAgentTool'

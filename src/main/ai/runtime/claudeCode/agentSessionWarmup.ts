@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -398,6 +399,7 @@ async function deriveConnectionConfigFromSnapshot(
     // connection snapshots instead of invalidating this signature every turn.
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
     promptModelName: agent.modelName || null,
+    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
@@ -804,8 +806,16 @@ async function resolveClaudeCodeRuntimeRoute(
     }
     case 'direct': {
       const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id)
+      // Keyless local servers (registry authOptional) carry no credential; the
+      // SDK still needs a non-empty token. Ollama-endpoint custom providers
+      // keep their established stand-in.
       const runtimeApiKey =
-        resolvedApiKey.value || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+        resolvedApiKey.value ||
+        (primaryProvider.authOptional === true
+          ? (primaryProvider.presetProviderId ?? primaryProvider.id)
+          : isOllamaProvider(primaryProvider)
+            ? OLLAMA_PLACEHOLDER_AUTH_TOKEN
+            : '')
       return {
         ...facts,
         apiKey: runtimeApiKey,

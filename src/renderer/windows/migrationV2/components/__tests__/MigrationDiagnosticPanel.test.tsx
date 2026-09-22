@@ -1,6 +1,7 @@
-import type * as CherryUi from '@cherrystudio/ui'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryUi from '@cherrystudio/ui'
 
 const mocks = vi.hoisted(() => ({
   logger: {

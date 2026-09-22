@@ -1,3 +1,6 @@
+import { type FC, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -14,8 +17,6 @@ import PromptEditorField, { type PromptEditorFieldHandles } from '@renderer/comp
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
 import type { Prompt, PromptVisibility } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
-import { type FC, useCallback, useEffect, useId, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const QUICK_PHRASE_POLISH_SYSTEM_PROMPT = [
   'You are a user-prompt editor. Improve the supplied reusable user message without changing its intent or behavior.',

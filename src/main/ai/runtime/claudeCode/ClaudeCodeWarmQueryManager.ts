@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
+
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
@@ -70,7 +71,7 @@ export function stripWarmQueryOptions(options: Options): Options {
     steerHolder: _steerHolder,
     ...rest
   } = options as Options & { steerHolder?: unknown }
-  return rest as Options
+  return rest
 }
 
 function normalizeForSignature(value: unknown, seen = new WeakSet<object>()): unknown {

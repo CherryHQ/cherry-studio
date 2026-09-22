@@ -1,5 +1,6 @@
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { createContext, use } from 'react'
+
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 interface ThemeContextType {
   theme: ThemeMode

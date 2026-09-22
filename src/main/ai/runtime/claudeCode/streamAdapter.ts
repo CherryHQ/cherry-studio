@@ -34,6 +34,7 @@ import type {
   BetaServerToolUseBlock,
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
+
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -403,7 +404,7 @@ function compactDetails<T extends Record<string, number | undefined>>(obj: T): {
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'number') out[key] = value
   }
-  return Object.keys(out).length > 0 ? (out as { [K in keyof T]?: number }) : undefined
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 /**
@@ -626,6 +627,17 @@ export class ClaudeCodeStreamAdapter {
     ) {
       const flow = this.getOrCreateFlowContext(parentToolUseId)
       this.handleContentMessage(message, flow.stream)
+      return { type: 'continue' }
+    }
+
+    // A resumed CLI replays pending background-task notifications as their own zero-turn query before
+    // pulling the host's input (claude-agent-sdk#383); that result belongs to the task, not the turn.
+    if (message.type === 'result' && message.origin?.kind === 'task-notification') {
+      this.setSessionId(message.session_id)
+      logger.info('Received a task-notification result; not settling a turn for it', {
+        sessionId: this.sessionId,
+        subtype: message.subtype
+      })
       return { type: 'continue' }
     }
 

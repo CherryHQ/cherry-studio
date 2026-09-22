@@ -738,7 +738,7 @@ export class OpenClawService extends BaseService {
     if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
       this.throwSchemaCapabilityError('config schema did not return a top-level object')
     }
-    return schema as OpenClawConfigSchemaNode
+    return schema
   }
 
   private throwSchemaCapabilityError(diagnostic: string): never {
@@ -1121,12 +1121,10 @@ export class OpenClawService extends BaseService {
     }
 
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
-    const [provider, primaryModel, models, apiKeys] = await Promise.all([
-      providerService.getByProviderId(providerId),
-      modelService.getByKey(providerId, modelId),
-      modelService.list({ providerId, enabled: true }),
-      providerService.getApiKeys(providerId, { enabled: true })
-    ])
+    const provider = providerService.getByProviderId(providerId)
+    const primaryModel = modelService.getByKey(providerId, modelId)
+    const models = modelService.list({ providerId, enabled: true })
+    const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
 
     this.ensureSyncProviderSupported(provider)
     if (isNonChatModel(primaryModel)) {
@@ -1172,11 +1170,13 @@ export class OpenClawService extends BaseService {
     }
 
     const noKeyPlaceholder = this.getNoKeyPlaceholder(provider)
-    if (provider.authType === 'api-key' && !noKeyPlaceholder) {
+    if (provider.authType === 'api-key' && !noKeyPlaceholder && provider.authOptional !== true) {
       throw new Error(`Provider ${provider.id} has no enabled API key configured`)
     }
 
-    return noKeyPlaceholder ?? ''
+    // Keyless providers honour authOptional even without a per-provider
+    // placeholder; OpenClaw itself still needs a non-empty value.
+    return noKeyPlaceholder ?? (provider.authOptional === true ? 'no-key-required' : '')
   }
 
   private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType {

@@ -1,6 +1,7 @@
 import type { toMarkdownBytes } from '@firecrawl/anydoc'
-import { loggerService } from '@logger'
 import { Document, FileReader, type Metadata } from '@vectorstores/core'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('KnowledgeAnydocReader')
 type AnydocModule = { toMarkdownBytes: typeof toMarkdownBytes }

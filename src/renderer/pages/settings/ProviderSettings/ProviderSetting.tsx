@@ -1,9 +1,10 @@
+import { lazy, Suspense, useCallback, useState } from 'react'
+
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { cn } from '@renderer/utils/style'
 import { isLoginBasedProvider } from '@shared/utils/provider'
-import { lazy, Suspense, useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'

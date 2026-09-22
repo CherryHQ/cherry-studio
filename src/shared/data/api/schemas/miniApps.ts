@@ -5,10 +5,11 @@
  * API only manages user preferences for default apps and full CRUD for custom apps.
  */
 
+import * as z from 'zod'
+
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
-import * as z from 'zod'
 
 import type { OrderEndpoints } from './_endpointHelpers'
 import { CreateLogoSchema } from './logo'

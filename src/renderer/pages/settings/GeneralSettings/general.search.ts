@@ -10,7 +10,8 @@ export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'launch-onboot',
     titleKey: 'settings.launch.onboot',
-    groupKey: 'settings.launch.title'
+    groupKey: 'settings.launch.title',
+    aliases: ['auto start', '开机自启', '开机启动', '自启动']
   },
   {
     anchorId: 'launch-totray',
@@ -50,6 +51,12 @@ export const entries: SettingsSearchEntry[] = [
     aliases: ['gpu']
   },
   {
+    anchorId: 'commit-attribution',
+    titleKey: 'settings.general.commit_attribution.title',
+    descriptionKey: 'settings.general.commit_attribution.description',
+    aliases: ['attribution', 'Co-Authored-By', 'Claude Code', '署名', '共同作者']
+  },
+  {
     anchorId: 'enable-developer-mode',
     titleKey: 'settings.developer.enable_developer_mode',
     groupKey: 'settings.developer.title'
@@ -57,7 +64,8 @@ export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'context-max-messages',
     titleKey: 'settings.models.context_management.max_messages',
-    groupKey: 'settings.models.context_management.title'
+    groupKey: 'settings.models.context_management.title',
+    aliases: ['context count', '上下文数量']
   },
   {
     anchorId: 'context-enabled',

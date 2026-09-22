@@ -1,7 +1,8 @@
+import { eq } from 'drizzle-orm'
+
 import { appStateTable } from '@data/db/schemas/appState'
 import type { DbType } from '@data/db/types'
 import type { MigrationStatusValue } from '@shared/data/migration/v2/types'
-import { eq } from 'drizzle-orm'
 
 export const MIGRATION_V2_STATUS = 'migration_v2_status'
 

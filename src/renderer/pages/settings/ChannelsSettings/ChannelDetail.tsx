@@ -1,3 +1,8 @@
+import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
@@ -29,17 +34,13 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelStatus } from '@shared/data/types/channel'
-import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { getFormForType } from './ChannelForms'
 import type { AvailableChannel, ChannelData } from './channelTypes'
@@ -197,7 +198,8 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
   const lastChannelRef = useRef<ChannelData | null>(channel)
   // `null` = "No work directory" (system workspace); a string binds the channel to that user workspace.
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
-  const { data: workspaces } = useQuery('/agent-workspaces')
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
   if (channel) {
     lastChannelRef.current = channel
@@ -511,7 +513,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
       if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode
 
-      await updateChannel(channelId, apiUpdates as never)
+      await updateChannel(channelId, apiUpdates)
     },
     [channelList, updateChannel]
   )

@@ -1,3 +1,6 @@
+import type { Context, ReactNode } from 'react'
+import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
+
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import {
   buildCitationPartsRegistry,
@@ -6,8 +9,6 @@ import {
   getPriorCitationParts
 } from '@renderer/utils/message/citations'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { Context, ReactNode } from 'react'
-import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 
 import { PartsProvider } from './blocks/MessagePartsContext'
 import type {

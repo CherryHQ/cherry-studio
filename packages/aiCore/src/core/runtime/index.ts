@@ -39,7 +39,7 @@ export async function createExecutor<
   const provider = await extensionRegistry.createProvider(providerId, options || {})
 
   // Extract model resolver from variant's resolveModel declaration (type-safe at extension level)
-  const resolver = extensionRegistry.getModelResolver(providerId as string)
+  const resolver = extensionRegistry.getModelResolver(providerId)
   const modelResolver = resolver ? (modelId: string) => resolver(provider, modelId) : undefined
 
   return RuntimeExecutor.create<TSettingsMap, T>(providerId, provider, options, plugins, modelResolver)

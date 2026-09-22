@@ -161,7 +161,7 @@ export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[]
     return {
       ...message,
       parts: message.parts.filter((part) => !isToolUIPart(part) || part.state !== 'approval-requested')
-    } as T
+    }
   })
 }
 

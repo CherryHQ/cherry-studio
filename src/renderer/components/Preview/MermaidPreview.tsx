@@ -1,6 +1,7 @@
-import { useMermaid } from '@renderer/hooks/useMermaid'
 import { nanoid } from 'nanoid'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+
+import { useMermaid } from '@renderer/hooks/useMermaid'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'

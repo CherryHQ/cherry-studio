@@ -1,4 +1,8 @@
 import { electronAPI } from '@electron-toolkit/preload'
+import type { OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import type { CreateDirectoryOptions } from 'webdav'
+
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
@@ -6,7 +10,7 @@ import type {
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
-import type { FileEntry, FileHandle } from '@shared/data/types/file'
+import type { FileEntry } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -30,9 +34,6 @@ import type {
 import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import type { SkillFileNode, SkillResult } from '@shared/types/skill'
 import type { CommandId } from '@shared/utils/command'
-import type { OpenDialogOptions } from 'electron'
-import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
-import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
 
@@ -109,7 +110,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
     getPhysicalPath: (params: GetPhysicalPathIpcParams): Promise<AbsoluteFilePath> =>
       ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
-    permanentDelete: (handle: FileHandle): Promise<void> => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
     runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep),
     deleteExternalFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalFile, filePath),
     deleteExternalDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalDir, dirPath),
@@ -190,7 +190,7 @@ const api = {
     getUser: (token: string) => ipcRenderer.invoke(IpcChannel.Copilot_GetUser, token)
   },
   // CherryIN OAuth + Codex / Grok CLI OAuth migrated to IpcApi — see
-  // `ipcApi.request('oauth.*' | 'cherryin.*')` and `ipcApi.on('oauth.deep_link_result')`.
+  // `ipcApi.request('oauth.*' | 'cherryin.*')`.
   // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
   nutstore: {
     getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl),

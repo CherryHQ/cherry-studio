@@ -1,3 +1,6 @@
+import type { TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
+
 /**
  * Subagent coordinator for one dsh runtime connection: admits descendant
  * sessions, binds each child to the root tool call that spawned it, projects
@@ -20,8 +23,6 @@
  * Descendants of a child flatten into their ancestor's flow.
  */
 import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
-import type { TokenUsage } from '@deepseek-ai/dsh-llm'
-import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'

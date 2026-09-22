@@ -19,13 +19,14 @@ vi.mock('@renderer/services/ExportService', () => ({
   topicToMarkdown: vi.fn()
 }))
 
-import { ObsidianProcessingMethod, PopupContainer } from '@renderer/components/ObsidianExportDialog'
-import i18n from '@renderer/i18n/resolver'
 import { mockUsePreference } from '@test-mocks/renderer/usePreference'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import matter from 'gray-matter'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ObsidianProcessingMethod, PopupContainer } from '@renderer/components/ObsidianExportDialog'
+import i18n from '@renderer/i18n/resolver'
 
 const body = '# Body\n\nHello from the chat.'
 

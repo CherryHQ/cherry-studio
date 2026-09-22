@@ -1,7 +1,8 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import AddModelFormPanel, { type AddModelDrawerFooterBinding } from './AddModelFormPanel'
 import type { AddModelDrawerPrefill } from './types'

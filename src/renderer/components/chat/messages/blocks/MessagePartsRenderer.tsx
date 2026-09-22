@@ -14,6 +14,11 @@
  * - data-video parts with same filePath → video block row
  */
 
+import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
+import { AnimatePresence, motion, type Variants } from 'motion/react'
+import React, { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
@@ -37,11 +42,6 @@ import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { readCherryMeta } from '@shared/data/types/uiParts'
-import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
-import { AnimatePresence, motion, type Variants } from 'motion/react'
-import React, { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
@@ -63,6 +63,7 @@ import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
+import AgentSessionForkBlock from './AgentSessionForkBlock'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
@@ -547,20 +548,12 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
 /** Extract CherryProviderMetadata from a part. */
 function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefined {
   if ('providerMetadata' in part && part.providerMetadata) {
-    return part.providerMetadata.cherry as CherryProviderMetadata | undefined
+    return part.providerMetadata.cherry
   }
   return undefined
 }
 
-/**
- * Memoized adapter from a `data-error` part to the normalized `SerializedError`
- * shape `ErrorBlock` consumes, plus the persisted AI diagnosis it rehydrates.
- * Takes the whole `part` — not pre-extracted props — so both the normalized
- * error and the parsed `cachedDiagnosis` derive their identity from the part,
- * not from whichever render of the parent triggered it. Keeping identity stable
- * lets `React.memo(ErrorBlock)` and the downstream `useMemo`s actually do their
- * job; passing a freshly-parsed object every render would break memoization.
- */
+// Keep normalized error identity stable across parent renders.
 const ErrorPartView = React.memo(function ErrorPartView({
   partId,
   part,
@@ -580,8 +573,7 @@ const ErrorPartView = React.memo(function ErrorPartView({
     }),
     [rawData]
   )
-  const cachedDiagnosis = useMemo(() => readCherryMeta(part)?.diagnosis, [part])
-  return <ErrorBlock partId={partId} error={error} message={message} cachedDiagnosis={cachedDiagnosis} />
+  return <ErrorBlock partId={partId} error={error} message={message} />
 })
 
 /**
@@ -638,6 +630,9 @@ function renderPart(
 
     case 'data-conversation-reset':
       return <ConversationResetBlock key={partId} />
+
+    case 'data-agent-session-fork':
+      return <AgentSessionForkBlock key={partId} sourceSessionId={part.data.sourceSessionId} />
 
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data

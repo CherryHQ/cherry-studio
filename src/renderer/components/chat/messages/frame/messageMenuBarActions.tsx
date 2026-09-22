@@ -1,22 +1,3 @@
-import { loggerService } from '@logger'
-import {
-  DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
-  type MessageMenuBarButtonId,
-  STREAMING_DISABLED_BUTTON_IDS
-} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
-import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
-import CopyIcon from '@renderer/components/icons/CopyIcon'
-import DeleteIcon from '@renderer/components/icons/DeleteIcon'
-import EditIcon from '@renderer/components/icons/EditIcon'
-import RefreshIcon from '@renderer/components/icons/RefreshIcon'
-import type { MessageExportView } from '@renderer/types/messageExport'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
-import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
-import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
-import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
-import type { CherryMessagePart } from '@shared/data/types/message'
-import type { TranslateLanguage } from '@shared/data/types/translate'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
@@ -36,6 +17,25 @@ import {
 } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 
+import { loggerService } from '@logger'
+import {
+  DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
+  type MessageMenuBarButtonId,
+  STREAMING_DISABLED_BUTTON_IDS
+} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import EditIcon from '@renderer/components/icons/EditIcon'
+import RefreshIcon from '@renderer/components/icons/RefreshIcon'
+import type { MessageExportView } from '@renderer/types/messageExport'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
+import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
+import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import type { TranslateLanguage } from '@shared/data/types/translate'
+
 import { createActionRegistry } from '../../actions/actionRegistry'
 import type { ActionAvailabilityInput, ActionDescriptor, ResolvedAction } from '../../actions/actionTypes'
 import type { MessageListActions, MessageListItem, MessageListSelectionState } from '../types'
@@ -54,6 +54,8 @@ export interface MessageMenuBarActionContext {
   messageParts: CherryMessagePart[]
   messageForExport: MessageExportView
   messageContainerRef: RefObject<HTMLDivElement>
+  acquireMessageCaptureLease?: (messageId: string) => () => void
+  getRenderedMessageElement?: (messageId: string) => HTMLElement | null
   mainTextContent: string
   selection?: MessageListSelectionState
   menuConfig: MessageMenuConfig
@@ -125,6 +127,15 @@ function toolbarAvailability(
   }
 }
 
+function canStartEditing({
+  actions,
+  message,
+  isTranslating,
+  startEditingMessage
+}: MessageMenuBarActionContext): boolean {
+  return !isTranslating && !!startEditingMessage && (actions.canEditMessage?.(message) ?? !!actions.editMessage)
+}
+
 function notifyCommandError(id: string, context: MessageMenuBarActionContext, error: unknown) {
   logger.error(`Message menu action failed: ${id}`, error as Error)
   context.actions.notifyError?.(formatErrorMessageWithPrefix(error, context.t('message.error.unknown')))
@@ -153,6 +164,30 @@ function registerToolbarAction(
     order: toolbarOrder.get(actionDescriptor.id) ?? 0,
     surface: 'toolbar'
   })
+}
+
+function getMessageCaptureRef(context: MessageMenuBarActionContext): RefObject<HTMLElement | null> {
+  const getRenderedMessageElement = context.getRenderedMessageElement
+  if (!getRenderedMessageElement) return context.messageContainerRef
+
+  return {
+    get current() {
+      const element = getRenderedMessageElement(context.message.id)
+      if (!element) {
+        throw new Error('Message is no longer available for image capture')
+      }
+      return element
+    }
+  }
+}
+
+async function withMessageCaptureLease<T>(context: MessageMenuBarActionContext, capture: () => Promise<T>): Promise<T> {
+  const release = context.acquireMessageCaptureLease?.(context.message.id)
+  try {
+    return await capture()
+  } finally {
+    release?.()
+  }
 }
 
 registerCommand('message.copy', async ({ actions, mainTextContent, messageParts, setCopied, t }) => {
@@ -198,6 +233,9 @@ registerCommand('message.newBranch', async ({ actions, message, t }) => {
   await actions.startMessageBranch?.(message.id)
   actions.notifySuccess?.(t('chat.message.new.branch.created'))
 })
+registerCommand('message.forkSession', async ({ actions, message }) => {
+  await actions.forkSession?.run(message.id)
+})
 
 registerCommand('message.copyToNewTopic', async ({ actions, message, t }) => {
   await actions.copyBranchToNewTopic?.(message.id)
@@ -223,34 +261,40 @@ registerCommand('message.exportNotes', async ({ actions, messageForExport }) => 
 
 registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }) => {
   const { messageToPlainText } = await import('@renderer/utils/export')
-  await actions.copyText?.(messageToPlainText(messageForExport), {
+  await actions.copyText?.(await messageToPlainText(messageForExport), {
     successMessage: t('message.copy.success')
   })
 })
 
-registerCommand('message.copyImage', async ({ actions, messageContainerRef }) => {
-  await captureScrollableAsBlob(messageContainerRef, async (blob) => {
-    if (blob) {
-      await actions.copyImage?.(blob)
-    }
+registerCommand('message.copyImage', async (context) => {
+  await withMessageCaptureLease(context, async () => {
+    const { exportService } = await import('@renderer/services/ExportService')
+    const messageContainerRef = getMessageCaptureRef(context)
+    await exportService.captureScrollableAsBlob(messageContainerRef, async (blob) => {
+      if (blob) {
+        await context.actions.copyImage?.(blob)
+      }
+    })
   })
 })
 
-registerCommand('message.exportImage', async ({ actions, messageContainerRef, messageForExport, t }) => {
-  const imageData = await captureScrollableAsDataUrl(messageContainerRef)
-  const { getMessageTitle } = await import('@renderer/services/ExportService')
-  const title = await getMessageTitle(messageForExport)
-  if (!title || !imageData || !actions.saveImage) {
-    actions.notifyError?.(t('message.error.unknown'))
-    return
-  }
+registerCommand('message.exportImage', async (context) => {
+  await withMessageCaptureLease(context, async () => {
+    const { exportService, getMessageTitle } = await import('@renderer/services/ExportService')
+    const imageData = await exportService.captureScrollableAsDataUrl(getMessageCaptureRef(context))
+    const title = await getMessageTitle(context.messageForExport)
+    if (!title || !imageData || !context.actions.saveImage) {
+      context.actions.notifyError?.(context.t('message.error.unknown'))
+      return
+    }
 
-  const success = await actions.saveImage(title, imageData)
-  if (success) {
-    actions.notifySuccess?.(t('chat.topics.export.image_saved'))
-  } else {
-    actions.notifyError?.(t('message.error.unknown'))
-  }
+    const success = await context.actions.saveImage(title, imageData)
+    if (success) {
+      context.actions.notifySuccess?.(context.t('chat.topics.export.image_saved'))
+    } else {
+      context.actions.notifyError?.(context.t('message.error.unknown'))
+    }
+  })
 })
 
 registerCommand('message.exportMarkdown', async ({ actions, messageForExport }) => {
@@ -295,13 +339,9 @@ registerCommand('message.useful', ({ message, onSelectContext }) => {
 registerToolbarAction({
   id: 'user-edit',
   commandId: 'message.edit',
-  label: ({ t }) => t('common.edit'),
+  label: ({ t, actions }) => actions.editLabel ?? t('common.edit'),
   icon: <EditIcon size={15} />,
-  availability: toolbarAvailability(
-    'user-edit',
-    ({ actions, isTranslating, isUserMessage, startEditingMessage }) =>
-      !isTranslating && isUserMessage && !!actions.editMessage && !!startEditingMessage
-  )
+  availability: toolbarAvailability('user-edit', (context) => context.isUserMessage && canStartEditing(context))
 })
 
 registerToolbarAction({
@@ -422,17 +462,13 @@ registerToolbarAction({
 registerAction({
   id: 'edit',
   commandId: 'message.edit',
-  label: ({ t }) => t('common.edit'),
+  label: ({ t, actions }) => actions.editLabel ?? t('common.edit'),
   icon: <FilePenLine size={15} />,
   group: 'write',
   order: 10,
   surface: 'menu',
-  availability: ({ actions, isAssistantMessage, isEditable, isTranslating, isUserMessage, startEditingMessage }) =>
-    !isTranslating &&
-    isEditable &&
-    !!actions.editMessage &&
-    !!startEditingMessage &&
-    (isUserMessage || isAssistantMessage)
+  availability: (context) =>
+    context.isEditable && (context.isUserMessage || context.isAssistantMessage) && canStartEditing(context)
 })
 
 registerAction({
@@ -447,6 +483,17 @@ registerAction({
     if (!actions.startMessageBranch || !isAssistantMessage) return false
     return true
   }
+})
+
+registerAction({
+  id: 'fork-session',
+  commandId: 'message.forkSession',
+  label: ({ actions }) => actions.forkSession?.label ?? '',
+  icon: <Split size={15} />,
+  group: 'write',
+  order: 22,
+  surface: 'menu',
+  availability: ({ actions, message }) => actions.forkSession?.availability(message) ?? false
 })
 
 registerAction({

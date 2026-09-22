@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react'
+
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { useEffect, useState } from 'react'
 
 // 跟踪 mermaid 模块状态，单例模式
 let mermaidModule: any = null

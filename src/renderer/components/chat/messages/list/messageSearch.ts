@@ -61,11 +61,11 @@ const searchTextCache = new WeakMap<object, CachedSearchText>()
 
 function getPartSearchText(part: Extract<CherryMessagePart, { type: 'text' }>, renderAsMarkdown: boolean): string {
   const source = part.text ?? ''
-  const cached = searchTextCache.get(part as object)
+  const cached = searchTextCache.get(part)
   if (cached?.source === source && cached.renderAsMarkdown === renderAsMarkdown) return cached.text
 
   const text = renderAsMarkdown ? markdownToPlainText(source) : source
-  searchTextCache.set(part as object, { renderAsMarkdown, source, text })
+  searchTextCache.set(part, { renderAsMarkdown, source, text })
   return text
 }
 
@@ -109,11 +109,11 @@ function getMatchCount(
   options: Pick<MessageSearchOptions, 'caseSensitive' | 'wholeWord'>
 ): number {
   const criteriaKey = `${searchText}\u0000${options.caseSensitive ? '1' : '0'}${options.wholeWord ? '1' : '0'}`
-  const cached = partMatchCache.get(document.sourcePart as object)
+  const cached = partMatchCache.get(document.sourcePart)
   if (cached?.criteriaKey === criteriaKey && cached.text === document.text) return cached.count
 
   const count = findTextMatches(document.text, searchText, options).length
-  partMatchCache.set(document.sourcePart as object, { criteriaKey, text: document.text, count })
+  partMatchCache.set(document.sourcePart, { criteriaKey, text: document.text, count })
   return count
 }
 

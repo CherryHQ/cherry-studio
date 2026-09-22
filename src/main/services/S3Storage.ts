@@ -1,3 +1,6 @@
+import * as net from 'net'
+import { Readable } from 'stream'
+
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -6,10 +9,9 @@ import {
   S3Client
 } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
+
 import { loggerService } from '@logger'
 import type { S3Config } from '@shared/types/backup'
-import * as net from 'net'
-import { Readable } from 'stream'
 
 const logger = loggerService.withContext('S3Storage')
 const S3_SOCKET_IDLE_TIMEOUT_MS = 5 * 60_000

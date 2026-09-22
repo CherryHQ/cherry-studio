@@ -31,14 +31,14 @@ describe('mergeAgentLoopbackProxyBypass', () => {
     })
   })
 
-  it('merges lowercase then uppercase bypass variables across supported separators', () => {
+  it('merges lowercase then uppercase bypass variables across supported separators on Linux', () => {
     const environment = {
       HTTP_PROXY: 'http://proxy.example.com:8080',
       no_proxy: 'Example.COM, 127.0.0.1 ; ::1',
       NO_PROXY: 'example.com\tLOCALHOST; [::1], Api.Example.com'
     }
 
-    const result = mergeAgentLoopbackProxyBypass(environment)
+    const result = mergeAgentLoopbackProxyBypass(environment, { platform: 'linux' })
 
     expect(result.no_proxy).toBe('Example.COM,127.0.0.1,::1,LOCALHOST,[::1],Api.Example.com')
     expect(result.NO_PROXY).toBe(result.no_proxy)
@@ -53,12 +53,15 @@ describe('mergeAgentLoopbackProxyBypass', () => {
     expect(result.no_proxy).toBe('::1,localhost,127.0.0.1,[::1]')
   })
 
-  it('collapses both bypass variables to a standalone wildcard rule', () => {
-    const result = mergeAgentLoopbackProxyBypass({
-      ALL_PROXY: 'socks5://proxy.example.com:1080',
-      no_proxy: '*.example.com; *',
-      NO_PROXY: 'localhost'
-    })
+  it('collapses both bypass variables to a standalone wildcard rule on Linux', () => {
+    const result = mergeAgentLoopbackProxyBypass(
+      {
+        ALL_PROXY: 'socks5://proxy.example.com:1080',
+        no_proxy: '*.example.com; *',
+        NO_PROXY: 'localhost'
+      },
+      { platform: 'linux' }
+    )
 
     expect(result.no_proxy).toBe('*')
     expect(result.NO_PROXY).toBe('*')

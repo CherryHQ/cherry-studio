@@ -195,7 +195,7 @@ describe('fileTransfer handlers', () => {
   // streaming logic works correctly with mock streams.
   describe('streamFileChunks', () => {
     let mockSocket: Socket & EventEmitter
-    let mockProgress: ReturnType<typeof vi.fn>
+    let mockProgress: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 
     beforeEach(() => {
       vi.clearAllMocks()
