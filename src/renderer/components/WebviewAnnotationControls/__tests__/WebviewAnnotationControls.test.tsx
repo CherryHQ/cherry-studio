@@ -1,3 +1,4 @@
+import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
@@ -135,6 +136,8 @@ Range.prototype.getBoundingClientRect = () => new DOMRect()
 describe('WebviewAnnotationControls', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Written directly by the accent-preference cases below; clear it so it doesn't leak into other tests.
+    mockPreferenceState.delete('ui.theme_user.color_primary')
     request.mockResolvedValue('# Resolved annotations')
     Object.defineProperty(globalThis.crypto, 'randomUUID', { configurable: true, value: randomUUID })
     Object.defineProperty(navigator, 'clipboard', {
@@ -155,6 +158,64 @@ describe('WebviewAnnotationControls', () => {
 
     expect(sentCommands(webview)).toContainEqual({ type: 'set_enabled', sessionId, enabled: true })
     expect(screen.getByRole('button', { name: '退出标注' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('configures the guest with the resolved app accent', () => {
+    // Hex input (not a pass-through `rgb(...)` string) so the assertion cannot pass without the `Color()` transform.
+    mockPreferenceState.set('ui.theme_user.color_primary', '#00b96b')
+    const webview = createWebview()
+    renderControls(webview)
+
+    act(() => stateChanged(webview, false, 0))
+
+    expect(sentCommands(webview)).toContainEqual(
+      expect.objectContaining({
+        type: 'configure',
+        theme: 'dark',
+        accent: 'rgb(0, 185, 107)',
+        // getForegroundColor(#00b96b) — see src/renderer/utils/style.ts
+        accentForeground: '#000000'
+      })
+    )
+  })
+
+  it('re-issues configure with the new accent when the primary colour preference changes', () => {
+    mockPreferenceState.set('ui.theme_user.color_primary', '#00b96b')
+    const webview = createWebview()
+    // Reuse one webviewRef across the rerender: a fresh ref object would itself retrigger the
+    // webview-binding effect and mask whether the accent-preference change was what resent `configure`.
+    const webviewRef: RefObject<WebviewTag | null> = { current: webview }
+    const { rerender } = render(
+      <WebviewAnnotationControls
+        webviewRef={webviewRef}
+        webviewRevision={0}
+        isWebviewReady
+        isHostActive={true}
+        target={target}
+      />
+    )
+    act(() => stateChanged(webview, false, 0))
+
+    mockPreferenceState.set('ui.theme_user.color_primary', '#4f46e5')
+    rerender(
+      <WebviewAnnotationControls
+        webviewRef={webviewRef}
+        webviewRevision={0}
+        isWebviewReady
+        isHostActive={true}
+        target={target}
+      />
+    )
+
+    expect(sentCommands(webview)).toContainEqual(
+      expect.objectContaining({
+        type: 'configure',
+        theme: 'dark',
+        accent: 'rgb(79, 70, 229)',
+        // getForegroundColor(#4f46e5) — see src/renderer/utils/style.ts
+        accentForeground: '#FFFFFF'
+      })
+    )
   })
 
   it('includes the annotation count in the toggle accessible name', () => {

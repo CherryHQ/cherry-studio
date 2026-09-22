@@ -426,8 +426,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.resumeToken) {
       const file = resolveResumeTokenSessionFile(this.resumeToken, sessionDir)
       if (file) return pi.SessionManager.open(file, sessionDir, workspacePath)
+      if (this.input.nativeSessionId) throw new Error('Edited native session history is missing')
     }
-    return pi.SessionManager.create(workspacePath, sessionDir, { id: this.resumeToken ?? this.input.sessionId })
+    return pi.SessionManager.create(workspacePath, sessionDir, {
+      id: this.resumeToken ?? this.input.nativeSessionId ?? this.input.sessionId
+    })
   }
 
   send(input: AgentRuntimeUserInput): void {
@@ -566,9 +569,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return usage && usage.tokens != null ? this.projectContextUsage(usage) : null
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return
+  private closePromise?: Promise<void>
+
+  close(): Promise<void> {
     this.closed = true
+    return (this.closePromise ??= this.finishClose())
+  }
+
+  private async finishClose(): Promise<void> {
     // Deny any approval still awaiting a renderer decision so its held tool
     // promise resolves instead of hanging past teardown (plan Phase 3).
     toolApprovalRegistry.abort(this.input.sessionId, 'pi-session-closed')
@@ -576,11 +584,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // closing queue.
     this.unsubscribe?.()
     this.unsubscribe = undefined
-    try {
-      await this.session?.abort()
-    } catch (error) {
-      logger.warn('pi session abort failed during close', { error })
-    }
+    await this.session?.abort()
     this.session?.dispose()
     this.session = undefined
     this.endOpenTraceSpans('pi connection closed')

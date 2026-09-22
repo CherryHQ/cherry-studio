@@ -61,6 +61,7 @@ const providerKeyMap = {
   ocoolai: 'provider.ocoolai',
   ovms: 'provider.ovms',
   ollama: 'provider.ollama',
+  omlx: 'provider.omlx',
   openai: 'provider.openai',
   'openai-codex': 'provider.openai-codex',
   openrouter: 'provider.openrouter',

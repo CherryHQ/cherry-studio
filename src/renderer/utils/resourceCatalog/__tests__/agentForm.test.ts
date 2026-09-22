@@ -78,10 +78,10 @@ describe('buildInitialAgentFormState', () => {
     expect(state.envVarsText).toBe('DEBUG=1\nNODE_ENV=production')
   })
 
-  it('uses the legacy heartbeat defaults when configuration omits heartbeat keys', () => {
+  it('leaves heartbeat off when configuration omits heartbeat keys', () => {
     const state = buildInitialAgentFormState(createAgent({ configuration: {} }))
 
-    expect(state.heartbeatEnabled).toBe(true)
+    expect(state.heartbeatEnabled).toBe(false)
     expect(state.heartbeatInterval).toBe(30)
   })
 

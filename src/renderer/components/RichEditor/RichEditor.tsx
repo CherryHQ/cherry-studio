@@ -593,8 +593,7 @@ const RichEditor = ({
         if (!editor || !scrollContainerRef.current) return
 
         try {
-          const totalLines = editor.getMarkdown().split('\n').length
-          const element = findElementByLine(editor.view.dom, lineNumber, options?.lineContent, totalLines)
+          const element = findElementByLine(editor, lineNumber, options?.lineContent)
           if (!element) return
 
           if (options?.highlight) {

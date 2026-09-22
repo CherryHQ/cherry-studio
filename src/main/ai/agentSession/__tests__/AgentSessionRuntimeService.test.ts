@@ -99,6 +99,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
+    getNativeSessionId: vi.fn(),
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages,
     updateSessionDeliveryStatus: mocks.updateSessionDeliveryStatus,
@@ -522,6 +523,19 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       throw new Error(`Unexpected application.get(${name})`)
     })
+  })
+
+  it('blocks edits only on the source session until its fork settles', async () => {
+    const service = new AgentSessionRuntimeService()
+    forkRecoveryMocks.read.mockReturnValueOnce({
+      messages: [{ role: 'assistant', status: 'success', data: {} }]
+    })
+    const fork = service.forkSession('session-1', 'assistant-1')
+    const settled = expect(fork).rejects.toMatchObject({ reason: 'legacy_history' })
+    expect(() => service.assertSessionEditable('session-1')).toThrow('busy')
+    expect(() => service.assertSessionEditable('session-2')).not.toThrow()
+    await settled
+    expect(() => service.assertSessionEditable('session-1')).not.toThrow()
   })
 
   describe('respondToolApproval', () => {
@@ -2251,8 +2265,9 @@ describe('AgentSessionRuntimeService', () => {
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
     service.markTurnTerminal('session-1', 'success')
+    const closed = createDeferred<void>()
     const connection = {
-      close: vi.fn(),
+      close: vi.fn(() => closed.promise),
       send: vi.fn(),
       events: [],
       reconcile: vi.fn().mockResolvedValue('rebuild')
@@ -2265,6 +2280,9 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.close).toHaveBeenCalledOnce()
     expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1' })
     expect(getEntry(service).connection).toBeUndefined()
+    expect(() => service.assertSessionEditable('session-1')).toThrow('busy')
+    closed.resolve()
+    await vi.waitFor(() => expect(() => service.assertSessionEditable('session-1')).not.toThrow())
   })
 
   it('defers the rebuild while a turn is live and leaves the connection streaming', async () => {
@@ -3895,6 +3913,30 @@ describe('AgentSessionRuntimeService', () => {
         expect.objectContaining({ sessionId: 'session-1', error: closeError })
       )
     )
+    expect(service.isSessionBusy('session-1')).toBe(true)
+    expect(service.hasBusySessions()).toBe(true)
+    expect(() => service.assertSessionEditable('session-1')).toThrow('close_failed')
+    expect(() => service.beginTurn(baseTurnInput)).toThrow('close_failed')
+  })
+
+  it('blocks writes after the close deadline and recovers when native teardown eventually completes', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const teardown = createDeferred<void>()
+      getEntry(service).connection = { close: () => teardown.promise, send: vi.fn(), events: [] }
+      const closing = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_001)
+      await closing
+      expect(() => service.beginTurn(baseTurnInput)).toThrow('close_failed')
+      teardown.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(() => service.beginTurn(baseTurnInput)).not.toThrow()
+      await service.closeSession('session-1')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('persists assistant turns with the latest resume token', async () => {

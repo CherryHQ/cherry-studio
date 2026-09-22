@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.1.0",
+    "version": "2.1.2",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -62,6 +62,7 @@
       "/settings/about",
       "/settings/api-gateway",
       "/settings/appearance",
+      "/settings/archive",
       "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
@@ -465,8 +466,8 @@
     }
   ],
   "providers": {
-    "version": "03df81b954f5ae36",
-    "count": 64,
+    "version": "cae16d12bd91b190",
+    "count": 65,
     "entries": [
       {
         "id": "cherryin",
@@ -579,6 +580,10 @@
       {
         "id": "grok-cli",
         "name": "Grok CLI"
+      },
+      {
+        "id": "omlx",
+        "name": "oMLX"
       },
       {
         "id": "openai",
@@ -822,7 +827,8 @@
         "qoder-cli",
         "github-copilot-cli",
         "pi",
-        "hermes"
+        "hermes",
+        "minimax-code"
       ]
     }
   },
