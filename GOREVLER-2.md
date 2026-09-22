@@ -204,8 +204,9 @@ Bunları kendi değişikliğinin sonucu sanma. İkisi de bu oturum başlamadan �
 
 | **Y2** | ✅ | Ücretsiz görsel sağlayıcı kataloğu. `src/shared/data/presets/freeImageProviders.ts` — Google (Gemini Vision), Alibaba (Tongyi Vision), Ideogram, Kling free-tier image generation. Fonksiyonlar: `isFreeImageAccessProvider()`, `freeImageAccessKindOf()`. F1'in görsel versiyonu. Mekanik veri, i18n/test yok. `80d2c04f` |
 | **Z2** | ✅ | Havuzlanmış kota görüntüleme. `QuotaOverviewTable.tsx` satırları sağlayıcı + yenileme dönemine göre gruplandı, her grup başlığında havuz toplamları (limit/kullanılan/kalan). Açılır/kapanır detaylar sağlayıcıdaki anahtarları gösteriyor, her satırdaki limit artırma/azaltma korunuyor. İçinde `togglePoolExpanded`, `PoolGroup` interface'i, `poolGroups` useMemo. Test dosyası `QuotaOverviewTable.test.tsx` (2 vaka). Yeni i18n anahtarı `settings.usage.quota.pool_source_count` (12 dile çevrilmeli). `cf88c54d` (Z2 sorunu) + `c1e439d6` (ProviderProxySettings TextField→Input düzeltmesi, bloklanmayı çözmek için). Uygulama `Bootstrap complete` ile hatasız açıldı. Çeviriler yapılmadı — `pnpm i18n:sync` placeholder'ları ekledi, `i18n-translator` ajanına verilecek. |
+| **Z7** | ✅ | Sağlayıcı keşif kataloğu. `src/shared/data/presets/providerModelCatalog.ts` — kanonik model × sağlayıcı eşlemeleri, ücretsiz tier statusu, kayıt URL'leri. `ProviderModelCatalogEntry` interface (modelId, providerId, hasFreeAccess, apiModelId, signupUrl). Veri: DeepSeek, Claude, Gemini, Qwen, Llama gibi ana modeller (placeholder kanonik kimlikler). Fonksiyonlar: `getFreeAccessProvidersForModel`, `getCanonicalModelsFromProvider`, `getSignupUrlForModel`. Test dosyası (9 vaka): geçerli girişler, benzersizlik, eksik sağlayıcı/model. `51989e34`. **Not:** Z1 (model denklik haritası) yapılmadığı için kanonik model kimlikleri placeholder; Z1 tamamlandığında güncellenecek. |
 
-**Sonraki sırada:** Z4 veya başka, çeviriler await.
+**Sonraki sırada:** Z4 bloke (Z1'e bağlı). Diğer: L4, L6, L7, P6 veya başka.
 
 ### Model değişirse: hangi maddeye başlanır, hangisine başlanmaz
 
