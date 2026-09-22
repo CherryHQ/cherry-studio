@@ -490,6 +490,13 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+    this.registerDisposable(
+      agentSessionService.onSessionModelUpdated(({ sessionId }) => {
+        void this.handleSessionModelUpdated(sessionId).catch((error) => {
+          logger.warn('Failed to apply live session model override update', { sessionId, error })
+        })
+      })
+    )
   }
 
   private reconcileStalePendingMessages(): void {
@@ -796,6 +803,29 @@ export class AgentSessionRuntimeService extends BaseService {
    * (in-session skill toggles, MCP definition edits, workspace switches) have no push at all and are
    * covered by the pull.
    */
+  private async handleSessionModelUpdated(sessionId: string): Promise<void> {
+    const entry = this.entries.get(sessionId)
+    if (!entry) return
+
+    const session = agentSessionService.getById(sessionId)
+    if (!session?.agentId) return
+
+    const agent = agentService.getAgent(session.agentId)
+    const effectiveModel = session.modelId ?? agent?.model ?? null
+    if (!effectiveModel) {
+      this.invalidateModelClearedEntry(entry)
+      return
+    }
+
+    const turn = this.liveTurn(entry)
+    if (turn && isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) && this.isTurnLive(entry, turn)) {
+      return
+    }
+
+    entry.modelId = effectiveModel
+    if (agent) await this.reconcileEntryConnection(entry, agent)
+  }
+
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
     const modelEdited = Object.prototype.hasOwnProperty.call(updates, 'model')
     const reconciles: Promise<void>[] = []
@@ -2992,8 +3022,14 @@ export class AgentSessionRuntimeService extends BaseService {
     // reading `reasoningEffort` from anywhere else would make an autonomous wake disagree with
     // the connection it is already streaming on, and a reconcile racing that wake would report
     // drift and close a valid warm connection.
-    const { modelId, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } =
-      this.connectionTarget(entry)
+    const target = this.connectionTarget(entry)
+    // A fresh receive-only turn has no execution.turn yet; honor the entry's latest
+    // effective model (updated by handleSessionModelUpdated) instead of a completed context turn.
+    const modelId =
+      entry.runtimeState.execution.kind === 'autonomous-turn' && !entry.runtimeState.execution.turn
+        ? entry.modelId
+        : target.modelId
+    const { reasoningEffort, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } = target
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)

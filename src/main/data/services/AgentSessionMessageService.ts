@@ -202,9 +202,13 @@ export class AgentSessionDeliveryRoutingError extends Error {
   }
 }
 
+type ExpectedAgentOwner =
+  | string
+  | { id: string; updatedAt: string; model: string | null; type: string; sessionModelId?: string | null }
+
 type SaveAgentSessionMessageOptions =
-  | { db: DbOrTx; publishDataChange?: never }
-  | { db?: undefined; publishDataChange?: boolean }
+  | { db: DbOrTx; publishDataChange?: never; expectedAgent?: ExpectedAgentOwner }
+  | { db?: undefined; publishDataChange?: boolean; expectedAgent?: ExpectedAgentOwner }
 
 type SavedAgentSessionMessage = {
   entity: AgentSessionMessageEntity
@@ -1160,10 +1164,16 @@ export class AgentSessionMessageService {
     params: SaveAgentSessionMessageParams,
     options: SaveAgentSessionMessageOptions = {}
   ): AgentSessionMessageEntity {
-    const { db, publishDataChange } = options
+    const { db, publishDataChange, expectedAgent } = options
     const timestampMs = Date.now()
-    if (db) return this.saveMessageTx(db, params, timestampMs).entity
-    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    if (db) {
+      this.assertExpectedAgentTx(db, params.sessionId, expectedAgent)
+      return this.saveMessageTx(db, params, timestampMs).entity
+    }
+    const result = application.get('DbService').withWriteTx((tx) => {
+      this.assertExpectedAgentTx(tx, params.sessionId, expectedAgent)
+      return this.saveMessageTx(tx, params, timestampMs)
+    })
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }

@@ -89,7 +89,8 @@ vi.mock('@data/services/AgentSessionService', () => ({
     getById: mocks.getSessionById,
     getConversationById: mocks.getConversationById,
     ensureTraceId: mocks.ensureTraceId,
-    getSessionModelId: (sessionId: string) => mocks.getSessionById(sessionId)?.modelId ?? null
+    getSessionModelId: (sessionId: string) => mocks.getSessionById(sessionId)?.modelId ?? null,
+    onSessionModelUpdated: () => () => {}
   }
 }))
 
@@ -2095,6 +2096,69 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(entry.modelId).toBe(switchedModelId)
     expect(connection.reconcile).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
+    mocks.getSessionById.mockReset()
+  })
+
+  it('reconciles an idle warm connection when the session override changes', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    const service: any = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    service.markTurnTerminal('session-1', 'success')
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('current'),
+      refreshTraceContext: vi.fn()
+    }
+    entry.connection = connection
+
+    await service.handleSessionModelUpdated('session-1')
+
+    expect(entry.modelId).toBe(switchedModelId)
+    expect(connection.reconcile).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
+    mocks.getSessionById.mockReset()
+  })
+
+  it('uses the updated session override for an autonomous receive-only turn', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    mocks.saveMessage.mockReturnValue({
+      id: 'assistant-ro',
+      role: 'assistant',
+      status: 'pending',
+      data: { parts: [] }
+    })
+
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    entry.connection = {
+      send: vi.fn(),
+      close: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('current'),
+      refreshTraceContext: vi.fn()
+    }
+    service.markTurnTerminal('session-1', 'success')
+    mocks.startRuntimeTurn.mockClear()
+
+    await (service as any).handleSessionModelUpdated('session-1')
+    ;(service as any).handleRuntimeEvent(entry, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'background-work' }
+    })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.objectContaining({ modelId: switchedModelId })
+      })
+    )
+    expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
     mocks.getSessionById.mockReset()
   })
 
