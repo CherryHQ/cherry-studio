@@ -320,11 +320,15 @@ describe('ProviderService.delete — preset protection boundary', () => {
     })
     agentSessionService.update(session.id, { modelId })
     notifyDataApiDataChangeMock.mockClear()
+    const notified: string[] = []
+    const dispose = agentSessionService.onSessionModelUpdated(({ sessionId }) => notified.push(sessionId))
 
     // Without the pre-clear this aborts on the session model FK.
     providerService.delete('override-prov')
 
     expect(agentSessionService.getById(session.id).modelId).toBeNull()
+    expect(notified).toEqual([session.id])
+    dispose.dispose()
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
       { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
