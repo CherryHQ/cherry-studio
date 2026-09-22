@@ -71,10 +71,10 @@ export default defineCreator({
   ],
   reasoningFamilies: [
     {
-      pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2[.-]6-(?:flash|pro)(?!-)|mimo-v2-(?:flash|pro|omni)',
+      pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2[.-]6-(?:flash|pro|pro-ultraspeed)(?!-)|mimo-v2-(?:flash|pro|omni)',
       toggle: true
     },
     // Membership profile (no knobs): suffixed variant the toggle rule's (?!-) guard excludes.
-    { pattern: 'mimo-v2[.-][56]-pro-ultraspeed' }
+    { pattern: 'mimo-v2[.-]5-pro-ultraspeed' }
   ]
 })
