@@ -220,32 +220,34 @@ export const DASHSCOPE_HOSTED_WEB_SEARCH_MODELS = [
   { canonicalId: 'kimi-k3', wireIds: ['kimi-k3', 'kimi/kimi-k3'] }
 ] as const
 
-/**
- * Endpoint protocols that have a registered provider-native web-search delivery
- * path when a custom provider uses the endpoint-type default adapter family.
- * Enable overrides fail closed outside this set so routing cannot pick `server`
- * and then inject nothing.
- */
-export const WEB_SEARCH_DELIVERY_ENDPOINT_TYPES = [
-  ENDPOINT_TYPE.OPENAI_RESPONSES,
-  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
-] as const satisfies readonly EndpointType[]
+// Keep this aligned with the registered webSearch toolFactories and endpoint variant resolution.
+const WEB_SEARCH_DELIVERY_ADAPTER_FAMILIES: Partial<Record<EndpointType, readonly string[]>> = {
+  [ENDPOINT_TYPE.OPENAI_RESPONSES]: ['openai', 'azure', 'azure-responses', 'xai', 'xai-responses'],
+  [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: ['anthropic', 'azure-anthropic', 'google-vertex-anthropic', 'bedrock'],
+  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: ['google', 'google-vertex']
+}
 
-const WEB_SEARCH_DELIVERY_ENDPOINT_TYPE_SET: ReadonlySet<EndpointType> = new Set(WEB_SEARCH_DELIVERY_ENDPOINT_TYPES)
-
-/** Whether Cherry can deliver provider-native web search on this endpoint protocol. */
-export function isWebSearchDeliveryEndpoint(endpointType: EndpointType | undefined): boolean {
-  return endpointType !== undefined && WEB_SEARCH_DELIVERY_ENDPOINT_TYPE_SET.has(endpointType)
+/** Whether this endpoint's actual runtime adapter can inject native search. */
+export function isWebSearchDeliveryEndpoint(
+  endpointType: EndpointType | undefined,
+  provider: Pick<Provider, 'endpointConfigs'>
+): boolean {
+  if (!endpointType) return false
+  const adapterFamily = provider.endpointConfigs?.[endpointType]?.adapterFamily
+  return (
+    adapterFamily !== undefined &&
+    (WEB_SEARCH_DELIVERY_ADAPTER_FAMILIES[endpointType]?.includes(adapterFamily) ?? false)
+  )
 }
 
 /** Deliverable web-search endpoints from a model/provider endpoint set. */
 export function getDeliverableWebSearchEndpointTypes(
   endpointTypes: readonly EndpointType[] | undefined,
+  provider: Pick<Provider, 'endpointConfigs'>,
   fallback?: EndpointType
 ): EndpointType[] {
   const candidates = endpointTypes?.length ? endpointTypes : fallback ? [fallback] : []
-  return candidates.filter(isWebSearchDeliveryEndpoint)
+  return candidates.filter((endpointType) => isWebSearchDeliveryEndpoint(endpointType, provider))
 }
 
 /** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
@@ -297,7 +299,7 @@ export function isServerToolModelEligible(
  */
 export function isBuiltinWebSearchAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
   const override = model.serverToolOverrides?.[SERVER_TOOL.WEB_SEARCH]
@@ -307,7 +309,8 @@ export function isBuiltinWebSearchAvailable(
     return (
       effectiveEndpoint !== undefined &&
       override.endpointTypes.includes(effectiveEndpoint) &&
-      isWebSearchDeliveryEndpoint(effectiveEndpoint)
+      (!model.endpointTypes?.length || model.endpointTypes.includes(effectiveEndpoint)) &&
+      isWebSearchDeliveryEndpoint(effectiveEndpoint, provider)
     )
   }
 

@@ -9,6 +9,7 @@ import {
   SERVER_TOOL,
   type ServerToolOverrides
 } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { getDeliverableWebSearchEndpointTypes } from '@shared/utils/provider'
 
 import type {
@@ -178,6 +179,7 @@ export function getInitialModelClassification(model?: Model | null): ModelClassi
 export function buildServerToolOverrides(
   classification: ModelClassificationState,
   endpointTypes: readonly ModelDrawerEndpointType[] | undefined,
+  provider: Pick<Provider, 'endpointConfigs'>,
   fallbackEndpoint?: ModelDrawerEndpointType
 ): ServerToolOverrides | null {
   if (classification.webSearch === 'inherit') {
@@ -188,7 +190,7 @@ export function buildServerToolOverrides(
     return { [SERVER_TOOL.WEB_SEARCH]: { state: 'disabled' } }
   }
 
-  const deliverable = getDeliverableWebSearchEndpointTypes(endpointTypes, fallbackEndpoint)
+  const deliverable = getDeliverableWebSearchEndpointTypes(endpointTypes, provider, fallbackEndpoint)
   if (deliverable.length === 0) {
     return null
   }

@@ -143,7 +143,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const buildPatch = useCallback(
     (overrides?: BuildPatchOverrides): UpdateModelDto => {
-      if (!model) {
+      if (!model || !provider) {
         return {}
       }
 
@@ -228,6 +228,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   : hasEndpointTypesOverride
                     ? (overrides?.endpointTypes ?? endpointTypes)
                     : (model.endpointTypes ?? endpointTypes),
+                provider,
                 defaultChatEndpoint
               )
             }
@@ -241,6 +242,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       maxOutputTokens,
       mode,
       model,
+      provider,
       name,
       purposeFields,
       classification,
@@ -338,8 +340,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const webSearchEnableAllowed = useMemo(() => {
     const endpoints = endpointTypes.length ? endpointTypes : model?.endpointTypes
-    return getDeliverableWebSearchEndpointTypes(endpoints, defaultChatEndpoint).length > 0
-  }, [defaultChatEndpoint, endpointTypes, model?.endpointTypes])
+    return provider ? getDeliverableWebSearchEndpointTypes(endpoints, provider, defaultChatEndpoint).length > 0 : false
+  }, [defaultChatEndpoint, endpointTypes, model?.endpointTypes, provider])
 
   const webSearchSelected =
     classification.webSearch === 'enabled' || (classification.webSearch === 'inherit' && registryWebSearchAvailable)
@@ -492,7 +494,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   value={classification}
                   hasChanges={hasClassificationChanges}
                   webSearchSelected={webSearchSelected}
-                  webSearchEnableAllowed={webSearchEnableAllowed || registryWebSearchAvailable}
                   onPrimaryTypeChange={handlePrimaryTypeChange}
                   onCapabilityToggle={handleToggleCapability}
                   onWebSearchToggle={handleToggleWebSearch}

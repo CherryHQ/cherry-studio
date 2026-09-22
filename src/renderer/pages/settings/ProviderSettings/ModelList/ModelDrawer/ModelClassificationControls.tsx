@@ -14,8 +14,6 @@ interface ModelClassificationControlsProps {
   hasChanges?: boolean
   /** Whether the web-search control should render as selected (override or registry inherit). */
   webSearchSelected?: boolean
-  /** Whether the user can enable web search (deliverable endpoint available). */
-  webSearchEnableAllowed?: boolean
   onPrimaryTypeChange: (type: ModelPrimaryType) => void
   onCapabilityToggle: (capability: ModelCapabilityToggle) => void
   onWebSearchToggle?: () => void
@@ -79,7 +77,6 @@ export function ModelClassificationControls({
   value,
   hasChanges = false,
   webSearchSelected = false,
-  webSearchEnableAllowed = true,
   onPrimaryTypeChange,
   onCapabilityToggle,
   onWebSearchToggle,
@@ -136,15 +133,7 @@ export function ModelClassificationControls({
             />
           ))}
           {onWebSearchToggle ? (
-            <OptionButton
-              option={webSearchOption}
-              selected={webSearchSelected}
-              onClick={() => {
-                if (webSearchSelected || webSearchEnableAllowed) {
-                  onWebSearchToggle()
-                }
-              }}
-            />
+            <OptionButton option={webSearchOption} selected={webSearchSelected} onClick={onWebSearchToggle} />
           ) : null}
         </div>
       </div>

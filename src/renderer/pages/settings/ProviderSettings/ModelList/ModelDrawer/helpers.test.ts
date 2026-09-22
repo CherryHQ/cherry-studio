@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
+const nativeProvider = {
+  endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+}
+
 import {
   areModelClassificationsEqual,
   buildModelCapabilities,
@@ -64,13 +68,28 @@ describe('model drawer classification helpers', () => {
 
     expect(classification.webSearch).toBe('enabled')
     expect(
-      buildServerToolOverrides(classification, [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+      buildServerToolOverrides(
+        classification,
+        [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+        nativeProvider
+      )
     ).toEqual({
       [SERVER_TOOL.WEB_SEARCH]: {
         state: 'enabled',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
       }
     })
+  })
+
+  it('does not persist an enabled search override without a native-search adapter', () => {
+    const classification = getInitialModelClassification()
+    classification.webSearch = 'enabled'
+
+    expect(
+      buildServerToolOverrides(classification, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES], {
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://example.com' } }
+      })
+    ).toBeNull()
   })
 
   it('clears serverToolOverrides when web search is set back to inherit', () => {
@@ -81,7 +100,7 @@ describe('model drawer classification helpers', () => {
     )
     expect(classification.webSearch).toBe('disabled')
     classification.webSearch = 'inherit'
-    expect(buildServerToolOverrides(classification, [ENDPOINT_TYPE.OPENAI_RESPONSES])).toBeNull()
+    expect(buildServerToolOverrides(classification, [ENDPOINT_TYPE.OPENAI_RESPONSES], nativeProvider)).toBeNull()
   })
 
   it('normalizes legacy recognition capabilities to input modalities while preserving unknown capabilities', () => {
