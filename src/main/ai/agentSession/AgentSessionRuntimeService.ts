@@ -199,6 +199,7 @@ export interface AgentSessionInteractionState {
 }
 
 type AgentSessionTurn = {
+  timingTaskIds?: string[]
   forkAnchor?: RuntimeForkAnchor
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
@@ -591,6 +592,8 @@ export class AgentSessionRuntimeService extends BaseService {
     this.assertSessionWritable(input.sessionId)
     const turnId = crypto.randomUUID()
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
+    if (input.traceId)
+      application.get('TraceStorageService').taskTiming.begin(input.topicId, input.traceId, userMessage.id)
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
     const existing = this.entries.get(input.sessionId)
     const turn: AgentSessionTurn = {
@@ -951,6 +954,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(message.data.parts ?? []) ?? []
     const fastMode = opts.fastMode === true
 
+    if (entry.sessionTraceId)
+      application.get('TraceStorageService').taskTiming.begin(entry.topicId, entry.sessionTraceId, message.id)
     const turn = this.currentTurn(entry)
     // Open normal turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
     // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
@@ -1031,6 +1036,13 @@ export class AgentSessionRuntimeService extends BaseService {
         (execution.kind === 'autonomous-turn' && execution.turn === completedTurn)
       if (!executionOwnsTurn || completedTurn?.turnId !== expectedTurnId) return
     }
+    if (completedTurn && entry.sessionTraceId) {
+      for (const taskId of completedTurn.timingTaskIds ?? [completedTurn.userMessage.id]) {
+        application
+          .get('TraceStorageService')
+          .taskTiming.finish(taskId, status === 'success' ? 'success' : status === 'paused' ? 'cancelled' : 'failed')
+      }
+    }
     if (completedTurn) this.markFlowMessagePersisted(entry, completedTurn.assistantMessageId)
     if (completedTurn) {
       this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
@@ -1073,6 +1085,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken)
     if (this.entries.get(sessionId) === entry) {
+      if (entry.sessionTraceId) application.get('TraceStorageService').taskTiming.finishSession(entry.topicId)
       this.entries.delete(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
@@ -1466,6 +1479,14 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const dispatched = toolApprovalRegistry.dispatch(approvalId, decision)
     if (!dispatched) return false
+    const timingEntry = this.entries.get(dispatched.sessionId)
+    if (timingEntry?.sessionTraceId) {
+      const timing = application.get('TraceStorageService').taskTiming
+      const taskId =
+        timing.taskForNode(`${dispatched.sessionId}:${dispatched.toolCallId}`) ??
+        (dispatched.presentation === 'stream' ? this.currentTurn(timingEntry)?.userMessage.id : undefined)
+      if (taskId) timing.wait(taskId, approvalId, false)
+    }
 
     if (dispatched.presentation === 'stream') {
       application
@@ -1485,6 +1506,28 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = entry ? this.currentConnection(entry) : undefined
     if (!connection?.stopTask) return false
     return await connection.stopTask(taskId)
+  }
+
+  recordToolTimingBoundary(
+    sessionId: string,
+    toolCallId: string,
+    toolName: string,
+    status?: 'success' | 'failed' | 'cancelled',
+    subagentId?: string
+  ): void {
+    const entry = this.entries.get(sessionId)
+    if (!entry?.sessionTraceId) return
+    const timing = application.get('TraceStorageService').taskTiming
+    if (status) {
+      timing.endNode(`${sessionId}:${toolCallId}`, status)
+      return
+    }
+    if (subagentId) {
+      timing.beginChild(`${sessionId}:subagent:${subagentId}`, `${sessionId}:${toolCallId}`, toolName)
+      return
+    }
+    const taskId = this.currentTurn(entry)?.userMessage.id
+    if (taskId) timing.beginNode(taskId, `${sessionId}:${toolCallId}`, toolName)
   }
 
   recordToolExecutionTiming(
@@ -2457,6 +2500,18 @@ export class AgentSessionRuntimeService extends BaseService {
     connection = this.currentConnection(entry)
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
+    if (entry.sessionTraceId) {
+      const timing = application.get('TraceStorageService').taskTiming
+      const id = `${entry.sessionId}:subagent:${data.taskId}`
+      if (data.event === 'started') {
+        const linked = data.toolUseId && timing.beginChild(`${entry.sessionId}:${data.toolUseId}`, id, 'agent.subagent')
+        if (!linked)
+          logger.debug('Subagent timing has no recorded parent', { sessionId: entry.sessionId, taskId: data.taskId })
+      }
+      if (data.status === 'completed' || data.status === 'stopped' || data.status === 'error') {
+        timing.endNode(id, data.status === 'completed' ? 'success' : data.status === 'stopped' ? 'cancelled' : 'failed')
+      }
+    }
     const cache = application.get('CacheService')
     const key = AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)
     const events = cache.getShared(key) ?? {}
@@ -2477,6 +2532,13 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
+    if (entry.sessionTraceId) {
+      const timing = application.get('TraceStorageService').taskTiming
+      const taskId =
+        timing.taskForNode(`${entry.sessionId}:${request.toolCallId}`) ??
+        (request.presentation === 'stream' ? this.currentTurn(entry)?.userMessage.id : undefined)
+      if (taskId) timing.wait(taskId, request.approvalId, true)
+    }
     if (request.presentation === 'stream') {
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
@@ -2590,6 +2652,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
+    if (entry.sessionTraceId)
+      application.get('TraceStorageService').taskTiming.wait(turn.userMessage.id, 'queue', false)
     this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
     // A fresh request starts clean — drop any retry status left over from the previous turn.
     this.clearApiRetry(entry)
@@ -2660,6 +2724,15 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private async refreshTurnTraceContext(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
+    if (entry.sessionTraceId) {
+      const timing = application.get('TraceStorageService').taskTiming
+      const taskIds = turn.timingTaskIds ?? [turn.userMessage.id]
+      for (const taskId of taskIds) {
+        timing.begin(entry.topicId, entry.sessionTraceId, taskId)
+        timing.wait(taskId, 'queue', false)
+      }
+      timing.linkTasks(taskIds)
+    }
     const traceContext = this.sessionTraceContext(entry, turn.modelId)
     if (traceContext) await this.currentConnection(entry)?.refreshTraceContext?.(traceContext)
   }
@@ -2775,6 +2848,11 @@ export class AgentSessionRuntimeService extends BaseService {
     // cache stuck `streaming` and still re-attachable, so it must be terminalized/evicted here.
     const liveAgent = agentService.getAgent(entry.agentId)
     if (!liveAgent?.model) {
+      if (entry.sessionTraceId) {
+        for (const message of [nextMessage, ...entry.runtimeState.queue.map((pending) => pending.message)]) {
+          application.get('TraceStorageService').taskTiming.finish(message.id, 'failed')
+        }
+      }
       application
         .get('AiStreamManager')
         .terminateHeldTopicStream(
@@ -2808,6 +2886,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       })
     } catch (error) {
+      if (entry.sessionTraceId) application.get('TraceStorageService').taskTiming.finish(nextMessage.id, 'failed')
       // The placeholder save failed, so there is no assistant row to drive to `error` and no
       // point re-queuing the message — the retry would just fail the same way, and a re-queued
       // message is silently cleared by the idle TTL anyway. Instead surface the failure to the
@@ -3000,6 +3079,7 @@ export class AgentSessionRuntimeService extends BaseService {
       .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, assistantMessageId), origin)
     const turnId = crypto.randomUUID()
     const receiveOnlyTurn: AgentSessionTurn = {
+      timingTaskIds: [],
       turnId,
       assistantMessageId,
       userMessage: syntheticMessage,
@@ -3103,6 +3183,10 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       })
     } catch (error) {
+      if (entry.sessionTraceId) {
+        for (const input of transition.inputs)
+          application.get('TraceStorageService').taskTiming.finish(input.message.id, 'failed')
+      }
       // The A2 placeholder save failed — abandon the roll, drop the buffered post-steer chunks, and
       // surface the failure (mirrors `startNextTurn`'s doomed-placeholder handling).
       rootSpan?.end()
@@ -3114,6 +3198,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const assistantMessageId = assistantMessage.id
     const turnId = crypto.randomUUID()
     const continuationTurn: AgentSessionTurn = {
+      timingTaskIds: transition.inputs.map((input) => input.message.id),
       turnId,
       assistantMessageId,
       userMessage: steerMessage,
@@ -3246,10 +3331,14 @@ export class AgentSessionRuntimeService extends BaseService {
   ): AgentRuntimeTraceContext | undefined {
     const traceId = entry.sessionTraceId
     if (!traceId) return undefined
+    const turn = this.currentTurn(entry)
+    const taskId = turn ? (turn.timingTaskIds ?? [turn.userMessage.id])[0] : undefined
+    const taskRoot = taskId ? application.get('TraceStorageService').taskTiming.root(taskId) : undefined
     return {
       topicId: entry.topicId,
       traceId,
-      rootSpanId: deriveRootSpanId(traceId),
+      taskId,
+      rootSpanId: taskRoot ?? deriveRootSpanId(traceId),
       sessionId: entry.sessionId,
       turnId: this.currentTurn(entry)?.turnId ?? '',
       modelName: parseUniqueModelId(modelId).modelId

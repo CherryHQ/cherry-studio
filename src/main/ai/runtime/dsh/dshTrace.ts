@@ -31,6 +31,8 @@ const logger = loggerService.withContext('DshTrace')
 interface PendingToolCall {
   name: string
   startTime: number
+  clock: number
+  context: AgentRuntimeTraceContext | undefined
   approvalWaitMs?: number
 }
 
@@ -143,7 +145,12 @@ export class DshTraceRecorder {
 
   private trackToolCall(data: SessionEventMap['tool/call']): void {
     if (this.pendingTools.has(data.callId)) return
-    this.pendingTools.set(data.callId, { name: data.name, startTime: Date.now() })
+    this.pendingTools.set(data.callId, {
+      name: data.name,
+      startTime: Date.now(),
+      clock: performance.now(),
+      context: this.getContext()
+    })
   }
 
   private trackApprovalAsked(data: SessionEventMap['approval/asked']): void {
@@ -162,6 +169,7 @@ export class DshTraceRecorder {
     this.pendingTools.set(toolCallId, {
       ...pending,
       startTime: decidedAt,
+      clock: performance.now(),
       approvalWaitMs: decidedAt - pending.startTime
     })
   }
@@ -186,13 +194,14 @@ export class DshTraceRecorder {
     status: { code: SpanStatusCode; message?: string }
   ): void {
     const span = startAgentRuntimeChildSpan(
-      this.getContext(),
+      pending.context,
       'dsh.execute_tool',
       SpanKind.INTERNAL,
       {
         'gen_ai.operation.name': 'execute_tool',
         'gen_ai.tool.name': pending.name,
         'gen_ai.tool.call.id': toolCallId,
+        'cs.timing.duration_ms': Math.max(0, performance.now() - pending.clock),
         ...(pending.approvalWaitMs !== undefined ? { 'cs.approval_wait_ms': pending.approvalWaitMs } : {})
       },
       { startTime: pending.startTime }

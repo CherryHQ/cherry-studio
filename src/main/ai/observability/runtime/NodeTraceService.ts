@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 // Heavy OTel modules (trace-core processors, trace-node, opentelemetry SDK) are loaded
-// via dynamic import() in initTracer() to avoid startup overhead when developer_mode is off.
+// via dynamic import() when the lifecycle activates tracing.
 
 const TRACER_NAME = 'CherryStudio'
 
@@ -16,15 +16,10 @@ export class NodeTraceService extends BaseService implements Activatable {
   private nodeTracer: { shutdown(): Promise<void> } | null = null
 
   /**
-   * Activate only when developer_mode is enabled at startup.
-   * Runtime preference changes take effect after restart — no runtime activate/deactivate.
+   * Basic Agent timing is available regardless of developer mode.
    */
   protected async onReady() {
-    const enabled = application.get('PreferenceService').get('app.developer_mode.enabled')
-    logger.info(`Developer mode is ${enabled ? 'enabled' : 'disabled'}, tracing ${enabled ? 'activated' : 'skipped'}`)
-    if (enabled) {
-      await this.activate()
-    }
+    await this.activate()
   }
 
   async onActivate() {
@@ -33,7 +28,6 @@ export class NodeTraceService extends BaseService implements Activatable {
 
   /**
    * Only called during app shutdown (auto-deactivation in _doStop).
-   * Runtime deactivation is not supported — developer_mode changes require restart.
    *
    * Note: McpNodeTracer.shutdown() only flushes the span processor.
    * Global OTel registrations (TracerProvider, ContextManager, Propagator) persist
@@ -52,7 +46,7 @@ export class NodeTraceService extends BaseService implements Activatable {
    *
    * Dependencies are loaded via dynamic import() to avoid pulling in heavy OTel SDK
    * modules (NodeTracerProvider, BatchSpanProcessor, OTLPTraceExporter, etc.)
-   * at file evaluation time — keeping startup fast when developer_mode is off.
+   * at file evaluation time.
    */
   private async initTracer() {
     const [{ FunctionSpanExporter }, { CacheBatchSpanProcessor }, { NodeTracer }] = await Promise.all([

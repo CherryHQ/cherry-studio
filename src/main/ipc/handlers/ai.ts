@@ -125,6 +125,8 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.agent.session.timing': ({ sessionId, ...query }) =>
+    application.get('TraceStorageService').getTaskTiming(sessionId, query),
   // ── One-shot model calls — AiService owns the provider clients. ──
   // A renderer one-shot call has no topic; it is its own conversation.
   'ai.text.generate': ({ requestId, ...request }) => {
