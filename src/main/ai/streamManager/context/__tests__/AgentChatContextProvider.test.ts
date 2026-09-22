@@ -21,7 +21,12 @@ const mocks = vi.hoisted(() => ({
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
   runtimeAssertWritable: vi.fn(),
-  runtimeValidateSession: vi.fn()
+  runtimeAssertSessionEditable: vi.fn(),
+  runtimeEditSession: vi.fn(),
+  runtimeValidateSession: vi.fn(),
+  setEditRuntimeTx: vi.fn(),
+  notifyDataApiDataChange: vi.fn(),
+  validateEditedInput: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -48,8 +53,17 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
     saveMessagesTx: mocks.saveMessagesTx,
-    hasSessionMessages: mocks.hasSessionMessages
+    hasSessionMessages: mocks.hasSessionMessages,
+    setEditRuntimeTx: mocks.setEditRuntimeTx
   }
+}))
+
+vi.mock('@data/dataApiDataChange', () => ({
+  notifyDataApiDataChange: mocks.notifyDataApiDataChange
+}))
+
+vi.mock('../../../agentSession/editInput', () => ({
+  validateEditedInput: mocks.validateEditedInput
 }))
 
 vi.mock('@main/services/TopicNamingService', () => ({
@@ -147,7 +161,9 @@ describe('AgentChatContextProvider', () => {
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy,
-          assertSessionWritable: mocks.runtimeAssertWritable
+          assertSessionWritable: mocks.runtimeAssertWritable,
+          assertSessionEditable: mocks.runtimeAssertSessionEditable,
+          editSession: mocks.runtimeEditSession
         }
       }
       if (name === 'DbService') return { withWriteTx: (fn: (tx: object) => unknown) => fn({}), getDb: mocks.getDb }
@@ -159,6 +175,10 @@ describe('AgentChatContextProvider', () => {
     })
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
+    mocks.validateEditedInput.mockResolvedValue(undefined)
+    mocks.runtimeEditSession.mockImplementation(async (_sessionId, _target, persist) =>
+      persist({}, 'native-session-id')
+    )
   })
 
   it.each(['busy', 'close_failed'] as const)(
@@ -611,6 +631,32 @@ describe('AgentChatContextProvider', () => {
       id: 'agent-1',
       sessionModelId: 'openai::gpt-4o'
     })
+  })
+
+  it('checks edit ownership against the agent default and session override, not the effective model', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-4o',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['openai::gpt-4o', 'GPT-4o']]))
+
+    await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({
+        trigger: 'edit-agent-message',
+        editTarget: { messageId: 'msg-1', version: 1 }
+      })
+    )
+
+    expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+    expect(mocks.saveMessagesTx.mock.calls[0][2]).toMatchObject({
+      id: 'agent-1',
+      model: 'anthropic::claude-sonnet',
+      sessionModelId: 'openai::gpt-4o'
+    })
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'openai::gpt-4o' }))
   })
 
   it('forwards a disagreed caller owner so the write boundary refuses the turn', async () => {
