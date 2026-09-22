@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import type { InstalledSkill } from '@shared/data/api/schemas/skills'
 
 /**
  * Runtime dependency checks for the SDK's `Skill` tool. A skill declares its fork subagent and its
@@ -126,15 +127,25 @@ async function resolveSkillDirectory(
   }
 
   const byFolder = agentGlobalSkillService.getByFolderName(skillName)
-  if (byFolder) return skillService.getInstalledSkillDirectory(byFolder)
+  if (byFolder) return resolveInstalledSkillDirectory(byFolder)
 
   // The SDK addresses a skill by its SKILL.md `name` or its directory name, but the installer derives
   // folderName from the bundle directory. Only a unique name match is safe to check a call against.
   const byName = agentGlobalSkillService.listAll().filter((skill) => skill.name === skillName)
-  if (byName.length === 1) return skillService.getInstalledSkillDirectory(byName[0])
+  if (byName.length === 1) return resolveInstalledSkillDirectory(byName[0])
 
   const localDirectory = path.join(cwd, '.claude', 'skills', skillName)
   return (await findSkillMdPath(localDirectory)) ? localDirectory : null
+}
+
+function resolveInstalledSkillDirectory(
+  skill: Pick<InstalledSkill, 'folderName' | 'source' | 'sourceUrl'>
+): string | null {
+  try {
+    return skillService.getInstalledSkillDirectory(skill)
+  } catch {
+    return null
+  }
 }
 
 /**

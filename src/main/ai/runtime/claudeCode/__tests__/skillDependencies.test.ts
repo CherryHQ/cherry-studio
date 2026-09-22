@@ -233,6 +233,17 @@ describe('checkSkillRuntimeDependencies', () => {
     expect(result.deny).toContain('its forked subagent "parallel:missing" is not installed')
   })
 
+  it('skips a malformed registered skill instead of aborting dependency checks', async () => {
+    mocks.listAll.mockReturnValue([{ folderName: '../outside', name: 'malformed-skill' }])
+    mocks.getInstalledSkillDirectory.mockImplementation(() => {
+      throw new Error('Invalid skill folder name')
+    })
+
+    await expect(
+      checkSkillRuntimeDependencies('malformed-skill', await createTempDir('skill-deps-workspace-'), new Map())
+    ).resolves.toEqual({})
+  })
+
   it('refuses to guess when the name matches more than one library skill', async () => {
     mocks.listAll.mockReturnValue([
       { folderName: 'first-copy', name: 'parallel-web-search' },

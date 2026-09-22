@@ -12,6 +12,8 @@ import { getDirectorySize } from './fileOperations'
 
 const logger = loggerService.withContext('Utils:MarkdownParser')
 
+type ParsedSkillMetadata = PluginMetadata & { declaredName?: string }
+
 export type PluginErrorType = 'FILE_NOT_FOUND' | 'INVALID_METADATA' | 'READ_FAILED'
 
 export class PluginError extends Error {
@@ -308,7 +310,7 @@ export async function parseSkillMetadata(
   sourcePath: string,
   category: string,
   options: { calculateSize?: boolean } = {}
-): Promise<PluginMetadata> {
+): Promise<ParsedSkillMetadata> {
   // Input validation
   if (!skillFolderPath || !path.isAbsolute(skillFolderPath)) {
     throw new PluginError('INVALID_METADATA', skillFolderPath, 'Skill folder path must be absolute')
@@ -383,7 +385,8 @@ export async function parseSkillMetadata(
 
   // Validate and sanitize name
   const rawName = toString(data.name)
-  const name = rawName && rawName.trim() ? rawName.trim() : folderName
+  const declaredName = rawName && rawName.trim() ? rawName.trim() : undefined
+  const name = declaredName ?? folderName
   const slug = toString(data.slug)
 
   // Validate and sanitize description
@@ -408,6 +411,7 @@ export async function parseSkillMetadata(
     sourcePath, // e.g., "skills/my-skill"
     filename: folderName, // e.g., "my-skill" (folder name, NO .md extension)
     name,
+    declaredName,
     slug,
     description,
     allowed_tools: allowedTools,
