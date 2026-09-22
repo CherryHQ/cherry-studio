@@ -12,6 +12,7 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SubWindowInitData } from '@shared/types/subWindow'
+import { PRODUCT_NAME } from '@shared/utils/branding'
 
 import iconPath from '../../../build/icon.png?asset'
 
@@ -196,7 +197,7 @@ export class SubWindowService extends BaseService {
     // the vibrancy-enabled default through the options merge path.
     // zoomFactor mirrors MainWindowService: PreferenceService-dependent, so injected per-call.
     const options: Partial<WindowOptions> = {
-      title: title || 'Cherry Studio Tab',
+      title: title || `${PRODUCT_NAME} Tab`,
       darkTheme: dark,
       ...(!isMac && { backgroundColor: dark ? '#181818' : '#FFFFFF' }),
       ...(isLinux && { icon: linuxIcon }),
