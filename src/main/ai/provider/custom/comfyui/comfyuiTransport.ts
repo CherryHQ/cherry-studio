@@ -311,9 +311,11 @@ class ComfyuiTransport implements ImageGenerationTransport {
         }
       )
     } catch (error) {
-      // The server queues the id we sent before it answers, so a submit that times out
-      // or is aborted may still own queued work: dequeue it before reporting failure.
-      await this.cancel(requestedPromptId).catch(() => undefined)
+      // The server queues the id we sent before it answers, so a submit that times
+      // out or is aborted may still own queued work: dequeue it. Not awaited — a
+      // rejected workflow has nothing queued, and the caller should not wait for a
+      // remote round-trip it does not need. `cancel()` bounds its own writes.
+      void this.cancel(requestedPromptId).catch(() => undefined)
       throw error
     }
     if (!promptId) {

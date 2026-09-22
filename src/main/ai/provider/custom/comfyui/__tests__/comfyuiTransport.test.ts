@@ -64,6 +64,42 @@ describe('ComfyuiTransport', () => {
     vi.useRealTimers()
   })
 
+  it('reports a rejected workflow without waiting for a remote cleanup that has nothing to clean', async () => {
+    const posts: { url: string; body: Record<string, any> }[] = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      if (url.includes('/userdata/')) return respond(workflow)
+      if (init?.method === 'POST') {
+        posts.push({ url, body: JSON.parse(String(init.body)) as Record<string, any> })
+        if (url.includes('/prompt')) return new Response('workflow rejected', { status: 400 })
+        // Every cleanup request stalls: the failure must not wait for them.
+        return new Promise<Response>(() => {})
+      }
+      return respond({})
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const error = await transport
+      .submit({
+        modelId: 'flow',
+        prompt: 'a cat',
+        n: 1,
+        size: undefined,
+        seed: 1,
+        files: [],
+        mask: undefined,
+        providerParams: {}
+      })
+      .catch((e) => e)
+
+    expect(error).toBeInstanceOf(PaintingGenerateError)
+    expect((error as PaintingGenerateError).code).toBe('REMOTE_ERROR')
+    // The body the server sent is the message; nothing waited on the phone-home.
+    expect(String((error as Error).message)).toContain('workflow rejected')
+    expect(posts.map((post) => post.url)).toContain('http://localhost:8188/queue')
+  })
+
   it('names the prompt it submits and dequeues it when the answer never arrives', async () => {
     const posts: { url: string; body: Record<string, any> }[] = []
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
