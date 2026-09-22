@@ -8,9 +8,19 @@ describe('modelSource', () => {
     expect(defaultModelSourceId('global-first')).toBe('huggingface')
   })
 
-  it('keeps the non-default source as fallback', () => {
-    expect(modelSourceOrder('china-first')).toEqual(['modelscope', 'huggingface'])
-    expect(modelSourceOrder('global-first')).toEqual(['huggingface', 'modelscope'])
+  it('orders every mirror with the region default first', () => {
+    expect(modelSourceOrder('china-first')).toEqual(['modelscope', 'hf-mirror', 'huggingface'])
+    expect(modelSourceOrder('global-first')).toEqual(['huggingface', 'hf-mirror', 'modelscope'])
+  })
+
+  it('addresses hf-mirror exactly like HuggingFace', () => {
+    const repo = 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30'
+    const mirrored = resolveModelFileUrl('hf-mirror', repo, 'llm.int8.onnx')
+
+    expect(mirrored).toBe(`https://hf-mirror.com/${repo}/resolve/main/llm.int8.onnx`)
+    expect(mirrored.replace('hf-mirror.com', 'huggingface.co')).toBe(
+      resolveModelFileUrl('huggingface', repo, 'llm.int8.onnx')
+    )
   })
 
   it('builds HuggingFace file URLs with the {model}/resolve/{revision} route', () => {

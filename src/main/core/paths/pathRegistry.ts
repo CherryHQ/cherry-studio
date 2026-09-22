@@ -119,6 +119,9 @@ export function buildPathRegistry() {
     // use of local embedding or local OCR — see ai/localModel's shared artifacts.
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
+    'feature.sherpa_onnx.binary': path.join(appUserDataToolchain, 'sherpa-onnx'),
+    'feature.asr.funasr': path.join(appUserDataRuntime, 'models', 'funasr-nano'),
+
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
     'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),
 

@@ -10,6 +10,7 @@ import type { InstallState } from '../catalog/types'
 
 const EMBEDDING = 'qwen3-embedding-0.6b'
 const OCR = 'pp-ocrv6-medium'
+const ASR = 'funasr-nano-int8'
 
 const { scanBundleFiles, isArtifactReady, removeArtifactIfUnused, sweepStaleDownloads } = vi.hoisted(() => ({
   scanBundleFiles: vi.fn(),
@@ -80,7 +81,7 @@ describe('lifecycle', () => {
     await expect(localModelService._doInit()).resolves.toBeUndefined()
 
     const swept = sweepStaleDownloads.mock.calls.map((call) => call[0].id).sort()
-    expect(swept).toEqual([EMBEDDING, OCR].sort())
+    expect(swept).toEqual([ASR, EMBEDDING, OCR].sort())
   })
 
   it('cancels an in-flight download on stop instead of leaving it to die with the process', async () => {
@@ -162,7 +163,8 @@ describe('shared artifact cleanup', () => {
 
     await localModelService.remove(OCR)
 
-    expect(removeArtifactIfUnused).not.toHaveBeenCalled()
+    expect(removeArtifactIfUnused).not.toHaveBeenCalledWith('onnxruntime-node')
+    expect(removeArtifactIfUnused).toHaveBeenCalledWith('sherpa-onnx')
   })
 
   it('does not let a locked runtime turn cleanup into a failure', async () => {

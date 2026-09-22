@@ -10,6 +10,9 @@ import type { CapabilityHooks } from '../installation/BundleInstaller'
 const logger = loggerService.withContext('localModelCapabilityHooks')
 
 const CAPABILITY_HOOKS: Record<LocalModelCapability, CapabilityHooks> = {
+  asr: {
+    terminateRuntimeThen: (after) => application.get('AsrInferenceService').terminateThen(after)
+  },
   embedding: {
     acquireRemovalGuard: () => knowledgeBaseService.acquireEmbeddingModelRemovalGuard(LOCAL_EMBEDDING_UNIQUE_MODEL_ID),
     terminateRuntimeThen: (after) => application.get('EmbeddingInferenceService').terminateThen(after)

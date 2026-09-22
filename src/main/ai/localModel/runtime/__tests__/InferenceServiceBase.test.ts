@@ -46,7 +46,7 @@ import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/s
 import type { UtilityProcessDefinition } from '@main/core/utilityProcess/types'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 
-import { embeddingInferenceProcess, ocrInferenceProcess } from '../inferenceProcess'
+import { asrInferenceProcess, embeddingInferenceProcess, ocrInferenceProcess } from '../inferenceProcess'
 import { InferenceServiceBase } from '../InferenceServiceBase'
 import type { InferenceInitData } from '../protocol'
 
@@ -57,7 +57,7 @@ import type { InferenceInitData } from '../protocol'
  * child's error. Everything else — generations, idle release, the stop barrier — is
  * ProcessHost's, and is tested there.
  *
- * A stand-in contract keeps this about the base: the real embedding/OCR entries would drag
+ * A stand-in contract keeps this about the base: the real inference entries would drag
  * transformers and onnxruntime in for no added coverage.
  */
 
@@ -156,7 +156,7 @@ describe('InferenceServiceBase dispatch', () => {
     await expect(second).resolves.toBe('pong')
   })
 
-  it.each([embeddingInferenceProcess, ocrInferenceProcess])(
+  it.each([embeddingInferenceProcess, ocrInferenceProcess, asrInferenceProcess])(
     '$id cancellation waits for exit before dispatching the next native operation',
     async (processDefinition) => {
       definition = { ...definition, cancellation: processDefinition.cancellation }
@@ -207,7 +207,7 @@ describe('InferenceServiceBase dispatch', () => {
     }
   )
 
-  it.each([embeddingInferenceProcess, ocrInferenceProcess])(
+  it.each([embeddingInferenceProcess, ocrInferenceProcess, asrInferenceProcess])(
     '$id skips a cancelled queued request without killing the active process',
     async (processDefinition) => {
       definition = { ...definition, cancellation: processDefinition.cancellation }

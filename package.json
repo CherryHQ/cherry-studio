@@ -112,7 +112,8 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "ui:contract:query": "tsx scripts/uiContract/query.ts",
-    "update:languages": "tsx scripts/update-languages.ts"
+    "update:languages": "tsx scripts/update-languages.ts",
+    "validate:funasr": "tsx scripts/funasr-validation/run.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.220",
@@ -151,6 +152,7 @@
     "registry-js": "1.16.1",
     "selection-hook": "2.1.1",
     "sharp": "0.35.3",
+    "sherpa-onnx-node": "1.13.6",
     "smol-toml": "^1.7.0",
     "sqlite-vec": "npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2",
     "systeminformation": "5.33.8",

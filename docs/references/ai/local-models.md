@@ -1,18 +1,20 @@
 ---
-description: Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and the worker runtime that infers over installed models
+description: Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and utility-process inference over installed models
 sources:
   - src/main/ai/localModel
   - src/renderer/hooks/useLocalModel.ts
   - src/shared/data/cache/cacheSchemas.ts
   - src/shared/data/presets/localModel.ts
   - src/shared/ipc/schemas/localModel.ts
+  - scripts/funasr-validation
 ---
 
 # Local Models
 
-Cherry Studio can run two models on the user's own machine: the knowledge-base
-embedding model and the PaddleOCR text recognizer. Neither ships in the installer —
-both are fetched on demand, together with the native onnxruntime binary they share.
+Cherry Studio can run three models on the user's own machine: the knowledge-base
+embedding model, the PaddleOCR text recognizer, and FunASR Nano speech recognition.
+None ships in the installer. Each is fetched only after the user clicks its Download
+button, together with the native runtime required by that capability.
 
 One module owns the whole path: what can be installed, how bytes get onto disk safely,
 how they come off again, and how inference runs over them once they are there.
@@ -36,14 +38,16 @@ src/main/ai/localModel/
 │   ├── LocalModelStorageService.ts ← disk state, installed paths, shared artifacts
 │   └── BundleInstaller.ts          ← one bundle's download/cancel/remove lifecycle
 ├── runtime/
-│   ├── InferenceServiceBase.ts    ← the worker host: spawn, queue, idle release, teardown
+│   ├── InferenceServiceBase.ts    ← capability host: queue, runtime changes, teardown
+│   ├── inferenceProcess.ts        ← typed UtilityProcess definitions
 │   ├── inferenceAcceleration.ts   ← platform → execution provider
-│   ├── protocol.ts                ← generic init/request/result/error envelopes
-│   └── worker/                    ← generic core, runtime initializers, source builder
+│   ├── protocol.ts                ← shared UtilityProcess init data
+│   └── utilityEntries/            ← embedding, OCR, and ASR process entry points
 └── capabilities/
     ├── capabilityHooks.ts         ← removal behavior keyed by capability
-    ├── embedding/                 ← facade, protocol, pooling, worker module, limits
-    └── ocr/                       ← facade, protocol, model paths, worker module
+    ├── embedding/                 ← facade, protocol, pooling, limits
+    ├── ocr/                       ← facade, protocol, model paths
+    └── asr/                       ← facade, protocol, model paths
 ```
 
 ## The catalog is the only per-model code
@@ -81,7 +85,7 @@ written as a parsed `ppocrv6_dict.txt` (size floor checked).
 Two words, deliberately distinct, both declared in `src/shared/data/presets/localModel.ts`
 so the renderer can speak them too:
 
-- A **capability** is what a feature needs (`ocr`). Features gate on
+- A **capability** is what a feature needs (`embedding`, `ocr`, or `asr`). Features gate on
   `application.get('LocalModelService').isCapabilityReady(capability)` and never name a bundle.
 - A **bundle id** is what a user installs (`pp-ocrv6-medium`). It is the addressing key of
   the whole management plane — status, download, cancel, remove and shared status snapshots.
@@ -94,8 +98,8 @@ alternatives requires an explicit model-selection contract rather than relying o
 
 ### Shared artifacts
 
-A **shared artifact** is a native runtime published as an npm package — today only
-`onnxruntime-node`. Bundles declare what they need in `requires`, and that declaration is
+A **shared artifact** is a native runtime published as an npm package — currently
+`onnxruntime-node` and `sherpa-onnx`. Bundles declare what they need in `requires`, and that declaration is
 what makes the runtime removable: it outlives a bundle exactly as long as another
 *installed* bundle still requires it.
 
@@ -226,61 +230,38 @@ either makes GC skip the artifact or waits for an already-started removal before
 
 ## Runtime
 
-Inference runs in a `worker_threads` worker, **one per capability**. Sharing a single
-worker would mean that cancelling an OCR download — which must release the file handles on
-its weights — also evicts the 600MB embedding pipeline an unrelated knowledge-base index is
-mid-way through. Separate workers make that impossible by construction: no shared thread,
-no shared pending map, no shared `terminate()`.
+Inference runs in an Electron UtilityProcess, **one per capability**. Sharing one process
+would mean that releasing OCR file handles could also evict an unrelated embedding or ASR
+request. The process boundary also keeps native runtime crashes outside the main process.
 
-Each host is a lifecycle service (`EmbeddingInferenceService`, `OcrInferenceService`) over
-`InferenceServiceBase`, which owns everything that is not capability-specific:
+Each host is a lifecycle service (`EmbeddingInferenceService`, `OcrInferenceService`, or
+`AsrInferenceService`) over `InferenceServiceBase`. It delegates spawning, cancellation,
+idle release, and maintenance barriers to `UtilityProcessManager`, while retaining the
+capability-specific concerns:
 
-- **Lazy spawn** on the first request, and respawn when the acceleration profile or the
-  proxy routing changes — a worker's execution provider is fixed at session creation.
-- **One request at a time** through a `concurrency: 1` queue. A single CPU onnxruntime
-  session gains nothing from concurrent calls, and this lets several callers reach the same
-  instance with no other coordination.
-- **Idle release** after 60s, because a loaded model holds hundreds of MB.
-- **Teardown** on stop/destroy — the worker is a real OS thread that must not outlive
-  shutdown.
+- **Lazy spawn** on the first request. Embedding and OCR restart when their acceleration
+  profile changes; ASR currently uses the CPU profile.
+- **One request at a time** through a `concurrency: 1` queue. Native sessions gain nothing
+  from concurrent calls, and this lets several callers reach one capability safely.
+- **Idle release** after 60 seconds, because a loaded model holds hundreds of MB.
+- **Teardown** on stop/destroy and before model removal so no process retains model files.
 
 ### Protocol
 
-`runtime/protocol.ts` owns the structured-clone-safe envelope only: init carries the
-capability and an artifact-path map; requests carry `capability`, `type`, `requestId`, and
-`payload`; responses carry a result, error, or log. Capability payload/result maps live
-beside their facade under `capabilities/<name>/protocol.ts`, so the common runtime never
-imports a union of every supported capability.
+`runtime/protocol.ts` owns the structured-clone-safe init data: application root, native
+artifact paths, and the selected runtime profile. The request and result types live beside
+their capability under `capabilities/<name>/protocol.ts`, then form a typed contract in
+`inferenceProcess.ts`. Each entry imports only its own handlers, so an ASR process cannot
+load embedding or OCR dependencies by accident.
 
-Results are typed **per request type** rather than merged into one struct of optional fields,
-so a caller gets exactly its own payload. Each capability declares its own result keys, and
-the host checks them on arrival: a handler that drops a field fails the request instead of
-resolving a caller with `undefined` where it declared a value.
-
-### Worker source
-
-Each worker script is a **string**, assembled at import time from `workerCore`, one runtime
-initializer and one capability module, then run with `eval: true`. It is not a separate entry
-file because electron-vite bundles the main process with `inlineDynamicImports`, which cannot
-emit the extra chunk a `new Worker(path)` would need.
-
-`workerCore` knows nothing about a concrete runtime, embedding or OCR. The runtime initializer
-owns runtime-specific setup such as the onnxruntime binding path; the selected capability
-module registers its request types in a `REQUEST_HANDLERS` table:
-
-| Hook | When it runs |
-|---|---|
-| `handle(msg, prepared)` | Answers the request; retried once on CPU if the hardware provider fails |
-| `prepare(msg)` | Setup that must **not** be retried — reading the image file, say, so a bad path is never blamed on the GPU |
-| `dispose()` | Releases that capability's cached sessions when a provider is abandoned |
-
-Adding a capability is therefore a new module, not another branch in a dispatch chain. Its
-production worker cannot load another capability's dependencies because that module is not
-part of its source string.
+The ASR entry lazily loads `sherpa-onnx`, resolves only installed catalog paths, reads a
+local WAV, resamples the full input to 16 kHz, applies Silero VAD, and runs FunASR Nano.
+The result contains the combined text and timestamped segments. The process neither accepts
+a URL nor contains a network client.
 
 ### Hardware fallback
 
-A worker started on DirectML/CoreML that fails mid-request disposes its cached sessions,
+A UtilityProcess started on DirectML/CoreML that fails mid-request disposes its cached sessions,
 drops to CPU **for the rest of its life**, and retries once. Staying on CPU matters: a
 provider that failed once will fail again on the next cache miss, and re-discovering that
 per request would pay the fallback cost every time. If CPU fails too, the error names both
@@ -324,19 +305,42 @@ or handler, but does require the catalog, shared vocabulary and presentation des
 6. For a new capability, add its card icon in `LocalModelsSection` and its `name`/`subtitle`
    i18n keys.
 7. For a new capability, add a directory under `capabilities/` containing its request/result
-   maps, worker module, and facade service over `InferenceServiceBase`.
+   types and facade service over `InferenceServiceBase`, then add its isolated UtilityProcess
+   entry and typed definition.
 
 The catalog's own test suite enforces the mechanical parts (checksum present and
 well-formed, keys and paths unique, `requires` resolvable), so a missed field fails in CI
 rather than on a user's machine.
+
+## FunASR validation
+
+The real-runtime harness in `scripts/funasr-validation/` builds and launches the production
+`inference-asr` entry. It accepts an installed Cherry user-data directory and a local WAV,
+then reports only whether the transcript is non-empty, segment count, and timestamp bounds.
+It never prints the recognized text.
+
+Validation on macOS 26.3 arm64 used a 1.887-second, mono, 22.05 kHz Float32 WAV generated by
+the Apple system-speech harness. The model and `sherpa-onnx` runtime were first installed by
+clicking the FunASR card's Download button; the card reached `ready` before either inference
+run.
+
+| Mode | Result |
+|---|---|
+| Normal | `transcriptNonEmpty: true`, one segment, 0.23–1.856 seconds |
+| `/usr/bin/sandbox-exec` with `deny network*` | Same metadata plus `networkDenied: true` |
+
+Run the checks with `pnpm validate:funasr -- --input <wav> --user-data <Cherry userData>`;
+append `--offline` for the network-denied run. This proves that installed-model inference is
+local and network-independent. It does not replace a future end-to-end Voice UI test, and
+the pre-macOS-26 route still needs execution on an actual older macOS host; the available
+host for this validation runs macOS 26.3.
 
 ## Known limits
 
 - No remote catalog. Adding a model means shipping a release; nothing fetches the model
   list at runtime.
 - No streaming download resume. A failed download restarts that file from zero.
-- No streaming inference. Every request is one round trip with a complete result; a
-  transcription capability that wants partial output would add a response frame type.
-- onnxruntime is the only runtime. The worker host accepts a separate runtime initializer,
-  but a second runtime (llama.cpp, sherpa-onnx) still needs its own profile and capability
-  integration.
+- No streaming inference. Every request is one round trip with a complete result; partial
+  transcription would require a UtilityProcess event contract.
+- FunASR currently runs on CPU. Hardware-provider selection is implemented only for the
+  onnxruntime embedding and OCR entries.

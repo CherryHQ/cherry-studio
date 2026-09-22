@@ -22,11 +22,7 @@ export function currentPlatformKey(): PlatformKey {
  */
 export interface SharedArtifact {
   id: SharedArtifactId
-  packageName: string
   version: string
-  /** sha256 of the whole npm tarball. Regenerate with:
-   * `curl -sL <registry>/<pkg>/-/<pkg>-<version>.tgz | shasum -a 256` */
-  tarballSha256: string
   installDirKey: PathKey
   /** Platforms this artifact ships binaries for. A missing entry means *unsupported*:
    * every bundle requiring it reads as `unsupported` there rather than offering a
@@ -34,10 +30,14 @@ export interface SharedArtifact {
   platforms: Partial<Record<PlatformKey, ArtifactPlatformFiles>>
 }
 
-export type SharedArtifactId = 'onnxruntime-node'
+export type SharedArtifactId = 'onnxruntime-node' | 'sherpa-onnx'
 
 /** The files one platform needs, and where they sit inside the tarball. */
 export interface ArtifactPlatformFiles {
+  packageName: string
+  /** sha256 of the whole npm tarball. Regenerate with:
+   * `curl -sL <registry>/<pkg>/-/<pkg>-<version>.tgz | shasum -a 256` */
+  tarballSha256: string
   /** Tarball path prefix holding this platform's files, e.g. `package/bin/napi-v6/darwin/arm64/`.
    * Entries are flattened onto the install dir, so its depth is also the strip count. */
   tarballPrefix: string
