@@ -11,4 +11,5 @@
 !gh-create-pr
 !gh-pr-review
 !prepare-release
+!upstream-merge
 !vercel-react-best-practices

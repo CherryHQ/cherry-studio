@@ -9,3 +9,4 @@ vercel-react-best-practices
 cherry-pr-test
 cherry-electron-dev
 cherry-regression-test
+upstream-merge

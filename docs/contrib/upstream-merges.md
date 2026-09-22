@@ -3,6 +3,7 @@ description: How this fork consumes upstream CherryHQ/cherry-studio releases wit
 sources:
   - .github/workflows/the-boss-release.yml
   - src/shared/utils/branding.ts
+  - .agents/skills/upstream-merge/SKILL.md
 ---
 
 # Consuming upstream
@@ -10,6 +11,10 @@ sources:
 This fork tracks `CherryHQ/cherry-studio`. The rebrand was built so upstream stays
 cheap to absorb: identity resolves through one module, so upstream edits to the
 surfaces *around* it merge cleanly.
+
+This page holds the rules. The step-by-step procedure is the `upstream-merge` skill
+(`.agents/skills/upstream-merge/`), and what each past merge hit is in the
+[merge log](./upstream-merge-log.md).
 
 ## Remotes
 
@@ -35,23 +40,20 @@ fork commits and turns one conflict resolution into one per commit.
 **Always dry-run first.** `git merge-tree` reports the conflict set without
 touching the working tree; `grep -c CONFLICT` on its output is the whole check.
 
-## Measured conflict surface
+## Expected conflict surface
 
-Dry-run against `upstream/main`, 7 commits ahead of the fork:
+`.agents/skills/upstream-merge/scripts/check.sh preflight` reports the real set; the
+[merge log](./upstream-merge-log.md) has each merge's actual conflicts. Recurring ones:
 
-| | |
-|---|---|
-| Files auto-merged | everything else, incl. `electron-builder.yml` and all 13 locale files × 2 trees |
-| **Conflicted** | **`package.json` only** |
+- `package.json` — `name` and `version`, every release.
+- `scripts/data-classify/data/target-key-definitions.json` — whenever both sides add
+  preference keys. Its generated output `src/shared/data/preference/preferenceSchemas.ts`
+  conflicts alongside it.
 
-The conflict is two fields:
-
-- `name` — ours (`TheBoss`) vs upstream (`CherryStudio`). **Keep ours.**
-- `version` — take upstream's, then re-apply any fork-specific suffix.
-
-That `electron-builder.yml` and 26 locale files merge cleanly is the point: the
-branding module concentrates identity so upstream's edits land beside ours instead
-of on top of them.
+`electron-builder.yml` and the locale files normally auto-merge: the branding module
+concentrates identity so upstream's edits land beside ours instead of on top of them.
+Auto-merged does not mean on-brand — upstream's *new* strings arrive with Cherry names
+and need the Naming table below.
 
 ## Resolution rules
 
@@ -63,7 +65,29 @@ of on top of them.
 | `electron-builder.yml` identity | Keep our `appId`/`productName`/`executableName`; take upstream's other changes. |
 | i18n catalogs | Take upstream's new keys; keep our product-name values. `pnpm lint` fails on any mismatch. |
 | `patches/` | Ours. Re-verify after a dependency bump. |
+| Keyed JSON lists (`target-key-definitions.json`) | Take upstream's file text and order; splice our keys in. Never re-sort the file — a re-sort makes every upstream addition conflict. |
+| Generated files (`preferenceSchemas.ts`, `bootConfigSchemas.ts`, `*Mappings.ts`) | Never hand-merge. Resolve the sources, run `cd scripts/data-classify && npm run generate`, revert timestamp-only diffs. |
 | Provider/service endpoints | **Take upstream's.** `cherryin`/`cherryai` are real services we consume. |
+
+## Naming
+
+| Upstream | Ours |
+|---|---|
+| Cherry Studio | The Boss |
+| Cherry Assistant (zh `Cherry 助手` / `Cherry 小助手`) | Boss Assistant (zh `Boss 助手`) |
+| Cherry Support (zh `Cherry 支持`) | Boss Support (zh `Boss 支持`) |
+
+Translations keep the locale's own word order and substitute only the name —
+`Assistant Cherry` → `Assistant Boss`, `Cherry アシスタント` → `Boss アシスタント`,
+`Cherry 助理` → `Boss 助理`. Change i18n **values**, never keys: `cherry_assistant`,
+`cherry_support`, `CherryConfig`, `cherry-tools` are identifiers.
+
+Also rebranded: the built-in agent manifests (`resources/builtin-agents/*/agent.json`
+and `agent-template.json`), `DEFAULT_ASSISTANT_NAME`, and the runtime's fallback
+instructions — the model introduces itself by these names.
+
+Not rebranded: service names we consume (CherryIN, CherryAI, Cherry Cloud,
+"Cherry account"), comments, log messages, tests, e2e fixtures.
 
 ## Values that are NOT branding
 
@@ -79,6 +103,11 @@ comment at its definition:
   the migration.
 - `new URL(..., 'https://www.cherry-ai.com')` — a dummy base for relative-path
   parsing, never navigated to.
+- `existing.name === 'Cherry 支持'` (`cherrySupportSeeder.ts`) — renames rows seeded
+  under the old zh name.
+- `LEGACY_STOCK_SOUL_SHA256_BY_SIZE` (`BuiltinAgentProvisioner.ts`) and the SOUL
+  fixtures under `builtin/__tests__/fixtures/` — byte-exact hashes of historical
+  personas; editing them stops the upgrade.
 
 The pattern: **a historical value used for detection is input, not identity.**
 

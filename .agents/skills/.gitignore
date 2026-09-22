@@ -20,5 +20,7 @@
 !gh-pr-review/**
 !prepare-release/
 !prepare-release/**
+!upstream-merge/
+!upstream-merge/**
 !vercel-react-best-practices/
 !vercel-react-best-practices/**
