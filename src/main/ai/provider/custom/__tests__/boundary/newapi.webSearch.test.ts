@@ -71,6 +71,34 @@ describe('New API Gemini web search boundary', () => {
     )
   })
 
+  it('drops non-web URL citations from a non-streaming answer', async () => {
+    const response = {
+      id: 'chatcmpl-unsafe-citation',
+      created: 1,
+      model: 'gemini-2.5-pro',
+      choices: [
+        {
+          message: {
+            role: 'assistant',
+            content: 'Answer with an unsafe citation.',
+            annotations: [
+              {
+                type: 'url_citation',
+                url_citation: { url: 'javascript:alert(1)', title: 'Unsafe source' }
+              }
+            ]
+          },
+          finish_reason: 'stop'
+        }
+      ],
+      usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
+    }
+
+    const result = await runWithResponse(response, (fetch) => createModel(fetch).doGenerate({ prompt }))
+
+    expect(result.content).toEqual([{ type: 'text', text: 'Answer with an unsafe citation.' }])
+  })
+
   it('ignores unknown annotations without rejecting a non-streaming answer', async () => {
     const response = {
       id: 'chatcmpl-mixed',
@@ -207,6 +235,46 @@ describe('New API Gemini web search boundary', () => {
         })
       ])
     )
+  })
+
+  it('drops non-web URL citations from a streamed answer', async () => {
+    const body = [
+      `data: ${JSON.stringify({
+        id: 'chatcmpl-unsafe-stream-citation',
+        created: 1,
+        model: 'gemini-2.5-pro',
+        choices: [
+          {
+            delta: {
+              role: 'assistant',
+              content: 'Streaming answer.',
+              annotations: [
+                { type: 'url_citation', url_citation: { url: 'data:text/html,unsafe', title: 'Unsafe source' } }
+              ]
+            },
+            finish_reason: 'stop'
+          }
+        ],
+        usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
+      })}`,
+      'data: [DONE]',
+      ''
+    ].join('\n\n')
+    const fetch = (() =>
+      Promise.resolve(
+        new Response(body, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' }
+        })
+      )) as typeof globalThis.fetch
+
+    const result = await createModel(fetch).doStream({ prompt })
+    const parts = await Array.fromAsync(result.stream)
+
+    expect(parts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'text-delta', delta: 'Streaming answer.' })])
+    )
+    expect(parts).not.toEqual(expect.arrayContaining([expect.objectContaining({ type: 'source' })]))
   })
 
   it('ignores unknown streamed annotations without emitting an error', async () => {

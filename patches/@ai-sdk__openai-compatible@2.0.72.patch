@@ -20,7 +20,7 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..87cd45229f41eec385299f31928f3289
        });
      }
 +    for (const annotation of choice.message.annotations || []) {
-+      if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string") continue;
++      if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string" || !URL.canParse(annotation.url_citation.url) || !["http:", "https:"].includes(new URL(annotation.url_citation.url).protocol)) continue;
 +      content.push({
 +        type: "source",
 +        sourceType: "url",
@@ -66,7 +66,7 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..87cd45229f41eec385299f31928f3289
                }
              }
 +            for (const annotation of delta.annotations || []) {
-+              if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string") continue;
++              if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string" || !URL.canParse(annotation.url_citation.url) || !["http:", "https:"].includes(new URL(annotation.url_citation.url).protocol)) continue;
 +              controller.enqueue({
 +                type: "source",
 +                sourceType: "url",
@@ -257,7 +257,7 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..30232e97e04389ea1aeb4bee9b1fd9ae
        });
      }
 +    for (const annotation of choice.message.annotations || []) {
-+      if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string") continue;
++      if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string" || !URL.canParse(annotation.url_citation.url) || !["http:", "https:"].includes(new URL(annotation.url_citation.url).protocol)) continue;
 +      content.push({
 +        type: "source",
 +        sourceType: "url",
@@ -303,7 +303,7 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..30232e97e04389ea1aeb4bee9b1fd9ae
                }
              }
 +            for (const annotation of delta.annotations || []) {
-+              if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string") continue;
++              if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string" || !URL.canParse(annotation.url_citation.url) || !["http:", "https:"].includes(new URL(annotation.url_citation.url).protocol)) continue;
 +              controller.enqueue({
 +                type: "source",
 +                sourceType: "url",
