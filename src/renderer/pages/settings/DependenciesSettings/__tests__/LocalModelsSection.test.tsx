@@ -312,14 +312,34 @@ describe('LocalModelsSection', () => {
     expect(screen.getByText('settings.dependencies.localModels.title')).toBeInTheDocument()
   })
 
+  describe('LM Studio chat model selector', () => {
+    it('renders LM Studio chat model selector with label', async () => {
+      const mockLmStudioModels = [
+        { id: 'qwen-7b', name: 'Qwen 7B', capabilities: [] },
+        { id: 'mistral-7b', name: 'Mistral 7B', capabilities: [] }
+      ]
+
+      MockUsePreferenceUtils.setPreferenceValue('chat.routing.local_worker_model', '')
+      mockRoutes((route) => {
+        if (route === 'ai.provider.model.list') return Promise.resolve(mockLmStudioModels)
+        return Promise.resolve()
+      })
+
+      render(<LocalModelsSection />)
+
+      // Wait for selector to render with label
+      await waitFor(() =>
+        expect(screen.getByText('settings.dependencies.lmStudio.chat_model.label')).toBeInTheDocument()
+      )
+    })
+  })
+
   describe('LM Studio embedding model selector', () => {
     it('renders LM Studio embedding model selector', async () => {
-      const mockLmStudioModels = {
-        models: [
-          { id: 'qwen-7b', name: 'Qwen 7B', capabilities: [] },
-          { id: 'mistral-7b', name: 'Mistral 7B', capabilities: [] }
-        ]
-      }
+      const mockLmStudioModels = [
+        { id: 'qwen-7b', name: 'Qwen 7B', capabilities: [] },
+        { id: 'mistral-7b', name: 'Mistral 7B', capabilities: [] }
+      ]
 
       MockUsePreferenceUtils.setPreferenceValue('chat.routing.lm_studio_embedding_model', '')
       mockRoutes((route) => {

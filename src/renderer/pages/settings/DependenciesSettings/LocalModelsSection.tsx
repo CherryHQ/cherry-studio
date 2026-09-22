@@ -264,8 +264,82 @@ const LocalModelsSection: FC = () => {
         </div>
       )}
       <div className="mt-6 border-border border-t pt-6">
-        <LmStudioEmbeddingModelSelector />
+        <div className="space-y-6">
+          <LmStudioChatModelSelector />
+          <LmStudioEmbeddingModelSelector />
+        </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * LM Studio chat model selector.
+ * Allows users to pick which LM Studio model to use for chat and simple tasks.
+ */
+const LmStudioChatModelSelector: FC = () => {
+  const { t } = useTranslation()
+  const [lmStudioChatModel, setLmStudioChatModel] = usePreference('chat.routing.local_worker_model')
+  const [lmStudioModels, setLmStudioModels] = useState<Model[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    setLoading(true)
+    void ipcApi
+      .request('ai.provider.model.list', { providerId: 'lmstudio' })
+      .then((models) => {
+        if (mounted) {
+          setLmStudioModels((models as Model[]) || [])
+        }
+      })
+      .catch((error) => {
+        logger.warn('Failed to fetch LM Studio models', error as Error)
+        if (mounted) setLmStudioModels([])
+      })
+      .finally(() => {
+        if (mounted) setLoading(false)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="lm-studio-chat-model" className="text-sm font-medium">
+        {t('settings.dependencies.lmStudio.chat_model.label', 'LM Studio Chat Model')}
+      </Label>
+      <Select
+        value={lmStudioChatModel || ''}
+        onValueChange={setLmStudioChatModel}
+        disabled={loading || lmStudioModels.length === 0}>
+        <SelectTrigger id="lm-studio-chat-model" className="w-full">
+          <SelectValue
+            placeholder={
+              loading
+                ? t('common.loading')
+                : lmStudioModels.length === 0
+                  ? t('settings.dependencies.lmStudio.no_models', 'No models available')
+                  : t('common.select')
+            }
+          />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="">{t('settings.dependencies.lmStudio.chat_model.default', 'Use default')}</SelectItem>
+          {lmStudioModels.map((model) => (
+            <SelectItem key={model.id} value={model.id}>
+              {model.name || model.id}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-muted-foreground text-xs">
+        {t(
+          'settings.dependencies.lmStudio.chat_model.description',
+          'Choose which LM Studio model to use for chat responses and simple tasks like formatting and summarization.'
+        )}
+      </p>
     </div>
   )
 }
