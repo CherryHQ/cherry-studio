@@ -21,7 +21,7 @@ interface ResourceCardMenuProps {
   resource: ResourceItem
   onClose?: () => void
   onDuplicate: (r: ResourceItem) => void
-  onDelete: (r: ResourceItem, permanent?: boolean) => void
+  onDelete: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void
   allGroups: Group[]
   triggerClassName?: string
@@ -168,19 +168,15 @@ function useResourceCardMenuItems({
           onClose?.()
         }
       })
-    if (!protectedAgent)
+    if (!isOwner)
       items.push({
         type: 'item',
         id: 'delete',
-        label:
-          resource.type === 'skill'
-            ? t('library.action.uninstall')
-            : t(isOwner ? 'common.delete_permanently' : 'common.delete'),
+        label: resource.type === 'skill' ? t('library.action.uninstall') : t('common.delete'),
         icon: <Trash2 size={14} />,
         destructive: true,
         onSelect: () => {
-          if (isOwner) onDelete(resource, true)
-          else onDelete(resource)
+          onDelete(resource)
           onClose?.()
         }
       })

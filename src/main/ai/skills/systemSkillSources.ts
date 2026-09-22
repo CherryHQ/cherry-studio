@@ -36,6 +36,7 @@ export function buildSystemSkillSources(home: string, env: Record<string, string
     { id: 'moltbot', name: 'MoltBot', directoryPath: path.join(home, '.moltbot', 'skills') },
     { id: 'qoder', name: 'Qoder', directoryPath: path.join(home, '.qoder', 'skills') },
     { id: 'qoder-cn', name: 'Qoder CN', directoryPath: path.join(home, '.qoder-cn', 'skills') },
-    { id: 'qwen-code', name: 'Qwen Code', directoryPath: path.join(home, '.qwen', 'skills') }
+    { id: 'qwen-code', name: 'Qwen Code', directoryPath: path.join(home, '.qwen', 'skills') },
+    { id: 'minimax-code', name: 'MiniMax Code', directoryPath: path.join(home, '.minimax', 'skills') }
   ]
 }
