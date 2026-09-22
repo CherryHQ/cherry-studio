@@ -34,7 +34,7 @@ import {
 } from '@renderer/utils/message/composerClipboard'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
-import { useActiveComposerOverride } from './ComposerContext'
+import { useComposerLayerActive } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposerToken } from './composerInputAdapter'
@@ -511,7 +511,7 @@ export default function ComposerSurfaceRuntime({
   filesCount,
   isExpanded,
   onExpandedChange,
-  quickPanelEnabled,
+  quickPanelEnabled: enableQuickPanel,
   enableDragDrop,
   enableSpellCheck,
   editable = true,
@@ -556,9 +556,9 @@ export default function ComposerSurfaceRuntime({
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
-  const composerOverridden = useActiveComposerOverride() !== null
-  const closeQuickPanel = quickPanel.close
-  const isQuickPanelVisible = quickPanel.isVisible
+  const layerActive = useComposerLayerActive()
+  const quickPanelEnabled = enableQuickPanel && layerActive
+  const previousLayerActiveRef = useRef(layerActive)
   const pinnedLauncherIds = useComposerPinnedTools()
   const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
   const quickPanelRef = useRef(quickPanel)
@@ -621,10 +621,10 @@ export default function ComposerSurfaceRuntime({
   ])
 
   useLayoutEffect(() => {
-    if (composerOverridden && isQuickPanelVisible) {
-      closeQuickPanel('composer_override')
-    }
-  }, [closeQuickPanel, composerOverridden, isQuickPanelVisible])
+    if (previousLayerActiveRef.current === layerActive) return
+    previousLayerActiveRef.current = layerActive
+    if (quickPanelRef.current.isVisible) quickPanelRef.current.close('composer_override')
+  }, [layerActive])
 
   useEffect(() => {
     textRef.current = text
@@ -1389,8 +1389,9 @@ export default function ComposerSurfaceRuntime({
   )
 
   const activeSuggestionSources = useMemo(
-    () => (quickPanelEnabled ? [...rootSuggestionSources, ...quickPanelSuggestionSources] : []),
-    [quickPanelEnabled, rootSuggestionSources, quickPanelSuggestionSources]
+    // Tiptap installs plugins at editor creation, including when the composer starts hidden.
+    () => (enableQuickPanel ? [...rootSuggestionSources, ...quickPanelSuggestionSources] : []),
+    [enableQuickPanel, rootSuggestionSources, quickPanelSuggestionSources]
   )
 
   const renderComposerToken = useCallback<ComposerTokenRenderer>(
