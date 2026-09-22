@@ -182,7 +182,12 @@ export default function AddModelFormPanel({
           : mode === 'endpoint-types' && values.endpointTypes?.length
             ? [...values.endpointTypes]
             : undefined
-      const serverToolOverrides = buildServerToolOverrides(classification, submittedEndpointTypes, defaultChatEndpoint)
+      const serverToolOverrides = buildServerToolOverrides(
+        classification,
+        submittedEndpointTypes,
+        provider,
+        defaultChatEndpoint
+      )
 
       await createModel({
         providerId,
@@ -289,8 +294,14 @@ export default function AddModelFormPanel({
       purposeFields.endpointTypes?.length || formState.endpointTypes?.length
         ? (purposeFields.endpointTypes ?? formState.endpointTypes)
         : prefill?.model?.endpointTypes
-    return getDeliverableWebSearchEndpointTypes(endpoints, defaultChatEndpoint).length > 0
-  }, [defaultChatEndpoint, formState.endpointTypes, prefill?.model?.endpointTypes, purposeFields.endpointTypes])
+    return provider ? getDeliverableWebSearchEndpointTypes(endpoints, provider, defaultChatEndpoint).length > 0 : false
+  }, [
+    defaultChatEndpoint,
+    formState.endpointTypes,
+    prefill?.model?.endpointTypes,
+    provider,
+    purposeFields.endpointTypes
+  ])
 
   const webSearchSelected =
     classification.webSearch === 'enabled' || (classification.webSearch === 'inherit' && registryWebSearchAvailable)
@@ -471,7 +482,6 @@ export default function AddModelFormPanel({
               <ModelClassificationControls
                 value={classification}
                 webSearchSelected={webSearchSelected}
-                webSearchEnableAllowed={webSearchEnableAllowed || registryWebSearchAvailable}
                 onPrimaryTypeChange={handlePrimaryTypeChange}
                 onCapabilityToggle={handleCapabilityToggle}
                 onWebSearchToggle={handleToggleWebSearch}

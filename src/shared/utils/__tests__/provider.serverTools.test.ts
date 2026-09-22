@@ -53,11 +53,64 @@ describe('server-tool model eligibility', () => {
         }
       }
     })
-    const customProvider = { id: 'my-gateway', serverTools: [] } as unknown as Provider
+    const customProvider = {
+      id: 'my-gateway',
+      serverTools: [],
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+    } as unknown as Provider
 
     expect(isBuiltinWebSearchAvailable(custom, customProvider)).toBe(true)
     expect(isBuiltinWebSearchAvailable(custom, customProvider, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(true)
     expect(isBuiltinWebSearchAvailable(custom, customProvider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe(false)
+  })
+
+  it('does not route an override to a generic adapter without a native search factory', () => {
+    const custom = model('private-model', {
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      serverToolOverrides: {
+        [SERVER_TOOL.WEB_SEARCH]: { state: 'enabled', endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] }
+      }
+    })
+
+    expect(
+      isBuiltinWebSearchAvailable(custom, {
+        id: 'custom',
+        serverTools: [],
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://example.com' } }
+      })
+    ).toBe(false)
+    expect(
+      isBuiltinWebSearchAvailable(custom, {
+        id: 'third-party',
+        serverTools: [],
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+      })
+    ).toBe(true)
+
+    const responsesModel = model('private-model', {
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      serverToolOverrides: {
+        [SERVER_TOOL.WEB_SEARCH]: { state: 'enabled', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }
+      }
+    })
+    expect(isBuiltinWebSearchAvailable(responsesModel, { id: 'custom', serverTools: [] })).toBe(false)
+  })
+
+  it('ignores a stale override for an endpoint the model no longer supports', () => {
+    const custom = model('private-model', {
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      serverToolOverrides: {
+        [SERVER_TOOL.WEB_SEARCH]: { state: 'enabled', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }
+      }
+    })
+    const customProvider = {
+      id: 'third-party',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } },
+      serverTools: []
+    }
+
+    expect(isBuiltinWebSearchAvailable(custom, customProvider, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(false)
   })
 
   it('fails closed when an enabled override names a non-deliverable endpoint', () => {
