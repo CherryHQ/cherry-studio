@@ -43,3 +43,6 @@ export const TopicSchema = z.strictObject({
   updatedAt: z.iso.datetime()
 })
 export type Topic = z.infer<typeof TopicSchema>
+
+/** A topic that is currently in the trash (soft-deleted). */
+export type TrashedTopic = Topic & { deletedAt: string }

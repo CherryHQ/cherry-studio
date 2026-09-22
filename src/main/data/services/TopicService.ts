@@ -3,7 +3,7 @@
 import { randomBytes } from 'node:crypto'
 
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -22,6 +22,7 @@ import type {
   CreateTopicDto,
   DeleteTopicsResult,
   DuplicateTopicDto,
+  EmptyTrashResult,
   LatestTopicQuery,
   ListTopicsQuery,
   MoveTopicDto,
@@ -30,6 +31,7 @@ import type {
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { TrashedTopic } from '@shared/data/types/topic'
 import type { Topic } from '@shared/data/types/topic'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -58,13 +60,18 @@ function rowToTopic(row: TopicRow): Topic {
   // DB NULL ↔ domain `undefined` boundary — all of Topic's nullable columns are
   // `.optional()` (no `T | null`), so the `{...nullsToUndefined(row)}` skeleton
   // from data-api-in-main.md applies cleanly.
-  const clean = nullsToUndefined(row)
+  const { deletedAt: _deletedAt, ...restRow } = row
+  const clean = nullsToUndefined(restRow)
   return {
     ...clean,
     lastActivityAt: timestampToISO(row.lastActivityAt),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+function rowToTrashedTopic(row: TopicRow): TrashedTopic {
+  return { ...rowToTopic(row), deletedAt: timestampToISO(row.deletedAt!) }
 }
 
 function copyChatMessageFileRefsBySourceIdMapTx(tx: DbOrTx, sourceIdMap: ReadonlyMap<string, string>): void {
@@ -453,26 +460,31 @@ export class TopicService {
   }
 
   /**
-   * Hard delete + tag/pin purge. Any future soft-delete path MUST also
-   * call `pinService.purgeForEntitiesTx(tx, 'topic', [id])` — a surviving pin row
-   * makes `listByCursor`'s JOIN silently hide the topic from both sections.
+   * Soft-delete: sets `deletedAt` so the topic lands in the 30-day trash.
+   * Pins are purged immediately — a surviving pin row makes `listByCursor`'s
+   * JOIN silently hide the topic from both sections. Messages and tags are
+   * preserved so a restore brings them back intact.
    */
   delete(id: string): void {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     pinService.notifyPurged()
+    notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership', entityIds: deletedIds }])
 
-    logger.info('Deleted topic', { id })
+    logger.info('Soft-deleted topic', { id })
   }
 
   deleteByIds(ids: string[]): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
-    if (deletedIds.length > 0) pinService.notifyPurged()
+    if (deletedIds.length > 0) {
+      pinService.notifyPurged()
+      notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership', entityIds: deletedIds }])
+    }
 
-    logger.info('Deleted topics', { count: deletedIds.length })
+    logger.info('Soft-deleted topics', { count: deletedIds.length })
 
     return { deletedIds, deletedCount: deletedIds.length }
   }
@@ -486,22 +498,126 @@ export class TopicService {
       .from(topicTable)
       .where(and(inArray(topicTable.id, uniqueIds), isNull(topicTable.deletedAt)))
       .all()
-    const deletedIds = rows.map((row) => row.id)
+    const foundIds = rows.map((row) => row.id)
 
-    if (options.requireAll && deletedIds.length !== uniqueIds.length) {
-      const foundIds = new Set(deletedIds)
-      const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
+    if (options.requireAll && foundIds.length !== uniqueIds.length) {
+      const foundSet = new Set(foundIds)
+      const missingId = uniqueIds.find((candidate) => !foundSet.has(candidate)) ?? uniqueIds[0]
       throw DataApiErrorFactory.notFound('Topic', missingId)
     }
-    if (deletedIds.length === 0) return []
+    if (foundIds.length === 0) return []
 
+    // Pins must be purged: a surviving pin row makes listByCursor's JOIN silently
+    // hide the topic from both sections. Messages and tags are kept for restore.
+    pinService.purgeForEntitiesTx(tx, 'topic', foundIds)
+    tx.update(topicTable).set({ deletedAt: Date.now() }).where(inArray(topicTable.id, foundIds)).run()
+
+    return foundIds
+  }
+
+  /** Hard-purge a batch of (already soft-deleted) topic rows: messages, tags, pins, then the row itself. */
+  private hardPurgeManyByIdsTx(tx: DbOrTx, ids: string[]): void {
+    if (ids.length === 0) return
     const messageService = getDataService('MessageService')
-    messageService.purgeByTopicIdsTx(tx, deletedIds)
-    tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
-    pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
-    tx.delete(topicTable).where(inArray(topicTable.id, deletedIds)).run()
+    messageService.purgeByTopicIdsTx(tx, ids)
+    tagService.purgeForEntitiesTx(tx, 'topic', ids)
+    pinService.purgeForEntitiesTx(tx, 'topic', ids)
+    tx.delete(topicTable).where(inArray(topicTable.id, ids)).run()
+  }
 
-    return deletedIds
+  /** List all topics currently in the trash (soft-deleted, not yet purged). */
+  listTrashed(): TrashedTopic[] {
+    const db = application.get('DbService').getDb()
+    const rows = db
+      .select()
+      .from(topicTable)
+      .where(isNotNull(topicTable.deletedAt))
+      .orderBy(desc(topicTable.deletedAt), asc(topicTable.id))
+      .all()
+    return rows.map(rowToTrashedTopic)
+  }
+
+  /** Restore a soft-deleted topic back to the active list. */
+  restore(id: string): Topic {
+    const dbService = application.get('DbService')
+    const topic = dbService.withWriteTx((tx) => {
+      const [existing] = tx
+        .select()
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!existing) throw DataApiErrorFactory.notFound('Topic', id)
+
+      const [updated] = tx.update(topicTable).set({ deletedAt: null }).where(eq(topicTable.id, id)).returning().all()
+      if (!updated) throw DataApiErrorFactory.notFound('Topic', id)
+      return rowToTopic(updated)
+    })
+    this.notifyReadModelChange([id], 'membership')
+    notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership', entityIds: [id] }])
+
+    logger.info('Restored topic from trash', { id })
+    return topic
+  }
+
+  /** Permanently delete one trashed topic (hard-purge, bypasses the 30-day window). */
+  purgeTrashedById(id: string): void {
+    const dbService = application.get('DbService')
+    dbService.withWriteTx((tx) => {
+      const [existing] = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!existing) throw DataApiErrorFactory.notFound('Topic', id)
+      this.hardPurgeManyByIdsTx(tx, [id])
+    })
+    notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership', entityIds: [id] }])
+
+    logger.info('Permanently purged trashed topic', { id })
+  }
+
+  /** Permanently delete all trashed topics (hard-purge). */
+  emptyTrash(): EmptyTrashResult {
+    const dbService = application.get('DbService')
+    const purgedCount = dbService.withWriteTx((tx) => {
+      const rows = tx.select({ id: topicTable.id }).from(topicTable).where(isNotNull(topicTable.deletedAt)).all()
+      const ids = rows.map((r) => r.id)
+      if (ids.length === 0) return 0
+      this.hardPurgeManyByIdsTx(tx, ids)
+      return ids.length
+    })
+    if (purgedCount > 0) {
+      notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership' }])
+    }
+
+    logger.info('Emptied topic trash', { purgedCount })
+    return { purgedCount }
+  }
+
+  /**
+   * Hard-purge topics whose `deletedAt` is older than `cutoffMs` (ms since epoch).
+   * Called periodically to enforce the 30-day retention window.
+   */
+  purgeOldTrashed(cutoffMs: number = Date.now() - 30 * 24 * 60 * 60 * 1000): number {
+    const dbService = application.get('DbService')
+    const purgedCount = dbService.withWriteTx((tx) => {
+      const rows = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(isNotNull(topicTable.deletedAt), lt(topicTable.deletedAt, cutoffMs)))
+        .all()
+      const ids = rows.map((r) => r.id)
+      if (ids.length === 0) return 0
+      this.hardPurgeManyByIdsTx(tx, ids)
+      return ids.length
+    })
+    if (purgedCount > 0) {
+      logger.info('Auto-purged expired trashed topics', { purgedCount })
+      notifyDataApiDataChange([{ endpoint: '/topics/trash', kind: 'membership' }])
+    }
+    return purgedCount
   }
 
   setActiveNode(topicId: string, nodeId: string): { activeNodeId: string } {

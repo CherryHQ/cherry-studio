@@ -100,6 +100,28 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     }
   },
 
+  '/topics/trash': {
+    GET: async () => {
+      return topicService.listTrashed()
+    },
+    DELETE: async () => {
+      return topicService.emptyTrash()
+    }
+  },
+
+  '/topics/trash/:id': {
+    DELETE: async ({ params }) => {
+      topicService.purgeTrashedById(params.id)
+      return undefined
+    }
+  },
+
+  '/topics/:id/restore': {
+    POST: async ({ params }) => {
+      return topicService.restore(params.id)
+    }
+  },
+
   '/topics/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)

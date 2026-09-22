@@ -8,7 +8,7 @@
 import * as z from 'zod'
 
 import { AssistantIdSchema } from '../../types/assistant'
-import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
+import { type Topic, TopicNameSchema, TopicSchema, type TrashedTopic } from '../../types/topic'
 import type { CursorPaginationResponse } from '../types'
 import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
 
@@ -125,6 +125,13 @@ export interface DeleteTopicsResult {
   deletedIds: string[]
   deletedCount: number
 }
+
+export interface EmptyTrashResult {
+  purgedCount: number
+}
+
+// Re-export so consumers can import from the schemas barrel.
+export type { TrashedTopic }
 
 /** Response for `GET /topics/latest` — the most-recently-active topic in the requested scope, or `null`. */
 export interface LatestTopicResponse {
@@ -308,6 +315,45 @@ export type TopicSchemas = {
     DELETE: {
       params: { assistantId: string }
       response: DeleteTopicsResult
+    }
+  }
+
+  /**
+   * Trash collection — soft-deleted topics awaiting the 30-day retention window.
+   *
+   * @example GET /topics/trash
+   * @example DELETE /topics/trash  (empty all trash)
+   */
+  '/topics/trash': {
+    GET: {
+      response: TrashedTopic[]
+    }
+    DELETE: {
+      response: EmptyTrashResult
+    }
+  }
+
+  /**
+   * Permanently delete one specific trashed topic.
+   *
+   * @example DELETE /topics/trash/abc123
+   */
+  '/topics/trash/:id': {
+    DELETE: {
+      params: { id: string }
+      response: void
+    }
+  }
+
+  /**
+   * Restore a soft-deleted topic back to the active list.
+   *
+   * @example POST /topics/abc123/restore
+   */
+  '/topics/:id/restore': {
+    POST: {
+      params: { id: string }
+      response: Topic
     }
   }
 } & OrderEndpoints<'/topics'>

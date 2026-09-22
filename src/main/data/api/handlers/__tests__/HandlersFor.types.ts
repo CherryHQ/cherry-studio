@@ -36,8 +36,14 @@ type OldTopicHandlers = {
 const ok = async (): Promise<any> => ({}) as any
 const auxiliaryTopicHandlers = {
   '/assistants/:assistantId/topics': { DELETE: ok },
-  '/topics/:id/move': { POST: ok }
-} satisfies Pick<HandlersFor<TopicSchemas>, '/assistants/:assistantId/topics' | '/topics/:id/move'>
+  '/topics/:id/move': { POST: ok },
+  '/topics/trash': { GET: ok, DELETE: ok },
+  '/topics/trash/:id': { DELETE: async () => undefined },
+  '/topics/:id/restore': { POST: ok }
+} satisfies Pick<
+  HandlersFor<TopicSchemas>,
+  '/assistants/:assistantId/topics' | '/topics/:id/move' | '/topics/trash' | '/topics/trash/:id' | '/topics/:id/restore'
+>
 
 // ============================================================================
 // P1 — POSITIVE: a fully-covered, correctly-typed handler compiles under both
