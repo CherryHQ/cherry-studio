@@ -6,8 +6,20 @@ const mocks = vi.hoisted(() => ({
   harnessOptions: undefined as Record<string, any> | undefined,
   getShellEnv: vi.fn(),
   resolveBun: vi.fn(),
-  usesDshGateway: vi.fn()
+  usesDshGateway: vi.fn(),
+  getGatewayConfig: vi.fn()
 }))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const get = result.application.getContainer().get.bind(result.application.getContainer())
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'ApiGatewayService') return { getCurrentConfig: mocks.getGatewayConfig }
+    return get(name)
+  })
+  return result
+})
 
 vi.mock('node:fs/promises', () => ({
   mkdir: vi.fn().mockResolvedValue(undefined),
@@ -131,6 +143,7 @@ beforeEach(() => {
   mocks.harnessOptions = undefined
   mocks.resolveBun.mockReset().mockResolvedValue('/bundled/bun')
   mocks.usesDshGateway.mockReset().mockReturnValue(true)
+  mocks.getGatewayConfig.mockReset().mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
   mocks.getShellEnv.mockReset().mockResolvedValue({
     PATH: ['/opt/homebrew/bin', '/usr/bin'].join(':'),
     HOME: '/Users/tester'
@@ -190,6 +203,37 @@ describe('DshRuntimeConnection proxy inheritance', () => {
       expect(env).not.toHaveProperty(key)
     }
     expect(env.CHERRY_DSH_API_KEY).toBe('key')
+    await connection.close()
+  })
+
+  it('bypasses a non-default gateway host while keeping provider traffic proxied', async () => {
+    // F1: a gateway bound to 127.0.0.2 must stay direct even though it is not
+    // in the default loopback set; the external provider must remain proxied.
+    clearProxyEnv()
+    mocks.getGatewayConfig.mockReturnValue({ enabled: true, host: '127.0.0.2', port: 23333 })
+    vi.stubEnv('HTTP_PROXY', 'http://proxy.corp.example:8080')
+    vi.stubEnv('HTTPS_PROXY', 'http://proxy.corp.example:8080')
+
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const env = mocks.harnessOptions?.env as NodeJS.ProcessEnv
+    const rules = String(env.NO_PROXY).split(',')
+
+    expect(env.HTTP_PROXY).toBe('http://proxy.corp.example:8080')
+    expect(rules).toContain('127.0.0.2')
+    expect(rules).toContain('127.0.0.1')
+    await connection.close()
+  })
+
+  it('never bypasses an external provider host on direct routes', async () => {
+    clearProxyEnv()
+    mocks.usesDshGateway.mockReturnValue(false)
+    vi.stubEnv('HTTP_PROXY', 'http://proxy.corp.example:8080')
+
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const env = mocks.harnessOptions?.env as NodeJS.ProcessEnv
+
+    expect(env.HTTP_PROXY).toBe('http://proxy.corp.example:8080')
+    expect(String(env.NO_PROXY ?? '')).not.toContain('deepseek')
     await connection.close()
   })
 })

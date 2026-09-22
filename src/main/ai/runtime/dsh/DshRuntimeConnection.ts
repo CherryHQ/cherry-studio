@@ -27,8 +27,6 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { mergeAgentLoopbackProxyBypass } from '@main/services/proxy/agentProxyEnvironment'
-import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -71,6 +69,7 @@ import {
   type DshConnectionSnapshot,
   DshInvalidConnectionSnapshotError
 } from './dshConnectionSignature'
+import { buildDshProxyEnvironment } from './dshProxyEnvironment'
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
@@ -446,8 +445,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
             : process.env.HOME !== undefined
               ? { HOME: process.env.HOME }
               : {}),
-          // Inherit the applied proxy (claude-code parity); loopback bypass keeps the local gateway direct.
-          ...mergeAgentLoopbackProxyBypass(getProxyEnvironment(process.env)),
+          // Inherit the applied proxy (claude-code parity); the gateway-host bypass keeps the local gateway direct.
+          ...buildDshProxyEnvironment(snapshot.provider, snapshot.model),
           CHERRY_DSH_API_KEY: injection.apiKey,
           CHERRY_DSH_CONFIG: this.compositionPath,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
