@@ -1606,6 +1606,6 @@ describe('listModels — ComfyUI credentials', () => {
     expect(listing.models.map((m) => m.id)).toEqual(['comfyui::portrait', 'comfyui::sub/kept'])
     // The omission has to be visible: the manager names these instead of showing a
     // shorter list than the server has.
-    expect(listing.skippedWorkflows).toEqual(['a#b', 'c?d'])
+    expect(listing.skippedModels).toEqual(['a#b', 'c?d'])
   })
 })

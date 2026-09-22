@@ -476,7 +476,7 @@ describe('useProviderModelPullReconcile', () => {
     fetchProviderCatalogModelsMock.mockResolvedValue([])
     fetchResolvedProviderModelsMock.mockResolvedValue({
       models: [],
-      skippedWorkflows: ['sample #frag', 'sample ?query']
+      skippedModels: ['sample #frag', 'sample ?query']
     })
 
     const { result } = renderHook(() => useProviderModelPullReconcile('comfyui'))

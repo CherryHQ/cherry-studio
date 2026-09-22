@@ -165,15 +165,15 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
 export async function fetchResolvedProviderModels(providerId: string): Promise<ListedModels<Model>> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
-    const { models: fetched, skippedWorkflows } = await ipcApi.request('ai.provider.model.list', {
+    const { models: fetched, skippedModels } = await ipcApi.request('ai.provider.model.list', {
       providerId,
       throwOnError: true
     })
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
     // Enrichment rebuilds the array, so the notice main reported alongside the
-    // models (ComfyUI workflow names with `#` or `?`) is carried onto the result.
+    // models is carried onto the result.
     const models = await enrichFetchedModels(providerId, fetched)
-    return skippedWorkflows ? { models, skippedWorkflows } : { models }
+    return skippedModels ? { models, skippedModels } : { models }
   } catch (error) {
     logger.error('Failed to fetch and resolve provider models', {
       providerId,

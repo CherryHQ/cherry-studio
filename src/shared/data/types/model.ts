@@ -456,17 +456,16 @@ export const ModelSchema = z.object({
 export type Model = z.infer<typeof ModelSchema>
 
 /**
- * The result of listing a provider's models, including the entries that provider
- * holds but cannot offer as models. A provider whose ids are its own file names
- * (ComfyUI's saved workflows) has to drop the ones that cannot form a
- * `UniqueModelId`; a caller that only received the models would not know they
- * were held back, and the omission would be invisible.
+ * The result of listing a provider's models. A provider may list entries that
+ * cannot be offered as models — it drops them, and a caller that only received
+ * the models would not know they were held back, so the listing carries their
+ * names too and the fetcher that dropped them says why.
  *
- * Providers with nothing to hold back still return the envelope (`{ models }`),
- * so every fetcher and `ai.provider.model.list` share one shape.
+ * A provider with nothing to hold back returns the same envelope with `models`
+ * alone, so every fetcher and `ai.provider.model.list` share one shape.
  */
 export interface ListedModels<M = Partial<Model>> {
   models: M[]
-  /** Entries the provider lists but that are dropped from the model list. */
-  skippedWorkflows?: string[]
+  /** Names the provider lists but that are dropped from the model list. */
+  skippedModels?: string[]
 }

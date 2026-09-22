@@ -517,7 +517,7 @@ const comfyuiFetcher: ModelFetcher = {
     )
     // A skip the user cannot see reads as a workflow that vanished: the names travel
     // with the list so the model manager can say which files to rename.
-    return skipped.length > 0 ? { models, skippedWorkflows: skipped } : listing(models)
+    return skipped.length > 0 ? { models, skippedModels: skipped } : listing(models)
   }
 }
 

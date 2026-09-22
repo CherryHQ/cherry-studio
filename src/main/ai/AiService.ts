@@ -1261,7 +1261,7 @@ export class AiService extends BaseService {
     // exactly the path that replaces them with catalog models.
     return {
       models: mergeProviderModelsWithRegistry(remote.models, registryModels),
-      ...(remote.skippedWorkflows ? { skippedWorkflows: remote.skippedWorkflows } : {})
+      ...(remote.skippedModels ? { skippedModels: remote.skippedModels } : {})
     }
   }
 

@@ -228,7 +228,7 @@ export const aiRequestSchemas = {
     // (ComfyUI) holds some back, and the caller has to be able to say which.
     output: z.object({
       models: z.array(ModelSchema.partial()),
-      skippedWorkflows: z.array(z.string()).optional()
+      skippedModels: z.array(z.string()).optional()
     })
   }),
   'ai.provider.model.check': defineRoute({
