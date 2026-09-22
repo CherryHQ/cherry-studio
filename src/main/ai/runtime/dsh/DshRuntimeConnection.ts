@@ -27,6 +27,8 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { mergeAgentLoopbackProxyBypass } from '@main/services/proxy/agentProxyEnvironment'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -428,7 +430,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       const loginPath = getPathFromEnvironment(loginShellEnv)
       const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
       // Complete replacement env — deliberate credential scope: the child sees
-      // only managed binary locations, the routed API key, and the bridge socket.
+      // only managed binary locations, the applied proxy, the routed API key, and the bridge socket.
       const dshBin = resolveDshRuntimeBinPath()
       const client = new sdk.HarnessClient({
         runtimeExecutable,
@@ -444,6 +446,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
             : process.env.HOME !== undefined
               ? { HOME: process.env.HOME }
               : {}),
+          // Inherit the applied proxy (claude-code parity); loopback bypass keeps the local gateway direct.
+          ...mergeAgentLoopbackProxyBypass(getProxyEnvironment(process.env)),
           CHERRY_DSH_API_KEY: injection.apiKey,
           CHERRY_DSH_CONFIG: this.compositionPath,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
