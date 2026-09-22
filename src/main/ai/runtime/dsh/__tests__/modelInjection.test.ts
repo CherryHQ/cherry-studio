@@ -348,6 +348,26 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
     expect(second.headers?.['x-session-id']).not.toBe(key)
   })
 
+  it('adds the session header to a keyless copied OpenRouter preset route', async () => {
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+    const provider = {
+      ...nativeProvider,
+      id: 'keyless-router',
+      presetProviderId: 'openrouter',
+      authOptional: true
+    } as unknown as Provider
+    const model = makeModel({
+      id: 'keyless-router::openai/gpt-5.6',
+      providerId: 'keyless-router',
+      apiModelId: 'openai/gpt-5.6'
+    })
+
+    const injection = await resolveDshProviderInjectionFromSnapshot('session-1', provider, model)
+
+    expect(injection.apiKey).toBe('no-key-required')
+    expect(injection.headers?.['x-session-id']).toMatch(/^cherry-agent:[0-9a-f]{32}$/)
+  })
+
   it('recognizes an OpenRouter adapter and preserves an explicit header regardless of casing', async () => {
     const provider = {
       ...nativeProvider,

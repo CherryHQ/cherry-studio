@@ -319,22 +319,24 @@ export async function resolveDshProviderInjectionFromSnapshot(
     return buildDshGatewayInjection(provider, model, gateway, reasoningEffort)
   }
   const resolvedApiKey = providerService.resolveApiKey(provider.id)
+  let injection: DshProviderInjection
   if (!resolvedApiKey.value.trim()) {
     // Keyless local servers (registry authOptional) need no credential; dsh
     // still wants a non-empty credential value.
     if (provider.authOptional !== true) throw new DshMissingApiKeyError(provider.id)
-    return buildDshProviderInjection(provider, model, 'no-key-required', undefined, reasoningEffort)
+    injection = buildDshProviderInjection(provider, model, 'no-key-required', undefined, reasoningEffort)
+  } else {
+    if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
+      throw new Error(`dsh provider credentials changed during materialization: ${provider.id}`)
+    }
+    injection = buildDshProviderInjection(
+      provider,
+      model,
+      resolvedApiKey.value,
+      resolvedApiKey.apiKeySelection,
+      reasoningEffort
+    )
   }
-  if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
-    throw new Error(`dsh provider credentials changed during materialization: ${provider.id}`)
-  }
-  const injection = buildDshProviderInjection(
-    provider,
-    model,
-    resolvedApiKey.value,
-    resolvedApiKey.apiKeySelection,
-    reasoningEffort
-  )
   // OpenCode Go/Zen reject requests without this header; a header the operator set wins.
   if (
     matchesPreset(provider, SystemProviderIds.opencode) &&
