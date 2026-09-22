@@ -2,7 +2,7 @@ import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -1437,5 +1437,112 @@ describe('listModels — openAICompatibleFetcher display names', () => {
     expect(headers.get('x-custom')).toBe('keep')
     expect(headers.has('http-referer')).toBe(false)
     expect(headers.has('x-title')).toBe(false)
+  })
+})
+
+describe('listModels — oMLX', () => {
+  it('lists only chat models, dropping the diffusion and non-chat families', async () => {
+    const provider = makeProvider({
+      id: 'omlx',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'http://127.0.0.1:8000' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'http://127.0.0.1:8000' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8000' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: {
+        models: [
+          {
+            id: 'qwen3-coder',
+            model_type: 'llm',
+            config_model_type: 'qwen3_5',
+            model_alias: 'Coder Pro',
+            max_context_window: 262144,
+            max_tokens: 32768
+          },
+          { id: 'vlm-vision', model_type: 'vlm', config_model_type: 'qwen3_5' },
+          { id: 'diffusiongemma-26B', model_type: 'vlm', config_model_type: 'diffusion_gemma' },
+          // The server reports the exposed MarkItDown model with explicit null
+          // limits; they must not reject the whole listing.
+          {
+            id: 'markitdown',
+            model_type: 'markitdown',
+            config_model_type: 'markitdown',
+            model_alias: null,
+            max_context_window: null,
+            max_tokens: null
+          },
+          { id: 'hidden-model', model_type: 'llm', config_model_type: 'qwen3_5', is_hidden: true }
+        ]
+      }
+    })
+
+    const models = await listModels(provider, undefined, { throwOnError: true })
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-coder', 'vlm-vision', 'markitdown'])
+    expect(models[1].capabilities).toEqual([MODEL_CAPABILITY.IMAGE_RECOGNITION])
+    // A VLM must also state its input modalities: exported configurations read
+    // the capability, but the runtime model-compatibility checks read these.
+    expect(models[1].inputModalities).toEqual([MODALITY.TEXT, MODALITY.IMAGE])
+    // The declared default (Responses) must lead, or `resolveEffectiveEndpoint` picks the
+    // chat-completions dialect over the provider's declared default. The other declared
+    // endpoints stay listed: Claude Code resolves Anthropic Messages directly, and the pi
+    // runtime keys its Anthropic preference off chat-completions + anthropic both being present.
+    expect(models[0].endpointTypes).toEqual([
+      ENDPOINT_TYPE.OPENAI_RESPONSES,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    ])
+    // MarkItDown is served only on the chat-completions route, so it must not advertise a
+    // dialect the pinned server does not implement for it.
+    expect(models[2].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+    // The server's own limits travel with the discovered model instead of being
+    // dropped, so the window and output cap match what it enforces.
+    expect(models[0].contextWindow).toBe(262144)
+    expect(models[0].maxOutputTokens).toBe(32768)
+    // A model the server reports no limits for stays unlimited rather than 0.
+    expect(models[1].contextWindow).toBeUndefined()
+    expect(models[1].maxOutputTokens).toBeUndefined()
+    // An alias renames the model in the picker while the server still keys the
+    // request on the physical id, so only `name` changes.
+    expect(models[0].name).toBe('Coder Pro')
+    expect(models[0].apiModelId).toBe('qwen3-coder')
+    expect(models[0].id).toContain('qwen3-coder')
+    // No alias (absent, or the explicit null the MarkItDown entry carries) keeps
+    // the id as the display name.
+    expect(models[1].name).toBe('vlm-vision')
+    expect(models[2].name).toBe('markitdown')
+  })
+
+  // The status document hangs off the server root, but a configured host may already carry
+  // any supported API version — not just /v1. Leaving the version on produced paths like
+  // /v2beta/v1/models/status, which 404s and silently empties discovery.
+  it.each([
+    ['http://127.0.0.1:8000', 'a bare host'],
+    ['http://127.0.0.1:8000/', 'a bare host with a trailing slash'],
+    ['http://127.0.0.1:8000/v1', 'a host pinned to v1'],
+    ['http://127.0.0.1:8000/v1/', 'a host pinned to v1 with a trailing slash'],
+    ['http://127.0.0.1:8000/v2', 'a host pinned to v2'],
+    ['http://127.0.0.1:8000/v2beta', 'a host pinned to a beta version'],
+    ['http://127.0.0.1:8000/v3alpha', 'a host pinned to an alpha version']
+  ])('asks %s for the status document at the versionless root (%s)', async (baseUrl) => {
+    const provider = makeProvider({
+      id: 'omlx',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: { models: [{ id: 'qwen3-coder', model_type: 'llm' }] }
+    })
+
+    const models = await listModels(provider, undefined, { throwOnError: true })
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('http://127.0.0.1:8000/v1/models/status')
+    expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-coder'])
   })
 })

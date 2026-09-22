@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "2.1.0",
+  "version": "2.1.2",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "homepage": "https://github.com/CherryHQ/cherry-studio",
@@ -94,7 +94,7 @@
     "test:aicore": "vitest run --project aiCore",
     "test:coverage": "vitest run --coverage --silent",
     "test:e2e": "pnpm playwright test",
-    "test:e2e:regression": "pnpm playwright test --config cherry-regression.playwright.config.ts",
+    "test:e2e:regression": "pnpm playwright test --config playwright.regression.config.ts",
     "test:lint": "oxlint --deny-warnings && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
     "test:main": "vitest run --project main",
     "test:pkg:ui": "vitest run --project ui",

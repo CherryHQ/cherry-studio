@@ -8,7 +8,8 @@ import {
   ResourcePaneCountButton,
   type ResourcePaneCountButtonProps,
   RightPanelHeaderControls,
-  useOptionalRightPanelState
+  useOptionalRightPanelState,
+  useRightPanelActions
 } from '@renderer/components/chat/panes/Shell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
@@ -26,6 +27,7 @@ import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
+import { topicBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -93,6 +95,7 @@ const Chat: FC<Props> = (props) => {
   const [shouldMountCitationsPanel, setShouldMountCitationsPanel] = useState(false)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
+  const rightPanelActions = useRightPanelActions()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const activeTopic = props.activeTopic
@@ -150,7 +153,7 @@ const Chat: FC<Props> = (props) => {
         title: t('chat.topics.edit.title'),
         message: '',
         defaultValue: topic.name || '',
-        extraNode: <div className="mt-2 text-muted-foreground">{t('chat.topics.edit.title_tip')}</div>
+        extraNode: <div className="text-muted-foreground mt-2">{t('chat.topics.edit.title_tip')}</div>
       })
       if (name && topic.name !== name) {
         await patchTopic(topic.id, { name, isNameManuallyEdited: true })
@@ -179,6 +182,15 @@ const Chat: FC<Props> = (props) => {
   )
 
   const citationsPanelOpen = citationPanelCitations !== null
+  const openCitationInBrowser = useCallback(
+    (url: string) => {
+      if (!activeTopicId) return
+      topicBrowserRuntimeService.ensure(activeTopicId, url)
+      rightPanelActions.tryOpen('browser', { userInitiated: true })
+      setCitationPanelState(null)
+    },
+    [activeTopicId, rightPanelActions]
+  )
 
   const handleOpenCitationsPanel = useCallback(
     ({ citations }: { citations: Citation[] }) => {
@@ -312,6 +324,7 @@ const Chat: FC<Props> = (props) => {
         showConversation && shouldMountCitationsPanel ? (
           <React.Suspense fallback={null}>
             <CitationsPanel
+              openBrowserUrl={openCitationInBrowser}
               open={citationsPanelOpen}
               onClose={() => setCitationPanelState(null)}
               citations={citationPanelCitations ?? []}

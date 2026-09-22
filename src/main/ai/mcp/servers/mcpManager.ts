@@ -22,7 +22,11 @@ const INSTALL_TOOL: Tool = {
     'Settings → MCP). For stdio servers `command` is required; for sse/streamableHttp `baseUrl` is required. ' +
     'SECURITY: for stdio servers `command` runs an arbitrary local process with the given `env` ' +
     '(which may carry API keys and other secrets) — never invent a config yourself; only install a ' +
-    'config the user provided or explicitly confirmed.',
+    'config the user provided or explicitly confirmed. When the user names a server but not its ' +
+    'config, resolve it instead of guessing: if the mcp-auto-install server is enabled, call its ' +
+    '`mai_install` with `dryRun: true` and pass the returned command/args here. If that result ' +
+    'lists `requiredEnvVars`, collect each value from the user before calling this tool — the ' +
+    'server cannot start without them.',
   inputSchema: {
     type: 'object',
     properties: {

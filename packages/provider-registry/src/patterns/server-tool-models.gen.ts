@@ -292,7 +292,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
       ]
     },
     deepseek: {
-      'web-search': ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro']
+      'web-search': ['deepseek-flash', 'deepseek-flash-latest', 'deepseek-v4-pro']
     },
     'new-api': {
       'web-search': [
