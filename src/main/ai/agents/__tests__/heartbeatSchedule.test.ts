@@ -27,10 +27,9 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import '@data/services/AgentSessionMessageService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
-import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { JobManager } from '@main/core/job/JobManager'
-import type { JobContext, JobHandler } from '@main/core/job/types'
+import type { JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { DEFAULT_HEARTBEAT_INTERVAL_MINUTES } from '@shared/ai/agentHeartbeat'
@@ -39,31 +38,22 @@ import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import type * as HeartbeatModule from '../heartbeat'
 
-vi.mock('@application', async () => {
-  const mod = await import('@test-mocks/main/application')
-  return mod.mockApplicationFactory()
-})
-
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
-
-// The real resolver reads PreferenceService through the strict application
-// mock; the workspace name only needs a stable, interpolating stand-in.
-vi.mock('@main/i18n', () => ({
-  t: (key: string, params?: Record<string, string>) =>
-    key === 'agent.heartbeat.workspace_name' ? `Heartbeat — ${params?.name}` : key
-}))
 
 // The real handler pulls in the whole runAgentTask execution chain; the sync
 // logic under test only needs SOME registered handler for 'agent.task'.
 // `ensureHeartbeatFile` is re-exported behind an opt-in gate so the drain test
 // can hold a sync in flight; every other test passes straight through.
-const { heartbeatFileGate } = vi.hoisted(() => ({ heartbeatFileGate: { current: null as Promise<void> | null } }))
+const { heartbeatFileGate } = vi.hoisted(() => ({
+  heartbeatFileGate: { current: null as Promise<void> | null, entered: vi.fn() }
+}))
 vi.mock('../heartbeat', async (importOriginal) => {
   const actual = await importOriginal<typeof HeartbeatModule>()
   return {
     ...actual,
     ensureHeartbeatFile: async (workspacePath: string) => {
+      heartbeatFileGate.entered()
       if (heartbeatFileGate.current) await heartbeatFileGate.current
       return actual.ensureHeartbeatFile(workspacePath)
     }
@@ -84,7 +74,6 @@ vi.mock('@main/ai/streamManager', () => ({ startAgentSessionRun: vi.fn(), Channe
 
 import { AgentJobsService } from '../AgentJobsService'
 import { repairHeartbeatSchedules as repairSchedules } from '../heartbeatSchedule'
-import { runAgentTask, type AgentTaskInput } from '../runAgentTask'
 
 const AGENT_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_AGENT_ID = '22222222-2222-4222-8222-222222222222'
@@ -111,13 +100,24 @@ describe('heartbeatSchedule', () => {
     mkdirSync(path.join(agentsRoot, id), { recursive: true })
     dbh.db
       .insert(agentTable)
-      .values({ id, type, name: `Agent ${id}`, instructions: '', orderKey: id, configuration })
+      .values({
+        id,
+        type,
+        name: `Agent ${id}`,
+        instructions: '',
+        orderKey: id,
+        configuration: { heartbeat_enabled: true, ...configuration }
+      })
       .run()
   }
 
   /** Flip the agent's stored heartbeat configuration, as a config save would. */
   function setAgentConfiguration(id: string, configuration: AgentConfiguration): void {
-    dbh.db.update(agentTable).set({ configuration }).where(eq(agentTable.id, id)).run()
+    dbh.db
+      .update(agentTable)
+      .set({ configuration: { heartbeat_enabled: true, ...configuration } })
+      .where(eq(agentTable.id, id))
+      .run()
   }
 
   beforeAll(async () => {
@@ -156,6 +156,7 @@ describe('heartbeatSchedule', () => {
 
   beforeEach(async () => {
     notifyDataApiDataChangeMock.mockClear()
+    heartbeatFileGate.entered.mockClear()
     for (const { id } of jobScheduleService.listAll({ type: 'agent.task' })) {
       await jobManager.unregisterJobScheduleById(id)
     }
@@ -174,7 +175,26 @@ describe('heartbeatSchedule', () => {
     rmSync(agentsRoot, { recursive: true, force: true })
   })
 
-  it('removes a newly created workspace when heartbeat.md is a directory', async () => {
+  it('does not provision heartbeat until the Agent explicitly opts in', async () => {
+    seedAgent(AGENT_ID, { heartbeat_enabled: undefined })
+    expect(await syncHeartbeatSchedule(AGENT_ID)).toBe('skipped-disabled')
+    expect(heartbeatRows(AGENT_ID)).toEqual([])
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+  })
+
+  it('pauses a legacy enabled schedule when the Agent has no saved heartbeat toggle', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    setAgentConfiguration(AGENT_ID, { heartbeat_enabled: undefined })
+
+    await repairHeartbeatSchedules()
+
+    expect(jobScheduleService.getById(row.id)?.enabled).toBe(false)
+    expect(scheduler.has(`schedule:${row.id}`)).toBe(false)
+  })
+
+  it('does not provision a schedule or workspace when heartbeat.md is a directory', async () => {
     seedAgent(AGENT_ID)
     mkdirSync(path.join(agentsRoot, AGENT_ID, 'heartbeat.md'))
 
@@ -227,9 +247,10 @@ describe('heartbeatSchedule', () => {
     })
     expect(row.jobInputTemplate).toMatchObject({
       agentId: AGENT_ID,
-      prompt: '__heartbeat__',
-      workspace: { type: 'user' }
+      prompt: '__heartbeat__'
     })
+    expect(row.jobInputTemplate).not.toHaveProperty('workspace')
+    expect(agentWorkspaceService.list()).toEqual([])
     // Anti-regression for the two-step design: a committed row without a
     // timer is the silent no-op #19203 reported.
     expect(scheduler.has(`schedule:${row.id}`)).toBe(true)
@@ -259,7 +280,11 @@ describe('heartbeatSchedule', () => {
     expect(row).toBeDefined()
     // Simulate the residue of a deletion sweep whose unregister failed: the
     // agent is gone but the schedule row (and its workspace) outlive it.
-    const workspaceId = (row.jobInputTemplate as { workspace: { workspaceId: string } }).workspace.workspaceId
+    const workspace = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, AGENT_ID))
+    const workspaceId = workspace.id
+    jobScheduleService.update(row.id, {
+      jobInputTemplate: { ...(row.jobInputTemplate as object), workspace: { type: 'user', workspaceId } }
+    })
     expect(dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspaceId)).all()).toHaveLength(
       1
     )
@@ -405,8 +430,7 @@ describe('heartbeatSchedule', () => {
 
   it('repairs a migrated legacy row in place, preserving its name', async () => {
     seedAgent(AGENT_ID)
-    // The v1→v2 migration writes sentinel rows with a system workspace — the
-    // shape runAgentTask skips forever. Name stays the v1 literal.
+    // Older schedules can contain an explicit workspace source.
     const { id } = jobManager.registerJobSchedule({
       type: 'agent.task',
       name: 'heartbeat',
@@ -427,7 +451,7 @@ describe('heartbeatSchedule', () => {
     expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
     const row = jobScheduleService.getById(id)
     expect(row?.name).toBe('heartbeat')
-    expect(row?.jobInputTemplate).toMatchObject({ workspace: { type: 'user' } })
+    expect(row?.jobInputTemplate).not.toHaveProperty('workspace')
     expect(scheduler.has(`schedule:${id}`)).toBe(true)
   })
 
@@ -571,7 +595,6 @@ describe('heartbeatSchedule', () => {
     expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
     // The winner was repaired to the canonical shape the sync would have written.
     expect(jobScheduleService.getById(id)?.jobInputTemplate).toMatchObject({
-      workspace: { type: 'user' },
       reuseRevision: 0
     })
     expect(scheduler.has(`schedule:${id}`)).toBe(true)
@@ -600,8 +623,7 @@ describe('heartbeatSchedule', () => {
 
     expect(outcome).toBe('updated')
     expect(jobScheduleService.getById(id)?.jobInputTemplate).toMatchObject({
-      prompt: '__heartbeat__',
-      workspace: { type: 'user' }
+      prompt: '__heartbeat__'
     })
     expect(scheduler.has(`schedule:${id}`)).toBe(true)
   })
@@ -685,8 +707,7 @@ describe('heartbeatSchedule', () => {
     expect(outcome).toBe('updated')
     expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
     expect(jobScheduleService.getById(id)?.jobInputTemplate).toMatchObject({
-      prompt: '__heartbeat__',
-      workspace: { type: 'user' }
+      prompt: '__heartbeat__'
     })
     expect(scheduler.has(`schedule:${id}`)).toBe(true)
   })
@@ -856,14 +877,15 @@ describe('heartbeatSchedule', () => {
     await repairHeartbeatSchedules()
 
     expect(jobScheduleService.getById(row.id)).toMatchObject({ enabled: false })
-    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
     expect(scheduler.has(`schedule:${row.id}`)).toBe(false)
   })
 
   it('retains and pauses a heartbeat created while its agent moves into trash', async () => {
     seedAgent(AGENT_ID)
-    const original = agentWorkspaceService.findOrCreateByPathResult.bind(agentWorkspaceService)
-    const spy = vi.spyOn(agentWorkspaceService, 'findOrCreateByPathResult').mockImplementation((...args) => {
+    const heartbeat = await import('../heartbeat')
+    const original = heartbeat.ensureHeartbeatFile
+    const spy = vi.spyOn(heartbeat, 'ensureHeartbeatFile').mockImplementation((...args) => {
       dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
       return original(...args)
     })
@@ -875,7 +897,7 @@ describe('heartbeatSchedule', () => {
 
     const [row] = heartbeatRows(AGENT_ID)
     expect(row).toMatchObject({ enabled: false, metadata: { agentTrash: { resumeOnRestore: true } } })
-    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
     expect(scheduler.has(`schedule:${row.id}`)).toBe(false)
   })
 
@@ -884,8 +906,9 @@ describe('heartbeatSchedule', () => {
     // schedule commit — the onAgentDeleted sweep has already run, so the
     // committed row would be orphaned without the post-commit re-check.
     seedAgent(AGENT_ID)
-    const original = agentWorkspaceService.findOrCreateByPathResult.bind(agentWorkspaceService)
-    const spy = vi.spyOn(agentWorkspaceService, 'findOrCreateByPathResult').mockImplementation((...args) => {
+    const heartbeat = await import('../heartbeat')
+    const original = heartbeat.ensureHeartbeatFile
+    const spy = vi.spyOn(heartbeat, 'ensureHeartbeatFile').mockImplementation((...args) => {
       dbh.db.delete(agentTable).where(eq(agentTable.id, AGENT_ID)).run()
       return original(...args)
     })
@@ -896,7 +919,6 @@ describe('heartbeatSchedule', () => {
     expect(outcome).toBe('skipped-missing-agent')
     expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
     expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
-    // The workspace this sync created is rolled back along with the schedule.
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
   })
 
@@ -910,8 +932,9 @@ describe('heartbeatSchedule', () => {
     // Drift the row so the second sync takes the repair branch rather than noop.
     setAgentConfiguration(AGENT_ID, { heartbeat_interval: 45 })
 
-    const original = agentWorkspaceService.findOrCreateByPathResult.bind(agentWorkspaceService)
-    const spy = vi.spyOn(agentWorkspaceService, 'findOrCreateByPathResult').mockImplementation((...args) => {
+    const heartbeat = await import('../heartbeat')
+    const original = heartbeat.ensureHeartbeatFile
+    const spy = vi.spyOn(heartbeat, 'ensureHeartbeatFile').mockImplementation((...args) => {
       dbh.db.delete(agentTable).where(eq(agentTable.id, AGENT_ID)).run()
       return original(...args)
     })
@@ -921,9 +944,7 @@ describe('heartbeatSchedule', () => {
 
     expect(outcome).toBe('skipped-missing-agent')
     expect(jobScheduleService.getById(row.id)).toBeNull()
-    // The workspace predated this sync (find-or-create reused it), so the
-    // deletion path must leave it alone — only rows this sync created roll back.
-    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
   })
 
   it('unregisters a paused row when the agent is deleted mid-sync', async () => {
@@ -983,10 +1004,7 @@ describe('heartbeatSchedule', () => {
     await expect(drainHeartbeatWork()).resolves.toBe(true)
   })
 
-  it('rolls back a newly created workspace row when heartbeat-file provisioning fails', async () => {
-    // The workspace is created before heartbeat.md so a SYSTEM-owned path
-    // leaves no orphaned file — but the reverse failure (file provisioning
-    // fails after the workspace insert) must not orphan the workspace row.
+  it('leaves no schedule or workspace when heartbeat-file provisioning fails', async () => {
     seedAgent(AGENT_ID)
     chmodSync(path.join(agentsRoot, AGENT_ID), 0o555)
 
@@ -996,10 +1014,7 @@ describe('heartbeatSchedule', () => {
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
   })
 
-  it('rolls back a newly created workspace row when schedule registration fails', async () => {
-    // Same orphan rule, later failure point: the register throws after the
-    // workspace insert (and after the file seeded) — the workspace row must
-    // not survive a sync that produced no schedule.
+  it('leaves no schedule or workspace when schedule registration fails', async () => {
     seedAgent(AGENT_ID)
     const spy = vi.spyOn(jobManager, 'registerJobScheduleTx').mockImplementationOnce(() => {
       throw new Error('register blew up')
@@ -1172,7 +1187,7 @@ describe('heartbeatSchedule', () => {
     const row = jobScheduleService.getById(id)
     expect(row?.enabled).toBe(false)
     expect(row?.trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
-    expect(row?.jobInputTemplate).toMatchObject({ workspace: { type: 'user' } })
+    expect(row?.jobInputTemplate).not.toHaveProperty('workspace')
     // The trigger drift is persisted but the timer is NOT re-armed — the row
     // stays stopped until the user resets via the heartbeat toggle off/on.
     // (The breaker's own pause disposed the timer; sync must not revive it.)
@@ -1247,9 +1262,7 @@ describe('heartbeatSchedule', () => {
     expect(jobScheduleService.getById(id)?.enabled).toBe(true)
   })
 
-  it('does not seed heartbeat.md when the workspace path is owned by a system row', async () => {
-    // Ordering guard: findOrCreateByPath throws for a SYSTEM-owned path — the
-    // file must not be provisioned first and orphaned (wedging future syncs).
+  it('provisions independently of an existing workspace row at the agent directory', async () => {
     seedAgent(AGENT_ID)
     const workspacePath = path.join(agentsRoot, AGENT_ID)
     dbh.db
@@ -1257,8 +1270,9 @@ describe('heartbeatSchedule', () => {
       .values({ name: 'legacy system workspace', path: workspacePath, type: 'system', orderKey: AGENT_ID })
       .run()
     try {
-      await expect(syncHeartbeatSchedule(AGENT_ID)).rejects.toThrow()
-      await expect(readFile(path.join(workspacePath, 'heartbeat.md'))).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(syncHeartbeatSchedule(AGENT_ID)).resolves.toBe('created')
+      expect(await readFile(path.join(workspacePath, 'heartbeat.md'), 'utf8')).toContain('<!--')
+      expect(heartbeatRows(AGENT_ID)[0].jobInputTemplate).not.toHaveProperty('workspace')
     } finally {
       dbh.db.delete(agentWorkspaceTable).run()
     }
@@ -1305,7 +1319,7 @@ describe('heartbeatSchedule', () => {
       release = resolve
     })
     const pending = service.syncHeartbeat(AGENT_ID)
-    await vi.waitFor(() => expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1))
+    await vi.waitFor(() => expect(heartbeatFileGate.entered).toHaveBeenCalled())
     const hold = service.pause('backup')
     await service.syncHeartbeat(OTHER_AGENT_ID)
     expect(await drainHeartbeatWork({ timeoutMs: 10 })).toBe(false)
@@ -1331,32 +1345,113 @@ describe('heartbeatSchedule', () => {
     ensure.mockRestore()
   })
 
-  it('recovers the SYSTEM template produced by the real workspace deletion cascade', async () => {
+  it.each([true, false])('cleans an unused historical workspace even when heartbeat enabled=%s', async (enabled) => {
     seedAgent(AGENT_ID)
-    await service.syncHeartbeat(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
     const [row] = heartbeatRows(AGENT_ID)
-    const oldWorkspace = (row.jobInputTemplate as AgentTaskInput).workspace
-    if (oldWorkspace.type !== 'user') throw new Error('Expected user workspace')
-    agentSessionService.deleteWorkspaceCascadeWithImpact(oldWorkspace.workspaceId)
-    const input = jobScheduleService.getById(row.id)!.jobInputTemplate as AgentTaskInput
-    expect(input.workspace).toEqual({ type: 'system' })
-    const job = jobService.create({
-      type: 'agent.task',
-      status: 'running',
-      queue: 'test',
-      input,
-      scheduleId: row.id,
-      scheduledAt: Date.now()
+    const directory = path.join(agentsRoot, AGENT_ID)
+    const workspace = agentWorkspaceService.findOrCreateByPath(directory)
+    jobScheduleService.update(row.id, {
+      jobInputTemplate: { ...(row.jobInputTemplate as object), workspace: { type: 'user', workspaceId: workspace.id } }
     })
-    await runAgentTask({ jobId: job.id, input } as JobContext<AgentTaskInput>)
-    await drainHeartbeatWork()
-    const repaired = jobScheduleService.getById(row.id)!
-    expect(repaired.enabled).toBe(true)
-    const workspace = (repaired.jobInputTemplate as AgentTaskInput).workspace
-    expect(workspace.type).toBe('user')
-    if (workspace.type !== 'user') throw new Error('Expected repaired user workspace')
-    expect(workspace.workspaceId).not.toBe(oldWorkspace.workspaceId)
-    expect(agentWorkspaceService.getById(workspace.workspaceId).path).toBe(path.join(agentsRoot, AGENT_ID))
+    setAgentConfiguration(AGENT_ID, { heartbeat_enabled: enabled })
+
+    await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(jobScheduleService.getById(row.id)?.jobInputTemplate).not.toHaveProperty('workspace')
+    expect(agentWorkspaceService.list({ includeSystem: true })).toEqual([])
+    expect(await readFile(path.join(directory, 'heartbeat.md'), 'utf8')).toContain('<!--')
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ endpoint: '/agent-workspaces', kind: 'membership' })])
+    )
+  })
+
+  it('rolls back every legacy binding when a later cleanup fails', async () => {
+    seedAgent(AGENT_ID)
+    const workspace = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, AGENT_ID))
+    const input = { agentId: AGENT_ID, prompt: '__heartbeat__', workspace: { type: 'user', workspaceId: workspace.id } }
+    const rows = ['first', 'second'].map((name) =>
+      jobScheduleService.create({
+        type: 'agent.task',
+        name,
+        trigger: { kind: 'interval', ms: 60000 },
+        jobInputTemplate: input,
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+    )
+    const original = agentWorkspaceService.deleteIfUnreferencedTx.bind(agentWorkspaceService)
+    const failure = vi
+      .spyOn(agentWorkspaceService, 'deleteIfUnreferencedTx')
+      .mockImplementationOnce(original)
+      .mockImplementationOnce(() => {
+        throw new Error('cleanup failed')
+      })
+    notifyDataApiDataChangeMock.mockClear()
+    try {
+      await expect(syncHeartbeatSchedule(AGENT_ID, rows)).rejects.toThrow('cleanup failed')
+      for (const row of rows) expect(jobScheduleService.getById(row.id)?.jobInputTemplate).toEqual(input)
+      expect(agentWorkspaceService.getById(workspace.id).id).toBe(workspace.id)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    } finally {
+      failure.mockRestore()
+    }
+  })
+
+  it('hides an old background-only workspace without deleting its session', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    const workspace = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, AGENT_ID))
+    const session = agentSessionService.create(
+      {
+        agentId: AGENT_ID,
+        name: 'Previous heartbeat',
+        workspace: { type: 'user', workspaceId: workspace.id }
+      },
+      'background'
+    )
+    jobScheduleService.update(row.id, {
+      jobInputTemplate: { ...(row.jobInputTemplate as object), workspace: { type: 'user', workspaceId: workspace.id } }
+    })
+
+    await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(agentWorkspaceService.list()).toEqual([])
+    expect(agentSessionService.getById(session.id).workspaceId).toBe(workspace.id)
+  })
+
+  it('does not delete a user project referenced by an old heartbeat', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    const workspace = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, 'project'))
+    jobScheduleService.update(row.id, {
+      jobInputTemplate: { ...(row.jobInputTemplate as object), workspace: { type: 'user', workspaceId: workspace.id } }
+    })
+
+    await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(agentWorkspaceService.list().map((value) => value.id)).toEqual([workspace.id])
+  })
+
+  it('removes an old workspace binding without deleting its workspace or history', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    const workspace = agentWorkspaceService.findOrCreateByPath(path.join(agentsRoot, AGENT_ID))
+    const session = agentSessionService.create({
+      agentId: AGENT_ID,
+      name: 'Previous heartbeat',
+      workspace: { type: 'user', workspaceId: workspace.id }
+    })
+    jobScheduleService.update(row.id, {
+      jobInputTemplate: { ...(row.jobInputTemplate as object), workspace: { type: 'user', workspaceId: workspace.id } }
+    })
+
+    expect(await syncHeartbeatSchedule(AGENT_ID)).toBe('updated')
+    expect(jobScheduleService.getById(row.id)?.jobInputTemplate).not.toHaveProperty('workspace')
+    expect(agentSessionService.getById(session.id).workspaceId).toBe(workspace.id)
+    expect(agentWorkspaceService.getById(workspace.id).path).toBe(path.join(agentsRoot, AGENT_ID))
     expect(scheduler.has(`schedule:${row.id}`)).toBe(true)
   })
 
@@ -1371,7 +1466,7 @@ describe('heartbeatSchedule', () => {
     expect(heartbeatRows(AGENT_ID)[0]).toMatchObject({ enabled: true, trigger: { kind: 'interval', ms: 2700000 } })
   })
 
-  it('stops after admitted IO and compensates a new workspace without arming a schedule', async () => {
+  it('stops after admitted IO without arming a schedule or creating a workspace', async () => {
     seedAgent(AGENT_ID)
     let release!: () => void
     heartbeatFileGate.current = new Promise<void>((resolve) => {
@@ -1379,7 +1474,7 @@ describe('heartbeatSchedule', () => {
     })
     const pending = service.syncHeartbeat(AGENT_ID)
     const rejected = expect(pending).rejects.toThrow()
-    await vi.waitFor(() => expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1))
+    await vi.waitFor(() => expect(heartbeatFileGate.entered).toHaveBeenCalled())
     const stopping = service._doStop()
     await service.syncHeartbeat(OTHER_AGENT_ID)
     release()

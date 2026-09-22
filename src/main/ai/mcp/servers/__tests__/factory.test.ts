@@ -8,7 +8,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({})
 })
 
-const { createInMemoryMcpServer, getBuiltinHttpHeaders, getBuiltinRegistryEnv } = await import('../factory')
+const { createInMemoryMcpServer, getBuiltinAutoInstallEnv, getBuiltinHttpHeaders } = await import('../factory')
 
 const server = (overrides: Partial<McpServer>): McpServer => ({
   id: 'id',
@@ -18,38 +18,36 @@ const server = (overrides: Partial<McpServer>): McpServer => ({
   ...overrides
 })
 
-describe('getBuiltinRegistryEnv', () => {
-  it('points mcp-auto-install at the registered catalog path when a registry is configured', () => {
-    const autoInstall = {
-      name: BuiltinMcpServerNames.mcpAutoInstall,
-      command: 'npx',
-      installSource: 'builtin' as const
-    }
+describe('getBuiltinAutoInstallEnv', () => {
+  const autoInstall = {
+    name: BuiltinMcpServerNames.mcpAutoInstall,
+    command: 'npx',
+    installSource: 'builtin' as const
+  }
+  const cherryOwnedPaths = {
+    MCP_REGISTRY_PATH: '/mock/feature.mcp.registry_file',
+    MCP_SETTINGS_PATH: '/mock/feature.mcp.auto_install_settings_file'
+  }
 
-    expect(getBuiltinRegistryEnv(server({ ...autoInstall, registryUrl: 'https://npm.example' }))).toEqual({
-      MCP_REGISTRY_PATH: '/mock/feature.mcp.registry_file'
-    })
-    expect(getBuiltinRegistryEnv(server(autoInstall))).toEqual({})
+  it('keeps the cache and config writes inside the Cherry tree whether or not an npm mirror is set', () => {
+    expect(getBuiltinAutoInstallEnv(server(autoInstall))).toEqual(cherryOwnedPaths)
+    expect(getBuiltinAutoInstallEnv(server({ ...autoInstall, registryUrl: 'https://npm.example' }))).toEqual(
+      cherryOwnedPaths
+    )
   })
 
   it('leaves every other server alone', () => {
-    const other = server({ name: 'my-server', command: 'node', registryUrl: 'https://npm.example' })
-    const collision = server({
-      name: BuiltinMcpServerNames.mcpAutoInstall,
-      installSource: 'manual',
-      command: 'npx',
-      registryUrl: 'https://npm.example'
-    })
+    const other = server({ name: 'my-server', command: 'node' })
+    const collision = server({ name: BuiltinMcpServerNames.mcpAutoInstall, installSource: 'manual', command: 'npx' })
     const prefix = server({
       name: `${BuiltinMcpServerNames.mcpAutoInstall}-custom`,
       installSource: 'builtin',
-      command: 'npx',
-      registryUrl: 'https://npm.example'
+      command: 'npx'
     })
 
-    expect(getBuiltinRegistryEnv(other)).toEqual({})
-    expect(getBuiltinRegistryEnv(collision)).toEqual({})
-    expect(getBuiltinRegistryEnv(prefix)).toEqual({})
+    expect(getBuiltinAutoInstallEnv(other)).toEqual({})
+    expect(getBuiltinAutoInstallEnv(collision)).toEqual({})
+    expect(getBuiltinAutoInstallEnv(prefix)).toEqual({})
   })
 })
 

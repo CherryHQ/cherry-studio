@@ -16,6 +16,7 @@ import { getMcpTypeLabelKey } from '@renderer/i18n/label'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -135,7 +136,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       event.stopPropagation()
 
       if (server.providerUrl) {
-        window.open(server.providerUrl, '_blank')
+        void openExternalWebsite(server.providerUrl)
       }
     },
     [server.providerUrl]

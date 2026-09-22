@@ -19,6 +19,7 @@ import type { AskUserQuestionAnswer, AskUserQuestionRequest } from '@deepseek-ai
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createForkCheckpoint, forkSession } from '../src/fork'
+import * as bridgePlugin from '../src/plugin'
 import { apply } from '../src/plugin'
 import { BRIDGE_SOCKET_ENV, BRIDGE_TOKEN_ENV, type BridgePermissionMode } from '../src/protocol'
 
@@ -146,36 +147,61 @@ describe('cherry bridge plugin', () => {
     ).resolves.toMatchObject({ kind: 'deny' })
   })
 
-  it('snapshots only the completed prefix while the source has an interrupted later turn', async () => {
+  it('flushes a live session through injected services before forking its completed prefix', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-live-fork-'))
     const context = new Context()
+    cleanup.push(async () => {
+      await context.fiber.dispose()
+      await rm(directory, { recursive: true, force: true })
+    })
+    const sourceRoot = path.join(directory, 'source')
     await context.plugin(SessionStore)
-    cleanup.push(() => context.fiber.dispose())
-    const session = context.sessions.create(SessionId('session-1'))
+    await context.plugin(JsonlSessionPersistence, { root: sourceRoot, writeBatchMaxDelayMs: 60_000 })
+    const session = context.sessions.create(SessionId('session-1'), { meta: { cwd: directory } })
     session.append('turn/start', { turn: 0 })
     const end = session.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
     const later = session.append('turn/start', { turn: 1 })
     const sourceEvents = session.snapshotEvents()
-    expect(interruptedTurnClosers(sourceEvents).length).toBeGreaterThan(0)
     const host = await startHost()
-    const ctx = makeContext({ agents: { get: () => ({ session }) } })
+    for (const [name, service] of Object.entries({
+      approval: {},
+      agents: { get: (id: string) => (id === session.id ? { session } : undefined) },
+      tools: { guard: () => () => undefined },
+      tokenMeter: {},
+      subagents: {},
+      userQuestions: {},
+      planMode: {}
+    }))
+      context.provide(name, service)
     process.env[BRIDGE_SOCKET_ENV] = host.socketPath
     process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
-    apply(ctx)
+    await context.plugin(bridgePlugin)
     await expect.poll(() => host.requests[0]?.method).toBe('ready')
-    const expected = sourceEvents.slice(0, end.seq + 1)
-    const checkpoint = createForkCheckpoint(expected, end.seq)
-    const reordered = expected.map(({ data, ...event }) => ({ data, ...event }))
-    expect(createForkCheckpoint(reordered, end.seq)).toEqual(checkpoint)
-    expect(interruptedTurnClosers(expected)).toEqual([])
-    await expect(host.request('session/fork-snapshot', { sessionId: 'session-1', boundary: end.seq })).resolves.toEqual(
-      {
-        events: expected
-      }
-    )
-    await expect(
-      host.request('session/fork-snapshot', { sessionId: 'session-1', boundary: later.seq })
-    ).rejects.toThrow('history_changed')
-    expect(session.snapshotEvents()).toEqual(sourceEvents)
+    await expect(host.request('session/flush', { sessionId: session.id })).resolves.toEqual({})
+    await expect(host.request('session/flush', { sessionId: 'missing' })).rejects.toThrow('no live agent')
+    const forkInput = {
+      sourceRoot,
+      targetRoot: path.join(directory, 'child'),
+      sourceSessionId: session.id,
+      targetSessionId: 'child',
+      targetCwd: directory,
+      boundary: end.seq,
+      checkpoints: [{ boundary: end.seq }]
+    }
+    await expect(forkSession({ ...forkInput, boundary: later.seq })).rejects.toThrow('history_changed')
+    await forkSession(forkInput)
+    const reader = new Context()
+    try {
+      await reader.plugin(SessionStore)
+      await reader.plugin(JsonlSessionPersistence, { root: forkInput.targetRoot })
+      const stored = await (reader.sessionPersistence as JsonlSessionPersistence).loadStored(SessionId('child'))
+      expect(stored?.events.slice(0, end.seq + 1)).toEqual(sourceEvents.slice(0, end.seq + 1))
+      expect(stored?.events.at(-1)?.type).toBe('session/end-seed')
+      expect(interruptedTurnClosers(stored!.events)).toEqual([])
+      expect(session.snapshotEvents()).toEqual(sourceEvents)
+    } finally {
+      await reader.fiber.dispose()
+    }
   })
 
   it('surfaces native resume failure without creating an empty conversation', async () => {
@@ -194,76 +220,69 @@ describe('cherry bridge plugin', () => {
     expect(create).not.toHaveBeenCalled()
   })
 
-  it.each([false, true])(
-    'forks the verified prefix through a child and grandchild without an Agent loop (live=%s)',
-    async (live) => {
-      const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-cold-fork-'))
-      cleanup.push(() => rm(directory, { recursive: true, force: true }))
-      const source = new Context()
-      const root = path.join(directory, 'source')
-      await source.plugin(SessionStore)
-      await source.plugin(JsonlSessionPersistence, { root })
-      const session = source.sessions.create(SessionId('source'), { meta: { cwd: directory } })
-      session.append('turn/start', { turn: 0 })
-      const end = session.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
-      const checkpoint = createForkCheckpoint(session.snapshotEvents(), end.seq)
-      session.append('turn/start', { turn: 1 })
-      await source.sessionPersistence.ensureMaterialized(session)
-      await source.sessions.flush(session)
-      await source.fiber.dispose()
-      let sourceRoot = root
-      let sourceId = 'source'
-      let sourceEvents = session.snapshotEvents()
-      for (const targetSessionId of ['child', 'grandchild']) {
-        const targetRoot = path.join(directory, targetSessionId)
-        const targetCwd = path.join(directory, targetSessionId + '-cwd')
-        await expect(
-          forkSession({
-            sourceRoot,
-            targetRoot,
-            sourceSessionId: sourceId,
-            targetSessionId: 'bad',
-            targetCwd,
-            ...checkpoint,
-            checkpoints: [checkpoint],
-            events: live ? sourceEvents : undefined,
-            boundary: end.seq - 1
-          })
-        ).rejects.toThrow('history_changed')
-        await forkSession({
+  it('forks the verified prefix through a child and grandchild without an Agent loop', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-cold-fork-'))
+    cleanup.push(() => rm(directory, { recursive: true, force: true }))
+    const source = new Context()
+    const root = path.join(directory, 'source')
+    await source.plugin(SessionStore)
+    await source.plugin(JsonlSessionPersistence, { root })
+    const session = source.sessions.create(SessionId('source'), { meta: { cwd: directory } })
+    session.append('turn/start', { turn: 0 })
+    const end = session.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
+    const checkpoint = createForkCheckpoint(session.snapshotEvents(), end.seq)
+    session.append('turn/start', { turn: 1 })
+    await source.sessionPersistence.ensureMaterialized(session)
+    await source.sessions.flush(session)
+    await source.fiber.dispose()
+    let sourceRoot = root
+    let sourceId = 'source'
+    for (const targetSessionId of ['child', 'grandchild']) {
+      const targetRoot = path.join(directory, targetSessionId)
+      const targetCwd = path.join(directory, targetSessionId + '-cwd')
+      await expect(
+        forkSession({
           sourceRoot,
           targetRoot,
           sourceSessionId: sourceId,
-          targetSessionId,
+          targetSessionId: 'bad',
           targetCwd,
           ...checkpoint,
           checkpoints: [checkpoint],
-          events: live ? sourceEvents : undefined
+          boundary: end.seq - 1
         })
-        await rm(sourceRoot, { recursive: true, force: true })
-        const reader = new Context()
-        try {
-          await reader.plugin(SessionStore)
-          await reader.plugin(JsonlSessionPersistence, { root: targetRoot })
-          const stored = await (reader.sessionPersistence as JsonlSessionPersistence).loadStored(
-            SessionId(targetSessionId)
-          )
-          expect(stored?.events).toHaveLength(end.seq + 2)
-          expect(stored?.events[end.seq]).toMatchObject({ type: 'turn/end', seq: end.seq })
-          expect(stored?.events.at(-1)).toMatchObject({ type: 'session/end-seed' })
-          expect(stored?.meta).toMatchObject({ id: targetSessionId, cwd: targetCwd })
-          expect(stored?.meta?.parentSession).toBeUndefined()
-          expect(stored?.inheritedEventCount).toBe(end.seq + 1)
-          expect(createForkCheckpoint(stored!.events, end.seq)).toEqual(checkpoint)
-          sourceEvents = stored!.events
-        } finally {
-          await reader.fiber.dispose()
-        }
-        sourceRoot = targetRoot
-        sourceId = targetSessionId
+      ).rejects.toThrow('history_changed')
+      await forkSession({
+        sourceRoot,
+        targetRoot,
+        sourceSessionId: sourceId,
+        targetSessionId,
+        targetCwd,
+        ...checkpoint,
+        checkpoints: [checkpoint]
+      })
+      await rm(sourceRoot, { recursive: true, force: true })
+      const reader = new Context()
+      try {
+        await reader.plugin(SessionStore)
+        await reader.plugin(JsonlSessionPersistence, { root: targetRoot })
+        const stored = await (reader.sessionPersistence as JsonlSessionPersistence).loadStored(
+          SessionId(targetSessionId)
+        )
+        expect(stored?.events).toHaveLength(end.seq + 2)
+        expect(stored?.events[end.seq]).toMatchObject({ type: 'turn/end', seq: end.seq })
+        expect(stored?.events.at(-1)).toMatchObject({ type: 'session/end-seed' })
+        expect(stored?.meta).toMatchObject({ id: targetSessionId, cwd: targetCwd })
+        expect(stored?.meta?.parentSession).toBeUndefined()
+        expect(stored?.inheritedEventCount).toBe(end.seq + 1)
+        expect(createForkCheckpoint(stored!.events, end.seq)).toEqual(checkpoint)
+      } finally {
+        await reader.fiber.dispose()
       }
+      sourceRoot = targetRoot
+      sourceId = targetSessionId
     }
-  )
+  })
 
   it('executes fork I/O while the source writes', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-fork-io-'))

@@ -642,6 +642,7 @@ const AgentChatSessionCenter = ({
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
       <AgentComposerSlot
+        editBusy={runtime.editBusy}
         agentId={agentId}
         activeAgent={activeAgent}
         activeModel={activeModel}
@@ -658,6 +659,9 @@ const AgentChatSessionCenter = ({
         onCreateEmptySession={onCreateEmptySession}
         composerContext={runtime.composerContext}
         composerLaunchOptions={composerLaunchOptions}
+        editing={runtime.editing}
+        cancelEditing={runtime.cancelEditing}
+        resendEditedMessage={runtime.resendEditedMessage}
       />
     </div>
   )
@@ -679,6 +683,8 @@ const AgentChatSessionCenter = ({
       onOpenCitationsPanel={onOpenCitationsPanel}
       openDiagnosticReport={openDiagnosticReport}
       deleteMessage={runtime.deleteMessage}
+      startEditing={runtime.startEditing}
+      editBusy={runtime.editBusy}
       respondToolApproval={runtime.respondToolApproval}
     />
   )

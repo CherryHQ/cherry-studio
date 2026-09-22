@@ -1,7 +1,6 @@
 {
   "agent.builtin.cherry_assistant.description": "Cherry Studio 内蔵のアドバイザーです。問題の診断、操作案内、FAQ の収集、バグや機能リクエストの送信、スキルの検索と作成を行います。",
   "agent.builtin.cherry_support.description": "設定案内、トラブル診断、FAQ、フィードバックに対応する Cherry Studio 公式サポート Agent",
-  "agent.heartbeat.workspace_name": "ハートビート — {{name}}",
   "agent.session.dsh.bun_unavailable": "同梱のランタイムを利用できないため、DSH を起動できませんでした。Cherry Studio を再インストールして、もう一度お試しください。",
   "agent.session.dsh.bun_unavailable_dev": "同梱のランタイムを利用できないため、DSH を起動できませんでした。開発用リポジトリで pnpm download:binaries を実行して、もう一度お試しください。",
   "agent.session.fork.execution_not_inherited": "この分岐セッションには実行状態が引き継がれていません。",
@@ -79,6 +78,10 @@
   "common.inspect": "要素を調査",
   "common.paste": "貼り付け",
   "dialog.all_files": "すべてのファイル",
+  "dialog.architecture_mismatch.detail": "お使いの Mac は Apple チップを搭載していますが、現在の Cherry Studio は Intel 版のため、Rosetta 経由で動作しています。動作が遅くなる可能性があります。公式サイトから macOS Apple シリコン（ARM64）版をダウンロードしてインストールしてください。",
+  "dialog.architecture_mismatch.download": "ダウンロードページを開く",
+  "dialog.architecture_mismatch.later": "後で",
+  "dialog.architecture_mismatch.title": "Apple シリコン版をインストールしてください",
   "dialog.data_reset.cancel": "キャンセル",
   "dialog.data_reset.confirm": "リセットして再起動",
   "dialog.data_reset.message": "チャット、アシスタント、ナレッジベース、ファイル、設定を消去して、アプリを再起動します。この操作は元に戻せません。続行しますか？",

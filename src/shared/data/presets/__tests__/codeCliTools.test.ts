@@ -24,7 +24,8 @@ const EXPECTED_ACQUISITION_FACTS = [
   ['qoder-cli', 'qoderclicn', '@qodercn-ai/qoderclicn', 'npm', 'npm:@qodercn-ai/qoderclicn'],
   ['github-copilot-cli', 'copilot', '@github/copilot', 'npm', 'npm:@github/copilot'],
   ['pi', 'pi', '@earendil-works/pi-coding-agent', 'npm', 'npm:@earendil-works/pi-coding-agent'],
-  ['hermes', 'hermes', 'hermes-agent', 'pipx', 'pipx:hermes-agent[extras=web]']
+  ['hermes', 'hermes', 'hermes-agent', 'pipx', 'pipx:hermes-agent[extras=web]'],
+  ['minimax-code', 'mcode', '@minimax-ai/code', 'npm', 'npm:@minimax-ai/code']
 ]
 
 const EXPECTED_SKILL_COMMANDS: Record<CodeCli, string> = {
@@ -40,7 +41,8 @@ const EXPECTED_SKILL_COMMANDS: Record<CodeCli, string> = {
   [CodeCli.QODER_CLI]: 'qoderclicn -p "<prompt>" -o json --no-session-persistence',
   [CodeCli.GITHUB_COPILOT_CLI]: 'copilot -p "<prompt>" -s --output-format json --no-ask-user',
   [CodeCli.PI]: 'pi --mode json --no-session "<prompt>"',
-  [CodeCli.HERMES]: 'hermes -z "<prompt>"'
+  [CodeCli.HERMES]: 'hermes -z "<prompt>"',
+  [CodeCli.MINIMAX_CODE]: 'mcode exec "<prompt>"'
 }
 
 const EXPECTED_SKILL_CAVEATS: Partial<Record<CodeCli, string[]>> = {
