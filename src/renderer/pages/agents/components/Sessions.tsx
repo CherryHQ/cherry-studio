@@ -2157,7 +2157,7 @@ function SessionListBody({
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
         reserveLeadingIconSlot={
-          displayMode === 'agent' ||
+          (displayMode === 'agent' && !session.pinned) ||
           (displayMode === 'workdir' && !session.pinned && !isSystemWorkspaceSession(session))
         }
         onTogglePin={onTogglePin}
