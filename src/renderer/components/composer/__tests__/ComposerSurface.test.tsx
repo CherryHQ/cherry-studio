@@ -740,10 +740,11 @@ describe('ComposerSurface', () => {
     expect(screen.getByTestId('quick-panel-view')).toBeInTheDocument()
   })
 
-  it('opens slash suggestions after an initially hidden composer becomes active', async () => {
+  it.each(['/', '@'])('lets only the active composer control %s suggestions', async (trigger) => {
+    const suggestionSources = [{ pluginKey: 'resource', char: '@', items: () => [] }]
     const layer = (active: boolean) => (
       <ComposerLayerActiveProvider value={active}>
-        <ComposerSurface {...baseProps} quickPanelEnabled />
+        <ComposerSurface {...baseProps} quickPanelEnabled suggestionSources={suggestionSources} />
       </ComposerLayerActiveProvider>
     )
     const view = render(layer(false))
@@ -751,12 +752,51 @@ describe('ComposerSurface', () => {
     const editor = new Editor({ extensions: createComposerEditorPreset(mocks.editorPresetOptions) })
 
     try {
-      view.rerender(layer(true))
-      editor.commands.insertContent('/')
+      await act(async () => {
+        editor.commands.insertContent(trigger)
+      })
+      expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
 
-      await waitFor(() => expect(mocks.quickPanelOpen).toHaveBeenCalled())
+      view.rerender(layer(true))
+      await act(async () => {
+        editor.commands.insertContent('a')
+      })
+      expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          triggerInfo: expect.objectContaining({ originalText: `${trigger}a` })
+        })
+      )
+
+      mocks.quickPanelIsVisible = true
+      mocks.quickPanelSymbol = mocks.quickPanelOpen.mock.lastCall![0].symbol
+      view.rerender(layer(true))
+      vi.useFakeTimers()
+      await act(async () => {
+        editor.commands.clearContent()
+      })
+      view.rerender(layer(false))
+      mocks.quickPanelClose.mockClear()
+      act(() => {
+        vi.runOnlyPendingTimers()
+      })
+      expect(mocks.quickPanelClose).not.toHaveBeenCalled()
+
+      view.rerender(layer(true))
+      await act(async () => {
+        editor.commands.insertContent(trigger)
+      })
+      await act(async () => {
+        editor.commands.clearContent()
+      })
+      mocks.quickPanelClose.mockClear()
+      mocks.quickPanelGeneration += 1
+      act(() => {
+        vi.runOnlyPendingTimers()
+      })
+      expect(mocks.quickPanelClose).not.toHaveBeenCalled()
     } finally {
       editor.destroy()
+      vi.useRealTimers()
     }
   })
 

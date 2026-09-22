@@ -558,6 +558,7 @@ export default function ComposerSurfaceRuntime({
   const quickPanel = useQuickPanel()
   const layerActive = useComposerLayerActive()
   const quickPanelEnabled = enableQuickPanel && layerActive
+  const suggestionPanelActiveRef = useRef(quickPanelEnabled)
   const previousLayerActiveRef = useRef(layerActive)
   const pinnedLauncherIds = useComposerPinnedTools()
   const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
@@ -619,6 +620,13 @@ export default function ComposerSurfaceRuntime({
     sendMessageShortcut,
     setFiles
   ])
+
+  useLayoutEffect(() => {
+    suggestionPanelActiveRef.current = quickPanelEnabled
+    return () => {
+      suggestionPanelActiveRef.current = false
+    }
+  }, [quickPanelEnabled])
 
   useLayoutEffect(() => {
     if (previousLayerActiveRef.current === layerActive) return
@@ -1195,6 +1203,7 @@ export default function ComposerSurfaceRuntime({
         allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
         items: () => [],
         onActiveChange: ({ editor, query, range, text }) => {
+          if (!suggestionPanelActiveRef.current) return
           const { onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
           const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
             editor,
@@ -1265,9 +1274,11 @@ export default function ComposerSurfaceRuntime({
           })
         },
         onKeyDown: ({ event }) => {
+          if (!suggestionPanelActiveRef.current) return false
           return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
         },
         onExit: () => {
+          const panelGeneration = quickPanelRef.current.getPanelGeneration()
           // Read this pluginKey's own last-active generation. @tiptap/suggestion
           // only fires onExit when prev.active was true, so this should be at
           // least 1; ?? 0 is a defensive fallback for the type system, not a
@@ -1303,7 +1314,12 @@ export default function ComposerSurfaceRuntime({
             }
 
             const { quickPanel } = rootSuggestionStateRef.current
-            if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
+            if (
+              suggestionPanelActiveRef.current &&
+              quickPanel.getPanelGeneration() === panelGeneration &&
+              quickPanel.isVisible &&
+              quickPanel.symbol === ComposerPanelSymbol.Root
+            ) {
               quickPanel.close()
             }
           }, 0)
@@ -1324,6 +1340,7 @@ export default function ComposerSurfaceRuntime({
         ...source,
         renderMode: 'headless',
         onActiveChange: (options) => {
+          if (!suggestionPanelActiveRef.current) return
           source.onActiveChange?.(options)
 
           const { quickPanel } = suggestionPanelStateRef.current
@@ -1370,16 +1387,23 @@ export default function ComposerSurfaceRuntime({
           })
         },
         onKeyDown: (props) => {
+          if (!suggestionPanelActiveRef.current) return false
           const handledByQuickPanel = suggestionPanelStateRef.current.quickPanel.dispatchKeyDown(props.event)
           if (handledByQuickPanel) return true
           return source.onKeyDown?.(props) ?? false
         },
         onExit: (options) => {
           source.onExit?.(options)
+          const panelGeneration = quickPanelRef.current.getPanelGeneration()
 
           window.setTimeout(() => {
             const { quickPanel } = suggestionPanelStateRef.current
-            if (quickPanel.isVisible && quickPanel.symbol === source.char) {
+            if (
+              suggestionPanelActiveRef.current &&
+              quickPanel.getPanelGeneration() === panelGeneration &&
+              quickPanel.isVisible &&
+              quickPanel.symbol === source.char
+            ) {
               quickPanel.close()
             }
           }, 0)
