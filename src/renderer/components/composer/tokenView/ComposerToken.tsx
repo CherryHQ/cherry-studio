@@ -1,4 +1,4 @@
-import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import { Blocks, Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
 import { MousePointer2 } from 'lucide-react'
 import {
   type ComponentType,
@@ -58,7 +58,8 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   reference: <MessagesSquare className={tokenIconClassName} />,
   quote: <TextQuote className={tokenIconClassName} />,
   webviewAnnotation: <MousePointer2 className={tokenIconClassName} />,
-  promptVariable: <BracesVariableIcon className={tokenIconClassName} />
+  promptVariable: <BracesVariableIcon className={tokenIconClassName} />,
+  messagePart: <Blocks className={tokenIconClassName} />
 }
 
 function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
@@ -1022,6 +1023,13 @@ export function PromptVariableComposerToken(props: ComposerTokenProps) {
   return <ActiveComposerToken {...props} icon={tokenIconByKind.promptVariable} colorClassName="text-info" />
 }
 
+export function MessagePartComposerToken(props: ComposerTokenProps) {
+  return renderActiveComposerTokenElement({
+    ...props,
+    icon: tokenIconByKind.messagePart
+  })
+}
+
 export const composerInputTokenComponentByKind = {
   skill: SkillComposerToken,
   link: LinkComposerToken,
@@ -1031,7 +1039,8 @@ export const composerInputTokenComponentByKind = {
   reference: ReferenceComposerToken,
   quote: QuoteComposerToken,
   webviewAnnotation: WebviewAnnotationComposerToken,
-  promptVariable: PromptVariableComposerToken
+  promptVariable: PromptVariableComposerToken,
+  messagePart: MessagePartComposerToken
 } satisfies Record<ChatInputTokenKind, ComponentType<ComposerTokenProps>>
 
 export function ComposerToken(props: ComposerTokenProps) {
