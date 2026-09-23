@@ -106,7 +106,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async onDeactivate(): Promise<void> {
-    await this.lanMutex.runExclusive(() => this.closeRemoteAccess())
+    await this.lanMutex.runExclusive(() => {
+      application.get('RemoteAccessService').closeIngress()
+    })
     if (this.apiGateway) {
       await this.apiGateway.stop()
       this.apiGateway = null
@@ -126,6 +128,14 @@ export class ApiGatewayService extends BaseService implements Activatable {
    * persisted `enabled` pref; that is prevented on the renderer side, not by faking this state.
    */
   private publishRunningState(running: boolean): void {
+    const config = this.getCurrentConfig()
+    application
+      .get('RemoteAccessService')
+      .updateDirectEndpoint(
+        running && config.enabled && config.host === '0.0.0.0' && this.apiGateway
+          ? { port: this.apiGateway.getPort() }
+          : undefined
+      )
     try {
       application.get('CacheService').setShared('feature.api_gateway.running', running)
       application

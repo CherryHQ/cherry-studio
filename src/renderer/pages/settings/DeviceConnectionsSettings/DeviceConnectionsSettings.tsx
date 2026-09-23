@@ -37,6 +37,7 @@ const DeviceConnectionsSettings: FC = () => {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { apiGatewayConfig, apiGatewayRunning, apiGatewayLoading } = useApiGateway()
+  const discoveryStatus = useSharedCacheValue('feature.remote_access.discovery_status')
   const lanRunning = useSharedCacheValue('feature.api_gateway.lan_running') ?? false
   const {
     data: devices = [],
@@ -231,6 +232,9 @@ const DeviceConnectionsSettings: FC = () => {
               <div className="font-medium text-sm">{t(statusKey)}</div>
             </div>
             <div className="text-muted-foreground text-xs">{t(statusDescriptionKey)}</div>
+            {connectionReady && discoveryStatus === 'unavailable' && (
+              <div className="text-warning text-xs">{t('deviceConnections.discovery.unavailable')}</div>
+            )}
           </div>
         </div>
         {!gatewayAvailable ? (

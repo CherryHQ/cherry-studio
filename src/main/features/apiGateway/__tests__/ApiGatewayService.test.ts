@@ -72,6 +72,7 @@ vi.mock('@application', async () => {
     CacheService: { setShared: mockSetShared },
     AgentSessionRuntimeService: { getActiveUsageContext: mockGetActiveUsageContext },
     RemoteAccessService: {
+      updateDirectEndpoint: vi.fn(),
       closeIngress: vi.fn(),
       createInvitation: vi.fn(async () => ({
         invitationId: 'invitation',

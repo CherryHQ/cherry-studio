@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "Thu hồi quyền truy cập",
   "deviceConnections.devices.revoked": "Đã thu hồi quyền truy cập của thiết bị",
   "deviceConnections.devices.title": "Thiết bị đã ghép nối",
+  "deviceConnections.discovery.unavailable": "Không thể tìm tự động. Bạn vẫn có thể kết nối bằng địa chỉ đã cấu hình hoặc mã QR mới.",
   "deviceConnections.downloadMobile": "Tải ứng dụng di động",
   "deviceConnections.downloadMobileHint": "Cài đặt Cherry Studio trên điện thoại và kết nối với máy tính của bạn.",
   "deviceConnections.gateway.openSettings": "Mở cài đặt Cổng API",

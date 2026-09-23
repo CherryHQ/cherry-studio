@@ -1,5 +1,5 @@
 ---
-description: Proposed identity-based remote connectivity with DNS-SD discovery, VPN endpoints, transport ownership, reconnect recovery, and future relay ingress
+description: Identity-based remote connectivity design and first implementation boundaries for DNS-SD discovery, configured endpoints and serial reconnect
 sources:
   - src/main/features/apiGateway
   - src/main/services/remoteAccess
@@ -10,7 +10,7 @@ sources:
 
 # Remote Connectivity Design
 
-> 状态：待 review 的完整设计，2026-09-23。本文没有交付服务发现、原生模块或 relay 实现。
+> 状态：首期代码已实现，2026-09-23；真机网络与权限验收另行记录。下文保留完整设计，首期实施边界见下节。
 > 本期目标是更换网络地址后自动恢复同一台已配对桌面的访问。后续 relay 只预留必要边界，不在本期实现。
 > 已确认的简化决策：持久保存配对关系和用户显式配置；自动发现地址、扫码位置提示和最近成功端点只保存在内存。
 
@@ -19,7 +19,26 @@ sources:
 [Agent API](../ai/remote-agent-access.md)继续负责业务 RPC、事件、checkpoint 与命令回执；本文不复制或改变这些业务契约。
 [API Gateway](./README.md)继续负责本机 HTTP 服务与直接 WebSocket 入口。
 
-## 1. 问题与当前实现
+## 首期实施边界
+
+- 桌面 `RemoteAdvertisement` 使用现有 Bonjour 库发布 `_cherry-remote._tcp`；TXT 仅公开身份与发现版本，
+  SRV 使用 Gateway 的实际共享端口，仅发布当前 IPv4 listener 能接入的地址。Gateway 将真实入口状态推给远程 owner，没有反向 lifecycle 依赖。
+- 局域网访问统一控制连接入口与发现发布，不提供独立的发现开关。仅本机临时 API 租约不会
+  打开发现。发布组件检查网卡变化，并在恢复唤醒时刷新；停机撤销异步发布意图。发现失败只显示状态提示。
+- 移动端使用单个 Expo 原生发现模块和内存 Resolver；Manager 串行尝试候选，每轮最多 15 秒，socket
+  打开最多 4 秒，后续握手与认证最多 6 秒。不实施后文的并发竞争拨号或 RemoteDialer 包装层。
+- 用户配置最多 8 条；自动与 QR 候选最多 16 条。QR 5 分钟失效，发现的本地重验预算 60 秒。
+  用户域名保留至拨号时由系统解析。换网取消旧拨号，健康连接保持，业务 scope 和 grants 不变。
+- 移动端 schema 新增 `configured_endpoints`；直接删除不再使用的旧 IP/port 列，不重建父表、不复制为
+  用户配置。设置提供地址编辑及独立的位置扫码；首次配对把 QR 提示交接至新 connectionId。
+- 错误 Noise 身份仅导致候选失败；只有固定身份桌面的 authenticate 拒绝才能标记需要重新授权。
+  发现不可用和找不到地址会给出设置地址或扫码的操作提示。
+- 原生模块需要随新移动客户端发布。Android 34+ 订阅服务变化；旧版串行解析并丢弃取消后晚到的结果。
+  旧 Android 已进入系统的解析无法取消，后续重试可能等待系统释放；手动地址不依赖发现。
+- 本期不改变桌面 Keychain 存储和签名，不新增 relay、目录、VPN SDK 或后台常驻发现。
+
+## 1. 问题与改动前实现
+
 
 移动端配对时把二维码中的 IP 列表、端口和桌面密钥身份一起保存；之后的重连反复尝试原地址。
 当电脑从一个 Wi-Fi 切换到另一个 Wi-Fi，或 DHCP 分配了新地址时，密钥和授权仍然有效，但手机无法找到桌面。
@@ -216,7 +235,7 @@ SRV 描述实际主机与端口，地址来自解析结果，TXT 仅包含发现
 稳定指纹仍具有局域网可关联性，本期接受在显式开启发现时暴露这一标识；隐私增强的轮换发现标识属于后续设计。
 
 发布条件是 listener 实际就绪、直接远程访问开启且发现开启，不能只看保存的 preference。
-监听端口变化、网卡变化和唤醒后协调更新/重新发布；关闭发现撤销广告，关闭直接入口还要拒绝新直接连接。
+监听端口变化、网卡变化和唤醒后协调更新/重新发布；关闭局域网访问时同时撤销广告并关闭直接连接入口。
 服务撤销通知只是提示，不保证所有客户端立即收到，移动端仍需有效期和身份验证。
 发布失败可降级为已配置地址连接，不应停止网关普通 HTTP 服务。
 
@@ -410,7 +429,7 @@ relay 具体寻址/票据协议、托管或自建部署与费用策略留在独�
 | 显式配置与扫码提示 | 用户配置跨重启保留；QR 位置仅当次运行有效，不自动成为用户配置 |
 | 新旧两端混用及存储迁移 | 旧 QR 地址不转换为配置；老 desktop 可配置地址或临时扫码直连，沿用原授权 |
 | 配对后与多次成功重连 | 持久存储中没有新增发现地址或成功端点；授权状态更新不携带地址回写 |
-| 关闭发现或直接入口 | 分别验证广告和连接清理，不打断本机 API 客户端 |
+| 关闭局域网访问 | 验证广告和连接同时清理，不打断本机 API 客户端 |
 | 未来 relay 错投目标/票据过期/中断 | 身份校验失败或明确准入失败；不获 loopback 权限；不自动重配对 |
 
 观测字段：连接尝试代际、候选来源、路径类型、失败阶段、耗时、候选数、取消原因与恢复结果。

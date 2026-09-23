@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "Zugriff widerrufen",
   "deviceConnections.devices.revoked": "Gerätezugriff widerrufen",
   "deviceConnections.devices.title": "Gekoppelte Geräte",
+  "deviceConnections.discovery.unavailable": "Erkennung nicht verfügbar. Eine konfigurierte Adresse oder ein neuer QR-Code kann weiterhin verwendet werden.",
   "deviceConnections.downloadMobile": "Mobile App herunterladen",
   "deviceConnections.downloadMobileHint": "Installieren Sie Cherry Studio auf Ihrem Smartphone und verbinden Sie es mit Ihrem Computer.",
   "deviceConnections.gateway.openSettings": "API-Gateway-Einstellungen öffnen",

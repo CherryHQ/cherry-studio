@@ -22,6 +22,7 @@ vi.mock('@application', async () => {
         Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, preferences.get(key)]))
     },
     RemoteAccessService: {
+      updateDirectEndpoint: vi.fn(),
       accept: (socket: RemoteSocket) => {
         connections.add(socket)
         socket.addEventListener('close', () => connections.delete(socket))

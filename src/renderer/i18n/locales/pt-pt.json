@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "Revogar acesso",
   "deviceConnections.devices.revoked": "Acesso do dispositivo revogado",
   "deviceConnections.devices.title": "Dispositivos emparelhados",
+  "deviceConnections.discovery.unavailable": "Deteção indisponível. Pode ligar através de um endereço configurado ou de um novo código QR.",
   "deviceConnections.downloadMobile": "Descarregar a aplicação móvel",
   "deviceConnections.downloadMobileHint": "Instale o Cherry Studio no seu telemóvel e ligue-o ao seu computador.",
   "deviceConnections.gateway.openSettings": "Abrir as definições do gateway API",

@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "アクセスを取り消す",
   "deviceConnections.devices.revoked": "デバイスのアクセスを取り消しました",
   "deviceConnections.devices.title": "ペアリング済みデバイス",
+  "deviceConnections.discovery.unavailable": "自動検出を利用できません。設定したアドレスまたは新しいQRコードで接続できます。",
   "deviceConnections.downloadMobile": "モバイルアプリをダウンロード",
   "deviceConnections.downloadMobileHint": "スマートフォンに Cherry Studio をインストールして、デスクトップ版に接続しましょう。",
   "deviceConnections.gateway.openSettings": "API ゲートウェイの設定を開く",

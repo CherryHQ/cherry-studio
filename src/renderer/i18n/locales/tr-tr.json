@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "Erişimi iptal et",
   "deviceConnections.devices.revoked": "Cihaz erişimi iptal edildi",
   "deviceConnections.devices.title": "Eşleştirilmiş cihazlar",
+  "deviceConnections.discovery.unavailable": "Keşif kullanılamıyor. Yapılandırılmış adres veya yeni QR koduyla bağlanabilirsiniz.",
   "deviceConnections.downloadMobile": "Mobil uygulamayı indir",
   "deviceConnections.downloadMobileHint": "Cherry Studio’yu telefonunuza yükleyin ve bilgisayarınıza bağlayın.",
   "deviceConnections.gateway.openSettings": "API Ağ Geçidi ayarlarını aç",

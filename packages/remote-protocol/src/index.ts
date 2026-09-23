@@ -13,3 +13,14 @@ export {
   remoteAuthorizationSchema
 } from './authorization'
 export type { RemoteCapability, RemoteAuthorization } from './authorization'
+
+export {
+  remoteDiscoveryType,
+  remoteConnectPath,
+  directEndpointSchema,
+  configuredEndpointsSchema,
+  remoteDiscoveryTxtSchema,
+  directEndpointUrl,
+  parseDirectEndpoint
+} from './discovery'
+export type { DirectEndpoint } from './discovery'

@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "Revoke access",
   "deviceConnections.devices.revoked": "Device access revoked",
   "deviceConnections.devices.title": "Paired devices",
+  "deviceConnections.discovery.unavailable": "Discovery is unavailable. You can still connect using a configured address or a fresh QR code.",
   "deviceConnections.downloadMobile": "Download mobile app",
   "deviceConnections.downloadMobileHint": "Install Cherry Studio on your phone and connect to your desktop.",
   "deviceConnections.gateway.openSettings": "Open API Gateway settings",

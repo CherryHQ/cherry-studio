@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "撤銷存取",
   "deviceConnections.devices.revoked": "已撤銷該裝置的存取權限",
   "deviceConnections.devices.title": "已配對裝置",
+  "deviceConnections.discovery.unavailable": "自動探索不可用。仍可透過設定位址或新 QR 碼連線。",
   "deviceConnections.downloadMobile": "下載行動版",
   "deviceConnections.downloadMobileHint": "在手機上安裝 Cherry Studio，連接桌面版。",
   "deviceConnections.gateway.openSettings": "前往 API 閘道設定",

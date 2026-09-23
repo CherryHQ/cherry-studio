@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "Révoquer l'accès",
   "deviceConnections.devices.revoked": "Accès de l'appareil révoqué",
   "deviceConnections.devices.title": "Appareils appairés",
+  "deviceConnections.discovery.unavailable": "Détection indisponible. Utilisez une adresse configurée ou un nouveau QR code pour vous connecter.",
   "deviceConnections.downloadMobile": "Télécharger l’application mobile",
   "deviceConnections.downloadMobileHint": "Installez Cherry Studio sur votre téléphone et connectez-le à votre ordinateur.",
   "deviceConnections.gateway.openSettings": "Ouvrir les paramètres de la passerelle API",

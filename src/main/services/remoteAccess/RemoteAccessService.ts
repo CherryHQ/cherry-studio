@@ -1,3 +1,5 @@
+import { powerMonitor } from 'electron'
+
 import { application } from '@application'
 import { remoteLimits, type RemoteCapability } from '@cherrystudio/remote-protocol'
 import {
@@ -13,6 +15,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 
 import { RemoteAgentHub } from './agentJournal'
 import { loadDesktopIdentity } from './deviceIdentity'
+import { RemoteAdvertisement } from './RemoteAdvertisement'
 import { RemoteConnection } from './RemoteConnection'
 import { RemotePairing } from './RemotePairing'
 import { RemoteTokens } from './RemoteTokens'
@@ -34,6 +37,11 @@ const transportLog: ChannelOptions['logger'] = {
 @DependsOn(['AiStreamManager', 'AgentSessionRuntimeService'])
 export class RemoteAccessService extends BaseService {
   private identity?: Promise<Uint8Array>
+  private readonly advertisement = new RemoteAdvertisement((status) => {
+    application.get('CacheService').setShared('feature.remote_access.discovery_status', status)
+  })
+  private endpoint?: { port: number; identity?: string }
+  private endpointRevision = 0
   private readonly pairing = new RemotePairing()
   private readonly tokens = new RemoteTokens()
   private readonly hub = new RemoteAgentHub()
@@ -44,6 +52,12 @@ export class RemoteAccessService extends BaseService {
 
   protected async onInit(): Promise<void> {
     remoteCommandService.interruptPending()
+    const refreshAdvertisement = () => {
+      if (this.endpoint?.identity) this.advertisement.update(this.endpoint.identity, this.endpoint.port)
+    }
+    this.registerInterval(refreshAdvertisement, 5000)
+    powerMonitor.on('resume', refreshAdvertisement)
+    this.registerDisposable(() => powerMonitor.removeListener('resume', refreshAdvertisement))
     this.registerInterval(() => {
       this.tokens.sweep()
       this.hub.sweep()
@@ -58,6 +72,7 @@ export class RemoteAccessService extends BaseService {
       }
     }, 1000)
     this.registerDisposable(() => {
+      this.updateDirectEndpoint(undefined)
       this.pairing.clear()
       this.tokens.clear()
       this.hub.dispose()
@@ -65,8 +80,37 @@ export class RemoteAccessService extends BaseService {
     })
   }
 
+  /** Gateway pushes its actual listener; temporary local API leases never enable discovery. */
+  updateDirectEndpoint(endpoint: { port: number } | undefined): void {
+    if (this.endpoint?.port === endpoint?.port) return
+    const revision = ++this.endpointRevision
+    this.endpoint = endpoint
+    this.advertisement.stop()
+    if (!endpoint) {
+      application.get('CacheService').setShared('feature.remote_access.discovery_status', 'inactive')
+      return
+    }
+    application.get('CacheService').setShared('feature.remote_access.discovery_status', 'starting')
+    const advertised = endpoint
+    void this.getIdentity()
+      .then((identity) => {
+        if (revision !== this.endpointRevision) return
+        this.endpoint = { ...advertised, identity: deviceIdentityId(identity) }
+        this.advertisement.update(this.endpoint.identity!, advertised.port)
+      })
+      .catch((error: unknown) => {
+        if (revision !== this.endpointRevision) return
+        application.get('CacheService').setShared('feature.remote_access.discovery_status', 'unavailable')
+        logger.warn('Remote identity unavailable for discovery', error as Error)
+      })
+  }
+
   async createInvitation() {
     const identity = await this.getIdentity()
+    if (this.endpoint && !this.endpoint.identity) {
+      this.endpoint.identity = deviceIdentityId(identity)
+      this.advertisement.update(this.endpoint.identity, this.endpoint.port)
+    }
     return { ...this.pairing.create(), desktopIdentity: deviceIdentityId(identity), protocolVersions: [1] }
   }
 
@@ -112,6 +156,7 @@ export class RemoteAccessService extends BaseService {
 
   /** The LAN listener is going away: pending invitations and live sessions go with it. */
   closeIngress(): void {
+    this.updateDirectEndpoint(undefined)
     this.pairing.clear()
     for (const socket of this.connections.keys()) socket.close(1001, 'Gateway stopping')
   }

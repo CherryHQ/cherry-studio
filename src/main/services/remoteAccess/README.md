@@ -8,6 +8,7 @@ together during pairing. Each capability has an independent authorization grant.
 | File | Owns |
 |---|---|
 | `RemoteAccessService.ts` | Accepts sockets from the gateway's `/v1/remote/connect` ws route, identity, sweep, connection registry |
+| `RemoteAdvertisement.ts` | Publishes the actual Gateway port and public identity while LAN access is enabled; refreshes interface changes and withdraws on shutdown |
 | `RemoteConnection.ts` | Per-connection RPC: hello/authenticate/refresh/ping, pairing, configuration export |
 | `RemotePairing.ts` / `RemoteTokens.ts` / `deviceIdentity.ts` | Invitation + claim state, access tokens, Ed25519 identity file |
 | `agentHandlers.ts` | Every `agent.*` method, including durable command receipts |

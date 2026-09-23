@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "撤销访问",
   "deviceConnections.devices.revoked": "已撤销该设备的访问权限",
   "deviceConnections.devices.title": "已配对设备",
+  "deviceConnections.discovery.unavailable": "自动发现不可用。仍可通过配置地址或新二维码连接。",
   "deviceConnections.downloadMobile": "下载移动端",
   "deviceConnections.downloadMobileHint": "在手机上安装 Cherry Studio，连接桌面端。",
   "deviceConnections.gateway.openSettings": "前往 API 网关设置",

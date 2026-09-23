@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "Revocă accesul",
   "deviceConnections.devices.revoked": "Accesul dispozitivului a fost revocat",
   "deviceConnections.devices.title": "Dispozitive asociate",
+  "deviceConnections.discovery.unavailable": "Detectarea nu este disponibilă. Vă puteți conecta cu o adresă configurată sau un cod QR nou.",
   "deviceConnections.downloadMobile": "Descarcă aplicația mobilă",
   "deviceConnections.downloadMobileHint": "Instalează Cherry Studio pe telefon și conectează-l la computer.",
   "deviceConnections.gateway.openSettings": "Deschide setările gateway-ului API",

@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "Отозвать доступ",
   "deviceConnections.devices.revoked": "Доступ устройства отозван",
   "deviceConnections.devices.title": "Сопряжённые устройства",
+  "deviceConnections.discovery.unavailable": "Обнаружение недоступно. Можно подключиться по заданному адресу или новому QR-коду.",
   "deviceConnections.downloadMobile": "Скачать мобильное приложение",
   "deviceConnections.downloadMobileHint": "Установите Cherry Studio на телефон и подключите его к компьютеру.",
   "deviceConnections.gateway.openSettings": "Открыть настройки API-шлюза",

@@ -1249,6 +1249,7 @@
   "deviceConnections.devices.revoke": "Ανάκληση πρόσβασης",
   "deviceConnections.devices.revoked": "Η πρόσβαση της συσκευής ανακλήθηκε",
   "deviceConnections.devices.title": "Συζευγμένες συσκευές",
+  "deviceConnections.discovery.unavailable": "Ο εντοπισμός δεν είναι διαθέσιμος. Μπορείτε να συνδεθείτε με μια ρυθμισμένη διεύθυνση ή νέο κωδικό QR.",
   "deviceConnections.downloadMobile": "Λήψη εφαρμογής για κινητά",
   "deviceConnections.downloadMobileHint": "Εγκαταστήστε το Cherry Studio στο κινητό σας και συνδεθείτε με τον υπολογιστή σας.",
   "deviceConnections.gateway.openSettings": "Άνοιγμα ρυθμίσεων πύλης API",
