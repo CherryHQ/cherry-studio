@@ -905,7 +905,8 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.any(String),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md'
+        'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md',
+        { allowFolderMigration: false }
       )
     })
 
@@ -1026,7 +1027,7 @@ describe('SkillService', () => {
         expect(installSpy).toHaveBeenCalledWith(
           expect.stringContaining(`${path.sep}repo`),
           'marketplace',
-          `https://github.com/owner/repo/tree/${oid}`,
+          `https://github.com/owner/repo/blob/${oid}/SKILL.md`,
           { allowFolderMigration: true }
         )
       } finally {
@@ -2637,9 +2638,18 @@ describe('SkillService', () => {
 
       await skillService.install({ installSource: 'skills.sh:owner/repo/demo' })
 
-      const installedDirectory = installSpy.mock.calls[0][0]
-      expect(installedDirectory).toBe(
-        path.join(await fs.promises.realpath(path.join(workDir, 'content')), 'plugins', 'pack', 'skills', 'demo')
+      const installedDirectory = path.join(
+        await fs.promises.realpath(path.join(workDir, 'content')),
+        'plugins',
+        'pack',
+        'skills',
+        'demo'
+      )
+      expect(installSpy).toHaveBeenCalledWith(
+        installedDirectory,
+        'marketplace',
+        'https://skills.sh/owner/repo/demo',
+        { allowFolderMigration: false }
       )
       await expect(fs.promises.access(path.join(installedDirectory, 'notes.md'))).resolves.toBeUndefined()
     })
