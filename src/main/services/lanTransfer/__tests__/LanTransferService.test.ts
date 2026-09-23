@@ -1,9 +1,8 @@
+import { EventEmitter } from 'events'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-
-import { EventEmitter } from 'events'
 
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
