@@ -6,7 +6,6 @@ sources:
   - src/shared/utils/file/tree.ts
   - src/shared/ipc/schemas/file.ts
   - src/renderer/hooks/useDirectoryTree.ts
-  - src/renderer/services/DirectoryTreeSession.ts
 ---
 
 # Directory Tree Architecture
@@ -21,9 +20,9 @@ artifact file tree.
 ## 1. Positioning
 
 `DirectoryTreeBuilder` owns one in-memory tree, its absolute-path index, initial scan, and watcher.
-`DirectoryTreeManager` owns builder sharing and renderer consumers. `DirectoryTreeSession` owns
-the renderer mirror and snapshot-to-stream handshake. `useDirectoryTree` subscribes React to its
-external snapshot.
+`DirectoryTreeManager` owns builder sharing and renderer consumers. `useDirectoryTree` owns a
+private `DirectoryTreeSession` for the renderer mirror and snapshot-to-stream handshake, and
+subscribes React to its external snapshot. The session is not an app-level service or public API.
 
 The primitive is separate from FileManager because its identity and lifecycle differ:
 
@@ -55,8 +54,7 @@ src/main/services/file/
 
 src/shared/utils/file/tree.ts      # options, DTOs, mutation types, TreeNode classes
 src/shared/ipc/schemas/file.ts     # file.tree.* request/event contracts
-src/renderer/services/DirectoryTreeSession.ts # retained mirror and IPC lifetime
-src/renderer/hooks/useDirectoryTree.ts        # React subscription
+src/renderer/hooks/useDirectoryTree.ts # React subscription and private retained session
 ```
 
 ### 2.1 Shared Contract
@@ -221,14 +219,18 @@ published `treeId` can miss mutations flushed during activation.
 The hook retains one directory session per root. Activity suspension unsubscribes React immediately,
 so mutations update the mirror without scheduling view projections. The IPC stream remains active
 for a ten-second idle grace period, matching the artifact tree's lazy watcher retention. Returning
-within that period reuses the mirror and tree ID; after release, returning takes a fresh snapshot.
-A root change immediately retires the previous session, including an in-flight create. Unmounts
-release after the same bounded grace period; closing the renderer releases native consumers through
-`DirectoryTreeManager`. There is no persistent cache or always-on directory watcher.
+within that period with the same root reuses the mirror and tree ID; after release, returning takes
+a fresh snapshot. A visible root change immediately retires the previous session, including an
+in-flight create. While hidden, a root change leaves the previous session alive until the original
+idle deadline or visibility resumes, whichever comes first. Further hidden root changes do not
+extend that deadline or create new native consumers. On resume, the hook loads the current root.
+Unmounts release after the same bounded grace period; closing the renderer releases native consumers
+through `DirectoryTreeManager`. There is no persistent cache or always-on directory watcher.
 
 The `onMutation` callback remains a business-side subscription during the grace period, including
-activation replay and brief Activity suspension. Rendering and expensive projections belong to
-React subscribers; callbacks that need filesystem events must not be conditional on view visibility.
+activation replay and brief Activity suspension. Once the hook renders a different root, events
+from the previous root are no longer forwarded to that callback. Rendering and expensive projections
+belong to React subscribers; callbacks that need filesystem events must not be conditional on view visibility.
 Revision gaps remain terminal, so retaining the mirror never hides missed mutations.
 
 Options are sampled when a root mounts. Changing the options object while `rootPath` is unchanged
