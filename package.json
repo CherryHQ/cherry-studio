@@ -75,7 +75,7 @@
     "i18n:unused": "tsx scripts/i18n-check-unused.ts",
     "i18n:unused:check": "tsx scripts/i18n-check-unused.ts --fail-on-unused",
     "lint": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format",
-    "packages:build": "pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build",
+    "packages:build": "pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build && pnpm --filter @cherrystudio/remote-protocol build && pnpm --filter @cherrystudio/remote-transport build",
     "packages:release": "pnpm packages:build && changeset publish",
     "postinstall": "pnpm --filter @cherrystudio/dsh-bridge build && pnpm --filter @cherrystudio/remote-protocol build && pnpm --filter @cherrystudio/remote-transport build",
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && node -e \"process.env.CI||require('child_process').execSync('prek install',{stdio:'inherit'})\"",

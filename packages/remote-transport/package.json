@@ -1,7 +1,12 @@
 {
   "name": "@cherrystudio/remote-transport",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.0.0",
+  "description": "Cherry Studio encrypted remote access transport using Noise XX and JSON-RPC.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git",
+    "directory": "packages/remote-transport"
+  },
   "files": [
     "dist"
   ],
@@ -13,8 +18,12 @@
       "default": "./dist/index.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown",
+    "prepublishOnly": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
