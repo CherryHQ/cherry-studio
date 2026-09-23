@@ -24,6 +24,7 @@ async function startLogin() {
 
 export const cherryCloudHandlers: IpcHandlersFor<typeof cherryCloudRequestSchemas> = {
   'cherry_cloud.status.get': async () => application.get('CherryCloudService').getStatus(),
+  'cherry_cloud.api_origin.get': async () => application.get('CherryCloudService').getApiOrigin(),
   'cherry_cloud.login.start': startLogin,
   'cherry_cloud.login.cancel': async () => application.get('CherryCloudService').cancelLogin(),
   'cherry_cloud.session.revoke': async () => application.get('CherryCloudService').revokeCurrentSession(),
