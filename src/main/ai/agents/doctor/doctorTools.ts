@@ -14,7 +14,6 @@ import type { NeutralTool, NeutralToolResult } from '@main/ai/agents/tools/types
 import { ToolError, ToolErrorCode } from '@main/ai/agents/tools/types'
 import { isBlockedSourceFile } from '@main/ai/mcp/servers/assistant'
 import { isSameOrInside } from '@main/utils/file'
-import type { DoctorFixRequest } from '@shared/types/doctor'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
 import { isDoctorFixRequest } from '@shared/utils/doctor'
 import { redactSecretText } from '@shared/utils/redaction'
@@ -212,11 +211,7 @@ const DOCTOR_FIX_TOOL: NeutralTool<DoctorToolContext> = {
     if (!isDoctorFixRequest(candidate)) {
       throw new ToolError('The report declares no such fix for that check', ToolErrorCode.InvalidParams)
     }
-    return requestWrite(
-      ctx,
-      { kind: 'doctor_fix', request: candidate as DoctorFixRequest },
-      requireString(args, 'summary')
-    )
+    return requestWrite(ctx, { kind: 'doctor_fix', request: candidate }, requireString(args, 'summary'))
   }
 }
 

@@ -76,17 +76,17 @@ vi.mock('@renderer/components/markdown', () => ({
 }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
-import { DoctorAgentDialog } from '../DoctorAgentDialog'
+import { DoctorAgentConsultation } from '../DoctorAgentConsultation'
 
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.agentState = { status: 'idle' }
 })
 
-describe('DoctorAgentDialog', () => {
+describe('DoctorAgentConsultation', () => {
   it('offers only chat models of enabled providers, preselects the default, and starts on the chosen one', async () => {
     const user = userEvent.setup()
-    render(<DoctorAgentDialog subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
 
     const select = screen.getByRole('combobox', { name: 'model' })
     expect(Array.from((select as HTMLSelectElement).options).map((option) => option.value)).toEqual([
@@ -113,7 +113,7 @@ describe('DoctorAgentDialog', () => {
       proposals: [],
       changes: []
     }
-    render(<DoctorAgentDialog subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
     expect(screen.getByTestId('markdown')).toHaveTextContent('Proxy is misconfigured.')
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.restart' })).toBeInTheDocument()

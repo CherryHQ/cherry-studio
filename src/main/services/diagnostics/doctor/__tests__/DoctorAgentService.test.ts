@@ -3,6 +3,7 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type * as DoctorWrites from '@main/ai/agents/doctor/doctorWrites'
 import type { StreamListener } from '@main/ai/streamManager'
 import { BaseService } from '@main/core/lifecycle'
 import type { DoctorReport } from '@shared/types/doctor'
@@ -31,7 +32,7 @@ vi.mock('@main/ai/agents/ensureBuiltinAgent', () => ({ loadBuiltinAgentEnsureInp
 vi.mock('@main/ai/streamManager', () => ({ startAgentSessionRun: mocks.startRun }))
 vi.mock('@main/i18n', () => ({ getAppLanguage: () => 'en-US' }))
 vi.mock('@main/ai/agents/doctor/doctorWrites', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/ai/agents/doctor/doctorWrites')>()),
+  ...(await importOriginal<typeof DoctorWrites>()),
   applyWrite: mocks.applyWrite,
   undoWrite: mocks.undoWrite
 }))
