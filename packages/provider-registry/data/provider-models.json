@@ -4145,6 +4145,25 @@
       "providerId": "copilot"
     },
     {
+      "apiModelId": "grok-4.7",
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
       "apiModelId": "kimi-k2.7-code",
       "modelId": "kimi-k2-7-code",
       "pricing": {
@@ -14041,6 +14060,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "spacexai/grok-4.7",
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.6
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "spacexai/grok-build-0.1",
       "modelId": "grok-build-0-1",
       "pricing": {
@@ -14630,6 +14668,63 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.87
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-flash",
+      "modelId": "mimo-v2-6-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0028
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.28
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-pro",
+      "modelId": "mimo-v2-6-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0036
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-pro-ultraspeed",
+      "modelId": "mimo-v2-6-pro-ultraspeed",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.036
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4.35
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8.7
         }
       },
       "providerId": "gateway"
@@ -16150,6 +16245,87 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 6
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "grok-4.6",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-6",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "grok-4.7",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "grok-4.7-build-fast",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "image-recognition"]
+      },
+      "description": "Grok 4.7 Fast is the low-latency variant of Grok 4.7 billed at twice the standard rate, available through the SuperGrok subscription via the Grok CLI proxy.",
+      "endpointTypes": ["openai-responses"],
+      "family": "grok",
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-7-build-fast",
+      "name": "Grok 4.7 Fast",
+      "outputModalities": ["text"],
+      "ownedBy": "xai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12
         }
       },
       "providerId": "grok-cli"
@@ -17772,6 +17948,303 @@
           },
           "wire": {
             "disabled": true
+          }
+        }
+      }
+    },
+    {
+      "modelId": "mimo-v2-6-flash",
+      "providerId": "mimo",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "mimo-v2-6-pro",
+      "providerId": "mimo",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "mimo-v2-6-pro-ultraspeed",
+      "providerId": "mimo",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
           }
         }
       }
@@ -21289,6 +21762,38 @@
       }
     },
     {
+      "apiModelId": "grok-4.7",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "hy3",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "hy3",
@@ -21511,6 +22016,60 @@
       "apiModelId": "mimo-v2.5-pro",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "mimo-v2-5-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.003625
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": []
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "mimo-v2.6-flash",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "mimo-v2-6-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0028
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.28
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": []
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "mimo-v2.6-pro",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "mimo-v2-6-pro",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -27925,6 +28484,40 @@
       }
     },
     {
+      "apiModelId": "x-ai/grok-4.7",
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.6
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.8
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "x-ai/grok-build-0.1",
       "modelId": "grok-build-0-1",
       "pricing": {
@@ -29564,6 +30157,99 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.87
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-flash",
+      "modelId": "mimo-v2-6-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0028
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.28
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-pro",
+      "modelId": "mimo-v2-6-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0036
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.435
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.87
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "xiaomi/mimo-v2.6-pro-ultraspeed",
+      "modelId": "mimo-v2-6-pro-ultraspeed",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.036
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4.35
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8.7
         }
       },
       "providerId": "openrouter",
@@ -39969,5 +40655,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "f418fc7b44b466bb"
+  "version": "268f15c29341edb0"
 }
