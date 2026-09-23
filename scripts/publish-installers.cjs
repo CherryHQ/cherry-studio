@@ -37,7 +37,7 @@ async function main() {
     if (uploaded.status !== 0) throw new Error(`GitHub Release rejected ${name}`)
     const url = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${tag}/${name}`
     let signing = 'unsigned'
-    if (platform === 'win32') {
+    if (platform === 'win32' && process.env.HAS_SIGNING === 'true') {
       const output = execFileSync(
         'powershell.exe',
         [

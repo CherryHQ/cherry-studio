@@ -1,0 +1,18 @@
+{
+  "version": "2.1.3",
+  "source": "1dd346bfa42ddbe554215262cd5133e59ec75e66",
+  "publishedAt": "2026-09-23T14:21:01.357Z",
+  "pendingPlatforms": ["win32-arm64", "darwin-x64", "darwin-arm64", "linux-x64", "linux-arm64"],
+  "artifacts": [
+    {
+      "name": "The-Boss-2.1.3-win-x64-setup.exe",
+      "size": 374275294,
+      "sha256": "292bc05ff4480cf4ed49cf36f7460e562a0e11c3696f621a00d743c6600c8adc",
+      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-win-x64-setup.exe",
+      "signing": "unsigned",
+      "platform": "win32",
+      "arch": "x64",
+      "source": "1dd346bfa42ddbe554215262cd5133e59ec75e66"
+    }
+  ]
+}
