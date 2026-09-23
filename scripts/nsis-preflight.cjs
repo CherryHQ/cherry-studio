@@ -5,8 +5,8 @@ const { spawnSync } = require('node:child_process')
 
 const root = path.resolve(__dirname, '..')
 const include = fs.readFileSync(path.join(root, 'build', 'nsis-installer.nsh'), 'utf8')
-const uninstallMacro = include.match(/!macro customUnInstall[\s\S]*?!macroend/)?.[0]
-if (!uninstallMacro) throw new Error('customUnInstall macro is missing')
+const uninstallCommand = include.match(/^\s*ExecWait .*--remove-managed-path.*$/m)?.[0].trim()
+if (!uninstallCommand) throw new Error('Managed PATH uninstall command is missing')
 
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'the-boss-nsis-'))
 const source = path.join(work, 'preflight.nsi')
@@ -17,12 +17,9 @@ fs.writeFileSync(
 Name "The Boss NSIS preflight"
 OutFile "${output}"
 InstallDir "$TEMP\\The Boss"
-!include LogicLib.nsh
 !define APP_EXECUTABLE_FILENAME "The Boss.exe"
-!define isUpdated 0
-${uninstallMacro}
 Section
-  !insertmacro customUnInstall
+  ${uninstallCommand}
 SectionEnd
 `
 )
