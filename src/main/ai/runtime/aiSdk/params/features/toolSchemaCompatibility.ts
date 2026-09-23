@@ -15,6 +15,10 @@
  *     bare type (Gemini's Schema proto types `enum` as string lists only) and
  *     drops a function tool when an array has no typed `items` schema; there
  *     is no safe element type to infer.
+ *   - a Gemini-only pass drops `propertyNames` / `additionalProperties`
+ *     (Gemini's Schema proto has no field for either — issue #20939).
+ *     Custom Gemini relays translate client schemas literally, so the
+ *     repo-owned middleware is the last choke point that can remove them.
  *
  * Local input validation is unaffected: the AI SDK still checks tool calls
  * against the original zod schema.
@@ -34,6 +38,9 @@ const logger = loggerService.withContext('toolSchemaCompatibility')
 
 /** Rejected by Gemini, unenforced everywhere else. */
 const ALWAYS_UNSUPPORTED = ['$schema', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'uniqueItems']
+
+/** Gemini's function-declaration Schema has no field for these (issue #20939). */
+const GEMINI_UNSUPPORTED = new Set(['propertyNames', 'additionalProperties'])
 
 /** Outside the strict-mode subset (`format`, `enum`, `const` stay). */
 const STRICT_UNSUPPORTED = new Set([
@@ -218,6 +225,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     }
     const keywords = tool.strict === true ? STRICT_UNSUPPORTED : new Set(ALWAYS_UNSUPPORTED)
     let inputSchema = stripKeywords(tool.inputSchema, keywords)
+    if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
     if (inputSchema === tool.inputSchema) transformedTools.push(tool)
     else {

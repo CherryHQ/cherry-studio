@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 
 import type { AssistantMessage, AssistantMessageEvent } from '@earendil-works/pi-ai'
 import type {
@@ -33,6 +34,7 @@ import {
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
+import { autoDiscoverGitBash, validateGitBashPath } from '@main/utils/commandResolver'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -97,6 +99,28 @@ export function buildPiLoginPathPrefix(
 ): string | undefined {
   return platform !== 'win32' && loginPath ? `export PATH="$PATH":${quoteShellWord(loginPath)}` : undefined
 }
+
+/** Read the one field Cherry honors from the user's global pi settings; absent or malformed means unset. */
+function readPiShellPathSetting(): string | undefined {
+  try {
+    const settings: unknown = JSON.parse(readFileSync(application.getPath('external.pi.settings_file'), 'utf8'))
+    const shellPath = (settings as Record<string, unknown> | null)?.shellPath
+    return typeof shellPath === 'string' && shellPath.trim() ? shellPath.trim() : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function resolvePiShellPath(): string | undefined {
+  if (process.platform !== 'win32') return undefined
+  const configured = readPiShellPathSetting()
+  if (!configured) return autoDiscoverGitBash() ?? undefined
+
+  const shellPath = validateGitBashPath(configured)
+  if (!shellPath) throw new Error(`Configured Pi shellPath is unavailable or is not bash.exe: ${configured}`)
+  return shellPath
+}
+
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
     buildPiMcpToolName(serverName, toolName)
@@ -271,7 +295,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // The workspace is always trusted: the user picked it by hand in Cherry, so there is
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
-      const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: true })
+      const shellPath = resolvePiShellPath()
+      const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
 
@@ -372,6 +397,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
       // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
       const managedBashTool = pi.createBashToolDefinition(workspacePath, {
+        commandPrefix: loginPathPrefix,
+        shellPath,
         spawnHook: (context) => ({
           ...context,
           env: mergePiBashExecutionEnv(context.env)
@@ -426,8 +453,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.resumeToken) {
       const file = resolveResumeTokenSessionFile(this.resumeToken, sessionDir)
       if (file) return pi.SessionManager.open(file, sessionDir, workspacePath)
+      if (this.input.nativeSessionId) throw new Error('Edited native session history is missing')
     }
-    return pi.SessionManager.create(workspacePath, sessionDir, { id: this.resumeToken ?? this.input.sessionId })
+    return pi.SessionManager.create(workspacePath, sessionDir, {
+      id: this.resumeToken ?? this.input.nativeSessionId ?? this.input.sessionId
+    })
   }
 
   send(input: AgentRuntimeUserInput): void {
@@ -566,9 +596,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return usage && usage.tokens != null ? this.projectContextUsage(usage) : null
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return
+  private closePromise?: Promise<void>
+
+  close(): Promise<void> {
     this.closed = true
+    return (this.closePromise ??= this.finishClose())
+  }
+
+  private async finishClose(): Promise<void> {
     // Deny any approval still awaiting a renderer decision so its held tool
     // promise resolves instead of hanging past teardown (plan Phase 3).
     toolApprovalRegistry.abort(this.input.sessionId, 'pi-session-closed')
@@ -576,11 +611,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // closing queue.
     this.unsubscribe?.()
     this.unsubscribe = undefined
-    try {
-      await this.session?.abort()
-    } catch (error) {
-      logger.warn('pi session abort failed during close', { error })
-    }
+    await this.session?.abort()
     this.session?.dispose()
     this.session = undefined
     this.endOpenTraceSpans('pi connection closed')

@@ -360,7 +360,7 @@ jobs:
           BRANCH_SHA="$BRANCH_SHA" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
             node scripts/release/validate-release-state.js build-completion
 
-      - name: Prepare bilingual release notes
+      - name: Prepare release body
         shell: bash
         env:
           REPO: ${{ github.repository }}
