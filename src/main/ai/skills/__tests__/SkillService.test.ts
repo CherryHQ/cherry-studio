@@ -897,7 +897,8 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.any(String),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md'
+        'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md',
+        { allowFolderMigration: false }
       )
     })
 
@@ -1018,7 +1019,7 @@ describe('SkillService', () => {
         expect(installSpy).toHaveBeenCalledWith(
           expect.stringContaining(`${path.sep}repo`),
           'marketplace',
-          `https://github.com/owner/repo/tree/${oid}`,
+          `https://github.com/owner/repo/blob/${oid}/SKILL.md`,
           { allowFolderMigration: true }
         )
       } finally {
@@ -1589,7 +1590,7 @@ describe('SkillService', () => {
       })
       const { skillService } = await setupGithubInstall({
         refs: [{ name: 'main', oid: 'a'.repeat(40) }],
-        tree: ['SKILL.md'],
+        tree: [{ path: 'SKILL.md', size: 7 }],
         realInstall: true
       })
 
@@ -2525,7 +2526,10 @@ describe('SkillService', () => {
         expect(installSpy).toHaveBeenCalledWith(
           path.join(canonicalContent, 'skills', 'demo'),
           'marketplace',
-          expect.any(String)
+          installSource.startsWith('skills.sh:')
+            ? 'https://skills.sh/owner/repo/demo'
+            : 'https://github.com/owner/repo/tree/main/skills/demo',
+          { allowFolderMigration: false }
         )
         await expect(
           fs.promises.access(path.join(canonicalContent, 'skills', 'demo', 'scripts', 'run.ts'))
@@ -2550,6 +2554,9 @@ describe('SkillService', () => {
       expect(installedDirectory).toBe(
         path.join(await fs.promises.realpath(path.join(workDir, 'content')), 'plugins', 'pack', 'skills', 'demo')
       )
+      expect(installSpy).toHaveBeenCalledWith(installedDirectory, 'marketplace', 'https://skills.sh/owner/repo/demo', {
+        allowFolderMigration: false
+      })
       await expect(fs.promises.access(path.join(installedDirectory, 'notes.md'))).resolves.toBeUndefined()
     })
 
