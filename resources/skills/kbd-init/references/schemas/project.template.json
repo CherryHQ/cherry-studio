@@ -1,0 +1,91 @@
+{
+  "name": "<project-name>",
+  "description": "<one-line description>",
+  "activePhase": "<phase-name>",
+  "worktreeRoot": "${HOME}/.claude/worktrees",
+  "maxChildDepth": 4,
+  "ux_profile": "advanced",
+  "__ux_profile_note": "advanced → kbd-status is dense by default; beginner → kbd-status --explain is on by default (expands decision-log entries + next-and-why narrative). Verbosity only — never gates information.",
+  "spec_paths": ["openspec/specs/*.md"],
+  "openspec_available": true,
+  "constraint_file": ".kbd-orchestrator/constraints.md",
+  "build_health_command": "<build check command, e.g. pnpm run build OR cargo check --workspace>",
+  "test_command": "<test command, e.g. pnpm test OR cargo test --workspace>",
+  "lint_command": "<lint command, e.g. pnpm run lint OR cargo clippy>",
+  "preferred_planning_agent": "antigravity",
+  "preferred_execution_agents": ["antigravity", "roo-code"],
+  "model_policy": {
+    "registry": {
+      "small":    { "local": "Qwen3.5-9B-Q8_0",   "t4": "Qwen3.5-9B-Q8_0",     "l4": "Qwen3.5-9B-Q8_0"    },
+      "medium":   { "local": null,                 "t4": "Qwen3.5-27B-Q4",       "l4": "Qwen3.5-35B-A3B-Q4" },
+      "frontier": { "local": "claude-sonnet-4-6",  "t4": "claude-sonnet-4-6",    "l4": "claude-sonnet-4-6"  }
+    },
+    "phases": {
+      "kbd-assess":             "frontier",
+      "kbd-plan":               "frontier",
+      "kbd-status":             "small",
+      "kbd-reflect":            "frontier",
+      "opsx-new":               "small",
+      "opsx-apply-low":         "small",
+      "opsx-apply-medium":      "medium",
+      "opsx-apply-high":        "frontier",
+      "opsx-verify":            "medium",
+      "opsx-archive":           "small",
+      "refiner-iterate":        "small",
+      "refiner-evaluate":       "medium",
+      "evolver-assess":         "frontier",
+      "evolver-analyze":        "frontier",
+      "evolver-plan":           "frontier",
+      "evolver-execute-low":    "small",
+      "evolver-execute-medium": "medium",
+      "evolver-execute-high":   "frontier",
+      "evolver-reflect":        "frontier",
+      "evolver-status":         "small",
+      "creator-specify":        "frontier",
+      "creator-plan":           "frontier",
+      "creator-execute":        "tiered",
+      "creator-reflect":        "frontier",
+      "creator-persist":        "small"
+    },
+    "active_environment": "local"
+  },
+  "agents_config": {
+    "antigravity": {
+      "entry": "SKILL.md slash commands",
+      "strengths": ["multi-file features", "browser verification", "planning"]
+    },
+    "roo-code": {
+      "entry": "Roo Code mode in VSCode",
+      "strengths": ["focused implementation", "architect decisions"]
+    },
+    "cursor-agent": {
+      "entry": "Cursor Agent mode",
+      "strengths": ["parallel subagent tasks", "refactoring"]
+    },
+    "codex": {
+      "entry": "OpenAI Codex CLI / app",
+      "strengths": ["parallel isolated tasks via git worktrees"]
+    },
+    "cline": {
+      "entry": "Cline VSCode extension",
+      "strengths": ["terminal-first workflows", "Plan/Act mode"]
+    },
+    "opencode": {
+      "entry": "OpenCode CLI",
+      "strengths": ["quick targeted edits", "file patches"]
+    }
+  },
+  "focus_project_path": "<absolute path to the focus project root — same as this project's root>",
+  "dev_command": "<dev server command or null>",
+  "workspace": {
+    "workspace_file": "<absolute path to .code-workspace file, or null if single-project>",
+    "folders": [
+      {
+        "path": "<absolute path to this focus project>",
+        "role": "focus",
+        "purpose": "Active project — all KBD operations target this directory",
+        "write_access": true
+      }
+    ]
+  }
+}

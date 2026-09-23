@@ -210,6 +210,8 @@ export function buildPathRegistry() {
     // paths relative to the pack root, and the bundled copy is replaced on every app update.
     'feature.prometheus.pack.builtin': path.join(appRootResources, 'prometheus-skills-mini'),
     'feature.prometheus.pack.runtime': path.join(appUserDataData, 'PrometheusPack'),
+    'feature.prometheus.state': path.join(appUserDataData, 'Prometheus'),
+    'feature.prometheus.commands': path.join(appUserData, 'commands'),
     'feature.agents.assistant.manifest.file': path.join(
       appRootResources,
       'builtin-agents',

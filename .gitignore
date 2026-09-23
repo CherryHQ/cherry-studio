@@ -43,6 +43,13 @@ stats.html
 .eslintcache
 # Downloaded native binaries (mise, etc.)
 resources/binaries/
+build/prometheus-payload/
+build/compass-skills/
+build/compass-skills.download
+build/integration-source/
+build/integration-output/
+build/service-source/
+build/mini-source/
 scripts/linux-native/prebuilt/
 
 # ENV

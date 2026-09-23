@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isApplicationOwnedSkill } from './ownedSkillCopy'
 
 const logger = loggerService.withContext('prometheusFullPack')
 
@@ -53,7 +54,7 @@ export async function detectFullPack(): Promise<FullPackDetection> {
 
   for (const root of SKILL_ROOTS) {
     const skill = path.join(home, root, 'skills', FULL_PACK_SKILL)
-    if (isDirectory(skill)) {
+    if (isDirectory(skill) && !await isApplicationOwnedSkill(skill)) {
       markers.push(`the full pack's ${FULL_PACK_SKILL} skill is installed (${skill})`)
     }
   }

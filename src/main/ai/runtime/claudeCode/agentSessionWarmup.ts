@@ -478,13 +478,15 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
 
-  const agent = agentService.getAgent(session.agentId)
+  let agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
+  const managed = await application.get('PrometheusIntegrationService').resolveSession(session, agent)
+  agent = managed.agent
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
-  const uniqueModelId = connectionModelId ?? agent.model
+  const uniqueModelId = connectionModelId ?? agent.model!
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)

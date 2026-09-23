@@ -50,6 +50,8 @@ export const McpServerSchema = z.strictObject({
   baseUrl: z.string().optional(),
   /** Command to start the server */
   command: z.string().optional(),
+  /** Working directory for a stdio server. */
+  cwd: z.string().optional(),
   /** Registry URL */
   registryUrl: z.string().optional(),
   /** Arguments passed to the command */

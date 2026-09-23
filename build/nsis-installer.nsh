@@ -11,6 +11,12 @@
 !include x64.nsh
 !include FileFunc.nsh
 
+!macro customUnInstall
+  ${IfNot} ${isUpdated}
+    ExecWait '$"$INSTDIR\${APP_EXECUTABLE_FILENAME}$" --remove-managed-path'
+  ${EndIf}
+!macroend
+
 ; https://github.com/electron-userland/electron-builder/issues/1122
 !ifndef BUILD_UNINSTALLER
   ; Check VC++ Redistributable based on architecture stored in $1

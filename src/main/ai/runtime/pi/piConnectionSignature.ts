@@ -68,12 +68,14 @@ export async function capturePiConnectionSnapshot(
   selectedKnowledgeBaseIds?: readonly string[]
 ): Promise<PiConnectionSnapshot> {
   const session = agentSessionService.getById(sessionId)
-  const agent = agentService.getAgent(agentId)
+  let agent = agentService.getAgent(agentId)
   if (!session?.agentId || session.agentId !== agentId || !agent?.model) {
     throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`)
   }
 
-  const modelId = requestedModelId ?? agent.model
+  const managed = await application.get('PrometheusIntegrationService').resolveSession(session, agent)
+  agent = managed.agent
+  const modelId = requestedModelId ?? agent.model!
   const parsed = parseUniqueModelId(modelId)
   const provider = providerService.getByProviderId(parsed.providerId)
   const model = modelService.getByKey(parsed.providerId, parsed.modelId)

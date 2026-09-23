@@ -59,7 +59,8 @@ export function resolveServersForAssistant(assistant: Assistant, mode: McpMode):
   // request reaches here (the resource-tool gate), and 'manual' is the default mode.
   if (linkedIds?.size === 0) return []
   const { items: activeServers } = mcpServerService.list({ isActive: true })
-  return activeServers.filter((server) => !isBrowserMcpServer(server) && (!linkedIds || linkedIds.has(server.id)))
+  // Workspace-managed servers are selected by the session resolver, never by global auto mode.
+  return activeServers.filter((server) => !server.tags?.includes('the-boss:workspace-managed') && !isBrowserMcpServer(server) && (!linkedIds || linkedIds.has(server.id)))
 }
 
 /**

@@ -922,6 +922,13 @@
       "defaultValue": true,
       "status": "classified",
       "description": "Copy the Prometheus skill pack's skills into ~/.agents and ~/.claude at every startup so command-line tools can use them. Ignored on a machine where the full Prometheus pack is installed, which the app never overwrites (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.prometheus.integrations",
+      "type": "string",
+      "defaultValue": "{}",
+      "status": "classified",
+      "description": "Non-secret Compass, workspace filesystem and Docker service configuration. Validated by integrationConfigSchema; credentials remain in OS-protected main-process storage."
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `mcp_server` ADD `cwd` text;

@@ -452,7 +452,8 @@ const TOOLS = [
         sha256: '68f6bdda5b58f4e40f431c0da48b05ba5596445314d5e491e7b4aebb1ec2e985'
       }
     }
-  }
+  },
+  ...require('./integration-binaries').loadIntegrationBinaries({ required: process.argv.includes('--packaging') })
 ]
 
 // ── Core logic ───────────────────────────────────────────────────────
@@ -543,7 +544,7 @@ function extract(archivePath, archive, outputDir, pkg) {
     try {
       execFileSync('tar', ['xzf', archivePath, '-C', tmpExtract, '--strip-components=1'], { stdio: 'inherit' })
       for (const b of pkg.binaries) {
-        fs.copyFileSync(path.join(tmpExtract, b), path.join(outputDir, b))
+        fs.copyFileSync(path.join(tmpExtract, pkg.strip || '', b), path.join(outputDir, b))
       }
     } finally {
       fs.rmSync(tmpExtract, { recursive: true, force: true })
