@@ -166,9 +166,13 @@ vi.mock('@main/utils/shellEnv', () => ({
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
 }))
-vi.mock('@main/ai/runtime/agentPrompt', () => ({
-  buildAgentRuntimePrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, append: '' })
-}))
+vi.mock('@main/ai/runtime/agentPrompt', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@main/ai/runtime/agentPrompt')>()
+  return {
+    ...actual,
+    buildAgentRuntimePrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, append: '' })
+  }
+})
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: vi.fn(() => []) }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: vi.fn(() => '') }))
 vi.mock('@main/ai/steerReminder', () => ({ wrapSteerReminder: vi.fn((text: string) => text) }))
