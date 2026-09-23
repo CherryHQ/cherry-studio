@@ -974,6 +974,37 @@ describe('BinaryManager', () => {
       expect(snapshots.bun.operation).toBeUndefined()
     })
 
+    it('drops a stale installing operation with no live mutation behind it', async () => {
+      // Phantom install (issue #20945): the operation says installing, but no
+      // mutation is genuinely in flight, so nothing will ever clear it.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+
+      const snapshots = await service.getToolSnapshots(['fd'])
+
+      expect(snapshots.fd.operation).toBeUndefined()
+    })
+
+    it('keeps installing while its mutation is genuinely in flight', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      ;(service as any).activeMutations.set('fd', { action: 'installByName', promise: Promise.resolve() })
+
+      const snapshots = await service.getToolSnapshots(['fd'])
+
+      expect(snapshots.fd.operation).toMatchObject({ status: 'installing', action: 'install' })
+    })
+
     it('falls back from an owned missing mise shim to bundled, system, and none availability', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -3996,6 +4027,35 @@ describe('BinaryManager', () => {
 
       expect(mockExecFileAsync).toHaveBeenCalledTimes(2)
       expect(mockExecFileAsync.mock.calls.every((call: any[]) => call[1][0] === 'ls')).toBe(true)
+    })
+
+    it('does not report installing for a phantom operation without a live mutation', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+
+      await expect(service.getToolInventory()).resolves.toContainEqual(
+        expect.objectContaining({ name: 'fd', status: 'not_installed' })
+      )
+    })
+
+    it('still reports installing while its mutation is genuinely in flight', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      ;(service as any).activeMutations.set('fd', { action: 'installByName', promise: Promise.resolve() })
+
+      await expect(service.getToolInventory()).resolves.toContainEqual(
+        expect.objectContaining({ name: 'fd', status: 'installing' })
+      )
     })
   })
 

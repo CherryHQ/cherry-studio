@@ -641,12 +641,13 @@ export class BinaryManager extends BaseService {
         operation.action === 'install' &&
         (!derivedTool.application || derivedTool.application.status === 'absent') &&
         (availability.source === 'system' || availability.source === 'bundled')
+      const staleInFlight = this.isStaleInFlightOperation(name, operation?.status)
       snapshots[name] = {
         name,
         ...(definitionsByName.has(name) ? { definition: definitionsByName.get(name)! } : {}),
         availability,
         ...(derivedTool.application ? { application: derivedTool.application } : {}),
-        ...(operation && !staleFailedInstall ? { operation } : {})
+        ...(operation && !staleFailedInstall && !staleInFlight ? { operation } : {})
       }
     }
     return snapshots
@@ -757,9 +758,10 @@ export class BinaryManager extends BaseService {
       const runnable =
         name in bundled || (active !== undefined && (shimNames.has(toShimStem(name)) || exposedNames.has(name)))
       const operation = operations[name]
+      const staleInFlight = this.isStaleInFlightOperation(name, operation?.status)
       const statusRules: ReadonlyArray<readonly [matches: boolean, status: ManagedCliStatus]> = [
-        [operation?.status === 'installing', 'installing'],
-        [operation?.status === 'removing', 'removing'],
+        [!staleInFlight && operation?.status === 'installing', 'installing'],
+        [!staleInFlight && operation?.status === 'removing', 'removing'],
         [operation?.status === 'failed', 'failed'],
         [queryFailed || unobservable.has(name), 'unknown'],
         [runnable, 'ready'],
@@ -1493,6 +1495,17 @@ export class BinaryManager extends BaseService {
     }
     cacheService.set(BINARY_OPERATIONS_CACHE_KEY, operations)
     this.broadcastAvailabilityChanged()
+  }
+
+  /**
+   * An in-flight operation (installing/removing) with no live mutation behind
+   * it is a phantom: the promise that would have cleared it never settles
+   * (symmetric to staleFailedInstall, which covers failed). Registration is
+   * synchronous with the operation write, so a live mutation is always present
+   * while one genuinely runs.
+   */
+  private isStaleInFlightOperation(name: string, status: string | undefined): boolean {
+    return (status === 'installing' || status === 'removing') && !this.activeMutations.has(name)
   }
 
   /** Resolve the code-owned fixed definition for a name, if the app ships one. */
