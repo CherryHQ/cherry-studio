@@ -7,6 +7,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { loggerService } from '@logger'
 
 import { CUSTOM_SQL_STATEMENTS } from './customSqls'
+import { reconcilePaintingFork } from './reconcilePaintingFork'
 import type { DbType } from './types'
 
 const logger = loggerService.withContext('applyMigrations')
@@ -31,6 +32,7 @@ export function applyMigrations(db: DbType, migrationsFolder: string): void {
   const enforced = isForeignKeysEnforced(db)
   db.run(sql.raw('PRAGMA foreign_keys = OFF'))
   try {
+    reconcilePaintingFork(db, migrationsFolder)
     migrate(db, { migrationsFolder })
   } finally {
     db.run(sql.raw(`PRAGMA foreign_keys = ${enforced ? 'ON' : 'OFF'}`))
