@@ -143,6 +143,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'claude-opus-4-8',
         'claude-opus-4-8-fast',
         'claude-opus-5',
+        'claude-opus-5-5',
         'claude-opus-5-fast',
         'claude-sonnet-4',
         'claude-sonnet-4-5',
@@ -208,6 +209,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gpt-5-pro',
         'gpt-6-astra',
         'gpt-6-astra-pro',
+        'gpt-6-luna',
+        'gpt-6-sol',
         'o3',
         'o3-mini',
         'o3-pro',
@@ -226,6 +229,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'claude-opus-4-8',
         'claude-opus-4-8-fast',
         'claude-opus-5',
+        'claude-opus-5-5',
         'claude-opus-5-fast',
         'claude-sonnet-4',
         'claude-sonnet-4-5',
@@ -292,7 +296,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
       ]
     },
     deepseek: {
-      'web-search': ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro']
+      'web-search': ['deepseek-flash', 'deepseek-flash-latest', 'deepseek-v4-pro']
     },
     'new-api': {
       'web-search': [
@@ -426,6 +430,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'claude-opus-4-7',
         'claude-opus-4-8',
         'claude-opus-4-8-fast',
+        'claude-opus-5-5',
         'claude-sonnet-4',
         'claude-sonnet-4-5',
         'claude-sonnet-4-6'
@@ -440,6 +445,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'claude-opus-4-7',
         'claude-opus-4-8',
         'claude-opus-4-8-fast',
+        'claude-opus-5-5',
         'claude-sonnet-4',
         'claude-sonnet-4-5',
         'claude-sonnet-4-6'
@@ -500,6 +506,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gpt-5-nano',
         'gpt-5-pro',
         'gpt-6-astra',
+        'gpt-6-luna',
+        'gpt-6-sol',
         'o3',
         'o3-mini',
         'o3-pro',

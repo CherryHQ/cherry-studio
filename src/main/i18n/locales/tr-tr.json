@@ -1,7 +1,6 @@
 {
   "agent.builtin.cherry_assistant.description": "Yerleşik Cherry Studio danışmanı. Sorunları tanılar, işlemlerde rehberlik eder, sık sorulan soruları toplar, hata/özellik istekleri gönderir ve Skills arayıp oluşturur",
   "agent.builtin.cherry_support.description": "Kurulum rehberliği, sorun giderme, sık sorulan sorular ve geri bildirim için resmi Cherry Studio destek ajanı",
-  "agent.heartbeat.workspace_name": "Durum denetimi — {{name}}",
   "agent.session.dsh.bun_unavailable": "Birlikte gelen çalışma zamanı kullanılamadığı için DSH başlatılamadı. Cherry Studio’yu yeniden yükleyip tekrar deneyin.",
   "agent.session.dsh.bun_unavailable_dev": "Birlikte gelen çalışma zamanı kullanılamadığı için DSH başlatılamadı. Geliştirme deposunun yerel kopyasında pnpm download:binaries komutunu çalıştırıp tekrar deneyin.",
   "agent.session.fork.execution_not_inherited": "Yürütme durumu bu oturum dalına aktarılmadı.",
@@ -79,6 +78,10 @@
   "common.inspect": "İncele",
   "common.paste": "Yapıştır",
   "dialog.all_files": "Tüm Dosyalar",
+  "dialog.architecture_mismatch.detail": "Mac’iniz bir Apple çipi kullanıyor, ancak Cherry Studio’nun bu Intel sürümü Rosetta üzerinden çalışıyor. Bu durum yavaşlamaya neden olabilir. Lütfen resmi web sitemizden macOS Apple Silicon (ARM64) sürümünü indirip yükleyin.",
+  "dialog.architecture_mismatch.download": "İndirme sayfasına git",
+  "dialog.architecture_mismatch.later": "Daha sonra",
+  "dialog.architecture_mismatch.title": "Apple Silicon sürümünü yükleyin",
   "dialog.data_reset.cancel": "İptal",
   "dialog.data_reset.confirm": "Sıfırla ve Yeniden Başlat",
   "dialog.data_reset.message": "Bu işlem sohbetleri, asistanları, bilgi tabanlarını, dosyaları ve ayarları silip uygulamayı yeniden başlatacaktır. Bu işlem geri alınamaz. Devam edilsin mi?",
