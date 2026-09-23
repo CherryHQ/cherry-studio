@@ -1,6 +1,60 @@
 import { describe, expect, it } from 'vitest'
 
+import {
+  localizeMarketplaceText,
+  marketplaceSkillSource,
+  summarizeMarketplaceSkill
+} from '@shared/utils/cherrySkillMarketplace'
 import { buildGithubSkillResult, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
+
+describe('CherryIN marketplace metadata', () => {
+  it('uses only verified ZIP members and does not invent public API contents', () => {
+    const skill = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      name: { en: 'Collection', zh: '合集' },
+      description: { en: '', zh: '' },
+      domain: 'Other',
+      author: 'Cherry',
+      version: '1.0',
+      tags: ['collection'],
+      githubRepoUrl: null,
+      sourceUrl: null,
+      icon: null,
+      packageSize: null,
+      packageName: null,
+      downloadUrl: null,
+      hasPackage: true,
+      downloads: 0,
+      releaseDate: '2026-09-22'
+    }
+    expect(summarizeMarketplaceSkill(skill)).toMatchObject({ members: [], membersKnown: false })
+    const item = summarizeMarketplaceSkill(skill, [
+      { path: 'tools/one', name: 'one' },
+      { path: 'two', name: 'two' }
+    ])
+    expect(item.members).toEqual([
+      { path: 'tools/one', name: 'one' },
+      { path: 'two', name: 'two' }
+    ])
+    expect(item).not.toHaveProperty('skillMd')
+    expect(item).not.toHaveProperty('longDescription')
+    expect(item.membersKnown).toBe(true)
+    expect(marketplaceSkillSource('skill/one?x', 'tools/one')).toBe(
+      'https://skills.cherryin.ai/?detail=skill%2Fone%3Fx#tools%2Fone'
+    )
+    expect(marketplaceSkillSource('collection', 'tools/one')).not.toBe(marketplaceSkillSource('other', 'tools/one'))
+    expect(marketplaceSkillSource('collection', 'tools/one')).not.toBe(marketplaceSkillSource('collection', 'two'))
+  })
+
+  it.each([
+    ['zh-CN', { en: 'English', zh: '中文' }, '中文'],
+    ['zh-TW', { en: 'English', zh: '' }, 'English'],
+    ['zh-CN', { en: 'English', zh: null }, 'English'],
+    ['fr-FR', { en: 'English', zh: '中文' }, 'English']
+  ])('localizes marketplace data for %s with a populated fallback', (language, value, expected) => {
+    expect(localizeMarketplaceText(value, language)).toBe(expected)
+  })
+})
 
 describe('parseGithubSkillUrl', () => {
   it('reads owner, repo and the undivided ref-and-path from a blob URL', () => {

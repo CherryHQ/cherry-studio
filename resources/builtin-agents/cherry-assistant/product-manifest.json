@@ -21,6 +21,10 @@
         "path": "/app/paintings"
       },
       {
+        "id": "marketplace",
+        "path": "/app/marketplace"
+      },
+      {
         "id": "translate",
         "path": "/app/translate"
       },
@@ -56,6 +60,7 @@
       "/app/files",
       "/app/knowledge",
       "/app/launchpad",
+      "/app/marketplace",
       "/app/notes",
       "/app/release-notes",
       "/app/translate",

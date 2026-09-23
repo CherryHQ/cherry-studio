@@ -1,9 +1,20 @@
-import { CheckCircle2, CircleAlert, Import, Loader2 } from 'lucide-react'
+import { CheckCircle2, CircleAlert, Import, Loader2, Package, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Dropzone,
+  DropzoneEmptyState,
+  Scrollbar
+} from '@cherrystudio/ui'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -15,6 +26,7 @@ import { createFilePathHandle } from '@shared/utils/file'
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
+  requireConfirmation?: boolean
 }
 
 type ImportStatus = { kind: 'idle' } | { kind: 'error'; message: string }
@@ -29,6 +41,7 @@ type ImportItem = {
   status: ImportItemStatus
   skillName?: string
   error?: string
+  invalid?: boolean
 }
 
 /**
@@ -41,13 +54,14 @@ type ImportItem = {
  * invalidation for `/skills` is handled inside the hook, so the library
  * grid refreshes automatically after each successful install.
  */
-export function ImportSkillDialog({ open, onOpenChange }: Props) {
+export function ImportSkillDialog({ open, onOpenChange, requireConfirmation = false }: Props) {
   const { t } = useTranslation()
   const { installFromZip, installFromDirectory } = useSkillInstall()
 
   const [status, setStatus] = useState<ImportStatus>({ kind: 'idle' })
   const [installing, setInstalling] = useState<InstallingKey>(null)
   const [items, setItems] = useState<ImportItem[]>([])
+  const importing = useRef(false)
 
   // Reset transient state on open / close.
   useEffect(() => {
@@ -59,7 +73,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
   }, [open])
 
   const close = () => {
-    if (installing) return
+    if (importing.current) return
     onOpenChange(false)
   }
 
@@ -77,19 +91,20 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
 
   const runImportQueue = useCallback(
     async (nextItems: ImportItem[], installingKey: Exclude<InstallingKey, null>) => {
-      if (installing) return
+      if (importing.current) return
+      importing.current = true
       setInstalling(installingKey)
       setStatus({ kind: 'idle' })
       setItems(nextItems)
 
-      let successCount = 0
+      let successCount = nextItems.filter((item) => item.status === 'success').length
       const preErrorCount = nextItems.filter((item) => item.status === 'error').length
       let failedCount = preErrorCount
       let lastSkill: InstalledSkill | null = null
 
       try {
         for (const item of nextItems) {
-          if (item.status === 'error') continue
+          if (item.status === 'error' || item.status === 'success') continue
           updateItem(item.id, { status: 'installing', error: undefined })
 
           try {
@@ -132,11 +147,36 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
         toast.success(message)
         onOpenChange(false)
       } finally {
+        importing.current = false
         setInstalling(null)
       }
     },
-    [getInstallErrorMessage, installFromDirectory, installFromZip, installing, onOpenChange, t, updateItem]
+    [getInstallErrorMessage, installFromDirectory, installFromZip, onOpenChange, t, updateItem]
   )
+
+  const acceptItems = async (nextItems: ImportItem[], key: Exclude<InstallingKey, null>) => {
+    if (importing.current) return
+    if (!requireConfirmation) return runImportQueue(nextItems, key)
+    setStatus({ kind: 'idle' })
+    setItems((current) => {
+      const paths = new Set(current.map((item) => item.path))
+      return [
+        ...current,
+        ...nextItems.filter((item) => {
+          if (paths.has(item.path)) return false
+          paths.add(item.path)
+          return true
+        })
+      ]
+    })
+  }
+
+  const confirmImport = () => {
+    const next = items.map((item) =>
+      item.status === 'error' && !item.invalid ? { ...item, status: 'pending' as const, error: undefined } : item
+    )
+    void runImportQueue(next, next.some((item) => item.kind === 'zip') ? 'zip' : 'directory')
+  }
 
   const createImportItem = useCallback(
     (
@@ -171,7 +211,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
       const zipItems = selected.map((file, index) =>
         createImportItem('zip', file.path, file.name ?? getNameFromPath(file.path), index)
       )
-      await runImportQueue(zipItems, 'zip')
+      await acceptItems(zipItems, 'zip')
     } catch (e) {
       setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
     }
@@ -187,7 +227,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
       const directoryItems = selected.map((directory, index) =>
         createImportItem('directory', directory.path, directory.name ?? getNameFromPath(directory.path), index)
       )
-      await runImportQueue(directoryItems, 'directory')
+      await acceptItems(directoryItems, 'directory')
     } catch (e) {
       setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
     }
@@ -229,6 +269,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
 
         droppedItems.push({
           ...createImportItem('zip', filePath, file.name || getNameFromPath(filePath), index, 'error'),
+          invalid: true,
           error: t('settings.skills.invalidFormat')
         })
       }
@@ -236,7 +277,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
       if (droppedItems.length === 0) return
 
       const installingKey = droppedItems.some((item) => item.kind === 'zip') ? 'zip' : 'directory'
-      await runImportQueue(droppedItems, installingKey)
+      await acceptItems(droppedItems, installingKey)
     } catch (e) {
       setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
     }
@@ -248,20 +289,26 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
       onOpenChange={(v) => {
         if (!v && !installing) close()
       }}>
-      <DialogContent className="overflow-hidden" onPointerDownOutside={(event) => installing && event.preventDefault()}>
+      <DialogContent
+        className={`max-h-[calc(100vh-3rem)] overflow-y-auto ${requireConfirmation ? 'rounded-3xl' : ''}`}
+        onPointerDownOutside={(event) => importing.current && event.preventDefault()}
+        onEscapeKeyDown={(event) => importing.current && event.preventDefault()}>
         {/* Header */}
-        <div>
-          <div>
-            <h3 className="text-lg leading-none font-semibold text-foreground">
-              {t('library.import_skill_dialog.title')}
-            </h3>
+        <DialogHeader>
+          <DialogTitle className="text-lg leading-none font-semibold text-foreground">
+            {t('library.import_skill_dialog.title')}
+          </DialogTitle>
+          {!requireConfirmation ? (
             <p className="mt-2 text-sm text-muted-foreground">{t('library.import_skill_dialog.subtitle')}</p>
-          </div>
-        </div>
+          ) : null}
+        </DialogHeader>
 
         {/* Body */}
         <div className="min-w-0">
           <Dropzone
+            noClick={requireConfirmation}
+            noKeyboard={requireConfirmation}
+            onClick={requireConfirmation ? () => void handleZipPick() : undefined}
             disabled={Boolean(installing)}
             getFilesFromEvent={async (event) => {
               if ('dataTransfer' in event && event.dataTransfer) {
@@ -284,7 +331,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
             }}
             className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
             <DropzoneEmptyState>
-              <Import size={26} strokeWidth={1.2} className="mb-3 text-foreground-tertiary" />
+              <Package size={26} strokeWidth={1.2} className="mb-3 size-6 text-foreground-tertiary" />
               <p className="mb-1 text-xs text-muted-foreground">{t('library.import_skill_dialog.local.drop_hint')}</p>
               <p className="text-xs text-muted-foreground">{t('library.import_skill_dialog.local.formats')}</p>
             </DropzoneEmptyState>
@@ -298,7 +345,13 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
               disabled={Boolean(installing)}
               className="shrink-0">
               {installing === 'zip' ? <Loader2 size={12} className="animate-spin" /> : <Import size={12} />}
-              <span>{t('settings.skills.installFromZip')}</span>
+              <span>
+                {t(
+                  requireConfirmation
+                    ? 'library.import_skill_dialog.local.select_zip'
+                    : 'settings.skills.installFromZip'
+                )}
+              </span>
             </Button>
             <Button
               variant="outline"
@@ -307,19 +360,52 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
               disabled={Boolean(installing)}
               className="shrink-0">
               {installing === 'directory' ? <Loader2 size={12} className="animate-spin" /> : <Import size={12} />}
-              <span>{t('settings.skills.installFromDirectory')}</span>
+              <span>
+                {t(
+                  requireConfirmation
+                    ? 'library.import_skill_dialog.local.select_directory'
+                    : 'settings.skills.installFromDirectory'
+                )}
+              </span>
             </Button>
           </div>
 
-          <ImportResultList items={items} />
+          <ImportResultList
+            items={items}
+            onRemove={
+              requireConfirmation && !installing
+                ? (id) => setItems((current) => current.filter((item) => item.id !== id))
+                : undefined
+            }
+          />
           <StatusBanner status={status} />
         </div>
+        {requireConfirmation ? (
+          <DialogFooter>
+            <Button variant="ghost" disabled={Boolean(installing)} onClick={close}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              disabled={
+                Boolean(installing) ||
+                !items.some((item) => item.status === 'pending' || (item.status === 'error' && !item.invalid))
+              }
+              onClick={confirmImport}>
+              {installing ? <Loader2 className="size-4 animate-spin" /> : <Import className="size-4" />}
+              {t(
+                items.some((item) => item.status === 'error' && !item.invalid)
+                  ? 'common.retry'
+                  : 'marketplace.confirm_import'
+              )}
+            </Button>
+          </DialogFooter>
+        ) : null}
       </DialogContent>
     </Dialog>
   )
 }
 
-function ImportResultList({ items }: { items: ImportItem[] }) {
+function ImportResultList({ items, onRemove }: { items: ImportItem[]; onRemove?: (id: string) => void }) {
   const { t } = useTranslation()
 
   if (items.length === 0) return null
@@ -349,6 +435,15 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
                   </div>
                 ) : null}
               </div>
+              {onRemove && item.status !== 'success' ? (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`${t('common.delete')}: ${item.name}`}
+                  onClick={() => onRemove(item.id)}>
+                  <X className="size-3.5" />
+                </Button>
+              ) : null}
             </div>
           )
         })}

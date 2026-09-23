@@ -105,6 +105,64 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('ImportSkillDialog', () => {
+  it('stages and removes ZIPs before confirmation, and cancel never installs', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    render(<ImportSkillDialog open onOpenChange={onOpenChange} requireConfirmation />)
+    await user.click(screen.getByRole('button', { name: 'library.import_skill_dialog.local.select_zip' }))
+    expect(await screen.findByText('broken.zip')).toBeInTheDocument()
+    expect(installFromZip).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'common.delete: broken.zip' }))
+    expect(screen.getByRole('button', { name: 'marketplace.confirm_import' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(installFromZip).not.toHaveBeenCalled()
+  })
+
+  it('confirms a mixed drop and retries only the failed member', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    ipcApiRequest.mockImplementation(async (_route, handle) =>
+      handle.path.endsWith('two') ? directoryMetadata : fileMetadata
+    )
+    installFromZip.mockResolvedValue({ id: 'one', name: 'One' })
+    installFromDirectory.mockRejectedValueOnce(new Error('conflict')).mockResolvedValueOnce({ id: 'two', name: 'Two' })
+    render(<ImportSkillDialog open onOpenChange={onOpenChange} requireConfirmation />)
+    await dropSkillFiles([new File(['zip'], 'one.zip'), new File([], 'two')])
+    expect(installFromZip).not.toHaveBeenCalled()
+    expect(installFromDirectory).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'marketplace.confirm_import' }))
+    expect(await screen.findByText('settings.skills.installFailed:two: conflict')).toBeInTheDocument()
+    expect(screen.getByText('One')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.retry' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(installFromZip).toHaveBeenCalledTimes(1)
+    expect(installFromDirectory).toHaveBeenCalledTimes(2)
+  })
+
+  it('blocks duplicate confirmation and closing while a confirmed import is running', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    let complete!: (value: unknown) => void
+    installFromZip.mockReturnValue(
+      new Promise((resolve) => {
+        complete = resolve
+      })
+    )
+    render(<ImportSkillDialog open onOpenChange={onOpenChange} requireConfirmation />)
+    await user.click(screen.getByRole('button', { name: 'library.import_skill_dialog.local.select_zip' }))
+    const confirm = screen.getByRole('button', { name: 'marketplace.confirm_import' })
+    fireEvent.click(confirm)
+    fireEvent.click(confirm)
+    await user.keyboard('{Escape}')
+    fireEvent.click(document.querySelector('[data-slot="dialog-overlay"]')!)
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(installFromZip).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'common.cancel' })).toBeDisabled()
+    await act(async () => complete({ id: 'one', name: 'One' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('closes when clicking the overlay while idle', () => {
     const onOpenChange = vi.fn()
 
