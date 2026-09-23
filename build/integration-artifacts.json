@@ -1,0 +1,295 @@
+{
+  "schema": 1,
+  "platforms": [
+    "darwin-arm64",
+    "linux-x64",
+    "linux-arm64",
+    "win32-x64",
+    "win32-arm64"
+  ],
+  "sources": {
+    "compass": {
+      "repository": "GQAdonis/compass",
+      "revision": "d0b9e0fb3cc62a1985bd6a83c5b5ea7798d937f9"
+    },
+    "filesystem": {
+      "repository": "GQAdonis/rust-mcp-filesystem",
+      "revision": "3a8d18233aa666f7cf776d5d998a28e7b2b88d0d"
+    },
+    "prometheus": {
+      "repository": "Prometheus-AGS/prometheus-skill-system",
+      "revision": "e57421a86fae08ac4d1e3a625a213cf3f3eb98bc"
+    },
+    "pk": {
+      "repository": "Prometheus-AGS/prometheus-knowledge-rs",
+      "revision": "abb6745e31da7577611d7c32005af26a72254484"
+    },
+    "mini": {
+      "repository": "Prometheus-AGS/prometheus-skills-mini",
+      "revision": "7d3fd056a966a1a30933c3e30c47813d6f1d3e6d"
+    },
+    "surreal-memory": {
+      "repository": "Prometheus-AGS/surreal-memory-server",
+      "revision": "6acb60565949334beda22f52bcd36b33895b1db6"
+    },
+    "liter-llm": {
+      "repository": "GQAdonis/liter-llm",
+      "revision": "c5c6caac617eb931cd5009146a70831422ec236c"
+    }
+  },
+  "tools": [
+    {
+      "name": "compass",
+      "version": "0.3.28",
+      "packages": {
+        "darwin-arm64": {
+          "sha256": "706bda14f4867cf99e29c92c5c42c90b021e84c92f709ba96791e8c07c4d7e55",
+          "binaries": [
+            "compass"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/compass-darwin-arm64"
+        },
+        "linux-arm64": {
+          "sha256": "4d36a175cc26a285ad827e2f4d2d3df8dbe93dceccd75fb9e587a2b34308f653",
+          "binaries": [
+            "compass"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/compass-linux-arm64"
+        },
+        "linux-x64": {
+          "sha256": "793a674d0cb785d6673dce6d8cebfa7d0e705868b5dbad2a572aab47e4508375",
+          "binaries": [
+            "compass"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/compass-linux-x64"
+        },
+        "win32-arm64": {
+          "sha256": "35f77fc4e8155ff3d3ab51155b9324d98b6b5cb8809492bd26ce6147b4ec60d9",
+          "binaries": [
+            "compass.exe"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/compass-win32-arm64.exe"
+        },
+        "win32-x64": {
+          "sha256": "9c697e1fc4412fc462181559aa2b6af559f97508064ce03894abbbdcef732f33",
+          "binaries": [
+            "compass.exe"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/compass-win32-x64.exe"
+        }
+      }
+    },
+    {
+      "name": "rust-mcp-filesystem",
+      "version": "0.4.5",
+      "packages": {
+        "darwin-arm64": {
+          "sha256": "8c473b7d8492967a1d043bd2d1efac9be5403d85b455928f23cb0ebd4c69f42c",
+          "binaries": [
+            "rust-mcp-filesystem"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/rust-mcp-filesystem-darwin-arm64"
+        },
+        "linux-arm64": {
+          "sha256": "4b5e94caa70908f0e2f11e8ab96629b1bc31f9d11adefb45e65ed232f4fd147e",
+          "binaries": [
+            "rust-mcp-filesystem"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/rust-mcp-filesystem-linux-arm64"
+        },
+        "linux-x64": {
+          "sha256": "09bd13b2afe80ede71448d3b6615a440d7e766e314881f0bfc4eac0021162ea8",
+          "binaries": [
+            "rust-mcp-filesystem"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/rust-mcp-filesystem-linux-x64"
+        },
+        "win32-arm64": {
+          "sha256": "7703105ca9bd841f7bf607d2d19d26fb3c310a652137cdecdab6d048c0adea9a",
+          "binaries": [
+            "rust-mcp-filesystem.exe"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/rust-mcp-filesystem-win32-arm64.exe"
+        },
+        "win32-x64": {
+          "sha256": "a4043ed6bc651d8d8d196a2bfb40b2266c1fffc86f73e1609d07217d2108756d",
+          "binaries": [
+            "rust-mcp-filesystem.exe"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/rust-mcp-filesystem-win32-x64.exe"
+        }
+      }
+    },
+    {
+      "name": "prometheus",
+      "version": "1.10.0",
+      "packages": {
+        "darwin-arm64": {
+          "sha256": "ddf4df1252e1fd97da8b1be854f901292a3517075e2af65964c44ec4779262be",
+          "binaries": [
+            "prometheus"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/prometheus-darwin-arm64"
+        },
+        "linux-arm64": {
+          "sha256": "440e3130d66fe8bc2452c3c77f4310f3680fb52b5304a86f3293ebeca8279b14",
+          "binaries": [
+            "prometheus"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/prometheus-linux-arm64"
+        },
+        "linux-x64": {
+          "sha256": "cf2a4f81a5acc3014bc09d185cf67fa27594fcf8f647428c3003fdc55e5d5ca4",
+          "binaries": [
+            "prometheus"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/prometheus-linux-x64"
+        },
+        "win32-arm64": {
+          "sha256": "27c14ee09d44ca07dac3bf1bd574ffb3524255580e1a53ab9ce97512b2e5863f",
+          "binaries": [
+            "prometheus.exe"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/prometheus-win32-arm64.exe"
+        },
+        "win32-x64": {
+          "sha256": "5d73625eee7765a4e3ce055ed3c1469ef43eb7745151a0048072e6e3c653ea10",
+          "binaries": [
+            "prometheus.exe"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/prometheus-win32-x64.exe"
+        }
+      }
+    },
+    {
+      "name": "pk",
+      "version": "1.9.0",
+      "packages": {
+        "darwin-arm64": {
+          "sha256": "104561ba5c6c0c994405c1eb8da36a9e8ab8dff051c1140e3b06471345b93e73",
+          "binaries": [
+            "pk"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/pk-darwin-arm64"
+        },
+        "linux-arm64": {
+          "sha256": "fcd26f7eba1c7aa600473358821ba4ae19f030af38b5fcde99a9fa2b846f6a59",
+          "binaries": [
+            "pk"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/pk-linux-arm64"
+        },
+        "linux-x64": {
+          "sha256": "91f5b3a20d6e01bd82409d417a6ff2b48715b49cfff5a2847733c8fcaedadca6",
+          "binaries": [
+            "pk"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/pk-linux-x64"
+        },
+        "win32-arm64": {
+          "sha256": "dc479d10f7eca5d1c2efe625fdfa86d6a641a7489d3ceab439edd5765a3d8d45",
+          "binaries": [
+            "pk.exe"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/pk-win32-arm64.exe"
+        },
+        "win32-x64": {
+          "sha256": "0939602ff07bb53a5e4ebb57257c9f394570c543bbc33396fbb1d2679781bf97",
+          "binaries": [
+            "pk.exe"
+          ],
+          "archive": "none",
+          "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/pk-win32-x64.exe"
+        }
+      }
+    },
+    {
+      "name": "node",
+      "version": "24.11.1",
+      "packages": {
+        "darwin-x64": {
+          "url": "https://nodejs.org/dist/v24.11.1/node-v24.11.1-darwin-x64.tar.gz",
+          "sha256": "096081b6d6fcdd3f5ba0f5f1d44a47e83037ad2e78eada26671c252fe64dd111",
+          "archive": "tar.gz",
+          "binaries": [
+            "node"
+          ],
+          "strip": "bin"
+        },
+        "darwin-arm64": {
+          "url": "https://nodejs.org/dist/v24.11.1/node-v24.11.1-darwin-arm64.tar.gz",
+          "sha256": "b05aa3a66efe680023f930bd5af3fdbbd542794da5644ca2ad711d68cbd4dc35",
+          "archive": "tar.gz",
+          "binaries": [
+            "node"
+          ],
+          "strip": "bin"
+        },
+        "linux-x64": {
+          "url": "https://nodejs.org/dist/v24.11.1/node-v24.11.1-linux-x64.tar.gz",
+          "sha256": "58a5ff5cc8f2200e458bea22e329d5c1994aa1b111d499ca46ec2411d58239ca",
+          "archive": "tar.gz",
+          "binaries": [
+            "node"
+          ],
+          "strip": "bin"
+        },
+        "linux-arm64": {
+          "url": "https://nodejs.org/dist/v24.11.1/node-v24.11.1-linux-arm64.tar.gz",
+          "sha256": "0dc93ec5c798b0d347f068db6d205d03dea9a71765e6a53922b682b91265d71f",
+          "archive": "tar.gz",
+          "binaries": [
+            "node"
+          ],
+          "strip": "bin"
+        },
+        "win32-x64": {
+          "url": "https://nodejs.org/dist/v24.11.1/node-v24.11.1-win-x64.zip",
+          "sha256": "5355ae6d7c49eddcfde7d34ac3486820600a831bf81dc3bdca5c8db6a9bb0e76",
+          "archive": "zip",
+          "binaries": [
+            "node.exe"
+          ],
+          "strip": "node-v24.11.1-win-x64"
+        },
+        "win32-arm64": {
+          "url": "https://nodejs.org/dist/v24.11.1/node-v24.11.1-win-arm64.zip",
+          "sha256": "ce9ee4e547ebdff355beb48e309b166c24df6be0291c9eaf103ce15f3de9e5b4",
+          "archive": "zip",
+          "binaries": [
+            "node.exe"
+          ],
+          "strip": "node-v24.11.1-win-arm64"
+        }
+      }
+    }
+  ],
+  "images": {
+    "surrealdb": "surrealdb/surrealdb:v3.2.4@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843",
+    "surreal-memory": "ghcr.io/prometheus-ags/the-boss-surreal-memory@sha256:1e1095242e4df05efb010098888e828d915668f44577797549046acaaefac2be",
+    "liter-llm": "ghcr.io/prometheus-ags/the-boss-liter-llm@sha256:2e03527e66378965e07b623df50d147b1d5961b231728199456a91f536a51bba"
+  },
+  "compassSkills": {
+    "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/boss-tools-2.1.3-ready/compass-skills.tar.gz",
+    "sha256": "8b13681910d532411300268c4ba2bab5712e1b7e5cba70f105e766cd89e2c7b0"
+  }
+}
