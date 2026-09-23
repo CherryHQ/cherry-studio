@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import {
   agentTaskService,
@@ -89,6 +90,26 @@ function findHeartbeatRow(agentId: string, rows: JobScheduleSnapshot[]) {
     rows.find((row) => matchesFallbackIdentity(row, agentId)) ??
     null
   )
+}
+
+export function reclaimHeartbeatWorkspacesTx(tx: DbOrTx, deletedSchedules: JobScheduleSnapshot[]): void {
+  for (const schedule of deletedSchedules) {
+    const input = schedule.jobInputTemplate
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) continue
+    const template = input as Record<string, unknown>
+    if (typeof template.agentId !== 'string' || typeof template.prompt !== 'string') continue
+    const reservedName =
+      schedule.name === `heartbeat_${template.agentId}` || schedule.name?.startsWith(`heartbeat_${template.agentId}__`)
+    if (
+      !isHeartbeatRow(schedule, template.agentId) &&
+      !(reservedName && template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL)
+    )
+      continue
+    const workspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
+    if (workspace.success && workspace.data.type === AGENT_WORKSPACE_TYPE.USER) {
+      agentWorkspaceService.deleteIfUnreferencedTx(tx, workspace.data.workspaceId)
+    }
+  }
 }
 
 /** True when the error is the (type, name) UNIQUE-conflict from registerJobScheduleTx. */
@@ -192,7 +213,7 @@ export async function syncHeartbeatSchedule(
     const state = agentService.getLifecycleState(agentId)
     if (state === 'active') return outcome
     if (state === 'trashed') {
-      const scheduleIds = application
+      const { scheduleIds } = application
         .get('DbService')
         .withWriteTx((tx) => agentTaskService.setOwnerStateTx(tx, agentId, 'trashed', Date.now()))
       for (const scheduleId of scheduleIds) application.get('JobManager').syncJobScheduleTimerById(scheduleId)

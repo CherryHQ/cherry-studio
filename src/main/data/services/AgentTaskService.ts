@@ -15,7 +15,6 @@ import { jobTable } from '@data/db/schemas/job'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -54,6 +53,11 @@ type AgentTaskJobInputTemplate = {
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+}
+
+type TaskOwnerStateChange = {
+  scheduleIds: string[]
+  deletedSchedules: JobScheduleSnapshot[]
 }
 
 function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate | null {
@@ -216,16 +220,23 @@ export class AgentTaskService {
     return true
   }
 
-  setOwnerStateTx(tx: DbOrTx, agentId: string, state: 'active' | 'trashed' | 'missing', now: number): string[] {
+  setOwnerStateTx(
+    tx: DbOrTx,
+    agentId: string,
+    state: 'active' | 'trashed' | 'missing',
+    now: number
+  ): TaskOwnerStateChange {
     const schedules = jobScheduleService
       .listAllTx(tx, { type: AGENT_TASK_TYPE })
       .filter((schedule) => isPlainRecord(schedule.jobInputTemplate) && schedule.jobInputTemplate.agentId === agentId)
     for (const schedule of schedules) this.transitionOwnerTx(tx, schedule, state, now)
-    if (state === 'missing') this.reclaimHeartbeatWorkspacesTx(tx, schedules)
-    return schedules.map((schedule) => schedule.id)
+    return {
+      scheduleIds: schedules.map((schedule) => schedule.id),
+      deletedSchedules: state === 'missing' ? schedules : []
+    }
   }
 
-  reconcileOwnerStatesTx(tx: DbOrTx, now: number): string[] {
+  reconcileOwnerStatesTx(tx: DbOrTx, now: number): TaskOwnerStateChange {
     const schedules = jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE })
     const missedJobs = schedules.flatMap((schedule) => {
       const missed = schedule.metadata.missed
@@ -249,7 +260,7 @@ export class AgentTaskService {
         })
       )
     ]
-    if (ids.length === 0) return []
+    if (ids.length === 0) return { scheduleIds: [], deletedSchedules: [] }
     const owners = new Map(
       tx
         .select({ id: agentTable.id, deletedAt: agentTable.deletedAt })
@@ -277,24 +288,7 @@ export class AgentTaskService {
         changedIds.push(schedule.id)
       }
     }
-    this.reclaimHeartbeatWorkspacesTx(tx, orphanedSchedules)
-    return changedIds
-  }
-
-  private reclaimHeartbeatWorkspacesTx(tx: DbOrTx, schedules: JobScheduleSnapshot[]): void {
-    for (const schedule of schedules) {
-      const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
-      if (!template || template.workspace.type !== AGENT_WORKSPACE_TYPE.USER) continue
-      const reservedName =
-        schedule.name === `heartbeat_${template.agentId}` ||
-        schedule.name?.startsWith(`heartbeat_${template.agentId}__`)
-      if (
-        template.prompt === HEARTBEAT_PROMPT_SENTINEL ||
-        (reservedName && template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL)
-      ) {
-        agentWorkspaceService.deleteIfUnreferencedTx(tx, template.workspace.workspaceId)
-      }
-    }
+    return { scheduleIds: changedIds, deletedSchedules: orphanedSchedules }
   }
 
   private transitionOwnerTx(
