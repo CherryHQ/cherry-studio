@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { isMcpContentBlock } from '@shared/utils/mcp'
+import { isMcpContentBlock, stripMcpImageData } from '@shared/utils/mcp'
 
 describe('isMcpContentBlock', () => {
+  it('accepts an asset-only image block after history sanitization', () => {
+    expect(isMcpContentBlock({ type: 'image', assetId: 'file-1', mimeType: 'image/png' })).toBe(true)
+  })
   it.each([
     ['text', { type: 'text', text: 'hello' }],
     ['image', { type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }],
@@ -28,5 +31,24 @@ describe('isMcpContentBlock', () => {
     ['unknown type', { type: 'tool_use', id: 'x' }]
   ])('rejects %s', (_name, value) => {
     expect(isMcpContentBlock(value)).toBe(false)
+  })
+})
+
+describe('stripMcpImageData', () => {
+  it('removes bytes only when an asset id is present and preserves other payloads', () => {
+    const value = {
+      content: [
+        { type: 'image', data: 'BASE64', assetId: 'file-1', mimeType: 'image/png' },
+        { type: 'image', data: 'KEEP', mimeType: 'image/png' },
+        { type: 'text', text: 'done' }
+      ]
+    }
+    expect(stripMcpImageData(value)).toEqual({
+      content: [
+        { type: 'image', assetId: 'file-1', mimeType: 'image/png' },
+        { type: 'image', data: 'KEEP', mimeType: 'image/png' },
+        { type: 'text', text: 'done' }
+      ]
+    })
   })
 })

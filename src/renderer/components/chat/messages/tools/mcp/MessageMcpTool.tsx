@@ -1,4 +1,3 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { ComponentPropsWithoutRef, FC } from 'react'
@@ -10,6 +9,7 @@ import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { McpToolResponse } from '@renderer/types/mcpTool'
+import { toSafeFileUrl } from '@shared/utils/file'
 
 import {
   useMessageRenderConfig,
@@ -180,7 +180,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
 
 type ExtractedContent = {
   text: string
-  images: Array<{ data: string; mimeType: string }>
+  images: Array<{ data: string; mimeType: string; assetId?: string }>
 }
 
 /**
@@ -191,32 +191,48 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
 
   const hasMcpContent =
     typeof response === 'object' && response !== null && Object.prototype.hasOwnProperty.call(response, 'content')
-  const result = hasMcpContent ? CallToolResultSchema.safeParse(response) : null
-  if (result?.success) {
-    const contents = result.data.content
-    if (contents.length === 0) return { text: '', images: [] }
+  const rawContents =
+    hasMcpContent && Array.isArray((response as { content?: unknown }).content)
+      ? ((response as { content: unknown[] }).content as Array<Record<string, unknown>>)
+      : null
+  if (rawContents) {
+    if (rawContents.length === 0) return { text: '', images: [] }
 
     const textParts: string[] = []
-    const images: Array<{ data: string; mimeType: string }> = []
-    for (const content of contents) {
+    const images: Array<{ data: string; mimeType: string; assetId?: string }> = []
+    for (const content of rawContents) {
       switch (content.type) {
-        case 'text':
-          if (content.text) {
+        case 'text': {
+          const text = typeof content.text === 'string' ? content.text : ''
+          if (text) {
             try {
-              const parsed = JSON.parse(content.text)
+              const parsed = JSON.parse(text)
               textParts.push(JSON.stringify(parsed, null, 2))
             } catch {
-              textParts.push(content.text)
+              textParts.push(text)
             }
           }
           break
-        case 'image':
-          if (content.data) {
-            images.push({ data: content.data, mimeType: content.mimeType ?? 'image/png' })
-          }
+        }
+        case 'image': {
+          const data = typeof content.data === 'string' ? content.data : ''
+          const assetId = typeof content.assetId === 'string' ? content.assetId : undefined
+          if (data || assetId)
+            images.push({
+              data,
+              mimeType: typeof content.mimeType === 'string' ? content.mimeType : 'image/png',
+              assetId
+            })
           break
+        }
         case 'resource':
-          textParts.push(`[Resource: ${content.resource?.uri ?? 'unknown'}]`)
+          textParts.push(
+            `[Resource: ${
+              typeof content.resource === 'object' && content.resource
+                ? String((content.resource as Record<string, unknown>).uri ?? 'unknown')
+                : 'unknown'
+            }]`
+          )
           break
       }
     }
@@ -295,10 +311,14 @@ const ExpandedToolResponseContent: FC<{
   const [showArgs, setShowArgs] = useState(false)
   const [showResponse, setShowResponse] = useState(false)
   const [highlightedResponse, setHighlightedResponse] = useState<string>('')
-  const [responseImages, setResponseImages] = useState<Array<{ data: string; mimeType: string }>>([])
+  const [responseImages, setResponseImages] = useState<Array<{ data: string; mimeType: string; assetId?: string }>>([])
+  const [resolvedResponseImages, setResolvedResponseImages] = useState<Array<{ src: string; mimeType: string }>>([])
   const [isTruncated, setIsTruncated] = useState(false)
   const [originalLength, setOriginalLength] = useState(0)
-  const highlightedForRef = useRef<{ response: unknown; highlight: typeof highlightCode } | null>(null)
+  const highlightedForRef = useRef<{
+    response: unknown
+    highlight: typeof highlightCode
+  } | null>(null)
 
   useEffect(() => {
     const argsTimer = window.setTimeout(() => setShowArgs(true), TOOL_ARGS_RENDER_DELAY_MS)
@@ -341,6 +361,7 @@ const ExpandedToolResponseContent: FC<{
     const highlight = async () => {
       setHighlightedResponse('')
       setResponseImages([])
+      setResolvedResponseImages([])
       setIsTruncated(false)
       setOriginalLength(0)
       const { text: previewContent, images } = extractPreviewContent(response)
@@ -361,7 +382,9 @@ const ExpandedToolResponseContent: FC<{
     }
 
     if (window.requestIdleCallback) {
-      const idleId = window.requestIdleCallback(() => void highlight(), { timeout: 500 })
+      const idleId = window.requestIdleCallback(() => void highlight(), {
+        timeout: 500
+      })
       return () => {
         cancelled = true
         window.cancelIdleCallback(idleId)
@@ -374,6 +397,33 @@ const ExpandedToolResponseContent: FC<{
       window.clearTimeout(timer)
     }
   }, [showResponse, response, highlightCode])
+
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all(
+      responseImages.map(async (image) => {
+        if (image.assetId) {
+          try {
+            const path = await window.api.file.getPhysicalPath({
+              id: image.assetId
+            })
+            return { src: toSafeFileUrl(path, null), mimeType: image.mimeType }
+          } catch {
+            // Fall back to the current-turn bytes if the asset was reclaimed.
+          }
+        }
+        return {
+          src: `data:${image.mimeType};base64,${image.data}`,
+          mimeType: image.mimeType
+        }
+      })
+    ).then((images) => {
+      if (!cancelled) setResolvedResponseImages(images)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [responseImages])
 
   // Handle both object and array args - for arrays, show as single entry
   const getEntries = (): Array<[string, unknown]> => {
@@ -427,13 +477,8 @@ const ExpandedToolResponseContent: FC<{
             <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
           )}
           {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
-          {responseImages.map((img, idx) => (
-            <img
-              key={idx}
-              src={`data:${img.mimeType};base64,${img.data}`}
-              alt="Tool output"
-              style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
-            />
+          {resolvedResponseImages.map((img, idx) => (
+            <img key={idx} src={img.src} alt="Tool output" style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }} />
           ))}
         </ResponseSection>
       )}

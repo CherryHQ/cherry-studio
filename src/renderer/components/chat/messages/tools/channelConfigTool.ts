@@ -1,5 +1,3 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -29,19 +27,37 @@ function isChannelAuthQrRequest(toolResponse: ChannelConfigToolResponse): boolea
 export function getChannelAuthQrResult(toolResponse: ChannelConfigToolResponse) {
   if (!isChannelAuthQrRequest(toolResponse) || typeof toolResponse.toolCallId !== 'string') return null
 
-  const result = CallToolResultSchema.safeParse(toolResponse.response)
-  if (!result.success) return null
+  const response = toolResponse.response
+  if (!response || typeof response !== 'object' || Array.isArray(response)) return null
+  const content = (response as { content?: unknown }).content
+  if (!Array.isArray(content)) return null
 
-  const images = result.data.content.flatMap((item) =>
-    item.type === 'image' && item.data ? [`data:${item.mimeType ?? 'image/png'};base64,${item.data}`] : []
-  )
+  const images = content.flatMap((item) => {
+    if (!item || typeof item !== 'object' || (item as { type?: unknown }).type !== 'image') return []
+    const image = item as {
+      data?: unknown
+      mimeType?: unknown
+      assetId?: unknown
+    }
+    const data = typeof image.data === 'string' ? image.data : ''
+    const assetId = typeof image.assetId === 'string' ? image.assetId : undefined
+    return data || assetId
+      ? [
+          {
+            data,
+            mimeType: typeof image.mimeType === 'string' ? image.mimeType : 'image/png',
+            assetId
+          }
+        ]
+      : []
+  })
   if (images.length === 0) return null
 
   return {
     images,
     responseWithoutImages: {
-      ...result.data,
-      content: result.data.content.filter((item) => item.type !== 'image')
+      ...response,
+      content: content.filter((item) => (item as { type?: unknown })?.type !== 'image')
     }
   }
 }

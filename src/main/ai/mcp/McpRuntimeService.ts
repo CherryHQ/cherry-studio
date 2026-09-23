@@ -152,7 +152,22 @@ async function clampToolResultImages(
       if (part.type !== 'image' || !part.data) return part
       try {
         const clamped = await clampImageForModel(Buffer.from(part.data, 'base64'))
-        return clamped ? { ...part, data: Buffer.from(clamped).toString('base64') } : part
+        if (!clamped) return part
+        const data = Buffer.from(clamped).toString('base64')
+        const mimeType = part.mimeType ?? 'image/png'
+        try {
+          const asset = await application.get('FileManager').createInternalEntry({
+            source: 'base64',
+            data: `data:${mimeType};base64,${data}`,
+            cleanupPolicy: 'delete_when_unreferenced'
+          })
+          return { ...part, data, mimeType, assetId: asset.id }
+        } catch (error) {
+          // Asset persistence improves display/history but must not make a valid
+          // MCP image unusable for the current model turn.
+          serverLogger.warn('Failed to persist MCP tool-result image asset', { mimeType, error })
+          return { ...part, data, mimeType }
+        }
       } catch (error) {
         serverLogger.warn('Dropping unprocessable tool-result image', { mimeType: part.mimeType, error })
         return { type: 'text' as const, text: `[image (${part.mimeType ?? 'unknown'}) could not be processed]` }

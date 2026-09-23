@@ -39,6 +39,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
+import { generatedImagesFromPart } from '@shared/ai/generateImageTool'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -62,6 +63,7 @@ import {
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { collectMcpImageAssetIds, stripMcpImageData } from '@shared/utils/mcp'
 
 import { AgentSessionEditError } from './AgentSessionEditError'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -222,8 +224,12 @@ function replaceAgentSessionMessageFileRefsTx(
   const ids = [
     ...new Set(
       (data.parts ?? [])
-        .filter((part) => part.type === 'file')
-        .map((part) => readCherryMeta(part)?.fileEntryId)
+        .flatMap((part) => [
+          ...(part.type === 'file'
+            ? [readCherryMeta(part)?.fileEntryId]
+            : generatedImagesFromPart(part).map((image) => image.id)),
+          ...collectMcpImageAssetIds(part)
+        ])
         .filter((id): id is string => Boolean(id))
     )
   ]
@@ -368,7 +374,9 @@ export class AgentSessionMessageService {
 
   setEditRuntimeTx(tx: DbOrTx, sessionId: string, userMessageId: string, nativeSessionId: string): void {
     tx.update(sessionMessagesTable)
-      .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.nativeSessionId', ${nativeSessionId})` })
+      .set({
+        data: sql`json_set(${sessionMessagesTable.data}, '$.nativeSessionId', ${nativeSessionId})`
+      })
       .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, userMessageId)))
       .run()
   }
@@ -711,7 +719,10 @@ export class AgentSessionMessageService {
     const [anchor] =
       !options.cursor && options.messageId
         ? database
-            .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
+            .select({
+              id: sessionMessagesTable.id,
+              createdAt: sessionMessagesTable.createdAt
+            })
             .from(sessionMessagesTable)
             .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.messageId)))
             .limit(1)
@@ -756,7 +767,9 @@ export class AgentSessionMessageService {
 
   deleteSessionMessage(sessionId: string, messageId: string): void {
     if (!messageId) {
-      throw DataApiErrorFactory.validation({ messageId: ['must not be empty'] })
+      throw DataApiErrorFactory.validation({
+        messageId: ['must not be empty']
+      })
     }
     const database = application.get('DbService').getDb()
 
@@ -775,7 +788,11 @@ export class AgentSessionMessageService {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
     notifyDataApiDataChange([
-      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } }
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        routeParams: { sessionId }
+      }
     ])
   }
 
@@ -800,7 +817,7 @@ export class AgentSessionMessageService {
       const updatedAt = Date.now()
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
-      const mergedData = publicMessageData({ ...existing.data, ...dto.data })
+      const mergedData = stripMcpImageData(publicMessageData({ ...existing.data, ...dto.data }))
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
@@ -813,7 +830,11 @@ export class AgentSessionMessageService {
       return this.rowToEntity(updated)
     })
     notifyDataApiDataChange([
-      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId }
+      }
     ])
     return message
   }
@@ -970,7 +991,9 @@ export class AgentSessionMessageService {
     const rows = application
       .get('DbService')
       .getDb()
-      .selectDistinct({ runtimeResumeToken: sessionMessagesTable.runtimeResumeToken })
+      .selectDistinct({
+        runtimeResumeToken: sessionMessagesTable.runtimeResumeToken
+      })
       .from(sessionMessagesTable)
       .where(isNotNull(sessionMessagesTable.runtimeResumeToken))
       .all()
@@ -1018,7 +1041,7 @@ export class AgentSessionMessageService {
     }
 
     const existingRow = this.findExistingMessageRow(db, sessionId, messageId)
-    const data: SessionMessageRow['data'] = publicMessageData(message.data)
+    const data: SessionMessageRow['data'] = stripMcpImageData(publicMessageData(message.data))
     if (params.runtimeAnchor) data.runtimeAnchor = params.runtimeAnchor
 
     if (existingRow) {
@@ -1145,7 +1168,10 @@ export class AgentSessionMessageService {
     if (db) return this.saveMessageTx(db, params, timestampMs).entity
     const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
     if (result.entity.role === 'assistant') {
-      aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
+      aiUsageRecordService.refreshMessageProjection({
+        kind: 'agent-session',
+        id: result.entity.id
+      })
     }
     if (result.activityTimestamp !== null && !publishDataChange) {
       agentSessionService.notifyReadModelChange([params.sessionId], 'projection')
@@ -1173,7 +1199,10 @@ export class AgentSessionMessageService {
       .withWriteTx((tx) => this.saveMessagesWithActivityTx(tx, params, expectedAgent))
     for (const entity of saved) {
       if (entity.role === 'assistant') {
-        aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: entity.id })
+        aiUsageRecordService.refreshMessageProjection({
+          kind: 'agent-session',
+          id: entity.id
+        })
       }
     }
     if (activityTimestamp !== null) {
@@ -1194,7 +1223,10 @@ export class AgentSessionMessageService {
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto,
     expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
-  ): { entities: AgentSessionMessageEntity[]; activityTimestamp: number | null } {
+  ): {
+    entities: AgentSessionMessageEntity[]
+    activityTimestamp: number | null
+  } {
     const { sessionId, runtimeResumeToken, messages } = params
     this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
     const timestampMs = Date.now()
@@ -1214,7 +1246,10 @@ export class AgentSessionMessageService {
     if (activityTimestamp !== null) {
       agentSessionService.advanceLastActivityAtTx(tx, sessionId, activityTimestamp)
     }
-    return { entities: saved.map((result) => result.entity), activityTimestamp }
+    return {
+      entities: saved.map((result) => result.entity),
+      activityTimestamp
+    }
   }
 
   /**
@@ -1280,11 +1315,25 @@ export class AgentSessionMessageService {
 
     const session = agentSessionService.getById(sessionId)
     notifyDataApiDataChange([
-      { endpoint: '/agent-sessions', kind: 'membership', entityIds: [sessionId] },
+      {
+        endpoint: '/agent-sessions',
+        kind: 'membership',
+        entityIds: [sessionId]
+      },
       ...(input.workspace.type === 'system'
-        ? [{ endpoint: '/agent-workspaces' as const, kind: 'membership' as const, entityIds: [session.workspaceId] }]
+        ? [
+            {
+              endpoint: '/agent-workspaces' as const,
+              kind: 'membership' as const,
+              entityIds: [session.workspaceId]
+            }
+          ]
         : []),
-      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', entityIds: [message.id] }
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        entityIds: [message.id]
+      }
     ])
     return { session, message }
   }
@@ -1300,7 +1349,11 @@ export class AgentSessionMessageService {
     }
   ): AgentSessionMessageEntity {
     const [sender] = tx
-      .select({ agentId: sessionTable.agentId, agentName: agentTable.name, sessionName: sessionTable.name })
+      .select({
+        agentId: sessionTable.agentId,
+        agentName: agentTable.name,
+        sessionName: sessionTable.name
+      })
       .from(sessionTable)
       .leftJoin(agentTable, and(eq(sessionTable.agentId, agentTable.id), isNull(agentTable.deletedAt)))
       .where(and(eq(sessionTable.id, input.senderSessionId), isNull(sessionTable.deletedAt)))
@@ -1553,7 +1606,10 @@ export class AgentSessionMessageService {
   ): AgentSessionMessageEntity | null {
     const existing = this.findExistingMessageRow(tx, sessionId, messageId)
     if (!existing?.delivery || existing.deliveryStatus !== 'accepted') return null
-    const delivery = { ...existing.delivery, statusAt: new Date().toISOString() }
+    const delivery = {
+      ...existing.delivery,
+      statusAt: new Date().toISOString()
+    }
     const row = tx
       .update(sessionMessagesTable)
       .set({ delivery, deliveryStatus: 'delivering', deliveryTurnRef: turnRef })
@@ -1605,7 +1661,11 @@ export class AgentSessionMessageService {
           .set({
             deliveryStatus: 'consumed',
             deliveryTurnRef: null,
-            delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
+            delivery: {
+              ...request.delivery,
+              outcome: input.outcome,
+              statusAt: new Date().toISOString()
+            }
           })
           .where(eq(sessionMessagesTable.id, request.id))
           .run()
@@ -1636,7 +1696,10 @@ export class AgentSessionMessageService {
               delivery: {
                 ...request.delivery,
                 outcome: 'failed',
-                error: { code: 'CALLER_SESSION_DELETED', message: 'Caller Session was deleted' },
+                error: {
+                  code: 'CALLER_SESSION_DELETED',
+                  message: 'Caller Session was deleted'
+                },
                 statusAt: new Date().toISOString()
               }
             })
@@ -1675,7 +1738,11 @@ export class AgentSessionMessageService {
         .set({
           deliveryStatus: 'consumed',
           deliveryTurnRef: null,
-          delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
+          delivery: {
+            ...request.delivery,
+            outcome: input.outcome,
+            statusAt: new Date().toISOString()
+          }
         })
         .where(eq(sessionMessagesTable.id, request.id))
         .run()
@@ -1685,10 +1752,22 @@ export class AgentSessionMessageService {
     this.publishDeliveryMutation(
       [
         ...(finalized.requestId
-          ? [{ sessionId: input.requestSessionId, messageId: finalized.requestId, kind: 'projection' as const }]
+          ? [
+              {
+                sessionId: input.requestSessionId,
+                messageId: finalized.requestId,
+                kind: 'projection' as const
+              }
+            ]
           : []),
         ...(finalized.result
-          ? [{ sessionId: finalized.result.sessionId, messageId: finalized.result.id, kind: 'membership' as const }]
+          ? [
+              {
+                sessionId: finalized.result.sessionId,
+                messageId: finalized.result.id,
+                kind: 'membership' as const
+              }
+            ]
           : [])
       ],
       finalized.result ? [finalized.result.sessionId] : []
@@ -1753,7 +1832,12 @@ export class AgentSessionMessageService {
         .set({
           deliveryStatus: 'failed',
           deliveryTurnRef: null,
-          delivery: { ...request.delivery, outcome: 'failed', error, statusAt: now }
+          delivery: {
+            ...request.delivery,
+            outcome: 'failed',
+            error,
+            statusAt: now
+          }
         })
         .where(eq(sessionMessagesTable.id, request.id))
         .run()
@@ -1762,10 +1846,22 @@ export class AgentSessionMessageService {
     this.publishDeliveryMutation(
       [
         ...(failed.requestId
-          ? [{ sessionId: message.sessionId, messageId: failed.requestId, kind: 'projection' as const }]
+          ? [
+              {
+                sessionId: message.sessionId,
+                messageId: failed.requestId,
+                kind: 'projection' as const
+              }
+            ]
           : []),
         ...(failed.result
-          ? [{ sessionId: failed.result.sessionId, messageId: failed.result.id, kind: 'membership' as const }]
+          ? [
+              {
+                sessionId: failed.result.sessionId,
+                messageId: failed.result.id,
+                kind: 'membership' as const
+              }
+            ]
           : [])
       ],
       failed.result ? [failed.result.sessionId] : []
@@ -1788,14 +1884,22 @@ export class AgentSessionMessageService {
       .all()
     const results: AgentSessionMessageEntity[] = []
     const now = new Date().toISOString()
-    const error = { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' }
+    const error = {
+      code: 'TARGET_SESSION_DELETED',
+      message: 'Target Session was deleted'
+    }
     for (const request of requests) {
       if (!request.delivery) continue
       tx.update(sessionMessagesTable)
         .set({
           deliveryStatus: 'failed',
           deliveryTurnRef: null,
-          delivery: { ...request.delivery, outcome: 'interrupted', error, statusAt: now }
+          delivery: {
+            ...request.delivery,
+            outcome: 'interrupted',
+            error,
+            statusAt: now
+          }
         })
         .where(
           and(
@@ -1828,7 +1932,14 @@ export class AgentSessionMessageService {
             id: uuidv7(),
             role: 'user',
             status: 'success',
-            data: { parts: [{ type: 'text', text: 'Target Session was deleted before completing the request.' }] },
+            data: {
+              parts: [
+                {
+                  type: 'text',
+                  text: 'Target Session was deleted before completing the request.'
+                }
+              ]
+            },
             delivery: {
               version: 1,
               sender: request.delivery.receiver,
@@ -1867,7 +1978,10 @@ export class AgentSessionMessageService {
       .all()
     const changes: AgentSessionMessageEntity[] = []
     const now = new Date().toISOString()
-    const error = { code: AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_AGENT_DELETED, message: 'Target Agent was deleted' }
+    const error = {
+      code: AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_AGENT_DELETED,
+      message: 'Target Agent was deleted'
+    }
     for (const request of requests) {
       if (!request.delivery) continue
       const failedRequest = tx
@@ -1875,7 +1989,12 @@ export class AgentSessionMessageService {
         .set({
           deliveryStatus: 'failed',
           deliveryTurnRef: null,
-          delivery: { ...request.delivery, outcome: 'interrupted', error, statusAt: now }
+          delivery: {
+            ...request.delivery,
+            outcome: 'interrupted',
+            error,
+            statusAt: now
+          }
         })
         .where(
           and(
@@ -1909,7 +2028,14 @@ export class AgentSessionMessageService {
             id: uuidv7(),
             role: 'user',
             status: 'success',
-            data: { parts: [{ type: 'text', text: 'Target Agent was deleted before completing the request.' }] },
+            data: {
+              parts: [
+                {
+                  type: 'text',
+                  text: 'Target Agent was deleted before completing the request.'
+                }
+              ]
+            },
             delivery: {
               version: 1,
               sender: request.delivery.receiver,

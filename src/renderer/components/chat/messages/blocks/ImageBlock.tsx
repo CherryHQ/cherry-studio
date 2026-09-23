@@ -5,6 +5,7 @@ import { cn } from '@renderer/utils/style'
 
 interface Props {
   images: string[]
+  previewImages?: string[]
   isPending?: boolean
   isSingle?: boolean
   /** Sent attachments read as references, not content: cap them well below the inline size. */
@@ -12,7 +13,14 @@ interface Props {
   className?: string
 }
 
-const ImageBlock: React.FC<Props> = ({ images, isPending = false, isSingle = false, thumbnail = false, className }) => {
+const ImageBlock: React.FC<Props> = ({
+  images,
+  previewImages = images,
+  isPending = false,
+  isSingle = false,
+  thumbnail = false,
+  className
+}) => {
   if (isPending) {
     return <div className="h-50 w-50 animate-pulse rounded-lg bg-muted" />
   }
@@ -21,7 +29,7 @@ const ImageBlock: React.FC<Props> = ({ images, isPending = false, isSingle = fal
     return null
   }
 
-  const previewItems = images.map((src, index) => ({ id: `${index}:${src}`, src }))
+  const previewItems = previewImages.map((src, index) => ({ id: `${index}:${src}`, src }))
   const style: React.CSSProperties = thumbnail
     ? { maxWidth: 240, maxHeight: 160, padding: 0, borderRadius: 8 }
     : isSingle
@@ -30,10 +38,10 @@ const ImageBlock: React.FC<Props> = ({ images, isPending = false, isSingle = fal
 
   return (
     <div className={cn(isSingle && !thumbnail ? undefined : 'flex max-w-full flex-wrap gap-2.5', className)}>
-      {previewItems.map((item) => (
+      {images.map((src, index) => (
         <ImageViewer
-          src={item.src}
-          key={item.id}
+          src={src}
+          key={`${index}:${src}`}
           className="-outline-offset-1 outline outline-1 outline-black/10 dark:outline-white/10"
           preview={{ items: previewItems }}
           style={style}

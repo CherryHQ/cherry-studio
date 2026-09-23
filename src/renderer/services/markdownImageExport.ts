@@ -22,7 +22,7 @@ import { replaceComposerTokenPromptText } from '@renderer/utils/message/composer
 import { getRenderableTextContent } from '@renderer/utils/message/find'
 import { extractOutputMetadata } from '@renderer/utils/message/toolOutput'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
+import { generatedImagesFromOutput } from '@shared/ai/generateImageTool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -99,7 +99,10 @@ export async function hydrateDeferredImageOutputs(
           throw new Error(`Tool result is no longer available: ${output.$deferredToolResult.toolCallId}`)
         }
         messageParts ??= [...parts]
-        messageParts[partIndex] = { ...part, output: response.output } as (typeof parts)[number]
+        messageParts[partIndex] = {
+          ...part,
+          output: response.output
+        } as (typeof parts)[number]
       } catch (error) {
         unresolvedCount += 1
         logger.warn('Failed to resolve a deferred generate_image output, skipping it', { error })
@@ -107,7 +110,10 @@ export async function hydrateDeferredImageOutputs(
     }
     if (messageParts) {
       hydrated ??= [...messages]
-      hydrated[messageIndex] = { ...messages[messageIndex], parts: messageParts }
+      hydrated[messageIndex] = {
+        ...messages[messageIndex],
+        parts: messageParts
+      }
     }
   }
   return { messages: hydrated ?? messages, unresolvedCount }
@@ -117,7 +123,9 @@ const isImageFilePart = (part: FileUIPart): boolean => part.mediaType?.startsWit
 
 /** Resolve a FileEntry id to its current physical path through the typed IpcApi boundary. */
 async function resolvePhysicalPath(id: string): Promise<AbsoluteFilePath> {
-  const paths = await ipcApi.request('file.batch_get_physical_paths', { ids: [id] })
+  const paths = await ipcApi.request('file.batch_get_physical_paths', {
+    ids: [id]
+  })
   const path = paths[id]
   if (!path) throw new Error(`File entry ${id} has no physical path`)
   return path
@@ -136,7 +144,43 @@ function isGenerateImageToolPart(part: unknown): boolean {
  * FileEntry references (`{id, name}`) or MCP inline content (`content[].image`,
  * base64 payload mirrored into a data URL — same shapes MessageGenerateImage renders).
  */
-type GenerateImageItem = { key: string; entryId?: string; url?: string; filename?: string; mime?: string }
+type GenerateImageItem = {
+  key: string
+  entryId?: string
+  url?: string
+  filename?: string
+  mime?: string
+}
+
+function parseMcpImageItems(output: unknown): GenerateImageItem[] {
+  const { response } = extractOutputMetadata(output)
+  const content = Array.isArray(response) ? response : (response as { content?: unknown } | null | undefined)?.content
+  if (!Array.isArray(content)) return []
+  return content.flatMap((item): GenerateImageItem[] => {
+    if (!item || typeof item !== 'object' || (item as { type?: unknown }).type !== 'image') return []
+    const image = item as {
+      data?: unknown
+      mimeType?: unknown
+      assetId?: unknown
+    }
+    const mime = typeof image.mimeType === 'string' && image.mimeType ? image.mimeType : 'image/png'
+    if (typeof image.assetId === 'string' && image.assetId) {
+      return [
+        {
+          key: image.assetId,
+          entryId: image.assetId,
+          filename: 'generated-image.png',
+          mime
+        }
+      ]
+    }
+    if (typeof image.data === 'string' && image.data) {
+      const url = `data:${mime};base64,${image.data}`
+      return [{ key: url, url, mime }]
+    }
+    return []
+  })
+}
 
 function parseGenerateImageItems(part: unknown): GenerateImageItem[] {
   const output = (part as { output?: unknown }).output
@@ -150,23 +194,21 @@ function parseGenerateImageItems(part: unknown): GenerateImageItem[] {
   ) {
     return []
   }
-  const { response } = extractOutputMetadata(output)
-  const parsed = generateImageOutputSchema.safeParse(response)
-  if (parsed.success) {
-    return parsed.data.map((item) => ({ key: item.id, entryId: item.id, filename: item.name }))
+  const images = generatedImagesFromOutput(output)
+  if (images.length > 0) {
+    return images.map((item) => ({
+      key: item.id,
+      entryId: item.id,
+      filename: item.name
+    }))
   }
   // extractOutputMetadata unwraps `{content: [...]}` into the array itself unless
   // mcp metadata keeps the envelope — accept both shapes.
-  const content = Array.isArray(response) ? response : (response as { content?: unknown } | null | undefined)?.content
-  if (!Array.isArray(content)) return []
-  return content.flatMap((item) => {
-    if (item?.type === 'image' && typeof item.data === 'string' && item.data) {
-      const mime = typeof item.mimeType === 'string' && item.mimeType ? item.mimeType : 'image/png'
-      const url = `data:${mime};base64,${item.data}`
-      return [{ key: url, url, mime }]
-    }
-    return []
-  })
+  return parseMcpImageItems(output)
+}
+
+function isToolOutputPart(part: unknown): boolean {
+  return isToolUIPart(part as never) && (part as { state?: string }).state === 'output-available'
 }
 
 /**
@@ -206,7 +248,12 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
                 fileEntryId,
                 error
               })
-              push({ key: fileEntryId, url: filePart.url, filename: filePart.filename, mime: filePart.mediaType })
+              push({
+                key: fileEntryId,
+                url: filePart.url,
+                filename: filePart.filename,
+                mime: filePart.mediaType
+              })
             }
           } else {
             push({
@@ -220,7 +267,6 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
           for (const item of parseGenerateImageItems(part)) {
             try {
               if (item.url) {
-                // MCP inline payload — the data URL is the authoritative bytes already.
                 push({
                   key: item.key,
                   url: item.url,
@@ -232,13 +278,40 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
                 push({
                   key: item.key,
                   url: toFileUrl(physicalPath),
-                  filename: item.filename
+                  filename: item.filename,
+                  mime: item.mime
                 })
               }
             } catch (error) {
-              // One dead FileEntry drops only its own image, never the siblings.
               unresolvedCount += 1
               logger.warn('Failed to resolve a generate_image entry, skipping it', { key: item.key, error })
+            }
+          }
+        } else if (isToolOutputPart(part)) {
+          for (const item of parseMcpImageItems((part as { output?: unknown }).output)) {
+            try {
+              if (item.url) {
+                push({
+                  key: item.key,
+                  url: item.url,
+                  filename: item.filename,
+                  mime: item.mime
+                })
+              } else if (item.entryId) {
+                const physicalPath = await resolvePhysicalPath(item.entryId)
+                push({
+                  key: item.key,
+                  url: toFileUrl(physicalPath),
+                  filename: item.filename,
+                  mime: item.mime
+                })
+              }
+            } catch (error) {
+              unresolvedCount += 1
+              logger.warn('Failed to resolve an MCP tool image, skipping it', {
+                key: item.key,
+                error
+              })
             }
           }
         }
@@ -336,7 +409,10 @@ export async function serializeMessagesWithImages(
       segment = `![${altText(ref)}](data:${mime};base64,${bytesToBase64(bytes)})`
     } catch (error) {
       skipped.count += 1
-      logger.warn('Failed to read an image for markdown export, skipping it', { url: ref.url, error })
+      logger.warn('Failed to read an image for markdown export, skipping it', {
+        url: ref.url,
+        error
+      })
     }
     dataUriByKey.set(ref.key, segment)
     return segment
@@ -371,6 +447,16 @@ export async function serializeMessagesWithImages(
         }
       } else if (isGenerateImageToolPart(part)) {
         for (const item of parseGenerateImageItems(part)) {
+          const ref = refByKey.get(item.key)
+          if (!ref) continue
+          const segment = await renderRef(ref)
+          if (segment) {
+            segments.push(segment)
+            hasImage = true
+          }
+        }
+      } else if (isToolOutputPart(part)) {
+        for (const item of parseMcpImageItems((part as { output?: unknown }).output)) {
           const ref = refByKey.get(item.key)
           if (!ref) continue
           const segment = await renderRef(ref)
@@ -430,7 +516,10 @@ export async function writeImageAssets(dirPath: string, pendingWrites: PendingIm
       }
     } catch (error) {
       failed.push(fileName)
-      logger.warn('Failed to write an exported image asset', { fileName, error })
+      logger.warn('Failed to write an exported image asset', {
+        fileName,
+        error
+      })
     }
   }
   return failed

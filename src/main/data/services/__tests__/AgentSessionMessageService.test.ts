@@ -1211,6 +1211,53 @@ describe('AgentSessionMessageService', () => {
     now.mockRestore()
   })
 
+  it.each(['pi', 'claude-code'])(
+    'retains %s generated files and releases only the deleted message reference',
+    async (runtime) => {
+      await dbh.db.insert(fileEntryTable).values({
+        id: FILE_ENTRY_ID,
+        origin: 'internal',
+        name: 'generated',
+        ext: 'png',
+        size: 42,
+        cleanupPolicy: 'manual'
+      })
+      const part = {
+        type: 'dynamic-tool' as const,
+        toolName: 'mcp__cherry-tools__generate_image',
+        toolCallId: 'generated-call',
+        state: 'output-available' as const,
+        input: {},
+        output:
+          runtime === 'claude-code'
+            ? {
+                content: { type: 'generated-images', images: [{ id: FILE_ENTRY_ID, name: 'generated.png' }] },
+                metadata: { type: 'mcp', serverName: 'cherry-tools' }
+              }
+            : { type: 'generated-images', images: [{ id: FILE_ENTRY_ID, name: 'generated.png' }] }
+      }
+      for (const id of [USER_MESSAGE_ID, ASSISTANT_MESSAGE_ID]) {
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          message: { id, role: 'assistant', data: { parts: [part] } }
+        })
+      }
+      expect(
+        dbh.db
+          .select()
+          .from(agentSessionMessageFileRefTable)
+          .all()
+          .map((ref) => ref.fileEntryId)
+      ).toEqual([FILE_ENTRY_ID, FILE_ENTRY_ID])
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)?.data.parts).toEqual([part])
+      agentSessionMessageService.deleteSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+      expect(dbh.db.select().from(agentSessionMessageFileRefTable).all()).toEqual([
+        expect.objectContaining({ sourceId: ASSISTANT_MESSAGE_ID, fileEntryId: FILE_ENTRY_ID })
+      ])
+      expect(dbh.db.select().from(fileEntryTable).all()).toHaveLength(1)
+    }
+  )
+
   it('keeps attachment refs in sync with agent-session message history', async () => {
     await dbh.db.insert(fileEntryTable).values({
       id: FILE_ENTRY_ID,
