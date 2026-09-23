@@ -60,6 +60,7 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
         : t('settings.provider.cherry_cloud.title')
   const cloudSubtitleRole =
     isCloudSignedIn || isAuthorizing ? 'status' : cloudStatusLoadState === 'error' ? 'alert' : undefined
+  const useCloudSubtitleAsTitle = getAppEdition() === 'global' && !userName
   const cloudHeaderAction: {
     label: string
     loading: boolean
@@ -137,10 +138,12 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
             </Avatar>
           )}
           <ColFlex className="min-w-0 flex-1 gap-0">
-            <span className="truncate font-medium text-[13px] text-foreground leading-[18px]">
-              {userName || t('settings.general.user_name.placeholder')}
+            <span
+              role={useCloudSubtitleAsTitle ? cloudSubtitleRole : undefined}
+              className="truncate font-medium text-[13px] text-foreground leading-[18px]">
+              {userName || (useCloudSubtitleAsTitle ? cloudSubtitle : t('settings.general.user_name.placeholder'))}
             </span>
-            {cloudSubtitle ? (
+            {!useCloudSubtitleAsTitle && cloudSubtitle ? (
               <span role={cloudSubtitleRole} className="truncate text-muted-foreground text-xs leading-4">
                 {cloudSubtitle}
               </span>
