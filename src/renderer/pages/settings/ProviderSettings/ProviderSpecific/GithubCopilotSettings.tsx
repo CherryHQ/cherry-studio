@@ -7,6 +7,7 @@ import { Button, Input, Slider, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
 
 import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
@@ -173,7 +174,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
 
   const handleOpenVerificationPage = useCallback(() => {
     if (verificationUri) {
-      window.open(verificationUri, '_blank')
+      void openExternalWebsite(verificationUri)
       setVerificationPageOpened(true)
       setCurrentStep(2)
     }

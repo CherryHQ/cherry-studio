@@ -40,7 +40,9 @@ export const AgentSessionEntitySchema = z.strictObject({
   /** Last real conversation activity timestamp. */
   lastActivityAt: z.iso.datetime(),
   createdAt: z.string(),
-  updatedAt: z.string()
+  updatedAt: z.string(),
+  /** Read-only soft-delete timestamp, present only for trashed sessions. */
+  deletedAt: z.string().optional()
 })
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
@@ -74,9 +76,12 @@ export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 
 /** Query for `GET /agent-sessions` (cursor pagination + optional agent filter). */
 export const ListAgentSessionsQuerySchema = z.strictObject({
+  ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   agentId: z.string().optional(),
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).optional()
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  /** `true` lists only trashed sessions; omitted/false lists active sessions. */
+  inTrash: z.boolean().optional()
 })
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>

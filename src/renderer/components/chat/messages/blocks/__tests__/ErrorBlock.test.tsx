@@ -78,6 +78,7 @@ describe('ErrorBlock', () => {
     mocks.language = 'en'
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
+    mocks.translations.set('HTTP 413', 'Request body too large')
     vi.clearAllMocks()
   })
 
@@ -153,6 +154,25 @@ describe('ErrorBlock', () => {
 
     expect(screen.getByText('error.diagnosis.quota')).toBeInTheDocument()
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
+  })
+
+  it('shows a useful status when a proxy returns an HTML 413 response', () => {
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'APICallError',
+          message: '413 Request Entity Too Large',
+          stack: null,
+          statusCode: 413,
+          responseBody: '<html><body><h1>413 Request Entity Too Large</h1></body></html>'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(/Request body too large/)).toBeInTheDocument()
+    expect(screen.queryByText(/<html>/)).not.toBeInTheDocument()
   })
 
   it('shows only the safe Claude Code exit status and diagnostic reference', () => {
@@ -256,6 +276,7 @@ describe('ErrorBlock', () => {
       removeMessageErrorPart,
       navigateErrorTarget
     }
+    mocks.translations.set('error.diagnosis.auth', 'API Key is invalid, please check and reconfigure')
 
     const { container } = render(
       <ErrorBlock
@@ -270,7 +291,8 @@ describe('ErrorBlock', () => {
       expect.objectContaining({
         message,
         partId: 'message-1-part-0',
-        error: expect.objectContaining({ message: 'Unauthorized' })
+        error: expect.objectContaining({ message: 'Unauthorized' }),
+        localizedErrorMessage: 'API Key is invalid, please check and reconfigure'
       })
     )
 

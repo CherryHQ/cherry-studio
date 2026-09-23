@@ -73,6 +73,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     iconRef: providerIconRef('searxng'),
     officialWebsite: 'https://docs.searxng.org'
   },
+  serply: {
+    descriptionKey: 'settings.tool.websearch.provider_description.serply',
+    iconRef: providerIconRef('serply'),
+    officialWebsite: 'https://serply.io',
+    apiKeyWebsite: 'https://serply.io'
+  },
   tavily: {
     descriptionKey: 'settings.tool.websearch.provider_description.tavily',
     iconRef: providerIconRef('tavily'),
