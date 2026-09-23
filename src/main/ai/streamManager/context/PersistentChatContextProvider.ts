@@ -235,6 +235,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     req: MainDispatchRequest,
     ctx: DispatchContext
   ): Promise<PreparedDispatch> {
+    if (req.trigger === 'edit-agent-message') throw new Error('Agent editing requires an Agent session')
     assertUniqueMentionedModelIds('mentionedModelIds' in req ? req.mentionedModelIds : undefined)
 
     // 1. Resolve context

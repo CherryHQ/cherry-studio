@@ -4,13 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   applicationMock,
   menuMock,
+  browserWindowMock,
   shellMock,
   appMock,
+  windowManagerMock,
   preferenceServiceMock,
   openSettingsInMainWindowMock,
-  commandServiceMock,
-  windowManagerMock,
-  getFocusedWindowMock
+  commandServiceMock
 } = vi.hoisted(() => {
   const preferenceServiceMock = {
     get: vi.fn(),
@@ -23,21 +23,22 @@ const {
   const windowManagerMock = {
     getWindowsByType: vi.fn(() => []),
     getWindowId: vi.fn(),
+    getWindowType: vi.fn(),
     center: vi.fn(() => true)
   }
-  const getFocusedWindowMock = vi.fn()
 
   return {
     preferenceServiceMock,
     openSettingsInMainWindowMock,
     commandServiceMock,
     windowManagerMock,
-    getFocusedWindowMock,
     applicationMock: {
       get: vi.fn((name: string) => {
         if (name === 'PreferenceService') return preferenceServiceMock
         if (name === 'CommandService') return commandServiceMock
-        if (name === 'WindowManager') return windowManagerMock
+        if (name === 'WindowManager') {
+          return windowManagerMock
+        }
         return undefined
       })
     },
@@ -45,12 +46,15 @@ const {
       buildFromTemplate: vi.fn((template: MenuItemConstructorOptions[]) => ({ template })),
       setApplicationMenu: vi.fn()
     },
+    browserWindowMock: { getFocusedWindow: vi.fn(() => null) },
     shellMock: {
       openExternal: vi.fn()
     },
     appMock: {
       name: 'Cherry Studio',
-      getLocale: vi.fn(() => 'en-US')
+      getLocale: vi.fn(() => 'en-US'),
+      on: vi.fn(),
+      off: vi.fn()
     }
   }
 })
@@ -81,7 +85,7 @@ vi.mock('@main/core/lifecycle', () => {
 
 vi.mock('electron', () => ({
   app: appMock,
-  BrowserWindow: { getFocusedWindow: getFocusedWindowMock },
+  BrowserWindow: browserWindowMock,
   Menu: menuMock,
   shell: shellMock
 }))
@@ -90,17 +94,28 @@ vi.mock('@main/services/mainWindowNavigation', () => ({
   openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 
+import { WindowType } from '@main/core/window/types'
+
 import { AppMenuService } from '../AppMenuService'
 
 const latestTemplate = () => menuMock.buildFromTemplate.mock.calls.at(-1)?.[0] as MenuItemConstructorOptions[]
+
+const REAL_PLATFORM = process.platform
 
 describe('AppMenuService', () => {
   let service: AppMenuService
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // AppMenuService is darwin-only; pin the platform so platform-gated
+    // accelerators resolve identically on every CI runner.
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
     preferenceServiceMock.get.mockReturnValue(undefined)
     service = new AppMenuService()
+  })
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: REAL_PLATFORM, configurable: true })
   })
 
   it('registers the settings menu accelerator through the native app menu', async () => {
@@ -166,7 +181,7 @@ describe('AppMenuService', () => {
     await (service as any).onInit()
 
     const focused = { id: 42 } as BrowserWindow
-    getFocusedWindowMock.mockReturnValue(focused)
+    browserWindowMock.getFocusedWindow.mockReturnValue(focused)
     windowManagerMock.getWindowId.mockReturnValue('win-1')
 
     const windowSubmenu = latestTemplate()[4].submenu as MenuItemConstructorOptions[]
@@ -182,7 +197,7 @@ describe('AppMenuService', () => {
   it('does not call center when the focused window is unmanaged', async () => {
     await (service as any).onInit()
 
-    getFocusedWindowMock.mockReturnValue({ id: 7 })
+    browserWindowMock.getFocusedWindow.mockReturnValue({ id: 7 })
     windowManagerMock.getWindowId.mockReturnValue(undefined)
 
     const windowSubmenu = latestTemplate()[4].submenu as MenuItemConstructorOptions[]
@@ -190,5 +205,39 @@ describe('AppMenuService', () => {
     centerItem?.click?.(undefined as never, undefined, undefined as never)
 
     expect(windowManagerMock.center).not.toHaveBeenCalled()
+  })
+
+  it('moves the window-close accelerator off CommandOrControl+W so the tab bar can claim it', async () => {
+    await (service as any).onInit()
+
+    const fileSubmenu = latestTemplate()[1].submenu as MenuItemConstructorOptions[]
+    const closeItem = fileSubmenu.find((item) => item.role === 'close')
+
+    // A native accelerator outranks the renderer keydown, so leaving the default
+    // here would keep Cmd+W closing the window instead of running tab.close.
+    expect(closeItem).toMatchObject({ role: 'close', accelerator: 'CommandOrControl+Shift+W' })
+  })
+
+  it('restores Command+W to close a focused light window, then reserves it for tabs in the main window', async () => {
+    await (service as any).onInit()
+    const focus = appMock.on.mock.calls.find(([event]) => event === 'browser-window-focus')?.[1]
+    // WindowManager keys its registry by managed UUID: focus must be resolved
+    // through the BrowserWindow instance, never Electron's numeric window ID.
+    windowManagerMock.getWindowId.mockImplementation((window: { id: number }) => `managed-${window.id}`)
+    windowManagerMock.getWindowType.mockImplementation((id: string) =>
+      id === 'managed-2' ? WindowType.QuickAssistant : id === 'managed-1' ? WindowType.Main : undefined
+    )
+
+    focus({}, { id: 2 })
+    expect(windowManagerMock.getWindowId).toHaveBeenCalledWith(expect.objectContaining({ id: 2 }))
+    expect((latestTemplate()[1].submenu as MenuItemConstructorOptions[])[0]).toMatchObject({
+      role: 'close',
+      accelerator: 'CommandOrControl+W'
+    })
+    focus({}, { id: 1 })
+    expect((latestTemplate()[1].submenu as MenuItemConstructorOptions[])[0]).toMatchObject({
+      role: 'close',
+      accelerator: 'CommandOrControl+Shift+W'
+    })
   })
 })

@@ -75,9 +75,9 @@ jobs:
             exit 1
           fi
 
-          BASELINE_TAG="v$CURRENT_VERSION"
-          if [ "$(jq -r '.tag_name' <<< "$LATEST_PUBLISHED")" != "$BASELINE_TAG" ]; then
-            echo "main records $BASELINE_TAG, but the latest published release is $(jq -r '.tag_name' <<< "$LATEST_PUBLISHED")" >&2
+          BASELINE_TAG="$(jq -r '.tag_name' <<< "$LATEST_PUBLISHED")"
+          if ! node -e "const semver = require('semver'); process.exit(semver.gte(process.argv[1], process.argv[2]) ? 0 : 1)" "$CURRENT_VERSION" "${BASELINE_TAG#v}"; then
+            echo "main records v$CURRENT_VERSION, but the latest published release is $BASELINE_TAG" >&2
             echo "Merge the latest Post Release metadata pull request before preparing another release" >&2
             exit 1
           fi
@@ -86,6 +86,7 @@ jobs:
             exit 1
           fi
 
+          COLLECTION_BASE="$BASELINE_TAG"
           if ! git merge-base --is-ancestor "$BASELINE_TAG" HEAD; then
             MARKER="release-metadata-boundary: $BASELINE_TAG"
             LEGACY_SUBJECT="chore(release): sync $BASELINE_TAG metadata"
@@ -109,9 +110,14 @@ jobs:
               echo "$BASELINE_TAG is not an ancestor of main and its metadata boundary is missing" >&2
               exit 1
             fi
+            COLLECTION_BASE="$BOUNDARY_SHA"
           fi
 
-          echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$CURRENT_VERSION"
+            echo "tag=$BASELINE_TAG"
+            echo "collection-base=$COLLECTION_BASE"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Resolve requested version
         id: release-version
@@ -160,6 +166,8 @@ jobs:
             Since this is running in CI (non-interactive), skip all interactive confirmation steps.
 
             The workflow froze the selected dispatch SHA and owns Step 1 item 1. Do not fetch or compare origin/main. It also completed the tag and published-release checks. Do not repeat those checks, push, or mutate any remote Git state. Local Git operations are temporary because the next step restores the frozen SHA.
+
+            Use the verified published baseline tag ${{ steps.release-baseline.outputs.tag }} and collect release-note commits from ${{ steps.release-baseline.outputs.collection-base }}..HEAD. The package version may be ahead after a release withdrawal; do not use it as the release-note baseline.
 
             Stop after updating package.json and electron-builder.yml. Do not edit release-history.json or the generated product manifest. The next workflow steps derive the release history from your electron-builder.yml notes, validate the contents, generate the manifest, and own release branch creation and the signed commit.
             You may create temporary helper files if needed; the workflow discards every change except those two release metadata files.

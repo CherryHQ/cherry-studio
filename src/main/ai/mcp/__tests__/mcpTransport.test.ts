@@ -10,7 +10,7 @@ const hasInMemoryImplementation = vi.hoisted(() => vi.fn<(name: string) => boole
 const getResolvedMcpConfig = vi.hoisted(() => vi.fn())
 vi.mock('@main/ai/mcp/servers/factory', () => ({
   createInMemoryMcpServer,
-  getBuiltinRegistryEnv: () => ({}),
+  getBuiltinAutoInstallEnv: () => ({}),
   getBuiltinHttpHeaders,
   hasInMemoryImplementation
 }))
