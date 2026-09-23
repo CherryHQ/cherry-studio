@@ -7,18 +7,9 @@ import { Button } from '@cherrystudio/ui'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { ipcApi } from '@renderer/ipc'
-import { openExternalWebsite } from '@renderer/services/website'
+import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
-
-function accountPortalUrl(): string {
-  const configured = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
-  const usesDevAccount =
-    import.meta.env.DEV || new URL(configured || 'https://cloud.cherryai.com').hostname === 'cloud-dev.cherryai.com'
-  return usesDevAccount
-    ? 'https://accounts-dev.cherryai.com/account/plans'
-    : 'https://accounts.cherryai.com/account/plans'
-}
 
 function percent(value: number, limit: number): number {
   return limit > 0 ? Math.min(100, Math.round((value / limit) * 100)) : 0
@@ -66,8 +57,7 @@ export function SubscriptionSettings() {
     [plans]
   )
   const availablePlan = useMemo(() => plans?.available_plans.find((item) => !item.is_free), [plans])
-  const portalUrl = accountPortalUrl()
-  const openPortal = () => void openExternalWebsite(portalUrl)
+  const openPortal = () => void openCherryCloudAccountPortal()
 
   if (status?.phase !== 'signed-in') {
     return (
