@@ -1,6 +1,7 @@
-import type { EventPayload } from '@shared/ipc/types'
 import { act, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { EventPayload } from '@shared/ipc/types'
 
 type BackupProgress = EventPayload<'backup.progress'>
 

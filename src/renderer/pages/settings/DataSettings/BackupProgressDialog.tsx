@@ -1,11 +1,12 @@
-import { Button, CircularProgress, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { useIpcOn } from '@renderer/ipc'
-import type { BackupProgressStage } from '@shared/ipc/schemas/backup'
-import type { EventPayload } from '@shared/ipc/types'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, CircularProgress, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { useIpcOn } from '@renderer/ipc'
+import type { BackupProgressStage } from '@shared/ipc/schemas/backup'
+import type { EventPayload } from '@shared/ipc/types'
 
 type BackupProgress = EventPayload<'backup.progress'>
 type RunningOperation = BackupProgress['operation']
