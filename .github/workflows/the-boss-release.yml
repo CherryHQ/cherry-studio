@@ -7,9 +7,18 @@ on:
         description: Optional comma-separated platforms to build from the published payload
         required: false
         type: string
+      reuse_installer_runs:
+        description: Optional comma-separated workflow run ids containing immutable installer manifests
+        required: false
+        type: string
+      reuse_platforms:
+        description: Optional comma-separated platforms paired with reuse_installer_runs
+        required: false
+        type: string
   push:
     branches: [main]
-    paths-ignore: ['**/*.md', 'docs/**', '.kbd-orchestrator/**', '.prometheus/**', 'openspec/**', 'release-manifest.json']
+    paths-ignore:
+      ["**/*.md", "docs/**", ".kbd-orchestrator/**", ".prometheus/**", "openspec/**", "release-manifest.json"]
 concurrency:
   group: the-boss-release-${{ github.ref }}
   cancel-in-progress: false
@@ -60,6 +69,23 @@ jobs:
         run: brew install python-setuptools
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Check Windows runner capacity
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          node scripts/release-capacity.cjs
+          if ($LASTEXITCODE -ne 0) {
+            pnpm store prune
+            node scripts/release-capacity.cjs
+          }
+      - name: Compile Windows NSIS uninstall hook
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis.exe -ErrorAction SilentlyContinue)) {
+            choco install nsis --no-progress -y
+          }
+          node scripts/nsis-preflight.cjs
       - name: Enable configured signing
         if: env.HAS_SIGNING == 'true'
         shell: bash
@@ -82,6 +108,9 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ env.HAS_SIGNING }}
       - name: Publish installers to IPFS
         run: node scripts/publish-installers.cjs
+      - name: Record release runner capacity
+        if: runner.os == 'Windows'
+        run: node scripts/release-capacity.cjs --report-only
       - uses: actions/upload-artifact@v5
         with:
           name: installers-${{ matrix.platform }}-${{ matrix.arch }}
@@ -92,6 +121,7 @@ jobs:
     needs: [build, platforms]
     runs-on: ubuntu-24.04
     permissions:
+      actions: read
       contents: write
     steps:
       - uses: actions/checkout@v7
@@ -103,9 +133,18 @@ jobs:
           pattern: installers-*
           path: manifests
           merge-multiple: true
+      - id: reuse
+        name: Import explicitly reused installer manifests
+        env:
+          BUILT_PLATFORMS: ${{ needs.platforms.outputs.platforms }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REUSE_INSTALLER_RUNS: ${{ inputs.reuse_installer_runs }}
+          REUSE_PLATFORMS: ${{ inputs.reuse_platforms }}
+        run: node scripts/download-reused-installers.cjs
       - name: Generate complete release entry
         env:
-          RELEASE_PLATFORMS: ${{ needs.platforms.outputs.platforms }}
+          RELEASE_PLATFORMS: ${{ steps.reuse.outputs.release_platforms }}
+          REUSED_PLATFORMS: ${{ steps.reuse.outputs.reused_platforms }}
         run: node scripts/update-release-entry.cjs
       - name: Commit release metadata through GitHub
         env:

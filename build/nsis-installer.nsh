@@ -13,7 +13,7 @@
 
 !macro customUnInstall
   ${IfNot} ${isUpdated}
-    ExecWait '$"$INSTDIR\${APP_EXECUTABLE_FILENAME}$" --remove-managed-path'
+    ExecWait '$"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --remove-managed-path'
   ${EndIf}
 !macroend
 
