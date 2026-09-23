@@ -253,4 +253,16 @@ describe('model purpose mapping', () => {
       outputModalities: [MODALITY.TEXT]
     })
   })
+  it('keeps both OpenAI image endpoints without treating generation and editing as exclusive', () => {
+    const result = applyModelPurpose({}, 'image-both')
+    expect(result.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT])
+    expect(result.inputModalities).toContain(MODALITY.IMAGE)
+    expect(inferModelPurpose(result)).toBe('image-both')
+  })
+
+  it('keeps the Google native protocol when changing an image model classification', () => {
+    const result = applyModelPurpose({ endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] }, 'image-both')
+    expect(result.endpointTypes).toEqual([ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT])
+    expect(result.outputModalities).toContain(MODALITY.IMAGE)
+  })
 })

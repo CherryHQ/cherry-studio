@@ -238,6 +238,57 @@ describe('ProviderRegistryService', () => {
     MockMainDbServiceUtils.setDb(dbh.db)
   })
 
+  it('keeps customized chat connections from inheriting a different image host', () => {
+    setupRegistryData()
+    const catalog = mockReadProviders('fixture')
+    catalog.providers[0].endpointConfigs!['openai-image-generation'] = {
+      adapterFamily: 'openai',
+      baseUrl: 'https://api.openai.com/v1'
+    }
+    catalog.providers[0].endpointConfigs!['openai-image-edit'] = {
+      adapterFamily: 'openai',
+      baseUrl: 'https://api.openai.com/v1'
+    }
+    mockReadProviders.mockReturnValue(catalog)
+    const customized = { 'openai-chat-completions': { baseUrl: 'https://gateway.example/v1' }, 'openai-image-edit': {} }
+    const inherited = providerRegistryService.mergeEndpointConfigs(customized, 'openai')
+    expect(inherited?.['openai-chat-completions']?.baseUrl).toBe('https://gateway.example/v1')
+    expect(inherited?.['openai-image-generation']).toBeUndefined()
+    expect(inherited?.['openai-image-edit']).toBeUndefined()
+    expect(providerRegistryService.mergeEndpointConfigs(null, 'openai')?.['openai-image-generation']?.baseUrl).toBe(
+      'https://api.openai.com/v1'
+    )
+    expect(
+      providerRegistryService.mergeEndpointConfigs(
+        {
+          ...customized,
+          'openai-image-generation': { baseUrl: 'https://images.example/v1' }
+        },
+        'openai'
+      )?.['openai-image-generation']?.baseUrl
+    ).toBe('https://images.example/v1')
+  })
+
+  it.each(['gpt-image-2.5-sunburst', 'GPT-Image-2.5-Sunburst'])(
+    'keeps installed image capabilities for %s when a remote catalog omits them',
+    (modelId) => {
+      setupRegistryData()
+      const imageGeneration = {
+        modes: { generate: { supports: { quality: { type: 'enum' as const, options: ['max'] } } } }
+      }
+      const remoteModel = { id: 'gpt-image-2-5-sunburst', name: 'Remote metadata' }
+      mockReadModels.mockReturnValue({ version: 'remote', models: [remoteModel] })
+      mockReadModels.mockReturnValueOnce({
+        version: 'bundled',
+        models: [{ ...remoteModel, name: 'Bundled metadata', imageGeneration }]
+      })
+      expect(providerRegistryService.getImagePresetSupport(modelId)).toEqual(imageGeneration)
+      const resolved = providerRegistryService.resolveModel({ id: 'openai' }, modelId)
+      expect(resolved.presetModel?.name).toBe('Remote metadata')
+      expect(resolved.presetModel?.imageGeneration).toEqual(imageGeneration)
+    }
+  )
+
   describe('createCustomModel', () => {
     it('does not infer image capability from an unknown model id', () => {
       const model = createCustomModel('openrouter', 'openai/gpt-99-image-foo')

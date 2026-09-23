@@ -206,7 +206,7 @@ describe('Model drawers', () => {
     )
   })
 
-  it('atomically maps a custom model to image editing from the purpose surface', async () => {
+  it('uses the image classification for generation and editing without a purpose selector', async () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: 'custom-provider',
@@ -220,7 +220,8 @@ describe('Model drawers', () => {
 
     render(<AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('radio', { name: /settings\.models\.add\.purpose\.image_edit\.label/ }))
+    expect(screen.queryByText('settings.models.add.purpose.label')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.image' }))
     fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
       target: { value: 'image-editor' }
     })
@@ -233,10 +234,11 @@ describe('Model drawers', () => {
       expect.objectContaining({
         providerId: 'custom-provider',
         modelId: 'image-editor',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
         inputModalities: [MODALITY.IMAGE],
-        outputModalities: [MODALITY.IMAGE]
+        outputModalities: [MODALITY.IMAGE],
+        imageGenerationConfig: { preset: 'gpt-image-2-5-sunburst', generate: { defaults: {}, options: {} }, edit: null }
       })
     )
   })
@@ -293,7 +295,7 @@ describe('Model drawers', () => {
     expect(createModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
-        inputModalities: [MODALITY.AUDIO]
+        inputModalities: [MODALITY.IMAGE, MODALITY.AUDIO]
       })
     )
   })
@@ -433,7 +435,7 @@ describe('Model drawers', () => {
     )
   })
 
-  it('auto-saves an atomic image-generation mapping from the custom model purpose surface', async () => {
+  it('auto-saves generation and editing together from the image classification', async () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: 'custom-provider',
@@ -468,14 +470,15 @@ describe('Model drawers', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('radio', { name: /settings\.models\.add\.purpose\.image_generation\.label/ }))
+      expect(screen.queryByText('settings.models.add.purpose.label')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'models.type.image' }))
     })
 
     expect(updateModelMock).toHaveBeenCalledWith(
       'custom-provider',
       'image-model',
       expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
         outputModalities: [MODALITY.IMAGE]
       })
@@ -563,7 +566,7 @@ describe('Model drawers', () => {
       'custom-embedding',
       expect.objectContaining({
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-        inputModalities: []
+        inputModalities: [MODALITY.IMAGE]
       })
     )
 
@@ -575,7 +578,7 @@ describe('Model drawers', () => {
       'custom-embedding',
       expect.objectContaining({
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
-        inputModalities: []
+        inputModalities: [MODALITY.IMAGE]
       })
     )
 
@@ -587,7 +590,7 @@ describe('Model drawers', () => {
       'custom-embedding',
       expect.objectContaining({
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
-        inputModalities: [MODALITY.VIDEO]
+        inputModalities: [MODALITY.IMAGE, MODALITY.VIDEO]
       })
     )
   })

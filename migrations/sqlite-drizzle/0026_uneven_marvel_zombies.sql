@@ -1,0 +1,1 @@
+ALTER TABLE `user_model` ADD `image_generation_config` text;

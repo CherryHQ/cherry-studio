@@ -7,6 +7,11 @@ import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
+import {
+  ImageGenerationConfigSchema,
+  inferImagePreset,
+  type ImageGenerationConfig
+} from '@shared/ai/imageGenerationConfig'
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type UniqueModelId } from '@shared/data/types/model'
 
 import ProviderActions from '../../primitives/ProviderActions'
@@ -20,8 +25,10 @@ import {
   splitModelIds
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
+import { ModelChatProtocolFields } from './ModelChatProtocolFields'
 import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
+import { ModelImageSettings } from './ModelImageSettings'
 import {
   applyModelPurpose,
   getInitialChatEndpointType,
@@ -30,7 +37,6 @@ import {
   inferModelPurpose,
   type ModelPurposeFields
 } from './modelPurpose'
-import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
 import type {
   AddModelDrawerPrefill,
   ModelBasicFormState,
@@ -96,6 +102,9 @@ export default function AddModelFormPanel({
   const [inputModalitiesTouched, setInputModalitiesTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [imageGenerationConfig, setImageGenerationConfig] = useState<ImageGenerationConfig | undefined>(
+    prefill?.model?.imageGenerationConfig
+  )
   const [submitError, setSubmitError] = useState<string | null>(null)
   const submitInFlightRef = useRef(false)
   const modelIdInputRef = useRef<HTMLInputElement>(null)
@@ -103,7 +112,12 @@ export default function AddModelFormPanel({
   const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
   const defaultChatEndpoint = providerChatEndpointTypes[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-  const modelPurpose = inferModelPurpose(purposeFields)
+  const modelPurpose =
+    classification.primaryType === 'image'
+      ? classification.inputModalities.has('image')
+        ? 'image-both'
+        : 'image-generation'
+      : 'chat'
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
 
   useEffect(() => {
@@ -113,6 +127,7 @@ export default function AddModelFormPanel({
     setModelIdTouched(false)
     setEndpointTypeTouched(false)
     setInputModalitiesTouched(false)
+    setImageGenerationConfig(prefill?.model?.imageGenerationConfig)
     setShowMoreSettings(false)
     setSubmitError(null)
   }, [defaultChatEndpoint, prefill])
@@ -153,7 +168,7 @@ export default function AddModelFormPanel({
       const classifiedCapabilities = buildModelCapabilities(prefill?.model?.capabilities ?? [], classification)
       const classifiedInputModalities = buildModelInputModalities(prefill?.model?.inputModalities ?? [], classification)
       const submittedPurposeFields =
-        mode === 'purpose'
+        mode === 'purpose' || classification.primaryType === 'image'
           ? applyModelPurpose(
               {
                 ...purposeFields,
@@ -187,6 +202,12 @@ export default function AddModelFormPanel({
         capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
         ...(shouldSubmitInputModalities ? { inputModalities: submittedInputModalities } : {}),
         outputModalities: submittedPurposeFields?.outputModalities,
+        ...(classification.primaryType === 'image'
+          ? {
+              imageGenerationConfig:
+                imageGenerationConfig ?? ImageGenerationConfigSchema.parse({ preset: inferImagePreset(modelId) })
+            }
+          : {}),
         ...(values.contextWindow !== null ? { contextWindow: values.contextWindow } : {}),
         ...(values.maxInputTokens !== null ? { maxInputTokens: values.maxInputTokens } : {}),
         ...(values.maxOutputTokens !== null ? { maxOutputTokens: values.maxOutputTokens } : {})
@@ -197,6 +218,7 @@ export default function AddModelFormPanel({
     [
       chatEndpointType,
       classification,
+      imageGenerationConfig,
       createModel,
       mode,
       modelPurpose,
@@ -271,9 +293,22 @@ export default function AddModelFormPanel({
     }
   }, [addSingleModel, formState, mode, onSuccess, t])
 
-  const handlePrimaryTypeChange = useCallback((primaryType: ModelPrimaryType) => {
-    setClassification((current) => ({ ...current, primaryType }))
-  }, [])
+  const handlePrimaryTypeChange = useCallback(
+    (primaryType: ModelPrimaryType) => {
+      setClassification((current) => ({
+        ...current,
+        primaryType,
+        inputModalities:
+          primaryType === 'image' ? new Set([...current.inputModalities, 'image' as const]) : current.inputModalities
+      }))
+      const fields = applyModelPurpose(purposeFields, primaryType === 'image' ? 'image-both' : 'chat', {
+        chatEndpointType
+      })
+      setPurposeFields(fields)
+      setFormState((current) => ({ ...current, endpointTypes: fields.endpointTypes }))
+    },
+    [purposeFields, chatEndpointType]
+  )
 
   const handleCapabilityToggle = useCallback((capability: ModelCapabilityToggle) => {
     setClassification((current) => {
@@ -373,24 +408,10 @@ export default function AddModelFormPanel({
               setFormState((current) => ({ ...current, endpointTypes: [...next] }))
             }}
           />
-          {mode === 'purpose' && showPurposeSelection && (
-            <ModelPurposeFieldsControl
-              purpose={modelPurpose}
+          {mode === 'purpose' && classification.primaryType !== 'image' && showPurposeSelection && (
+            <ModelChatProtocolFields
               chatEndpointType={chatEndpointType}
               chatEndpointTypes={providerChatEndpointTypes}
-              onPurposeChange={(nextPurpose) => {
-                setClassification((current) => ({
-                  ...current,
-                  primaryType:
-                    nextPurpose === 'chat' ? (current.primaryType === 'image' ? 'text' : current.primaryType) : 'image'
-                }))
-                setPurposeFields((current) =>
-                  applyModelPurpose(current, nextPurpose, {
-                    previousPurpose: inferModelPurpose(current),
-                    chatEndpointType
-                  })
-                )
-              }}
               onChatEndpointTypeChange={(nextEndpointType) => {
                 setPurposeFields((current) =>
                   applyModelPurpose(current, 'chat', {
@@ -412,6 +433,27 @@ export default function AddModelFormPanel({
         </div>
       )}
 
+      <ProviderSection className={drawerClasses.section}>
+        <div className={drawerClasses.sectionCard}>
+          <ModelClassificationControls
+            value={classification}
+            onPrimaryTypeChange={handlePrimaryTypeChange}
+            onCapabilityToggle={handleCapabilityToggle}
+            onInputModalityToggle={handleInputModalityToggle}
+          />
+        </div>
+      </ProviderSection>
+
+      {classification.primaryType === 'image' && (
+        <ModelImageSettings
+          key={`${providerId}:${prefill?.model?.id ?? 'new'}`}
+          providerId={providerId}
+          modelId={formState.modelId}
+          initialConfig={imageGenerationConfig}
+          onChange={setImageGenerationConfig}
+        />
+      )}
+
       <ProviderActions>
         <Button
           type="button"
@@ -426,15 +468,6 @@ export default function AddModelFormPanel({
       {showMoreSettings && (
         <ProviderSection className={drawerClasses.section}>
           <div className="space-y-4">
-            <div className={drawerClasses.sectionCard}>
-              <ModelClassificationControls
-                value={classification}
-                onPrimaryTypeChange={handlePrimaryTypeChange}
-                onCapabilityToggle={handleCapabilityToggle}
-                onInputModalityToggle={handleInputModalityToggle}
-              />
-            </div>
-
             <div className={drawerClasses.sectionCard}>
               <ModelContextWindowFields
                 contextWindow={formState.contextWindow}

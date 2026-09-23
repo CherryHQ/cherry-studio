@@ -12,7 +12,7 @@ import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
 import type { ModelDrawerMode } from './types'
 
-export type ModelPurpose = 'chat' | 'image-generation' | 'image-edit'
+export type ModelPurpose = 'chat' | 'image-generation' | 'image-edit' | 'image-both'
 
 export const MODEL_CHAT_ENDPOINT_TYPES = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -88,6 +88,11 @@ export function getProviderChatEndpointTypes(provider: ProviderChatEndpoints): M
 }
 
 export function inferModelPurpose(fields: ModelPurposeFields): ModelPurpose {
+  if (
+    fields.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION) &&
+    fields.endpointTypes.includes(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)
+  )
+    return 'image-both'
   const primaryEndpointType = fields.endpointTypes?.[0]
 
   if (primaryEndpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT) {
@@ -123,7 +128,10 @@ export function applyModelPurpose(
     capabilities = capabilities.filter((capability) => capability !== MODEL_CAPABILITY.IMAGE_GENERATION)
     outputModalities = removeItem(outputModalities, MODALITY.IMAGE)
 
-    if (previousPurpose === 'image-edit' && !capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION)) {
+    if (
+      (previousPurpose === 'image-edit' || previousPurpose === 'image-both') &&
+      !capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION)
+    ) {
       inputModalities = removeItem(inputModalities, MODALITY.IMAGE)
     }
   }
@@ -142,12 +150,18 @@ export function applyModelPurpose(
   capabilities = addUnique(capabilities, MODEL_CAPABILITY.IMAGE_GENERATION)
   outputModalities = addUnique(outputModalities, MODALITY.IMAGE)
 
-  if (purpose === 'image-edit') {
+  if (purpose === 'image-edit' || purpose === 'image-both') {
     inputModalities = addUnique(inputModalities, MODALITY.IMAGE)
   }
 
   return {
-    endpointTypes: [purpose === 'image-edit' ? ENDPOINT_TYPE.OPENAI_IMAGE_EDIT : ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+    endpointTypes:
+      fields.endpointTypes?.includes(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) ||
+      options.chatEndpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        ? [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+        : purpose === 'image-both'
+          ? [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]
+          : [purpose === 'image-edit' ? ENDPOINT_TYPE.OPENAI_IMAGE_EDIT : ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
     capabilities,
     inputModalities,
     outputModalities

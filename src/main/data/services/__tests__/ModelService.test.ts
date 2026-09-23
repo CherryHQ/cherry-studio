@@ -151,6 +151,7 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'outputModalities',
       'endpointTypes',
       'parameterSupport',
+      'imageGenerationConfig',
       'supportsStreaming',
       'contextWindow',
       'maxInputTokens',

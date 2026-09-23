@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
+import type { ImageGenerationConfig } from '@shared/ai/imageGenerationConfig'
 /**
  * User Model table schema
  *
@@ -46,6 +47,7 @@ export const userModelTable = sqliteTable(
 
     /** Associated preset model ID (for traceability) */
     presetModelId: text(),
+    imageGenerationConfig: text({ mode: 'json' }).$type<ImageGenerationConfig>(),
 
     /** Display name (custom value or preset override; null inherits the preset) */
     name: text(),

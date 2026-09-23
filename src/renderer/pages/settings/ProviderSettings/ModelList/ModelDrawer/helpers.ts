@@ -134,7 +134,13 @@ export function getInitialModelClassification(model?: Model | null): ModelClassi
     primaryType = 'rerank'
   } else if (capabilities.includes(MODEL_CAPABILITY.EMBEDDING)) {
     primaryType = 'embedding'
-  } else if (capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)) {
+  } else if (
+    capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) ||
+    model?.outputModalities?.includes(MODALITY.IMAGE) ||
+    model?.endpointTypes?.some(
+      (endpoint) => endpoint === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION || endpoint === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+    )
+  ) {
     primaryType = 'image'
   } else if (capabilities.some((capability) => UNEDITABLE_MODEL_TYPE_CAPABILITIES.has(capability))) {
     // These catalog types are intentionally not editable until they have a
