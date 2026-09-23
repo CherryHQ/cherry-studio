@@ -3029,13 +3029,23 @@ export class AgentSessionRuntimeService extends BaseService {
     const target = this.connectionTarget(entry)
     const contextTurn =
       entry.runtimeState.execution.kind === 'autonomous-turn' ? entry.runtimeState.execution.contextTurn : undefined
+    const isGoalRound =
+      entry.runtimeState.execution.kind === 'autonomous-turn' &&
+      entry.runtimeState.execution.origin.kind === 'goal-round'
     const overrideStaleOnConnection =
       contextTurn !== undefined &&
       entry.modelId !== contextTurn.modelId &&
       (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) ||
         (entry.runtimeState.connection.kind === 'connected' &&
-          entry.runtimeState.connection.pendingRebuild !== undefined))
-    const modelId = overrideStaleOnConnection ? target.modelId : (entry.modelId ?? target.modelId)
+          entry.runtimeState.connection.pendingRebuild !== undefined) ||
+        isGoalRound)
+    const freshReceiveOnly =
+      entry.runtimeState.execution.kind === 'autonomous-turn' && !entry.runtimeState.execution.turn
+    const modelId = overrideStaleOnConnection
+      ? contextTurn.modelId
+      : freshReceiveOnly
+        ? (entry.modelId ?? target.modelId)
+        : target.modelId
     const { reasoningEffort, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } = target
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 
