@@ -139,9 +139,7 @@ function createMockBrowserWindow(): MockBrowserWindow {
     removeListener: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       const handlers = listeners.get(event)
       if (!handlers) return
-      const idx = handlers.findIndex(
-        (handler) => handler === cb || (handler as { listener?: unknown }).listener === cb
-      )
+      const idx = handlers.findIndex((handler) => handler === cb || (handler as { listener?: unknown }).listener === cb)
       if (idx !== -1) handlers.splice(idx, 1)
     }),
     removeAllListeners: vi.fn(() => {
