@@ -116,7 +116,8 @@ function findAskUserQuestionPartByCallId(
   return undefined
 }
 
-/** Persisted parts only — the optimistic overlay never lands here. */
+/** The renderer's optimistic inputs never land here — parts observed with
+ * answers are the runtime's own, streamed or persisted. */
 function getSettledAskUserQuestionApprovalIds(partsByMessageId: Record<string, CherryMessagePart[]>): string[] {
   const approvalIds: string[] = []
   for (const parts of Object.values(partsByMessageId)) {
@@ -322,8 +323,8 @@ export function useAgentChatRuntimeState({
       }
       return changed ? next : current
     })
-    // The sweep over persisted parts is the single draft-eviction point (the
-    // updater stays side-effect-free), so settlements survive remounts too.
+    // The sweep is the single draft-eviction point (the updater stays
+    // side-effect-free), so settlements survive remounts too.
     for (const approvalId of getSettledAskUserQuestionApprovalIds(partsByMessageId)) {
       clearAskUserQuestionDraftCache(approvalId)
     }
