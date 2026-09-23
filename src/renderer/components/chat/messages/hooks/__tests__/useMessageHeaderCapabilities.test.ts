@@ -21,6 +21,6 @@ describe('useMessageHeaderCapabilities', () => {
 
     void result.current.openUserProfile?.()
 
-    expect(openSettingsTab).toHaveBeenCalledWith('/settings/usage')
+    expect(openSettingsTab).toHaveBeenCalledWith('/settings/profile')
   })
 })
