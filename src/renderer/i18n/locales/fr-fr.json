@@ -115,7 +115,6 @@
   "agent.edit_resend.warning": "Remplace ce message et tous les messages suivants. Les modifications des fichiers ne seront pas annulées.",
   "agent.groups.group_by": "Afficher par groupes",
   "agent.groups.ungroup": "Ne plus grouper",
-
   "agent.heartbeat.action_failed": "Impossible d’enregistrer ou de lancer le heartbeat. Consultez les journaux et réessayez.",
   "agent.heartbeat.conflict": "Les tâches ont été modifiées ailleurs. Copiez vos modifications avant de recharger.",
   "agent.heartbeat.description": "L’agent vérifie ces tâches à chaque heartbeat. Chaque exécution non vide utilise le modèle sélectionné.",

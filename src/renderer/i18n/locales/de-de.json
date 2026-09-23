@@ -115,7 +115,6 @@
   "agent.edit_resend.warning": "Ersetzt diese Nachricht und alle folgenden Nachrichten. Dateiänderungen werden nicht rückgängig gemacht.",
   "agent.groups.group_by": "Gruppiert anzeigen",
   "agent.groups.ungroup": "Gruppierung beenden",
-
   "agent.heartbeat.action_failed": "Speichern oder Starten fehlgeschlagen. Prüfen Sie die Protokolle und versuchen Sie es erneut.",
   "agent.heartbeat.conflict": "Die Aufgaben wurden extern geändert. Kopieren Sie Ihre Änderungen vor dem Neuladen.",
   "agent.heartbeat.description": "Der Agent prüft diese Aufgaben bei jedem Heartbeat. Jeder Lauf mit Inhalt verwendet das ausgewählte Modell.",

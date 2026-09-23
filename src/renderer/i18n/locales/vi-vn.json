@@ -115,7 +115,6 @@
   "agent.edit_resend.warning": "Thay thế tin nhắn này và tất cả tin nhắn sau đó. Các thay đổi đối với tệp sẽ không được hoàn tác.",
   "agent.groups.group_by": "Hiển thị theo nhóm",
   "agent.groups.ungroup": "Bỏ nhóm",
-
   "agent.heartbeat.action_failed": "Không thể lưu hoặc khởi chạy heartbeat. Kiểm tra nhật ký và thử lại.",
   "agent.heartbeat.conflict": "Tác vụ đã được thay đổi bên ngoài trình soạn thảo. Sao chép nội dung chỉnh sửa trước khi tải lại.",
   "agent.heartbeat.description": "Tác tử kiểm tra các tác vụ này mỗi nhịp heartbeat. Mỗi lần chạy có nội dung sẽ sử dụng mô hình đã chọn.",

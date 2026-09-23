@@ -115,7 +115,6 @@
   "agent.edit_resend.warning": "将替换本条消息及其后所有消息，已修改的文件不会恢复。",
   "agent.groups.group_by": "分组显示",
   "agent.groups.ungroup": "取消分组",
-
   "agent.heartbeat.action_failed": "无法保存或启动心跳，请查看日志后重试。",
   "agent.heartbeat.conflict": "任务已在其他地方修改，请复制当前编辑内容后重新加载。",
   "agent.heartbeat.description": "智能体会在每次心跳时检查这些任务。有任务内容的执行会调用所选模型。",
