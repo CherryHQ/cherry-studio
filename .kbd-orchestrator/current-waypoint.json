@@ -1,12 +1,18 @@
 {
-  "phase": "rebrand-to-the-boss",
-  "previousPhase": null,
-  "status": "reflected",
-  "updatedAt": "2026-09-21T16:10:10Z",
-  "depth": 0,
-  "parentPhase": null,
-  "nextCommand": "/kbd-new-phase boss-release-infrastructure",
-  "implementationCompleted": 10,
-  "implementationTotal": 10,
-  "note": "Priority shifted to shipping: release pipeline landed on main, first build running. Remaining rebrand changes (007, 0075, 008, 009) are cleanup."
+  "schemaVersion": 1,
+  "generatedBy": "linked-coordinator-snapshot",
+  "canonicalCoordinator": "/Users/gqadonis/Projects/prometheus/prometheus-skills-mini",
+  "sourceRevision": 415,
+  "phase": "the-boss-shipping-and-settings",
+  "activePhase": "the-boss-universal-agent-runtime",
+  "path": [
+    "the-boss-shipping-and-settings",
+    "the-boss-universal-agent-runtime"
+  ],
+  "status": "in_progress",
+  "change": "sidecar-session-principal",
+  "nextCommand": "Continue sidecar-session-principal in worktrees/uar-the-boss-sidecar; implement The Boss UAR driver in worktrees/the-boss-uar from release baseline 8344b48520. Preserve current WIP. Windows v2.1.3 installed acceptance remains pending.",
+  "releaseBaseline": "8344b485203427952716cd142da28c181162be61",
+  "windowsInstalledAcceptance": "pending",
+  "updatedAt": "2026-09-23T20:19:47.231Z"
 }

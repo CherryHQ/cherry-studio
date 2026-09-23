@@ -1,12 +1,12 @@
 {
-  "name": "CherryStudio",
+  "name": "The Boss",
   "description": "A powerful AI assistant for producer — cross-platform desktop app (Electron + React + TypeScript).",
-  "activePhase": "rebrand-to-the-boss",
-  "worktreeRoot": "${HOME}/.claude/worktrees",
+  "activePhase": "the-boss-universal-agent-runtime",
+  "worktreeRoot": "/Users/gqadonis/Projects/prometheus/worktrees",
   "maxChildDepth": 4,
   "ux_profile": "advanced",
   "__ux_profile_note": "advanced → kbd-status is dense by default; beginner → kbd-status --explain is on by default (expands decision-log entries + next-and-why narrative). Verbosity only — never gates information.",
-  "focus_project_path": "/Users/gqadonis/Projects/prometheus/the-boss",
+  "focus_project_path": "/Users/gqadonis/Projects/prometheus/worktrees/the-boss-uar",
   "spec_paths": [
     "openspec/specs/*.md",
     "docs/references/**/*.md"
@@ -22,16 +22,7 @@
   "dev_command": "source \"$HOME/.nvm/nvm.sh\" && nvm use 24.11.1 >/dev/null && pnpm dev",
   "docs_check_command": "source \"$HOME/.nvm/nvm.sh\" && nvm use 24.11.1 >/dev/null && pnpm docs:check",
   "full_gate_command": "source \"$HOME/.nvm/nvm.sh\" && nvm use 24.11.1 >/dev/null && pnpm build:check",
-  "__test_scope_note": "Never run `pnpm test <path>` — the script chains several vitest invocations with && and CLI args reach only the last one, so earlier projects run their full suites unfiltered. Use the per-project wrappers or `pnpm exec vitest run <file>`.",
-  "scoped_test_commands": {
-    "main": "pnpm test:main",
-    "renderer": "pnpm test:renderer",
-    "aicore": "pnpm test:aicore",
-    "shared": "pnpm test:shared",
-    "ui": "pnpm test:pkg:ui",
-    "scripts": "pnpm test:scripts",
-    "single_file": "pnpm exec vitest run <file>"
-  },
+  "__test_scope_note": "Operator override for this integration: no intermediate test suites, review loops, or standalone verification builds; finish production wiring before actual packaging and installed acceptance.",
   "preferred_planning_agent": "antigravity",
   "preferred_execution_agents": [],
   "model_policy": {
@@ -106,16 +97,16 @@
   },
   "workspace": {
     "workspace_file": null,
-    "__workspace_note": "/Users/gqadonis/Projects/the-boss.code-workspace exists but its first folder points at `cherry-studio`, which no longer exists on disk — this project now lives at prometheus/the-boss. No workspace file references the current path, so KBD runs in single-project mode. The two reference folders below were taken from that stale workspace and DO exist; re-point the workspace file and set workspace_file if you want multi-root mode.",
+    "__workspace_note": "UAR integration worktree; canonical KBD coordination is in prometheus-skills-mini. See current-waypoint.md.",
     "folders": [
       {
-        "path": "/Users/gqadonis/Projects/prometheus/the-boss",
+        "path": "/Users/gqadonis/Projects/prometheus/worktrees/the-boss-uar",
         "role": "focus",
         "purpose": "Active project — all KBD operations target this directory",
         "write_access": true
       },
       {
-        "path": "/Users/gqadonis/Projects/prometheus/universal-agent-runtime",
+        "path": "/Users/gqadonis/Projects/prometheus/worktrees/uar-the-boss-sidecar",
         "role": "reference",
         "write_access": false,
         "purpose": "Rust agent runtime — read for runtime/protocol conventions",
@@ -153,5 +144,6 @@
       }
     ]
   },
-  "updatedAt": "2026-09-21T09:28:23Z"
+  "updatedAt": "2026-09-23T20:19:47.231Z",
+  "canonicalCoordinator": "/Users/gqadonis/Projects/prometheus/prometheus-skills-mini"
 }
