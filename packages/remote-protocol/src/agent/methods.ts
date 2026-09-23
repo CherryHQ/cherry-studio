@@ -25,7 +25,13 @@ const subscription = { subscriptionId: opaqueId }
 export const agentMethods = {
   'agent.agents.list': method(
     z.strictObject(pageParams),
-    pageOf(z.looseObject({ agentId: opaqueId, name: unicodeText.max(4096) }))
+    pageOf(
+      z.looseObject({
+        agentId: opaqueId,
+        name: unicodeText.max(4096),
+        emoji: unicodeText.trim().min(1).max(64).optional()
+      })
+    )
   ),
   'agent.workspaces.list': method(
     z.strictObject({ agentId: opaqueId, ...pageParams }),

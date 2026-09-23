@@ -15,10 +15,12 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { SerializedError } from '@shared/types/error'
 
 /** Text above this many UTF-16 units travels as a content reference so records stay under the wire budget. */
 export const INLINE_TEXT_LIMIT = 4096
@@ -150,6 +152,11 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
           text: output
         })
       }
+    } else if (part.type === 'data-error') {
+      const failure = toExecutionFailure(part.data as SerializedError, message.modelId ?? undefined)
+      projected.push(
+        dataPart(partId, revision, 'data-error', { data: { message: failure.message, executionFailure: failure } })
+      )
     } else if (part.type === 'file') {
       // ponytail: file bytes are not served remotely yet; expose metadata only, add content refs when Mobile renders files.
       projected.push(dataPart(partId, revision, 'file', { mediaType: part.mediaType, filename: part.filename ?? null }))
@@ -162,11 +169,21 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
 }
 
 export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
+  const error = message.data.parts?.find((part) => part.type === 'data-error')
   return {
     messageId: message.id,
     revision: revisionOf(message.updatedAt),
     role: message.role,
-    partIds: projectPersistedParts(message).map(({ part }) => part.partId)
+    partIds: projectPersistedParts(message).map(({ part }) => part.partId),
+    status: message.status,
+    ...(message.status === 'error'
+      ? {
+          failure: toExecutionFailure(
+            (error?.data as SerializedError) ?? { name: null, message: null, stack: null },
+            message.modelId ?? undefined
+          )
+        }
+      : {})
   }
 }
 
@@ -252,7 +269,10 @@ export function listPersistedInteractions(sessionId: string): AgentInteraction[]
 export function listAgents(cursor?: string, limit?: number) {
   const { agents } = agentService.listAgents()
   return pageOf(
-    agents.map((agent) => ({ agentId: agent.id, name: agent.name })),
+    agents.map((agent) => {
+      const emoji = agent.configuration?.avatar?.trim() || '🤖'
+      return { agentId: agent.id, name: agent.name, emoji: emoji.length <= 64 ? emoji : '🤖' }
+    }),
     cursor,
     limit
   )

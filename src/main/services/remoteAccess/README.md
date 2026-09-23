@@ -29,6 +29,13 @@ Deviations from the design doc, kept deliberately small:
 SQLite writes stay in their owning data services. Agent execution stays in the
 existing stream manager and runtime. No relay service is provided here.
 
+Execution failures use the shared failure snapshot in both live terminal events and historical
+messages. The persistence listener supplies the actual saved message identity and revisions before
+the journal declares `durable` or removes the final overlay. Save failures remain separate from
+model failures. Terminal events retain the failure and message identity even when history commit
+and live-message removal arrive in the same batch; clients can display the result before loading
+history. Provider rejection never revokes the device grant or rewrites an applied command receipt.
+
 Question interactions are declared in live events, checkpoints and persisted views. Their form
 stays in the input resource. `agent.interactions.respond` validates the revision/execution/digest
 and complete answer keys, then forwards original input plus answers (or denial reason) to the
@@ -38,3 +45,6 @@ Workspace catalogs advertise system creation. `agent.sessions.create` resolves e
 registered selections through `AgentSessionService`; the phone cannot supply a directory. Responses
 include the actual workspace ID and kind. Legacy mutation forms remain accepted for existing
 clients and persisted command recovery. See the [protocol package](../../../../packages/remote-protocol/README.md).
+
+Agent catalogs include the configured emoji, falling back to the desktop's robot avatar when it
+is empty or exceeds the wire limit. They never expose desktop avatar file paths.

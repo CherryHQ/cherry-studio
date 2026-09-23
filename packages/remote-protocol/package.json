@@ -9,6 +9,10 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./failure": {
+      "types": "./dist/failure.d.ts",
+      "default": "./dist/failure.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"

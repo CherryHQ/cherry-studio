@@ -18,7 +18,10 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
+import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
 import type { StreamListener } from '@main/ai/streamManager'
+import type { StreamErrorResult } from '@main/ai/streamManager'
+import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { RemoteAgentHub } from '../agentJournal'
@@ -31,6 +34,7 @@ const fake = vi.hoisted(() => {
   const streams = new Map<string, StreamListener[]>()
   return {
     streams,
+    onStarted: undefined as undefined | ((listeners: StreamListener[]) => Promise<void>),
     manager: {
       hasLiveStream: (topicId: string) => streams.has(topicId),
       addListener: (topicId: string, listener: StreamListener) => {
@@ -60,6 +64,7 @@ vi.mock('@main/ai/streamManager', () => ({
         message: { role: 'user', data: { parts: input.userParts } }
       })
       fake.streams.set(topicId, [...input.listeners])
+      await fake.onStarted?.(input.listeners)
       return { mode: 'started' }
     }
   )
@@ -109,15 +114,23 @@ describe('remote agent access', () => {
     status: 'success' | 'paused' = 'success'
   ) => {
     await tick()
-    agentSessionMessageService.saveMessage({
+    const saved = agentSessionMessageService.saveMessage({
       sessionId,
       message: { id: anchorMessageId, role: 'assistant', status, data: { parts } }
     })
+    const persistence = {
+      status: 'saved' as const,
+      message: {
+        messageId: saved.id,
+        messageRevision: String(Date.parse(saved.updatedAt)),
+        historyRevision: String(Date.parse(agentSessionService.getConversationById(sessionId).updatedAt))
+      }
+    }
     const listeners = fake.streams.get(`agent-session:${sessionId}`) ?? []
     fake.streams.delete(`agent-session:${sessionId}`)
     for (const listener of listeners) {
-      if (status === 'success') void listener.onDone({ status: 'success', isTopicDone: true })
-      else void listener.onPaused({ status: 'paused', isTopicDone: true })
+      if (status === 'success') void listener.onDone({ status: 'success', isTopicDone: true, persistence })
+      else void listener.onPaused({ status: 'paused', isTopicDone: true, persistence })
     }
   }
   const drain = async (projection: AgentProjection): Promise<AgentProjection> => {
@@ -152,11 +165,18 @@ describe('remote agent access', () => {
 
   beforeEach(async () => {
     fake.streams.clear()
+    fake.onStarted = undefined
     notifications.length = 0
     fake.runtime.respondToolApproval.mockClear()
-    await dbh.db
-      .insert(agentTable)
-      .values({ id: 'agent-1', type: 'claude-code', name: 'Agent', instructions: '', model: null, orderKey: 'a0' })
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-1',
+      type: 'claude-code',
+      name: 'Agent',
+      instructions: '',
+      model: null,
+      orderKey: 'a0',
+      configuration: { avatar: '🧑🏽‍💻' }
+    })
     const workspace = dbh.db.transaction((tx) =>
       agentWorkspaceService.findOrCreateByPathTx(tx, path.join('/tmp', 'remote-agent-test'))
     )
@@ -180,6 +200,172 @@ describe('remote agent access', () => {
     )
     await call('connection.hello', { protocolVersions: [1] })
     await call('connection.authenticate', { deviceId: device.id })
+  })
+
+  it.each([false, true])(
+    'preserves a provider rejection through events and durable history (partial=%s)',
+    async (partial) => {
+      const { session } = await call('agent.sessions.get', { sessionId })
+      const prepared = await call('agent.sessions.subscribe', { sessionId })
+      let projection = (await installCheckpoint(prepared.subscriptionId, prepared.checkpoint)).projection
+      await call('agent.subscriptions.activate', {
+        subscriptionId: prepared.subscriptionId,
+        appliedCursor: projection.cursor
+      })
+      const commandId = randomUUID()
+      const receipt = await call('agent.messages.send', {
+        commandId,
+        sessionId,
+        text: 'hello',
+        expectedIdleRevision: session.idleRevision
+      })
+      const anchor = randomUUID()
+      if (partial) {
+        emit({ type: 'text-start', id: 'text' }, anchor)
+        emit({ type: 'text-delta', id: 'text', delta: 'Partial answer' }, anchor)
+      }
+      const result: StreamErrorResult = {
+        status: 'error',
+        isTopicDone: true,
+        anchorMessageId: anchor,
+        error: {
+          name: 'Error',
+          stack: 'private stack',
+          message:
+            '403: {"type":"server_error","message":"An active OpenCode Go subscription is required to use Go models."}'
+        },
+        ...(partial
+          ? { finalMessage: { id: anchor, role: 'assistant', parts: [{ type: 'text', text: 'Partial answer' }] } }
+          : {})
+      }
+      const persistence = new PersistenceListener({
+        topicId: `agent-session:${sessionId}`,
+        backend: new AgentSessionMessageBackend({ sessionId, assistantMessageId: anchor }),
+        onPersistFailed: () => {
+          throw new Error('Unexpected persistence failure')
+        }
+      })
+      await tick()
+      await persistence.onError(result)
+      for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) await listener.onError(result)
+      fake.streams.delete(`agent-session:${sessionId}`)
+      projection = await drain(projection)
+      expect(projection.executions[receipt.executionId]).toMatchObject({
+        status: 'failed',
+        messageId: anchor,
+        durable: true,
+        failure: { failure: { reasonCode: 'permission', source: { layer: 'provider' }, context: { statusCode: 403 } } }
+      })
+      expect(projection.messages[anchor]).toBeUndefined()
+      const history = await call('agent.messages.list', {
+        sessionId,
+        historyRevision: projection.session.historyRevision
+      })
+      const message = history.items.find((item: { messageId: string }) => item.messageId === anchor)
+      expect(message).toMatchObject({ status: 'error', failure: projection.executions[receipt.executionId].failure })
+      expect(message.failure.message).toContain('OpenCode Go subscription')
+      const stored = agentSessionMessageService.getSessionMessage(sessionId, anchor)
+      expect(stored.data.parts?.filter((part) => part.type === 'text')).toHaveLength(partial ? 1 : 0)
+      expect(await call('agent.commands.get', { commandId })).toMatchObject({ status: 'applied' })
+      expect(await call('connection.ping', { nonce: 'still-connected' })).toMatchObject({ nonce: 'still-connected' })
+      await call('agent.subscriptions.close', { subscriptionId: prepared.subscriptionId })
+      const checkpoint = await call('agent.sessions.subscribe', { sessionId })
+      const restored = await installCheckpoint(checkpoint.subscriptionId, checkpoint.checkpoint)
+      expect(restored.projection.executions[receipt.executionId]).toEqual(projection.executions[receipt.executionId])
+      const restarted = new RemoteAgentHub().journal(sessionId).capture()
+      const baseline = installAgentCheckpoint(restarted.descriptor, restarted.pages, {}, integrity)
+      expect(baseline.ok).toBe(true)
+      if (!baseline.ok) throw new Error(baseline.reason)
+      expect(Object.keys(baseline.projection.executions)).toHaveLength(0)
+      const reopened = await call('agent.messages.list', {
+        sessionId,
+        historyRevision: baseline.projection.session.historyRevision
+      })
+      expect(reopened.items.find((item: { messageId: string }) => item.messageId === anchor)).toMatchObject({
+        status: 'error',
+        failure: message.failure
+      })
+    }
+  )
+
+  it('does not replace a fast failed execution with running when send admission returns', async () => {
+    const anchor = randomUUID()
+    fake.onStarted = async (listeners) => {
+      const result: StreamErrorResult = {
+        status: 'error',
+        anchorMessageId: anchor,
+        isTopicDone: true,
+        error: { name: 'Error', message: '403 forbidden', stack: null }
+      }
+      const persistence = new PersistenceListener({
+        topicId: `agent-session:${sessionId}`,
+        backend: new AgentSessionMessageBackend({ sessionId, assistantMessageId: anchor }),
+        onPersistFailed: () => {}
+      })
+      await persistence.onError(result)
+      for (const listener of listeners) await listener.onError(result)
+      fake.streams.delete(`agent-session:${sessionId}`)
+    }
+    const { session } = await call('agent.sessions.get', { sessionId })
+    const receipt = await call('agent.messages.send', {
+      commandId: randomUUID(),
+      sessionId,
+      text: 'hello',
+      expectedIdleRevision: session.idleRevision
+    })
+    const checkpoint = await call('agent.sessions.subscribe', { sessionId })
+    const restored = await installCheckpoint(checkpoint.subscriptionId, checkpoint.checkpoint)
+    expect(restored.projection.executions[receipt.executionId]).toMatchObject({
+      status: 'failed',
+      durable: true,
+      messageId: anchor
+    })
+    expect(restored.projection.session.activeExecutionId).toBeUndefined()
+    expect(restored.projection.messages[anchor]).toBeUndefined()
+  })
+
+  it('does not claim durable history or remove the live answer when persistence fails', async () => {
+    const { session } = await call('agent.sessions.get', { sessionId })
+    const prepared = await call('agent.sessions.subscribe', { sessionId })
+    let projection = (await installCheckpoint(prepared.subscriptionId, prepared.checkpoint)).projection
+    await call('agent.subscriptions.activate', {
+      subscriptionId: prepared.subscriptionId,
+      appliedCursor: projection.cursor
+    })
+    const receipt = await call('agent.messages.send', {
+      commandId: randomUUID(),
+      sessionId,
+      text: 'hello',
+      expectedIdleRevision: session.idleRevision
+    })
+    const anchor = randomUUID()
+    emit({ type: 'text-start', id: 'text' }, anchor)
+    emit({ type: 'text-delta', id: 'text', delta: 'Unsaved answer' }, anchor)
+    projection = await drain(projection)
+    const revision = projection.session.historyRevision
+    const failure = {
+      message: 'Disk full',
+      retryable: false,
+      failure: { version: 1 as const, reasonCode: 'internal' as const, source: { layer: 'host' as const } }
+    }
+    for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
+      await listener.onDone({
+        status: 'success',
+        anchorMessageId: anchor,
+        isTopicDone: true,
+        persistence: { status: 'failed', failure }
+      })
+    fake.streams.delete(`agent-session:${sessionId}`)
+    projection = await drain(projection)
+    expect(projection.session.historyRevision).toBe(revision)
+    expect(projection.executions[receipt.executionId]).toMatchObject({
+      status: 'completed',
+      durable: false,
+      persistenceFailure: failure
+    })
+    expect(projection.executions[receipt.executionId].history).toBeUndefined()
+    expect(projection.messages[anchor]).toMatchObject({ status: 'success' })
+    expect(projection.parts[`${anchor}:text:text`]).toMatchObject({ content: { text: 'Unsaved answer' } })
   })
 
   it('creates a system workspace exactly once and returns its actual identity', async () => {
@@ -317,7 +503,7 @@ describe('remote agent access', () => {
 
   it('streams a remote send through checkpoint, live events, approval and durable history without gaps', async () => {
     expect(await call('agent.agents.list', {})).toMatchObject({
-      items: [{ agentId: 'agent-1', name: 'Agent' }],
+      items: [{ agentId: 'agent-1', name: 'Agent', emoji: '🧑🏽‍💻' }],
       nextCursor: null
     })
     const { session } = await call('agent.sessions.get', { sessionId })

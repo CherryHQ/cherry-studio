@@ -10,6 +10,20 @@ package tests alone does not qualify Desktop, Expo or relay interoperability.
 Run `pnpm --filter @cherrystudio/remote-protocol test`, `typecheck` and `build`.
 External consumers enter through the package exports, never `src/` deep imports.
 
+## Failure outcomes
+
+`./failure` owns the bounded execution failure snapshot shared by live execution and message
+history. Messages carry explicit pending/success/error/paused status. A failed execution requires
+a failure and a terminal message identity. Terminal persistence is either durable with message
+and history revisions, or non-durable with a separate persistence failure. RPC authorization errors
+and command receipts remain independent of execution outcomes.
+
+`connection.hello.agentFailureVersion: 1` advertises this contract. New clients require it for Agent
+access only; configuration and pairing retain their existing protocol. Old execution `error` fields
+remain a compatibility projection. Old cached projections missing required fields are rebuilt from
+a checkpoint. Unknown upstream causes are classified as `unknown`; wire snapshots validate the
+versioned reason vocabulary without rewriting bytes used by checkpoint digests.
+
 ## Interaction and workspace additions
 
 - Interaction summaries may declare `kind: question`; full questions stay in the versioned input
@@ -23,3 +37,7 @@ External consumers enter through the package exports, never `src/` deep imports.
   operations and explicit forms for the additions; old catalogs do not imply system support.
 - Command identity includes the full answer or workspace selection. Retrying with the same ID
   and different input is an idempotency conflict, never a replacement operation.
+
+Agent catalogs optionally include `emoji` (nonempty Unicode text, at most 64 UTF-16 units).
+It is display metadata, not a file path or URL. Omission remains compatible with older hosts;
+clients keep their normal fallback. Image transfer is outside this field's contract.

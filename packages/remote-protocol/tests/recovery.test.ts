@@ -36,7 +36,11 @@ const batch = (events: AgentEventBatch['events']): AgentEventBatch => ({
   events
 })
 const initial: AgentEventBatch['events'] = [
-  { seq: '1', kind: 'message.created', payload: { messageId: 'm', revision: '0', role: 'assistant', partIds: [] } },
+  {
+    seq: '1',
+    kind: 'message.created',
+    payload: { messageId: 'm', revision: '0', role: 'assistant', status: 'pending', partIds: [] }
+  },
   {
     seq: '2',
     kind: 'part.created',
@@ -58,7 +62,7 @@ describe('atomic event recovery', () => {
         {
           seq: '1',
           kind: 'message.created',
-          payload: { messageId: '__proto__', revision: '0', role: 'assistant', partIds: [] }
+          payload: { messageId: '__proto__', revision: '0', role: 'assistant', status: 'pending', partIds: [] }
         }
       ]),
       {},

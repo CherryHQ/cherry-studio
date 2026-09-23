@@ -12,6 +12,19 @@ describe('remote contracts', () => {
     expect(jsonRpcNotificationSchema.safeParse({ ...envelope, id: null }).success).toBe(false)
   })
 
+  it('accepts old catalogs and preserves bounded Unicode avatar text', () => {
+    const result = agentMethods['agent.agents.list'].result
+    expect(result.parse({ items: [{ agentId: 'a', name: 'Agent' }], nextCursor: null }).items[0].emoji).toBeUndefined()
+    expect(
+      result.parse({ items: [{ agentId: 'a', name: 'Agent', emoji: '🧑🏽‍💻' }], nextCursor: null }).items[0].emoji
+    ).toBe('🧑🏽‍💻')
+    for (const emoji of ['', ' ', 'x'.repeat(65), '\ud800']) {
+      expect(result.safeParse({ items: [{ agentId: 'a', name: 'Agent', emoji }], nextCursor: null }).success).toBe(
+        false
+      )
+    }
+  })
+
   it('selects only an explicitly offered and implemented whole protocol', () => {
     expect(negotiateProtocol({ protocolVersions: [1, 3] }, { protocolVersions: [1, 2] })).toEqual({
       ok: true,

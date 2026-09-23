@@ -55,7 +55,12 @@ export class RemoteConnection {
       )
         throw new RemoteRpcError('INVALID_CONNECTION_STATE', 'Hello must confirm the authenticated version offer')
       this.hello = true
-      return { protocolVersion: channel.protocolVersion, limits: remoteLimits, heartbeatMs: remoteLimits.heartbeatMs }
+      return {
+        protocolVersion: channel.protocolVersion,
+        agentFailureVersion: 1,
+        limits: remoteLimits,
+        heartbeatMs: remoteLimits.heartbeatMs
+      }
     })
     const authenticate = (deviceId: string, accessToken?: string) => {
       this.requireHello()

@@ -22,6 +22,7 @@ import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { startAgentSessionRun } from '@main/ai/streamManager'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
@@ -223,7 +224,7 @@ export class SessionJournal {
       return { started: false, reason: result.reason }
     }
     this.listener = listener
-    this.ensureExecution(listener.executionId)
+    if (listener.current) this.ensureExecution(listener.executionId)
     return { started: true, executionId: listener.executionId }
   }
 
@@ -422,7 +423,6 @@ export class SessionJournal {
         })
         return
       case 'error':
-        execution.status = 'failed'
         return
       default:
         return
@@ -430,30 +430,69 @@ export class SessionJournal {
   }
 
   onTerminal(listener: RemoteAgentListener, result: StreamDoneResult | StreamPausedResult | StreamErrorResult): void {
-    if (result.isTopicDone === false || this.execution?.executionId !== listener.executionId) return
-    const execution = this.execution
+    if (
+      !listener.current ||
+      result.isTopicDone === false ||
+      (this.execution && this.execution.executionId !== listener.executionId)
+    )
+      return
+    const execution = this.ensureExecution(listener.executionId)
     listener.current = false
-    this.commitHistory()
-    this.execution = undefined
+    const saved = result.persistence?.status === 'saved' ? result.persistence.message : undefined
+    const anchor = saved?.messageId ?? result.finalMessage?.id ?? result.anchorMessageId ?? execution.messageId
+    if (!anchor) throw new Error('Terminal execution has no assistant message identity')
+    const messageId = this.ensureMessage(execution, anchor)
+    const failure =
+      result.status === 'error' ? (result.failure ?? toExecutionFailure(result.error, result.modelId)) : undefined
+    const persistenceFailure =
+      result.persistence?.status === 'failed'
+        ? result.persistence.failure
+        : saved
+          ? undefined
+          : toExecutionFailure(
+              { name: 'PersistenceError', message: 'Execution result was not saved', stack: null },
+              result.modelId,
+              'host'
+            )
     const status = result.status === 'success' ? 'completed' : result.status === 'paused' ? 'cancelled' : 'failed'
+    const message = this.projection.messages[messageId]
+    if (message)
+      this.append({
+        kind: 'message.updated',
+        payload: {
+          baseRevision: message.revision,
+          message: {
+            ...message,
+            revision: this.next(),
+            status: result.status === 'error' ? 'error' : result.status === 'paused' ? 'paused' : 'success',
+            ...(failure ? { failure } : {})
+          }
+        }
+      })
     this.append({
       kind: 'execution.updated',
       payload: {
         executionId: execution.executionId,
         status,
-        durable: true,
-        ...(execution.messageId ? { messageId: execution.messageId } : {}),
-        ...(result.status === 'error'
-          ? { error: { reason: 'INTERNAL', message: safeSlice(result.error.message ?? 'Execution failed', 512) } }
-          : {})
+        messageId,
+        durable: Boolean(saved),
+        ...(saved
+          ? { history: { messageRevision: saved.messageRevision, historyRevision: saved.historyRevision } }
+          : {}),
+        ...(persistenceFailure ? { persistenceFailure } : {}),
+        ...(failure ? { failure, error: { reason: 'INTERNAL', message: safeSlice(failure.message, 512) } } : {})
       }
     })
+    const committed = saved ? this.commitHistory() : new Set<string>()
+    if (saved) committed.add(saved.messageId)
+    this.execution = undefined
     for (const [approvalId, approval] of execution.approvals) {
       const current = this.projection.interactions[approvalId]
       if (approval.status === 'pending' && current)
         this.append({ kind: 'interaction.updated', payload: { ...current, revision: this.next(), status: 'expired' } })
     }
     for (const messageId of execution.messageIds) {
+      if (!committed.has(messageId)) continue
       const message = this.projection.messages[messageId]
       if (!message) continue
       this.append({
@@ -498,11 +537,11 @@ export class SessionJournal {
   }
 
   /** Durable rows changed since the last committed revision; the session's updatedAt is the history revision. */
-  private commitHistory(): void {
+  private commitHistory(): Set<string> {
     const session = getSession(this.sessionId)
     const previous = Number(this.projection.session.historyRevision)
     const historyRevision = revisionOf(session.updatedAt)
-    if (Number(historyRevision) <= previous) return
+    if (Number(historyRevision) <= previous) return new Set()
     const messages = agentSessionMessageService
       .listSessionMessages(this.sessionId, { limit: 50 })
       .items.filter((message) => Date.parse(message.updatedAt) > previous)
@@ -514,6 +553,7 @@ export class SessionJournal {
         messages: messages.map((message) => ({ messageId: message.id, revision: revisionOf(message.updatedAt) }))
       }
     })
+    return new Set(messages.map((message) => message.id))
   }
 
   private ensureMessage(execution: LiveExecution, messageId?: string): string {
@@ -524,7 +564,7 @@ export class SessionJournal {
     if (!this.projection.messages[id] && !this.projection.tombstones.includes(id))
       this.append({
         kind: 'message.created',
-        payload: { messageId: id, revision: this.next(), role: 'assistant', partIds: [] }
+        payload: { messageId: id, revision: this.next(), role: 'assistant', partIds: [], status: 'pending' }
       })
     this.append({
       kind: 'execution.updated',

@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { remoteFailureSchema } from '../errors'
+import { executionFailureSchema } from '../failure'
 import { decimal, digest, opaqueId, timestamp, unicodeText } from '../values'
 
 export const agentAuthorizationSchema = z.looseObject({ domain: z.literal('agent'), grantId: opaqueId })
@@ -23,20 +24,44 @@ export const sessionSchema = z.looseObject({
   activeExecutionId: opaqueId.optional(),
   idleRevision: decimal.optional()
 })
-export const executionSchema = z.looseObject({
-  executionId: opaqueId,
-  status: z.enum(['running', 'awaiting-approval', 'finalizing', 'completed', 'cancelled', 'failed', 'interrupted']),
-  commandId: opaqueId.optional(),
-  messageId: opaqueId.optional(),
-  error: remoteFailureSchema.optional(),
-  durable: z.boolean()
-})
-export const messageSchema = z.looseObject({
-  messageId: opaqueId,
-  revision: decimal,
-  role: z.enum(['user', 'assistant', 'system']),
-  partIds: z.array(opaqueId).max(4096)
-})
+export const executionSchema = z
+  .looseObject({
+    executionId: opaqueId,
+    status: z.enum(['running', 'awaiting-approval', 'finalizing', 'completed', 'cancelled', 'failed', 'interrupted']),
+    commandId: opaqueId.optional(),
+    messageId: opaqueId.optional(),
+    error: remoteFailureSchema.optional(),
+    failure: executionFailureSchema.optional(),
+    persistenceFailure: executionFailureSchema.optional(),
+    history: z.strictObject({ historyRevision: decimal, messageRevision: decimal }).optional(),
+    durable: z.boolean()
+  })
+  .superRefine((value, ctx) => {
+    const terminal = ['completed', 'cancelled', 'failed', 'interrupted'].includes(value.status)
+    if ((value.status === 'failed') !== Boolean(value.failure))
+      ctx.addIssue({ code: 'custom', message: 'Failed executions require a failure; other outcomes cannot carry one' })
+    if (
+      terminal &&
+      (!value.messageId ||
+        (value.durable ? !value.history || !!value.persistenceFailure : !value.persistenceFailure || !!value.history))
+    )
+      ctx.addIssue({ code: 'custom', message: 'Terminal executions require a message and a persistence outcome' })
+    if (!terminal && (value.durable || value.history || value.persistenceFailure))
+      ctx.addIssue({ code: 'custom', message: 'Running executions cannot claim terminal persistence' })
+  })
+export const messageSchema = z
+  .looseObject({
+    messageId: opaqueId,
+    revision: decimal,
+    role: z.enum(['user', 'assistant', 'system']),
+    partIds: z.array(opaqueId).max(4096),
+    status: z.enum(['pending', 'success', 'error', 'paused']),
+    failure: executionFailureSchema.optional()
+  })
+  .superRefine((value, ctx) => {
+    if ((value.status === 'error') !== Boolean(value.failure))
+      ctx.addIssue({ code: 'custom', message: 'Error messages require a failure; other outcomes cannot carry one' })
+  })
 const partBase = {
   partId: opaqueId,
   revision: decimal,
