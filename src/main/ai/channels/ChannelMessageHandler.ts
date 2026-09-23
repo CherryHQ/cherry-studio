@@ -21,6 +21,9 @@ import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { toFileUrl } from '@shared/utils/file'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
@@ -449,14 +452,14 @@ export class ChannelMessageHandler {
         }
       }
 
-      // Build text with attachment file paths appended so the agent knows where they are saved
-      let textWithAttachments = message.text
-      if (imagePaths.length > 0) {
-        textWithAttachments += `\n\n[Attached images saved to workspace]\n${imagePaths.map((p) => `- ${p}`).join('\n')}`
-      }
-      if (filePaths.length > 0) {
-        textWithAttachments += `\n\n[Attached files saved to workspace]\n${filePaths.map((p) => `- ${p}`).join('\n')}`
-      }
+      // Images travel as `file` parts because their media type was byte-sniffed. Ordinary files stay
+      // path-as-text: the part would keep the sender's filename, and runtimes still admit images by extension.
+      const images = message.images ?? []
+      const fileNote =
+        filePaths.length > 0 ? `[Attached files saved to workspace]\n${filePaths.map((p) => `- ${p}`).join('\n')}` : ''
+      const text = [message.text, fileNote].filter(Boolean).join('\n\n')
+      const userParts: CherryMessagePart[] = text ? [{ type: 'text', text }] : []
+      imagePaths.forEach((filePath, i) => userParts.push(toFilePart(filePath, images[i].media_type)))
 
       const abortController = new AbortController()
       this.activeAbortControllers.set(session.id, abortController)
@@ -476,7 +479,7 @@ export class ChannelMessageHandler {
         // read never accumulated — and reviving it would double-send.)
         await this.collectStreamResponse(
           session,
-          textWithAttachments,
+          userParts,
           abortController,
           adapter,
           message.chatId,
@@ -604,7 +607,7 @@ export class ChannelMessageHandler {
           try {
             const response = await this.collectStreamResponse(
               session,
-              '/compact',
+              [{ type: 'text', text: '/compact' }],
               abortController,
               adapter,
               command.chatId,
@@ -898,7 +901,7 @@ export class ChannelMessageHandler {
 
   private async collectStreamResponse(
     session: AgentSessionEntity,
-    content: string,
+    userParts: CherryMessagePart[],
     abortController: AbortController,
     adapter: ChannelAdapter,
     chatId: string,
@@ -918,6 +921,9 @@ export class ChannelMessageHandler {
     let accumulatedText = ''
     const sentinel: StreamListener = {
       id: `channel-completion:${chatId}`,
+      // Cleanup phase: settle after the runtime terminal listener flips the session idle, or the
+      // per-chat queue re-enters `requireIdle` while delivery is still awaiting the platform send.
+      terminalPhase: 'cleanup',
       onChunk(chunk) {
         // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`).
         if (chunk.type === 'text-delta') accumulatedText += chunk.delta
@@ -937,7 +943,7 @@ export class ChannelMessageHandler {
     try {
       const started = await startAgentSessionRun({
         sessionId: session.id,
-        userParts: [{ type: 'text', text: content }],
+        userParts,
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId }
@@ -994,6 +1000,15 @@ export class ChannelMessageHandler {
     }
 
     return paths
+  }
+}
+
+function toFilePart(filePath: string, mediaType: string): CherryMessagePart {
+  return {
+    type: 'file',
+    url: toFileUrl(AbsoluteFilePathSchema.parse(filePath)),
+    mediaType,
+    filename: path.basename(filePath)
   }
 }
 
