@@ -1239,6 +1239,91 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(loggerMocks.info).not.toHaveBeenCalledWith(expect.stringContaining('Stream completed'))
   })
 
+  it('classifies an opaque provider 400 result at the runtime boundary', () => {
+    const { adapter } = createAdapter()
+    const resultText = 'API Error: 400 Internal server error'
+    let thrown: unknown
+
+    try {
+      adapter.handleMessage(
+        successResult({
+          is_error: true,
+          terminal_reason: 'api_error',
+          api_error_status: 400,
+          result: resultText
+        })
+      )
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+    expect(thrown).toMatchObject({ message: resultText, claudeCodeExitCategory: 'server' })
+  })
+
+  it('forwards the structured provider status so the renderer keeps status precedence', () => {
+    const { adapter } = createAdapter()
+    let thrown: unknown
+
+    try {
+      adapter.handleMessage(
+        successResult({
+          is_error: true,
+          terminal_reason: 'api_error',
+          api_error_status: 400,
+          result: 'API Error: 400 Internal server error'
+        })
+      )
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+    expect(thrown).toMatchObject({ statusCode: 400, claudeCodeExitCategory: 'server' })
+  })
+
+  it('recovers the status from result text when the SDK reports none', () => {
+    const { adapter } = createAdapter()
+    let thrown: unknown
+
+    try {
+      adapter.handleMessage(
+        successResult({
+          is_error: true,
+          terminal_reason: 'api_error',
+          api_error_status: null,
+          result: 'API Error: 503 Service unavailable'
+        })
+      )
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+    expect(thrown).toMatchObject({ statusCode: 503, claudeCodeExitCategory: 'server' })
+  })
+
+  it('leaves unclassifiable result errors without a runtime category', () => {
+    const { adapter } = createAdapter()
+    let thrown: unknown
+
+    try {
+      adapter.handleMessage(
+        successResult({
+          subtype: 'error_during_execution',
+          is_error: true,
+          errors: ['something entirely unexpected happened'],
+          session_id: 'sdk-error'
+        })
+      )
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+    expect(thrown as Record<string, unknown>).not.toHaveProperty('claudeCodeExitCategory')
+  })
+
   it('emits final live usage metadata before throwing on error results', () => {
     const { adapter, parts } = createAdapter()
 

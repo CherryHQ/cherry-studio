@@ -43,6 +43,11 @@ import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCo
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
+import {
+  classifyErrorCategory,
+  type ErrorCategory,
+  extractHttpStatus
+} from '@shared/utils/errorCategory'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
 import type { AgentRuntimeEvent } from '../types'
@@ -68,6 +73,10 @@ export class ClaudeCodeResultError extends Error {
     super(message)
     this.name = 'ClaudeCodeResultError'
   }
+  /** Runtime-derived diagnosis, read by the renderer's type guards via `serializeError`. */
+  declare claudeCodeExitCategory?: ErrorCategory
+  /** Structured provider status for the renderer's status-precedence branches. */
+  declare statusCode?: number
 }
 
 function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResultError | undefined {
@@ -81,7 +90,17 @@ function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResul
 
   const errors = message.subtype === 'success' ? (message.result ? [message.result] : []) : message.errors
   const errorMessage = errors.join('; ') || `Claude Code error: ${message.terminal_reason ?? message.subtype}`
-  return new ClaudeCodeResultError(errorMessage, message.subtype, errors, message.terminal_reason, apiErrorStatus)
+  // Classify here, at the runtime boundary that still holds the full diagnostic text: downstream
+  // IPC/sanitization readers only see the message, so an unclassified result degrades to a guess.
+  // Absent fields stay absent (never `undefined`-valued) so `serializeError` forwards exactly the
+  // signals the runtime derived — an `unknown` category preserves the generic-400 fallback.
+  const status = apiErrorStatus ?? extractHttpStatus(errors.join('\n'))
+  const category = classifyErrorCategory({ text: errors.join('\n'), status })
+  return Object.assign(
+    new ClaudeCodeResultError(errorMessage, message.subtype, errors, message.terminal_reason, apiErrorStatus),
+    status != null ? { statusCode: status } : {},
+    category === 'unknown' ? {} : { claudeCodeExitCategory: category }
+  )
 }
 
 const MIN_TRUNCATION_LENGTH = 512
