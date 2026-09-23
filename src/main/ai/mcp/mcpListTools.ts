@@ -12,11 +12,12 @@ import * as z from 'zod'
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('mcpListTools')
+// A JSON Schema subschema is a boolean or an object; anything else is protocol-invalid and skips the tool.
+const subschema = z.union([z.boolean(), z.object({}).loose()])
 const toolObjectSchema = z
   .object({
     type: z.literal('object'),
-    // JSON Schema 2020-12 allows boolean subschemas, empty objects and nested subschemas.
-    properties: z.record(z.string(), z.unknown()).optional()
+    properties: z.record(z.string(), subschema).optional()
   })
   .loose()
 const toolSchema = SDKToolSchema.extend({

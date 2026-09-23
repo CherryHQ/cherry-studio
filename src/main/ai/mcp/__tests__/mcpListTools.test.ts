@@ -72,6 +72,34 @@ describe('listToolsTolerant', () => {
     })
   })
 
+  describe.each(['inputSchema', 'outputSchema'])('%s property subschemas', (field) => {
+    it.each([{ value: null }, { value: 'invalid' }, { value: 123 }, { value: [] }, { value: [null] }])(
+      'skips an illegal subschema $value while retaining healthy peers',
+      async ({ value }) => {
+        result = {
+          tools: [
+            { name: 'invalid', inputSchema: { type: 'object' }, [field]: { type: 'object', properties: { value } } },
+            ...validTools
+          ]
+        }
+
+        await expect(listToolsTolerant(client)).resolves.toEqual(validTools)
+        expect(mockMainLoggerService.warn).toHaveBeenCalledExactlyOnceWith(
+          'Skipping invalid MCP tool',
+          expect.objectContaining({ toolIndex: 0, toolName: 'invalid', reason: expect.stringContaining('properties') })
+        )
+      }
+    )
+
+    it('retains empty properties without warnings', async () => {
+      const tool = { name: 'empty', inputSchema: { type: 'object' }, [field]: { type: 'object', properties: {} } }
+      result = { tools: [...validTools, tool] }
+
+      await expect(listToolsTolerant(client)).resolves.toEqual([...validTools, tool])
+      expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+    })
+  })
+
   it.each([
     ['name', { name: 123 }],
     ['title', { title: 123 }],
