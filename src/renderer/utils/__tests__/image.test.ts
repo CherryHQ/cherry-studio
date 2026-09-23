@@ -1120,7 +1120,7 @@ describe('utils/image', () => {
 
   describe('imageInputToPreviewUrl', () => {
     let previewBlob: Blob | undefined
-    let createObjectUrlDescriptor: PropertyDescriptor | undefined
+    let themeStyle: HTMLStyleElement
     const readBlob = (blob: Blob) =>
       new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
@@ -1131,22 +1131,81 @@ describe('utils/image', () => {
 
     beforeEach(() => {
       previewBlob = undefined
-      createObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
-      Object.defineProperty(URL, 'createObjectURL', {
-        configurable: true,
-        value: vi.fn((blob: Blob) => {
-          previewBlob = blob
-          return 'blob:svg-preview'
-        })
+      themeStyle = document.createElement('style')
+      themeStyle.textContent = `
+        :root, body { --background: rgb(255, 255, 255); }
+        :root.image-preview-dark, :root.image-preview-dark body { --background: oklch(0.209 0 0 / 0.55); }
+      `
+      document.head.appendChild(themeStyle)
+      vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+        previewBlob = blob as Blob
+        return 'blob:svg-preview'
       })
     })
 
     afterEach(() => {
-      if (createObjectUrlDescriptor) {
-        Object.defineProperty(URL, 'createObjectURL', createObjectUrlDescriptor)
-      } else {
-        Reflect.deleteProperty(URL, 'createObjectURL')
-      }
+      themeStyle.remove()
+      document.documentElement.classList.remove('image-preview-dark')
+      vi.restoreAllMocks()
+    })
+
+    // Serialized CSS must resolve without document variables and force the preview canvas alpha to one.
+    it.each([
+      ['light', 'rgb(from rgb(255, 255, 255) r g b / 1)'],
+      ['dark', 'rgb(from oklch(0.209 0 0 / 0.55) r g b / 1)']
+    ])('gives a detached %s diagram an opaque canvas from the live theme', async (theme, expected) => {
+      document.documentElement.classList.toggle('image-preview-dark', theme === 'dark')
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.style.backgroundColor = 'transparent'
+      svg.innerHTML = '<path d="M10 50 H190" stroke="#333" />'
+      const original = svg.outerHTML
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
+        .documentElement as unknown as SVGElement
+      expect(previewSvg.style.backgroundColor).toBe(expected)
+      expect(previewSvg.querySelector('path')?.getAttribute('stroke')).toBe('#333')
+      expect(svg.outerHTML).toBe(original)
+    })
+
+    it('keeps an explicitly white host canvas white even in dark mode', async () => {
+      document.documentElement.classList.add('image-preview-dark')
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+
+      await imageInputToPreviewUrl(svg, { format: 'svg', backgroundColor: 'rgb(255, 255, 255)' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
+        .documentElement as unknown as SVGElement
+      expect(previewSvg.style.backgroundColor).toBe('rgb(from rgb(255, 255, 255) r g b / 1)')
+    })
+
+    it('preserves an authored SVG background and its painted background shapes', async () => {
+      themeStyle.textContent = ':root, body { --background: black; }'
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.style.backgroundColor = 'ivory'
+      svg.innerHTML = '<rect width="200" height="100" fill="pink" />'
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
+        .documentElement as unknown as SVGElement
+      expect(previewSvg.style.backgroundColor).toBe('ivory')
+      expect(previewSvg.querySelector('rect')?.getAttribute('fill')).toBe('pink')
+      expect(previewSvg.querySelector('rect')?.getAttribute('width')).toBe('200')
+      expect(previewSvg.querySelector('rect')?.getAttribute('height')).toBe('100')
+    })
+
+    it('leaves photo URLs, image elements and blob bytes unchanged', async () => {
+      const url = 'https://example.com/photo.png'
+      const image = document.createElement('img')
+      image.src = url
+      const blob = new Blob(['photo bytes'], { type: 'image/png' })
+
+      expect(await imageInputToPreviewUrl(url)).toBe(url)
+      expect(await imageInputToPreviewUrl(image)).toBe(url)
+      await imageInputToPreviewUrl(blob)
+      expect(previewBlob).toBe(blob)
     })
 
     it('restores viewBox dimensions on a responsive SVG preview without mutating the live node', async () => {

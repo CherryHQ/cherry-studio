@@ -925,15 +925,18 @@ const hasPositiveIntrinsicSvgLength = (value: string | null): boolean => {
   return Number.isFinite(length) && length > 0
 }
 
-/**
- * An SVG embedded in the conversation is responsive (`width="100%"`, usually no
- * height), but the same node becomes a replaced image in the full-screen preview.
- * Percentage/missing dimensions give that standalone image the browser's small
- * default intrinsic size, so the viewer's fit and zoom geometry starts from the
- * wrong box. Give only the preview clone an intrinsic vector size.
- */
-const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
+// A responsive SVG loses its inline canvas and intrinsic sizing when viewed as an image.
+// Adjust only the preview clone so downloads retain the original SVG representation.
+const createStandaloneSvgPreview = (svgElement: SVGElement, backgroundColor?: string): SVGElement => {
   const clone = svgElement.cloneNode(true) as SVGElement
+  const isTransparent = (color: string | undefined) => !color || color === 'transparent' || color === 'rgba(0, 0, 0, 0)'
+  if (isTransparent(clone.style.backgroundColor)) {
+    const canvas = isTransparent(backgroundColor)
+      ? getComputedStyle(document.body).getPropertyValue('--background').trim()
+      : backgroundColor
+    // The input can be detached, and the live theme's canvas can itself be translucent.
+    clone.style.backgroundColor = `rgb(from ${canvas} r g b / 1)`
+  }
   if (
     hasPositiveIntrinsicSvgLength(clone.getAttribute('width')) ||
     hasPositiveIntrinsicSvgLength(clone.getAttribute('height'))
@@ -958,6 +961,7 @@ export type ImageInput = SVGElement | HTMLImageElement | string | Blob
 
 export interface ImagePreviewOptions {
   format?: 'svg' | 'png' | 'jpeg'
+  backgroundColor?: string
   scale?: number
   quality?: number
 }
@@ -970,7 +974,7 @@ export const imageInputToPreviewUrl = async (input: ImageInput, options: ImagePr
   if (input instanceof SVGElement) {
     const blob =
       options.format === 'svg'
-        ? svgToSvgBlob(createStandaloneSvgPreview(input))
+        ? svgToSvgBlob(createStandaloneSvgPreview(input, options.backgroundColor))
         : await svgToPngBlob(input, options.scale || 3)
     return URL.createObjectURL(blob)
   }

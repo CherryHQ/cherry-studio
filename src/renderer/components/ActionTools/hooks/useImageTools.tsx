@@ -264,14 +264,20 @@ export const useImageTools = (
   const dialog = useCallback(async () => {
     try {
       const imgElement = getCleanImgElement()
-      if (!imgElement) return
+      const liveElement = getImgElement()
+      if (!imgElement || !liveElement) return
 
-      await ImagePreviewService.show(imgElement, { format: 'svg' })
+      // Preserve SVG-authored CSS backgrounds before the preview clone leaves its document.
+      imgElement.style.backgroundColor = getComputedStyle(liveElement).backgroundColor
+      await ImagePreviewService.show(imgElement, {
+        format: 'svg',
+        backgroundColor: containerRef.current ? getComputedStyle(containerRef.current).backgroundColor : undefined
+      })
     } catch (error) {
       logger.error('Dialog preview failed:', error as Error)
       toast.error(t('message.dialog.failed'))
     }
-  }, [getCleanImgElement, t])
+  }, [containerRef, getCleanImgElement, getImgElement, t])
 
   // 获取当前变换状态
   const getCurrentTransform = useCallback(() => {
