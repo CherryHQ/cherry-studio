@@ -459,17 +459,20 @@ streaming `buildStreamErrorFrame`.
   so a generation client gets back the protocol it spoke.
 - **Auth key is the persisted preference.** `feature.api_gateway.api_key`, compared
   timing-safe; auto-generated on first activation.
-- **Paired tokens are endpoint-scoped.** They authorize only the provider-export
-  route today, are stored as hashes, and never become a fallback credential for
-  existing gateway routes.
+- **Remote grants are domain-scoped.** Configuration export and Agent access use
+  the encrypted remote connection and independent grants. Remote credentials
+  never become fallback credentials for ordinary gateway HTTP routes.
 
 ## Related references
 
+- [Remote Connectivity Design](./remote-connectivity.md) — proposed identity-based
+  discovery, address-change recovery, VPN endpoints, and future relay ownership;
+  includes the current implementation baseline and device acceptance plan.
 - [Remote Agent Access](./remote-agent-access.md) — **design proposal** extending
   this gateway to reach a running agent session from a mobile client (WS agent
   surface, explicit device authorization, incremental delivery, reverse-tunnel relay).
   The [API design](../ai/remote-agent-access.md) specifies the target JSON-RPC contract;
-  the old remote Agent prototype has been removed pending this rewrite.
+  the connectivity design records the current Noise/JSON-RPC baseline separately.
 - [AI Reference](../ai/README.md) — `AiStreamManager`, `streamPrompt`,
   `UIMessageChunk`, `buildAgentParams` / `CallOverrides`, the listener model
   (`SseListener`, `WebContentsListener`).

@@ -8,11 +8,12 @@ sources:
 
 # Remote Agent Access (Design)
 
-> **Status: target design for a rewrite, not an implemented contract.**
+> **Status: target design; implementation coverage must be checked separately.**
 > This replaces both the original raw-transport proposal in PR #16567 and the
 > snapshot-based LAN contract in PR #20717. Compatibility with that unpublished
 > implementation is not required. Existing code is a source of execution seams,
-> not the specification. No package or new endpoint is shipped by this document.
+> not the specification. The [connectivity design](./remote-connectivity.md)
+> records the current connection-layer baseline and its remaining gaps.
 
 This document owns architecture, authorization, deployment, and package boundaries.
 The [Remote Agent API Design](../ai/remote-agent-access.md) owns endpoint names,
@@ -24,10 +25,13 @@ The [implementation design](../ai/remote-agent-implementation.md) details propos
 package/Desktop files, function contracts, atomicity, and lifecycle ownership.
 The [testing specification](../ai/remote-agent-testing.md) defines the real local
 WebSocket client harness and acceptance gates for these stages.
+The [connectivity design](./remote-connectivity.md) specifies identity-based
+discovery, endpoint updates, VPN paths, reconnect ownership, and future relay ingress.
+It records the current implementation baseline separately from these target contracts.
 
-The #20717 prototype has been backed up and removed from the working tree.
-Remote services and prototype-only owner extensions below are design targets or
-archived references, not implemented baseline APIs.
+The original #20717 prototype was backed up and removed before the current
+Noise/JSON-RPC implementation. The target contracts below are not a blanket
+claim that every proposed service or owner extension has been implemented.
 
 ## Goal and decisions
 
