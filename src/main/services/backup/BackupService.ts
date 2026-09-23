@@ -5,8 +5,7 @@ import type { JournalDegradation, PromotionStepV2, RestoreJournalV2State } from 
 import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { BackupDestinationId, BackupProgressStage } from '@shared/ipc/schemas/backup'
-import { BackupArchiveNameSchema, type BackupDestinationId } from '@shared/ipc/schemas/backup'
+import { BackupArchiveNameSchema, type BackupDestinationId, type BackupProgressStage } from '@shared/ipc/schemas/backup'
 
 import { archiveName, pruneToLimit, sanitizeArchiveName } from './destinations/archiveRotation'
 import { resolveDestination } from './destinations/destinationConfig'
