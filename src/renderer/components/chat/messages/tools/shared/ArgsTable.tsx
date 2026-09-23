@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ComponentPropsWithoutRef } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { SkeletonSpan } from './GenericTools'
 
@@ -62,11 +63,11 @@ export function ToolArgsTable({
 }
 
 export const ArgsSection = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('font-(family-name:--code-font-family) py-2 text-xs leading-normal', className)} {...props} />
+  <div className={cn('py-2 font-(family-name:--code-font-family) text-xs leading-normal', className)} {...props} />
 )
 
 export const ArgsSectionTitle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-2 font-semibold text-[11px] text-foreground-tertiary uppercase', className)} {...props} />
+  <div className={cn('mb-2 text-[11px] font-semibold text-foreground-tertiary uppercase', className)} {...props} />
 )
 
 export const ArgsTable = ({ className, ...props }: ComponentPropsWithoutRef<'table'>) => (
@@ -75,15 +76,15 @@ export const ArgsTable = ({ className, ...props }: ComponentPropsWithoutRef<'tab
 
 export const ArgKey = ({ className, ...props }: ComponentPropsWithoutRef<'td'>) => (
   <td
-    className={cn('w-[1%] whitespace-nowrap py-1 pr-2 pl-0 align-top font-medium text-primary', className)}
+    className={cn('w-[1%] py-1 pr-2 pl-0 align-top font-medium whitespace-nowrap text-primary', className)}
     {...props}
   />
 )
 
 export const ArgValue = ({ className, ...props }: ComponentPropsWithoutRef<'td'>) => (
-  <td className={cn('whitespace-pre-wrap break-all py-1 text-foreground', className)} {...props} />
+  <td className={cn('py-1 break-all whitespace-pre-wrap text-foreground', className)} {...props} />
 )
 
 export const ResponseSection = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('border-border border-t py-2', className)} {...props} />
+  <div className={cn('border-t border-border py-2', className)} {...props} />
 )

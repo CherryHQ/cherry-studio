@@ -1,7 +1,8 @@
-import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
-import { extractHtmlTitle } from '@renderer/utils/formats'
 import { lazy, memo, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
+import { extractHtmlTitle } from '@renderer/utils/formats'
 
 const HtmlArtifactView = lazy(() =>
   import('@renderer/components/chat/HtmlArtifactView').then((module) => ({ default: module.HtmlArtifactView }))

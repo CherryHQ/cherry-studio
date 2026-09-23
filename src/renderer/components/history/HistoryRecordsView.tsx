@@ -1,7 +1,8 @@
-import { Skeleton } from '@cherrystudio/ui'
-import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { lazy, type ReactNode, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Skeleton } from '@cherrystudio/ui'
+import type { Topic as RendererTopic } from '@renderer/types/topic'
 
 import type { HistoryRecordsMode } from './historyRecordsTypes'
 
@@ -35,11 +36,13 @@ interface HistoryRecordsViewBaseProps {
 type HistoryRecordsViewProps =
   | (HistoryRecordsViewBaseProps & {
       mode: 'assistant'
-      onRecordSelect?: (topic: RendererTopic | null) => void
+      onRecordSelect?: (topic: RendererTopic) => void
+      onActiveRecordChange?: (topic: RendererTopic | null) => void
     })
   | (HistoryRecordsViewBaseProps & {
       mode: 'agent'
-      onRecordSelect?: (sessionId: string | null) => void
+      onRecordSelect?: (sessionId: string) => void
+      onActiveRecordChange?: (sessionId: string | null) => void
     })
 
 const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
@@ -53,6 +56,7 @@ const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
             activeRecordId={props.activeRecordId}
             onClose={props.onClose}
             onRecordSelect={props.onRecordSelect}
+            onActiveRecordChange={props.onActiveRecordChange}
             toolbarLeading={props.toolbarLeading}
           />
         ) : (
@@ -60,6 +64,7 @@ const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
             activeRecordId={props.activeRecordId}
             onClose={props.onClose}
             onRecordSelect={props.onRecordSelect}
+            onActiveRecordChange={props.onActiveRecordChange}
             toolbarLeading={props.toolbarLeading}
           />
         )}

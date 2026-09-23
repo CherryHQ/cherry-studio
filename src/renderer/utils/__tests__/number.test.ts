@@ -1,5 +1,6 @@
-import i18n from '@renderer/i18n/resolver'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+import i18n from '@renderer/i18n/resolver'
 
 import { formatCompactNumber } from '../number'
 

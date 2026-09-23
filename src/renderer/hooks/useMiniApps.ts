@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
@@ -6,18 +9,17 @@ import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/services/MiniAppWebviewService'
 import { getAppEdition } from '@renderer/utils/appEdition'
-import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
 import type { AppEdition } from '@shared/types/appEdition'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Data Flow Design:
@@ -253,7 +255,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
   const openedOneOffMiniAppRef = useRef(openedOneOffMiniApp)
   openedOneOffMiniAppRef.current = openedOneOffMiniApp
-  const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
+  const { remove: removeSidebarShortcut } = useSidebarShortcuts()
   const tabsContext = useOptionalTabsContext()
   const tabsContextRef = useRef(tabsContext)
   tabsContextRef.current = tabsContext
@@ -433,7 +435,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         }
       }
 
-      removeSidebarFavoriteMiniApp(appId)
+      removeSidebarShortcut(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId))
     },
     [
       setCurrentMiniAppId,
@@ -442,7 +444,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
-      removeSidebarFavoriteMiniApp
+      removeSidebarShortcut
     ]
   )
 

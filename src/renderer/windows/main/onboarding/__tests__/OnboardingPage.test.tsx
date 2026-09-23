@@ -1,14 +1,7 @@
 import '@testing-library/jest-dom/vitest'
-
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import {
-  CHERRY_CLOUD_PROVIDER_ID,
-  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
-  CHERRYAI_PROVIDER_ID
-} from '@shared/data/presets/cherryai'
-import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import {
   mockUseMultiplePreferences,
   mockUsePreference,
@@ -17,6 +10,13 @@ import {
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+  CHERRYAI_PROVIDER_ID
+} from '@shared/data/presets/cherryai'
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
 const responsiveStyles = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/responsive.css'), 'utf8')
 
@@ -944,8 +944,8 @@ describe('OnboardingPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.login_cherryin/ }))
 
-    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
-    expect(screen.getByTestId('provider-settings')).toBeInTheDocument()
+    expect(await screen.findByTestId('provider-settings')).toBeInTheDocument()
+    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
     expect(screen.queryByTestId('model-settings')).not.toBeInTheDocument()
     expect(toastErrorMock).toHaveBeenCalledWith('onboarding.provider_setup.missing_model')
     expect(toastSuccessMock).not.toHaveBeenCalled()

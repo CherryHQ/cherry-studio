@@ -1,3 +1,7 @@
+import { ChevronDown, FolderOpen } from 'lucide-react'
+import { type ReactNode, useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ButtonGroup,
@@ -13,9 +17,6 @@ import { usePreferredExternalOpenTarget } from '@renderer/hooks/useExternalOpenT
 import type { ExternalOpenTargetPathKind } from '@renderer/services/externalOpenTargetService'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { ChevronDown, FolderOpen } from 'lucide-react'
-import { type ReactNode, useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { OpenTargetIcon } from './OpenTargetIcon'
 import { getOpenTargetBadge, getOpenTargetLabel } from './openTargetPresentation'

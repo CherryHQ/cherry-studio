@@ -1,6 +1,7 @@
+import React from 'react'
+
 import ImageViewer from '@renderer/components/ImageViewer'
 import { cn } from '@renderer/utils/style'
-import React from 'react'
 
 interface Props {
   images: string[]

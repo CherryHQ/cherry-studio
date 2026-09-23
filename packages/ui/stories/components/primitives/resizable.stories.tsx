@@ -1,5 +1,6 @@
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
+
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@cherrystudio/ui'
 
 const meta: Meta<typeof ResizablePanelGroup> = {
   title: 'Components/Primitives/Resizable',

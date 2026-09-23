@@ -1,7 +1,8 @@
-import type { Model } from '@shared/data/types/model'
-import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
+import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
 import { useComposerFileCapabilities } from '../useComposerFileCapabilities'
 
@@ -61,6 +62,13 @@ describe('useComposerFileCapabilities', () => {
       expect(result.current.canAddTextFile).toBe(true)
       expect(containsAll(result.current.supportedExts, imageExts)).toBe(true)
       expect(containsAll(result.current.supportedExts, documentExts)).toBe(true)
+    })
+
+    it('allows code / script / configuration text files on any model', () => {
+      const { result } = renderHook(() => useComposerFileCapabilities({ models: [], fallbackModel: model('m1') }))
+
+      expect(containsAll(result.current.supportedExts, ['.cs', '.css', '.sh', '.bash'])).toBe(true)
+      expect(containsAll(result.current.supportedExts, ['.conf', '.config', '.yaml', '.toml', '.ini'])).toBe(true)
     })
 
     it('gates audio/video on the model capability (no fallback for them)', () => {

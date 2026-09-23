@@ -1,3 +1,9 @@
+import { Link } from '@tanstack/react-router'
+import { TriangleAlert } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Badge, Button, DescriptionSwitch, NormalTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -15,11 +21,6 @@ import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localMode
 import type { OutputFor } from '@shared/ipc/types'
 import { commandShortcutPreferenceKey } from '@shared/utils/command'
 import { formatShortcutDisplay } from '@shared/utils/shortcut'
-import { Link } from '@tanstack/react-router'
-import { TriangleAlert } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ScreenshotSettings')
 
@@ -51,7 +52,7 @@ function resolvePermissionView(
   if (!isMac || status === null) return null
   if (restartRequired) return 'restart-required'
   if (status === 'authorized') return null
-  if (status === 'denied') return 'denied'
+  if (status === 'denied' || status === 'restricted') return 'denied'
   if (promptUnavailable) return 'prompt-unavailable'
   return 'request'
 }

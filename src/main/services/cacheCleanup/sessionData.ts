@@ -1,10 +1,11 @@
 import path from 'node:path'
 
+import { type Session, session } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import { type Session, session } from 'electron'
 
 import {
   captureStep,

@@ -6,8 +6,9 @@
  * resumes that exact target once.
  */
 
-import { BaseService } from '@main/core/lifecycle/BaseService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle/BaseService'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     saveMessage: mocks.saveMessage,
     replaceMessageParts: mocks.replaceMessageParts,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
+    getNativeSessionId: vi.fn(),
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages
   }

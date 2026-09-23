@@ -1,3 +1,6 @@
+import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
+import * as z from 'zod'
+
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type {
   AiStreamAttachResponse,
@@ -17,12 +20,13 @@ import {
   TimeoutMinutesAtomSchema
 } from '@shared/data/api/schemas/agents'
 import {
+  AgentSessionEntitySchema,
   type ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
-import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
+import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   ImageGenerationModeSchema,
@@ -31,8 +35,7 @@ import {
   UniqueModelIdSchema
 } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
-import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
-import * as z from 'zod'
+import { FileVersionSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
 
@@ -57,6 +60,15 @@ import { defineRoute } from '../define'
  * `output`, and these are built by trusted main, so a field mirror buys nothing
  * (see ipc-migration-guide.md).
  */
+
+export const HeartbeatDocumentSchema = z.strictObject({
+  content: z.string(),
+  version: FileVersionSchema,
+  contentHash: ContentHashSchema
+})
+export type HeartbeatDocument = z.infer<typeof HeartbeatDocumentSchema>
+export const HeartbeatRunResultSchema = z.enum(['started', 'empty', 'disabled', 'busy', 'paused'])
+export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
 
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
   type: AgentEntitySchema.shape.type,
@@ -150,6 +162,9 @@ const aiImagePayloadSchema = z.strictObject({
   cleanupPolicy: CleanupPolicySchema
 })
 
+// Keep the public output named so declaration emit does not expose FileEntry's private path brand.
+const aiImageOutputSchema: z.ZodType<{ files: FileEntry[] }> = z.object({ files: z.array(FileEntrySchema) })
+
 const aiStreamRegenerateShape = {
   trigger: z.literal('regenerate-message'),
   parentAnchorId: z.string().min(1),
@@ -194,9 +209,7 @@ export const aiRequestSchemas = {
   'ai.image.generate': defineRoute({
     // requestId pairs the request with `ai.image.abort` (the abort registry lives in AiService).
     input: z.strictObject({ requestId: z.string().min(1), payload: aiImagePayloadSchema }),
-    // Pin the output to the named `FileEntry` so declaration-emit references the alias
-    // instead of trying to name FileEntry's module-private phantom path brand (TS4023).
-    output: z.object({ files: z.array(FileEntrySchema) }) as z.ZodType<{ files: FileEntry[] }>
+    output: aiImageOutputSchema
   }),
   'ai.image.abort': defineRoute({
     // Was a one-way `ipcOn`; per the migration guide a one-off becomes a `void` request.
@@ -307,8 +320,20 @@ export const aiRequestSchemas = {
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
+  'ai.agent.restore': defineRoute({
+    input: z.object({ agentId: z.string() }),
+    output: AgentEntitySchema
+  }),
   'ai.agent.delete': defineRoute({
-    input: z.strictObject({ agentId: z.string().min(1), deleteSessions: z.boolean().default(false) }),
+    input: z.strictObject({
+      agentId: z.string().min(1),
+      deleteSessions: z.boolean().default(false),
+      permanent: z.boolean().optional()
+    }),
+    output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
+  }),
+  'ai.agent.delete_permanently': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1), deleteSessions: z.boolean() }),
     output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
   }),
   'ai.agent.sessions.delete': defineRoute({
@@ -319,15 +344,56 @@ export const aiRequestSchemas = {
     input: z.void(),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
+  'ai.agent.skill_session.create': defineRoute({
+    input: z.strictObject({ skillId: z.string().min(1) }),
+    output: z.strictObject({ sessionId: z.string().min(1) })
+  }),
   'ai.agent.session.prewarm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
+  }),
+  'ai.agent.session.fork': defineRoute({
+    input: z.strictObject({
+      sourceSessionId: z.uuid(),
+      messageId: z.uuid()
+    }),
+    output: z.strictObject({ sessionId: z.uuid() })
+  }),
+  'ai.agent.session.edit_target': defineRoute({
+    input: z.strictObject({ sessionId: z.uuid(), messageId: z.uuid() }),
+    output: z.strictObject({ messageId: z.uuid(), version: z.string(), parts: z.array(z.custom<CherryMessagePart>()) })
+  }),
+  'ai.agent.session.set_pending_input_count': defineRoute({
+    input: z.strictObject({ sessionId: z.uuid(), count: z.number().int().nonnegative() }),
+    output: z.void()
+  }),
+  'ai.agent.session.edit_resend': defineRoute({
+    input: z.strictObject({
+      sessionId: z.uuid(),
+      target: z.strictObject({ messageId: z.uuid(), version: z.string().min(1) }),
+      userMessageParts: z.array(z.custom<CherryMessagePart>()),
+      reasoningEffort: ReasoningEffortOptionSchema.optional(),
+      serviceTier: ServiceTierSelectionSchema.optional(),
+      fastMode: z.boolean().optional()
+    }),
+    output: z.custom<AiStreamOpenResponse>()
   }),
   'ai.agent.session.close_warm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
   }),
   'ai.agent.session.delete': defineRoute({
+    input: z.strictObject({
+      sessionIds: z.array(z.string().min(1)).min(1).max(200),
+      permanent: z.boolean().optional()
+    }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
+  'ai.agent.session.restore': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: AgentSessionEntitySchema
+  }),
+  'ai.agent.session.delete_permanently': defineRoute({
     input: z.strictObject({ sessionIds: z.array(z.string().min(1)).min(1).max(200) }),
     output: z.strictObject({ deletedIds: z.array(z.string()) })
   }),
@@ -358,6 +424,18 @@ export const aiRequestSchemas = {
   // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──
   // Mixed-effect mutations (schedule row + channel subscriptions + timer) belong on
   // IpcApi, not DataApi — the Job DataApi is GET-only (api-design-guidelines.md).
+  'ai.agent.heartbeat.read': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1) }),
+    output: HeartbeatDocumentSchema
+  }),
+  'ai.agent.heartbeat.write': defineRoute({
+    input: HeartbeatDocumentSchema.extend({ agentId: z.string().min(1) }),
+    output: HeartbeatDocumentSchema
+  }),
+  'ai.agent.heartbeat.run': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1) }),
+    output: HeartbeatRunResultSchema
+  }),
   'ai.agent.task.create': defineRoute({
     input: agentTaskFormSchema.extend({ agentId: z.string().min(1) }),
     // Commands return the authoritative committed read model so the caller

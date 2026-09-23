@@ -1,7 +1,4 @@
 import { asSchema, safeParseJSON, safeValidateTypes } from '@ai-sdk/provider-utils'
-import { type AiPlugin, generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
-import type { StringKeys } from '@cherrystudio/ai-core/provider'
-import { loggerService } from '@logger'
 import {
   InvalidToolInputError,
   jsonSchema,
@@ -10,6 +7,10 @@ import {
   type ToolCallRepairFunction,
   type ToolSet
 } from 'ai'
+
+import { type AiPlugin, generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import { loggerService } from '@logger'
 
 import type { AppProviderSettingsMap } from '../../../types'
 import { createMcpJsonSchemaValidator } from './mcpSchema'

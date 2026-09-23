@@ -10,9 +10,10 @@
  * Note: Only available in Mainland China.
  */
 
-import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('DiDiMcpServer')
 

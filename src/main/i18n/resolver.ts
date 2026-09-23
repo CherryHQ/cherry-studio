@@ -1,7 +1,8 @@
+import { app } from 'electron'
+
 import { application } from '@application'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
-import { app } from 'electron'
 
 import deDE from './locales/de-de.json'
 import elGR from './locales/el-gr.json'

@@ -1,5 +1,6 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { makeProvider } from '../../__tests__/fixtures'
 import { getBaseUrl, getExtraHeaders } from '../provider'
@@ -142,6 +143,19 @@ describe('getExtraHeaders', () => {
     })
 
     expect(getExtraHeaders(provider)).toEqual({ 'X-Custom': 'keep', 'X-Source': 'cherry-studio' })
+  })
+
+  it('adds Perplexity attribution while preserving case-insensitive user overrides', () => {
+    expect(getExtraHeaders(makeProvider({ id: 'perplexity' }))).toEqual({
+      'X-Pplx-Integration': 'cherry-studio'
+    })
+
+    const provider = makeProvider({
+      id: 'perplexity',
+      settings: { extraHeaders: { 'x-pplx-integration': 'custom-client' } }
+    })
+
+    expect(getExtraHeaders(provider)).toEqual({ 'x-pplx-integration': 'custom-client' })
   })
 
   it('does not add the Radeon source to other providers', () => {

@@ -1,11 +1,12 @@
 import path from 'node:path'
 
-import { loggerService } from '@logger'
-import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import { net } from 'electron'
 import { isNil, partial } from 'es-toolkit/compat'
 import { XMLParser } from 'fast-xml-parser'
 import { type FileStat } from 'webdav'
+
+import { loggerService } from '@logger'
+import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
 import { createOAuthUrl, decryptSecret } from './sso/lib/index.mjs'
 

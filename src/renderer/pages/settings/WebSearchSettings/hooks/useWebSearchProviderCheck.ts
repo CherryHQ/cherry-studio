@@ -1,9 +1,10 @@
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useWebSearchProviderCheck')
 

@@ -64,7 +64,7 @@ function DraggableList<T>({
     (item: T) => {
       if (typeof itemKey === 'function') return itemKey(item)
       if (itemKey) return item[itemKey] as Key
-      if (typeof item === 'string') return item as Key
+      if (typeof item === 'string') return item
       if (item && typeof item === 'object' && 'id' in item) return item.id as Key
       return undefined
     },

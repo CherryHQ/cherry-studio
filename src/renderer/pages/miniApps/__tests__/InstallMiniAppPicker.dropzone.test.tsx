@@ -1,8 +1,9 @@
-import type * as CherryStudioUI from '@cherrystudio/ui'
-import i18n from '@renderer/i18n/resolver'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import i18n from '@renderer/i18n/resolver'
 
 import { InstallMiniAppPicker } from '../InstallMiniAppPanel'
 

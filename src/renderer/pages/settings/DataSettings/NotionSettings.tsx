@@ -1,7 +1,10 @@
+import { Client } from '@notionhq/client'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { Client } from '@notionhq/client'
 import {
   SettingDivider,
   SettingGroup,
@@ -11,11 +14,9 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { formatErrorMessage } from '@renderer/utils/error'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('NotionSettings')
 
@@ -72,7 +73,7 @@ const NotionSettings: FC = () => {
   }
 
   const handleNotionTitleClick = () => {
-    void ipcApi.request('system.shell.open_website', 'https://docs.cherry-ai.com/advanced-basic/notion')
+    void openExternalWebsite('https://docs.cherry-ai.com/advanced-basic/notion')
   }
 
   return (
@@ -89,7 +90,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow id="setting-data-notion-database-id" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <Input
             type="text"
             value={notionDatabaseID || ''}
@@ -102,7 +103,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.page_name_key')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <Input
             type="text"
             value={notionPageNameKey || ''}
@@ -115,7 +116,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow id="setting-data-notion-api-key" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <RowFlex className="w-full min-w-0 items-center gap-1.25">
             <Input
               type="password"

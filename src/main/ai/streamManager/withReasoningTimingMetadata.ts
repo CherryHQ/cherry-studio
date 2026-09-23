@@ -17,9 +17,10 @@
  *    convertToAnthropicMessages silently drop the whole thinking block from follow-up requests.
  */
 
+import type { ProviderMetadata, UIMessageChunk } from 'ai'
+
 import { loggerService } from '@logger'
 import { type CherryReasoningMeta, CherryReasoningMetaSchema } from '@shared/data/types/uiParts'
-import type { ProviderMetadata, UIMessageChunk } from 'ai'
 
 const logger = loggerService.withContext('withReasoningTimingMetadata')
 

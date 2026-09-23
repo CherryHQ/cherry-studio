@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
 import {
   type AgentSessionsSource,
   AgentSessionsSourceContext,
@@ -11,8 +14,6 @@ import {
 import { useTabs } from '@renderer/hooks/tab'
 import { getSidebarApp, type SidebarAppId, tabBelongsToApp } from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
 
 const EMPTY_PIN_IDS = new Map<string, string>()
 const EMPTY_TOPICS: ReturnType<typeof useRawAssistantTopicsSource>['topics'] = []
@@ -154,7 +155,9 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
       isValidating: isBackgroundRefreshing || (isColdLoading && rawSource.isValidating),
       reload: rawSource.reload,
       deleteSession: rawSource.deleteSession,
+      deleteSessionWithOutcome: rawSource.deleteSessionWithOutcome,
       deleteSessions: rawSource.deleteSessions,
+      restoreSession: rawSource.restoreSession,
       reorderSession: rawSource.reorderSession,
       togglePin: rawSource.togglePin,
       loadLatestSession: rawSource.loadLatestSession,
@@ -168,7 +171,9 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
       isBackgroundRefreshing,
       isColdLoading,
       rawSource.deleteSession,
+      rawSource.deleteSessionWithOutcome,
       rawSource.deleteSessions,
+      rawSource.restoreSession,
       rawSource.error,
       rawSource.hasMore,
       rawSource.isLoading,

@@ -1,3 +1,5 @@
+import PQueue from 'p-queue'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -6,7 +8,6 @@ import { isAbortError } from '@main/utils/error'
 import { fetchRemoteText } from '@main/utils/remoteFetch'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { WindowId } from '@shared/ipc/types'
-import PQueue from 'p-queue'
 
 const logger = loggerService.withContext('CitationPreview')
 

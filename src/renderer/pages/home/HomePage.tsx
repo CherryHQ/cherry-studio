@@ -1,3 +1,8 @@
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import type { FC, HTMLAttributes } from 'react'
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -40,10 +45,6 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
-import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import type { FC, HTMLAttributes } from 'react'
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import Chat from './Chat'
 import {
@@ -517,16 +518,19 @@ const HomePage: FC = () => {
     toggleHistoryRecords()
   }, [toggleHistoryRecords])
   const handleHistoryRecordsTopicSelect = useCallback(
-    (topic: Topic | null) => {
+    (topic: Topic) => {
       closeHistoryRecords()
-      if (!topic) {
-        void createAndActivateEmptyTopic()
-        return
-      }
-
       handleHistoryTopicSelect(topic)
     },
-    [closeHistoryRecords, createAndActivateEmptyTopic, handleHistoryTopicSelect]
+    [closeHistoryRecords, handleHistoryTopicSelect]
+  )
+  const handleHistoryActiveTopicChange = useCallback(
+    (topic: Topic | null) => {
+      clearLocate()
+      if (topic) setActiveTopic(topic)
+      else reenterChatRoute()
+    },
+    [clearLocate, reenterChatRoute, setActiveTopic]
   )
   const handleGlobalSearchTopicSelect = useEffectEvent((topic: Topic, messageId?: string) => {
     handleHistoryTopicSelect(topic, messageId)
@@ -588,6 +592,7 @@ const HomePage: FC = () => {
             activeRecordId={activeTopicId}
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsTopicSelect}
+            onActiveRecordChange={handleHistoryActiveTopicChange}
             toolbarLeading={
               !isWindowFrame ? (
                 <ConversationSidebarToggleButton
@@ -624,6 +629,7 @@ const HomePage: FC = () => {
     isClassicTopicLayout && topicListPosition === 'right' ? (
       <AssistantResourceList
         activeAssistantId={visibleAssistantId ?? null}
+        activeTopicId={visibleTopic?.id ?? null}
         dataEnabled={shellPaneOpen}
         assistantTopicsSource={assistantTopicsSource}
         onAddAssistant={() => {

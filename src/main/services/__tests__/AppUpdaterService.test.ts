@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appEditionState, netFetchMock, releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } =
   vi.hoisted(() => ({
-    appEditionState: { current: 'global' as 'global' | 'cn' },
+    appEditionState: { current: 'global' },
     netFetchMock: vi.fn(),
     releaseNotesCheckMock: vi.fn(),
     releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
@@ -116,13 +116,14 @@ vi.mock('electron-updater', () => {
   }
 })
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { app, net } from 'electron'
+import { autoUpdater } from 'electron-updater'
+
 import { application } from '@application'
 import { regionService } from '@main/services/RegionService'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { app, net } from 'electron'
-import { autoUpdater } from 'electron-updater'
 
 import { AppUpdaterService } from '../AppUpdaterService'
 
@@ -146,6 +147,28 @@ describe('AppUpdaterService', () => {
     autoUpdater.allowDowngrade = false
     autoUpdater.disableDifferentialDownload = false
     appUpdater = new AppUpdaterService()
+  })
+
+  describe('read-only update query', () => {
+    it('reports an available release without using the application updater or analytics', async () => {
+      releaseNotesCheckMock.mockResolvedValue({ isUpdateAvailable: true, updateInfo: { version: '2.0.0' } })
+      await expect(appUpdater.queryUpdateAvailability()).resolves.toEqual({
+        status: 'available',
+        currentVersion: '1.0.0',
+        version: '2.0.0'
+      })
+      expect(releaseNotesUpdaterInstances[0]).toMatchObject({ autoDownload: false, autoInstallOnAppQuit: false })
+      expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled()
+      expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled()
+      expect(trackAppUpdateMock).not.toHaveBeenCalled()
+    })
+
+    it('does not turn a failed or unsupported updater query into an up-to-date result', async () => {
+      releaseNotesCheckMock.mockRejectedValueOnce(new Error('HTTP 503'))
+      await expect(appUpdater.queryUpdateAvailability()).rejects.toThrow('HTTP 503')
+      releaseNotesCheckMock.mockResolvedValueOnce(null)
+      await expect(appUpdater.queryUpdateAvailability()).rejects.toThrow('did not produce a result')
+    })
   })
 
   describe('managed update feed', () => {

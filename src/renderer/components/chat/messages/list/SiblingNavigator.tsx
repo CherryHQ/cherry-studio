@@ -5,10 +5,11 @@
  * previous / next branch; the messages pane revalidates and re-renders.
  */
 
-import { loggerService } from '@logger'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { type FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { loggerService } from '@logger'
 
 import { useMessageListActions, useMessageListUi } from '../MessageListProvider'
 
@@ -45,7 +46,7 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
   const { group, activeIndex } = siblings
 
   return (
-    <div className="inline-flex select-none items-center gap-0.5 text-[11px] text-muted-foreground leading-none">
+    <div className="inline-flex items-center gap-0.5 text-[11px] leading-none text-muted-foreground select-none">
       <button
         type="button"
         className="flex size-4.5 items-center justify-center rounded transition-colors hover:bg-muted hover:text-foreground"

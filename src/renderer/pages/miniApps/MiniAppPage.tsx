@@ -1,3 +1,9 @@
+import { useParams } from '@tanstack/react-router'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import BeatLoader from 'react-spinners/BeatLoader'
+
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
@@ -7,11 +13,6 @@ import { toTransientMiniApp, useMiniAppPopup } from '@renderer/hooks/useMiniAppP
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { useParams } from '@tanstack/react-router'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import BeatLoader from 'react-spinners/BeatLoader'
 
 // Tab mode page shell — relies on the global MiniAppTabsPool instead of creating WebViews directly
 import MiniAppPane from './components/MiniAppPane'

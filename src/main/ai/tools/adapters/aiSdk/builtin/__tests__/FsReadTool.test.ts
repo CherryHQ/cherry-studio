@@ -8,8 +8,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import { createFsReadToolEntry, executeFsRead } from '../FsReadTool'
 

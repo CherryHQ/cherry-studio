@@ -1,8 +1,9 @@
-import { EmptyState } from '@cherrystudio/ui'
-import EditNameDialog from '@renderer/components/EditNameDialog'
 import { MessageSquareText } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState } from '@cherrystudio/ui'
+import EditNameDialog from '@renderer/components/EditNameDialog'
 
 import type { HistoryRecordDescriptor } from '../historyRecordsDescriptor'
 import type { SelectAllState } from '../useHistoryRecordsController'
@@ -15,8 +16,9 @@ interface HistoryRecordListProps<T> {
   isSelected: (id: string) => boolean
   selectAllState: SelectAllState
   selectionDisabled: boolean
-  onToggleSelection: (id: string, checked: boolean) => void
+  onToggleSelection: (id: string, checked: boolean, selectRange?: boolean) => void
   onToggleSelectAll: (checked: boolean) => void
+  onTogglePin: (item: T) => Promise<void>
 }
 
 export function HistoryRecordList<T>({
@@ -27,7 +29,8 @@ export function HistoryRecordList<T>({
   selectAllState,
   selectionDisabled,
   onToggleSelection,
-  onToggleSelectAll
+  onToggleSelectAll,
+  onTogglePin
 }: HistoryRecordListProps<T>) {
   const { t } = useTranslation()
   const list = useMemo(() => Array.from(items), [items])
@@ -43,7 +46,6 @@ export function HistoryRecordList<T>({
     isPinned,
     onOpen,
     onRename,
-    onTogglePin,
     renderAvatar,
     renderRowMenu,
     rowHeight,
@@ -106,15 +108,8 @@ export function HistoryRecordList<T>({
           unpinLabel={unpinLabel}
           onAction={rowActions.onAction}
           onOpen={() => onOpen(item)}
-          onSelectedChange={(checked) => onToggleSelection(id, checked)}
-          onTogglePin={async () => {
-            // Pinning a selected row makes it unselectable, so drop it from the selection after success
-            // (a no-op when unpinning, since pinned rows are never selected).
-            const result = await onTogglePin(item)
-            if (result !== false) {
-              onToggleSelection(id, false)
-            }
-          }}
+          onSelectedChange={(checked, selectRange) => onToggleSelection(id, checked, selectRange)}
+          onTogglePin={() => onTogglePin(item)}
         />
       )
 

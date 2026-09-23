@@ -1,5 +1,6 @@
-import { cn } from '@renderer/utils/style'
 import { type ComponentPropsWithoutRef, type CSSProperties, type Ref } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 import { getContextUsageColor, normalizeContextUsagePercentage } from './contextUsageColor'
 

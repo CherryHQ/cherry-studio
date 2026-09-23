@@ -1,10 +1,11 @@
 import type * as FsPromises from 'node:fs/promises'
 import path from 'node:path'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as MainFileUtils from '@main/utils/file'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FileInfoSchema } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   tempRoot,

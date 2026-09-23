@@ -1,7 +1,8 @@
-import { dialog, shell } from 'electron'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+
+import { dialog, shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
@@ -28,7 +29,7 @@ describe('FileStorage', () => {
     })
 
     it('returns null when the dialog resolves without a file path', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' })
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
     })
   })
@@ -175,7 +176,7 @@ describe('FileStorage', () => {
 
     it('decodes the base64 payload to disk and returns true on confirm', async () => {
       const tmpFile = path.join(os.tmpdir(), `filestorage-image-test-${uniqueId()}.png`)
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
       const payload = Buffer.from('fake-png-bytes').toString('base64')
 
       try {

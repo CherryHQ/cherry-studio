@@ -1,15 +1,16 @@
-import { cacheService } from '@data/CacheService'
-import {
-  LOCAL_MODEL_STATUS_CACHE_KEY,
-  type LocalModelBundleId,
-  type LocalModelStatusSnapshot
-} from '@shared/data/presets/localModel'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { AnchorHTMLAttributes } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
+import {
+  LOCAL_MODEL_STATUS_CACHE_KEY,
+  type LocalModelBundleId,
+  type LocalModelStatusSnapshot
+} from '@shared/data/presets/localModel'
 
 import ScreenshotSettings from '../ScreenshotSettings'
 

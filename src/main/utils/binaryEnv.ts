@@ -1,6 +1,7 @@
+import path from 'path'
+
 import { application } from '@application'
 import { isWin } from '@main/core/platform'
-import path from 'path'
 
 /**
  * Layout and environment primitives for Cherry-managed binaries — where the

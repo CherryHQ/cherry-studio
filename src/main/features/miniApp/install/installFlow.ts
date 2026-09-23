@@ -2,6 +2,9 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { eq } from 'drizzle-orm'
+import { eq as semverEq, gt as semverGt } from 'semver'
+
 import { application } from '@application'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { transcodeToEntityWebp } from '@main/utils/image'
@@ -9,8 +12,6 @@ import type { LocalMiniApp } from '@shared/data/types/miniApp'
 import type { WindowId } from '@shared/ipc/types'
 import type { MiniAppDistributionManifest } from '@shared/types/miniAppManifest'
 import { declaredGrants, type MiniAppManifest, MiniAppManifestSchema } from '@shared/types/miniAppManifest'
-import { eq } from 'drizzle-orm'
-import { eq as semverEq, gt as semverGt } from 'semver'
 
 import { miniAppBuiltinPath } from '../paths'
 import { previewMiniAppArchive, sha256File } from './archive'

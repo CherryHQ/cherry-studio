@@ -1,6 +1,7 @@
-import { ImageToolButton } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Copy, Download, Maximize2, RotateCw, Trash2, ZoomIn, ZoomOut } from 'lucide-react'
+
+import { ImageToolButton } from '@cherrystudio/ui'
 
 const meta: Meta<typeof ImageToolButton> = {
   title: 'Components/Composites/image-tool-button',

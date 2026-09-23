@@ -1,7 +1,8 @@
-import { isQueryTooLarge } from '@renderer/pages/settings/settingsSearch/searchEngine'
-import { SearchResultsPage } from '@renderer/pages/settings/settingsSearch/SearchResultsPage'
 import { createFileRoute } from '@tanstack/react-router'
 import * as z from 'zod'
+
+import { isQueryTooLarge } from '@renderer/pages/settings/settingsSearch/searchEngine'
+import { SearchResultsPage } from '@renderer/pages/settings/settingsSearch/SearchResultsPage'
 
 // Invalid or oversized q degrades to the empty results page rather than throwing.
 // Byte-based like the ranking side: zod .max() counts UTF-16 code units

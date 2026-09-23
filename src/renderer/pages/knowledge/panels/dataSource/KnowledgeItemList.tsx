@@ -1,12 +1,13 @@
+import { LoaderCircle } from 'lucide-react'
+import type { UIEvent } from 'react'
+import { useCallback, useDeferredValue, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { KNOWLEDGE_ITEMS_PAGE_SIZE } from '@renderer/hooks/useKnowledgeItems'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import { LoaderCircle } from 'lucide-react'
-import type { UIEvent } from 'react'
-import { useCallback, useDeferredValue, useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import KnowledgeItemRow from './KnowledgeItemRow'
 import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
@@ -95,7 +96,7 @@ const KnowledgeItemList = ({
 
   if (isLoading) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-foreground-tertiary text-sm">
+      <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-foreground-tertiary">
         {t('common.loading')}
       </div>
     )
@@ -119,7 +120,7 @@ const KnowledgeItemList = ({
         role="grid"
         aria-label={t('knowledge.data_source.table.aria_label')}
         className="flex min-h-0 flex-1 flex-col">
-        <div role="row" className={cn(KNOWLEDGE_ITEM_ROW_GRID, 'mb-2 h-11 shrink-0 border-border border-b px-2.5')}>
+        <div role="row" className={cn(KNOWLEDGE_ITEM_ROW_GRID, 'mb-2 h-11 shrink-0 border-b border-border px-2.5')}>
           <div role="columnheader" className="flex items-center self-stretch">
             {/* Full-cell label so the whole select-all column is clickable, matching the rows. */}
             <label className="flex size-full cursor-pointer items-center">
@@ -132,16 +133,16 @@ const KnowledgeItemList = ({
               />
             </label>
           </div>
-          <div role="columnheader" className="min-w-0 font-medium text-foreground-tertiary text-xs">
+          <div role="columnheader" className="min-w-0 text-xs font-medium text-foreground-tertiary">
             {t('knowledge.data_source.table.columns.name')}
           </div>
-          <div role="columnheader" className="font-medium text-foreground-tertiary text-xs">
+          <div role="columnheader" className="text-xs font-medium text-foreground-tertiary">
             {t('knowledge.data_source.table.columns.type')}
           </div>
-          <div role="columnheader" className="font-medium text-foreground-tertiary text-xs">
+          <div role="columnheader" className="text-xs font-medium text-foreground-tertiary">
             {t('knowledge.data_source.table.columns.status')}
           </div>
-          <div role="columnheader" className="font-medium text-foreground-tertiary text-xs">
+          <div role="columnheader" className="text-xs font-medium text-foreground-tertiary">
             {t('knowledge.data_source.table.columns.updated_at')}
           </div>
           {/* Actions column: header stays visually empty (the row's "more" button only shows on
@@ -164,7 +165,7 @@ const KnowledgeItemList = ({
       </div>
       {isLoadingMore ? (
         <div
-          className="flex h-8 shrink-0 items-center justify-center gap-1.5 text-foreground-tertiary text-xs"
+          className="flex h-8 shrink-0 items-center justify-center gap-1.5 text-xs text-foreground-tertiary"
           aria-live="polite">
           <LoaderCircle className="size-3.5 animate-spin" />
           {t('knowledge.data_source.list.loading_more')}
@@ -172,7 +173,7 @@ const KnowledgeItemList = ({
       ) : !hasMore && items.length > KNOWLEDGE_ITEMS_PAGE_SIZE ? (
         // End-of-list only after a real second page loaded (>1 page worth of rows). Deriving this
         // from the live count instead of a sticky ref means it can't leak across base switches.
-        <div className="flex h-8 shrink-0 items-center justify-center text-foreground-tertiary text-xs">
+        <div className="flex h-8 shrink-0 items-center justify-center text-xs text-foreground-tertiary">
           {t('knowledge.data_source.list.end_reached')}
         </div>
       ) : null}

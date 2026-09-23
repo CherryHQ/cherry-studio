@@ -63,6 +63,8 @@
  * consumer. `AbsoluteFilePathSchema` draws the same line with its `.min(1)`.
  */
 
+import type * as z from 'zod'
+
 import {
   isPosixPath,
   isWindowsPath,
@@ -72,7 +74,6 @@ import {
   PosixPathSchema,
   WindowsPathSchema
 } from '@shared/utils/file/pathSpec'
-import type * as z from 'zod'
 
 /**
  * `segments` with `.` and `..` applied, or `null` if the path is anchored to a

@@ -1,6 +1,7 @@
+import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+
 import { DirectoryTreeSession, type DirectoryTreeState } from '@renderer/services/DirectoryTreeSession'
 import type { DirectoryTreeOptions, TreeMutationEvent, TreeNode } from '@shared/utils/file'
-import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 export interface UseDirectoryTreeResult extends DirectoryTreeState {
   getNode(absPath: string): TreeNode | null
