@@ -261,6 +261,8 @@ describe('AiService', () => {
     mockAgentGenerate.mockResolvedValue({
       text: 'ok',
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: {}, outputTokenDetails: {} },
+      finishReason: 'stop',
+      rawFinishReason: 'end_turn',
       steps: []
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
@@ -375,7 +377,7 @@ describe('AiService', () => {
         callOverrides: { maxOutputTokens: 100, temperature: 0.2, stopSequences: ['END'] },
         requestOptions: { signal }
       })
-      return { text: 'An image and audio.' }
+      return { text: 'An image and audio.', finishReason: 'stop', rawFinishReason: 'end_turn' }
     })
     try {
       await expect(
@@ -417,6 +419,31 @@ describe('AiService', () => {
       generate.mockRestore()
     }
   })
+
+  it.each([
+    { finishReason: 'length' as const, rawFinishReason: 'max_tokens', stopReason: 'maxTokens' },
+    { finishReason: 'stop' as const, rawFinishReason: 'stop_sequence', stopReason: 'stopSequence' },
+    { finishReason: 'stop' as const, rawFinishReason: 'end_turn', stopReason: 'endTurn' }
+  ])(
+    'maps $rawFinishReason sampling completion to $stopReason',
+    async ({ finishReason, rawFinishReason, stopReason }) => {
+      const service = createService()
+      const generate = vi
+        .spyOn(service, 'generateText')
+        .mockResolvedValue({ text: 'answer', finishReason, rawFinishReason })
+      try {
+        await expect(
+          service.generateMcpSampling(
+            'test-provider::test-model',
+            { maxTokens: 100, messages: [{ role: 'user', content: { type: 'text', text: 'Question' } }] },
+            new AbortController().signal
+          )
+        ).resolves.toMatchObject({ stopReason })
+      } finally {
+        generate.mockRestore()
+      }
+    }
+  )
 
   it.each(['tool_use', 'tool_result'] as const)('rejects unsupported sampling %s before generation', async (type) => {
     const service = createService()
@@ -1918,7 +1945,7 @@ describe('AiService tool approval', () => {
 
       const service = createService()
       const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
-      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
       mockModelGetByKey.mockReturnValue({
         ...listedModel,
         capabilities: [MODEL_CAPABILITY.EMBEDDING]
@@ -1935,7 +1962,7 @@ describe('AiService tool approval', () => {
 
   it('passes the selected API key override into text health checks', async () => {
     const service = createService()
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-model',
       providerId: 'test-provider',
@@ -1963,7 +1990,7 @@ describe('AiService tool approval', () => {
 
   it('disables reasoning on the text-generation probe', async () => {
     const service = createService()
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-model',
       providerId: 'test-provider',
@@ -2010,7 +2037,7 @@ describe('AiService tool approval', () => {
   it('checks image-only models through the image endpoint, not chat', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-image',
       providerId: 'test-provider',
@@ -2032,7 +2059,7 @@ describe('AiService tool approval', () => {
   it('checks chat models that can also generate images through text generation', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-multimodal',
       providerId: 'test-provider',

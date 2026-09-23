@@ -36,6 +36,7 @@ import type {
 import type { McpForwardMethod, McpForwardOptions, McpForwardResult } from './McpConnection'
 
 const INTERACTION_TIMEOUT_MS = 10 * 60 * 1000
+const HEALTH_CHECK_TIMEOUT_MS = 5_000
 
 interface ActiveInteraction {
   context: McpInteractionContext
@@ -375,10 +376,10 @@ export class ClientMcpConnection implements McpConnection {
 
   public async health(): Promise<void> {
     if (this.era === 'modern') {
-      await this.client.discover()
+      await this.client.discover({ timeout: HEALTH_CHECK_TIMEOUT_MS })
       return
     }
-    await this.client.ping()
+    await this.client.ping({ timeout: HEALTH_CHECK_TIMEOUT_MS })
   }
 
   private async closeOnce(): Promise<void> {

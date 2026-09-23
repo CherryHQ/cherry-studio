@@ -88,6 +88,26 @@ export class ModernMcpProxy {
     return server
   }
 
+  async fetch(request: Request, parsedBody?: unknown): Promise<Response> {
+    this.lastActivityAt = Date.now()
+    const response = await this.handler.fetch(request, { parsedBody })
+    if (!response.body) return response
+
+    const body = response.body.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform: (chunk, controller) => {
+          this.lastActivityAt = Date.now()
+          controller.enqueue(chunk)
+        }
+      })
+    )
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers
+    })
+  }
+
   async close(): Promise<void> {
     this.subscription.dispose()
     await this.handler.close()

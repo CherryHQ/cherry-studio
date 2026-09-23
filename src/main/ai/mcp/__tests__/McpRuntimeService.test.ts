@@ -15,6 +15,9 @@ const interactionMocks = vi.hoisted(() => ({
   send: vi.fn(),
   broadcastToType: vi.fn()
 }))
+const connectionFactoryMocks = vi.hoisted(() => ({
+  createExternal: vi.fn()
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -24,6 +27,10 @@ vi.mock('@application', async () => {
     IpcApiService: { send: interactionMocks.send, broadcastToType: interactionMocks.broadcastToType }
   } as Record<string, unknown>)
 })
+
+vi.mock('../connections/ExternalMcpConnection', () => ({
+  createExternalMcpConnection: connectionFactoryMocks.createExternal
+}))
 
 const getByIdMock = vi.fn<(id: string) => McpServer>()
 const deleteServerMock = vi.fn()
@@ -438,6 +445,7 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
     MockMainCacheServiceUtils.resetMocks()
     getByIdMock.mockReset()
     interactionMocks.broadcastToType.mockClear()
+    connectionFactoryMocks.createExternal.mockReset()
   })
 
   it('redacts server notification credentials before buffering and broadcasting the log', async () => {
@@ -462,6 +470,34 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
       expect(exposed).not.toContain(secret)
     }
     expect(data.authorization).toBe('Bearer bearer-secret')
+  })
+
+  it('redacts stdio credentials before buffering and broadcasting stderr', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'server-1',
+      name: 'stdio-server',
+      type: 'stdio',
+      command: 'node',
+      installSource: 'manual'
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+    connectionFactoryMocks.createExternal.mockImplementation(
+      async ({ log }: { log: { stdio(message: string): void } }) => {
+        log.stdio('request failed: Authorization: Bearer stderr-secret')
+        return { close: vi.fn() }
+      }
+    )
+
+    await (service as any).createConnection(server)
+
+    const logs = await service.getServerLogs(server.id)
+    expect(logs).toMatchObject([
+      { level: 'stderr', message: 'request failed: Authorization: "<redacted>"', source: 'stdio' }
+    ])
+    expect(JSON.stringify({ logs, broadcasts: interactionMocks.broadcastToType.mock.calls })).not.toContain(
+      'stderr-secret'
+    )
   })
 
   // Regression: connect used to mutate `server.env` in place before emitServerLog recomputed

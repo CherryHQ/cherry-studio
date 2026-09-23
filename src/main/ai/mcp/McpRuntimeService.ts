@@ -359,7 +359,7 @@ export class McpRuntimeService extends BaseService {
           this.emitServerLog(server, {
             timestamp: Date.now(),
             level: 'stderr',
-            message,
+            message: redactSecretText(message),
             source: 'stdio'
           })
         }

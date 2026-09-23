@@ -74,8 +74,7 @@ export class McpSessionStore {
       this.modern.set(server.id, proxy)
       this.ensureSweeping()
     }
-    proxy.lastActivityAt = Date.now()
-    return proxy.handler.fetch(request, { parsedBody })
+    return proxy.fetch(request, parsedBody)
   }
 
   /**

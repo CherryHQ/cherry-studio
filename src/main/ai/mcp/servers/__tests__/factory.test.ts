@@ -72,22 +72,32 @@ describe('resolveBuiltinExternalMcpServer', () => {
 
   it('resolves builtin HTTP endpoints and preserves configured headers', () => {
     expect(
-      resolveBuiltinExternalMcpServer(server({ name: BuiltinMcpServerNames.flomo, headers: { Existing: 'value' } }))
+      resolveBuiltinExternalMcpServer(
+        server({ name: BuiltinMcpServerNames.flomo, installSource: 'builtin', headers: { Existing: 'value' } })
+      )
     ).toMatchObject({
       type: 'streamableHttp',
       baseUrl: 'https://flomoapp.com/mcp',
       headers: { Existing: 'value', APP: 'Cherry Studio' }
     })
-    expect(resolveBuiltinExternalMcpServer(server({ name: BuiltinMcpServerNames.nowledgeMem }))).toMatchObject({
+    expect(
+      resolveBuiltinExternalMcpServer(server({ name: BuiltinMcpServerNames.nowledgeMem, installSource: 'builtin' }))
+    ).toMatchObject({
       type: 'streamableHttp',
       baseUrl: 'http://127.0.0.1:14242/mcp',
       headers: { APP: 'Cherry Studio' }
     })
   })
 
-  it('leaves non-builtin servers unchanged', () => {
+  it('leaves non-builtin servers and manual name collisions unchanged', () => {
     const custom = server({ name: 'custom-server', baseUrl: 'https://example.com/mcp' })
+    const collision = server({
+      name: BuiltinMcpServerNames.flomo,
+      installSource: 'manual',
+      baseUrl: 'https://example.com/custom-flomo'
+    })
     expect(resolveBuiltinExternalMcpServer(custom)).toBe(custom)
+    expect(resolveBuiltinExternalMcpServer(collision)).toBe(collision)
   })
 })
 

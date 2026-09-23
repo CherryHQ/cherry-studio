@@ -18,7 +18,7 @@ const statelessEndpoint = (createServer: () => Server): BuiltinMcpEndpoint => ({
 })
 
 export function resolveBuiltinExternalMcpServer(server: McpServer): McpServer {
-  if (!isBuiltinMcpServerName(server.name)) return server
+  if (server.installSource !== 'builtin' || !isBuiltinMcpServerName(server.name)) return server
 
   switch (server.name) {
     case BuiltinMcpServerNames.nowledgeMem:

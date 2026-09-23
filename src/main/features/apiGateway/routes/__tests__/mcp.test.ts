@@ -1,6 +1,8 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { McpServer } from '@shared/data/types/mcpServer'
+
 /**
  * `/v1/mcps*` integration tests — drive the real Elysia app via `app.handle(Request)`
  * so the auth guard, route wiring and the stateless Streamable HTTP transport are all
@@ -77,6 +79,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 
 import { buildApp } from '../../app'
 import { McpSessionStore } from '../../McpSessionStore'
+import { ModernMcpProxy } from '../../ModernMcpProxy'
 
 const ACTIVE_SERVER = { id: 'server-1', name: 'filesystem', type: 'stdio', description: 'Local files', isActive: true }
 const TOOL = {
@@ -187,6 +190,33 @@ describe('/v1/mcps', () => {
 
   afterEach(async () => {
     await sessions.closeAll()
+  })
+
+  it('keeps a modern subscription alive when the handler emits a stream frame', async () => {
+    const proxy = new ModernMcpProxy(ACTIVE_SERVER as McpServer)
+    let streamController!: ReadableStreamDefaultController<Uint8Array>
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController = controller
+      }
+    })
+    vi.spyOn(proxy.handler, 'fetch').mockResolvedValue(
+      new Response(upstream, { headers: { 'content-type': 'text/event-stream' } })
+    )
+
+    try {
+      const response = await proxy.fetch(new Request('http://localhost/v1/mcps/server-1/mcp'))
+      const reader = response.body!.getReader()
+      proxy.lastActivityAt = 0
+      streamController.enqueue(new TextEncoder().encode(': keepalive\n\n'))
+
+      await expect(reader.read()).resolves.toMatchObject({ done: false })
+      expect(proxy.lastActivityAt).toBeGreaterThan(0)
+      streamController.close()
+      await reader.cancel()
+    } finally {
+      await proxy.close()
+    }
   })
 
   it('serves modern discovery and relays MRTR, progress and subscription updates to the external client', async () => {

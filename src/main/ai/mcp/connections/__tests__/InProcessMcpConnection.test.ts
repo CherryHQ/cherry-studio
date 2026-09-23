@@ -422,3 +422,28 @@ serveStdio(() => {
     await connection.close()
   })
 })
+
+describe('ClientMcpConnection health checks', () => {
+  it.each([
+    { era: 'modern' as const, expected: 'discover', skipped: 'ping' },
+    { era: 'legacy' as const, expected: 'ping', skipped: 'discover' }
+  ])('bounds $era health checks', async ({ era, expected, skipped }) => {
+    const connection = new ClientMcpConnection(
+      { name: 'test', version: '1' },
+      {
+        capabilities: { elicitation: { form: {} }, sampling: {}, roots: {} },
+        versionNegotiation: { mode: 'auto' }
+      },
+      events
+    )
+    const client = (connection as any).client
+    vi.spyOn(client, 'getProtocolEra').mockReturnValue(era)
+    const health = vi.spyOn(client, expected).mockResolvedValue(undefined)
+    const other = vi.spyOn(client, skipped).mockResolvedValue(undefined)
+
+    await connection.health()
+
+    expect(health).toHaveBeenCalledWith({ timeout: 5_000 })
+    expect(other).not.toHaveBeenCalled()
+  })
+})

@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from 'node:util'
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/client'
 import {
   type EmbeddingModelUsage,
+  type FinishReason,
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
@@ -283,6 +284,16 @@ export interface AiGenerateRequest extends AiChatRequest {
 export interface AiGenerateResult {
   text: string
   usage?: LanguageModelUsage
+  finishReason: FinishReason
+  rawFinishReason?: string
+}
+
+function toMcpSamplingStopReason(result: Pick<AiGenerateResult, 'finishReason' | 'rawFinishReason'>): string {
+  if (result.finishReason === 'length') return 'maxTokens'
+  if (result.finishReason !== 'stop') return result.rawFinishReason ?? result.finishReason
+
+  const rawReason = result.rawFinishReason?.replace(/[^a-z]/gi, '').toLowerCase()
+  return rawReason === 'stopsequence' ? 'stopSequence' : 'endTurn'
 }
 
 /** Image generation request. */
@@ -937,7 +948,7 @@ export class AiService extends BaseService {
       model,
       role: 'assistant',
       content: { type: 'text', text: result.text },
-      stopReason: 'endTurn'
+      stopReason: toMcpSamplingStopReason(result)
     }
   }
 
