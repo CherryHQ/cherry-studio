@@ -31,7 +31,7 @@ const candidates = [
 ]
 const executable =
   candidates.find((candidate) => candidate !== 'makensis.exe' && fs.existsSync(candidate)) || 'makensis.exe'
-const result = spawnSync(executable, ['/V4', source], { encoding: 'utf8' })
+const result = spawnSync(executable, ['/WX', '/V4', source], { encoding: 'utf8' })
 process.stdout.write(result.stdout || '')
 process.stderr.write(result.stderr || '')
 fs.rmSync(work, { recursive: true, force: true })
