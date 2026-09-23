@@ -17,6 +17,7 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
+import { RestoreConfirmContent } from '@renderer/components/backup'
 import { ipcApi } from '@renderer/ipc'
 import {
   type BackupDestinationId,
@@ -159,12 +160,13 @@ export function LocalBackupManager({ visible, onClose, destination }: LocalBacku
       if (result.status === 'canceled') return
 
       const confirmed = await popup.confirm({
-        title: t('settings.data.local.restore.confirm.title'),
+        title: t('settings.data.backup_v2.restore.confirm_title'),
         icon: <CircleAlert />,
-        content: t('settings.data.local.restore.confirm.content'),
-        okText: t('common.confirm'),
+        content: <RestoreConfirmContent preview={result.preview} />,
+        okText: t('settings.data.backup_v2.restore.confirm_ok'),
         cancelText: t('common.cancel'),
-        centered: true
+        centered: true,
+        okButtonProps: { danger: true }
       })
       if (!confirmed) {
         // An abandoned preparation stays in the journal and blocks the next restore.

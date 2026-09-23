@@ -99,6 +99,35 @@ describe('V1RemigrationPopup', () => {
     expect(confirm).toBeDisabled()
   })
 
+  it('shows a degraded backup as its own dialog instead of plain success', async () => {
+    const user = userEvent.setup()
+    mocks.request.mockImplementation(async (route: string) =>
+      route === 'backup.export'
+        ? {
+            status: 'exported',
+            archivePath: '/backup.cherrybackup',
+            resourceCount: 1,
+            degradations: [{ code: 'external-reference', count: 2, paths: ['Data/Notes/a'] }]
+          }
+        : undefined
+    )
+    render(<PopupHost />)
+    act(() => {
+      void V1RemigrationPopup.show()
+    })
+
+    await user.click(await screen.findByLabelText('settings.data.v1_remigration.final_message'))
+    await user.click(screen.getByLabelText('settings.data.v1_remigration.final_retained'))
+    await user.click(screen.getByLabelText('settings.data.v1_remigration.acknowledgement'))
+    await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.next' }))
+    await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.backup_button' }))
+
+    expect(await screen.findByText('settings.data.backup_v2.export.done_degraded_title')).toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup_v2.outcome.degradation.external_reference')).toBeInTheDocument()
+    expect(screen.getByText('Data/Notes/a')).toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('accepts an existing backup and keeps the final step open when the request fails', async () => {
     const user = userEvent.setup()
     mocks.request.mockRejectedValueOnce(new Error('marker write failed'))

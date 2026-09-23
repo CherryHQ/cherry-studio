@@ -16,6 +16,7 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
+import { RestoreConfirmContent } from '@renderer/components/backup'
 import { ipcApi } from '@renderer/ipc'
 import {
   type BackupDestinationId,
@@ -38,10 +39,6 @@ interface WebdavBackupManagerProps {
   visible: boolean
   onClose: () => void
   destination: BackupDestinationId
-  customLabels?: {
-    restoreConfirmTitle?: string
-    restoreConfirmContent?: string
-  }
   /** WebDAV transport only — surfaces self-signed TLS guidance; Nutstore reuse must not pass it. */
   tlsCertificateHint?: boolean
 }
@@ -52,7 +49,6 @@ export function WebdavBackupManager({
   visible,
   onClose,
   destination,
-  customLabels,
   tlsCertificateHint = false
 }: WebdavBackupManagerProps) {
   const { t } = useTranslation()
@@ -182,12 +178,13 @@ export function WebdavBackupManager({
       if (result.status === 'canceled') return
 
       const confirmed = await popup.confirm({
-        title: customLabels?.restoreConfirmTitle || t('settings.data.webdav.restore.confirm.title'),
+        title: t('settings.data.backup_v2.restore.confirm_title'),
         icon: <CircleAlert />,
-        content: customLabels?.restoreConfirmContent || t('settings.data.webdav.restore.confirm.content'),
-        okText: t('common.confirm'),
+        content: <RestoreConfirmContent preview={result.preview} />,
+        okText: t('settings.data.backup_v2.restore.confirm_ok'),
         cancelText: t('common.cancel'),
-        centered: true
+        centered: true,
+        okButtonProps: { danger: true }
       })
       if (!confirmed) {
         // An abandoned preparation stays in the journal and blocks the next restore.

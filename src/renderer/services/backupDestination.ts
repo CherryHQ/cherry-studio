@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { backupErrorMessageKey } from '@renderer/utils/backup'
 import { uuid } from '@renderer/utils/uuid'
 import type { BackupDestinationId } from '@shared/ipc/schemas/backup'
 
@@ -53,7 +54,10 @@ export async function backupToDestination(
     return true
   } catch (error) {
     logger.error(`Backup to ${destination} failed`, error as Error)
-    showMessage && toast.error(i18n.t('message.backup.failed'))
+    if (showMessage) {
+      const message = backupErrorMessageKey(error)
+      toast.error(i18n.t(message.key, message.params))
+    }
     return false
   }
 }

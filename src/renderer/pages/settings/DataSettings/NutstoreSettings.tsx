@@ -324,15 +324,7 @@ const NutstoreSettings: FC = () => {
           }}
         />
 
-        <WebdavBackupManager
-          visible={backupManagerVisible}
-          onClose={closeBackupManager}
-          destination="nutstore"
-          customLabels={{
-            restoreConfirmTitle: t('settings.data.nutstore.restore.confirm.title'),
-            restoreConfirmContent: t('settings.data.nutstore.restore.confirm.content')
-          }}
-        />
+        <WebdavBackupManager visible={backupManagerVisible} onClose={closeBackupManager} destination="nutstore" />
       </>
     </SettingGroup>
   )

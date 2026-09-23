@@ -16,6 +16,7 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
+import { RestoreConfirmContent } from '@renderer/components/backup'
 import { ipcApi } from '@renderer/ipc'
 import {
   type BackupDestinationId,
@@ -158,12 +159,13 @@ export function S3BackupManager({ visible, onClose, destination }: S3BackupManag
       if (result.status === 'canceled') return
 
       const confirmed = await popup.confirm({
-        title: t('settings.data.s3.restore.confirm.title'),
+        title: t('settings.data.backup_v2.restore.confirm_title'),
         icon: <CircleAlert />,
-        content: t('settings.data.s3.restore.confirm.content'),
-        okText: t('settings.data.s3.restore.confirm.ok'),
-        cancelText: t('settings.data.s3.restore.confirm.cancel'),
-        centered: true
+        content: <RestoreConfirmContent preview={result.preview} />,
+        okText: t('settings.data.backup_v2.restore.confirm_ok'),
+        cancelText: t('common.cancel'),
+        centered: true,
+        okButtonProps: { danger: true }
       })
       if (!confirmed) {
         // An abandoned preparation stays in the journal and blocks the next restore.

@@ -5,6 +5,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, RowFlex } from '@cherrystudio/ui'
 import {
+  DegradationDetails,
+  degradationCount,
+  RestoreConfirmContent,
+  type RestorePreview
+} from '@renderer/components/backup'
+import {
   SettingDivider,
   SettingGroup,
   SettingHelpText,
@@ -17,11 +23,11 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { backupErrorMessageKey } from '@renderer/utils/backup'
 import { BACKUP_RESTORE_NOTICE_KEY } from '@renderer/utils/backupRestoreNotice'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type {
-  BackupExportSourceDiagnostic,
   BackupFormatCompatibilityDiagnostic,
   BackupMigrationCompatibilityDiagnostic
 } from '@shared/ipc/schemas/backup'
@@ -41,9 +47,7 @@ import type { OutputFor } from '@shared/ipc/types'
  */
 
 type BackupStatus = OutputFor<'backup.get_status'>
-type RestorePreview = Extract<OutputFor<'backup.prepare_restore'>, { status: 'prepared' }>['preview']
 type JournalRestore = Extract<NonNullable<BackupStatus['restore']>, { kind: 'journal' }>
-type PresentedDegradation = NonNullable<JournalRestore['degradations']>[number]
 type CompatibilityDiagnostic = BackupMigrationCompatibilityDiagnostic | BackupFormatCompatibilityDiagnostic
 
 /**
@@ -53,57 +57,6 @@ type CompatibilityDiagnostic = BackupMigrationCompatibilityDiagnostic | BackupFo
  * need to hold the busy lock.
  */
 type Running = { readonly kind: 'export' } | { readonly kind: 'prepare' } | { readonly kind: 'other' }
-
-/** Written out rather than interpolated, so the keys stay greppable. */
-const DEGRADATION_KEYS: Record<PresentedDegradation['code'], string> = {
-  'capability-malformed': 'settings.data.backup_v2.outcome.degradation.capability_malformed',
-  'external-file-dropped': 'settings.data.backup_v2.outcome.degradation.external_file_dropped',
-  'path-unportable': 'settings.data.backup_v2.outcome.degradation.path_unportable',
-  'path-collision': 'settings.data.backup_v2.outcome.degradation.path_collision',
-  'resource-unavailable': 'settings.data.backup_v2.outcome.degradation.resource_unavailable',
-  'resource-changed': 'settings.data.backup_v2.outcome.degradation.resource_changed',
-  'resource-nonportable': 'settings.data.backup_v2.outcome.degradation.resource_nonportable',
-  'resource-limit': 'settings.data.backup_v2.outcome.degradation.resource_limit',
-  'workspace-disconnected': 'settings.data.backup_v2.outcome.degradation.workspace_disconnected',
-  'external-reference': 'settings.data.backup_v2.outcome.degradation.external_reference',
-  'dangling-reference': 'settings.data.backup_v2.outcome.degradation.dangling_reference',
-  'cyclic-reference': 'settings.data.backup_v2.outcome.degradation.cyclic_reference',
-  'unclassified-reference': 'settings.data.backup_v2.outcome.degradation.unclassified_reference',
-  'knowledge-index-rebuild': 'settings.data.backup_v2.outcome.degradation.knowledge_index_rebuild',
-  unknown: 'settings.data.backup_v2.outcome.degradation.unknown'
-}
-
-function degradationCount(degradations: readonly PresentedDegradation[]): number {
-  return degradations.reduce((total, degradation) => total + degradation.count, 0)
-}
-
-const DegradationDetails: FC<{
-  degradations: readonly PresentedDegradation[]
-  consequenceKey?: string
-}> = ({ degradations, consequenceKey }) => {
-  const { t } = useTranslation()
-  return (
-    <div className="flex flex-col gap-2">
-      {consequenceKey && <p>{t(consequenceKey, { count: degradationCount(degradations) })}</p>}
-      <ul className="list-disc pl-5">
-        {degradations.map((degradation) => (
-          <li key={degradation.code}>
-            {t(DEGRADATION_KEYS[degradation.code], { count: degradation.count })}
-            {degradation.paths?.length ? (
-              <ul className="list-[circle] pl-5 text-muted-foreground">
-                {degradation.paths.map((path) => (
-                  <li key={path} dir="auto" className="break-all [unicode-bidi:isolate]">
-                    {path}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
 
 const BUILD_TYPE_KEYS: Record<CompatibilityDiagnostic['archiveBuildType'], string> = {
   packaged: 'settings.data.backup_v2.compatibility.build_type.packaged',
@@ -210,82 +163,6 @@ function compatibilityDiagnostic(
           ? isCount(value.missingMigrationCount) && isCount(value.firstExtraIndex)
           : isCount(value.firstDivergentIndex))
   return detailed ? (value as CompatibilityDiagnostic) : undefined
-}
-
-interface ExportSourceMessage {
-  readonly key: string
-  readonly path?: string
-}
-
-function isDiagnosticPath(value: unknown): value is string {
-  if (typeof value !== 'string' || value.length === 0 || value.length > 1024) return false
-  if (value.startsWith('/') || value.includes('\\') || /^[a-zA-Z]:/.test(value)) return false
-  return value.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
-}
-
-function exportSourceDiagnostic(data: unknown): BackupExportSourceDiagnostic | undefined {
-  if (typeof data !== 'object' || data === null) return undefined
-  const value = data as Record<string, unknown>
-  if (value.path !== undefined && !isDiagnosticPath(value.path)) return undefined
-
-  switch (value.kind) {
-    case 'source-changed':
-    case 'non-regular':
-      return value.path === undefined || isDiagnosticPath(value.path)
-        ? (value as BackupExportSourceDiagnostic)
-        : undefined
-    case 'unportable-path':
-      return value.reason === 'invalid-path' || value.reason === 'name-collision'
-        ? (value as BackupExportSourceDiagnostic)
-        : undefined
-    case 'limit-exceeded':
-      return ['entry-count', 'resource-entries', 'entry-bytes', 'total-bytes', 'manifest-bytes', 'unknown'].includes(
-        String(value.limit)
-      )
-        ? (value as BackupExportSourceDiagnostic)
-        : undefined
-    default:
-      return undefined
-  }
-}
-
-function exportSourceMessage(data: unknown): ExportSourceMessage {
-  const diagnostic = exportSourceDiagnostic(data)
-  if (!diagnostic) return { key: 'settings.data.backup_v2.error.export_source' }
-
-  switch (diagnostic.kind) {
-    case 'source-changed':
-      return diagnostic.path
-        ? { key: 'settings.data.backup_v2.error.export_source_changed_path', path: diagnostic.path }
-        : { key: 'settings.data.backup_v2.error.export_source_changed' }
-    case 'non-regular':
-      return diagnostic.path
-        ? { key: 'settings.data.backup_v2.error.export_source_non_regular_path', path: diagnostic.path }
-        : { key: 'settings.data.backup_v2.error.export_source_non_regular' }
-    case 'unportable-path':
-      if (diagnostic.reason === 'name-collision') {
-        return diagnostic.path
-          ? { key: 'settings.data.backup_v2.error.export_source_collision_path', path: diagnostic.path }
-          : { key: 'settings.data.backup_v2.error.export_source_collision' }
-      }
-      return diagnostic.path
-        ? { key: 'settings.data.backup_v2.error.export_source_unportable_path', path: diagnostic.path }
-        : { key: 'settings.data.backup_v2.error.export_source_unportable' }
-    case 'limit-exceeded':
-      switch (diagnostic.limit) {
-        case 'entry-count':
-        case 'resource-entries':
-          return { key: 'settings.data.backup_v2.error.export_source_limit_count' }
-        case 'entry-bytes':
-          return { key: 'settings.data.backup_v2.error.export_source_limit_entry' }
-        case 'total-bytes':
-          return { key: 'settings.data.backup_v2.error.export_source_limit_total' }
-        case 'manifest-bytes':
-          return { key: 'settings.data.backup_v2.error.export_source_limit_manifest' }
-        case 'unknown':
-          return { key: 'settings.data.backup_v2.error.export_source_limit' }
-      }
-  }
 }
 
 const CompatibilityDetails: FC<{
@@ -455,34 +332,8 @@ const BackupV2Settings: FC = () => {
         return
       }
 
-      switch (error.code) {
-        case backupErrorCodes.BUSY:
-          return toast.error(t('settings.data.backup_v2.error.busy'))
-        case backupErrorCodes.ARCHIVE_REJECTED:
-          return toast.error(t('settings.data.backup_v2.error.archive_rejected'))
-        case backupErrorCodes.RESTORE_STATE:
-          return toast.error(t('settings.data.backup_v2.error.restore_state'))
-        case backupErrorCodes.JOURNAL_UNREADABLE:
-          return toast.error(t('settings.data.backup_v2.error.journal_unreadable'))
-        case backupErrorCodes.ARM_FAILED:
-          return toast.error(t('settings.data.backup_v2.error.arm_failed'))
-        case backupErrorCodes.ROLLBACK_UNAVAILABLE:
-          return toast.error(t('settings.data.backup_v2.error.rollback_unavailable'))
-        case backupErrorCodes.RECOVERY_INCOMPLETE:
-          return toast.error(t('settings.data.backup_v2.error.recovery_incomplete'))
-        case backupErrorCodes.STORAGE_UNAVAILABLE:
-          return toast.error(t('settings.data.backup_v2.error.storage_unavailable'))
-        case backupErrorCodes.EXPORT_SOURCE: {
-          const message = exportSourceMessage(error.data)
-          return toast.error(message.path ? t(message.key, { path: message.path }) : t(message.key))
-        }
-        case backupErrorCodes.EXPORT_DESTINATION:
-          return toast.error(t('settings.data.backup_v2.error.export_destination'))
-        case backupErrorCodes.RESTORE_RESOURCES:
-          return toast.error(t('settings.data.backup_v2.error.restore_resources'))
-        default:
-          return toast.error(t('settings.data.backup_v2.error.unexpected'))
-      }
+      const message = backupErrorMessageKey(error)
+      toast.error(t(message.key, message.params))
     },
     [checkForUpdates, t]
   )
@@ -555,20 +406,7 @@ const BackupV2Settings: FC = () => {
       if (!preview) return
       const confirmed = await popup.confirm({
         title: t('settings.data.backup_v2.restore.confirm_title'),
-        content: (
-          <div className="flex flex-col gap-3">
-            <p>{t('settings.data.backup_v2.restore.confirm_content')}</p>
-            {preview.knowledge.rebuild > 0 && (
-              <Alert
-                type="warning"
-                showIcon
-                message={t('settings.data.backup_v2.preview.knowledge_rebuild_cost', {
-                  count: preview.knowledge.rebuild
-                })}
-              />
-            )}
-          </div>
-        ),
+        content: <RestoreConfirmContent preview={preview} />,
         okText: t('settings.data.backup_v2.restore.confirm_ok'),
         cancelText: t('common.cancel'),
         centered: true,

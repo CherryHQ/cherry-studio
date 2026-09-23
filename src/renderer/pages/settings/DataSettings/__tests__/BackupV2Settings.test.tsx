@@ -561,7 +561,7 @@ describe('BackupV2Settings', () => {
     expect(checkForUpdatesMock).not.toHaveBeenCalled()
   })
 
-  it('treats forged compatibility data as unexpected instead of rendering it', async () => {
+  it('ignores forged compatibility data and falls back to the plain sentence', async () => {
     requestMock.mockImplementation(async (route: string) => {
       if (route === 'backup.prepare_restore') {
         throw new IpcError(backupErrorCodes.RESTORE_REQUIRES_NEWER_APP, 'ahead', {
@@ -575,9 +575,10 @@ describe('BackupV2Settings', () => {
 
     click('settings.general.restore.button')
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup_v2.error.unexpected'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup_v2.compatibility.ahead_title'))
     expect(popup.confirm).not.toHaveBeenCalled()
     expect(popup.info).not.toHaveBeenCalled()
+    expect(screen.queryByText('/Users/private')).not.toBeInTheDocument()
   })
 
   it.each([
@@ -674,25 +675,24 @@ describe('BackupV2Settings', () => {
     expect(tMock).not.toHaveBeenCalledWith(expect.anything(), { path: '/Users/private/notes' })
   })
 
-  it.each([
-    [backupErrorCodes.BUSY, 'settings.data.backup_v2.error.busy'],
-    [backupErrorCodes.ARCHIVE_REJECTED, 'settings.data.backup_v2.error.archive_rejected'],
-    [backupErrorCodes.JOURNAL_UNREADABLE, 'settings.data.backup_v2.error.journal_unreadable'],
-    [backupErrorCodes.ROLLBACK_UNAVAILABLE, 'settings.data.backup_v2.error.rollback_unavailable'],
-    [backupErrorCodes.STORAGE_UNAVAILABLE, 'settings.data.backup_v2.error.storage_unavailable'],
-    [backupErrorCodes.EXPORT_SOURCE, 'settings.data.backup_v2.error.export_source'],
-    [backupErrorCodes.RESTORE_RESOURCES, 'settings.data.backup_v2.error.restore_resources']
-  ])('turns %s into its own sentence', async (code, message) => {
-    requestMock.mockImplementation(async (route: string) => {
-      if (route === 'backup.prepare_restore') throw new IpcError(code, 'refused')
-      return { operation: null, restore: { kind: 'none' } }
-    })
-    await renderSettings()
+  /** Deliberately generic: only a window this app does not manage can hit it. */
+  const GENERIC_CODES: string[] = [backupErrorCodes.SENDER_NOT_ALLOWED]
 
-    click('settings.general.restore.button')
+  it.each(Object.values(backupErrorCodes).filter((code) => !GENERIC_CODES.includes(code)))(
+    'turns %s into its own sentence',
+    async (code) => {
+      requestMock.mockImplementation(async (route: string) => {
+        if (route === 'backup.prepare_restore') throw new IpcError(code, 'refused')
+        return { operation: null, restore: { kind: 'none' } }
+      })
+      await renderSettings()
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(message))
-  })
+      click('settings.general.restore.button')
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalledOnce())
+      expect(toast.error).not.toHaveBeenCalledWith('settings.data.backup_v2.error.unexpected')
+    }
+  )
 
   it('does not guess at a code it does not know', async () => {
     requestMock.mockImplementation(async (route: string) => {
