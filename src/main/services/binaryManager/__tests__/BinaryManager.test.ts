@@ -1574,6 +1574,31 @@ describe('BinaryManager', () => {
       expect(operations()).toEqual({})
     })
 
+    it('exits removing and retains the definition when the system probe rejects, then allows retry', async () => {
+      const service = makeService()
+      manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      vi.mocked(findCommandInShellEnv).mockRejectedValueOnce(new Error('Command lookup exited with code 2'))
+      const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+
+      const removal = service.removeTool({ name: 'mytool' })
+      broadcast.mockClear()
+
+      await expect(removal).resolves.toEqual({
+        status: 'cleanup_blocked',
+        reason: 'query_failed',
+        message: 'Command lookup exited with code 2'
+      })
+      expect(operations()).toEqual({})
+      expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool' }])
+      expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
+      expect(broadcast).toHaveBeenCalledWith('binary.availability_changed', undefined)
+
+      await expect(service.removeTool({ name: 'mytool' })).resolves.toEqual({ status: 'removed' })
+      expect(manifestRef.value).toEqual([])
+      expect(operations()).toEqual({})
+    })
+
     it('blocks a runtime removal with the installed dependents and retains its definition', async () => {
       const service = makeService()
       manifestRef.value = [
@@ -2453,6 +2478,45 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'fd@latest'])
       expect(manifestRef.value).toEqual([])
     })
+
+    it.each([undefined, '11.0.0'])(
+      'records a system probe rejection with target %s and allows subsequent operations and retry',
+      async (targetVersion) => {
+        const service = makeService()
+        mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+        vi.mocked(findCommandInShellEnv).mockRejectedValueOnce(new Error('Command lookup exited with code 2'))
+        const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+        const request = { name: 'fd', ...(targetVersion ? { targetVersion } : {}) }
+
+        const install = service.installByName(request)
+        broadcast.mockClear()
+
+        await expect(install).rejects.toThrow('Command lookup exited with code 2')
+        const failed = {
+          status: 'failed',
+          action: 'install',
+          error: 'Command lookup exited with code 2',
+          ...(targetVersion ? { targetVersion } : {})
+        }
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({ fd: failed })
+        expect((await service.getToolSnapshots(['fd'])).fd.operation).toEqual(failed)
+        expect(broadcast).toHaveBeenCalledWith('binary.availability_changed', undefined)
+        expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
+
+        await expect(service.removeTool({ name: 'rg' })).resolves.toEqual({ status: 'removed' })
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
+          if (args[0] === 'ls')
+            return { stdout: JSON.stringify({ fd: [{ version: '11.0.0', active: true }] }), stderr: '' }
+          if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+          return { stdout: '', stderr: '' }
+        })
+
+        await expect(service.installByName(request)).resolves.toBeUndefined()
+        expect(miseArgs()).toContainEqual(['use', '-g', `fd@${targetVersion ?? 'latest'}`])
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
+      }
+    )
 
     it('re-installs an owned custom tool by name without writing Preference or mutating its recipe', async () => {
       const service = makeService()
