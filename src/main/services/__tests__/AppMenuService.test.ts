@@ -107,6 +107,7 @@ describe('AppMenuService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    browserWindowMock.getFocusedWindow.mockReturnValue(null)
     // AppMenuService is darwin-only; pin the platform so platform-gated
     // accelerators resolve identically on every CI runner.
     Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
