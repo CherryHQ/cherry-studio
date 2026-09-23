@@ -12,7 +12,8 @@ CREATE TABLE `remote_command` (
 	`admitted_at` integer NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	PRIMARY KEY(`device_id`, `grant_id`, `command_id`)
+	PRIMARY KEY(`device_id`, `grant_id`, `command_id`),
+	FOREIGN KEY (`device_id`) REFERENCES `api_gateway_paired_device`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 DROP INDEX `api_gateway_paired_device_token_hash_unique_idx`;--> statement-breakpoint

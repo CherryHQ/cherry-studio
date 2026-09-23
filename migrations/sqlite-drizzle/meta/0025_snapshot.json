@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c5d6a90b-2dbd-460e-89c4-321e27775892",
+  "id": "92e82a74-fbe1-4767-96a0-a57f01cff2f7",
   "prevId": "60663efc-b716-444a-afbb-50fd77ebb24f",
   "tables": {
     "agent": {
@@ -5367,7 +5367,21 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "remote_command_device_id_api_gateway_paired_device_id_fk": {
+          "name": "remote_command_device_id_api_gateway_paired_device_id_fk",
+          "tableFrom": "remote_command",
+          "tableTo": "api_gateway_paired_device",
+          "columnsFrom": [
+            "device_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {
         "remote_command_device_id_grant_id_command_id_pk": {
           "columns": [

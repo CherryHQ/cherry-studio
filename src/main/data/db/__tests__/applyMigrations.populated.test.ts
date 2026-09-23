@@ -70,13 +70,26 @@ describe('applyMigrations over a populated database', () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
-  it('preserves owned command receipts and removes orphans before enforcing device cascade', () => {
+  it('preserves legacy paired devices and creates durable receipts with device cascade', () => {
     sqlite.pragma('foreign_keys = ON')
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0026_remote-command-device-cascade'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0025_remote-access'))
     const insertDevice = sqlite.prepare(`INSERT INTO api_gateway_paired_device
-      (id, name, platform, peer_identity, agent_grant_id, created_at, updated_at)
-      VALUES (?, ?, 'ios', ?, 'current-grant', 1000, 2000)`)
+      (id, name, platform, token_hash, created_at, updated_at)
+      VALUES (?, ?, 'ios', ?, 1000, 2000)`)
     for (const id of ['phone', 'tablet']) insertDevice.run(id, id, id)
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT * FROM api_gateway_paired_device ORDER BY id').all()).toEqual(
+      ['phone', 'tablet'].map((id) => ({
+        id,
+        name: id,
+        platform: 'ios',
+        created_at: 1000,
+        updated_at: 2000,
+        peer_identity: null,
+        configuration_grant_id: null,
+        agent_grant_id: null
+      }))
+    )
     const insertReceipt = sqlite.prepare(`INSERT INTO remote_command
       (device_id, grant_id, command_id, method, identity_digest, status, session_id, execution_id,
        result, error, admitted_at, created_at, updated_at)
@@ -85,10 +98,9 @@ describe('applyMigrations over a populated database', () => {
     insertReceipt.run('phone', 'previous-grant')
     insertReceipt.run('phone', 'current-grant')
     insertReceipt.run('tablet', 'current-grant')
-    insertReceipt.run('deleted-device', 'old-grant')
-    const owned = sqlite
-      .prepare("SELECT * FROM remote_command WHERE device_id != 'deleted-device' ORDER BY device_id, grant_id")
-      .all() as Array<{ device_id: string }>
+    const owned = sqlite.prepare('SELECT * FROM remote_command ORDER BY device_id, grant_id').all() as Array<{
+      device_id: string
+    }>
 
     applyMigrations(db, resolveMigrationsPath())
     applyMigrations(db, resolveMigrationsPath())
