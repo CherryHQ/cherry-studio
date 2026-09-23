@@ -734,7 +734,7 @@ describe('release publication state', () => {
     expect(body).toContain('<summary>Release Notes</summary>\n\nEnglish notes\n\n</details>')
     expect(body).toContain('| Platform | Architecture | Download |\n| --- | --- | --- |')
     expect(body).not.toMatch(/下载|发布说明|简体中文|中文说明|China Edition|Cherry-Studio-CN-/)
-    expect(body.indexOf('| macOS | Apple M Series |')).toBeLessThan(body.indexOf('| macOS | Intel |'))
+    expect(body.indexOf('| macOS | Apple silicon (arm64) |')).toBeLessThan(body.indexOf('| macOS | Intel (x64) |'))
     expect(body).not.toContain('<!--LANG:')
     expect(body).not.toContain('## Release Notes')
     expect(body.match(/<summary>/g)).toHaveLength(1)

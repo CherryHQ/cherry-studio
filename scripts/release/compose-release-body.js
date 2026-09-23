@@ -19,7 +19,7 @@ function createDownloadTable({ productName, repository, tag }) {
 
     for (const { architecture, artifacts } of groups) {
       const architectureLabel =
-        platform.id === 'mac' ? (architecture === 'arm64' ? 'Apple M Series' : 'Intel') : architecture
+        platform.id === 'mac' ? (architecture === 'arm64' ? 'Apple silicon (arm64)' : 'Intel (x64)') : architecture
       const downloads = artifacts
         .map(({ fileName, label }) => {
           const url = `https://github.com/${repository}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`
