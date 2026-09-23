@@ -719,22 +719,24 @@ describe('release publication state', () => {
       tag: 'v1.2.0'
     })
 
-    expect(body).toContain('## Downloads / 下载 (v1.2.0)')
+    expect(body).toContain('## Downloads (v1.2.0)')
     expect(body.match(/^\| (Windows|macOS|Linux) \|/gm)).toHaveLength(6)
     expect(body.match(/https:\/\/github\.com\/CherryHQ\/cherry-studio\/releases\/download\/v1\.2\.0\//g)).toHaveLength(
-      28
+      14
     )
     expect(body).toContain(
       '[Installer](https://github.com/CherryHQ/cherry-studio/releases/download/v1.2.0/Cherry-Studio-1.2.0-win-x64-setup.exe)'
     )
     expect(body).toContain(
-      '[RPM](https://github.com/CherryHQ/cherry-studio/releases/download/v1.2.0/Cherry-Studio-CN-1.2.0-linux-arm64.rpm)'
+      '[RPM](https://github.com/CherryHQ/cherry-studio/releases/download/v1.2.0/Cherry-Studio-1.2.0-linux-arm64.rpm)'
     )
     expect(body).not.toMatch(/\.(?:blockmap|ya?ml|json)\)/)
     expect(body).toContain('<summary>English</summary>\n\nEnglish notes\n\n</details>')
-    expect(body).toContain('<summary>简体中文</summary>\n\n中文说明\n\n</details>')
+    expect(body).toContain('| Platform | Architecture | Global |\n| --- | --- | --- |')
+    expect(body).not.toMatch(/下载|发布说明|简体中文|中文说明|China Edition|Cherry-Studio-CN-/)
+    expect(body.indexOf('| macOS | Apple M Series |')).toBeLessThan(body.indexOf('| macOS | Intel |'))
     expect(body).not.toContain('<!--LANG:')
-    expect(body.indexOf('## Release Notes / 发布说明')).toBeLessThan(body.indexOf("## What's Changed"))
+    expect(body.indexOf('## Release Notes\n')).toBeLessThan(body.indexOf("## What's Changed"))
     expect(body).toContain("## What's Changed\n- Fix one\n\n## New Contributors\n- @new\n")
 
     const bodyWithoutChanges = composeReleaseBody({
@@ -744,6 +746,7 @@ describe('release publication state', () => {
       repository: 'CherryHQ/cherry-studio',
       tag: 'v1.2.0'
     })
+    expect(bodyWithoutChanges.trim()).toBe(body.split('\n\n---\n\n')[0])
     expect(bodyWithoutChanges).not.toContain("## What's Changed")
     expect(bodyWithoutChanges).toContain('<summary>English</summary>\n\nEnglish notes\n\n</details>')
   })
