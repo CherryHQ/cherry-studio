@@ -20,7 +20,8 @@ import type {
   ModelCapability,
   ParameterSupport,
   ReasoningConfig,
-  RuntimeModelPricing
+  RuntimeModelPricing,
+  ServerToolOverrides
 } from '@shared/data/types/model'
 
 import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex } from './_columnHelpers'
@@ -107,6 +108,12 @@ export const userModelTable = sqliteTable(
 
     /** User notes */
     notes: text(),
+
+    /**
+     * User-owned provider-native server-tool availability overrides.
+     * Null inherits the provider registry declaration.
+     */
+    serverToolOverrides: text({ mode: 'json' }).$type<ServerToolOverrides>(),
 
     ...createUpdateTimestamps
   },

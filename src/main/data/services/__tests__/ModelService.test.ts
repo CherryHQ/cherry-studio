@@ -159,7 +159,8 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'isEnabled',
       'isHidden',
       'isDeprecated',
-      'notes'
+      'notes',
+      'serverToolOverrides'
     ]
 
     const mappedDtoKeys = UPDATE_MODEL_FIELD_MAP.map((entry) => (Array.isArray(entry) ? entry[0] : entry))

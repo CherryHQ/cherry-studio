@@ -4717,6 +4717,7 @@
   "settings.models.add.quick_presets": "Γρήγορες προεπιλογές",
   "settings.models.add.supported_text_delta.label": "αυξητική έξοδος κειμένου",
   "settings.models.add.supported_text_delta.tooltip": "Το μοντέλο επιστρέφει το κείμενο σταδιακά και όχι όλο μαζί. Η επιλογή είναι ενεργοποιημένη από προεπιλογή· αν το μοντέλο δεν την υποστηρίζει, απενεργοποιήστε την.",
+  "settings.models.add.web_search.endpoint_required": "Η ενσωματωμένη αναζήτηση ιστού χρειάζεται endpoint Responses, Anthropic ή Gemini σε αυτό το μοντέλο.",
   "settings.models.api_key": "Κλειδί API",
   "settings.models.base_url": "Βασικό URL",
   "settings.models.bulk_disable": "Απενεργοποίηση όλων",

@@ -2,7 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CURRENCY, type Model } from '@shared/data/types/model'
+import { toast } from '@renderer/services/toast'
+import { CURRENCY, ENDPOINT_TYPE, type Model, SERVER_TOOL } from '@shared/data/types/model'
 
 import EditModelDrawer from '../EditModelDrawer'
 
@@ -177,6 +178,87 @@ describe('EditModelDrawer', () => {
     vi.clearAllMocks()
     ipcRequest.mockResolvedValue(undefined)
     useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
+  })
+
+  it('explains why native search cannot be enabled on a generic chat endpoint', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: { id: 'custom', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, serverTools: [] }
+    })
+    render(
+      <EditModelDrawer
+        providerId="custom"
+        open
+        onClose={vi.fn()}
+        model={{
+          ...makePricingModel(),
+          id: 'custom::private-model',
+          providerId: 'custom',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        }}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'models.type.websearch' }))
+
+    expect(toast.error).toHaveBeenCalledWith('settings.models.add.web_search.endpoint_required')
+    expect(updateModelMock).not.toHaveBeenCalled()
+  })
+
+  it('clears a native-search override when the active endpoint can no longer deliver it', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'new-api',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' }
+        },
+        serverTools: []
+      }
+    })
+    render(
+      <EditModelDrawer
+        providerId="new-api"
+        open
+        onClose={vi.fn()}
+        model={{
+          ...makePricingModel(),
+          id: 'new-api::private-model',
+          providerId: 'new-api',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+          serverToolOverrides: {
+            [SERVER_TOOL.WEB_SEARCH]: {
+              state: 'enabled',
+              endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+            }
+          }
+        }}
+      />
+    )
+
+    const webSearch = screen.getByRole('button', { name: 'models.type.websearch' })
+    expect(webSearch).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'endpoint_type.openai-response' }))
+    await user.click(screen.getByRole('button', { name: 'endpoint_type.openai' }))
+
+    await waitFor(() => {
+      expect(updateModelMock.mock.calls.at(-1)?.[2]).toEqual(
+        expect.objectContaining({
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+          serverToolOverrides: null
+        })
+      )
+    })
+    expect(webSearch).toHaveAttribute('aria-pressed', 'false')
+
+    const saveCount = updateModelMock.mock.calls.length
+    await user.click(webSearch)
+
+    expect(toast.error).toHaveBeenCalledWith('settings.models.add.web_search.endpoint_required')
+    expect(updateModelMock).toHaveBeenCalledTimes(saveCount)
   })
 
   it('autosaves the settled positive minimum instead of an invalid zero', async () => {

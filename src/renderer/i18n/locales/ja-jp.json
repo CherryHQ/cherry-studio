@@ -4717,6 +4717,7 @@
   "settings.models.add.quick_presets": "クイックプリセット",
   "settings.models.add.supported_text_delta.label": "インクリメンタルテキスト出力のサポート",
   "settings.models.add.supported_text_delta.tooltip": "モデルがテキストをチャンクで返す場合、デフォルトで有効になっています。モデルがサポートしていない場合は、このオプションを無効にしてください",
+  "settings.models.add.web_search.endpoint_required": "組み込みウェブ検索を有効にするには、このモデルに Responses、Anthropic、または Gemini エンドポイントが必要です。",
   "settings.models.api_key": "API キー",
   "settings.models.base_url": "ベース URL",
   "settings.models.bulk_disable": "すべて無効化",

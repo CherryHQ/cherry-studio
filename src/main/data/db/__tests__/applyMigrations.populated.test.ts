@@ -108,6 +108,42 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('adds server-tool overrides to populated models without changing their settings', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0025_melted_loners'))
+    const now = Date.now()
+    sqlite
+      .prepare(`INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+        VALUES ('relay', 'Relay', 'a0', ?, ?) `)
+      .run(now, now)
+    sqlite
+      .prepare(`INSERT INTO user_model
+        (id, provider_id, model_id, name, capabilities, endpoint_types, supports_streaming, order_key, created_at, updated_at)
+        VALUES ('relay::private-model', 'relay', 'private-model', 'Private Model', '[]', ?, 1, 'a0', ?, ?) `)
+      .run(JSON.stringify(['anthropic-messages']), now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(
+      sqlite
+        .prepare(`SELECT name, capabilities, endpoint_types, supports_streaming, server_tool_overrides
+          FROM user_model WHERE id = 'relay::private-model'`)
+        .get()
+    ).toEqual({
+      name: 'Private Model',
+      capabilities: '[]',
+      endpoint_types: '["anthropic-messages"]',
+      supports_streaming: 1,
+      server_tool_overrides: null
+    })
+    const override = JSON.stringify({ 'web-search': { state: 'enabled', endpointTypes: ['anthropic-messages'] } })
+    sqlite.prepare("UPDATE user_model SET server_tool_overrides = ? WHERE id = 'relay::private-model'").run(override)
+    expect(
+      sqlite.prepare("SELECT server_tool_overrides FROM user_model WHERE id = 'relay::private-model'").get()
+    ).toEqual({
+      server_tool_overrides: override
+    })
+  })
+
   it('classifies only proven heartbeat sessions while preserving conversation data', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0024_lying_shatterstar'))
     const now = Date.now()

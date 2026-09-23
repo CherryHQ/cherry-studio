@@ -41,6 +41,101 @@ describe('server-tool model eligibility', () => {
     expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
   })
 
+  // #20181: custom/third-party providers ship empty serverTools, so private models cannot opt into
+  // an already-implemented native search protocol without a model-level availability override.
+  it('honors an enabled web-search override on a custom provider when the endpoint is deliverable', () => {
+    const custom = model('private-model', {
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      serverToolOverrides: {
+        [SERVER_TOOL.WEB_SEARCH]: {
+          state: 'enabled',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        }
+      }
+    })
+    const customProvider = {
+      id: 'my-gateway',
+      serverTools: [],
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+    } as unknown as Provider
+
+    expect(isBuiltinWebSearchAvailable(custom, customProvider)).toBe(true)
+    expect(isBuiltinWebSearchAvailable(custom, customProvider, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(true)
+    expect(isBuiltinWebSearchAvailable(custom, customProvider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe(false)
+  })
+
+  it('does not route an override to a generic adapter without a native search factory', () => {
+    const custom = model('private-model', {
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      serverToolOverrides: {
+        [SERVER_TOOL.WEB_SEARCH]: { state: 'enabled', endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] }
+      }
+    })
+
+    expect(
+      isBuiltinWebSearchAvailable(custom, {
+        id: 'custom',
+        serverTools: [],
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://example.com' } }
+      })
+    ).toBe(false)
+    expect(
+      isBuiltinWebSearchAvailable(custom, {
+        id: 'third-party',
+        serverTools: [],
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+      })
+    ).toBe(true)
+
+    const responsesModel = model('private-model', {
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      serverToolOverrides: {
+        [SERVER_TOOL.WEB_SEARCH]: { state: 'enabled', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }
+      }
+    })
+    expect(isBuiltinWebSearchAvailable(responsesModel, { id: 'custom', serverTools: [] })).toBe(false)
+  })
+
+  it('ignores a stale override for an endpoint the model no longer supports', () => {
+    const custom = model('private-model', {
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      serverToolOverrides: {
+        [SERVER_TOOL.WEB_SEARCH]: { state: 'enabled', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }
+      }
+    })
+    const customProvider = {
+      id: 'third-party',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } },
+      serverTools: []
+    }
+
+    expect(isBuiltinWebSearchAvailable(custom, customProvider, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(false)
+  })
+
+  it('fails closed when an enabled override names a non-deliverable endpoint', () => {
+    const custom = model('private-model', {
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      serverToolOverrides: {
+        [SERVER_TOOL.WEB_SEARCH]: {
+          state: 'enabled',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        }
+      }
+    })
+
+    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
+  })
+
+  it('lets an explicit disable override suppress registry-provided web search', () => {
+    const claude = model('claude-sonnet-4-6', {
+      serverToolOverrides: { [SERVER_TOOL.WEB_SEARCH]: { state: 'disabled' } }
+    })
+
+    expect(isBuiltinWebSearchAvailable(claude, provider('all-chat-models'))).toBe(false)
+    expect(isBuiltinWebSearchAvailable(claude, provider('model-dependent'))).toBe(false)
+  })
+
   it.each(['deepseek-v3', 'deepseek-v3.2', 'deepseek-v4-flash', 'deepseek-v4-pro'])(
     'keeps Bailian-owned DeepSeek web-search eligibility for %s',
     (modelId) => {

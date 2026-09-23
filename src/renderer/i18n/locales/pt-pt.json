@@ -4717,6 +4717,7 @@
   "settings.models.add.quick_presets": "Predefinições rápidas",
   "settings.models.add.supported_text_delta.label": "Suportar saída de texto incremental",
   "settings.models.add.supported_text_delta.tooltip": "O modelo devolve o texto de forma incremental, em vez de o devolver todo de uma vez. Esta opção está ativada por predefinição; se o modelo não a suportar, desative-a.",
+  "settings.models.add.web_search.endpoint_required": "A pesquisa web integrada precisa de um endpoint Responses, Anthropic ou Gemini neste modelo.",
   "settings.models.api_key": "Chave API",
   "settings.models.base_url": "URL Base",
   "settings.models.bulk_disable": "Desativar todos",

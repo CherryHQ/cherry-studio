@@ -224,6 +224,36 @@ function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) 
   return provider.serverTools?.find((tool) => tool.id === id)
 }
 
+// Keep this aligned with the registered webSearch toolFactories and endpoint variant resolution.
+const WEB_SEARCH_DELIVERY_ADAPTER_FAMILIES: Partial<Record<EndpointType, readonly string[]>> = {
+  [ENDPOINT_TYPE.OPENAI_RESPONSES]: ['openai', 'azure', 'azure-responses', 'xai', 'xai-responses'],
+  [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: ['anthropic', 'azure-anthropic', 'google-vertex-anthropic', 'bedrock'],
+  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: ['google', 'google-vertex']
+}
+
+/** Whether this endpoint's actual runtime adapter can inject native search. */
+export function isWebSearchDeliveryEndpoint(
+  endpointType: EndpointType | undefined,
+  provider: Pick<Provider, 'endpointConfigs'>
+): boolean {
+  if (!endpointType) return false
+  const adapterFamily = provider.endpointConfigs?.[endpointType]?.adapterFamily
+  return (
+    adapterFamily !== undefined &&
+    (WEB_SEARCH_DELIVERY_ADAPTER_FAMILIES[endpointType]?.includes(adapterFamily) ?? false)
+  )
+}
+
+/** Deliverable web-search endpoints from a model/provider endpoint set. */
+export function getDeliverableWebSearchEndpointTypes(
+  endpointTypes: readonly EndpointType[] | undefined,
+  provider: Pick<Provider, 'endpointConfigs'>,
+  fallback?: EndpointType
+): EndpointType[] {
+  const candidates = endpointTypes?.length ? endpointTypes : fallback ? [fallback] : []
+  return candidates.filter((endpointType) => isWebSearchDeliveryEndpoint(endpointType, provider))
+}
+
 /** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
 function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): boolean {
   if (!tool.vendors?.length) return true
@@ -262,20 +292,34 @@ export function isServerToolModelEligible(
 /** Effective built-in web-search availability for one provider-model pair. */
 export function isBuiltinWebSearchAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
+  if (isNonChatModel(model)) return false
+
+  const override = model.serverToolOverrides?.[SERVER_TOOL.WEB_SEARCH]
+  const effectiveEndpoint = resolveServerToolEndpoint(model, provider, endpointType)
+
+  if (override?.state === 'disabled') {
+    return false
+  }
+
+  if (override?.state === 'enabled') {
+    return (
+      effectiveEndpoint !== undefined &&
+      override.endpointTypes.includes(effectiveEndpoint) &&
+      (!model.endpointTypes?.length || model.endpointTypes.includes(effectiveEndpoint)) &&
+      isWebSearchDeliveryEndpoint(effectiveEndpoint, provider)
+    )
+  }
+
   const tool = getServerTool(provider, SERVER_TOOL.WEB_SEARCH)
-  if (
-    !tool ||
-    !serverToolServesModelVendor(tool, model) ||
-    !serverToolServesEndpoint(tool, resolveServerToolEndpoint(model, provider, endpointType))
-  ) {
+  if (!tool || !serverToolServesModelVendor(tool, model) || !serverToolServesEndpoint(tool, effectiveEndpoint)) {
     return false
   }
 
   if (tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS) {
-    return !isNonChatModel(model)
+    return true
   }
 
   return isServerToolModelEligible(model, provider, SERVER_TOOL.WEB_SEARCH)
