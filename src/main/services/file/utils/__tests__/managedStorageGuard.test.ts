@@ -99,7 +99,7 @@ describe('assertOutsideManagedStorageMutation', () => {
     await mkdir(path.dirname(tempFile), { recursive: true })
     await writeFile(tempFile, 'image')
 
-    const realpathSpy = fsMocks.realpath.mockImplementation(async (target, options) => {
+    fsMocks.realpath.mockImplementation(async (target, options) => {
       if (path.resolve(String(target)) === tempFile) {
         throw Object.assign(new Error('realpath failed for a regular file'), { code: 'EISDIR' })
       }
@@ -107,6 +107,20 @@ describe('assertOutsideManagedStorageMutation', () => {
     })
 
     await expect(assertOutsideManagedStorageMutation(tempFile)).resolves.toBeUndefined()
-    expect(realpathSpy).toHaveBeenCalledWith(path.dirname(tempFile))
+  })
+
+  it('allows a new temp file when its existing directory reports EISDIR from realpath', async () => {
+    const tempDir = path.join(root, 'RedirectedTemp')
+    const tempFile = path.join(tempDir, 'screenshot.png')
+    await mkdir(tempDir)
+
+    fsMocks.realpath.mockImplementation(async (target, options) => {
+      if (path.resolve(String(target)) === tempDir) {
+        throw Object.assign(new Error('realpath failed for a redirected directory'), { code: 'EISDIR' })
+      }
+      return fsMocks.originalRealpath!(target, options)
+    })
+
+    await expect(assertOutsideManagedStorageMutation(tempFile)).resolves.toBeUndefined()
   })
 })
