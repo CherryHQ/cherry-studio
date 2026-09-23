@@ -875,7 +875,8 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.any(String),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md'
+        'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md',
+        { allowFolderMigration: false }
       )
     })
 
@@ -996,7 +997,7 @@ describe('SkillService', () => {
         expect(installSpy).toHaveBeenCalledWith(
           expect.stringContaining(`${path.sep}repo`),
           'marketplace',
-          `https://github.com/owner/repo/tree/${oid}`,
+          `https://github.com/owner/repo/blob/${oid}/SKILL.md`,
           { allowFolderMigration: true }
         )
       } finally {
@@ -2492,7 +2493,8 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(path.join('skills', 'demo')),
         'marketplace',
-        'https://skills.sh/owner/repo/demo'
+        'https://skills.sh/owner/repo/demo',
+        { allowFolderMigration: false }
       )
     })
 
@@ -2649,7 +2651,10 @@ describe('SkillService', () => {
         expect(installSkillDirSpy).toHaveBeenCalledWith(
           path.join(canonicalWorkDir, 'skills', 'demo'),
           'marketplace',
-          expect.any(String)
+          installSource.startsWith('skills.sh:')
+            ? 'https://skills.sh/owner/repo/demo'
+            : 'https://github.com/owner/repo/tree/main/skills/demo',
+          { allowFolderMigration: false }
         )
       }
     )
