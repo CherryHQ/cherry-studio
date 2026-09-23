@@ -13,6 +13,10 @@
 @source '../../../../node_modules/@streamdown/mermaid/dist/*.js';
 @custom-variant dark (&:is(.dark *));
 
+/* v4 gates `hover:`/`group-hover:` behind @media (hover: hover), which never
+   matches on hover:none devices and strands hover-revealed controls hidden. */
+@custom-variant hover (&:hover);
+
 /*
  * Application-side Tailwind bridge for @cherrystudio/ui.
  *
