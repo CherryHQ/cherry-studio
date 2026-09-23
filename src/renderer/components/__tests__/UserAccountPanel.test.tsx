@@ -93,7 +93,7 @@ describe('UserAccountPanel', () => {
 
     expect(request).toHaveBeenCalledWith(
       'system.shell.open_external_website',
-      'https://accounts-dev.cherryai.com/account/plans'
+      'https://cloud-dev.cherryai.com/account/plans'
     )
   })
 
@@ -124,7 +124,7 @@ describe('UserAccountPanel', () => {
 
     expect(request).toHaveBeenCalledWith(
       'system.shell.open_external_website',
-      'https://accounts-dev.cherryai.com/account/plans'
+      'https://cloud-dev.cherryai.com/account/plans'
     )
   })
 
