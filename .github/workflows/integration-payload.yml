@@ -22,24 +22,45 @@ on:
         description: Optional comma-separated tools to rebuild over reuse_native_run
         required: false
         type: string
+      native_platforms:
+        description: Optional comma-separated platforms to rebuild over reuse_native_run
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
+  native-matrix:
+    if: (inputs.reuse_native_run == '' || inputs.native_tools != '') && !inputs.images_only
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - id: select
+        env:
+          PLATFORMS: ${{ inputs.native_platforms }}
+        run: |
+          node <<'NODE'
+          const targets = [
+            { runner: 'windows-2025', platform: 'win32-x64', target: 'x86_64-pc-windows-msvc' },
+            { runner: 'windows-11-arm', platform: 'win32-arm64', target: 'aarch64-pc-windows-msvc' },
+            { runner: 'macos-15-intel', platform: 'darwin-x64', target: 'x86_64-apple-darwin' },
+            { runner: 'macos-15', platform: 'darwin-arm64', target: 'aarch64-apple-darwin' },
+            { runner: 'ubuntu-24.04', platform: 'linux-x64', target: 'x86_64-unknown-linux-gnu' },
+            { runner: 'ubuntu-24.04-arm', platform: 'linux-arm64', target: 'aarch64-unknown-linux-gnu' }
+          ];
+          const requested = process.env.PLATFORMS ? process.env.PLATFORMS.split(',').map(value => value.trim()) : targets.map(value => value.platform);
+          if (requested.some(platform => !targets.some(value => value.platform === platform))) throw new Error('Unknown native platform');
+          require('fs').appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({include: targets.filter(value => requested.includes(value.platform))})}\n`);
+          NODE
   native:
+    needs: native-matrix
     if: (inputs.reuse_native_run == '' || inputs.native_tools != '') && !inputs.images_only
     name: Native tools (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { runner: windows-2025, platform: win32-x64, target: x86_64-pc-windows-msvc }
-          - { runner: windows-11-arm, platform: win32-arm64, target: aarch64-pc-windows-msvc }
-          - { runner: macos-15-intel, platform: darwin-x64, target: x86_64-apple-darwin }
-          - { runner: macos-15, platform: darwin-arm64, target: aarch64-apple-darwin }
-          - { runner: ubuntu-24.04, platform: linux-x64, target: x86_64-unknown-linux-gnu }
-          - { runner: ubuntu-24.04-arm, platform: linux-arm64, target: aarch64-unknown-linux-gnu }
+      matrix: ${{ fromJSON(needs.native-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
