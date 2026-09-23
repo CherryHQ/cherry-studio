@@ -124,7 +124,7 @@ describe('UserAccountPanel', () => {
 
     await user.click(await screen.findByRole('button', { name: /API Plan 2026.*查看用量/ }))
 
-    expect(request).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/subscription' })
+    expect(request).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
     expect(request).not.toHaveBeenCalledWith(
       'system.shell.open_external_website',
       'https://cloud-dev.cherryai.com/account/plans'
