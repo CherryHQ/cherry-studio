@@ -53,7 +53,7 @@ async function main() {
   for (const [name, recipe] of Object.entries(pins.tools)) {
     const source = checkout(recipe.source)
     const cwd = path.join(source, recipe.directory || '')
-    const env = name === 'compass' ? { TSLP_PARSER_SOURCE_DIR: await parserSources(), TSLP_OFFLINE: '1' } : {}
+    const env = name === 'compass' ? { PROJECT_ROOT: await parserSources(), TSLP_OFFLINE: '1' } : {}
     run('cargo', ['build', '--release', '--locked', '-p', recipe.package, '--bin', name, '--target', target, ...(recipe.features ? ['--features', recipe.features] : [])], cwd, env)
     const binary = name + (process.platform === 'win32' ? '.exe' : '')
     const asset = `${name}-${platform}${process.platform === 'win32' ? '.exe' : ''}`

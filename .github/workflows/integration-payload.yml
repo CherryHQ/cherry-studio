@@ -6,6 +6,10 @@ on:
         description: Unique immutable boss-tools-* release tag
         required: true
         type: string
+      reuse_image_run:
+        description: Optional payload run whose completed service images should be reused
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
@@ -59,6 +63,7 @@ jobs:
           retention-days: 30
 
   images:
+    if: inputs.reuse_image_run == ''
     name: Image (${{ matrix.service }}, ${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
@@ -114,6 +119,7 @@ jobs:
           path: ${{ matrix.service }}-${{ matrix.arch }}.json
 
   image-manifests:
+    if: inputs.reuse_image_run == ''
     needs: images
     runs-on: ubuntu-24.04
     permissions:
@@ -146,9 +152,11 @@ jobs:
 
   publish:
     needs: [native, image-manifests]
+    if: always() && needs.native.result == 'success' && (needs.image-manifests.result == 'success' || inputs.reuse_image_run != '')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -158,6 +166,13 @@ jobs:
         with:
           path: build/integration-output
           merge-multiple: true
+      - uses: actions/download-artifact@v6
+        if: inputs.reuse_image_run != ''
+        with:
+          name: service-image-manifests
+          run-id: ${{ inputs.reuse_image_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: build/integration-output
       - name: Publish complete payload and checksum manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
