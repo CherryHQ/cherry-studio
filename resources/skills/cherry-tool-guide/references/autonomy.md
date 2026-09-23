@@ -24,8 +24,18 @@ Actions:
 - **`add`** — a recurring or one-time job. A job needs **exactly one trigger shape**
   (recurring expression, interval, or a single future timestamp) — consult the schema
   for which fields express that.
-- **`list`** — existing jobs.
+- **`update`** — edit an existing job by ID. Supply only changed fields; omitted fields
+  keep their values. Use this to edit prompts instead of removing and re-creating jobs.
+- **`list`** — existing jobs owned by the current Agent.
 - **`remove`** — delete a job.
+
+`reuse_session` on `add` / `update` controls whether executions continue in the same
+session. It defaults to false on add; omission on update preserves the setting.
+For delivery, omitting `channel_ids` on update preserves recipients; `[]` clears them.
+
+Names are unique across all Agents, including disabled jobs. If a name conflict is
+not visible in `list`, choose a different name or inspect Settings > Scheduled Tasks.
+Use `update` with an owned job ID when editing an existing task.
 
 Jobs can deliver their results to channels (see notify/config below), so scheduling a
 report that lands in Telegram is a single `cron` job, not a hand-rolled OS cron entry
