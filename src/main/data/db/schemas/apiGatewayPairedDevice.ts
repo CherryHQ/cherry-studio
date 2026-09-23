@@ -9,6 +9,7 @@ export const apiGatewayPairedDeviceTable = sqliteTable(
     id: uuidPrimaryKey(),
     name: text().notNull(),
     platform: text().notNull(),
+    // Pre-Noise device rows survive migration without an identity or remote grants.
     peerIdentity: text(),
     configurationGrantId: text(),
     agentGrantId: text(),

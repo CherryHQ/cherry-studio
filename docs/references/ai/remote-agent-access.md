@@ -213,7 +213,8 @@ Transport error and stored command outcome must remain distinguishable.
 
 Unknown required semantics fail instead of being silently ignored. Methods and
 event kinds belong to the selected complete protocol version; do not emit a newer
-version's semantics on an older connection. There are no v1 capability flags.
+version's semantics on an older connection. The implemented failure extension is
+advertised separately as `agentFailureVersion: 1`; clients gate Agent failure recovery on it.
 
 All IDs are opaque strings. Sequences, revisions, byte offsets and byte lengths
 are canonical unsigned decimal strings, compared numerically, never as JS numbers
@@ -225,10 +226,10 @@ to query filters; clients never decode them. Digests use lowercase hex SHA-256.
 
 | Method | Params | Result | Allowed state |
 |---|---|---|---|
-| `connection.hello` | `{ protocolVersions: [1] }` | `{ protocolVersion: 1, limits, heartbeatMs }` | After handshake, once |
-| `pairing.claim` | `{ invitationId, invitationSecret, deviceName, domain: 'agent' }` | `{ claimId, verificationCode, expiresAt }` | Negotiated, not authenticated |
-| `pairing.get` | `{ claimId }` | `{ status: 'pending' \| 'rejected' \| 'expired' }` or `{ status: 'approved', authorization, accessToken, expiresAt }` | Same proven device key as claim |
-| `connection.authenticate` | `{ grantId, accessToken? }` | `{ deviceId, authorization, accessToken, expiresAt }` | Negotiated; proven device key must own current device authorization |
+| `connection.hello` | `{ protocolVersions: [1] }` | `{ protocolVersion: 1, agentFailureVersion: 1, limits, heartbeatMs }` | After handshake, once |
+| `pairing.claim` | `{ invitationId, invitationSecret, deviceName, platform, capabilities }` | `{ claimId, verificationCode, expiresAt }` | Negotiated, not authenticated |
+| `pairing.get` | `{ claimId }` | `{ status: 'pending' \| 'rejected' \| 'expired' }` or `{ status: 'approved', deviceId, authorization, accessToken, expiresAt }` | Same proven device key as claim |
+| `connection.authenticate` | `{ deviceId, accessToken? }` | `{ deviceId, authorization, accessToken, expiresAt }` | Negotiated; proven device key must own current device authorization |
 | `connection.refresh` | `{}` | `{ accessToken, authorization, expiresAt }` | Same authenticated device and enabled authorization |
 | `connection.ping` | `{ nonce }` | `{ nonce, serverTime }` | Negotiated |
 
@@ -237,9 +238,10 @@ to query filters; clients never decode them. Digests use lowercase hex SHA-256.
 `protocolVersions` is a bounded, nonempty list of supported positive integer
 versions. The hello table shows the only initial value, `[1]`. Each advertised
 version means the **complete** contract: v1 includes incremental events, replay /
-checkpoint recovery, ACK and command receipts. There is no `capabilities` field,
-per-domain version matrix, partial-v1 mode or snapshot-polling fallback. Limits are
-server-advertised resource budgets checked against the client's hard bounds, not
+checkpoint recovery, ACK and command receipts. Pairing requests explicit `capabilities`
+(`agent` and/or `configuration`) and grants are independent. `agentFailureVersion: 1` is required for the implemented Agent failure
+contract; it does not gate configuration transfer. There is no snapshot-polling fallback.
+Limits are server-advertised resource budgets checked against the client's hard bounds, not
 optional feature switches.
 
 The desktop selects the highest common explicitly supported version and the client
@@ -395,7 +397,7 @@ including concurrency preconditions, is part of its idempotency identity.
 | `agent.workspaces.list` | `{ agentId, ...PageParams }` | `Page<WorkspaceSummary>` |
 | `agent.sessions.list` | `{ agentId?, workspaceId?, ...PageParams }` | `Page<SessionSummary>` |
 | `agent.sessions.get` | `{ sessionId }` | `{ session: SessionSummary }` |
-| `agent.sessions.create` | `{ commandId, agentId, workspaceId, title? }` | `CommandReceipt` |
+| `agent.sessions.create` | `{ commandId, agentId, workspace, title? }`; legacy `workspaceId` also accepted | `CommandReceipt` |
 | `agent.messages.list` | `{ sessionId, historyRevision, ...PageParams }` | `Page<Message>` |
 | `agent.parts.list` | `{ sessionId, messageId, messageRevision, ...PageParams }` | `Page<Part>` |
 | `agent.content.read` | `{ sessionId, contentId, revision, offset, maxBytes }` | `{ contentId, revision, offset, dataBase64, nextOffset, eof, sha256 }` |
@@ -403,8 +405,13 @@ including concurrency preconditions, is part of its idempotency identity.
 | `agent.executions.cancel` | `{ commandId, sessionId, expectedExecutionId }` | `CommandReceipt` |
 | `agent.interactions.list` | `{ sessionId, ...PageParams }` | `Page<Interaction>` |
 | `agent.interactions.get` | `{ sessionId, interactionId }` | `{ interaction: Interaction }` |
-| `agent.interactions.respond` | `{ commandId, sessionId, interactionId, expectedRevision, expectedExecutionId, inputDigest, decision: 'approve' \| 'deny' }` | `CommandReceipt` |
+| `agent.interactions.respond` | `{ commandId, sessionId, interactionId, expectedRevision, expectedExecutionId, inputDigest, response }`; legacy `decision` also accepted | `CommandReceipt` |
 | `agent.commands.get` | `{ commandId }` | `CommandReceipt` |
+
+`workspace` is `{ kind: 'system' }` or `{ kind: 'registered', id }`. `response` is
+`{ kind: 'approve' }`, `{ kind: 'deny', reason? }`, or `{ kind: 'answer', answers }`,
+where `answers` maps each question text to its answer. A request chooses exactly one
+modern or legacy form, never both.
 
 `agent.commands.get` only returns receipts for the authenticated device and current
 authorization generation, even though the device can view all exposed sessions.
@@ -640,12 +647,12 @@ type CommandReceipt = {
 }
 ```
 
-The package's method map narrows `result` for each mutation: session creation
+Receipt `result` is JSON with operation-specific contents: session creation
 returns its session ID, send its admitted message/execution IDs, cancel its target
 execution ID and disposition, and approval its canonical interaction decision.
-`accepted` means durable admission/reservation, `applied` means the owning operation
-was applied, not that an Agent run completed. A terminal rejection carries a stable
-error. `interrupted` means the desktop cannot safely establish whether an external
+`accepted` means durable command intake, `applied` means the owning operation
+was applied, not that an Agent run completed. The intake/reservation distinction is
+described below. A terminal rejection carries a stable error. `interrupted` means the desktop cannot safely establish whether an external
 side effect finished and will not automatically rerun it.
 
 The client persists a random `commandId` and exact method/body before sending.
@@ -654,14 +661,20 @@ command ID and stores a canonical body identity excluding transport `id` and bus
 and every execution/precondition field are included. Same ID and same body returns
 the existing receipt; changed body returns `IDEMPOTENCY_CONFLICT`.
 
-Admission and durable queued work/session reservation commit atomically before
-runtime activation or any successful response. Authentication and current device authorization
-are checked even on a duplicate. Record admission precondition failures as terminal
-receipts too; retrying an old rejected command after the session becomes idle must
-not start it. Malformed/unauthenticated traffic does not create receipts. On restart,
-work proven never activated can resume; uncertain activation becomes `interrupted`,
-not blind replay. Execution owners must expose the reservation/admission seam;
-network code cannot obtain this guarantee by wrapping an in-memory call.
+Session creation commits the created session and terminal receipt in one SQLite transaction.
+A send first records a durable deduplication receipt, then validates under the owning
+session dispatch lock. The owner's message-reservation transaction commits the user and
+assistant rows together with the receipt's `executionId` and result `{ executionId,
+messageId, userMessageId }`, before runtime activation. A rolled-back reservation leaves
+neither messages nor result identities. An `accepted` intake alone does not prove that
+work was reserved or activated.
+
+Authentication and current authorization are checked even on duplicates. Precondition
+failures settle as terminal receipts. On restart, outstanding receipts become `interrupted`
+and retain any committed reservation identities; clients can reconcile the persisted messages.
+Cancel and approval can cross runtime/external boundaries and cannot be committed in a
+SQLite transaction. Uncertain outcomes are not automatically replayed. This implementation
+does not promise automatic resumption of unactivated work or exactly-once external effects.
 
 After a timeout, call `agent.commands.get` or retry the same ID/body. `NOT_FOUND`
 is not a reason to mint another ID: retry the original ID, since admission might
@@ -820,7 +833,7 @@ boundary rules are defined in the [architecture proposal](../api-gateway/remote-
 ```text
 phone persists { commandId: c1, sessionId: s1, text, expectedIdleRevision: r7 }
 phone → agent.messages.send (JSON-RPC id q1, commandId c1)
-desktop atomically admits c1 and reserves execution e1
+desktop records c1, then atomically persists its message reservation and execution e1 linkage
 connection drops before the receipt reaches the phone
 
 phone reconnects, negotiates, authenticates the same device/authorization generation

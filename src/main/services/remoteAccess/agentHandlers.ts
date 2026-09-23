@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import type { RemoteFailure } from '@cherrystudio/remote-protocol'
 import {
@@ -13,6 +15,7 @@ import {
 } from '@cherrystudio/remote-protocol/agent'
 import { RemoteRpcError, type RemoteRpcServer } from '@cherrystudio/remote-transport'
 import { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { remoteCommandService, type RemoteCommandOutcome } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
@@ -21,7 +24,7 @@ import { toExecutionFailure } from '@shared/ai/executionFailure'
 
 import type { RemoteAgentHub } from './agentJournal'
 import {
-  createSession,
+  createSessionTx,
   getSession,
   listAgents,
   listMessages,
@@ -29,6 +32,7 @@ import {
   listPersistedInteractions,
   listSessions,
   listWorkspaces,
+  pageOf,
   readPersistedContent,
   sha256,
   sliceContent,
@@ -66,10 +70,23 @@ export function registerAgentMethods(
     return summary
   }
 
-  const interactionsOf = (sessionId: string): AgentInteraction[] => [
-    ...hub.journal(sessionId).interactions(),
-    ...listPersistedInteractions(sessionId)
-  ]
+  const interactionsOf = (sessionId: string): AgentInteraction[] => {
+    const journal = hub.journal(sessionId)
+    const interactions = new Map(journal.interactions().map((item) => [item.interactionId, item]))
+    const seen = new Set<string>()
+    for (const item of listPersistedInteractions(sessionId)) {
+      if (seen.has(item.interactionId)) continue
+      seen.add(item.interactionId)
+      const live = interactions.get(item.interactionId)
+      if (
+        !live ||
+        live.executionId !== journal.activeExecutionId ||
+        (live.status === 'pending' && item.status !== 'pending')
+      )
+        interactions.set(item.interactionId, item)
+    }
+    return [...interactions.values()]
+  }
 
   /** Same device + grant + commandId with the same body returns the recorded receipt; the owner runs at most once. */
   const command = async <M extends AgentMutation>(
@@ -119,12 +136,33 @@ export function registerAgentMethods(
     }
   })
   on('agent.sessions.get', ({ sessionId }) => ({ session: summaryOf(sessionId) }))
-  on('agent.sessions.create', (params, auth) =>
-    command(auth, 'agent.sessions.create', params, undefined, async () => {
-      const session = createSession(params)
-      return { status: 'applied', sessionId: session.id, result: { sessionId: session.id } }
-    })
-  )
+  on('agent.sessions.create', (params, auth) => {
+    const method = 'agent.sessions.create'
+    let admission
+    try {
+      admission = remoteCommandService.apply(
+        { ...auth, commandId: params.commandId },
+        {
+          method,
+          identityDigest: sha256(encodeAgentCommand(method, params))
+        },
+        (tx) => {
+          const sessionId = randomUUID()
+          createSessionTx(tx, sessionId, params)
+          return { status: 'applied', sessionId, result: { sessionId } }
+        }
+      )
+    } catch (error) {
+      return command(auth, method, params, undefined, async () => {
+        throw error
+      })
+    }
+    if (admission.kind === 'conflict')
+      throw new RemoteRpcError('IDEMPOTENCY_CONFLICT', 'Command body differs from the recorded command')
+    if (admission.kind === 'accepted' && admission.receipt.sessionId)
+      agentSessionService.notifyReadModelChange([admission.receipt.sessionId], 'membership')
+    return admission.receipt
+  })
   on('agent.messages.list', ({ sessionId, historyRevision, cursor, limit }) =>
     listMessages(sessionId, historyRevision, cursor, limit)
   )
@@ -148,7 +186,11 @@ export function registerAgentMethods(
           status: 'rejected',
           error: { reason: 'CONFLICT', message: 'Session is not idle at the expected revision' }
         }
-      const started = await hub.journal(params.sessionId).startRun(params.text, summary.agentId)
+      const started = await hub
+        .journal(params.sessionId)
+        .startRun(params.text, summary.agentId, (tx, reservation) =>
+          remoteCommandService.reserveExecutionTx(tx, { ...auth, commandId: params.commandId }, reservation)
+        )
       if (!started.started)
         return {
           status: 'rejected',
@@ -157,7 +199,7 @@ export function registerAgentMethods(
               ? { reason: 'CONFLICT', message: 'Session is busy' }
               : { reason: 'NOT_FOUND', message: 'Session is not available' }
         }
-      return { status: 'applied', executionId: started.executionId, result: { executionId: started.executionId } }
+      return { status: 'applied', executionId: started.executionId }
     })
   })
   on('agent.executions.cancel', (params, auth) => {
@@ -177,10 +219,7 @@ export function registerAgentMethods(
   })
   on('agent.interactions.list', ({ sessionId, cursor, limit }) => {
     getSession(sessionId)
-    const items = interactionsOf(sessionId)
-    const start = cursor === undefined ? 0 : Number(cursor)
-    const end = start + (limit ?? 20)
-    return { items: items.slice(start, end), nextCursor: end < items.length ? String(end) : null }
+    return pageOf(interactionsOf(sessionId), cursor, limit)
   })
   on('agent.interactions.get', ({ sessionId, interactionId }) => {
     getSession(sessionId)

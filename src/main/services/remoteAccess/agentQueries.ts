@@ -12,6 +12,7 @@ import type {
   ContentRef
 } from '@cherrystudio/remote-protocol/agent'
 import { RemoteRpcError } from '@cherrystudio/remote-transport'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -61,7 +62,7 @@ export function sliceContent(
   maxBytes: number
 ): { offset: string; dataBase64: string; nextOffset: string; eof: boolean; sha256: string } {
   const start = Number(offset)
-  if (!Number.isSafeInteger(start) || start > bytes.length)
+  if (!Number.isSafeInteger(start) || start < 0 || start > bytes.length)
     throw new RemoteRpcError('NOT_FOUND', 'Offset exceeds content length')
   const slice = bytes.subarray(start, start + maxBytes)
   return {
@@ -269,13 +270,13 @@ export function interactionKind(toolName: string | undefined): 'decision' | 'que
 
 /** Approval cards persisted after a turn ended; their anchor message stands in as the execution. */
 export function listPersistedInteractions(sessionId: string): AgentInteraction[] {
-  const page = notFound(() => agentSessionMessageService.listSessionMessages(sessionId, { limit: 50 }))
+  const messages = notFound(() => agentSessionMessageService.listApprovalMessages(sessionId))
   const interactions: AgentInteraction[] = []
-  for (const message of page.items) {
+  for (const message of messages) {
     for (const part of message.data.parts ?? []) {
       if (!isToolUIPart(part)) continue
       const approval = (part as { approval?: { id?: string; approved?: boolean } }).approval
-      if (!approval?.id || (part.state !== 'approval-requested' && part.state !== 'approval-responded')) continue
+      if (!approval?.id) continue
       const input = JSON.stringify(part.input ?? null)
       const partId = `${message.id}:approval:${approval.id}`
       interactions.push({
@@ -284,7 +285,14 @@ export function listPersistedInteractions(sessionId: string): AgentInteraction[]
         revision: revisionOf(message.updatedAt),
         executionId: message.id,
         toolCallId: part.toolCallId,
-        status: part.state === 'approval-requested' ? 'pending' : approval.approved ? 'approved' : 'denied',
+        status:
+          approval.approved === true
+            ? 'approved'
+            : approval.approved === false
+              ? 'denied'
+              : part.state === 'approval-requested'
+                ? 'pending'
+                : 'expired',
         summary: `${getToolName(part)} ${input}`.slice(0, 2048),
         inputDigest: inputDigest(part.input),
         input: contentOf(partId, revisionOf(message.updatedAt), input)
@@ -329,19 +337,20 @@ export function listSessions(query: { agentId?: string; workspaceId?: string; cu
   const page = notFound(() =>
     agentSessionService.listByCursor({
       agentId: query.agentId,
+      workspaceId: query.workspaceId,
       cursor: query.cursor,
       limit: query.limit ?? DEFAULT_PAGE
     })
   )
   return {
-    items: page.items.filter((session) => !query.workspaceId || session.workspaceId === query.workspaceId),
+    items: page.items,
     nextCursor: page.nextCursor ?? null
   }
 }
 
-export function createSession(input: AgentParams<'agent.sessions.create'>): AgentSessionEntity {
-  return notFound(() =>
-    agentSessionService.create({
+export function createSessionTx(tx: DbOrTx, sessionId: string, input: AgentParams<'agent.sessions.create'>): void {
+  notFound(() =>
+    agentSessionService.createTx(tx, sessionId, {
       agentId: input.agentId,
       name: input.title ?? '',
       workspace:

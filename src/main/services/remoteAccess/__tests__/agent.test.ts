@@ -6,6 +6,7 @@ import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import {
   type AgentCheckpointPage,
   type AgentEventBatch,
@@ -15,22 +16,26 @@ import {
 } from '@cherrystudio/remote-protocol/agent'
 import type { SecureChannel } from '@cherrystudio/remote-transport'
 import { agentTable } from '@data/db/schemas/agent'
+import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import type { DbOrTx } from '@data/db/types'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
+import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
 import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { StreamErrorResult } from '@main/ai/streamManager'
+import { AgentChatContextProvider } from '@main/ai/streamManager/context/AgentChatContextProvider'
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { RemoteAgentHub } from '../agentJournal'
-import { sha256, toMessageModel } from '../agentQueries'
+import { sha256, sliceContent, toMessageModel } from '../agentQueries'
 import { RemoteConnection } from '../RemoteConnection'
 import { RemotePairing } from '../RemotePairing'
 import { RemoteTokens } from '../RemoteTokens'
@@ -50,7 +55,7 @@ const fake = vi.hoisted(() => {
       },
       abortAndDrain: vi.fn(async () => {})
     },
-    runtime: { isSessionBusy: () => false, respondToolApproval: vi.fn(() => true) }
+    runtime: { assertSessionWritable() {}, isSessionBusy: () => false, respondToolApproval: vi.fn(() => true) }
   }
 })
 
@@ -61,12 +66,22 @@ vi.mock('@application', async () => {
 
 vi.mock('@main/ai/streamManager', () => ({
   startAgentSessionRun: vi.fn(
-    async (input: { sessionId: string; userParts: CherryMessagePart[]; listeners: StreamListener[] }) => {
+    async (input: {
+      sessionId: string
+      userParts: CherryMessagePart[]
+      listeners: StreamListener[]
+      onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
+    }) => {
       const topicId = `agent-session:${input.sessionId}`
       if (fake.streams.has(topicId)) return { mode: 'not-started', reason: 'busy' }
-      agentSessionMessageService.saveMessage({
-        sessionId: input.sessionId,
-        message: { role: 'user', data: { parts: input.userParts } }
+      const { application } = await import('@application')
+      application.get('DbService').withWriteTx((tx) => {
+        const userMessageId = randomUUID()
+        agentSessionMessageService.saveMessagesTx(tx, {
+          sessionId: input.sessionId,
+          messages: [{ id: userMessageId, role: 'user', data: { parts: input.userParts } }]
+        })
+        input.onPersist?.(tx, { assistantMessageId: randomUUID(), userMessageId })
       })
       fake.streams.set(topicId, [...input.listeners])
       await fake.onStarted?.(input.listeners)
@@ -544,6 +559,236 @@ describe('remote agent access', () => {
     ).rejects.toMatchObject({ data: { reason: 'IDEMPOTENCY_CONFLICT' } })
   })
 
+  it('rejects negative content offsets before dispatch and in direct helper calls', async () => {
+    await expect(
+      call('agent.content.read', { sessionId, contentId: 'content', revision: '0', offset: '-1', maxBytes: 1 })
+    ).rejects.toMatchObject({ code: -32602 })
+    expect(() => sliceContent(new Uint8Array([1, 2, 3]), '-1', 1)).toThrow()
+  })
+
+  it.each(['-1', 'NaN', 'Infinity', '1e309', '1.5'])(
+    'rejects invalid interaction cursor %s at the RPC boundary',
+    async (cursor) => {
+      await expect(call('agent.interactions.list', { sessionId, cursor })).rejects.toMatchObject({
+        data: { reason: 'NOT_FOUND' }
+      })
+    }
+  )
+
+  it('finds approval history beyond the newest fifty messages and pages every interaction once', async () => {
+    const expected: string[] = []
+    for (let i = 0; i < 61; i++) {
+      expected.push(`approval-${i}`)
+      agentSessionMessageService.saveMessage({
+        sessionId,
+        message: {
+          role: 'assistant',
+          data: {
+            parts: [
+              {
+                type: 'tool-read',
+                toolCallId: `call-${i}`,
+                state: 'approval-responded',
+                input: { path: `${i}.txt` },
+                approval: { id: `approval-${i}`, approved: true }
+              }
+            ]
+          }
+        }
+      })
+    }
+    for (let i = 0; i < 55; i++)
+      agentSessionMessageService.saveMessage({
+        sessionId,
+        message: { role: 'user', data: { parts: [{ type: 'text', text: 'later' }] } }
+      })
+    const found: string[] = []
+    let cursor: string | undefined
+    do {
+      const page = await call('agent.interactions.list', { sessionId, limit: 17, ...(cursor ? { cursor } : {}) })
+      found.push(...page.items.map((item: { interactionId: string }) => item.interactionId))
+      cursor = page.nextCursor ?? undefined
+      expect(found.length).toBeLessThanOrEqual(61)
+    } while (cursor)
+    expect(found.sort()).toEqual(expected.sort())
+    expect(
+      (await call('agent.interactions.get', { sessionId, interactionId: 'approval-0' })).interaction.input
+    ).toEqual({ text: '{"path":"0.txt"}' })
+  })
+
+  it('filters workspaces before both pinned and unpinned session pagination', async () => {
+    const other = application
+      .get('DbService')
+      .withWriteTx((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, '/tmp/remote-agent-other'))
+    const wanted: string[] = []
+    for (let i = 0; i < 4; i++) {
+      const id = agentSessionService.create({
+        agentId: 'agent-1',
+        name: `Other ${i}`,
+        workspace: { type: 'user', workspaceId: other.id }
+      }).id
+      wanted.push(id)
+    }
+    dbh.db
+      .insert(pinTable)
+      .values([
+        { entityType: 'session', entityId: sessionId, orderKey: 'a0' },
+        { entityType: 'session', entityId: wanted[0], orderKey: 'a1' }
+      ])
+      .run()
+    const first = await call('agent.sessions.list', { workspaceId: other.id, limit: 2 })
+    expect(first.items).toHaveLength(2)
+    expect(first.items[0].sessionId).toBe(wanted[0])
+    const second = await call('agent.sessions.list', { workspaceId: other.id, limit: 2, cursor: first.nextCursor })
+    expect([...first.items, ...second.items].map((item: { sessionId: string }) => item.sessionId).sort()).toEqual(
+      wanted.sort()
+    )
+    expect(second.nextCursor).toBeNull()
+  })
+
+  it('rolls back a created session when its receipt cannot commit', async () => {
+    const before = agentSessionService.listByCursor().items.map((session) => session.id)
+    const settle = vi.spyOn(remoteCommandService, 'settle').mockImplementationOnce(() => {
+      throw new Error('Disk failure')
+    })
+    try {
+      const receipt = await call('agent.sessions.create', {
+        commandId: randomUUID(),
+        agentId: 'agent-1',
+        workspace: { kind: 'system' }
+      })
+      expect(receipt.status).toBe('interrupted')
+      expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual(before)
+    } finally {
+      settle.mockRestore()
+    }
+  })
+
+  it('preserves committed message identities when activation is interrupted and never retries the send', async () => {
+    fake.onStarted = async () => {
+      throw new Error('Activation interrupted')
+    }
+    const { session } = await call('agent.sessions.get', { sessionId })
+    const params = { commandId: randomUUID(), sessionId, text: 'once', expectedIdleRevision: session.idleRevision }
+    const receipt = await call('agent.messages.send', params)
+    expect(receipt).toMatchObject({
+      status: 'interrupted',
+      executionId: expect.any(String),
+      result: { executionId: expect.any(String), messageId: expect.any(String), userMessageId: expect.any(String) }
+    })
+    expect(agentSessionMessageService.getSessionMessage(sessionId, receipt.result.userMessageId).data.parts).toEqual([
+      { type: 'text', text: 'once' }
+    ])
+    expect(await call('agent.messages.send', params)).toEqual(receipt)
+    expect(agentSessionMessageService.listSessionMessages(sessionId).items).toHaveLength(1)
+  })
+
+  it.each([false, true])(
+    'commits receipt reservation and messages together before activation (abort=%s)',
+    async (abort) => {
+      seedModel('reservation-provider', 'model', 'Model')
+      const device = apiGatewayPairedDeviceService.approveRemote({
+        name: 'Test',
+        platform: 'ios',
+        peerIdentity: 'reservation',
+        capabilities: ['agent']
+      })
+      const key = {
+        deviceId: device.device.id,
+        grantId: device.authorization.grants[0].grantId,
+        commandId: randomUUID()
+      }
+      remoteCommandService.admit(key, { method: 'agent.messages.send', identityDigest: 'digest', sessionId })
+      const provider = new AgentChatContextProvider()
+      const userMessageId = randomUUID()
+      vi.spyOn(provider, 'validateDispatch').mockResolvedValue({
+        sessionId,
+        topicId: `agent-session:${sessionId}`,
+        agentId: 'agent-1',
+        agentUpdatedAt: new Date().toISOString(),
+        agentType: 'claude-code',
+        agentName: 'Agent',
+        uniqueModelId: 'reservation-provider::model',
+        reasoningEffort: 'default',
+        serviceTier: 'standard',
+        headless: false,
+        messageSnapshot: {
+          id: 'agent-1',
+          name: 'Agent',
+          model: { id: 'model', name: 'Model', provider: 'reservation-provider' }
+        },
+        userMessageId,
+        userMessageParts: [{ type: 'text', text: 'reserved' }],
+        shouldAutoNameInitialTurn: false
+      })
+      let activated = false
+      vi.spyOn(provider, 'activateDispatch').mockImplementation(() => {
+        activated = true
+        const receipt = remoteCommandService.get(key)!
+        expect(receipt).toMatchObject({ status: 'accepted', executionId: 'execution', result: { userMessageId } })
+        const reservation = receipt.result as { messageId: string }
+        expect(agentSessionMessageService.getSessionMessage(sessionId, reservation.messageId).status).toBe('pending')
+        throw new Error('Stopped before external execution')
+      })
+      const subscriber: StreamListener = {
+        id: 'test',
+        onChunk() {},
+        onDone() {},
+        onPaused() {},
+        onError() {},
+        isAlive: () => true
+      }
+      await expect(
+        provider.prepareAgentSessionDispatch(
+          subscriber,
+          {
+            topicId: `agent-session:${sessionId}`,
+            trigger: 'submit-message',
+            userMessageParts: [{ type: 'text', text: 'reserved' }]
+          },
+          {},
+          { hasLiveStream: false, requireIdle: true, expectedAgentId: 'agent-1' },
+          (tx, messages) => {
+            remoteCommandService.reserveExecutionTx(tx, key, {
+              executionId: 'execution',
+              messageId: messages.assistantMessageId,
+              userMessageId: messages.userMessageId
+            })
+            if (abort) throw new Error('Abort reservation transaction')
+          }
+        )
+      ).rejects.toThrow(abort ? 'Abort reservation transaction' : 'Stopped before external execution')
+      expect(activated).toBe(!abort)
+      expect(agentSessionMessageService.listSessionMessages(sessionId).items).toHaveLength(abort ? 0 : 2)
+      if (abort) expect(remoteCommandService.get(key)?.executionId).toBeUndefined()
+      remoteCommandService.interruptPending()
+      expect(remoteCommandService.get(key)?.status).toBe('interrupted')
+      if (!abort)
+        expect(remoteCommandService.get(key)).toMatchObject({ executionId: 'execution', result: { userMessageId } })
+    }
+  )
+
+  it('retains terminal live interaction input when history has no approval metadata', async () => {
+    const { session } = await call('agent.sessions.get', { sessionId })
+    await call('agent.messages.send', {
+      commandId: randomUUID(),
+      sessionId,
+      text: 'read',
+      expectedIdleRevision: session.idleRevision
+    })
+    const messageId = randomUUID()
+    emit({ type: 'start' }, messageId)
+    emit(
+      { type: 'tool-input-available', toolCallId: 'input-call', toolName: 'read', input: { path: 'preserved.txt' } },
+      messageId
+    )
+    emit({ type: 'tool-approval-request', approvalId: 'input-approval', toolCallId: 'input-call' }, messageId)
+    emit({ type: 'tool-output-available', toolCallId: 'input-call', output: 'ok' }, messageId)
+    await finish(messageId, [{ type: 'text', text: 'done' }])
+    const { interaction } = await call('agent.interactions.get', { sessionId, interactionId: 'input-approval' })
+    expect(interaction).toMatchObject({ status: 'approved', input: { text: '{"path":"preserved.txt"}' } })
+  })
+
   it('requires complete answers for the current question and replays its receipt without dispatching twice', async () => {
     const { session } = await call('agent.sessions.get', { sessionId })
     await call('agent.messages.send', {
@@ -771,11 +1016,23 @@ describe('remote agent access', () => {
         toolCallId: 'call-1',
         state: 'output-available',
         input: { path: 'a.txt' },
-        output: 'x'.repeat(5000)
+        output: 'x'.repeat(5000),
+        approval: { id: 'approval-1', approved: true }
       }
     ])
     projection = await drain(projection)
     expect(projection.executions[receipt.executionId]).toMatchObject({ status: 'completed', durable: true })
+    const interactions = await call('agent.interactions.list', { sessionId })
+    expect(interactions.items).toHaveLength(1)
+    expect(interactions.items[0]).toMatchObject({
+      interactionId: 'approval-1',
+      status: 'approved',
+      executionId: assistantId,
+      input: { text: '{"path":"a.txt"}' }
+    })
+    expect((await call('agent.interactions.get', { sessionId, interactionId: 'approval-1' })).interaction).toEqual(
+      interactions.items[0]
+    )
     expect(projection.messages[assistantId]).toBeUndefined()
     expect(projection.session.idleRevision).toBe(projection.session.historyRevision)
     expect(Number(projection.session.historyRevision)).toBeGreaterThan(Number(session.historyRevision))

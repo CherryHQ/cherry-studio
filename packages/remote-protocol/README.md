@@ -3,6 +3,8 @@
 Portable schemas and pure Agent recovery functions shared by Desktop and Mobile.
 The root owns JSON-RPC and connection contracts. Agent and configuration transfer
 have separate exports; neither owns sockets, keys, persistence or reconnection.
+The root also owns the shared discovery service type, TXT format and fixed WebSocket
+path. These are Cherry peer interoperability contracts, not listener or routing policy.
 
 Published as `@cherrystudio/remote-protocol` through the repository's Changesets release
 workflow. Package versions follow semver independently of the negotiated wire protocol

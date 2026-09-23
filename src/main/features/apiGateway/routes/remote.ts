@@ -1,9 +1,10 @@
 import type { AnyElysia } from 'elysia'
 
 import { application } from '@application'
+import { remoteConnectPath } from '@cherrystudio/remote-protocol'
 import type { RemoteSocket } from '@cherrystudio/remote-transport'
 
-export const REMOTE_CONNECT_PATH = '/v1/remote/connect'
+export const REMOTE_CONNECT_PATH = remoteConnectPath
 
 /** RemoteSocketStream needs the underlying socket's EventTarget and backpressure APIs. */
 function underlyingSocket(raw: unknown): RemoteSocket | undefined {

@@ -17,6 +17,7 @@ import {
   encodeAgentCheckpointPage
 } from '@cherrystudio/remote-protocol/agent'
 import { RemoteRpcError } from '@cherrystudio/remote-transport'
+import type { DbOrTx } from '@data/db/types'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
@@ -99,6 +100,7 @@ export class SessionJournal {
   private retainedBytes = 0
   private listener?: RemoteAgentListener
   private execution?: LiveExecution
+  private readonly interactionInputs = new Map<string, string>()
   private readonly observers = new Set<() => void>()
   private readonly topicId: string
 
@@ -211,7 +213,8 @@ export class SessionJournal {
 
   async startRun(
     text: string,
-    expectedAgentId: string
+    expectedAgentId: string,
+    onPersist: (tx: DbOrTx, reservation: { executionId: string; messageId: string; userMessageId: string }) => void
   ): Promise<{ started: true; executionId: string } | { started: false; reason: 'busy' | 'session-invalid' }> {
     const listener = new RemoteAgentListener(this, randomUUID())
     const userParts: CherryMessagePart[] = [{ type: 'text', text }]
@@ -219,7 +222,13 @@ export class SessionJournal {
       sessionId: this.sessionId,
       userParts,
       listeners: [listener],
-      requireIdle: { expectedAgentId }
+      requireIdle: { expectedAgentId },
+      onPersist: (tx, messages) =>
+        onPersist(tx, {
+          executionId: listener.executionId,
+          messageId: messages.assistantMessageId,
+          userMessageId: messages.userMessageId
+        })
     })
     if (result.mode !== 'started') {
       listener.current = false
@@ -260,7 +269,9 @@ export class SessionJournal {
   interactions(): AgentInteraction[] {
     return Object.values(this.projection.interactions).map((summary) => {
       const approval = this.execution?.approvals.get(summary.interactionId)
-      const input = JSON.stringify(this.execution?.toolInputs.get(approval?.toolCallId ?? '')?.input ?? null)
+      const input =
+        this.interactionInputs.get(summary.interactionId) ??
+        JSON.stringify(this.execution?.toolInputs.get(approval?.toolCallId ?? '')?.input ?? null)
       const contentId = `${this.execution?.messageId ?? summary.executionId}:approval:${summary.interactionId}`
       if (input.length > INLINE_TEXT_LIMIT) this.pins.set(`${contentId}:${summary.revision}`, utf8(input))
       return { ...summary, input: contentOf(contentId, summary.revision, input) }
@@ -386,6 +397,7 @@ export class SessionJournal {
       }
       case 'tool-approval-request': {
         const input = execution.toolInputs.get(chunk.toolCallId)
+        this.interactionInputs.set(chunk.approvalId, JSON.stringify(input?.input ?? null))
         execution.approvals.set(chunk.approvalId, { toolCallId: chunk.toolCallId, status: 'pending' })
         this.append({
           kind: 'interaction.updated',

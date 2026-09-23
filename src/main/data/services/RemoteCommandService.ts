@@ -4,6 +4,7 @@ import { application } from '@application'
 import type { RemoteFailure } from '@cherrystudio/remote-protocol'
 import type { CommandReceipt } from '@cherrystudio/remote-protocol/agent'
 import { type RemoteCommandRow, remoteCommandTable } from '@data/db/schemas/remoteCommand'
+import type { DbOrTx } from '@data/db/types'
 
 export interface RemoteCommandKey {
   deviceId: string
@@ -47,6 +48,32 @@ export class RemoteCommandService {
     return row ? toReceipt(row) : undefined
   }
 
+  apply(
+    key: RemoteCommandKey,
+    input: { method: string; identityDigest: string; sessionId?: string },
+    write: (tx: DbOrTx) => RemoteCommandOutcome
+  ) {
+    return application.get('DbService').withWriteTx((tx) => {
+      const admission = this.admit(key, input)
+      if (admission.kind !== 'accepted') return admission
+      return { kind: 'accepted' as const, receipt: this.settle(key, write(tx)) }
+    })
+  }
+
+  reserveExecutionTx(
+    tx: DbOrTx,
+    key: RemoteCommandKey,
+    reservation: { executionId: string; messageId: string; userMessageId: string }
+  ): void {
+    const row = tx
+      .update(remoteCommandTable)
+      .set({ executionId: reservation.executionId, result: reservation })
+      .where(and(this.where(key), eq(remoteCommandTable.status, 'accepted')))
+      .returning()
+      .get()
+    if (!row) throw new Error('Remote command is no longer accepted')
+  }
+
   /** Returns the existing receipt for an identical retry, or records a fresh `accepted` receipt. */
   admit(
     key: RemoteCommandKey,
@@ -86,7 +113,7 @@ export class RemoteCommandService {
             status: outcome.status,
             ...(outcome.sessionId ? { sessionId: outcome.sessionId } : {}),
             executionId: outcome.executionId ?? null,
-            result: outcome.result ?? null
+            ...(outcome.result !== undefined ? { result: outcome.result } : {})
           }
         : { status: outcome.status, error: outcome.error }
     const row = this.db

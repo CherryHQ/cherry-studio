@@ -18,9 +18,10 @@ together during pairing. Each capability has an independent authorization grant.
 
 Deviations from the design doc, kept deliberately small:
 
-- Command receipts (`remote_command`) are recorded as `accepted` before the owner runs and
-  settled afterwards; they are not in the same transaction as the owner's reservation.
-  Receipts still `accepted` at startup become `interrupted`.
+- Session creation commits its receipt and session in one transaction. Sends first record
+  deduplication intake; their execution/message identities are then committed with the
+  reserved messages before runtime activation. A receipt still `accepted` at startup
+  becomes `interrupted`, retaining those identities. No external action is automatically replayed.
 - Locally started executions are discovered by a one-second poll of `hasLiveStream`, then
   attached through `addListener` replay. Remote sends pass the listener at run start.
 - Approval cards persisted after a turn ended are listed and answerable, but not streamed as
