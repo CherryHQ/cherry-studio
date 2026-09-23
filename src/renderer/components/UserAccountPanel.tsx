@@ -69,7 +69,7 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
 
   const handleOpenAccountDetails = () => {
     onRequestClose?.()
-    openSettingsTab(isGlobalEdition ? '/settings/subscription' : '/settings/usage')
+    openSettingsTab('/settings/profile')
   }
 
   const handleOpenSettings = () => {
@@ -109,7 +109,7 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
     } else if (subscriptionLookup.status === 'ready') {
       onRequestClose?.()
       if (subscriptionLookup.planName) {
-        openSettingsTab('/settings/subscription')
+        openSettingsTab('/settings/profile')
       } else {
         void openCherryCloudAccountPortal()
       }

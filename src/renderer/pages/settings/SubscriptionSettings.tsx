@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
-import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { ipcApi } from '@renderer/ipc'
 import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
@@ -61,99 +60,95 @@ export function SubscriptionSettings() {
 
   if (status?.phase !== 'signed-in') {
     return (
-      <SettingsContentColumn>
-        <div className="space-y-4">
-          <h2 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h2>
-          <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-            <p>{t('settings.subscription.sign_in_required')}</p>
-            <Button className="mt-4" onClick={() => void login()}>
-              {t('settings.subscription.sign_in')}
-            </Button>
-          </div>
+      <div className="space-y-4">
+        <h3 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h3>
+        <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+          <p>{t('settings.subscription.sign_in_required')}</p>
+          <Button className="mt-4" onClick={() => void login()}>
+            {t('settings.subscription.sign_in')}
+          </Button>
         </div>
-      </SettingsContentColumn>
+      </div>
     )
   }
 
   return (
-    <SettingsContentColumn>
-      <div className="space-y-6">
-        <h2 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h2>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">
-                {activePaid?.plan.display_name ?? availablePlan?.display_name ?? t('settings.subscription.no_plan')}
-              </p>
-              {activePaid?.plan.subscription_price && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {activePaid.plan.subscription_price.currency.toUpperCase()}{' '}
-                  {activePaid.plan.subscription_price.unit_amount / 100} / {activePaid.plan.subscription_price.interval}
-                </p>
-              )}
-            </div>
-            <Button variant="outline" size="sm" onClick={openPortal}>
-              {activePaid ? t('settings.subscription.manage') : t('settings.subscription.subscribe')}
-              <ExternalLink />
-            </Button>
-          </div>
-        </div>
-        <div>
-          <h3 className="mb-2 text-sm font-medium">{t('settings.subscription.usage')}</h3>
-          <div className="rounded-xl border border-border bg-card p-4">
-            {loading ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">{t('settings.subscription.loading')}</p>
-            ) : failed ? (
-              <div className="py-4 text-center">
-                <p className="text-sm text-destructive">{t('settings.subscription.load_failed')}</p>
-                <Button variant="outline" size="sm" className="mt-3" onClick={() => void load()}>
-                  <RefreshCw />
-                  {t('common.retry')}
-                </Button>
-              </div>
-            ) : activePaid?.quota_pools.length ? (
-              activePaid.quota_pools.map((pool) => (
-                <div key={pool.allocation_id} className="space-y-3 py-2">
-                  {pool.windows.map((window) => {
-                    const label = quotaWindowLabel(window, t)
-                    const remainingPercent = percent(window.remaining_units, window.limit_units)
-                    return (
-                      <div key={`${pool.allocation_id}-${window.window_type}-${window.duration_seconds}`}>
-                        <div className="flex items-baseline justify-between gap-3 text-xs">
-                          <span className="font-medium">{label}</span>
-                          <span className="tabular-nums text-muted-foreground">
-                            {t('settings.subscription.remaining', { percent: remainingPercent })}
-                          </span>
-                        </div>
-                        <div
-                          className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
-                          role="progressbar"
-                          aria-label={label}
-                          aria-valuenow={remainingPercent}
-                          aria-valuemin={0}
-                          aria-valuemax={100}>
-                          <div className="h-full bg-primary" style={{ width: `${remainingPercent}%` }} />
-                        </div>
-                        {window.next_recovery_at && (
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            {t('settings.subscription.next_recovery', {
-                              time: new Date(window.next_recovery_at).toLocaleString(i18n.language)
-                            })}
-                          </p>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ))
-            ) : (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                {activePaid ? t('settings.subscription.no_quota') : t('settings.subscription.subscribe_hint')}
+    <div className="space-y-6">
+      <h3 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h3>
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">
+              {activePaid?.plan.display_name ?? availablePlan?.display_name ?? t('settings.subscription.no_plan')}
+            </p>
+            {activePaid?.plan.subscription_price && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {activePaid.plan.subscription_price.currency.toUpperCase()}{' '}
+                {activePaid.plan.subscription_price.unit_amount / 100} / {activePaid.plan.subscription_price.interval}
               </p>
             )}
           </div>
+          <Button variant="outline" size="sm" onClick={openPortal}>
+            {activePaid ? t('settings.subscription.manage') : t('settings.subscription.subscribe')}
+            <ExternalLink />
+          </Button>
         </div>
       </div>
-    </SettingsContentColumn>
+      <div>
+        <h3 className="mb-2 text-sm font-medium">{t('settings.subscription.usage')}</h3>
+        <div className="rounded-xl border border-border bg-card p-4">
+          {loading ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">{t('settings.subscription.loading')}</p>
+          ) : failed ? (
+            <div className="py-4 text-center">
+              <p className="text-sm text-destructive">{t('settings.subscription.load_failed')}</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => void load()}>
+                <RefreshCw />
+                {t('common.retry')}
+              </Button>
+            </div>
+          ) : activePaid?.quota_pools.length ? (
+            activePaid.quota_pools.map((pool) => (
+              <div key={pool.allocation_id} className="space-y-3 py-2">
+                {pool.windows.map((window) => {
+                  const label = quotaWindowLabel(window, t)
+                  const remainingPercent = percent(window.remaining_units, window.limit_units)
+                  return (
+                    <div key={`${pool.allocation_id}-${window.window_type}-${window.duration_seconds}`}>
+                      <div className="flex items-baseline justify-between gap-3 text-xs">
+                        <span className="font-medium">{label}</span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {t('settings.subscription.remaining', { percent: remainingPercent })}
+                        </span>
+                      </div>
+                      <div
+                        className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+                        role="progressbar"
+                        aria-label={label}
+                        aria-valuenow={remainingPercent}
+                        aria-valuemin={0}
+                        aria-valuemax={100}>
+                        <div className="h-full bg-primary" style={{ width: `${remainingPercent}%` }} />
+                      </div>
+                      {window.next_recovery_at && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {t('settings.subscription.next_recovery', {
+                            time: new Date(window.next_recovery_at).toLocaleString(i18n.language)
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ))
+          ) : (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              {activePaid ? t('settings.subscription.no_quota') : t('settings.subscription.subscribe_hint')}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
