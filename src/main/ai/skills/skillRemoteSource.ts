@@ -39,6 +39,7 @@ const GIT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000
 // chromium/chromium lists ~2.4 MiB of refs, and a clone reports every case-colliding path; the cap
 // only stops output that a hostile repository can grow without end.
 const MAX_GIT_OUTPUT_BYTES = 16 * 1024 * 1024
+const MAX_CLAWHUB_DETAIL_BYTES = 1024 * 1024
 
 type GithubRef = {
   name: string
@@ -271,7 +272,16 @@ async function fetchFromClawhub(
     throw new Error(`clawhub detail failed: HTTP ${detailResp.status}`)
   }
 
-  const detailResult = ClawhubSkillDetailSchema.safeParse(await detailResp.json())
+  const detailChunks: Uint8Array[] = []
+  let detailBytes = 0
+  for await (const chunk of detailResp.body as unknown as AsyncIterable<Uint8Array>) {
+    detailBytes += chunk.byteLength
+    if (detailBytes > MAX_CLAWHUB_DETAIL_BYTES) {
+      throw new Error(`clawhub detail exceeds the ${MAX_CLAWHUB_DETAIL_BYTES}-byte limit`)
+    }
+    detailChunks.push(chunk)
+  }
+  const detailResult = ClawhubSkillDetailSchema.safeParse(JSON.parse(Buffer.concat(detailChunks).toString('utf8')))
   if (!detailResult.success) {
     throw new Error('clawhub detail returned invalid metadata')
   }
@@ -293,10 +303,27 @@ async function fetchFromClawhub(
     throw new Error(`clawhub download failed: HTTP ${downloadResp.status}`)
   }
 
+  const advertisedSize = Number(downloadResp.headers.get('content-length') ?? NaN)
+  if (Number.isFinite(advertisedSize) && advertisedSize > MAX_SKILL_SIZE) {
+    throw new Error(`clawhub archive advertises ${advertisedSize} bytes, over the ${MAX_SKILL_SIZE}-byte limit`)
+  }
+
   const tempDir = await openTempDir()
   const zipPath = path.join(tempDir, 'skill.zip')
-  const buffer = Buffer.from(await downloadResp.arrayBuffer())
-  await fs.promises.writeFile(zipPath, buffer)
+  // Content-Length is server-controlled; the running count is what enforces the cap.
+  const handle = await fs.promises.open(zipPath, 'w')
+  try {
+    let received = 0
+    for await (const chunk of downloadResp.body as unknown as AsyncIterable<Uint8Array>) {
+      received += chunk.byteLength
+      if (received > MAX_SKILL_SIZE) {
+        throw new Error(`clawhub archive exceeds the ${MAX_SKILL_SIZE}-byte limit`)
+      }
+      await handle.write(chunk)
+    }
+  } finally {
+    await handle.close()
+  }
   const extractDir = path.join(tempDir, sanitizeFolderName(slug))
   await fs.promises.mkdir(extractDir, { recursive: true })
   await extractZip(zipPath, extractDir)
