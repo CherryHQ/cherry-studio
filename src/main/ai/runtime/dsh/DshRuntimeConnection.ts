@@ -142,6 +142,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private startPromise?: Promise<this>
   private closePromise?: Promise<void>
   private turnActive = false
+  private backgroundChildrenActive = false
+  private backgroundWorkActive = false
+  private idleBoundary?: SessionEvent['seq']
   /** Monotonic host-turn identity; child items pin it at open so they never split across streams. */
   private turnEpoch = 0
   private modelId = ''
@@ -195,6 +198,20 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push(event)
   }
 
+  private releaseBackgroundWorkIfIdle(): void {
+    if (
+      this.closed ||
+      !this.backgroundWorkActive ||
+      this.backgroundChildrenActive ||
+      this.turnActive ||
+      this.idleBoundary === undefined ||
+      (this.sessionEventSeqs.get(this.runtimeSessionId) ?? -1) < this.idleBoundary
+    )
+      return
+    this.backgroundWorkActive = false
+    this.eventQueue.push({ type: 'background-work-state', active: false })
+  }
+
   /** Flip the live-turn flag; a false→true edge opens a NEW host turn identity. */
   private markTurnActive(): void {
     if (!this.turnActive) this.turnEpoch += 1
@@ -231,7 +248,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         if (!this.closed) this.eventQueue.push({ type: 'background-tasks', tasks })
       },
       emitWorkState: (active) => {
-        if (!this.closed) this.eventQueue.push({ type: 'background-work-state', active })
+        this.backgroundChildrenActive = active
+        if (active && !this.closed) {
+          this.backgroundWorkActive = true
+          this.eventQueue.push({ type: 'background-work-state', active: true })
+        } else {
+          this.releaseBackgroundWorkIfIdle()
+        }
       },
       recordChildUsage: (info) =>
         this.recordProviderInvocation(
@@ -419,7 +442,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           logger.info('Blocked a write to user data SQLite', { sessionId: this.input.sessionId, toolName })
           return { kind: 'deny', ...decision }
         },
-        onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge)
+        onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge),
+        onSessionState: (state) => {
+          this.idleBoundary = state.status === 'idle' ? state.sessionEventSeq : undefined
+          this.releaseBackgroundWorkIfIdle()
+        }
       })
       await this.bridge.listen()
 
@@ -808,6 +835,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           this.pendingTurnEnd = undefined
         }
         this.sessionEventSeqs.set(params.sessionId, event.seq)
+        this.releaseBackgroundWorkIfIdle()
         for (const pending of this.pendingBridgeEvents.splice(0)) {
           this.emitBridgeEvent(pending.event, pending.source)
         }
