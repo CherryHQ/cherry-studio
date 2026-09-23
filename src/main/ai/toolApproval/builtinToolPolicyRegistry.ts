@@ -51,7 +51,8 @@ export const CHERRY_MCP_SERVER = {
   SKILLS: 'skills',
   MCP_MANAGER: 'mcp-manager',
   ASSISTANT: 'assistant',
-  ASSISTANT_FILES: 'assistant-files'
+  ASSISTANT_FILES: 'assistant-files',
+  DOCTOR: 'doctor'
 } as const
 
 export interface BuiltinToolPolicyEntry {
@@ -118,7 +119,15 @@ const BUILTIN_TOOL_POLICIES = {
   assistantPrepareDiagnosticReport: tool(CHERRY_MCP_SERVER.ASSISTANT, 'prepare_diagnostic_report', 'auto'),
   assistantReadFile: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, READ_FILE_TOOL_NAME, 'auto'),
   assistantMoveToTrash: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, MOVE_TO_TRASH_TOOL_NAME, 'required'),
-  assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required')
+  assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required'),
+
+  // The doctor turn is headless; writes are gated by DoctorAgentService proposals, not by approval.
+  doctorReadFile: tool(CHERRY_MCP_SERVER.DOCTOR, 'read_file', 'auto'),
+  doctorReport: tool(CHERRY_MCP_SERVER.DOCTOR, 'report', 'auto'),
+  doctorDataApi: tool(CHERRY_MCP_SERVER.DOCTOR, 'data_api', 'auto'),
+  doctorPreference: tool(CHERRY_MCP_SERVER.DOCTOR, 'preference', 'auto'),
+  doctorProbeEndpoint: tool(CHERRY_MCP_SERVER.DOCTOR, 'probe_endpoint', 'auto'),
+  doctorFix: tool(CHERRY_MCP_SERVER.DOCTOR, 'doctor_fix', 'auto')
 } as const satisfies Record<string, BuiltinToolPolicyEntry>
 
 export const BUILTIN_TOOL_POLICY_ENTRIES: readonly BuiltinToolPolicyEntry[] = Object.values(BUILTIN_TOOL_POLICIES)

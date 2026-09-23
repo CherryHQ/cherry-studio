@@ -11,6 +11,7 @@ import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
+import DoctorServer from '@main/ai/mcp/servers/doctor'
 import McpManagerServer from '@main/ai/mcp/servers/mcpManager'
 import SkillsServer from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -134,6 +135,9 @@ export function buildAgentMcpServers(
         workspacePath: session.workspace.path
       }).mcpServer
     }
+  }
+  if (mountedServers.has(CHERRY_MCP_SERVER.DOCTOR)) {
+    servers.doctor = { name: CHERRY_MCP_SERVER.DOCTOR, instance: new DoctorServer(session.id).mcpServer }
   }
 
   return servers

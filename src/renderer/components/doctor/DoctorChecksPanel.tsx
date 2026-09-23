@@ -18,6 +18,7 @@ import { toast } from '@renderer/services/toast'
 import { DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
 import { doctorCheckTitleKey } from '@shared/utils/doctor'
 
+import { DoctorAgentSection } from './DoctorAgentSection'
 import { DoctorCheckAccordionItems } from './DoctorCheckAccordionItems'
 import { DoctorCheckNotices } from './DoctorCheckNotices'
 
@@ -88,6 +89,8 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
               />
             </Accordion>
           ) : null}
+
+          {viewModel.report ? <DoctorAgentSection controller={controller} /> : null}
         </div>
       </Scrollbar>
 

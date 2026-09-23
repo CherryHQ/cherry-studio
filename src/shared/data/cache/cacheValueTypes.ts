@@ -1,6 +1,7 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { DoctorState } from '@shared/types/doctor'
+import type { DoctorAgentState } from '@shared/types/doctorAgent'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
 
@@ -232,3 +233,5 @@ export type CacheMiniAppAttention = {
 
 /** System Doctor run state; see `@shared/types/doctor`. */
 export type CacheDoctorState = DoctorState
+/** Doctor Agent analysis state; see `@shared/types/doctorAgent`. */
+export type CacheDoctorAgentState = DoctorAgentState

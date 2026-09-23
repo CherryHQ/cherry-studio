@@ -37,6 +37,11 @@ export function doctorStateCacheKey(scope: DoctorScopeKey): `doctor.state.${stri
   return `doctor.state.${encoded}`
 }
 
+/** Sibling of `doctorStateCacheKey`: the AI analysis of one scope's report. */
+export function doctorAgentStateCacheKey(scope: DoctorScopeKey): `doctor.agent.${string}` {
+  return `doctor.agent.${doctorStateCacheKey(scope).slice('doctor.state.'.length)}`
+}
+
 export function isDoctorScopeKey(value: unknown): value is DoctorScopeKey {
   return value === 'global' || (typeof value === 'string' && /^(chat|agent):./.test(value))
 }

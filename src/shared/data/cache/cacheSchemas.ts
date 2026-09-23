@@ -288,6 +288,7 @@ export type SharedCacheSchema = {
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
   'doctor.state.${scope}': CacheValueTypes.CacheDoctorState
+  'doctor.agent.${scope}': CacheValueTypes.CacheDoctorAgentState
   'network.online': boolean
   // Runtime-only opt-out shared across windows; resets when the app exits.
   'agent.model_switch_confirmation.skipped': boolean
@@ -352,6 +353,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
   'doctor.state.${scope}': { status: 'idle' },
+  'doctor.agent.${scope}': { status: 'idle' },
   'network.online': true,
   'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,

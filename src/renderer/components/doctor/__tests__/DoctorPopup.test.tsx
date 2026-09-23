@@ -32,7 +32,9 @@ vi.mock('@renderer/services/popup', async (importOriginal) => await importOrigin
 vi.mock('@data/CacheService', () => ({
   cacheService: { isSharedCacheReady: () => true, onSharedCacheReady: vi.fn() }
 }))
-vi.mock('@data/hooks/useCache', () => ({ useSharedCacheValue: () => mocks.doctorState }))
+vi.mock('@data/hooks/useCache', () => ({
+  useSharedCacheValue: (key: string) => (key.startsWith('doctor.state.') ? mocks.doctorState : undefined)
+}))
 vi.mock('@renderer/hooks/useAppUpdateState', () => ({
   useAppUpdateState: () => ({
     appUpdateState: {
