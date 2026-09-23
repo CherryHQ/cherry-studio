@@ -24,7 +24,8 @@ vi.mock('@application', async () => {
 })
 
 const { application } = await import('@application')
-const { assertOutsideManagedStorageMutation } = await import('../managedStorageGuard')
+const { assertOutsideManagedStorageMutation, resolveOutsideManagedStorageMutation } =
+  await import('../managedStorageGuard')
 
 describe('assertOutsideManagedStorageMutation', () => {
   let root: string
@@ -92,6 +93,17 @@ describe('assertOutsideManagedStorageMutation', () => {
         path.join(exportDir, 'result.pdf')
       )
     ).resolves.toBeUndefined()
+  })
+
+  it('returns the physical path for a target below an external directory link', async () => {
+    const notes = path.join(root, 'Notes')
+    const link = path.join(root, 'RedirectedNotes')
+    await mkdir(notes)
+    await symlink(notes, link, process.platform === 'win32' ? 'junction' : 'dir')
+
+    await expect(resolveOutsideManagedStorageMutation(path.join(link, 'future.md'))).resolves.toBe(
+      path.join(notes, 'future.md')
+    )
   })
 
   it('allows an existing temp file when resolving that file would report EISDIR', async () => {

@@ -28,8 +28,12 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
-import { assertOutsideManagedStorageMutation, safeOpen } from '@main/services/file'
-import { getFileType } from '@main/utils/file'
+import {
+  resolveOutsideManagedStorageMutation,
+  assertOutsideManagedStorageMutation,
+  safeOpen
+} from '@main/services/file'
+import { write as writeFileAtomically, getFileType } from '@main/utils/file'
 import {
   checkName,
   getFileType as getFileTypeByExt,
@@ -37,7 +41,7 @@ import {
   readTextFileWithAutoEncoding
 } from '@main/utils/legacyFile'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema, type AbsoluteFilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
@@ -534,8 +538,8 @@ class FileStorage {
     filePath: string,
     data: Uint8Array | string
   ): Promise<void> => {
-    await assertOutsideManagedStorageMutation(filePath)
-    await fs.promises.writeFile(filePath, data)
+    const safePath = AbsoluteFilePathSchema.parse(await resolveOutsideManagedStorageMutation(filePath))
+    await writeFileAtomically(safePath, data)
   }
 
   public fileNameGuard = async (
