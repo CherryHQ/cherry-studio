@@ -543,6 +543,105 @@ describe('AgentSessionRuntimeService', () => {
     expect(() => service.assertSessionEditable('session-1')).not.toThrow()
   })
 
+  describe('runtime activity for detached work', () => {
+    const activities = new Set<symbol>()
+    let registration: MockInstance
+
+    beforeEach(() => {
+      activities.clear()
+      registration = vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+        const token = Symbol()
+        activities.add(token)
+        return {
+          dispose: () => {
+            activities.delete(token)
+          }
+        }
+      })
+    })
+
+    afterEach(() => registration.mockRestore())
+
+    it.each(['success', 'failure', 'cancellation'] as const)(
+      'holds activity until an idle-source fork settles with %s',
+      async (outcome) => {
+        const service = new AgentSessionRuntimeService()
+        const gate = createDeferred<string>()
+        const run = vi.spyOn(service['forks'] as any, 'run').mockReturnValue(gate.promise)
+        try {
+          const fork = service.forkSession('session-1', 'assistant-1')
+          const settled = fork.catch(() => undefined)
+          expect(service.isSessionBusy('session-1')).toBe(false)
+          expect(activities.size).toBe(1)
+          await Promise.resolve()
+          const cancellation = outcome === 'cancellation' ? service.cancelSessionForks('session-1') : undefined
+          expect(activities.size).toBe(1)
+          if (outcome === 'success') gate.resolve('forked-session')
+          else gate.reject(new Error(outcome))
+          await settled
+          await cancellation
+          expect(activities.size).toBe(0)
+        } finally {
+          run.mockRestore()
+        }
+      }
+    )
+
+    it('keeps the hold until concurrent forks have all settled', async () => {
+      const service = new AgentSessionRuntimeService()
+      const first = createDeferred<string>()
+      const second = createDeferred<string>()
+      const run = vi
+        .spyOn(service['forks'] as any, 'run')
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise)
+      try {
+        const a = service.forkSession('session-1', 'assistant-1')
+        const b = service.forkSession('session-2', 'assistant-2')
+        expect(activities.size).toBe(1)
+        first.resolve('fork-a')
+        await a
+        expect(activities.size).toBe(1)
+        second.resolve('fork-b')
+        await b
+        expect(activities.size).toBe(0)
+      } finally {
+        run.mockRestore()
+      }
+    })
+
+    it('keeps detached background work active without making the session busy, then releases on completion', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true, awaitingReply: false })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(activities.size).toBe(1)
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      await vi.waitFor(() => expect(activities.size).toBe(0))
+      await service.closeSession('session-1')
+      expect(activities.size).toBe(0)
+    })
+
+    it('retains detached activity through session teardown until the connection closes', async () => {
+      const service = new AgentSessionRuntimeService()
+      const gate = createDeferred<void>()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.connection = { close: () => gate.promise, send: vi.fn(), events: [] }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true, awaitingReply: false })
+      service.markTurnTerminal('session-1', 'success')
+      expect(activities.size).toBe(1)
+      const closing = service.closeSession('session-1')
+      expect(activities.size).toBe(1)
+      gate.resolve()
+      await closing
+      expect(activities.size).toBe(0)
+    })
+  })
+
   describe('respondToolApproval', () => {
     it('clears the live awaiting-approval anchor as soon as the decision is dispatched', () => {
       const resolve = vi.fn()

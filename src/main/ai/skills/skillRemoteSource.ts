@@ -8,7 +8,7 @@ import { loggerService } from '@logger'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
-import { executeCommand } from '@main/utils/processRunner'
+import { CommandOutputLimitError, executeCommand } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
@@ -36,7 +36,9 @@ const logger = loggerService.withContext('SkillRemoteSource')
 const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
 const GIT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000
-const MAX_GIT_TREE_OUTPUT_BYTES = 16 * 1024 * 1024
+// chromium/chromium lists ~2.4 MiB of refs, and a clone reports every case-colliding path; the cap
+// only stops output that a hostile repository can grow without end.
+const MAX_GIT_OUTPUT_BYTES = 16 * 1024 * 1024
 
 type GithubRef = {
   name: string
@@ -325,7 +327,12 @@ async function resolveGithubCommit(
   refNamespace: 'heads' | 'tags' | null
 ): Promise<{ ref: string; namespace: 'heads' | 'tags' | null; oid: string; target: GithubSkillTarget }> {
   const gitCommand = await resolveGitCommand()
-  const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl])
+  const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl]).catch((error: unknown) => {
+    if (!(error instanceof CommandOutputLimitError)) throw error
+    throw new Error(`${repoUrl} lists too many branches and tags to resolve "${refAndPath.join('/')}"`, {
+      cause: error
+    })
+  })
   const refs = output.split('\n').flatMap((line) => {
     const [oid, fullName] = line.split('\t').map((part) => part.trim())
     // `^{}` marks a tag's dereferenced commit; the tag itself is already listed.
@@ -372,17 +379,20 @@ async function materializeGithubTarget(
   const gitCommand = await resolveGitCommand()
   const gitDir = path.join(tempDir, 'repo.git')
   const contentDir = path.join(tempDir, 'content')
-  const git = (args: string[], options?: { maxOutputBytes?: number }) =>
-    runGit(gitCommand, [`--git-dir=${gitDir}`, ...args], options)
+  const git = (args: string[]) => runGit(gitCommand, [`--git-dir=${gitDir}`, ...args])
 
   await fs.promises.mkdir(contentDir, { recursive: true })
   await runGit(gitCommand, ['init', '--bare', '--quiet', gitDir])
   await git(['fetch', '--quiet', '--depth', '1', '--filter=blob:none', '--no-tags', '--', repoUrl, oid])
   const pathspec = target.kind === 'root' ? '.' : `:(top,literal)${target.path}`
-  const sizedTree = await git(
-    ['ls-tree', '-lr', '-z', '--full-tree', 'FETCH_HEAD', ...(target.kind === 'root' ? [] : ['--', pathspec])],
-    { maxOutputBytes: MAX_GIT_TREE_OUTPUT_BYTES }
-  )
+  const sizedTree = await git([
+    'ls-tree',
+    '-lr',
+    '-z',
+    '--full-tree',
+    'FETCH_HEAD',
+    ...(target.kind === 'root' ? [] : ['--', pathspec])
+  ])
   assertGithubTargetTree(sizedTree, target, descriptorFileName)
 
   await runGit(gitCommand, [
@@ -453,11 +463,11 @@ function assertGithubTargetTree(
  * The single entry point for every git subprocess an install spawns: bounded, non-interactive, and
  * routed through Cherry's proxy — which lives in the main process env, not in the captured login shell.
  */
-async function runGit(gitCommand: string, args: string[], options?: { maxOutputBytes?: number }): Promise<string> {
+async function runGit(gitCommand: string, args: string[]): Promise<string> {
   const env = await getShellEnv()
   return executeCommand(gitCommand, args, {
     capture: true,
-    maxOutputBytes: options?.maxOutputBytes,
+    maxOutputBytes: MAX_GIT_OUTPUT_BYTES,
     timeout: GIT_COMMAND_TIMEOUT_MS,
     env: {
       ...env,
