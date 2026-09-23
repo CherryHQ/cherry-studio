@@ -1120,6 +1120,7 @@ describe('utils/image', () => {
 
   describe('imageInputToPreviewUrl', () => {
     let previewBlob: Blob | undefined
+    let createObjectUrlDescriptor: PropertyDescriptor | undefined
     let themeStyle: HTMLStyleElement
     const readBlob = (blob: Blob) =>
       new Promise<string>((resolve, reject) => {
@@ -1131,22 +1132,30 @@ describe('utils/image', () => {
 
     beforeEach(() => {
       previewBlob = undefined
+      createObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+      Object.defineProperty(URL, 'createObjectURL', {
+        configurable: true,
+        value: vi.fn((blob: Blob) => {
+          previewBlob = blob
+          return 'blob:svg-preview'
+        })
+      })
       themeStyle = document.createElement('style')
       themeStyle.textContent = `
         :root, body { --background: rgb(255, 255, 255); }
         :root.image-preview-dark, :root.image-preview-dark body { --background: oklch(0.209 0 0 / 0.55); }
       `
       document.head.appendChild(themeStyle)
-      vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
-        previewBlob = blob as Blob
-        return 'blob:svg-preview'
-      })
     })
 
     afterEach(() => {
+      if (createObjectUrlDescriptor) {
+        Object.defineProperty(URL, 'createObjectURL', createObjectUrlDescriptor)
+      } else {
+        Reflect.deleteProperty(URL, 'createObjectURL')
+      }
       themeStyle.remove()
       document.documentElement.classList.remove('image-preview-dark')
-      vi.restoreAllMocks()
     })
 
     // Serialized CSS must resolve without document variables and force the preview canvas alpha to one.
@@ -1167,6 +1176,32 @@ describe('utils/image', () => {
       expect(previewSvg.style.backgroundColor).toBe(expected)
       expect(previewSvg.querySelector('path')?.getAttribute('stroke')).toBe('#333')
       expect(svg.outerHTML).toBe(original)
+    })
+
+    it.each(['light', 'dark'])('preserves an embedded stylesheet background in the %s preview', async (theme) => {
+      document.documentElement.classList.toggle('image-preview-dark', theme === 'dark')
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.id = 'embedded-background'
+      // jsdom only applies HTML style elements; keep the stylesheet inside the serialized SVG.
+      const style = document.createElement('style')
+      style.textContent = '#embedded-background { background-color: ivory; }'
+      svg.appendChild(style)
+      document.body.append(svg)
+      const original = svg.outerHTML
+
+      try {
+        expect(getComputedStyle(svg).backgroundColor).toBe('rgb(255, 255, 240)')
+
+        await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+        const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
+          .documentElement as unknown as SVGElement
+        expect(previewSvg.style.backgroundColor).toBe('rgb(255, 255, 240)')
+        expect(previewSvg.querySelector('style')?.textContent).toBe(style.textContent)
+        expect(svg.outerHTML).toBe(original)
+      } finally {
+        svg.remove()
+      }
     })
 
     it('keeps an explicitly white host canvas white even in dark mode', async () => {
