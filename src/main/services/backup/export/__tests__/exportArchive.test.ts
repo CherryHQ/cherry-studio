@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -16,6 +16,7 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { noteTable } from '@data/db/schemas/note'
 
 import { admitArchive } from '../../admission/admitArchive'
+import { BACKUP_CEILINGS } from '../../ceilings'
 import { diskProbe } from '../../diskPreflight'
 import { InsufficientDiskSpaceError, OutputPathExistsError } from '../../errors'
 import { driftHooks } from '../../sourceDrift'
@@ -402,6 +403,7 @@ describe('exportArchive', () => {
     const statfs = vi.spyOn(diskProbe, 'statfs')
     statfs.mockResolvedValueOnce({ bavail: 1_000_000_000n, bsize: 4096n } as never)
     statfs.mockResolvedValueOnce({ bavail: 1_000_000_000n, bsize: 4096n } as never)
+    statfs.mockResolvedValueOnce({ bavail: 1_000_000_000n, bsize: 4096n } as never)
     statfs.mockResolvedValueOnce({ bavail: 0n, bsize: 4096n } as never)
     let copied = false
     driftHooks.afterInitialLstat = async () => {
@@ -412,6 +414,36 @@ describe('exportArchive', () => {
 
     expect(snapshotMock()).toHaveBeenCalledOnce()
     expect(copied).toBe(true)
+    expect(existsSync(outPath)).toBe(false)
+    expect(readdirSync(join(userData, 'backup-temp'))).toEqual([])
+  })
+
+  it('refuses before staging when the staging volume fits the database but not the resources', async () => {
+    dbh.db
+      .insert(fileEntryTable)
+      .values({ id: '33333333-3333-4333-8333-333333333333', origin: 'internal', name: 'c', ext: 'bin', size: 4 })
+      .run()
+    const resourceBytes = 8 * 1024 * 1024
+    writeFileSync(
+      mkFile(join(userData, 'Data', 'Files', '33333333-3333-4333-8333-333333333333.bin')),
+      Buffer.alloc(resourceBytes)
+    )
+    // Room for the database twice over plus the fixed headroom, but not for the
+    // 8 MiB resource on top of it.
+    const roomForDbOnly = BACKUP_CEILINGS.minStagingDiskHeadroomBytes + 2 * statSync(dbh.sqlite.name).size
+    const statfs = vi.spyOn(diskProbe, 'statfs')
+    statfs.mockResolvedValueOnce({ bavail: 1_000_000_000n, bsize: 4096n } as never)
+    statfs.mockResolvedValueOnce({ bavail: 1_000_000_000n, bsize: 4096n } as never)
+    statfs.mockResolvedValueOnce({ bavail: BigInt(roomForDbOnly), bsize: 1n } as never)
+    let copied = false
+    driftHooks.afterInitialLstat = async () => {
+      copied = true
+    }
+
+    await expect(exportArchive({ outPath })).rejects.toBeInstanceOf(InsufficientDiskSpaceError)
+
+    expect(snapshotMock()).toHaveBeenCalledOnce()
+    expect(copied).toBe(false)
     expect(existsSync(outPath)).toBe(false)
     expect(readdirSync(join(userData, 'backup-temp'))).toEqual([])
   })

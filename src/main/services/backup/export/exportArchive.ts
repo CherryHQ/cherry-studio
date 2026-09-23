@@ -39,6 +39,7 @@ import { REBASABLE_MANAGED_ROOT_KEYS } from '../portability/managedPathRebase'
 import type { MaterializationSummary } from '../portability/materializeDatabase'
 import { materializePortableDatabase, summarizeMaterializationDegradations } from '../portability/materializeDatabase'
 import { collectResourceRequirements, resolveResourceRoots } from '../resources/collectRequirements'
+import { measureRequirementBytes } from '../resources/measureRequirements'
 import { createOwnerResourceCapture } from '../resources/ownerCapture'
 import { stageResources } from '../resources/stageResources'
 import { publishArchive } from './archivePublish'
@@ -138,6 +139,17 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     if (JSON.stringify(inventory.requirements) !== JSON.stringify(snapshotRequirements)) {
       throw new Error('portable database materialization changed the managed resource closure')
     }
+
+    // The first staging preflight only knew the database; the resources are
+    // copied into the same volume next, so size them before the copy starts.
+    const estimatedResourceBytes = await measureRequirementBytes({
+      requirements: inventory.requirements,
+      userDataPath,
+      roots: resourceRoots,
+      signal
+    })
+    await assertDiskHeadroom({ target: stagingRoot, neededBytes: materialized.sizeBytes + estimatedResourceBytes })
+    throwIfAborted(signal)
 
     const resourcesDir = path.join(stagingRoot, RESOURCES_DIR_NAME)
     const ownerCapture = createOwnerResourceCapture({ detachedDbPath: stagedDbPath, roots: resourceRoots })
