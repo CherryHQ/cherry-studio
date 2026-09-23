@@ -9,20 +9,11 @@ import { toAsarUnpackedPath } from './asar'
 
 const logger = loggerService.withContext('prometheusPack')
 
-/**
- * The parts of the Prometheus submodule that are *runnable*, as opposed to the parts that
- * document it. `scripts/` holds the entry points, `lib/` the implementation they import,
- * `rules/` the text the checks read. `openspec/`, `docs/`, `agents/` and `references/` are
- * excluded deliberately — several hundred files nothing at runtime opens.
- *
- * `skills/` is excluded too: those already travel through `resources/skills/` and are installed
- * per-skill by `installBuiltinSkills`. Copying them again here would give the same skill two
- * homes on disk.
- */
-export const PACK_ENTRIES = ['scripts', 'lib', 'rules'] as const
+/** Complete runnable payload: skills load these adjacent scripts and references on demand. */
+export const PACK_ENTRIES = ['scripts', 'lib', 'rules', 'skills', 'references', 'agents', 'templates', 'hooks', 'docker', 'commands', 'shared', 'docs', 'schemas', 'assets', 'config', '.agents', 'node_modules'] as const
 
 /** Single files, copied alongside the directories above. */
-const PACK_FILES = ['package.json'] as const
+const PACK_FILES = ['package.json', 'versions.toml', 'release-manifest.json'] as const
 
 /**
  * Install the runnable pack into `{userData}/Data/PrometheusPack`.
@@ -32,10 +23,8 @@ const PACK_FILES = ['package.json'] as const
  * The doctor's own checks are read-only, but its `--fix copy-skills` path and any future fix
  * resolve paths from the pack root, so the root has to live somewhere writable.
  *
- * Runs on every launch and overwrites unconditionally: the bundled copy is replaced whenever
- * the app updates, and comparing content would cost more than the copy of a few hundred small
- * files. Failure is logged and swallowed — a pack that did not install degrades the Prometheus
- * settings section, and must never prevent the app from starting.
+ * The installed manifest identifies the complete payload. Matching launches reuse
+ * it; an upgrade replaces app-owned runtime assets before installing its manifest.
  */
 export async function installPrometheusPack(): Promise<void> {
   const source = toAsarUnpackedPath(application.getPath('feature.prometheus.pack.builtin'))
@@ -52,6 +41,12 @@ export async function installPrometheusPack(): Promise<void> {
 
   try {
     await fs.mkdir(destination, { recursive: true })
+    const manifest = await fs.readFile(path.join(source, 'release-manifest.json'))
+    try {
+      if (manifest.equals(await fs.readFile(path.join(destination, 'release-manifest.json')))) return
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
 
     for (const entry of PACK_ENTRIES) {
       const from = path.join(source, entry)

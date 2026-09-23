@@ -1,3 +1,4 @@
+import { materializeManagedServer } from '@main/services/prometheus/workspaceMcp'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp'
@@ -171,9 +172,9 @@ async function createStdio(
     stderr: 'pipe'
   }
 
-  if (server.dxtPath) {
-    transportOptions.cwd = server.dxtPath
-    logger.debug(`Setting working directory for package server`, { cwd: server.dxtPath })
+  if (server.cwd || server.dxtPath) {
+    transportOptions.cwd = server.cwd ?? server.dxtPath
+    logger.debug(`Setting working directory for package server`, { cwd: transportOptions.cwd })
   }
 
   const transport = new sdk.StdioClientTransport(transportOptions)
@@ -189,13 +190,23 @@ async function createStdio(
     })
   }
   const stderrDecoder = new TextDecoder('utf-8', { fatal: false })
+  const secrets = server.tags?.includes('the-boss:workspace-managed')
+    ? Object.entries(server.env ?? {}).filter(([key, value]) => /PASSWORD|TOKEN|SECRET|API_KEY/.test(key) && value).map(([,value]) => value)
+    : []
   const emitStderr = (message: string) => {
     if (!message.trim()) return
+    for (const secret of secrets) message = message.split(secret).join('[redacted]')
     logger.debug(`Stdio stderr`, { data: message })
     onServerLog({ timestamp: Date.now(), level: 'stderr', message: message.trim(), source: 'stdio' })
   }
-  transport.stderr?.on('data', (data: Buffer) => emitStderr(stderrDecoder.decode(data, { stream: true })))
-  transport.stderr?.on('end', () => emitStderr(stderrDecoder.decode()))
+  let pendingStderr = ''
+  transport.stderr?.on('data', (data: Buffer) => {
+    pendingStderr += stderrDecoder.decode(data, { stream: true })
+    const lines = pendingStderr.split('\n')
+    pendingStderr = lines.pop() ?? ''
+    for (const line of lines) emitStderr(line)
+  })
+  transport.stderr?.on('end', () => emitStderr(pendingStderr + stderrDecoder.decode()))
   // StdioClientTransport does not expose stdout as a readable stream for raw logging
   // (stdout is reserved for JSON-RPC). Avoid attaching a listener that would never fire.
   return transport
@@ -203,7 +214,8 @@ async function createStdio(
 
 /** Creates the client transport a connection config asks for: in-memory, HTTP/SSE, or a child process. */
 export async function createTransport(input: CreateTransportInput): Promise<McpTransport> {
-  const { server } = input
+  const server = await materializeManagedServer(input.server)
+  input = { ...input, server }
   const kind = mcpTransportKind(server)
 
   // An `inMemory` row we cannot start in-process still describes how to reach the server —

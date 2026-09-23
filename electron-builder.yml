@@ -78,6 +78,7 @@ files:
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
+  - "!resources/prometheus-skills-mini/**" # ship the complete prepared payload below
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
 asarUnpack:
   - resources/**
@@ -104,6 +105,8 @@ asarUnpack:
   - "node_modules/node-screenshots-*/**" # native N-API binary must be unpacked for runtime loading
   - "node_modules/node-mac-permissions/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
+  - from: "build/prometheus-payload"
+    to: "app.asar.unpacked/resources/prometheus-skills-mini"
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"

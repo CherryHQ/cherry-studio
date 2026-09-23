@@ -26,6 +26,7 @@ import { runDataReset } from '@main/services/dataReset'
 import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
 import { initSentry } from '@main/services/sentry'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
+import { removeCommandPath } from '@main/services/prometheus/commandPath'
 import { getApplicationId } from '@main/utils/appEdition'
 
 // should be the first to resolveUserDataLocation()
@@ -51,6 +52,11 @@ import { versionService } from './services/VersionService'
 const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
+  if (process.argv.includes('--remove-managed-path')) {
+    await removeCommandPath()
+    app.exit(0)
+    return
+  }
   // Reset before backup, migration, or services open user data.
   runDataReset()
 

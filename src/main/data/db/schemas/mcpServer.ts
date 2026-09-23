@@ -21,6 +21,7 @@ export const mcpServerTable = sqliteTable(
     description: text(),
     baseUrl: text(),
     command: text(),
+    cwd: text(),
     registryUrl: text(),
     args: text({ mode: 'json' }).$type<string[]>(),
     env: text({ mode: 'json' }).$type<Record<string, string>>(),

@@ -1,273 +1,107 @@
 name: The Boss Release
-
-run-name: Build ${{ github.ref_name }} @ ${{ github.sha }}
-
-# Fork-owned release pipeline. Upstream's workflows are guarded by
-# `if: github.repository == 'CherryHQ/cherry-studio'`, so they no-op here and
-# this runs alongside them without interfering.
+run-name: Installers ${{ github.ref_name }} @ ${{ github.sha }}
 on:
+  workflow_dispatch:
   push:
     branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - ".kbd-orchestrator/**"
-      - ".prometheus/**"
-      - "openspec/**"
-  workflow_dispatch:
-
+    paths-ignore: ['**/*.md', 'docs/**', '.kbd-orchestrator/**', '.prometheus/**', 'openspec/**', 'release-manifest.json']
 concurrency:
   group: the-boss-release-${{ github.ref }}
-  cancel-in-progress: true
-
+  cancel-in-progress: false
 env:
   IPFS_API: https://ipfs.prometheusags.ai
   NODE_OPTIONS: --max-old-space-size=8192
-
+permissions:
+  contents: read
 jobs:
   build:
-    name: Build ${{ matrix.label }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    name: Installer (${{ matrix.platform }}-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
     env:
       HAS_SIGNING: ${{ secrets.CSC_LINK != '' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            label: macOS (arm64 + x64)
-            script: build:mac
-            artifacts: "dist/*.dmg"
-          - os: windows-latest
-            label: Windows (x64 + arm64)
-            script: build:win
-            artifacts: "dist/*setup.exe"
-
+          - { runner: windows-2025, platform: win32, arch: x64, script: 'build:win:x64' }
+          - { runner: windows-11-arm, platform: win32, arch: arm64, script: 'build:win:arm64' }
+          - { runner: macos-15-intel, platform: darwin, arch: x64, script: 'build:mac:x64' }
+          - { runner: macos-15, platform: darwin, arch: arm64, script: 'build:mac:arm64' }
+          - { runner: ubuntu-24.04, platform: linux, arch: x64, script: 'build:linux:x64' }
+          - { runner: ubuntu-24.04-arm, platform: linux, arch: arm64, script: 'build:linux:arm64' }
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-
+          submodules: true
       - uses: actions/setup-node@v6
         with:
-          node-version-file: ".node-version"
-
+          node-version-file: .node-version
       - uses: pnpm/action-setup@v5
-
-      - name: Resolve pnpm store
-        id: pnpm-cache
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
       - uses: actions/cache@v6
         with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
-
-      - name: Install dependencies
-        shell: bash
-        # Postinstall scripts fetch release binaries from third-party hosts; a
-        # single 504 there should not cost a whole platform's build.
-        run: |
-          for attempt in 1 2 3; do
-            if pnpm install; then exit 0; fi
-            echo "::warning::pnpm install failed (attempt $attempt/3); retrying in 30s"
-            sleep 30
-          done
-          echo "::error::pnpm install failed after 3 attempts"
-          exit 1
-
-      # Upstream hits a setuptools gap on the macOS runner image.
-      - name: macOS build dependencies
+          path: ~/.cache/the-boss-binaries
+          key: binaries-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('build/integration-artifacts.json', 'scripts/download-binaries.js') }}
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm libarchive-tools libfuse2 libsecret-1-dev
+      - name: Install macOS packaging dependencies
         if: runner.os == 'macOS'
         run: brew install python-setuptools
-
-      # Signing env vars are set ONLY when the secrets exist. An unset secret
-      # interpolates to an empty string, and electron-builder then treats
-      # CSC_LINK="" as a certificate path, resolves it to the repo root, and
-      # dies with "not a file" — so absent secrets must mean absent variables.
-      - name: Enable code signing
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Enable configured signing
         if: env.HAS_SIGNING == 'true'
         shell: bash
+        env:
+          SIGN_LINK: ${{ secrets.CSC_LINK }}
+          SIGN_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          SIGN_APPLE_ID: ${{ secrets.APPLE_ID }}
+          SIGN_APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          SIGN_APPLE_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          {
-            echo "CSC_LINK=${{ secrets.CSC_LINK }}"
-            echo "CSC_KEY_PASSWORD=${{ secrets.CSC_KEY_PASSWORD }}"
-            echo "APPLE_ID=${{ secrets.APPLE_ID }}"
-            echo "APPLE_APP_SPECIFIC_PASSWORD=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}"
-            echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}"
-          } >> "$GITHUB_ENV"
-
-      - name: Build
-        shell: bash
+          echo "CSC_LINK=$SIGN_LINK" >> "$GITHUB_ENV"
+          echo "CSC_KEY_PASSWORD=$SIGN_PASSWORD" >> "$GITHUB_ENV"
+          echo "APPLE_ID=$SIGN_APPLE_ID" >> "$GITHUB_ENV"
+          echo "APPLE_APP_SPECIFIC_PASSWORD=$SIGN_APPLE_PASSWORD" >> "$GITHUB_ENV"
+          echo "APPLE_TEAM_ID=$SIGN_APPLE_TEAM" >> "$GITHUB_ENV"
+      - name: Build actual installers
         run: pnpm ${{ matrix.script }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Skip signing outright when no certificate is configured.
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ env.HAS_SIGNING }}
-
-      - name: Upload installers to IPFS
-        id: ipfs
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          files=(${{ matrix.artifacts }})
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "::error::No installers matched ${{ matrix.artifacts }} — the build produced nothing to publish."
-            ls -la dist/ || true
-            exit 1
-          fi
-
-          : > ipfs-manifest.tsv
-          for f in "${files[@]}"; do
-            name="$(basename "$f")"
-            echo "Adding $name ($(du -h "$f" | cut -f1))"
-            # Kubo RPC. cid-version=1 for the modern base32 CIDs gateways expect.
-            response="$(curl -sS --fail-with-body --retry 3 --retry-delay 10 --max-time 1800 \
-              -X POST -F "file=@$f" \
-              "$IPFS_API/api/v0/add?pin=true&cid-version=1&progress=false")"
-            cid="$(printf '%s' "$response" | tail -n1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["Hash"])')"
-            if [ -z "$cid" ]; then
-              echo "::error::IPFS add returned no CID for $name: $response"
-              exit 1
-            fi
-            # Verify it is actually retrievable before advertising the link.
-            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 120 -I "$IPFS_API/ipfs/$cid" || true)"
-            if [ "$code" != "200" ]; then
-              echo "::error::$name pinned as $cid but the gateway returned HTTP $code"
-              exit 1
-            fi
-            size="$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")"
-            printf '%s\t%s\t%s\n' "$name" "$cid" "$size" >> ipfs-manifest.tsv
-            echo "  $name -> $cid"
-          done
-          cat ipfs-manifest.tsv
-
-      - name: Publish manifest fragment
-        uses: actions/upload-artifact@v5
+      - name: Publish installers to IPFS
+        run: node scripts/publish-installers.cjs
+      - uses: actions/upload-artifact@v5
         with:
-          name: ipfs-manifest-${{ runner.os }}
-          path: ipfs-manifest.tsv
-          retention-days: 7
-
-  releases-doc:
-    name: Update RELEASES.md
+          name: installers-${{ matrix.platform }}-${{ matrix.arch }}
+          path: installers-${{ matrix.platform }}-${{ matrix.arch }}.json
+          if-no-files-found: error
+          retention-days: 90
+  publish-complete-release:
     needs: build
-    # Never let one platform's failure withhold the other's installers.
-    # `always()` also runs after a failed build; the download step tolerates
-    # a missing manifest and the commit step no-ops when nothing changed.
-    if: always() && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
-          ref: ${{ github.ref_name }}
-
+          node-version-file: .node-version
       - uses: actions/download-artifact@v6
-        continue-on-error: true
         with:
-          pattern: ipfs-manifest-*
+          pattern: installers-*
           path: manifests
-          merge-multiple: false
-
-      - name: Skip when no platform produced installers
-        id: gate
-        shell: bash
-        run: |
-          # Print the tree first: a silent "no manifests" is indistinguishable
-          # from a download that landed somewhere unexpected.
-          echo "Downloaded tree:"
-          find manifests -type f 2>/dev/null || echo "  (manifests/ absent)"
-          shopt -s nullglob globstar
-          # Match at any depth — download-artifact's nesting depends on how many
-          # artifacts matched the pattern.
-          found=(manifests/**/ipfs-manifest.tsv)
-          echo "Matched ${#found[@]} manifest file(s)."
-          if [ ${#found[@]} -eq 0 ]; then
-            echo "No manifests — no platform published installers; nothing to record."
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Prepend this build to RELEASES.md
-        if: steps.gate.outputs.publish == 'true'
-        shell: bash
+          merge-multiple: true
+      - name: Generate complete release entry
+        run: node scripts/update-release-entry.cjs
+      - name: Commit release metadata through GitHub
         env:
-          IPFS_API: ${{ env.IPFS_API }}
-        run: |
-          set -euo pipefail
-          version="$(node -p "require('./package.json').version")"
-          stamp="$(date -u +'%Y-%m-%d %H:%M UTC')"
-
-          {
-            echo "## v${version} — ${stamp}"
-            echo
-            echo "Commit [\`${GITHUB_SHA:0:9}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})"
-            echo
-            echo "| Installer | Size | Download |"
-            echo "|---|---|---|"
-            shopt -s nullglob globstar
-            for m in manifests/**/ipfs-manifest.tsv; do
-              [ -f "$m" ] || continue
-              while IFS=$'\t' read -r name cid size; do
-                [ -n "${name:-}" ] || continue
-                mb="$(awk -v b="$size" 'BEGIN{printf "%.1f MB", b/1048576}')"
-                echo "| \`${name}\` | ${mb} | [${cid:0:12}…](${IPFS_API}/ipfs/${cid}) |"
-              done < "$m"
-            done
-            echo
-          } > .release-entry.md
-
-          # Newest first, inserted at an explicit marker so the header and intro
-          # always stay above the release list.
-          marker='<!-- releases:newest-first -->'
-          if [ ! -f RELEASES.md ] || ! grep -qF "$marker" RELEASES.md; then
-            {
-              echo "# The Boss — Releases"
-              echo
-              echo "Installers are published to IPFS and served from ${IPFS_API}."
-              echo "Each entry is immutable: a CID always resolves to that exact build."
-              echo
-              echo "$marker"
-              echo
-            } > RELEASES.head
-            # Preserve any existing entries from a pre-marker file.
-            if [ -f RELEASES.md ]; then
-              sed -n '/^## /,$p' RELEASES.md > RELEASES.tail
-            else
-              : > RELEASES.tail
-            fi
-          else
-            sed -n "1,/$(printf '%s' "$marker" | sed 's/[]\/$*.^[]/\\&/g')/p" RELEASES.md > RELEASES.head
-            echo >> RELEASES.head
-            sed -n '/^## /,$p' RELEASES.md > RELEASES.tail
-          fi
-          cat RELEASES.head .release-entry.md RELEASES.tail > RELEASES.md
-          rm -f RELEASES.head RELEASES.tail
-          rm -f .release-entry.md
-          cat RELEASES.md
-
-      - name: Commit
-        if: steps.gate.outputs.publish == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add RELEASES.md
-          # Compare against the index, not the worktree: `git diff` reports no
-          # change for a file git has never tracked, so the first ever run would
-          # otherwise exit here without publishing anything.
-          if git diff --cached --quiet RELEASES.md; then
-            echo "RELEASES.md unchanged."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          version="$(node -p "require('./package.json').version")"
-          git commit -m "chore(releases): publish v${version} installers [skip ci]"
-          git push origin HEAD:${GITHUB_REF_NAME}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/commit-release-entry.cjs
+      - uses: actions/upload-artifact@v5
+        with:
+          name: complete-release
+          path: |
+            release-manifest.json
+            RELEASES.md

@@ -24,6 +24,7 @@ import type {
   PrometheusDoctorReport,
   PrometheusPushState
 } from '@shared/types/prometheus'
+import { IntegrationSettings } from './IntegrationSettings'
 
 const ROUTE = '/settings/prometheus'
 const domId = (anchorId: string) => getSettingDomId(ROUTE, anchorId)
@@ -190,6 +191,7 @@ export default function PrometheusSettings() {
       </SettingGroup>
 
       {/* 2 · Skill availability — the one surface that writes into $HOME. */}
+      <IntegrationSettings />
       <SettingGroup theme={theme} id={domId('skill-push')} className="scroll-mt-6">
         <SettingSubtitle>
           {refused ? t('settings.prometheus.push.fullPackTitle') : t('settings.prometheus.push.title')}

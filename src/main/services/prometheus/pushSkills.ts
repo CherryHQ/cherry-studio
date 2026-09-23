@@ -4,10 +4,11 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import { copyDirectoryRecursive } from '@main/utils/fileOperations'
 import type { PrometheusPushState } from '@shared/types/prometheus'
 
 import { detectFullPack } from './fullPackDetection'
+import { copyOwnedSkill } from './ownedSkillCopy'
+import { renderMiniSkill } from './miniCommands'
 
 const logger = loggerService.withContext('prometheusPushSkills')
 
@@ -58,9 +59,7 @@ export async function pushSkillsToHome(): Promise<PrometheusPushState> {
       for (const skill of skills) {
         const from = path.join(source, skill.name)
         const to = path.join(destinationRoot, skill.name)
-        // Replace rather than merge: a file deleted upstream must not survive in the copy.
-        await fs.rm(to, { recursive: true, force: true })
-        await copyDirectoryRecursive(from, to)
+        await copyOwnedSkill(from, to, renderMiniSkill)
       }
     }
 

@@ -1,0 +1,156 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://prometheus-ags.dev/schemas/adversarial-review/findings.schema.json",
+  "title": "Adversarial Review Findings",
+  "type": "object",
+  "required": [
+    "mode",
+    "verdict",
+    "judge_model",
+    "isolation_mode",
+    "findings",
+    "cross_model_check"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": [
+        "diff",
+        "artifact",
+        "skill",
+        "agent",
+        "decision"
+      ]
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "BLOCK"
+      ],
+      "description": "BLOCK iff at least one CRITICAL finding exists"
+    },
+    "judge_model": {
+      "type": "string",
+      "description": "Resolved model that produced this review (provider/model-id or class name)"
+    },
+    "isolation_mode": {
+      "type": "string",
+      "pattern": "^(rest-gateway(:.*)?|harness-native)$",
+      "description": "What actually served the review. 'rest-gateway:<url>' = fresh-context cross-model call to that OpenAI-compatible endpoint; 'harness-native' = fresh-context subagent fallback (weaker guarantee). Was previously the fixed literal 'liter-llm' regardless of endpoint, which made a same-family self-grade indistinguishable from a real cross-model review."
+    },
+    "producer_model": {
+      "type": "string",
+      "description": "The model whose work was reviewed, for the judge!=producer comparison. 'unknown' means the check could not be enforced."
+    },
+    "cross_model_check": {
+      "type": "string",
+      "enum": [
+        "verified-distinct",
+        "same-model-collision",
+        "unverified-producer-unknown"
+      ],
+      "description": "Whether the judge was proven different from the producer. 'unverified-producer-unknown' means the packet carried no producer_model, so the comparison passed trivially \u2014 not a clean review."
+    },
+    "checked_classes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "REQUIRED (non-empty) when findings is empty: the failure classes the judge checked and why each does not apply. A zero-finding report without this is rejected as theater."
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "severity",
+          "claim",
+          "evidence"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "CRITICAL",
+              "WARNING",
+              "SUGGESTION"
+            ]
+          },
+          "file": {
+            "type": "string",
+            "description": "Repo-relative path or artifact filename the finding anchors to"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 1,
+            "description": "One-sentence statement of the defect"
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The hunk/criterion/quote/contradiction that proves the claim"
+          },
+          "suggested_fix": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "confidence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Calibrated confidence 0-100 in the analysis. MACHINE-CHECKABLE by design: 'I am fairly confident' is unfalsifiable and cannot be compared against outcomes later. An integer can."
+    },
+    "what_would_change_this": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What evidence would change this conclusion. An analysis that cannot name what would refute it is unfalsifiable, and presenting it as a conclusion invites the over-reliance the countermeasures exist to prevent."
+    },
+    "disconfirming": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "At least one item cutting AGAINST the conclusion. Explainable AI increased trust while promoting over-reliance ('False Confirmation'): visible reasoning may 'provide false assurance that errors have been checked for and ruled out'. Surfacing disconfirming evidence is the counterweight."
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "change-idt-001: a decision artifact is only meaningful if a DIFFERENT model judged it. same-model-collision and unverified-producer-unknown are honest records for other modes, but for a decision they mean the cross-model guarantee was not obtained \u2014 so the artifact must not validate. Also requires the automation-bias countermeasures (confidence, what_would_change_this, disconfirming) \u2014 change-idt-003. A decision artifact is advice a human acts on; a review of a diff is not.",
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "decision"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "cross_model_check": {
+            "const": "verified-distinct"
+          }
+        },
+        "required": [
+          "confidence",
+          "cross_model_check",
+          "disconfirming",
+          "what_would_change_this"
+        ]
+      }
+    }
+  ]
+}

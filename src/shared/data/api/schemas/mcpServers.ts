@@ -21,6 +21,7 @@ const MCP_SERVER_MUTABLE_FIELDS = {
   description: true,
   baseUrl: true,
   command: true,
+  cwd: true,
   registryUrl: true,
   args: true,
   env: true,

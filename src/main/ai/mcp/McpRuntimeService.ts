@@ -307,6 +307,7 @@ export class McpRuntimeService extends BaseService {
         JSON.stringify({
           baseUrl: server.baseUrl,
           command: server.command,
+          cwd: server.cwd,
           args: Array.isArray(server.args) ? server.args : [],
           registryUrl: server.registryUrl,
           env: server.env,

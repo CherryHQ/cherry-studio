@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KBD Project Metadata",
+  "type": "object",
+  "required": ["name", "activePhase"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "activePhase": { "type": ["string", "null"] },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "model_policy": { "type": "object" }
+  },
+  "not": { "required": ["active_phase"] },
+  "additionalProperties": true
+}

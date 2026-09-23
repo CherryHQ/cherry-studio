@@ -408,8 +408,8 @@ export class AiService extends BaseService {
     // The Prometheus pack is installed first: its `scripts/doctor.mjs` is what the
     // /settings/prometheus section spawns, and it must be on disk before that section
     // can report anything. It never blocks the chain — a failed install is logged inside.
-    void installPrometheusPack()
-      .then(() => installBuiltinSkills())
+    await installPrometheusPack()
+    void installBuiltinSkills()
       .catch((error) => {
         logger.error('Failed to install built-in skills', error as Error)
       })

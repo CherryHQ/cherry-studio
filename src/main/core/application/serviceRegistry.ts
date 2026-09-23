@@ -1,3 +1,4 @@
+import { PrometheusIntegrationService } from '@main/services/prometheus/PrometheusIntegrationService'
 import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
@@ -143,6 +144,7 @@ export const services = {
   DoctorService,
   LogRetentionService,
   PrometheusSkillPushService,
+  PrometheusIntegrationService,
   PythonService,
   TrayService,
   WebSearchService,

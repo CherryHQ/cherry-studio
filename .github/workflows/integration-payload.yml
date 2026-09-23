@@ -1,0 +1,165 @@
+name: The Boss integration payload
+on:
+  workflow_dispatch:
+    inputs:
+      payload_tag:
+        description: Unique immutable boss-tools-* release tag
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Native tools (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-2025, platform: win32-x64, target: x86_64-pc-windows-msvc }
+          - { runner: windows-11-arm, platform: win32-arm64, target: aarch64-pc-windows-msvc }
+          - { runner: macos-15-intel, platform: darwin-x64, target: x86_64-apple-darwin }
+          - { runner: macos-15, platform: darwin-arm64, target: aarch64-apple-darwin }
+          - { runner: ubuntu-24.04, platform: linux-x64, target: x86_64-unknown-linux-gnu }
+          - { runner: ubuntu-24.04-arm, platform: linux-arm64, target: aarch64-unknown-linux-gnu }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: 1.97.1
+          targets: ${{ matrix.target }}
+      - name: Linux compiler dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang cmake
+      - name: Windows compiler dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm --no-progress -y
+          'C:\Program Files\NASM' >> $env:GITHUB_PATH
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            build/integration-source/**/target
+          key: native-${{ matrix.platform }}-${{ hashFiles('build/integration-sources.json') }}
+          restore-keys: native-${{ matrix.platform }}-
+      - name: Build final native tool payload
+        run: node scripts/build-integration-tools.cjs ${{ matrix.target }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: native-tools-${{ matrix.platform }}
+          path: build/integration-output/*
+          if-no-files-found: error
+          retention-days: 30
+
+  images:
+    name: Image (${{ matrix.service }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [surreal-memory, liter-llm]
+        arch: [amd64, arm64]
+        include:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - name: Resolve source pins
+        id: source
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: node scripts/prepare-service-image.cjs
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: build/service-source
+          file: build/service-source/Dockerfile.boss
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ghcr.io/prometheus-ags/the-boss-${{ matrix.service }}:${{ inputs.payload_tag }}-${{ matrix.arch }}
+          build-args: |
+            PREBUILD_DEPS=0
+            CARGO_BUILD_FLAGS=--no-default-features --features server-only,palace,local-embeddings
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ matrix.arch }}
+      - name: Record image digest
+        env:
+          IMAGE_SERVICE: ${{ matrix.service }}
+          IMAGE_ARCH: ${{ matrix.arch }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: node -e "require('fs').writeFileSync(process.env.IMAGE_SERVICE+'-'+process.env.IMAGE_ARCH+'.json', JSON.stringify({service:process.env.IMAGE_SERVICE,arch:process.env.IMAGE_ARCH,digest:process.env.IMAGE_DIGEST}))"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: image-${{ matrix.service }}-${{ matrix.arch }}
+          path: ${{ matrix.service }}-${{ matrix.arch }}.json
+
+  image-manifests:
+    needs: images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: image-*
+          path: build/integration-output
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish multi-platform service images
+        env:
+          PAYLOAD_TAG: ${{ inputs.payload_tag }}
+        run: node scripts/publish-service-images.cjs
+      - uses: actions/upload-artifact@v5
+        with:
+          name: service-image-manifests
+          path: build/integration-output/*-image.json
+
+  publish:
+    needs: [native, image-manifests]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - uses: actions/download-artifact@v6
+        with:
+          path: build/integration-output
+          merge-multiple: true
+      - name: Publish complete payload and checksum manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAYLOAD_TAG: ${{ inputs.payload_tag }}
+        run: node scripts/publish-integration-payload.cjs

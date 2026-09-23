@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "rust": "1.97.1",
+  "sources": {
+    "compass": {
+      "repository": "GQAdonis/compass",
+      "revision": "d0b9e0fb3cc62a1985bd6a83c5b5ea7798d937f9"
+    },
+    "filesystem": {
+      "repository": "GQAdonis/rust-mcp-filesystem",
+      "revision": "3a8d18233aa666f7cf776d5d998a28e7b2b88d0d"
+    },
+    "prometheus": {
+      "repository": "Prometheus-AGS/prometheus-skill-system",
+      "revision": "d7c25e8a683db5e60bc2d7677bf1c42f97a1700f"
+    },
+    "pk": {
+      "repository": "Prometheus-AGS/prometheus-knowledge-rs",
+      "revision": "abb6745e31da7577611d7c32005af26a72254484"
+    },
+    "mini": {
+      "repository": "Prometheus-AGS/prometheus-skills-mini",
+      "revision": "35ceed50391eb69c4b2628177141eef0bb2f7694"
+    },
+    "surreal-memory": {
+      "repository": "Prometheus-AGS/surreal-memory-server",
+      "revision": "d287add6e63dfba90ef363f7713965f2f82708e7"
+    },
+    "liter-llm": {
+      "repository": "GQAdonis/liter-llm",
+      "revision": "c5c6caac617eb931cd5009146a70831422ec236c"
+    }
+  },
+  "tools": {
+    "compass": {
+      "source": "compass",
+      "package": "compass-cli",
+      "version": "0.3.28",
+      "features": "surreal-remote"
+    },
+    "rust-mcp-filesystem": {
+      "source": "filesystem",
+      "package": "rust-mcp-filesystem",
+      "version": "0.4.5"
+    },
+    "prometheus": {
+      "source": "prometheus",
+      "package": "prometheus-cli",
+      "directory": "tools/prometheus-cli",
+      "version": "1.10.0"
+    },
+    "pk": {
+      "source": "pk",
+      "package": "pk-cli",
+      "version": "1.9.0"
+    }
+  },
+  "parser": {
+    "url": "https://github.com/xberg-io/tree-sitter-language-pack/releases/download/v1.13.1/parser-sources-1.13.1.tar.zst",
+    "sha256": "411bc912ca9b6fa43f75aeff0ad9df419b2b425e99795c66ab253f2970e2afd3"
+  }
+}
