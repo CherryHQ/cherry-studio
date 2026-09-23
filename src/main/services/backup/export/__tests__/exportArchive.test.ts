@@ -367,6 +367,13 @@ describe('exportArchive', () => {
     expect(manifest.resourceRequirements).toHaveLength(8)
   })
 
+  it('names every stage in order, ending with verification before publish', async () => {
+    const stages: string[] = []
+    await exportArchive({ outPath, reportStage: (stage) => stages.push(stage) })
+
+    expect(stages).toEqual(['preparing', 'snapshotting-db', 'materializing-db', 'capturing-resources', 'verifying'])
+  })
+
   it('leaves no staging tree behind on success', async () => {
     await exportArchive({ outPath })
 

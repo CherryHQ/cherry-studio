@@ -195,6 +195,7 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     // different one (an external drive), and the archive is written there.
     await assertDiskHeadroom({ target: outPath, neededBytes: materialized.sizeBytes + resourceBytes })
 
+    reportStage?.('verifying')
     await publishArchive({
       outPath,
       manifest,

@@ -61,7 +61,7 @@ vi.mock('../restore/prepareRestore', async (importOriginal) => ({
 vi.mock('../restore/rollbackRestore', () => ({ armRestoreRollback: armRollbackMock }))
 
 const { exportArchiveMock, transportMock } = vi.hoisted(() => ({
-  exportArchiveMock: vi.fn<(input: { outPath: string }) => Promise<unknown>>(),
+  exportArchiveMock: vi.fn<(input: { outPath: string; reportStage?: (stage: string) => void }) => Promise<unknown>>(),
   transportMock: {
     upload: vi.fn<(localPath: string, name: string) => Promise<void>>(async () => undefined),
     download: vi.fn<(name: string, destPath: string) => Promise<void>>(async () => undefined),
@@ -741,6 +741,33 @@ describe('BackupService.exportToDestination', () => {
 
     const staged = exportArchiveMock.mock.calls[0][0].outPath
     expect(() => readFileSync(staged)).toThrow()
+  })
+
+  it('reports the export stages and then the upload for a destination export', async () => {
+    broadcastMock.mockClear()
+    exportArchiveMock.mockImplementationOnce(async ({ outPath, reportStage }) => {
+      reportStage?.('snapshotting-db')
+      writeFileSync(outPath, 'archive')
+      return { outPath, manifest: { degradations: [] } }
+    })
+
+    await service.exportToDestination('webdav')
+
+    const stages = broadcastMock.mock.calls
+      .filter(([event]) => event === 'backup.progress')
+      .map(([, payload]) => (payload as { stage: string }).stage)
+    expect(stages).toEqual(['snapshotting-db', 'uploading'])
+  })
+
+  it('reports the admission stage for a restore prepared from a destination', async () => {
+    broadcastMock.mockClear()
+    transportMock.download.mockImplementationOnce(async (_name: string, destPath: string) => {
+      writeFileSync(destPath, 'not an archive')
+    })
+
+    await expect(service.prepareRestoreFromDestination('webdav', 'backup.zip')).rejects.toThrow()
+
+    expect(broadcastMock).toHaveBeenCalledWith('backup.progress', { operation: 'prepare-restore', stage: 'admitting' })
   })
 
   it('sends the name the user typed instead of the generated one', async () => {

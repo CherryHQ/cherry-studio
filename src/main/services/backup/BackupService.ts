@@ -284,7 +284,7 @@ export class BackupService extends BaseService {
       await ensureDir(tempRoot)
       const scratch = await createOwnedScratch(tempRoot, name)
       try {
-        const result = await exportArchive({ outPath: scratch.filePath, signal })
+        const result = await exportArchive({ outPath: scratch.filePath, signal, reportStage })
         reportStage('uploading')
         await transport.upload(result.outPath, name, signal)
         // Only now. Pruning first is how a limit of 1 turned a failed upload into
@@ -317,13 +317,13 @@ export class BackupService extends BaseService {
     assertArchiveName(name)
     const transport = createTransport(await resolveDestination(id))
 
-    return this.runExclusive('prepare-restore', async (signal) => {
+    return this.runExclusive('prepare-restore', async (signal, reportStage) => {
       const tempRoot = application.getPath('feature.backup.temp')
       await ensureDir(tempRoot)
       const scratch = await createOwnedScratch(tempRoot, name)
       try {
         await transport.download(name, scratch.filePath, signal)
-        return await prepareRestore({ archivePath: scratch.filePath, signal })
+        return await prepareRestore({ archivePath: scratch.filePath, signal, reportStage })
       } finally {
         await scratch.dispose()
       }
