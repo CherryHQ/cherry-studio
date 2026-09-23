@@ -5417,7 +5417,6 @@
   "settings.subscription.subscribe": "Subscribe",
   "settings.subscription.subscribe_hint": "Subscribe to a paid plan to view quota usage.",
   "settings.subscription.title": "Subscription & Usage",
-  "settings.subscription.total": "Total {{total}}",
   "settings.subscription.usage": "Usage",
   "settings.system.title": "Sistema",
   "settings.theme.color_primary": "Cor Temática",

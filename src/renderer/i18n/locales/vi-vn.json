@@ -5417,7 +5417,6 @@
   "settings.subscription.subscribe": "Subscribe",
   "settings.subscription.subscribe_hint": "Subscribe to a paid plan to view quota usage.",
   "settings.subscription.title": "Subscription & Usage",
-  "settings.subscription.total": "Tổng {{total}}",
   "settings.subscription.usage": "Usage",
   "settings.system.title": "Hệ thống",
   "settings.theme.color_primary": "Màu chính",

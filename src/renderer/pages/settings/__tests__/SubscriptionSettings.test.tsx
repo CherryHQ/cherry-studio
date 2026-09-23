@@ -20,7 +20,6 @@ vi.mock('react-i18next', () => ({
     t: (key: string, values?: Record<string, string | number>) => {
       if (key === 'settings.subscription.limit_days') return `${values?.count}-day limit`
       if (key === 'settings.subscription.remaining') return `${values?.percent}% remaining`
-      if (key === 'settings.subscription.total') return `Total ${values?.total}`
       return key
     },
     i18n: { language: 'en-US' }
@@ -54,7 +53,7 @@ describe('SubscriptionSettings', () => {
     )
   })
 
-  it('describes quota windows without exposing backend pool names', async () => {
+  it('describes quota windows without exposing backend pool names or a total summary', async () => {
     requestMock.mockResolvedValue({
       measured_at: '2026-09-21T00:00:00Z',
       entitlements: [
@@ -103,5 +102,6 @@ describe('SubscriptionSettings', () => {
     expect(screen.queryByText('Flash quota')).not.toBeInTheDocument()
     expect(screen.getByText('100% remaining')).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: '30-day limit' })).toHaveAttribute('aria-valuenow', '100')
+    expect(screen.queryByText('US$8.00')).not.toBeInTheDocument()
   })
 })
