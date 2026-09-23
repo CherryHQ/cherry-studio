@@ -77,7 +77,12 @@ describe('runtime turn abort without session teardown', () => {
   })
 
   it('cancels a resumed DSH session by its resume identity, not the host id', async () => {
-    const resumedInput = { ...input, resumeToken: 'resume-1' } as never
+    const resumedInput = {
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'provider::model',
+      resumeToken: 'resume-1'
+    } as never
     const connection = new DshRuntimeConnection(resumedInput)
     const bridge = {
       request: vi.fn(async () => {
@@ -97,7 +102,12 @@ describe('runtime turn abort without session teardown', () => {
   })
 
   it('cancels an edited-turn DSH session by its native identity, not the host id', async () => {
-    const editedInput = { ...input, nativeSessionId: 'native-1' } as never
+    const editedInput = {
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'provider::model',
+      nativeSessionId: 'native-1'
+    } as never
     const connection = new DshRuntimeConnection(editedInput)
     const bridge = {
       request: vi.fn(async () => {
