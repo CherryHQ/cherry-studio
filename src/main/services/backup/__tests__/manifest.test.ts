@@ -194,6 +194,15 @@ describe('BackupManifestSchema — path safety', () => {
     full.resourcePayloads[0].archivePath = '/tmp/evil'
     expect(BackupManifestSchema.safeParse(full).success).toBe(false)
   })
+
+  it('rejects a requirement livePath carrying a lone surrogate', () => {
+    // Ill-formed UTF-16 has no single on-disk spelling, so it can alias another path.
+    expect(
+      BackupManifestSchema.safeParse(
+        baseManifest({ resourceRequirements: [{ kind: 'k', resourceType: 'file', livePath: 'Data/\ud800' }] })
+      ).success
+    ).toBe(false)
+  })
 })
 
 describe('parseBackupManifest', () => {

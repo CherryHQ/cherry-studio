@@ -205,6 +205,11 @@ describe('RestoreJournalV2Schema — path distinctness (structural)', () => {
     expect(RestoreJournalV2Schema.safeParse(fullJournal({ resourceInstalls: [bad] })).success).toBe(false)
   })
 
+  it('rejects a resource-install entry whose live path carries a lone surrogate', () => {
+    const bad = { ...fullInstall(), live: 'Data/KnowledgeBase/\ud800' }
+    expect(RestoreJournalV2Schema.safeParse(fullJournal({ resourceInstalls: [bad] })).success).toBe(false)
+  })
+
   it('accepts a resource-install entry with three distinct paths', () => {
     expect(RestoreJournalV2Schema.safeParse(fullJournal()).success).toBe(true)
   })

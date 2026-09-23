@@ -140,6 +140,21 @@ describe('validateArchiveShape — hostile names', () => {
   it.each(cases)('rejects %s as entry-name', async (_label, name) => {
     expect(await reasonOf([MANIFEST, DB, { name, data: Buffer.from('x') }])).toBe('entry-name')
   })
+
+  it('rejects a lone surrogate in an entry name', async () => {
+    // Injected past the zip reader: UTF-8 decoding launders a lone surrogate into U+FFFD.
+    const zipPath = path.join(dir, 'a.zip')
+    await writeRawZip(zipPath, [MANIFEST, DB, { name: 'resources/x.bin', data: Buffer.from('x') }])
+    const open = await openArchive(zipPath)
+    try {
+      const entries = open.entries.map((entry) =>
+        entry.rawName === 'resources/x.bin' ? { ...entry, rawName: 'resources/\ud800.bin' } : entry
+      )
+      expect(() => validateArchiveShape(entries, CEIL)).toThrow(expect.objectContaining({ reason: 'entry-name' }))
+    } finally {
+      await open.close()
+    }
+  })
 })
 
 describe('validateArchiveShape — collisions', () => {
