@@ -58,7 +58,7 @@ import {
   showRecycleBinUndo
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
-import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
+import { getAgentModelFallbackSnapshot, getAgentRuntimeModeLabel } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
@@ -1950,6 +1950,16 @@ const Sessions = ({
     [assistantIconType, displayMode]
   )
 
+  const getGroupHeaderAriaDescription = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'agent') return undefined
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      const agent = agentId ? agentById.get(agentId) : undefined
+      return agent ? getAgentRuntimeModeLabel(agent.type, t) : undefined
+    },
+    [agentById, displayMode, t]
+  )
+
   // Only the pseudo-group gets a tooltip: it needs explaining. Real agent rows don't — a hint about
   // dragging fired on every hover, covering the row next to it to say something you find by trying.
   const getGroupHeaderTooltip = useCallback(
@@ -2119,6 +2129,7 @@ const Sessions = ({
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}
       getGroupHeaderIcon={getGroupHeaderIcon}
       isGroupHeaderIconVisible={isGroupHeaderIconVisible}
+      getGroupHeaderAriaDescription={getGroupHeaderAriaDescription}
       getGroupHeaderTooltip={getGroupHeaderTooltip}
       getGroupHeaderKind={getGroupHeaderKind}
       groupHeaderClickBehavior={getGroupHeaderClickBehavior}

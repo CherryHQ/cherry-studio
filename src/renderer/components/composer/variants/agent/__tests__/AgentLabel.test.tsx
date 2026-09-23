@@ -1,9 +1,16 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import i18n from 'i18next'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { AgentLabel } from '../AgentLabel'
 
+vi.unmock('@cherrystudio/ui')
+
 describe('AgentLabel', () => {
+  beforeAll(async () => {
+    await i18n.changeLanguage('en-US')
+  })
+
   it('falls back to the default agent avatar when stored avatar is blank', () => {
     render(<AgentLabel agent={{ name: 'Blank avatar agent', configuration: { avatar: '   ' } }} />)
 
@@ -20,12 +27,14 @@ describe('AgentLabel', () => {
     expect(badge.getAttribute('aria-label')).toContain('Pi')
   })
 
-  it('uses an accessible fallback label for an unknown runtime mode', () => {
-    render(<AgentLabel agent={{ name: 'Unknown agent', type: 'future-runtime' }} />)
+  it.each(['future-runtime', 'constructor', 'toString', '__proto__'])(
+    'uses an accessible fallback for runtime %s',
+    (type) => {
+      render(<AgentLabel agent={{ name: 'Unknown agent', type }} />)
 
-    const badge = screen.getByRole('img')
-    expect(badge.getAttribute('data-agent-runtime-mode')).toBe('unknown')
-    expect(badge.getAttribute('aria-label')).toBeTruthy()
-    expect(badge.getAttribute('aria-label')).toBe(badge.getAttribute('title'))
-  })
+      const badge = screen.getByRole('img')
+      expect(badge.getAttribute('data-agent-runtime-mode')).toBe('unknown')
+      expect(badge).toHaveAccessibleName('Agent runtime mode: Unknown')
+    }
+  )
 })
