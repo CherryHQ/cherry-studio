@@ -206,7 +206,10 @@ export class DoctorAgentService extends BaseService {
   private serialized<T>(scope: DoctorScopeKey, task: () => Promise<T>): Promise<T> {
     const previous = this.writeQueues.get(scope) ?? Promise.resolve()
     const next = previous.then(task, task)
-    this.writeQueues.set(scope, next.catch(() => undefined))
+    this.writeQueues.set(
+      scope,
+      next.catch(() => undefined)
+    )
     return next
   }
 

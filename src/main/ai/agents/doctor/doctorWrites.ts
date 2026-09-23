@@ -58,7 +58,10 @@ export function isPreferenceWritable(key: string): key is DoctorWritablePreferen
 }
 
 /** The value an allow-listed preference write may carry, or a thrown validation error. */
-export function parsePreferenceWrite(key: string, value: unknown): { key: DoctorWritablePreferenceKey; value: unknown } {
+export function parsePreferenceWrite(
+  key: string,
+  value: unknown
+): { key: DoctorWritablePreferenceKey; value: unknown } {
   if (!isPreferenceWritable(key)) throw new Error(`Preference "${key}" is not writable by the doctor`)
   const parsed = PREFERENCE_WRITE_SCHEMAS[key].safeParse(value)
   if (!parsed.success) throw new Error(`Invalid value for "${key}": ${parsed.error.issues[0]?.message ?? 'rejected'}`)
