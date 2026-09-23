@@ -185,6 +185,9 @@ const resolvePreferredBinding = (
   }
 
   const binding = normalizeShortcutBinding(preference.binding)
+  if (preference.customized === true) {
+    return binding
+  }
   const platformBinding = getRulePlatformBinding(rule.defaultBinding, platform)
   if (platformBinding && shortcutBindingMatches(binding, getSharedDefaultBinding(rule))) {
     return platformBinding

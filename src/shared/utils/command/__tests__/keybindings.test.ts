@@ -231,8 +231,8 @@ describe('command shortcut preferences', () => {
     // Saved Alt+arrows are a user choice. The hydrated schema default is a different value
     // and still resolves to Cmd+[ / Cmd+] (covered above).
     const preferences = {
-      'tab.history.back': { binding: ['Alt', 'Left'], enabled: true },
-      'tab.history.forward': { binding: ['Alt', 'Right'], enabled: true }
+      'tab.history.back': { binding: ['Alt', 'Left'], customized: true, enabled: true },
+      'tab.history.forward': { binding: ['Alt', 'Right'], customized: true, enabled: true }
     } satisfies Record<'tab.history.back' | 'tab.history.forward', PreferenceShortcutType>
     const options = { preferences, context: {}, platform: 'darwin' as const, scope: 'renderer' as const }
 
@@ -246,6 +246,20 @@ describe('command shortcut preferences', () => {
     expect(resolveCommandByKeybinding({ ...options, binding: ['Alt', 'Right'] })).toBe('tab.history.forward')
     expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', '['] })).toBeUndefined()
     expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', ']'] })).toBeUndefined()
+  })
+
+  it('keeps stored Command+bracket sidebar shortcuts on macOS', () => {
+    const preferences = {
+      'app.sidebar.toggle': { binding: ['CommandOrControl', '['], customized: true, enabled: true },
+      'topic.sidebar.toggle': { binding: ['CommandOrControl', ']'], customized: true, enabled: true }
+    } satisfies Record<'app.sidebar.toggle' | 'topic.sidebar.toggle', PreferenceShortcutType>
+
+    expect(
+      resolveCommandShortcutPreference('app.sidebar.toggle', preferences['app.sidebar.toggle'], 'darwin')?.binding
+    ).toEqual(['CommandOrControl', '['])
+    expect(
+      resolveCommandShortcutPreference('topic.sidebar.toggle', preferences['topic.sidebar.toggle'], 'darwin')?.binding
+    ).toEqual(['CommandOrControl', ']'])
   })
 
   it('applies the platform default to preferences hydrated from the schema default', () => {
