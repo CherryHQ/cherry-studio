@@ -101,6 +101,8 @@ export class WindowManager extends BaseService {
   private windowsByType = new Map<WindowType, Set<string>>()
 
   private pendingCenterBounds = new WeakMap<BrowserWindow, Electron.Rectangle>()
+  /** Listener registered by `center()` while waiting for macOS `leave-full-screen`. */
+  private pendingCenterLeaveHandlers = new WeakMap<BrowserWindow, () => void>()
 
   /** Warmup state per window type — shared by pooled and singleton lifecycles */
   private warmupStates = new Map<WindowType, WarmupState>()
@@ -572,11 +574,14 @@ export class WindowManager extends BaseService {
       this.pendingCenterBounds.set(window, bounds)
       if (!pending) {
         // Native fullscreen exit is asynchronous on macOS; early bounds are discarded.
-        window.once('leave-full-screen', () => {
+        const onLeave = () => {
+          this.pendingCenterLeaveHandlers.delete(window)
           const target = this.pendingCenterBounds.get(window)
           this.pendingCenterBounds.delete(window)
           if (target && !window.isDestroyed()) place(target)
-        })
+        }
+        this.pendingCenterLeaveHandlers.set(window, onLeave)
+        window.once('leave-full-screen', onLeave)
         window.setFullScreen(false)
       }
       return true
@@ -964,6 +969,16 @@ export class WindowManager extends BaseService {
     }
   }
 
+  /** Drop a macOS center that is still waiting for `leave-full-screen`. */
+  private cancelPendingCenter(window: BrowserWindow): void {
+    const onLeave = this.pendingCenterLeaveHandlers.get(window)
+    if (onLeave) {
+      window.removeListener('leave-full-screen', onLeave)
+      this.pendingCenterLeaveHandlers.delete(window)
+    }
+    this.pendingCenterBounds.delete(window)
+  }
+
   /**
    * Reset a recycled pooled window's native geometry state.
    * Restores from fullscreen/maximized/minimized, then applies the merged config.
@@ -1018,6 +1033,10 @@ export class WindowManager extends BaseService {
       this.logWarmupEvent('release-skip', type, state, { windowId })
       return
     }
+
+    // The pooled BrowserWindow outlives close. Drop a deferred macOS center so
+    // a late leave-full-screen cannot move the next lease with stale bounds.
+    this.cancelPendingCenter(managed.window)
 
     // Clear runtime overrides before the window goes hidden/idle. The three
     // branches below all call `window.hide()` on this window before either

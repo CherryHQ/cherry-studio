@@ -67,6 +67,7 @@ interface MockBrowserWindow {
   once: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   on: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   emit: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  removeListener: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   removeAllListeners: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   webContents: {
     send: ReturnType<typeof vi.fn<(...args: any[]) => any>>
@@ -119,6 +120,8 @@ function createMockBrowserWindow(): MockBrowserWindow {
           if (idx !== -1) handlers.splice(idx, 1)
         }
       }
+      // Electron removeListener(onceCb) matches the wrapper's .listener, same as Node.
+      ;(handler as { listener?: (...args: unknown[]) => void }).listener = cb
       listeners.get(event)!.push(handler)
     }),
     on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
@@ -132,6 +135,14 @@ function createMockBrowserWindow(): MockBrowserWindow {
           handler(...args)
         }
       }
+    }),
+    removeListener: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+      const handlers = listeners.get(event)
+      if (!handlers) return
+      const idx = handlers.findIndex(
+        (handler) => handler === cb || (handler as { listener?: unknown }).listener === cb
+      )
+      if (idx !== -1) handlers.splice(idx, 1)
     }),
     removeAllListeners: vi.fn(() => {
       listeners.clear()
@@ -1600,6 +1611,32 @@ describe('WindowManager', () => {
       win.isDestroyed.mockReturnValue(true)
       win.emit('leave-full-screen')
       expect(win.setBounds).not.toHaveBeenCalled()
+    })
+
+    it('center() keeps a reused pooled window on the bounds leased at recycle when macOS fullscreen exit is deferred', () => {
+      platformMock.isMac = true
+      const id = wm.open('pooled' as never)
+      const win = createdWindows[0]
+      // Recycle restores this type's configured size (windowOptions 1100×720).
+      let bounds = { x: 1920, y: 0, width: 1920, height: 1080 }
+      win.isFullScreen.mockReturnValue(true)
+      win.getBounds.mockImplementation(() => ({ ...bounds }))
+      win.getNormalBounds.mockReturnValue({ x: 100, y: 80, width: 800, height: 600 })
+      win.setBounds.mockImplementation((next: typeof bounds) => {
+        bounds = { ...next }
+      })
+
+      expect(wm.center(id)).toBe(true)
+      wm.close(id)
+      win.isFullScreen.mockReturnValue(false)
+      expect(wm.open('pooled' as never)).toBe(id)
+
+      const leased = win.getBounds()
+      expect(leased).toMatchObject({ width: 1100, height: 720 })
+
+      win.emit('leave-full-screen')
+
+      expect(win.getBounds()).toEqual(leased)
     })
 
     it('center() returns false for unknown windowId', () => {
