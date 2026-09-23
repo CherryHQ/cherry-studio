@@ -86,6 +86,7 @@ export type CherryCloudAccountPlans = z.infer<typeof cherryCloudAccountPlansSche
 
 export const cherryCloudRequestSchemas = {
   'cherry_cloud.status.get': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
+  'cherry_cloud.api_origin.get': defineRoute({ input: z.void(), output: z.url() }),
   'cherry_cloud.login.start': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.login.cancel': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.session.revoke': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
