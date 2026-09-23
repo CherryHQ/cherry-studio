@@ -27,8 +27,16 @@ SectionEnd
 `
 )
 
-const result = spawnSync('makensis.exe', ['/V4', source], { encoding: 'utf8' })
+const candidates = [
+  'makensis.exe',
+  path.join(process.env['ProgramFiles(x86)'] || '', 'NSIS', 'makensis.exe'),
+  path.join(process.env.ProgramFiles || '', 'NSIS', 'makensis.exe')
+]
+const executable =
+  candidates.find((candidate) => candidate !== 'makensis.exe' && fs.existsSync(candidate)) || 'makensis.exe'
+const result = spawnSync(executable, ['/V4', source], { encoding: 'utf8' })
 process.stdout.write(result.stdout || '')
 process.stderr.write(result.stderr || '')
 fs.rmSync(work, { recursive: true, force: true })
+if (result.error) throw result.error
 if (result.status !== 0) throw new Error(`NSIS preflight failed with exit code ${result.status}`)
