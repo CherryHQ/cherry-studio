@@ -24,19 +24,6 @@ function percent(value: number, limit: number): number {
   return limit > 0 ? Math.min(100, Math.round((value / limit) * 100)) : 0
 }
 
-function formatUnits(
-  value: number,
-  pool: CherryCloudAccountPlans['entitlements'][number]['quota_pools'][number],
-  locale: string
-): string {
-  if (pool.measurement_kind === 'requests') return new Intl.NumberFormat(locale).format(value)
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: pool.currency ?? 'USD',
-    maximumFractionDigits: 6
-  }).format(value / 1_000_000)
-}
-
 function quotaWindowLabel(
   window: CherryCloudAccountPlans['entitlements'][number]['quota_pools'][number]['windows'][number],
   t: TFunction
@@ -157,20 +144,13 @@ export function SubscriptionSettings() {
                           aria-valuemax={100}>
                           <div className="h-full bg-primary" style={{ width: `${remainingPercent}%` }} />
                         </div>
-                        <div className="mt-1 flex flex-wrap justify-between gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                          <span>
-                            {t('settings.subscription.total', {
-                              total: formatUnits(window.limit_units, pool, i18n.language)
+                        {window.next_recovery_at && (
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {t('settings.subscription.next_recovery', {
+                              time: new Date(window.next_recovery_at).toLocaleString(i18n.language)
                             })}
-                          </span>
-                          {window.next_recovery_at && (
-                            <span>
-                              {t('settings.subscription.next_recovery', {
-                                time: new Date(window.next_recovery_at).toLocaleString(i18n.language)
-                              })}
-                            </span>
-                          )}
-                        </div>
+                          </p>
+                        )}
                       </div>
                     )
                   })}
