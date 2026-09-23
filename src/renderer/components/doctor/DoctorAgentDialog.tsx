@@ -1,5 +1,5 @@
-import { Check, Undo2 } from 'lucide-react'
-import { useId, useMemo, useState } from 'react'
+import { Undo2 } from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
 
@@ -11,27 +11,17 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemMedia,
-  ItemTitle,
-  Label,
-  RadioGroup,
-  RadioGroupItem
+  DialogTitle
 } from '@cherrystudio/ui'
 import { useSharedCacheValue } from '@data/hooks/useCache'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import { StaticMarkdown } from '@renderer/components/markdown'
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useDoctorAgent } from '@renderer/hooks/doctor'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { getProviderDisplayName } from '@renderer/utils/naming'
+import type { Model } from '@shared/data/types/model'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import type {
   DoctorAgentChange,
@@ -41,10 +31,6 @@ import type {
 } from '@shared/types/doctorAgent'
 import { doctorCheckTitleKey, doctorScopeKey, doctorStateCacheKey } from '@shared/utils/doctor'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-
-// Item (size sm, title + description) plus the 8px gap below it.
-const MODEL_ROW_HEIGHT = 74
-const MODEL_LIST_HEIGHT = 340
 
 const PROPOSAL_STATUS_KEYS = {
   pending: 'settings.doctor.agent.proposal_status.pending',
@@ -81,7 +67,7 @@ export function DoctorAgentDialog({ subject, open, onOpenChange, onReportProblem
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg" closeLabel={t('common.close')} className="max-h-[calc(100vh-2rem)] overflow-hidden">
+      <DialogContent size="lg" closeLabel={t('common.close')} className="max-h-[calc(100vh-2rem)]">
         <DialogHeader className="pr-8">
           <DialogTitle>{t('settings.doctor.agent.title')}</DialogTitle>
           <DialogDescription>
@@ -128,89 +114,37 @@ function ModelPicker({
   readonly onStart: (modelId: string) => Promise<void>
 }) {
   const { t } = useTranslation()
-  const uid = useId()
   const [defaultModelId] = usePreference('chat.default_model_id')
-  const { providers } = useProviders()
+  const { providers } = useProviders({ enabled: true })
   const { models } = useModels({ enabled: true })
-  const candidates = useMemo(() => {
-    const enabledProviders = new Map(providers.filter((p) => p.isEnabled).map((p) => [p.id, p]))
-    const usable = models.filter((model) => enabledProviders.has(model.providerId) && isGatewayRoutableModel(model))
-    return usable
-      .toSorted((a, b) => Number(b.id === defaultModelId) - Number(a.id === defaultModelId))
-      .map((model) => ({ model, provider: enabledProviders.get(model.providerId) }))
-  }, [defaultModelId, models, providers])
-  const [selected, setSelected] = useState<string | undefined>(undefined)
-  const value = selected ?? candidates[0]?.model.id
+  const [selected, setSelected] = useState<Model | undefined>(undefined)
+  const model = selected ?? models.find((candidate) => candidate.id === defaultModelId)
+  const filter = useCallback<ModelSelectorFilter>(
+    (candidate, provider) => provider?.isEnabled !== false && isGatewayRoutableModel(candidate),
+    []
+  )
 
   return (
     <>
-      <div className="flex items-start justify-between gap-3">
+      <div className="space-y-2">
         <h3 className="text-sm font-medium">{t('settings.doctor.agent.model_picker.title')}</h3>
-        <Button variant="outline" size="sm" onClick={() => openSettingsTab('/settings/provider')}>
-          {t('settings.doctor.agent.model_picker.add')}
-        </Button>
+        <DefaultModelSelector
+          model={model}
+          providers={providers}
+          filter={filter}
+          onSelect={setSelected}
+          placeholder={t('settings.doctor.agent.model_picker.empty')}
+        />
       </div>
-      {candidates.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
-          {t('settings.doctor.agent.model_picker.empty')}
-        </p>
-      ) : (
-        <RadioGroup
-          aria-label={t('settings.doctor.agent.model_picker.title')}
-          className="block"
-          value={value}
-          onValueChange={setSelected}>
-          <DynamicVirtualList
-            list={candidates}
-            size={Math.min(MODEL_LIST_HEIGHT, candidates.length * MODEL_ROW_HEIGHT)}
-            estimateSize={() => MODEL_ROW_HEIGHT}
-            getItemKey={(index) => candidates[index].model.id}
-            itemContainerStyle={{ paddingBottom: 8 }}
-            overscan={6}>
-            {({ model, provider }) => {
-              const optionId = `${uid}-${model.id}`
-              const isSelected = model.id === value
-              return (
-                <Item
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="cursor-pointer hover:bg-accent/50 has-[[data-slot=radio-group-item]:focus-visible]:ring-1 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring has-[[data-slot=radio-group-item]:focus-visible]:ring-inset">
-                  <Label htmlFor={optionId}>
-                    <RadioGroupItem id={optionId} value={model.id} className="sr-only" />
-                    <ItemMedia>
-                      <ModelAvatar model={model} size={24} className="border border-border" />
-                    </ItemMedia>
-                    <ItemContent>
-                      <ItemTitle>{model.name}</ItemTitle>
-                      <ItemDescription>{getProviderDisplayName(provider)}</ItemDescription>
-                    </ItemContent>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {t(
-                        model.id === defaultModelId
-                          ? 'settings.doctor.agent.model_picker.default'
-                          : 'settings.doctor.agent.model_picker.configured'
-                      )}
-                    </span>
-                    <ItemActions className="size-4 shrink-0">
-                      {isSelected ? <Check className="size-4 text-primary" /> : null}
-                    </ItemActions>
-                  </Label>
-                </Item>
-              )
-            }}
-          </DynamicVirtualList>
-        </RadioGroup>
-      )}
       <DialogFooter>
         <Button variant="outline" onClick={onCancel}>
           {t('common.cancel')}
         </Button>
         <Button
           variant="emphasis"
-          disabled={disabled || !value}
+          disabled={disabled || !model}
           loading={loading}
-          onClick={() => value && void onStart(value)}>
+          onClick={() => model && void onStart(model.id)}>
           {t('settings.doctor.agent.actions.start')}
         </Button>
       </DialogFooter>
