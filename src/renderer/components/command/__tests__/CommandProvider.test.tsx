@@ -223,6 +223,26 @@ describe('CommandProvider', () => {
     expect(toggleSidebar).not.toHaveBeenCalled()
   })
 
+  it('runs a stored macOS Alt+Left history shortcut from an editable control', () => {
+    preferenceValues['tab.history.back'] = { binding: ['Alt', 'Left'], enabled: true }
+    const goBack = vi.fn()
+    renderProvider(
+      <>
+        <RegisteredCommand command="tab.history.back" onExecute={goBack} />
+        <input aria-label="Editor" />
+      </>
+    )
+
+    const input = screen.getByRole('textbox', { name: 'Editor' })
+    expect(fireEvent.keyDown(input, { key: 'ArrowLeft', code: 'ArrowLeft', altKey: true, cancelable: true })).toBe(
+      false
+    )
+    expect(goBack).toHaveBeenCalledOnce()
+
+    expect(fireEvent.keyDown(input, { key: '[', code: 'BracketLeft', metaKey: true, cancelable: true })).toBe(true)
+    expect(goBack).toHaveBeenCalledOnce()
+  })
+
   it('warns when executing a command without an active handler', () => {
     renderProvider(<RuntimeButton command="topic.create" />)
 

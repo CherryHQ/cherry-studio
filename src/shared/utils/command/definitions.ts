@@ -267,7 +267,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: { default: ['Alt', 'Left'], darwin: ['CommandOrControl', '['] },
+      // Shared default must differ from Alt+Left so a stored macOS Option+arrow is kept.
+      defaultBinding: { default: ['CommandOrControl', '['], win32: ['Alt', 'Left'], linux: ['Alt', 'Left'] },
       when: '!webview.focused'
     }
   }),
@@ -277,7 +278,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: { default: ['Alt', 'Right'], darwin: ['CommandOrControl', ']'] },
+      // Shared default must differ from Alt+Right so a stored macOS Option+arrow is kept.
+      defaultBinding: { default: ['CommandOrControl', ']'], win32: ['Alt', 'Right'], linux: ['Alt', 'Right'] },
       when: '!webview.focused'
     }
   }),

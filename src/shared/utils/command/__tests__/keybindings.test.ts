@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { RegisteredKeybindingRule } from '@shared/types/command'
 
 import { parseContextExpr } from '../contextExpr'
@@ -224,6 +225,27 @@ describe('command shortcut preferences', () => {
     expect(resolveCommandByKeybinding({ ...options, binding: ['Alt', 'Right'] })).toBeUndefined()
     expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', '['] })).toBe('tab.history.back')
     expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', ']'] })).toBe('tab.history.forward')
+  })
+
+  it('keeps a stored Alt+arrow history shortcut on macOS', () => {
+    // Saved Alt+arrows are a user choice. The hydrated schema default is a different value
+    // and still resolves to Cmd+[ / Cmd+] (covered above).
+    const preferences = {
+      'tab.history.back': { binding: ['Alt', 'Left'], enabled: true },
+      'tab.history.forward': { binding: ['Alt', 'Right'], enabled: true }
+    } satisfies Record<'tab.history.back' | 'tab.history.forward', PreferenceShortcutType>
+    const options = { preferences, context: {}, platform: 'darwin' as const, scope: 'renderer' as const }
+
+    expect(
+      resolveCommandShortcutPreference('tab.history.back', preferences['tab.history.back'], 'darwin')?.binding
+    ).toEqual(['Alt', 'Left'])
+    expect(
+      resolveCommandShortcutPreference('tab.history.forward', preferences['tab.history.forward'], 'darwin')?.binding
+    ).toEqual(['Alt', 'Right'])
+    expect(resolveCommandByKeybinding({ ...options, binding: ['Alt', 'Left'] })).toBe('tab.history.back')
+    expect(resolveCommandByKeybinding({ ...options, binding: ['Alt', 'Right'] })).toBe('tab.history.forward')
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', '['] })).toBeUndefined()
+    expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', ']'] })).toBeUndefined()
   })
 
   it('applies the platform default to preferences hydrated from the schema default', () => {

@@ -775,8 +775,8 @@
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
         "binding": [
-          "Alt",
-          "Left"
+          "CommandOrControl",
+          "["
         ],
         "enabled": true
       },
@@ -788,8 +788,8 @@
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
         "binding": [
-          "Alt",
-          "Right"
+          "CommandOrControl",
+          "]"
         ],
         "enabled": true
       },

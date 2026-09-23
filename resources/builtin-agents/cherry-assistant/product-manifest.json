@@ -466,12 +466,16 @@
       "keybinding": {
         "defaultBinding": {
           "default": [
+            "CommandOrControl",
+            "["
+          ],
+          "win32": [
             "Alt",
             "Left"
           ],
-          "darwin": [
-            "CommandOrControl",
-            "["
+          "linux": [
+            "Alt",
+            "Left"
           ]
         },
         "when": "!webview.focused"
@@ -485,12 +489,16 @@
       "keybinding": {
         "defaultBinding": {
           "default": [
+            "CommandOrControl",
+            "]"
+          ],
+          "win32": [
             "Alt",
             "Right"
           ],
-          "darwin": [
-            "CommandOrControl",
-            "]"
+          "linux": [
+            "Alt",
+            "Right"
           ]
         },
         "when": "!webview.focused"
