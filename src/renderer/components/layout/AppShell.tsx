@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
+import { cacheService } from '@data/CacheService'
 import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { TabsContext, useTabs } from '@renderer/hooks/tab'
@@ -66,7 +67,6 @@ export const AppShell = () => {
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
-  const [, setMiniAppShow] = useCache('mini_app.show')
   const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
 
   // Split state is window-wide and does not follow the last mini-app tab out, so
@@ -108,7 +108,7 @@ export const AppShell = () => {
       if (clearingSplitId) closingMiniAppIds.add(clearingSplitId)
       if (closingMiniAppIds.size === 0) return
       // Check which of those ids still have a surviving tab after the close,
-      // or are still shown in the split pane (splitPooledIds has no expiry).
+      // or are still shown in the currently open split pane.
       const survivingMiniAppIds = new Set<string>()
       for (const tab of tabs) {
         if (closedIdSet.has(tab.id)) continue
@@ -121,7 +121,12 @@ export const AppShell = () => {
       const orphanedIds = [...closingMiniAppIds].filter((id) => !survivingMiniAppIds.has(id))
       if (orphanedIds.length === 0) return
       const orphanedSet = new Set(orphanedIds)
-      const keepAliveIds = new Set(openedKeepAliveMiniApps.map((app) => app.appId))
+      // Read the live pool so a host-initiated eviction that already removed an
+      // app (e.g. MiniAppTabsPool closing the tab after runtime eviction) does not
+      // emit a second webview cleanup for the same id in this render.
+      const keepAliveIds = new Set(
+        (cacheService.get('mini_app.opened_keep_alive') ?? openedKeepAliveMiniApps).map((app) => app.appId)
+      )
       setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => !orphanedSet.has(app.appId)))
       for (const appId of orphanedIds) {
         if (keepAliveIds.has(appId)) clearWebviewState(appId)
@@ -131,7 +136,7 @@ export const AppShell = () => {
           setOpenedOneOffMiniApp(null)
         }
         setCurrentMiniAppId('')
-        setMiniAppShow(false)
+        cacheService.set('mini_app.show', false)
       }
     },
     [
@@ -143,7 +148,6 @@ export const AppShell = () => {
       openedKeepAliveMiniApps,
       setOpenedKeepAliveMiniApps,
       setCurrentMiniAppId,
-      setMiniAppShow,
       setOpenedOneOffMiniApp
     ]
   )

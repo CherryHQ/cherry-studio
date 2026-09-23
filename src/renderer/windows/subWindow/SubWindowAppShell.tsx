@@ -1,5 +1,6 @@
 import { Activity, type CSSProperties, useCallback, useEffect, useMemo, useRef } from 'react'
 
+import { cacheService } from '@data/CacheService'
 import { useCache } from '@data/hooks/useCache'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
@@ -43,7 +44,6 @@ export const SubWindowAppShell = () => {
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
-  const [, setMiniAppShow] = useCache('mini_app.show')
   const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
 
   const takeClearingSplitId = useCallback(
@@ -91,7 +91,9 @@ export const SubWindowAppShell = () => {
       const orphanedIds = [...closingMiniAppIds].filter((id) => !survivingMiniAppIds.has(id))
       if (orphanedIds.length === 0) return
       const orphanedSet = new Set(orphanedIds)
-      const keepAliveIds = new Set(openedKeepAliveMiniApps.map((app) => app.appId))
+      const keepAliveIds = new Set(
+        (cacheService.get('mini_app.opened_keep_alive') ?? openedKeepAliveMiniApps).map((app) => app.appId)
+      )
       setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => !orphanedSet.has(app.appId)))
       for (const appId of orphanedIds) {
         if (keepAliveIds.has(appId)) clearWebviewState(appId)
@@ -101,7 +103,7 @@ export const SubWindowAppShell = () => {
           setOpenedOneOffMiniApp(null)
         }
         setCurrentMiniAppId('')
-        setMiniAppShow(false)
+        cacheService.set('mini_app.show', false)
       }
     },
     [
@@ -113,7 +115,6 @@ export const SubWindowAppShell = () => {
       openedKeepAliveMiniApps,
       setOpenedKeepAliveMiniApps,
       setCurrentMiniAppId,
-      setMiniAppShow,
       setOpenedOneOffMiniApp
     ]
   )

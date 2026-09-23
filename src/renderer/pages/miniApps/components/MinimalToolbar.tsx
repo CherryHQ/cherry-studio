@@ -36,7 +36,6 @@ interface Props {
   /** Whether the view is currently split, so the control reads as engaged. */
   splitActive?: boolean
   onSplit: () => void
-  onClose?: () => void
 }
 
 const MinimalToolbar: FC<Props> = ({
@@ -49,8 +48,7 @@ const MinimalToolbar: FC<Props> = ({
   onOpenDevTools,
   splitMode,
   splitActive = false,
-  onSplit,
-  onClose
+  onSplit
 }) => {
   const webview = webviewRef.current
   const { t } = useTranslation()
@@ -355,20 +353,6 @@ const MinimalToolbar: FC<Props> = ({
                 className={toolbarButtonClassName()}
                 aria-label={t('miniApp.popup.devtools')}>
                 <Code size={14} />
-              </Button>
-            </Tooltip>
-          )}
-
-          {onClose && (
-            <Tooltip content={t('tab.close')} placement="bottom">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={onClose}
-                className={toolbarButtonClassName()}
-                aria-label={t('tab.close')}>
-                <X size={14} />
               </Button>
             </Tooltip>
           )}
