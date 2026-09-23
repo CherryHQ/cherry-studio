@@ -14,8 +14,9 @@ async function main() {
   for (const extension of extensions) {
     const candidates = fs.readdirSync(directory).filter((name) => name.endsWith(extension) && name.includes(version) && name.includes(arch))
     if (candidates.length !== 1) throw new Error(`Expected one ${platform}/${arch} ${extension} installer, found ${candidates.length}`)
-    const name = candidates[0]
-    const filename = path.join(directory, name)
+    const filename = path.join(directory, candidates[0])
+    const os = platform === 'win32' ? 'win' : platform === 'darwin' ? 'mac' : 'linux'
+    const name = `The-Boss-${version}-${os}-${arch}${extension}`
     const digest = crypto.createHash('sha256')
     for await (const chunk of fs.createReadStream(filename)) digest.update(chunk)
     const form = new FormData()
