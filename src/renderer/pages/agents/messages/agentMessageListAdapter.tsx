@@ -103,6 +103,7 @@ interface AgentMessageListParams {
   loadOlder?: () => void
   selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  isAgentToolFlowActive?: MessageListActions['isAgentToolFlowActive']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
   openBrowserUrl?: MessageListActions['openBrowserUrl']
@@ -165,6 +166,7 @@ export function useAgentMessageListProviderValue({
   loadOlder,
   selectAllPagination,
   openCitationsPanel,
+  isAgentToolFlowActive,
   openAgentToolFlow,
   openArtifactFile,
   openBrowserUrl,
@@ -488,6 +490,7 @@ export function useAgentMessageListProviderValue({
       openArtifactFile,
       openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,
       openCitationsPanel,
+      isAgentToolFlowActive,
       openAgentToolFlow,
       abortTool,
       bindMessageRuntime,
@@ -523,6 +526,7 @@ export function useAgentMessageListProviderValue({
       openDiagnosticReport,
       openBrowserUrl,
       openExternalUrl,
+      isAgentToolFlowActive,
       openAgentToolFlow,
       openPath,
       respondToolApproval,

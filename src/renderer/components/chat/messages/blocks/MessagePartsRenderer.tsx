@@ -15,10 +15,12 @@
  */
 
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
+import { Check, ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
@@ -44,6 +46,7 @@ import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shar
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 
 import MessageAttachments from '../frame/MessageAttachments'
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import {
   useMessageListActions,
@@ -56,10 +59,11 @@ import {
   getSessionToolTarget,
   isReportArtifactsToolResponse,
   MessageReportArtifacts,
-  SessionResultCards
+  SessionResultCards,
+  getSubagentTaskStatus
 } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
-import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
+import { AgentToolsType, isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
@@ -1470,6 +1474,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   messageParts,
   priorCitationParts
 }: MessagePartsRendererContentProps) {
+  const { subagentListTitle } = useMessageRenderConfig()
+  const { openAgentToolFlow, isAgentToolFlowActive } = useMessageListActions()
+  const { t } = useTranslation()
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
@@ -1533,7 +1540,48 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => getDisplayProjection(partEntries, message, visibleComposerFileTokens, !!hoistAttachments),
     [hoistAttachments, message, partEntries, visibleComposerFileTokens]
   )
-  const displayEntries = displayProjection.entries
+  const subagentEntries = useMemo(
+    () =>
+      openAgentToolFlow
+        ? displayProjection.entries.filter((entry) => {
+            if (!isToolUIPart(entry.part)) return false
+            const name = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse?.tool
+              .name
+            return name === AgentToolsType.Agent || name === AgentToolsType.Task
+          })
+        : [],
+    [displayProjection.entries, message.id, openAgentToolFlow]
+  )
+  const subagentStatuses = subagentEntries.map(({ part, index }) => {
+    const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
+    return response
+      ? (getSubagentTaskStatus(messageParts, response.toolCallId, response.status) ?? response.status)
+      : undefined
+  })
+  const completedSubagents = subagentStatuses.filter((status) => status === 'done').length
+  const failedSubagents = subagentStatuses.filter((status) => status === 'error').length
+  const stoppedSubagents = subagentStatuses.filter((status) => status === 'cancelled').length
+  const allSubagentsCompleted = subagentEntries.length > 0 && completedSubagents === subagentEntries.length
+  const viewingSubagent = subagentEntries.some(({ part, index }) => {
+    const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
+    return response?.toolCallId && isAgentToolFlowActive?.(response.toolCallId)
+  })
+  const [showSubagents, setSubagentsExpanded] = useMessageDisclosureState(
+    'subtasks',
+    isActiveTurnProcessing || !allSubagentsCompleted || viewingSubagent,
+    message.id
+  )
+  React.useEffect(() => {
+    if (viewingSubagent) setSubagentsExpanded(true)
+  }, [viewingSubagent, setSubagentsExpanded])
+  const subagentContentId = React.useId()
+  const displayEntries = useMemo(
+    () =>
+      subagentEntries.length
+        ? displayProjection.entries.filter((entry) => !subagentEntries.includes(entry))
+        : displayProjection.entries,
+    [displayProjection.entries, subagentEntries]
+  )
   const hasVisibleNonArtifactEntry = useMemo(
     () =>
       displayEntries.some(
@@ -1590,7 +1638,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   // Report-artifact entries don't count as renderable here: the live layout filters
   // them out and the card itself is gated on canRenderReportArtifacts, so a message
   // whose only content is report_artifacts must keep its placeholder until the card can show.
-  if (partEntries.length === 0 || (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts)) {
+  if (
+    partEntries.length === 0 ||
+    (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts && subagentEntries.length === 0)
+  ) {
     if (isActiveTurnProcessing) {
       const placeholder = (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
@@ -1631,6 +1682,64 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       {canRenderReportArtifacts && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={false} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
+        </AnimatedBlockWrapper>
+      )}
+      {subagentEntries.length > 0 && (
+        <AnimatedBlockWrapper
+          key={`subagents-${message.id}`}
+          enableAnimation={false}
+          animation="fade"
+          className="mt-1!">
+          <div className="-mx-2 mb-3">
+            <Button
+              variant="ghost"
+              aria-expanded={showSubagents}
+              aria-controls={subagentContentId}
+              onClick={() => setSubagentsExpanded(!showSubagents)}
+              className="h-8 max-w-full justify-start gap-2 px-2 text-xs font-normal text-muted-foreground">
+              <ChevronDown
+                className={showSubagents ? 'size-3.5 shrink-0' : 'size-3.5 shrink-0 -rotate-90'}
+                aria-hidden="true"
+              />
+              <span className="flex min-w-0 items-center gap-2">
+                <span>{subagentListTitle ?? t('agent.right_pane.flow.subtasks')}</span>
+                <span>
+                  {allSubagentsCompleted ? (
+                    <>· {t('agent.right_pane.status.tasks_completed', { count: completedSubagents })}</>
+                  ) : (
+                    t('agent.right_pane.status.task_count', {
+                      completed: completedSubagents,
+                      total: subagentEntries.length
+                    })
+                  )}
+                  {failedSubagents > 0 && (
+                    <>
+                      {' '}
+                      · {failedSubagents} {t('message.tools.status.failed')}
+                    </>
+                  )}
+                  {stoppedSubagents > 0 && (
+                    <>
+                      {' '}
+                      · {stoppedSubagents} {t('message.tools.cancelled')}
+                    </>
+                  )}
+                </span>
+              </span>
+              {allSubagentsCompleted && (
+                <span className="shrink-0 text-success">
+                  <Check className="size-3.5" aria-hidden="true" />
+                </span>
+              )}
+            </Button>
+            {showSubagents && (
+              <div id={subagentContentId} className="mt-1 flex flex-col gap-1">
+                {subagentEntries.map(({ part, index }) =>
+                  renderToolPart(part, `${message.id}-part-${index}`, !isActiveTurnProcessing)
+                )}
+              </div>
+            )}
+          </div>
         </AnimatedBlockWrapper>
       )}
     </AnimatePresence>

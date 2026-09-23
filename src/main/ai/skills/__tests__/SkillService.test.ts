@@ -21,6 +21,8 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { skillHandlers } from '@main/ipc/handlers/skill'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import type * as ProcessRunnerModule from '@main/utils/processRunner'
+import { CommandOutputLimitError } from '@main/utils/processRunner'
 import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
@@ -42,7 +44,14 @@ vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
 }))
 
 const executeCommandMock = vi.hoisted(() => vi.fn())
-vi.mock('@main/utils/processRunner', () => ({
+type CommandOptions = { env?: Record<string, string>; maxOutputBytes?: number; timeout?: number }
+const boundedOutput = (output: string, options?: CommandOptions) => {
+  const limit = options?.maxOutputBytes
+  if (limit !== undefined && Buffer.byteLength(output) > limit) throw new CommandOutputLimitError(limit)
+  return output
+}
+vi.mock('@main/utils/processRunner', async (importOriginal) => ({
+  ...(await importOriginal<typeof ProcessRunnerModule>()),
   executeCommand: executeCommandMock
 }))
 
@@ -787,12 +796,13 @@ describe('SkillService', () => {
       )
       const gitCalls: string[][] = []
 
-      executeCommandMock.mockImplementation(async (_command: string, args: string[]) => {
+      executeCommandMock.mockImplementation(async (_command: string, args: string[], runOptions?: CommandOptions) => {
         gitCalls.push(args)
         if (args.includes('ls-remote')) {
-          return (options.refs ?? [])
+          const output = (options.refs ?? [])
             .map((ref) => `${ref.oid}\trefs/${ref.namespace ?? 'heads'}/${ref.name}`)
             .join('\n')
+          return boundedOutput(output, runOptions)
         }
         if (args.includes('ls-tree')) {
           const separator = args.lastIndexOf('--')
@@ -1131,6 +1141,17 @@ describe('SkillService', () => {
       expect(treeCall?.[2]).toMatchObject({ maxOutputBytes: expect.any(Number) })
     })
 
+    it('refuses a remote whose ref listing never ends instead of buffering it', async () => {
+      const { skillService, installSpy } = await setupGithubInstall({
+        refs: [{ name: 'x'.repeat(32 * 1024 * 1024), oid: 'a'.repeat(40) }]
+      })
+
+      await expect(
+        skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md' })
+      ).rejects.toThrow('too many branches and tags')
+      expect(installSpy).not.toHaveBeenCalled()
+    })
+
     it('never lets an untrusted repository prompt for credentials or pull LFS payloads', async () => {
       const { skillService } = await setupGithubInstall({ refs: [{ name: 'main', oid: 'a'.repeat(40) }] })
 
@@ -1164,19 +1185,20 @@ describe('SkillService', () => {
      * Drives the clone-based install (claude-plugins / skills.sh) through a fake `executeCommand`
      * whose `clone` materializes the selected skill directory on disk.
      */
-    async function setupClonedInstall() {
+    async function setupClonedInstall(options: { cloneOutput?: string } = {}) {
       const skillService = new SkillService()
       const workDir = await createTempDir('clone-install-')
       vi.mocked(skillPaths.createTempDir).mockResolvedValue(workDir)
       const actualArchive = await vi.importActual<typeof skillArchive>('../skillArchive')
       vi.mocked(skillArchive.resolveSkillDirectory).mockImplementation(actualArchive.resolveSkillDirectory)
-      const gitCalls: Array<{ args: string[]; options?: { env?: Record<string, string>; timeout?: number } }> = []
+      const gitCalls: Array<{ args: string[]; options?: CommandOptions }> = []
 
-      executeCommandMock.mockImplementation(async (_command: string, args: string[], options?: object) => {
-        gitCalls.push({ args, options })
+      executeCommandMock.mockImplementation(async (_command: string, args: string[], runOptions?: CommandOptions) => {
+        gitCalls.push({ args, options: runOptions })
         if (args.includes('clone')) {
           await fs.promises.mkdir(path.join(workDir, 'skills', 'demo'), { recursive: true })
           await fs.promises.writeFile(path.join(workDir, 'skills', 'demo', 'SKILL.md'), '# skill')
+          return boundedOutput(options.cloneOutput ?? '', runOptions)
         }
         return ''
       })
@@ -1267,6 +1289,13 @@ describe('SkillService', () => {
 
       expect(hashes).toHaveLength(2)
       expect(hashes[1]).toBe(hashes[0])
+    })
+
+    it('refuses a clone whose output a hostile repository grows without end', async () => {
+      const { skillService, installSpy } = await setupClonedInstall({ cloneOutput: 'x'.repeat(32 * 1024 * 1024) })
+
+      await expect(installFromClone(skillService)).rejects.toBeInstanceOf(CommandOutputLimitError)
+      expect(installSpy).not.toHaveBeenCalled()
     })
 
     it('bounds a clone and blocks its credential prompts, the way the fetch path already is', async () => {
