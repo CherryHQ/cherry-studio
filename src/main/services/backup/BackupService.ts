@@ -284,7 +284,7 @@ export class BackupService extends BaseService {
       const scratch = await createOwnedScratch(tempRoot, name)
       try {
         const result = await exportArchive({ outPath: scratch.filePath, signal })
-        await transport.upload(result.outPath, name)
+        await transport.upload(result.outPath, name, signal)
         // Only now. Pruning first is how a limit of 1 turned a failed upload into
         // a user with no backups at all.
         await pruneToLimit(transport, destination.maxBackups)

@@ -713,7 +713,11 @@ describe('BackupService.exportToDestination', () => {
   it('sends the name the user typed instead of the generated one', async () => {
     await service.exportToDestination('webdav', 'before-the-big-update')
 
-    expect(transportMock.upload).toHaveBeenCalledWith(expect.any(String), 'before-the-big-update.zip')
+    expect(transportMock.upload).toHaveBeenCalledWith(
+      expect.any(String),
+      'before-the-big-update.zip',
+      expect.any(AbortSignal)
+    )
   })
 
   // A crash between export and upload must not strand a credential-bearing

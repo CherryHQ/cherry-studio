@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 
@@ -7,9 +8,14 @@ import { loggerService } from '@logger'
 import S3Storage from '@main/services/S3Storage'
 import WebDav from '@main/services/WebDav'
 
+import { BackupCancelledError } from '../errors'
 import type { ResolvedDestination } from './destinationConfig'
 
 const logger = loggerService.withContext('BackupDestinationTransport')
+
+function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new BackupCancelledError('backup upload cancelled')
+}
 
 /** One archive sitting at a destination, as the rotation and the picker see it. */
 export interface RemoteArchive {
@@ -29,7 +35,7 @@ export interface RemoteArchive {
  * out-of-memory crash on the machine that could least afford to lose it.
  */
 export interface DestinationTransport {
-  upload(localPath: string, name: string): Promise<void>
+  upload(localPath: string, name: string, signal?: AbortSignal): Promise<void>
   download(name: string, destPath: string): Promise<void>
   list(): Promise<RemoteArchive[]>
   remove(name: string): Promise<void>
@@ -45,15 +51,18 @@ function webdavTransport(destination: Extract<ResolvedDestination, { kind: 'webd
   })
 
   return {
-    async upload(localPath, name) {
+    async upload(localPath, name, signal) {
+      throwIfCancelled(signal)
       if (destination.disableStream) {
         await client.putFileContents(name, await fs.readFile(localPath), { overwrite: true })
-        return
+      } else {
+        // `contentLength` is required with a stream body: without it the client
+        // falls back to chunked encoding, which a number of WebDAV servers reject.
+        const { size } = await fs.stat(localPath)
+        await client.putFileContents(name, fs.createReadStream(localPath), { overwrite: true, contentLength: size })
       }
-      // `contentLength` is required with a stream body: without it the client
-      // falls back to chunked encoding, which a number of WebDAV servers reject.
-      const { size } = await fs.stat(localPath)
-      await client.putFileContents(name, fs.createReadStream(localPath), { overwrite: true, contentLength: size })
+      // The client cannot be aborted mid-transfer; at least never report a cancelled upload as done.
+      throwIfCancelled(signal)
     },
 
     async download(name, destPath) {
@@ -92,8 +101,10 @@ function s3Transport(destination: Extract<ResolvedDestination, { kind: 's3' }>):
   })
 
   return {
-    async upload(localPath, name) {
+    async upload(localPath, name, signal) {
+      throwIfCancelled(signal)
       await client.putFile(name, localPath)
+      throwIfCancelled(signal)
     },
 
     async download(name, destPath) {
@@ -123,11 +134,20 @@ function localTransport(destination: Extract<ResolvedDestination, { kind: 'local
   const target = (name: string) => path.join(destination.dir, name)
 
   return {
-    async upload(localPath, name) {
+    async upload(localPath, name, signal) {
+      throwIfCancelled(signal)
       await fs.ensureDir(destination.dir)
-      // `move` across volumes copies then unlinks, which is what a backup folder
-      // on a NAS or a USB stick needs — the export itself stays on a local disk.
-      await fs.move(localPath, target(name), { overwrite: true })
+      // Copy beside the target and rename over it: a copy that fails part-way
+      // (NAS, USB stick) must never leave the previous archive of that name truncated.
+      const partial = target(`.${name}.partial-${randomUUID()}`)
+      try {
+        await fs.copy(localPath, partial)
+        throwIfCancelled(signal)
+        await fs.rename(partial, target(name))
+      } catch (error) {
+        await fs.remove(partial).catch(() => {})
+        throw error
+      }
     },
 
     async download(name, destPath) {
