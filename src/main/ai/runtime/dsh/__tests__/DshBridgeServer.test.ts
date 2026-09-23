@@ -182,13 +182,13 @@ describe('DshBridgeServer authentication gate', () => {
 
 describe('DshBridgeServer', () => {
   it.each([undefined, 60_000])(
-    'abandons a cancelled fork snapshot without closing the connection (timeout %s)',
+    'abandons a cancelled fork flush without closing the connection (timeout %s)',
     async (timeoutMs) => {
       const harness = await makeHarness()
       const controller = new AbortController()
       const reason = new Error('fork cancelled')
-      const params = { sessionId: SESSION_ID, boundary: 7 }
-      const pending = harness.server.request('session/fork-snapshot', params, { timeoutMs, signal: controller.signal })
+      const params = { sessionId: SESSION_ID }
+      const pending = harness.server.request('session/flush', params, { timeoutMs, signal: controller.signal })
       let failure: unknown
       const settled = pending.catch((error) => {
         failure = error
@@ -197,65 +197,59 @@ describe('DshBridgeServer', () => {
       try {
         controller.abort(reason)
         await vi.waitFor(() => expect(failure).toBe(reason))
-        late.respond({ events: [] })
-        const retry = harness.server.request('session/fork-snapshot', params, { timeoutMs: 2_000 })
-        const events = [{ type: 'turn/end', seq: 7 }]
-        ;(await harness.nextRequest()).respond({ events })
-        await expect(retry).resolves.toEqual({ events })
+        late.respond({})
+        const retry = harness.server.request('session/flush', params, { timeoutMs: 2_000 })
+        ;(await harness.nextRequest()).respond({})
+        await expect(retry).resolves.toEqual({})
         expect(harness.socket.destroyed).toBe(false)
       } finally {
-        late.respond({ events: [] })
+        late.respond({})
         await settled
       }
     }
   )
 
-  it('does not dispatch a snapshot whose signal is already aborted', async () => {
+  it('does not dispatch a flush whose signal is already aborted', async () => {
     const harness = await makeHarness()
     const reason = new Error('already cancelled')
     const pending = harness.server.request(
-      'session/fork-snapshot',
-      { sessionId: SESSION_ID, boundary: 7 },
+      'session/flush',
+      { sessionId: SESSION_ID },
       {
         signal: AbortSignal.abort(reason),
         timeoutMs: 60_000
       }
     )
     const failed = pending.catch((error) => error)
-    const retry = harness.server.request(
-      'session/fork-snapshot',
-      { sessionId: SESSION_ID, boundary: 8 },
-      { timeoutMs: 2_000 }
-    )
+    const retry = harness.server.request('session/flush', { sessionId: 'retry-session' }, { timeoutMs: 2_000 })
     const retried = retry.catch((error) => error)
     const request = await harness.nextRequest()
     try {
-      expect(request.params.boundary).toBe(8)
-      request.respond({ events: [] })
+      expect(request.params.sessionId).toBe('retry-session')
+      request.respond({})
       await expect(failed).resolves.toBe(reason)
-      await expect(retried).resolves.toEqual({ events: [] })
+      await expect(retried).resolves.toEqual({})
     } finally {
       await harness.server.close()
       await Promise.all([failed, retried])
     }
   })
 
-  it('times out an unanswered fork snapshot and still accepts a subsequent request', async () => {
+  it('times out an unanswered fork flush and still accepts a subsequent request', async () => {
     const harness = await makeHarness()
     const controller = new AbortController()
-    const params = { sessionId: SESSION_ID, boundary: 7 }
-    const pending = harness.server.request('session/fork-snapshot', params, {
+    const params = { sessionId: SESSION_ID }
+    const pending = harness.server.request('session/flush', params, {
       timeoutMs: 100,
       signal: controller.signal
     })
-    const failed = expect(pending).rejects.toThrow('session/fork-snapshot timed out after 100ms')
+    const failed = expect(pending).rejects.toThrow('session/flush timed out after 100ms')
     const late = await harness.nextRequest()
     await failed
-    late.respond({ events: [] })
-    const retry = harness.server.request('session/fork-snapshot', params, { timeoutMs: 2_000 })
-    const events = [{ type: 'turn/end', seq: 7 }]
-    ;(await harness.nextRequest()).respond({ events })
-    await expect(retry).resolves.toEqual({ events })
+    late.respond({})
+    const retry = harness.server.request('session/flush', params, { timeoutMs: 2_000 })
+    ;(await harness.nextRequest()).respond({})
+    await expect(retry).resolves.toEqual({})
     expect(harness.socket.destroyed).toBe(false)
     expect(controller.signal.aborted).toBe(false)
   })

@@ -34,6 +34,8 @@ export class NodeProxyController {
   async configure(config: NodeProxyConfig): Promise<void> {
     const proxyUrl = config.proxyRules?.trim()
     const normalizedBypassRules = normalizeProxyBypassRules(config.proxyBypassRules)
+    // Match Chromium's implicit localhost bypass for Node-backed requests.
+    if (proxyUrl && !normalizedBypassRules.includes('localhost')) normalizedBypassRules.push('localhost')
     const configKey = JSON.stringify({ proxyUrl: proxyUrl ?? null, proxyBypassRules: normalizedBypassRules })
     if (this.currentConfigKey === configKey) return
 
