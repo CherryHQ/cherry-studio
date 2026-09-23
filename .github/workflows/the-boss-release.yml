@@ -7,14 +7,6 @@ on:
         description: Optional comma-separated platforms to build from the published payload
         required: false
         type: string
-      reuse_installer_runs:
-        description: Optional comma-separated workflow run ids containing immutable installer manifests
-        required: false
-        type: string
-      reuse_platforms:
-        description: Optional comma-separated platforms paired with reuse_installer_runs
-        required: false
-        type: string
   push:
     branches: [main]
     paths-ignore:
@@ -23,7 +15,6 @@ concurrency:
   group: the-boss-release-${{ github.ref }}
   cancel-in-progress: false
 env:
-  IPFS_API: https://ipfs.prometheusags.ai
   NODE_OPTIONS: --max-old-space-size=8192
 permissions:
   contents: read
@@ -39,13 +30,25 @@ jobs:
         env:
           RELEASE_PLATFORMS: ${{ inputs.platforms }}
         run: node scripts/release-platforms.cjs
+  prepare-release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prepare versioned GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/prepare-github-release.cjs
   build:
-    needs: platforms
+    needs: [platforms, prepare-release]
     name: Installer (${{ matrix.platform }}-${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     env:
       HAS_SIGNING: ${{ secrets.CSC_LINK != '' }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.platforms.outputs.matrix) }}
@@ -106,7 +109,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ env.HAS_SIGNING }}
-      - name: Publish installers to IPFS
+      - name: Publish installer to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/publish-installers.cjs
       - name: Record release runner capacity
         if: runner.os == 'Windows'
@@ -133,23 +138,20 @@ jobs:
           pattern: installers-*
           path: manifests
           merge-multiple: true
-      - id: reuse
-        name: Import explicitly reused installer manifests
-        env:
-          BUILT_PLATFORMS: ${{ needs.platforms.outputs.platforms }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REUSE_INSTALLER_RUNS: ${{ inputs.reuse_installer_runs }}
-          REUSE_PLATFORMS: ${{ inputs.reuse_platforms }}
-        run: node scripts/download-reused-installers.cjs
       - name: Generate complete release entry
         env:
-          RELEASE_PLATFORMS: ${{ steps.reuse.outputs.release_platforms }}
-          REUSED_PLATFORMS: ${{ steps.reuse.outputs.reused_platforms }}
+          RELEASE_PLATFORMS: ${{ needs.platforms.outputs.platforms }}
         run: node scripts/update-release-entry.cjs
       - name: Commit release metadata through GitHub
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/commit-release-entry.cjs
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "v$(node -p "require('./package.json').version")" --draft=false --latest
+      - name: Verify public release assets
+        run: node scripts/verify-github-release.cjs
       - uses: actions/upload-artifact@v5
         with:
           name: complete-release

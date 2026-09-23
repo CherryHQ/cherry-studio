@@ -9,17 +9,13 @@ const entries = fs
 const version = require('../package.json').version
 const platforms = ['win32-x64', 'win32-arm64', 'darwin-x64', 'darwin-arm64', 'linux-x64', 'linux-arm64']
 const selected = (process.env.RELEASE_PLATFORMS || platforms.join(',')).split(',')
-const reused = new Set((process.env.REUSED_PLATFORMS || '').split(',').filter(Boolean))
 for (const target of selected) {
   if (!platforms.includes(target)) throw new Error(`Unknown release platform: ${target}`)
   const [platform, arch] = target.split('-')
   const entry = entries.find((value) => value.platform === platform && value.arch === arch)
-  const expectedSource = reused.has(target)
-    ? /^[0-9a-f]{40}$/i.test(entry?.source || '')
-    : entry?.source === process.env.GITHUB_SHA
   if (
     !entry ||
-    !expectedSource ||
+    entry.source !== process.env.GITHUB_SHA ||
     entry.version !== version ||
     entry.artifacts.length !== (platform === 'linux' ? 3 : 1)
   )
