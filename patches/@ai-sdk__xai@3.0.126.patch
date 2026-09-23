@@ -1,0 +1,89 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index ed5a38e555944e749d3cdd376236dd6f722a80dc..301f2d439f5b653a8d6f4a6c70880f84944ce0cd 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -107,15 +107,8 @@ declare const xaiImageModelOptions: z.ZodObject<{
+     aspect_ratio: z.ZodOptional<z.ZodString>;
+     output_format: z.ZodOptional<z.ZodString>;
+     sync_mode: z.ZodOptional<z.ZodBoolean>;
+-    resolution: z.ZodOptional<z.ZodEnum<{
+-        "1k": "1k";
+-        "2k": "2k";
+-    }>>;
+-    quality: z.ZodOptional<z.ZodEnum<{
+-        low: "low";
+-        medium: "medium";
+-        high: "high";
+-    }>>;
++    resolution: z.ZodOptional<z.ZodString>;
++    quality: z.ZodOptional<z.ZodString>;
+     user: z.ZodOptional<z.ZodString>;
+ }, z.core.$strip>;
+ type XaiImageModelOptions = z.infer<typeof xaiImageModelOptions>;
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index ed5a38e555944e749d3cdd376236dd6f722a80dc..301f2d439f5b653a8d6f4a6c70880f84944ce0cd 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -107,15 +107,8 @@ declare const xaiImageModelOptions: z.ZodObject<{
+     aspect_ratio: z.ZodOptional<z.ZodString>;
+     output_format: z.ZodOptional<z.ZodString>;
+     sync_mode: z.ZodOptional<z.ZodBoolean>;
+-    resolution: z.ZodOptional<z.ZodEnum<{
+-        "1k": "1k";
+-        "2k": "2k";
+-    }>>;
+-    quality: z.ZodOptional<z.ZodEnum<{
+-        low: "low";
+-        medium: "medium";
+-        high: "high";
+-    }>>;
++    resolution: z.ZodOptional<z.ZodString>;
++    quality: z.ZodOptional<z.ZodString>;
+     user: z.ZodOptional<z.ZodString>;
+ }, z.core.$strip>;
+ type XaiImageModelOptions = z.infer<typeof xaiImageModelOptions>;
+diff --git a/dist/index.js b/dist/index.js
+index bd47db8e90da2177225b8b09855778a7b7ea3a88..7083ec8bc842bd7d2d56d0780111771bdd750308 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -975,8 +975,8 @@ var xaiImageModelOptions = import_v45.z.object({
+   aspect_ratio: import_v45.z.string().optional(),
+   output_format: import_v45.z.string().optional(),
+   sync_mode: import_v45.z.boolean().optional(),
+-  resolution: import_v45.z.enum(["1k", "2k"]).optional(),
+-  quality: import_v45.z.enum(["low", "medium", "high"]).optional(),
++  resolution: import_v45.z.string().optional(),
++  quality: import_v45.z.string().optional(),
+   user: import_v45.z.string().optional()
+ });
+ 
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 0548a32eae5762a04cc2e437a068b09e7b27be4d..501957a3c8aab1dda6776aee3ec2b760ec753907 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -970,8 +970,8 @@ var xaiImageModelOptions = z5.object({
+   aspect_ratio: z5.string().optional(),
+   output_format: z5.string().optional(),
+   sync_mode: z5.boolean().optional(),
+-  resolution: z5.enum(["1k", "2k"]).optional(),
+-  quality: z5.enum(["low", "medium", "high"]).optional(),
++  resolution: z5.string().optional(),
++  quality: z5.string().optional(),
+   user: z5.string().optional()
+ });
+ 
+diff --git a/src/xai-image-options.ts b/src/xai-image-options.ts
+index b5ce7fee11e9191fa89fe2b9dfa15c3630e384e9..904d10a5eb877569f6f771defce23ed120d34827 100644
+--- a/src/xai-image-options.ts
++++ b/src/xai-image-options.ts
+@@ -4,8 +4,8 @@ export const xaiImageModelOptions = z.object({
+   aspect_ratio: z.string().optional(),
+   output_format: z.string().optional(),
+   sync_mode: z.boolean().optional(),
+-  resolution: z.enum(['1k', '2k']).optional(),
+-  quality: z.enum(['low', 'medium', 'high']).optional(),
++  resolution: z.string().optional(),
++  quality: z.string().optional(),
+   user: z.string().optional(),
+ });
+ 

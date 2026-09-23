@@ -34,16 +34,19 @@ import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
+import { paintingService } from '@main/data/services/PaintingService'
 import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
+import { resolveImageCanvasParams } from '@shared/ai/imageCanvases'
+import { imageParameterDefaults, imageConfigProtocol } from '@shared/ai/imageGenerationConfig'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import type { ImageGenerationMode } from '@shared/data/types/model'
+import type { EndpointType, ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
@@ -64,8 +67,14 @@ import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
+import { resolveDmxapiNativeImageFamily } from './provider/custom/dmxapi/dmxapiImageRouting'
 import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
-import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
+import {
+  cancelImageGenerationJobs,
+  deleteImageInputEntries,
+  reconcileImageGenerationJobs,
+  imageGenerationJobHandler
+} from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
@@ -110,7 +119,12 @@ const logger = loggerService.withContext('AiService')
  */
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
-const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
+const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = {
+  image: false,
+  pdf: false,
+  audio: false,
+  video: false
+}
 
 /** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
 const PROBE_INPUT_IMAGE_DATA_URL =
@@ -119,7 +133,9 @@ const PROBE_INPUT_IMAGE_BASE64 = PROBE_INPUT_IMAGE_DATA_URL.slice('data:image/pn
 
 /** Edit-only probes pick the first mode the model declares, in painting-tab preference order. */
 const EDIT_ONLY_PROBE_FALLBACK_MODES: readonly ImageGenerationMode[] = ['edit', 'remix', 'upscale', 'merge']
-type MutableNativeFileSupport = { -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K] }
+type MutableNativeFileSupport = {
+  -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K]
+}
 
 /** Native attachment shapes preserved for the primary and therefore replayed unchanged to a fallback. */
 export function resolveRequiredNativeFileSupport(
@@ -179,7 +195,12 @@ function resolveTextRetryPolicy(
   if (configured.enabled || !hasApiKeyFallbacks || requestMaxRetries === undefined || requestMaxRetries <= 0) {
     return configured
   }
-  return { ...configured, enabled: true, maxAttempts: Math.max(1, Math.trunc(requestMaxRetries)), fallbackModelIds: [] }
+  return {
+    ...configured,
+    enabled: true,
+    maxAttempts: Math.max(1, Math.trunc(requestMaxRetries)),
+    fallbackModelIds: []
+  }
 }
 
 function createCaptureContext(input: {
@@ -211,7 +232,12 @@ function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProvi
       context,
       modality: event.modality,
       ...(event.modality === 'embedding' && event.usage
-        ? { usage: { inputTokens: event.usage.tokens, totalTokens: event.usage.tokens } }
+        ? {
+            usage: {
+              inputTokens: event.usage.tokens,
+              totalTokens: event.usage.tokens
+            }
+          }
         : event.modality === 'image' && event.usage
           ? {
               usage: {
@@ -286,9 +312,13 @@ export interface AiGenerateResult {
 
 /** Image generation request. */
 export interface AiImageRequest extends AiRequest {
+  /** Optional durable painting step that owns an async job result. */
+  paintingId?: string
   prompt: string
   /** Input images for editing (base64 data URLs or URLs). If provided, uses edit mode. */
   inputImages?: string[]
+  /** Existing FileEntry ids for painting edits; avoids a renderer-side Base64 round trip. */
+  inputFileIds?: string[]
   /** Mask for inpainting (only with inputImages). */
   mask?: string
   /** Image-generation mode (which tab). main derives per-model transport routing
@@ -304,9 +334,9 @@ export interface AiImageRequest extends AiRequest {
   /**
    * Cleanup policy stamped on the generated **output** FileEntries. AiService is
    * infrastructure — the calling business feature decides the policy
-   * (file-entry-cleanup.md §4.1). It deliberately does NOT reach the job path's
-   * input / mask copies: those are transport scratch owned by the job, not a
-   * caller-visible artifact (see `imageInputEntryParams`).
+   * (file-entry-cleanup.md §4.1). It applies to generated output entries only;
+   * painting FileEntry inputs remain owned by their painting and job scratch
+   * copies use the job's own cleanup policy.
    */
   cleanupPolicy: CleanupPolicy
 }
@@ -332,8 +362,16 @@ export interface AiImageResult {
  */
 export function imageInputEntryParams(value: string): CreateInternalEntryIpcParams {
   return value.startsWith('data:')
-    ? { source: 'base64', data: value as Base64String, cleanupPolicy: 'delete_when_unreferenced' }
-    : { source: 'url', url: value as UrlString, cleanupPolicy: 'delete_when_unreferenced' }
+    ? {
+        source: 'base64',
+        data: value as Base64String,
+        cleanupPolicy: 'delete_when_unreferenced'
+      }
+    : {
+        source: 'url',
+        url: value as UrlString,
+        cleanupPolicy: 'delete_when_unreferenced'
+      }
 }
 
 /**
@@ -399,6 +437,7 @@ export class AiService extends BaseService {
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    reconcileImageGenerationJobs()
     // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at
     // startup — chained (not two independent fire-and-forgets) so the mirror reconcile
     // always runs after builtin skills have synced to agent_global_skill this boot,
@@ -414,6 +453,14 @@ export class AiService extends BaseService {
         })
       )
     logger.info('AiService initialized')
+  }
+
+  async cancelPaintingGeneration(paintingId: string): Promise<void> {
+    await cancelImageGenerationJobs(new Set([paintingId]))
+  }
+
+  async cancelPaintingProjectGenerations(projectId: string): Promise<void> {
+    await cancelImageGenerationJobs(new Set(paintingService.getProjectStepIds(projectId)))
   }
 
   /**
@@ -479,7 +526,9 @@ export class AiService extends BaseService {
       approvalId: payload.approvalId,
       approved: payload.approved,
       ...(payload.reason !== undefined && { reason: payload.reason }),
-      ...(payload.updatedInput !== undefined && { updatedInput: payload.updatedInput })
+      ...(payload.updatedInput !== undefined && {
+        updatedInput: payload.updatedInput
+      })
     }
     // A stale click on a deleted message must resolve through the documented
     // result shape, not throw out of the handler (getById rejects when the
@@ -516,7 +565,9 @@ export class AiService extends BaseService {
     // The continuation needs a renderer to stream to; without the caller window there's nothing to
     // surface it on, so resolve through the result shape instead of dispatching into the void.
     if (!senderWc) {
-      logger.warn('Tool-approval continuation skipped: no caller window', { approvalId: payload.approvalId })
+      logger.warn('Tool-approval continuation skipped: no caller window', {
+        approvalId: payload.approvalId
+      })
       return { ok: false }
     }
 
@@ -655,7 +706,12 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+          createAiUsagePlugin(
+            createAiUsageCaptureContext({
+              ...usageContext,
+              credentialReceipt: fallbackReceipt
+            })
+          )
       })
       const retryPolicy = resolveTextRetryPolicy(
         readRetryPolicy(),
@@ -700,7 +756,12 @@ export class AiService extends BaseService {
         // Stable `id` so repeated retries reconcile into one live status part (latest wins).
         // Not transient: it rides message.parts so the renderer can show it; the
         // PersistenceListener strips it before the message is saved.
-        onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+        onRetryEvent: (event) =>
+          agentRef.current?.write({
+            type: 'data-retry',
+            id: 'retry',
+            data: event
+          })
       })
     }
 
@@ -708,7 +769,10 @@ export class AiService extends BaseService {
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
-      errorContext: { providerId: provider.id, modelId: model.apiModelId ?? model.id },
+      errorContext: {
+        providerId: provider.id,
+        modelId: model.apiModelId ?? model.id
+      },
       messageId: request.messageId,
       plugins: [...plugins, usagePlugin],
       wrapModel,
@@ -765,7 +829,10 @@ export class AiService extends BaseService {
   /** Cancellable variant of {@link generateText}, paired with the `ai.text.abort` route. */
   async runTextRequest(requestId: string, request: AsInProcess<AiGenerateRequest>): Promise<AiGenerateResult> {
     return this.runWithAbort(requestId, (signal) =>
-      this.generateText({ ...request, requestOptions: { ...request.requestOptions, signal } })
+      this.generateText({
+        ...request,
+        requestOptions: { ...request.requestOptions, signal }
+      })
     )
   }
 
@@ -818,7 +885,12 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+          createAiUsagePlugin(
+            createAiUsageCaptureContext({
+              ...usageContext,
+              credentialReceipt: fallbackReceipt
+            })
+          )
       })
       const retryPolicy = resolveTextRetryPolicy(
         readRetryPolicy(),
@@ -893,16 +965,30 @@ export class AiService extends BaseService {
    */
   async runImageRequest(requestId: string, payload: AiImageRequest): Promise<AiImageResult> {
     return this.runWithAbort(requestId, (signal) =>
-      this.generateImage({ ...payload, requestOptions: { ...payload.requestOptions, signal } })
+      this.generateImage({
+        ...payload,
+        requestOptions: { ...payload.requestOptions, signal }
+      })
     )
   }
 
   async generateImage(request: AsInProcess<AiImageRequest>): Promise<AiImageResult> {
-    logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
+    logger.info('generateImage started', {
+      assistantId: request.assistantId,
+      uniqueModelId: request.uniqueModelId
+    })
     const signal = request.requestOptions?.signal
 
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const source = sourceSnapshotForAssistant(assistant)
+    const mode = request.mode ?? (request.inputImages?.length || request.inputFileIds?.length ? 'edit' : 'generate')
+    if (model.imageGenerationConfigError) throw new Error(model.imageGenerationConfigError)
+    const imageMode = model.imageGeneration?.modes[mode]
+    if (model.imageGeneration && !imageMode) throw new Error(`The selected image model does not support ${mode}`)
+    const inputImageCount = request.inputImages?.length ?? request.inputFileIds?.length ?? 0
+    if (imageMode?.maxInputImages && inputImageCount > imageMode.maxInputImages) {
+      throw new Error(`The selected image model accepts at most ${imageMode.maxInputImages} reference images`)
+    }
 
     // `request.paramValues` is already a strict, coerced `ParamValues` — the
     // `ai.image.generate` IPC validated it via the catalog `imageParamsSchema` at
@@ -910,9 +996,27 @@ export class AiService extends BaseService {
     // fields the AI SDK call consumes (n/size/seed/aspectRatio → imageParams
     // below) vs the leftover vendor bag (cfg, the diffusion/openai knobs, …) the
     // WireProfile engine forwards.
-    const params = request.paramValues
+    const params = resolveImageCanvasParams(
+      model.imageGeneration,
+      request.mode ?? (inputImageCount ? 'edit' : 'generate'),
+      imageParameterDefaults(model.imageGeneration, mode, request.paramValues)
+    )
     const { structured, vendorBag } = splitParamValues(params)
-    const inputImages = request.inputImages ? await normalizeImageEditInputs(request.inputImages, signal) : undefined
+    const transportProviderId =
+      imageConfigProtocol(model.imageGenerationConfig) ?? provider.presetProviderId ?? provider.id
+    const usesAsyncImageTransport = Boolean(
+      request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)
+    )
+    const inputImages = request.inputImages
+      ? await normalizeImageEditInputs(request.inputImages, signal)
+      : request.inputFileIds && !usesAsyncImageTransport
+        ? await Promise.all(
+            request.inputFileIds.map(async (id) => {
+              const { content, mime } = await application.get('FileManager').read(id, { encoding: 'base64' })
+              return `data:${mime};base64,${content}`
+            })
+          )
+        : undefined
 
     // Async custom-provider transports (ppio / dashscope / modelscope /
     // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
@@ -923,14 +1027,46 @@ export class AiService extends BaseService {
     // payload → `input.*`). No wire-naming, no casing probes. Keyed by preset,
     // not `provider.id`: a user-added instance carries a UUID id and would fall
     // through to the direct image model, which never passes `modelDescriptor`.
-    const transportProviderId = provider.presetProviderId ?? provider.id
-    if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
+    if (usesAsyncImageTransport) {
       return await this.generateImageViaJob({ ...request, inputImages }, structured, vendorBag, signal, source)
     }
 
-    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
+    const protocol = imageConfigProtocol(model.imageGenerationConfig)
+    const imageEndpoint =
+      protocol === 'google'
+        ? 'google-generate-content'
+        : mode === 'edit'
+          ? 'openai-image-edit'
+          : 'openai-image-generation'
+    if (protocol === 'google' && !provider.endpointConfigs?.[imageEndpoint]?.baseUrl) {
+      throw new Error('Configure a Google native endpoint for this image preset')
+    }
+    const resolvedImage = await this.resolveTransportFor(
+      request,
+      provider.endpointConfigs?.[imageEndpoint] ? imageEndpoint : undefined
+    )
+    const credentialReceipt = resolvedImage.credentialReceipt
+    const sdkConfig =
+      protocol === 'openai' || protocol === 'xai'
+        ? {
+            ...resolvedImage.sdkConfig,
+            providerId: protocol,
+            providerOptionsKey: protocol
+          }
+        : resolvedImage.sdkConfig
+    const usesGoogleImageAdapter =
+      sdkConfig.providerId === 'google' ||
+      sdkConfig.providerId === 'google-vertex' ||
+      (sdkConfig.providerId === 'dmxapi' && resolveDmxapiNativeImageFamily(sdkConfig.modelId) === 'gemini-native')
+    if (protocol === 'google' && !usesGoogleImageAdapter) {
+      throw new Error('This image preset requires a Google native endpoint adapter')
+    }
     const promptParam = inputImages
-      ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
+      ? {
+          text: request.prompt,
+          images: inputImages,
+          ...(request.mask && { mask: request.mask })
+        }
       : request.prompt
 
     // Vendor body (`providerOptions[providerId]`): the WireProfile engine maps the
@@ -954,7 +1090,9 @@ export class AiService extends BaseService {
       prompt: promptParam,
       n: structured.n ?? 1,
       maxRetries: request.requestOptions?.maxRetries ?? 0,
-      ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
+      ...(requestSize !== undefined && {
+        size: requestSize as `${number}x${number}`
+      }),
       ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
       ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
       ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
@@ -1007,10 +1145,17 @@ export class AiService extends BaseService {
         filteredCount
       })
     }
+    if (dataUrls.length === 0) {
+      throw new Error('Image generation returned no images')
+    }
     const fileManager = application.get('FileManager')
     const files = await Promise.all(
       dataUrls.map((data) =>
-        fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+        fileManager.createInternalEntry({
+          source: 'base64',
+          data,
+          cleanupPolicy: request.cleanupPolicy
+        })
       )
     )
 
@@ -1024,10 +1169,9 @@ export class AiService extends BaseService {
    * snapshot. Input images / mask are persisted as FileEntries up front and
    * referenced by id so the payload stays small.
    *
-   * The `await handle.finished` below is the job's ONLY consumer — which is why
-   * the handler declares `recovery: 'abandon'`: a job resumed after a restart
-   * would have nobody to hand its result to. See the handler's doc comment for
-   * what it would take to make results restart-durable.
+   * The job carries the owning painting id and resumable provider metadata, so
+   * a restart can continue polling and reconcile the result back to the
+   * painting before this caller receives the terminal snapshot.
    */
   private async generateImageViaJob(
     request: AsInProcess<AiImageRequest>,
@@ -1053,10 +1197,16 @@ export class AiService extends BaseService {
     try {
       // allSettled (not all) so every create resolves before we decide: a partial
       // failure still leaves `createdEntryIds` complete for the catch to clean up.
-      const settled = await Promise.allSettled((request.inputImages ?? []).map(persistInputImage))
+      const settled = await Promise.allSettled(
+        request.inputFileIds ? [] : (request.inputImages ?? []).map(persistInputImage)
+      )
       const rejected = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected')
       if (rejected) throw rejected.reason
-      const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
+      const inputFileIds = request.inputFileIds?.length
+        ? request.inputFileIds
+        : settled.length
+          ? settled.map((r) => (r as PromiseFulfilledResult<string>).value)
+          : undefined
       const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
       const requestSize = resolveImageRequestSize(structured.size)
 
@@ -1068,11 +1218,17 @@ export class AiService extends BaseService {
       const support = providerRegistryService.getImageGenerationSupport(providerId, modelId)
       const vendorTransport = support?.modes?.[mode]?.vendorTransport
       const modelDescriptor = vendorTransport?.endpoint
-        ? { id: modelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode }
+        ? {
+            id: modelId,
+            endpoint: vendorTransport.endpoint,
+            isSync: vendorTransport.isSync,
+            mode
+          }
         : undefined
 
       const payload: ImageGenerationJobPayload = {
         uniqueModelId,
+        ...(request.paintingId && { paintingId: request.paintingId }),
         prompt: request.prompt,
         n: structured.n ?? 1,
         ...(requestSize !== undefined && { size: requestSize }),
@@ -1097,7 +1253,15 @@ export class AiService extends BaseService {
             sourceId: jobHandle.id,
             role: 'input' as const
           })),
-          ...(maskFileId ? [{ fileEntryId: maskFileId, sourceId: jobHandle.id, role: 'mask' as const }] : [])
+          ...(maskFileId
+            ? [
+                {
+                  fileEntryId: maskFileId,
+                  sourceId: jobHandle.id,
+                  role: 'mask' as const
+                }
+              ]
+            : [])
         ])
         return jobHandle
       })
@@ -1136,7 +1300,10 @@ export class AiService extends BaseService {
   // ── Embedding ──
 
   async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
-    logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
+    logger.info('embedMany started', {
+      assistantId: request.assistantId,
+      count: request.values.length
+    })
     const signal = request.requestOptions?.signal
 
     const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
@@ -1156,7 +1323,9 @@ export class AiService extends BaseService {
       // A long document splits into many batches and embedMany defaults to
       // unbounded parallelism — firing them all at once is the main rate-limit
       // trigger. Keep the pre-feature default when retry is disabled.
-      ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
+      ...(retryPolicy.enabled && {
+        maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS
+      }),
       // Disabled-default 2 = AI SDK's default, so default-config embedding keeps
       // its prior transient-error resilience (this PR only adds, never removes).
       maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
@@ -1170,7 +1339,10 @@ export class AiService extends BaseService {
   // ── Reranking ──
 
   async rerank(request: AsInProcess<AiRerankRequest>): Promise<AiRerankResult> {
-    logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
+    logger.info('rerank started', {
+      assistantId: request.assistantId,
+      count: request.documents.length
+    })
     const signal = request.requestOptions?.signal
 
     const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
@@ -1246,7 +1418,9 @@ export class AiService extends BaseService {
         presetProviderId: provider.presetProviderId ?? null
       })
     }
-    const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    const remoteModels = await listModelsFromProvider(provider, undefined, {
+      throwOnError: request.throwOnError
+    })
     if (!provider.supplementModelsFromRegistry) {
       return remoteModels
     }
@@ -1293,7 +1467,14 @@ export class AiService extends BaseService {
         )
       },
       checkConversation: (signal: AbortSignal) =>
-        this.checkModel({ uniqueModelId, resolvedModel, requestOptions: { signal, maxRetries: 0 } }, { chatOnly: true })
+        this.checkModel(
+          {
+            uniqueModelId,
+            resolvedModel,
+            requestOptions: { signal, maxRetries: 0 }
+          },
+          { chatOnly: true }
+        )
     }
   }
 
@@ -1323,13 +1504,21 @@ export class AiService extends BaseService {
       onAbort = () => reject(signal.reason)
       signal.addEventListener('abort', onAbort, { once: true })
     })
-    const probeRequest = { ...request, requestOptions: { ...request.requestOptions, signal } }
+    const probeRequest = {
+      ...request,
+      requestOptions: { ...request.requestOptions, signal }
+    }
     try {
       let probe: Promise<unknown>
       if (isOllamaProvider(provider) && !options?.chatOnly) {
         probe = probeOllamaModel(provider, model.apiModelId, signal, request.apiKeyOverride)
       } else if (!options?.chatOnly && isRerankModel(model)) {
-        probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 }).then((result) => {
+        probe = this.rerank({
+          ...probeRequest,
+          query: 'test',
+          documents: ['test'],
+          topN: 1
+        }).then((result) => {
           if (result.ranking.length === 0) {
             throw new Error('Rerank health check returned empty ranking')
           }
@@ -1384,7 +1573,15 @@ export class AiService extends BaseService {
               n: 1,
               size: undefined,
               seed: undefined,
-              files: editOnly ? [{ type: 'file', mediaType: 'image/png', data: PROBE_INPUT_IMAGE_BASE64 }] : undefined,
+              files: editOnly
+                ? [
+                    {
+                      type: 'file',
+                      mediaType: 'image/png',
+                      data: PROBE_INPUT_IMAGE_BASE64
+                    }
+                  ]
+                : undefined,
               mask: undefined,
               modelDescriptor: vendorTransport
                 ? {
@@ -1402,7 +1599,10 @@ export class AiService extends BaseService {
           probe = this.generateImage({
             ...probeRequest,
             prompt: 'a red circle',
-            ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
+            ...(editOnly && {
+              mode: probeMode,
+              inputImages: [PROBE_INPUT_IMAGE_DATA_URL]
+            }),
             paramValues: probeParams,
             cleanupPolicy: 'delete_when_unreferenced'
           })
@@ -1432,15 +1632,17 @@ export class AiService extends BaseService {
   // ── Shared agent parameter resolution ──
 
   /** Transport resolution shared by every modality: provider, model, credential, wire model id. */
-  private async resolveTransportFor(request: AsInProcess<AiRequest>) {
+  private async resolveTransportFor(request: AsInProcess<AiRequest>, imageEndpoint?: EndpointType) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
       provider,
       model,
-      resolveEffectiveEndpoint(provider, model),
+      resolveEffectiveEndpoint(provider, imageEndpoint ? { ...model, endpointTypes: [imageEndpoint] } : model),
       request.apiKeyOverride
     )
-    applyHttpTrace(sdkConfig.providerSettings, { modelName: model.name ?? model.id })
+    applyHttpTrace(sdkConfig.providerSettings, {
+      modelName: model.name ?? model.id
+    })
     return { provider, model, assistant, sdkConfig, credentialReceipt }
   }
 

@@ -30,6 +30,13 @@ function createLazyTransport(registration: TransportRegistration, providerSettin
 }
 
 const TRANSPORTS: Record<string, TransportRegistration> = {
+  doubao: {
+    supports: () => true,
+    load: async (settings) => {
+      const { buildArkImageTransport } = await import('./ark/arkImageTransport')
+      return buildArkImageTransport(settings as Parameters<typeof buildArkImageTransport>[0])
+    }
+  },
   ppio: {
     supports: () => true,
     poll: true,

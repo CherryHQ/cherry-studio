@@ -144,6 +144,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.image.abort': async ({ requestId }) => {
     application.get('AiService').abortRequest(requestId)
   },
+  'ai.image.cancel_painting': ({ paintingId }) => application.get('AiService').cancelPaintingGeneration(paintingId),
+  'ai.image.cancel_project': ({ projectId }) =>
+    application.get('AiService').cancelPaintingProjectGenerations(projectId),
 
   // ── Provider model catalog & reachability probe. ──
   'ai.provider.model.list': (request) =>

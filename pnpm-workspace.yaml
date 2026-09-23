@@ -117,6 +117,7 @@ patchedDependencies:
   "@tiptap/extension-list@3.26.1": patches/@tiptap__extension-list@3.26.1.patch
   "@deepseek-ai/dsh-sdk-client@0.1.2-rc.1": patches/@deepseek-ai__dsh-sdk-client@0.1.2-rc.1.patch
   docx-preview@0.3.7: patches/docx-preview@0.3.7.patch
+  "@ai-sdk/xai@3.0.126": patches/@ai-sdk__xai@3.0.126.patch
 
 allowBuilds:
   "@deepseek-ai/dsh-subprocess-local": true

@@ -81,8 +81,14 @@ vi.mock('@data/services/AssistantService', () => ({
 
 vi.mock('@data/services/JobService', () => ({
   jobService: {
+    list: () => [],
+    cancelByIds: vi.fn(),
     addFileRefsTx: (...args: unknown[]) => mockAddFileRefsTx(...args)
   }
+}))
+
+vi.mock('@main/data/services/PaintingService', () => ({
+  paintingService: { markOrphanedRunningSteps: vi.fn() }
 }))
 
 vi.mock('@main/utils/builtinSkills', () => ({
@@ -301,7 +307,7 @@ describe('AiService', () => {
       vi.spyOn(trace, 'getTracer').mockReturnValue(tracerProvider.getTracer('test'))
       mockApplicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return defaultServiceInstances.PreferenceService
-        if (name === 'FileManager') return {}
+        if (name === 'FileManager') return { createInternalEntry: vi.fn().mockResolvedValue({ id: 'file-1' }) }
         throw new Error(`Unexpected service: ${name}`)
       })
       mockProviderGetByProviderId.mockReturnValue(makeProvider())
@@ -310,7 +316,11 @@ describe('AiService', () => {
       const sdkRequest = async (_providerId: string, settings: { fetch: FetchFunction }) => {
         const response = await settings.fetch(`https://provider.test/${modality}`, { method: 'POST' })
         expect(response.status).toBe(204)
-        return { embeddings: [[1]], ranking: [{ originalIndex: 0, score: 1 }], images: [] }
+        return {
+          embeddings: [[1]],
+          ranking: [{ originalIndex: 0, score: 1 }],
+          images: modality === 'image' ? [{ base64: 'AA==', mediaType: 'image/png' }] : []
+        }
       }
       mockEmbedMany.mockImplementation(sdkRequest)
       mockRerank.mockImplementation(sdkRequest)
@@ -504,6 +514,68 @@ describe('AiService', () => {
     })
   })
 
+  it('accepts DMXAPI Gemini native edits when a Nano Banana preset is selected', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'dmxapi',
+      name: 'DMXAPI',
+      apiKeys: [],
+      isEnabled: true,
+      settings: {},
+      endpointConfigs: {
+        'google-generate-content': { baseUrl: 'https://www.dmxapi.cn/v1beta/', adapterFamily: 'dmxapi' }
+      }
+    })
+    mockModelGetByKey.mockReturnValue({
+      id: 'dmxapi::gemini-3.1-flash-image-ssvip',
+      providerId: 'dmxapi',
+      apiModelId: 'gemini-3.1-flash-image-ssvip',
+      capabilities: ['image-generation'],
+      imageGenerationConfig: { preset: 'gemini-3-1-flash-image', generate: { defaults: {}, options: {} }, edit: null }
+    })
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'dmxapi',
+        providerOptionsKey: 'google',
+        providerSettings: {},
+        modelId: 'gemini-3.1-flash-image-ssvip'
+      }
+    })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'YWJj', mediaType: 'image/png' }] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager'
+        ? {
+            createInternalEntry: vi.fn().mockResolvedValue({
+              id: 'edited-file',
+              name: 'edited.png',
+              ext: 'png',
+              origin: 'internal',
+              size: 3,
+              createdAt: 0
+            })
+          }
+        : undefined
+    )
+    const result = await service.generateImage({
+      uniqueModelId: 'dmxapi::gemini-3.1-flash-image-ssvip',
+      prompt: 'Make the background blue',
+      mode: 'edit',
+      inputImages: ['data:image/png;base64,YWJj'],
+      paramValues: { imageResolution: '2K', aspectRatio: '16:9' },
+      cleanupPolicy: 'manual'
+    })
+    expect(result.files[0].id).toBe('edited-file')
+    expect(mockGenerateImage).toHaveBeenCalledWith(
+      'dmxapi',
+      {},
+      expect.objectContaining({
+        model: 'gemini-3.1-flash-image-ssvip',
+        prompt: expect.objectContaining({ images: ['data:image/png;base64,YWJj'] }),
+        providerOptions: expect.objectContaining({ google: { imageConfig: { imageSize: '2K', aspectRatio: '16:9' } } })
+      })
+    )
+  })
+
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()
     vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
@@ -620,7 +692,7 @@ describe('AiService', () => {
         modelId: 'test-model'
       }
     })
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'AA==', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
     )
@@ -646,7 +718,7 @@ describe('AiService', () => {
       }
     })
 
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'AA==', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
     )
@@ -676,7 +748,7 @@ describe('AiService', () => {
       sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
     })
 
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'AA==', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
     )

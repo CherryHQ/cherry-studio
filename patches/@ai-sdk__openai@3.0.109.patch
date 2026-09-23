@@ -1,5 +1,137 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 976b903d5b9bd006b56213566dcb9726134ac691..0f2d7d8e0883167863bda45b196a95ef24298ea7 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -48,27 +48,27 @@ type OpenAIEmbeddingModelOptions = InferSchema<typeof openaiEmbeddingModelOption
+ 
+ type OpenAIImageModelId = 'dall-e-3' | 'dall-e-2' | 'gpt-image-1' | 'gpt-image-1-mini' | 'gpt-image-1.5' | 'gpt-image-2' | 'chatgpt-image-latest' | (string & {});
+ declare const openaiImageModelOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+ }>;
+ type OpenAIImageModelOptions = InferSchema<typeof openaiImageModelOptions>;
+ declare const openaiImageModelGenerationOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+-    style?: "vivid" | "natural" | undefined;
+-    moderation?: "low" | "auto" | undefined;
++    style?: string | undefined;
++    moderation?: string | undefined;
+ }>;
+ type OpenAIImageModelGenerationOptions = InferSchema<typeof openaiImageModelGenerationOptions>;
+ declare const openaiImageModelEditOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+     inputFidelity?: "low" | "high" | undefined;
+@@ -857,18 +857,18 @@ declare const openaiTools: {
+      * @param size - The size of the generated image. One of 'auto', '1024x1024', '1024x1536', or '1536x1024'.
+      */
+     imageGeneration: (args?: {
+-        background?: "auto" | "opaque" | "transparent";
++        background?: string | undefined;
+         inputFidelity?: "low" | "high";
+         inputImageMask?: {
+             fileId?: string;
+             imageUrl?: string;
+         };
+         model?: string;
+-        moderation?: "auto";
++        moderation?: string | undefined;
+         outputCompression?: number;
+-        outputFormat?: "png" | "jpeg" | "webp";
++        outputFormat?: string | undefined;
+         partialImages?: number;
+-        quality?: "auto" | "low" | "medium" | "high";
++        quality?: string | undefined;
+         size?: "auto" | "1024x1024" | "1024x1536" | "1536x1024";
+     }) => _ai_sdk_provider_utils.Tool<{}, {
+         result: string;
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 976b903d5b9bd006b56213566dcb9726134ac691..0f2d7d8e0883167863bda45b196a95ef24298ea7 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -48,27 +48,27 @@ type OpenAIEmbeddingModelOptions = InferSchema<typeof openaiEmbeddingModelOption
+ 
+ type OpenAIImageModelId = 'dall-e-3' | 'dall-e-2' | 'gpt-image-1' | 'gpt-image-1-mini' | 'gpt-image-1.5' | 'gpt-image-2' | 'chatgpt-image-latest' | (string & {});
+ declare const openaiImageModelOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+ }>;
+ type OpenAIImageModelOptions = InferSchema<typeof openaiImageModelOptions>;
+ declare const openaiImageModelGenerationOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+-    style?: "vivid" | "natural" | undefined;
+-    moderation?: "low" | "auto" | undefined;
++    style?: string | undefined;
++    moderation?: string | undefined;
+ }>;
+ type OpenAIImageModelGenerationOptions = InferSchema<typeof openaiImageModelGenerationOptions>;
+ declare const openaiImageModelEditOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+     inputFidelity?: "low" | "high" | undefined;
+@@ -857,18 +857,18 @@ declare const openaiTools: {
+      * @param size - The size of the generated image. One of 'auto', '1024x1024', '1024x1536', or '1536x1024'.
+      */
+     imageGeneration: (args?: {
+-        background?: "auto" | "opaque" | "transparent";
++        background?: string | undefined;
+         inputFidelity?: "low" | "high";
+         inputImageMask?: {
+             fileId?: string;
+             imageUrl?: string;
+         };
+         model?: string;
+-        moderation?: "auto";
++        moderation?: string | undefined;
+         outputCompression?: number;
+-        outputFormat?: "png" | "jpeg" | "webp";
++        outputFormat?: string | undefined;
+         partialImages?: number;
+-        quality?: "auto" | "low" | "medium" | "high";
++        quality?: string | undefined;
+         size?: "auto" | "1024x1024" | "1024x1536" | "1536x1024";
+     }) => _ai_sdk_provider_utils.Tool<{}, {
+         result: string;
 diff --git a/dist/index.js b/dist/index.js
-index 48ea06eecf6397b44f4176acea05664541cc4e1f..f6f18ef76f1971e36bd9cdc11123dc868b0965f2 100644
+index 48ea06eecf6397b44f4176acea05664541cc4e1f..78e623d5ea0860fb9137924abb87f30dade77b12 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -1012,7 +1012,7 @@ var OpenAIChatLanguageModel = class {
@@ -21,6 +153,43 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..f6f18ef76f1971e36bd9cdc11123dc86
            revised_prompt: import_v48.z.string().nullish()
          })
        ),
+@@ -2074,18 +2075,18 @@ var baseImageModelOptionsObject = import_v49.z.object({
+    *
+    * Valid values: `standard`, `hd`, `low`, `medium`, `high`, `auto`.
+    */
+-  quality: import_v49.z.enum(["standard", "hd", "low", "medium", "high", "auto"]).optional(),
++  quality: import_v49.z.string().optional(),
+   /**
+    * Background behavior for the generated image(s).
+    *
+    * If `transparent`, the output format must support transparency
+    * (i.e. `png` or `webp`).
+    */
+-  background: import_v49.z.enum(["transparent", "opaque", "auto"]).optional(),
++  background: import_v49.z.string().optional(),
+   /**
+    * Format in which the generated image(s) are returned.
+    */
+-  outputFormat: import_v49.z.enum(["png", "jpeg", "webp"]).optional(),
++  outputFormat: import_v49.z.string().optional(),
+   /**
+    * Compression level (0-100) for the generated image(s). Applies to the
+    * `jpeg` and `webp` output formats.
+@@ -2108,12 +2109,12 @@ var openaiImageModelGenerationOptions = (0, import_provider_utils13.lazySchema)(
+        * dramatic images; `natural` produces more subdued, less hyper-real
+        * looking images.
+        */
+-      style: import_v49.z.enum(["vivid", "natural"]).optional(),
++      style: import_v49.z.string().optional(),
+       /**
+        * Content moderation level for the generated image(s). `low` applies
+        * less restrictive filtering.
+        */
+-      moderation: import_v49.z.enum(["auto", "low"]).optional()
++      moderation: import_v49.z.string().optional()
+     })
+   )
+ );
 @@ -2213,7 +2214,11 @@ var OpenAIImageModel = class {
          fetch: this.config.fetch
        });
@@ -160,7 +329,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..f6f18ef76f1971e36bd9cdc11123dc86
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 26483821603be3057bd67afc71143f97e8c33ac9..2cbea13c005abf6573beb2c0c86367043cb59cfd 100644
+index 26483821603be3057bd67afc71143f97e8c33ac9..ec0f329df4fe68293de0ff09c64149a21a10c514 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -1008,7 +1008,7 @@ var OpenAIChatLanguageModel = class {
@@ -182,6 +351,43 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..2cbea13c005abf6573beb2c0c8636704
            revised_prompt: z8.string().nullish()
          })
        ),
+@@ -2108,18 +2109,18 @@ var baseImageModelOptionsObject = z9.object({
+    *
+    * Valid values: `standard`, `hd`, `low`, `medium`, `high`, `auto`.
+    */
+-  quality: z9.enum(["standard", "hd", "low", "medium", "high", "auto"]).optional(),
++  quality: z9.string().optional(),
+   /**
+    * Background behavior for the generated image(s).
+    *
+    * If `transparent`, the output format must support transparency
+    * (i.e. `png` or `webp`).
+    */
+-  background: z9.enum(["transparent", "opaque", "auto"]).optional(),
++  background: z9.string().optional(),
+   /**
+    * Format in which the generated image(s) are returned.
+    */
+-  outputFormat: z9.enum(["png", "jpeg", "webp"]).optional(),
++  outputFormat: z9.string().optional(),
+   /**
+    * Compression level (0-100) for the generated image(s). Applies to the
+    * `jpeg` and `webp` output formats.
+@@ -2142,12 +2143,12 @@ var openaiImageModelGenerationOptions = lazySchema8(
+        * dramatic images; `natural` produces more subdued, less hyper-real
+        * looking images.
+        */
+-      style: z9.enum(["vivid", "natural"]).optional(),
++      style: z9.string().optional(),
+       /**
+        * Content moderation level for the generated image(s). `low` applies
+        * less restrictive filtering.
+        */
+-      moderation: z9.enum(["auto", "low"]).optional()
++      moderation: z9.string().optional()
+     })
+   )
+ );
 @@ -2247,7 +2248,11 @@ var OpenAIImageModel = class {
          fetch: this.config.fetch
        });
@@ -320,8 +526,140 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..2cbea13c005abf6573beb2c0c8636704
              } else if (value.type === "response.reasoning_summary_part.done") {
                if (store) {
                  controller.enqueue({
+diff --git a/dist/internal/index.d.mts b/dist/internal/index.d.mts
+index ee9ebcd66892da332f8bc1b3f5dc44b9e756e4dc..538876735f3899266e497e32737ba46a5efbb888 100644
+--- a/dist/internal/index.d.mts
++++ b/dist/internal/index.d.mts
+@@ -127,27 +127,27 @@ declare const modelMaxImagesPerCall: Record<OpenAIImageModelId, number>;
+ declare function hasDefaultResponseFormat(modelId: string): boolean;
+ declare function getMaxImagesPerCall(modelId: OpenAIImageModelId): number;
+ declare const openaiImageModelOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+ }>;
+ type OpenAIImageModelOptions = InferSchema<typeof openaiImageModelOptions>;
+ declare const openaiImageModelGenerationOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+-    style?: "vivid" | "natural" | undefined;
+-    moderation?: "low" | "auto" | undefined;
++    style?: string | undefined;
++    moderation?: string | undefined;
+ }>;
+ type OpenAIImageModelGenerationOptions = InferSchema<typeof openaiImageModelGenerationOptions>;
+ declare const openaiImageModelEditOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+     inputFidelity?: "low" | "high" | undefined;
+@@ -1098,18 +1098,18 @@ declare const fileSearch: _ai_sdk_provider_utils.ProviderToolFactoryWithOutputSc
+ }>;
+ 
+ declare const imageGenerationArgsSchema: _ai_sdk_provider_utils.LazySchema<{
+-    background?: "auto" | "transparent" | "opaque" | undefined;
++    background?: string | undefined;
+     inputFidelity?: "low" | "high" | undefined;
+     inputImageMask?: {
+         fileId?: string | undefined;
+         imageUrl?: string | undefined;
+     } | undefined;
+     model?: string | undefined;
+-    moderation?: "auto" | undefined;
++    moderation?: string | undefined;
+     outputCompression?: number | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    outputFormat?: string | undefined;
+     partialImages?: number | undefined;
+-    quality?: "low" | "medium" | "high" | "auto" | undefined;
++    quality?: string | undefined;
+     size?: "auto" | "1024x1024" | "1024x1536" | "1536x1024" | undefined;
+ }>;
+ declare const imageGenerationOutputSchema: _ai_sdk_provider_utils.LazySchema<{
+diff --git a/dist/internal/index.d.ts b/dist/internal/index.d.ts
+index ee9ebcd66892da332f8bc1b3f5dc44b9e756e4dc..538876735f3899266e497e32737ba46a5efbb888 100644
+--- a/dist/internal/index.d.ts
++++ b/dist/internal/index.d.ts
+@@ -127,27 +127,27 @@ declare const modelMaxImagesPerCall: Record<OpenAIImageModelId, number>;
+ declare function hasDefaultResponseFormat(modelId: string): boolean;
+ declare function getMaxImagesPerCall(modelId: OpenAIImageModelId): number;
+ declare const openaiImageModelOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+ }>;
+ type OpenAIImageModelOptions = InferSchema<typeof openaiImageModelOptions>;
+ declare const openaiImageModelGenerationOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+-    style?: "vivid" | "natural" | undefined;
+-    moderation?: "low" | "auto" | undefined;
++    style?: string | undefined;
++    moderation?: string | undefined;
+ }>;
+ type OpenAIImageModelGenerationOptions = InferSchema<typeof openaiImageModelGenerationOptions>;
+ declare const openaiImageModelEditOptions: _ai_sdk_provider_utils.LazySchema<{
+-    quality?: "low" | "medium" | "high" | "auto" | "standard" | "hd" | undefined;
+-    background?: "auto" | "transparent" | "opaque" | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    quality?: string | undefined;
++    background?: string | undefined;
++    outputFormat?: string | undefined;
+     outputCompression?: number | undefined;
+     user?: string | undefined;
+     inputFidelity?: "low" | "high" | undefined;
+@@ -1098,18 +1098,18 @@ declare const fileSearch: _ai_sdk_provider_utils.ProviderToolFactoryWithOutputSc
+ }>;
+ 
+ declare const imageGenerationArgsSchema: _ai_sdk_provider_utils.LazySchema<{
+-    background?: "auto" | "transparent" | "opaque" | undefined;
++    background?: string | undefined;
+     inputFidelity?: "low" | "high" | undefined;
+     inputImageMask?: {
+         fileId?: string | undefined;
+         imageUrl?: string | undefined;
+     } | undefined;
+     model?: string | undefined;
+-    moderation?: "auto" | undefined;
++    moderation?: string | undefined;
+     outputCompression?: number | undefined;
+-    outputFormat?: "png" | "jpeg" | "webp" | undefined;
++    outputFormat?: string | undefined;
+     partialImages?: number | undefined;
+-    quality?: "low" | "medium" | "high" | "auto" | undefined;
++    quality?: string | undefined;
+     size?: "auto" | "1024x1024" | "1024x1536" | "1536x1024" | undefined;
+ }>;
+ declare const imageGenerationOutputSchema: _ai_sdk_provider_utils.LazySchema<{
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..be156e6df03cb0ba50118ff8c2b7b1dfb59aabc2 100644
+index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..70718969407a9b36ea3e49d4a07588c534b984ce 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -1047,7 +1047,7 @@ var OpenAIChatLanguageModel = class {
@@ -343,6 +681,43 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..be156e6df03cb0ba50118ff8c2b7b1df
            revised_prompt: import_v48.z.string().nullish()
          })
        ),
+@@ -2109,18 +2110,18 @@ var baseImageModelOptionsObject = import_v49.z.object({
+    *
+    * Valid values: `standard`, `hd`, `low`, `medium`, `high`, `auto`.
+    */
+-  quality: import_v49.z.enum(["standard", "hd", "low", "medium", "high", "auto"]).optional(),
++  quality: import_v49.z.string().optional(),
+   /**
+    * Background behavior for the generated image(s).
+    *
+    * If `transparent`, the output format must support transparency
+    * (i.e. `png` or `webp`).
+    */
+-  background: import_v49.z.enum(["transparent", "opaque", "auto"]).optional(),
++  background: import_v49.z.string().optional(),
+   /**
+    * Format in which the generated image(s) are returned.
+    */
+-  outputFormat: import_v49.z.enum(["png", "jpeg", "webp"]).optional(),
++  outputFormat: import_v49.z.string().optional(),
+   /**
+    * Compression level (0-100) for the generated image(s). Applies to the
+    * `jpeg` and `webp` output formats.
+@@ -2143,12 +2144,12 @@ var openaiImageModelGenerationOptions = (0, import_provider_utils13.lazySchema)(
+        * dramatic images; `natural` produces more subdued, less hyper-real
+        * looking images.
+        */
+-      style: import_v49.z.enum(["vivid", "natural"]).optional(),
++      style: import_v49.z.string().optional(),
+       /**
+        * Content moderation level for the generated image(s). `low` applies
+        * less restrictive filtering.
+        */
+-      moderation: import_v49.z.enum(["auto", "low"]).optional()
++      moderation: import_v49.z.string().optional()
+     })
+   )
+ );
 @@ -2248,7 +2249,11 @@ var OpenAIImageModel = class {
          fetch: this.config.fetch
        });
@@ -482,7 +857,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..be156e6df03cb0ba50118ff8c2b7b1df
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..b391b8de8bb1160e7eada80c84edd92c2db24ea6 100644
+index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..25c7637775478da9535c8e29eab253987004f67f 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -1000,7 +1000,7 @@ var OpenAIChatLanguageModel = class {
@@ -504,6 +879,43 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..b391b8de8bb1160e7eada80c84edd92c
            revised_prompt: z8.string().nullish()
          })
        ),
+@@ -2100,18 +2101,18 @@ var baseImageModelOptionsObject = z9.object({
+    *
+    * Valid values: `standard`, `hd`, `low`, `medium`, `high`, `auto`.
+    */
+-  quality: z9.enum(["standard", "hd", "low", "medium", "high", "auto"]).optional(),
++  quality: z9.string().optional(),
+   /**
+    * Background behavior for the generated image(s).
+    *
+    * If `transparent`, the output format must support transparency
+    * (i.e. `png` or `webp`).
+    */
+-  background: z9.enum(["transparent", "opaque", "auto"]).optional(),
++  background: z9.string().optional(),
+   /**
+    * Format in which the generated image(s) are returned.
+    */
+-  outputFormat: z9.enum(["png", "jpeg", "webp"]).optional(),
++  outputFormat: z9.string().optional(),
+   /**
+    * Compression level (0-100) for the generated image(s). Applies to the
+    * `jpeg` and `webp` output formats.
+@@ -2134,12 +2135,12 @@ var openaiImageModelGenerationOptions = lazySchema8(
+        * dramatic images; `natural` produces more subdued, less hyper-real
+        * looking images.
+        */
+-      style: z9.enum(["vivid", "natural"]).optional(),
++      style: z9.string().optional(),
+       /**
+        * Content moderation level for the generated image(s). `low` applies
+        * less restrictive filtering.
+        */
+-      moderation: z9.enum(["auto", "low"]).optional()
++      moderation: z9.string().optional()
+     })
+   )
+ );
 @@ -2239,7 +2240,11 @@ var OpenAIImageModel = class {
          fetch: this.config.fetch
        });
@@ -669,6 +1081,54 @@ index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2
            revised_prompt: z.string().nullish(),
          }),
        ),
+diff --git a/src/image/openai-image-model-options.ts b/src/image/openai-image-model-options.ts
+index 935f6f0907f21b515a9d2c645ceb61f0079d71a1..0078fc2ea69af1734a8e5ba25b9b014495804892 100644
+--- a/src/image/openai-image-model-options.ts
++++ b/src/image/openai-image-model-options.ts
+@@ -45,10 +45,9 @@ const baseImageModelOptionsObject = z.object({
+   /**
+    * Quality of the generated image(s).
+    *
+-   * Valid values: `standard`, `hd`, `low`, `medium`, `high`, `auto`.
++   * Valid values: `standard`, `hd`, `low`, `medium`, `high`, `auto`, `xhigh`, `max`.
+    */
+-  quality: z
+-    .enum(['standard', 'hd', 'low', 'medium', 'high', 'auto'])
++  quality: z.string()
+     .optional(),
+ 
+   /**
+@@ -57,12 +56,12 @@ const baseImageModelOptionsObject = z.object({
+    * If `transparent`, the output format must support transparency
+    * (i.e. `png` or `webp`).
+    */
+-  background: z.enum(['transparent', 'opaque', 'auto']).optional(),
++  background: z.string().optional(),
+ 
+   /**
+    * Format in which the generated image(s) are returned.
+    */
+-  outputFormat: z.enum(['png', 'jpeg', 'webp']).optional(),
++  outputFormat: z.string().optional(),
+ 
+   /**
+    * Compression level (0-100) for the generated image(s). Applies to the
+@@ -93,13 +92,13 @@ export const openaiImageModelGenerationOptions = lazySchema(() =>
+        * dramatic images; `natural` produces more subdued, less hyper-real
+        * looking images.
+        */
+-      style: z.enum(['vivid', 'natural']).optional(),
++      style: z.string().optional(),
+ 
+       /**
+        * Content moderation level for the generated image(s). `low` applies
+        * less restrictive filtering.
+        */
+-      moderation: z.enum(['auto', 'low']).optional(),
++      moderation: z.string().optional(),
+     }),
+   ),
+ );
 diff --git a/src/image/openai-image-model.ts b/src/image/openai-image-model.ts
 index 41b81b27ccc1cd2e821573dab1e28517def1ea95..f0858ff8d6f53ef0ba1bdf898d881d01dae517c5 100644
 --- a/src/image/openai-image-model.ts
@@ -699,10 +1159,6 @@ index 41b81b27ccc1cd2e821573dab1e28517def1ea95..f0858ff8d6f53ef0ba1bdf898d881d01
        warnings,
        usage:
          response.usage != null
-diff --git a/src/openai-language-model-capabilities.ts b/src/openai-language-model-capabilities.ts
-index c4b8d3a71df8690d4851fa0a79fae1ae2eba9144..9802a5d9cd0b2c3fc31b79bf7383c2e321ffd57c 100644
---- a/src/openai-language-model-capabilities.ts
-+++ b/src/openai-language-model-capabilities.ts
 diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
 index 5c27d8f988a37082af53de78c0b542a5b8373eed..c31edcb071d021d954fcb3d6b912a868458ae737 100644
 --- a/src/responses/convert-to-openai-responses-input.ts
@@ -766,7 +1222,7 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..c31edcb071d021d954fcb3d6b912a868
      )
    ) {
      warnings.push({
-@@ -1325,6 +1351,7 @@ export async function convertToOpenAIResponsesInput({
+@@ -1325,7 +1351,8 @@ export async function convertToOpenAIResponsesInput({
        item =>
          !('type' in item) ||
          item.type !== 'reasoning' ||
@@ -775,6 +1231,7 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..c31edcb071d021d954fcb3d6b912a868
 +        ('content' in item && item.content != null),
      );
    }
+ 
 @@ -1335,6 +1362,7 @@ export async function convertToOpenAIResponsesInput({
  const openaiResponsesReasoningProviderOptionsSchema = z.object({
    itemId: z.string().nullish(),

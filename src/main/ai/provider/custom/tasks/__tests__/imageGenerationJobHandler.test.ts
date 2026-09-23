@@ -9,9 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * resolution is mocked so the test exercises handler control flow, not vendor
  * wiring.
  *
- * There is deliberately no cross-restart resume coverage: `recovery: 'abandon'`
- * means a job never outlives its process, so `patchMetadata` is asserted absent
- * rather than exercised.
+ * Resume metadata is asserted for task ids and small URL lists so a restarted
+ * job can continue without resubmitting a billable request.
  */
 import type { JobContext } from '@main/core/job/types'
 
@@ -130,31 +129,51 @@ beforeEach(() => {
   createInternalEntryMock.mockImplementation(async () => ({ id: 'file-1' }))
 })
 
-describe('imageGenerationJobHandler contract', () => {
-  it('declares the remote-poll job contract', () => {
-    // `abandon`, not `retry`: the job's only consumer is the in-process awaiter,
-    // so a resumed run would re-pay the vendor and deliver into a dead promise.
-    expect(imageGenerationJobHandler.recovery).toBe('abandon')
-    expect(
-      imageGenerationJobHandler.defaultQueue?.({
-        uniqueModelId: 'ppio::qwen-image',
-        n: 1,
-        providerParams: {},
-        cleanupPolicy: 'delete_when_unreferenced'
-      })
-    ).toBe('image-generation.ppio')
-    expect(imageGenerationJobHandler.defaultConcurrency).toBe(2)
-    expect(imageGenerationJobHandler.defaultRetryPolicy).toEqual({
-      maxAttempts: 1,
-      backoff: 'none',
-      baseDelayMs: 0,
-      maxDelayMs: 0
-    })
-    expect(imageGenerationJobHandler.defaultTimeoutMs).toBe(30 * 60_000)
-  })
-})
-
 describe('imageGenerationJobHandler.execute', () => {
+  it('does not resubmit after a crash left an unknown remote outcome', async () => {
+    const ctx = createCtx({ metadata: { submissionStarted: true } })
+    await expect(imageGenerationJobHandler.execute(ctx)).rejects.toThrow('unknown outcome')
+    expect(submitMock).not.toHaveBeenCalled()
+  })
+
+  it('resumes a persisted remote task without paying for another submission', async () => {
+    pollMock.mockResolvedValue(['https://cdn.example.com/resumed.png'])
+    const result = await imageGenerationJobHandler.execute(
+      createCtx({ metadata: { submissionStarted: true, taskId: 'known-task' } })
+    )
+    expect(result).toEqual({ files: [{ id: 'file-1' }] })
+    expect(submitMock).not.toHaveBeenCalled()
+    expect(pollMock.mock.calls[0][0]).toBe('known-task')
+  })
+
+  it('resumes persisted URLs without submitting or polling again', async () => {
+    const result = await imageGenerationJobHandler.execute(
+      createCtx({ metadata: { submissionStarted: true, imageUrls: ['https://cdn.example.com/saved.png'] } })
+    )
+    expect(result).toEqual({ files: [{ id: 'file-1' }] })
+    expect(submitMock).not.toHaveBeenCalled()
+    expect(pollMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses the paid request when the durable submission marker cannot be saved', async () => {
+    const ctx = createCtx({ patchMetadata: vi.fn().mockRejectedValue(new Error('database unavailable')) })
+    await expect(imageGenerationJobHandler.execute(ctx)).rejects.toThrow('database unavailable')
+    expect(submitMock).not.toHaveBeenCalled()
+  })
+
+  it('persists the submission marker before sending the billable request', async () => {
+    let durable = false
+    const ctx = createCtx({
+      patchMetadata: vi.fn(async (patch) => {
+        if (patch.submissionStarted) durable = true
+      })
+    })
+    submitMock.mockImplementation(async () => {
+      expect(durable).toBe(true)
+      return { imageUrls: ['data:image/png;base64,AAAA'] }
+    })
+    expect(await imageGenerationJobHandler.execute(ctx)).toEqual({ files: [{ id: 'file-1' }] })
+  })
   it('async: submit(taskId) → poll → download/persist, recording usage', async () => {
     const credentialReceipt = {
       attribution: 'explicit',
@@ -178,10 +197,7 @@ describe('imageGenerationJobHandler.execute', () => {
     const result = (await imageGenerationJobHandler.execute(ctx)) as { files: Array<{ id: string }> }
 
     expect(result.files).toEqual([{ id: 'file-1' }])
-    // The task id is never persisted: nothing resumes a job of this type, so
-    // writing it would be metadata with no reader — and a resume that did read it
-    // would re-poll a task whose result reaches nobody.
-    expect(ctx.patchMetadata).not.toHaveBeenCalled()
+    expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz' })
     expect(pollMock).toHaveBeenCalledWith(
       'task-xyz',
       expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
@@ -230,7 +246,7 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(submitArg.modelDescriptor).toBeUndefined()
   })
 
-  it('sync: submit(imageUrls) → no poll, and no metadata is persisted', async () => {
+  it('sync: submit(imageUrls) → no poll, and persists resumable URLs', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/sync.png'] })
 
     const ctx = createCtx()
@@ -238,22 +254,29 @@ describe('imageGenerationJobHandler.execute', () => {
 
     expect(result.files).toEqual([{ id: 'file-1' }])
     expect(pollMock).not.toHaveBeenCalled()
-    // The capture context is built per execution and held in memory. Upstream
-    // persisted it so a resumed run could still attribute cost; with `abandon`
-    // there is no resumed run, so persisting it would be a write nobody reads.
-    expect(ctx.patchMetadata).not.toHaveBeenCalled()
+    expect(ctx.patchMetadata).toHaveBeenCalledWith({ imageUrls: ['https://cdn.example.com/sync.png'] })
     expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ modality: 'image', imageCount: 1 }))
   })
 
-  it('abort: cancels the remote task and throws AbortError', async () => {
+  it('does not submit a request that was already aborted', async () => {
     submitMock.mockResolvedValue({ taskId: 'task-to-cancel' })
     const controller = new AbortController()
     controller.abort()
     const ctx = createCtx({ signal: controller.signal })
 
     await expect(imageGenerationJobHandler.execute(ctx)).rejects.toThrow(/abort/i)
-    expect(cancelMock).toHaveBeenCalledWith('task-to-cancel')
+    expect(submitMock).not.toHaveBeenCalled()
     expect(pollMock).not.toHaveBeenCalled()
+  })
+
+  it('cancels a resumed remote task when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      imageGenerationJobHandler.execute(createCtx({ signal: controller.signal, metadata: { taskId: 'existing-task' } }))
+    ).rejects.toThrow(/abort/i)
+    expect(cancelMock).toHaveBeenCalledWith('existing-task')
+    expect(submitMock).not.toHaveBeenCalled()
   })
 
   it('reads input images by FileEntry id for image-edit submit', async () => {
