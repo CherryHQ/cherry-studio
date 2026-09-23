@@ -33,14 +33,14 @@ How to approach any coding task in this repo.
 #### Goal-Driven Execution
 
 - Convert tasks into verifiable goals before coding:
-  - "Add validation" → "Write tests for invalid inputs, then make them pass."
-  - "Fix the bug" → "Write a test that reproduces it, then make it pass."
-  - "Refactor X" → "Ensure tests pass before and after."
-- For multi-step tasks, state a brief plan with explicit verification per step:
+  - "Add validation" → "Complete the production validation path, then exercise it through the real boundary."
+  - "Fix the bug" → "Reproduce it through a production entry point, fix it, then rerun that integration flow."
+  - "Refactor X" → "Complete the coherent refactor, then exercise the affected integration flow."
+- For multi-step tasks, state a brief plan and the integration boundary that will verify the completed set:
 
 ```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
+1. [Implementation set]
+2. [Completed boundary] → verify: [integration flow]
 ```
 
 ### Operational Rules
@@ -54,7 +54,7 @@ Project-specific tools, paths, and conventions.
 - **Build with Tailwind CSS & Shadcn UI**: Use components from `@cherrystudio/ui` (located in `packages/ui`, Shadcn UI + Tailwind CSS) for every new UI component.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
 - **Access paths centrally**: Use `application.getPath('namespace.key', filename?)` for all main-process filesystem paths—never call `app.getPath()`, `os.homedir()`, or construct paths ad-hoc. Import the singleton via `import { application } from '@application'`.
-- **Check what you changed, not the whole repo**: for code, run `pnpm lint` (it covers format + typecheck + `i18n:check`) plus the tests covering your change — per-project wrappers (`pnpm test:main <file>`, `test:renderer`, `test:aicore`, `test:shared`, `test:pkg:ui`, `test:scripts`) or `pnpm exec vitest run <file>` for a few files; full `pnpm test` only when the change is broad or you can't name the affected tests. Never use `pnpm test <path>`: the script chains several vitest invocations with `&&`, CLI args reach only the last one, and earlier projects run their full suites unfiltered. Docs/markdown-only edits need just `pnpm docs:check` (links + structure + frontmatter + index). CI runs the full gate; your job is to not obviously break it.
+- **Verify completed behavior at its real boundary**: finish the coherent production change first, then run the smallest integration flow that enters through the actual UI, IPC, process, filesystem, database, or protocol boundary. Unit, component-only, snapshot, filtered-function, and mock-only tests are not completion evidence. Run `pnpm lint` once at the completed change boundary when TypeScript changed. Reserve `pnpm build:check` and broad integration suites for the final applicable phase. Docs-only changes use `pnpm docs:check`.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
 - **Sign commits and sign off**: Every commit must be both cryptographically signed and DCO-signed off. Use `git commit -S --signoff` (not `--signoff` alone), verify the commit object contains a `gpgsig` header with `git cat-file commit HEAD`, and verify the pushed PR commits show `Verified` on GitHub.
 - **Target the right branch**: `main` is the default branch for all active development — submit features, refactors, optimizations, and fixes here.
@@ -66,18 +66,19 @@ Project-specific tools, paths, and conventions.
 Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` — let it enforce them). For every other script, read `package.json` — the ones you must know:
 
 - `pnpm lint` — oxlint + eslint fix + typecheck + i18n check + format (writes files)
-- `pnpm test` — run all Vitest tests
+- `pnpm test` — legacy broad Vitest suite; final-boundary use only and not completion evidence when it includes unit tests
 - `pnpm format` — Oxfmt format (write mode)
 - `pnpm docs:check` — the docs gate (`check-links` + structure closed-set + frontmatter/`sources` existence + generated-index freshness); the only thing `build:check` adds over `lint` + `test`. Run it for docs/markdown edits instead of the full gate. Docs under `docs/references/**` and `docs/contrib/**` carry `description`/`sources` frontmatter; `docs/README.md` is generated — edit frontmatter and run `pnpm docs:index`, never the index by hand.
-- `pnpm build:check` — `lint` + `docs:check` + full `test`, i.e. the whole gate in one command. Worth it for broad or risky changes; for anything narrower run the piece that matters. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
+- `pnpm build:check` — `lint` + `docs:check` + the broad legacy suite; run once at the final applicable phase or release boundary. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
 - `pnpm test:lint` — the CI-equivalent lint gate: Oxlint errors and warnings block CI (`--deny-warnings`); ESLint errors block CI while its warnings remain non-blocking.
 
 ### Testing
 
-- Tests run with Vitest 3 (see `vitest.config.*` for project setup).
-- **No behavior-pinning tests**: a test whose only assertion records what the code currently does — a snapshot of whatever came out, `toHaveBeenCalled` on a mock, an expected value re-derived the way the implementation derives it — has zero value. It cannot fail for a real reason, it breaks on every refactor, and it certifies existing bugs as "expected". Assert the contract instead: real input → the outcome the feature promises, plus the failure and edge cases. Before writing a test, state the bug it would catch; if you cannot, do not write it. **The existing suite is full of these** — delete the ones in a file you are already editing rather than keeping them green; a repo-wide purge is its own task, not a side effect of an unrelated PR.
-- **Frontend Tests — MUST READ**: [Frontend Testing Guidelines](docs/references/testing/frontend-testing.md).
-- **Test Mocking**: Use the unified mock system — do NOT create ad-hoc mocks for `application`, services, or data layers. See [tests/__mocks__/README.md](tests/__mocks__/README.md) for available mocks, usage patterns, and best practices.
+- Integration scenarios use Vitest 3 where the real application boundary can be driven through its project configuration.
+- **No unit-test delivery loops**: do not add or run unit, component-only, snapshot, filtered-function, or mock-only tests as delivery evidence. Existing legacy tests may remain, but their results do not prove a feature complete.
+- **No behavior-pinning tests**: a scenario whose assertion merely records current output, mock calls, or an expected value re-derived from the implementation has zero value. Exercise real input through the production boundary and assert the promised outcome. Before adding an integration scenario, state the production defect it would catch; if none, do not add it.
+- **Frontend integration**: use the relevant production-flow guidance from [Frontend Testing Guidelines](docs/references/testing/frontend-testing.md); component-only guidance is not a completion gate.
+- **Mocks**: mock-only scenarios are not evidence. If maintaining a legacy test that requires a mock, use the unified system in [tests/__mocks__/README.md](tests/__mocks__/README.md) and do not cite the result as completion proof.
 - **Database Tests**: For any service/handler/seeder that reads or writes SQLite, use `setupTestDatabase()` from `@test-helpers/db` — it provides a real file-backed DB with production migrations. Do NOT hand-write `CREATE TABLE` SQL, override `@application`, or stub Drizzle chains. See [docs/references/testing/database-testing.md](docs/references/testing/database-testing.md).
 
 ### Patched Dependencies
@@ -223,3 +224,26 @@ The v2 refactor has landed. v1 data reaches v2 only through the migrators in `sr
 ## Local Instructions
 
 If `CLAUDE.local.md` exists in the repository root (gitignored, may be absent), read it in full before acting on anything in this file — it holds the developer's private instructions and **OVERRIDES this file wherever they conflict**. Tools that auto-load it (e.g. Claude Code) need not re-read it.
+
+<!-- prometheus-mini-context:start v1 -->
+## Prometheus development context
+
+- The testing policy in this managed block takes precedence over conflicting
+  per-edit, unit-first, mock-first, or test-first instructions elsewhere. Report
+  the stale prose for manual cleanup; do not follow both policies.
+- Restore KBD position and read `versions.toml`, `.prometheus/decisions.md`, and
+  relevant `.prometheus/gotchas.md` before dependency or architecture changes.
+- Finish a coherent set of production functionality before testing. During
+  implementation, use static inspection and reasoning; use a narrow compiler or
+  type check only when it is required to unblock progress.
+- At a completed change or phase boundary, run the smallest integration flow that
+  exercises the real production entry point and collaborators. Unit, mock-only,
+  filtered-function, snapshot, and per-edit tests are not completion evidence.
+- Run broad integration, cross-platform, and release gates once at the final
+  applicable boundary. Report only commands and results actually observed.
+- For Rust work, load `prometheus-rust-workspace`. It routes
+  `rust-best-practices`, `rust-async-patterns`, and
+  `rust-mcp-server-generator` when relevant. Project pins and protocols win.
+- Stack details live under `.claude/rules/`; load only the rule matching the files
+  being changed. Preserve operator prose outside this managed region.
+<!-- prometheus-mini-context:end -->
