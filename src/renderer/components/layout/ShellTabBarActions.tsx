@@ -1,19 +1,21 @@
-import { CircleArrowUp, Search, Settings, Stethoscope } from 'lucide-react'
+import { CircleArrowUp, Search, Settings } from 'lucide-react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { CommandTooltip } from '@renderer/components/command'
-import { DoctorPopup } from '@renderer/components/doctor'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { getSidebarLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 
 import { WindowControls } from '../WindowControls'
+import { HelpMenu } from './HelpMenu'
 
 const logger = loggerService.withContext('ShellTabBarActions')
+const FeedbackDialog = lazy(() => import('@renderer/components/feedback/FeedbackDialog'))
 
 export function SidebarSettingsButton() {
   const { t } = useTranslation()
@@ -71,6 +73,8 @@ export function AppUpdateButton({ placement = 'bottom' }: { placement?: 'top' | 
 export function ShellTabBarActions() {
   const { t } = useTranslation()
   const [sidebarWidth] = usePersistCache('ui.sidebar.width')
+  const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const sidebarLayout = getSidebarLayout(sidebarWidth)
   const isSidebarHidden = sidebarLayout === 'hidden'
 
@@ -82,8 +86,9 @@ export function ShellTabBarActions() {
     openSettingsTab()
   }
 
-  const handleDiagnosticsClick = () => {
-    void DoctorPopup.show({ initialPanel: 'checks' })
+  const handleOpenFeedback = () => {
+    setFeedbackDialogMounted(true)
+    setFeedbackOpen(true)
   }
 
   return (
@@ -92,17 +97,7 @@ export function ShellTabBarActions() {
         {sidebarLayout !== 'full' ? <AppUpdateButton /> : null}
         {isSidebarHidden ? (
           <>
-            <Tooltip content={t('settings.doctor.entry.title')} placement="bottom" delay={800}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t('settings.doctor.entry.title')}
-                onClick={handleDiagnosticsClick}
-                className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
-                <Stethoscope size={16} strokeWidth={1.8} />
-              </Button>
-            </Tooltip>
+            <HelpMenu layout="icon" placement="bottom" onFeedbackClick={handleOpenFeedback} />
             <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="bottom" delay={800}>
               <Button
                 type="button"
@@ -130,6 +125,11 @@ export function ShellTabBarActions() {
       </div>
 
       <WindowControls />
+      {feedbackDialogMounted ? (
+        <Suspense fallback={null}>
+          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+        </Suspense>
+      ) : null}
     </div>
   )
 }
