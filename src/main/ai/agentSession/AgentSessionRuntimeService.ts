@@ -916,8 +916,20 @@ export class AgentSessionRuntimeService extends BaseService {
               void this.closeSession(entry.sessionId)
             }
           }
+          // A stop that already dispatched ends this stream itself: settle the machine and close
+          // the controller so the pipe's accumulator can drain — a dangling open stream hangs the
+          // stop-and-drain on a pipe that never sees another chunk.
+          const abandonTurnStream = () => {
+            this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', outcome: { status: 'paused' } })
+            try {
+              controller.close()
+            } catch {
+              // The consumer cancelled first; the stream is already closed.
+            }
+          }
           if (input.signal.aborted) {
             onAbort()
+            abandonTurnStream()
             return
           } else {
             input.signal.addEventListener('abort', onAbort, { once: true })
@@ -930,16 +942,7 @@ export class AgentSessionRuntimeService extends BaseService {
           if (!this.isTurnLive(entry, turn)) return
           const connected = await this.ensureConnection(entry)
           if (input.signal.aborted) {
-            // The stop already dispatched while this stream was connecting: never admit its
-            // canceled prompt. A graceful pre-admission stop preserves the entry and turn, so the
-            // stream itself must end and settle the machine — a dangling open stream would hang
-            // the stop-and-drain on a pipe that never sees another chunk.
-            this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', outcome: { status: 'paused' } })
-            try {
-              controller.close()
-            } catch {
-              // The consumer cancelled first; the stream is already closed.
-            }
+            abandonTurnStream()
             return
           }
           if (!connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
