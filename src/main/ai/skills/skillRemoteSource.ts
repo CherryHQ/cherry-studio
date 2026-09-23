@@ -18,6 +18,7 @@ import {
   assertSkillDirectoryWithinLimits,
   extractZip,
   MAX_SKILL_FILES,
+  MAX_SKILL_SIZE,
   resolveSkillDirectory,
   validateRepositorySkillDirectory
 } from './skillArchive'
