@@ -8,7 +8,7 @@ if (current.object.sha !== process.env.GITHUB_SHA) throw new Error('Source branc
 const body = { query: 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { url oid } } }', variables: { input: {
   branch: { repositoryNameWithOwner: repository, branchName: branch },
   expectedHeadOid: current.object.sha,
-  message: { headline: `chore(releases): publish complete v${version} installers [skip ci]`, body: 'Assisted-by: Codex:GPT-6 [GitHub Actions release packaging]' },
+  message: { headline: `chore(releases): publish available v${version} installers [skip ci]`, body: 'Assisted-by: Codex:GPT-6 [GitHub Actions release packaging]' },
   fileChanges: { additions: ['RELEASES.md', 'release-manifest.json'].map((path) => ({ path, contents: fs.readFileSync(path).toString('base64') })) }
 } } }
 execFileSync('gh', ['api', 'graphql', '--input', '-'], { input: JSON.stringify(body), stdio: ['pipe', 'inherit', 'inherit'] })

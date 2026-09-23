@@ -7,16 +7,18 @@ const pins = JSON.parse(fs.readFileSync(path.join(root, 'build/integration-sourc
 const tag = process.env.PAYLOAD_TAG
 if (!/^boss-tools-[a-zA-Z0-9.-]+$/.test(tag || '')) throw new Error('A unique boss-tools-* release tag is required')
 const repository = process.env.GITHUB_REPOSITORY
+const platforms = (process.env.PAYLOAD_PLATFORMS || 'darwin-x64,darwin-arm64,linux-x64,linux-arm64,win32-x64,win32-arm64').split(',')
 const url = (asset) => `https://github.com/${repository}/releases/download/${tag}/${asset}`
 const tools = new Map()
 for (const filename of fs.readdirSync(directory).filter((file) => /^(?:base-)?tools-.*\.json$/.test(file)).sort()) {
   for (const { name, version, platform, asset, ...record } of JSON.parse(fs.readFileSync(path.join(directory, filename)))) {
+    if (!platforms.includes(platform)) continue
     if (!tools.has(name)) tools.set(name, { name, version, packages: {} })
     tools.get(name).packages[platform] = { ...record, url: url(asset) }
   }
 }
 for (const name of Object.keys(pins.tools)) {
-  for (const platform of ['darwin-x64', 'darwin-arm64', 'linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']) {
+  for (const platform of platforms) {
     if (!tools.get(name)?.packages[platform]) throw new Error(`Missing native binary: ${name} ${platform}`)
   }
 }
@@ -28,7 +30,7 @@ for (const service of ['surreal-memory', 'liter-llm']) {
   images[service] = `${record.image}@${record.digest}`
 }
 const skills = JSON.parse(fs.readFileSync(path.join(directory, 'compass-skills.json')))
-const manifest = { schema: 1, sources: pins.sources, tools: [...tools.values()], images, compassSkills: { url: url(skills.asset), sha256: skills.sha256 } }
+const manifest = { schema: 1, platforms, sources: pins.sources, tools: [...tools.values()], images, compassSkills: { url: url(skills.asset), sha256: skills.sha256 } }
 fs.writeFileSync(path.join(directory, 'integration-artifacts.json'), JSON.stringify(manifest, null, 2) + '\n')
 const assets = fs.readdirSync(directory).filter((name) => !name.endsWith('-image.json') && !/^(?:base-)?tools-/.test(name) && name !== 'compass-skills.json').map((name) => path.join(directory, name))
-execFileSync('gh', ['release', 'create', tag, ...assets, '--target', process.env.GITHUB_SHA, '--title', `The Boss native integration payload ${tag}`, '--notes', 'Pinned native executables, Compass skills, service image digests, and checksums for installer packaging. Installed Windows acceptance remains pending.'], { stdio: 'inherit' })
+execFileSync('gh', ['release', 'create', tag, ...assets, '--latest=false', '--target', process.env.GITHUB_SHA, '--title', `The Boss native integration payload ${tag}`, '--notes', `Pinned native executables for ${platforms.join(', ')}, Compass skills, service image digests, and checksums for installer packaging. Installed Windows acceptance remains pending.`], { stdio: 'inherit' })

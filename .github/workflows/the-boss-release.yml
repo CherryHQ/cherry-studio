@@ -2,6 +2,11 @@ name: The Boss Release
 run-name: Installers ${{ github.ref_name }} @ ${{ github.sha }}
 on:
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: Optional comma-separated platforms to build from the published payload
+        required: false
+        type: string
   push:
     branches: [main]
     paths-ignore: ['**/*.md', 'docs/**', '.kbd-orchestrator/**', '.prometheus/**', 'openspec/**', 'release-manifest.json']
@@ -14,7 +19,19 @@ env:
 permissions:
   contents: read
 jobs:
+  platforms:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+      platforms: ${{ steps.select.outputs.platforms }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: select
+        env:
+          RELEASE_PLATFORMS: ${{ inputs.platforms }}
+        run: node scripts/release-platforms.cjs
   build:
+    needs: platforms
     name: Installer (${{ matrix.platform }}-${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
@@ -22,14 +39,7 @@ jobs:
       HAS_SIGNING: ${{ secrets.CSC_LINK != '' }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { runner: windows-2025, platform: win32, arch: x64, script: 'build:win:x64' }
-          - { runner: windows-11-arm, platform: win32, arch: arm64, script: 'build:win:arm64' }
-          - { runner: macos-15-intel, platform: darwin, arch: x64, script: 'build:mac:x64' }
-          - { runner: macos-15, platform: darwin, arch: arm64, script: 'build:mac:arm64' }
-          - { runner: ubuntu-24.04, platform: linux, arch: x64, script: 'build:linux:x64' }
-          - { runner: ubuntu-24.04-arm, platform: linux, arch: arm64, script: 'build:linux:arm64' }
+      matrix: ${{ fromJSON(needs.platforms.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -79,7 +89,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
   publish-complete-release:
-    needs: build
+    needs: [build, platforms]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -94,6 +104,8 @@ jobs:
           path: manifests
           merge-multiple: true
       - name: Generate complete release entry
+        env:
+          RELEASE_PLATFORMS: ${{ needs.platforms.outputs.platforms }}
         run: node scripts/update-release-entry.cjs
       - name: Commit release metadata through GitHub
         env:

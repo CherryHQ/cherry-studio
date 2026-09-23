@@ -39,14 +39,18 @@ builds. Fix compiler and packaging failures in the actual release builds.
    DEB, and RPM packages. Compiler checks inside the packaging commands are part
    of the build. Retain available signing configuration and report actual signing
    status in the release metadata.
-6. Successful jobs publish installers through IPFS. The final job requires all
-   ten artifacts from the same source commit before generating and committing
-   `release-manifest.json` and the new `RELEASES.md` entry. Keep the source branch
+6. Successful jobs publish installers through IPFS. The final job requires every
+   selected platform from the same source commit before generating and committing
+   `release-manifest.json` and the new `RELEASES.md` entry. The operator has authorized
+   shipping the five ready platforms before Intel macOS. Record pending platforms
+   explicitly and retain each artifact's source commit when adding Intel later.
+   Keep the source branch
    unchanged during this final build so the metadata commit can succeed.
 7. In `Know-Me-Tools/boss-landing-spot`, generate download data from the completed
    release entry with `scripts/sync-release.mjs --file <RELEASES.md> --verify`.
    Commit it and publish the connected **The Boss Landing** Lovable project.
-   Keep the previous complete release advertised until every new artifact exists.
+   Advertise completed platforms immediately; retain the previous Intel download,
+   labeled with its own version, until the new Intel installer is published.
 
 For a failed native build, the payload workflow retains completed tool artifacts
 and compiler caches. Its `reuse_native_run`, `native_tools`, and `reuse_image_run`
