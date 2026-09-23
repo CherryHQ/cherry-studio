@@ -565,6 +565,9 @@ describe('ClaudeCodeStreamAdapter', () => {
     const { adapter, parts } = createAdapter()
 
     adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    adapter.handleMessage(
       streamEvent({
         type: 'content_block_delta',
         index: 0,
@@ -591,6 +594,86 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts.map((part) => part.type)).toEqual(['reasoning-start', 'reasoning-delta', 'reasoning-end'])
     expect(parts[1]).toMatchObject({ type: 'reasoning-delta', id: (parts[0] as any).id, delta: 'plan' })
     expect(parts[2]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
+  })
+
+  it('keeps thinking in one reasoning part when text deltas precede the thinking block start', async () => {
+    const { adapter, parts } = createAdapter()
+    const prefix = 'Some relays wrap reasoning_content in `'
+    const suffix = '` tags or similar. Let me continue thinking.'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: prefix } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'thinking_delta', thinking: suffix }
+      })
+    )
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      aborted: true,
+      message: { content: [{ type: 'thinking', thinking: `${prefix}${suffix}` }] }
+    } as any)
+
+    expect(parts.some((part) => part.type === 'text-start')).toBe(false)
+    expect(
+      parts
+        .filter((part) => part.type === 'reasoning-delta')
+        .map((part) => (part as any).delta)
+        .join('')
+    ).toBe(`${prefix}${suffix}`)
+
+    const stream = new ReadableStream<CherryUIMessageChunk>({
+      start(controller) {
+        for (const part of parts) controller.enqueue(part)
+        controller.close()
+      }
+    })
+    let finalMessage: CherryUIMessage | undefined
+    for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+      stream,
+      message: { id: 'assistant-1', role: 'assistant', parts: [] }
+    })) {
+      finalMessage = snapshot
+    }
+
+    expect(finalMessage?.parts).toEqual([
+      expect.objectContaining({
+        type: 'reasoning',
+        text: `${prefix}${suffix}`,
+        state: 'streaming'
+      })
+    ])
+  })
+
+  it('does not emit fallback text when buffered text deltas are flushed as reasoning', () => {
+    const { adapter, parts } = createAdapter()
+    const thinking = 'Some relays wrap reasoning_content in ` tags or similar.'
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: thinking } })
+    )
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(successResult())
+
+    expect(parts.some((part) => part.type === 'text-start')).toBe(false)
+    expect(
+      parts
+        .filter((part) => part.type === 'reasoning-delta')
+        .map((part) => (part as any).delta)
+        .join('')
+    ).toBe(thinking)
   })
 
   it('attaches parent tool metadata to streamed text and reasoning parts', () => {
@@ -1450,6 +1533,9 @@ describe('ClaudeCodeStreamAdapter', () => {
 
       adapter.beginTurn()
       adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
         streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'second' } })
       )
 
@@ -2050,6 +2136,9 @@ describe('ClaudeCodeStreamAdapter', () => {
     it('self-arms on parentless content and reports a receive-only turn before any chunk', () => {
       const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
 
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
       adapter.handleMessage(
         streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'woke up' } })
       )
