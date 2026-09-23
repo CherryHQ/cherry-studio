@@ -70,10 +70,7 @@ async function deleteModelsSkippingDefaults(
  * v1 opened a model-management popup and immediately loaded the provider list;
  * this hook keeps the same semantics while using v2 DataApi-backed model CRUD.
  */
-export function useProviderModelPullReconcile(
-  providerId: string,
-  options?: { requestContext?: 'provider-setup' }
-) {
+export function useProviderModelPullReconcile(providerId: string, options?: { requestContext?: 'provider-setup' }) {
   const { t } = useTranslation()
   const [pullReconcileDrawerOpen, setPullReconcileDrawerOpen] = useState(false)
   const [catalogModels, setCatalogModels] = useState<Model[]>([])
