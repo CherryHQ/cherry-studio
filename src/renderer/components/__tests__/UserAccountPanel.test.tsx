@@ -99,7 +99,7 @@ describe('UserAccountPanel', () => {
     )
   })
 
-  it('shows the server plan name and opens usage in the account center', async () => {
+  it('shows the server plan name and opens in-app usage for a paid plan', async () => {
     plans.entitlements = [
       {
         id: '11111111-1111-4111-8111-111111111111',
@@ -124,7 +124,8 @@ describe('UserAccountPanel', () => {
 
     await user.click(await screen.findByRole('button', { name: /API Plan 2026.*查看用量/ }))
 
-    expect(request).toHaveBeenCalledWith(
+    expect(request).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/subscription' })
+    expect(request).not.toHaveBeenCalledWith(
       'system.shell.open_external_website',
       'https://cloud-dev.cherryai.com/account/plans'
     )
