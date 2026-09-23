@@ -8,6 +8,7 @@
     "declaration": true,
     "lib": ["ES2022", "DOM"],
     "types": [],
+    "rootDir": "src",
     "outDir": "dist"
   },
   "include": ["src/**/*.ts"]
