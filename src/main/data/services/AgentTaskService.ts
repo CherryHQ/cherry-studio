@@ -15,6 +15,7 @@ import { jobTable } from '@data/db/schemas/job'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -220,6 +221,7 @@ export class AgentTaskService {
       .listAllTx(tx, { type: AGENT_TASK_TYPE })
       .filter((schedule) => isPlainRecord(schedule.jobInputTemplate) && schedule.jobInputTemplate.agentId === agentId)
     for (const schedule of schedules) this.transitionOwnerTx(tx, schedule, state, now)
+    if (state === 'missing') this.reclaimHeartbeatWorkspacesTx(tx, schedules)
     return schedules.map((schedule) => schedule.id)
   }
 
@@ -257,12 +259,14 @@ export class AgentTaskService {
         .map((row) => [row.id, row])
     )
     const changedIds: string[] = []
+    const orphanedSchedules: JobScheduleSnapshot[] = []
     for (const schedule of schedules) {
       const template = schedule.jobInputTemplate
       if (!isPlainRecord(template) || typeof template.agentId !== 'string') continue
       const owner = owners.get(template.agentId)
       const state = !owner ? 'missing' : owner.deletedAt == null ? 'active' : 'trashed'
       if (this.transitionOwnerTx(tx, schedule, state, now)) changedIds.push(schedule.id)
+      if (state === 'missing') orphanedSchedules.push(schedule)
       const missed = schedule.metadata.missed
       const job = isPlainRecord(missed) && typeof missed.jobId === 'string' ? completed.get(missed.jobId) : undefined
       if (
@@ -273,7 +277,24 @@ export class AgentTaskService {
         changedIds.push(schedule.id)
       }
     }
+    this.reclaimHeartbeatWorkspacesTx(tx, orphanedSchedules)
     return changedIds
+  }
+
+  private reclaimHeartbeatWorkspacesTx(tx: DbOrTx, schedules: JobScheduleSnapshot[]): void {
+    for (const schedule of schedules) {
+      const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
+      if (!template || template.workspace.type !== AGENT_WORKSPACE_TYPE.USER) continue
+      const reservedName =
+        schedule.name === `heartbeat_${template.agentId}` ||
+        schedule.name?.startsWith(`heartbeat_${template.agentId}__`)
+      if (
+        template.prompt === HEARTBEAT_PROMPT_SENTINEL ||
+        (reservedName && template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL)
+      ) {
+        agentWorkspaceService.deleteIfUnreferencedTx(tx, template.workspace.workspaceId)
+      }
+    }
   }
 
   private transitionOwnerTx(

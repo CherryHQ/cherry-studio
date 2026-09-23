@@ -11,7 +11,6 @@ import {
   readTaskSessionReuse,
   writeTaskSessionReuse
 } from '@data/services/AgentTaskService'
-import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
@@ -35,8 +34,6 @@ import { readHeartbeatDocument, writeHeartbeatDocument } from './heartbeatDocume
 import {
   type HeartbeatSyncOutcome,
   isReservedHeartbeatScheduleName,
-  pauseHeartbeatSchedule,
-  reapOrphanedScheduleRows,
   repairHeartbeatSchedules,
   syncHeartbeatSchedule
 } from './heartbeatSchedule'
@@ -105,7 +102,6 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 export class AgentJobsService extends BaseService {
   // All autonomous schedule writes participate in shutdown and backup quiescence.
   private readonly inFlightWork = createInFlightWorkTracker()
-  private startupReconciliationPauseHold: Disposable | undefined
 
   private trackWork(work: Promise<unknown>): void {
     void this.inFlightWork.track(work)
@@ -219,24 +215,6 @@ export class AgentJobsService extends BaseService {
         this.requestHeartbeat(agent.id)
       })
     )
-  }
-
-  protected override async onReady(): Promise<void> {
-    // Lifecycle awaits onReady before system-wide onAllReady. JobManager does
-    // not schedule startup recovery until onAllReady, so remove orphaned
-    // schedules before it can snapshot or arm them.
-    try {
-      const rows = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
-      await reapOrphanedScheduleRows(rows, this.heartbeatAbort.signal, { throwOnFailure: true })
-    } catch (error) {
-      // Keep the manager fail-closed for this process. The hold is deliberately
-      // retained so a failed cleanup cannot be followed by startup recovery;
-      // the next process start retries the idempotent cleanup from the DB.
-      this.startupReconciliationPauseHold ??= application
-        .get('JobManager')
-        .pause('agent-task startup reconciliation failed')
-      logger.error('Failed to reconcile orphaned agent task schedules; JobManager paused', error as Error)
-    }
   }
 
   protected override onAllReady(): void {
@@ -429,67 +407,13 @@ export class AgentJobsService extends BaseService {
    * @returns How many schedule rows were removed.
    */
   async deleteSchedulesForAgent(agentId: string): Promise<number> {
-    // Use raw agentId ownership so malformed templates cannot strand armed schedules.
-    const schedules = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((s) => {
-      const template = s.jobInputTemplate as { agentId?: unknown } | null
-      return typeof template?.agentId === 'string' && template.agentId === agentId
-    })
-
-    // The heartbeat's user workspace row (pointing at the agent data directory)
-    // outlives the agent unless removed here — it renders in the workspace picker.
-    const heartbeatWorkspaceIds = new Set<string>()
-    for (const schedule of schedules) {
-      const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
-      // Exact sentinels identify migrated heartbeats regardless of name.
-      // Trim tolerance applies only to reserved names, preserving ordinary user workspaces.
-      const exactSentinel = template?.prompt === HEARTBEAT_PROMPT_SENTINEL
-      const reservedNameShape =
-        schedule.name === `heartbeat_${agentId}` || schedule.name?.startsWith(`heartbeat_${agentId}__`)
-      if (
-        template &&
-        template.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
-        (exactSentinel || (template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL && reservedNameShape))
-      ) {
-        heartbeatWorkspaceIds.add(template.workspace.workspaceId)
-      }
-    }
-
-    let deleted = 0
-    let failed = 0
-    for (const schedule of schedules) {
-      this.heartbeatAbort.signal.throwIfAborted()
-      // Keep sweeping independent rows after a failure; pause survivors until startup repair.
-      try {
-        if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
-          deleted += 1
-        }
-      } catch (error) {
-        failed += 1
-        logger.warn('Failed to unregister schedule for removed agent', { agentId, scheduleId: schedule.id, error })
-        pauseHeartbeatSchedule(agentId, schedule.id, 'Failed to pause a schedule that survived the deletion sweep')
-      }
-    }
-    if (failed > 0) {
-      logger.warn('Some schedules survived the deletion sweep after transient failures', { agentId, failed })
-    }
-    for (const workspaceId of heartbeatWorkspaceIds) {
-      try {
-        // A reused workspace may serve other sessions, channels or tasks; preserve referenced rows.
-        const removed = application
-          .get('DbService')
-          .withWriteTx((tx) => agentWorkspaceService.deleteIfUnreferencedTx(tx, workspaceId))
-        if (!removed) {
-          logger.info('Kept heartbeat workspace still referenced after agent removal', { agentId, workspaceId })
-        }
-      } catch (error) {
-        logger.warn('Failed to delete heartbeat workspace for removed agent', { agentId, workspaceId, error })
-      }
-    }
-    if (deleted > 0) {
-      logger.info('Deleted task schedules for removed agent', { agentId, deleted })
-      agentTaskService.notifyReadModelChange(schedules.map((s) => s.id))
-    }
-    return deleted
+    this.heartbeatAbort.signal.throwIfAborted()
+    const ids = application
+      .get('DbService')
+      .withWriteTx((tx) => agentTaskService.setOwnerStateTx(tx, agentId, 'missing', Date.now()))
+    for (const id of ids) application.get('JobManager').syncJobScheduleTimerById(id)
+    agentTaskService.notifyReadModelChange(ids, 'membership')
+    return ids.length
   }
 
   readHeartbeatDocument(agentId: string): Promise<HeartbeatDocument> {
