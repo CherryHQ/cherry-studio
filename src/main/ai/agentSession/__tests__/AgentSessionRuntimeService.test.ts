@@ -4898,6 +4898,63 @@ describe('AgentSessionRuntimeService', () => {
     await stream.cancel().catch(() => undefined)
   })
 
+  it('does not admit a turn whose user stop landed while the stream was still connecting', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current'),
+      abortTurn: vi.fn(async () => true)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+
+    // Turn 1 runs to completion so the preserved runtime leaves a warm connection behind.
+    const firstHandle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const firstReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: firstHandle.turnId, signal: new AbortController().signal })
+      .getReader()
+    await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+    const entry = getEntry(service)
+    ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+    void terminalListener(firstHandle).onDone({ status: 'success', isTopicDone: false })
+
+    // Turn 2 begins on the warm entry; hold its stream in the pre-admission connect window.
+    const secondHandle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-2') })
+    const connectGate = createDeferred<boolean>()
+    const realEnsure = ((service as any).ensureConnection as any).bind(service)
+    vi.spyOn(service as any, 'ensureConnection').mockImplementationOnce(async (target: unknown) => {
+      const connected = await realEnsure(target)
+      return connectGate.promise.then(() => connected)
+    })
+    const controller = new AbortController()
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: secondHandle.turnId, signal: controller.signal })
+      .getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+    // The stop lands while start() is parked: the graceful interrupt preserves the entry and the
+    // still-live turn, so the post-connect continuation must observe the aborted signal itself
+    // instead of admitting the canceled prompt.
+    controller.abort('user-requested')
+    await vi.waitFor(() => expect(connection.abortTurn).toHaveBeenCalledOnce())
+    connectGate.resolve(true)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(connection.send).toHaveBeenCalledOnce()
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1' })
+    await reader.cancel().catch(() => undefined)
+  })
+
   it('ignores a stop re-dispatched without its turn after the stopped turn already left', async () => {
     const events = createAsyncQueue<any>()
     // The real driver declines a second interrupt: once the turn settled, abortTurn resolves false.
