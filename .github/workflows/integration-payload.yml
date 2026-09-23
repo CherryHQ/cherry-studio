@@ -51,7 +51,7 @@ jobs:
           targets: ${{ matrix.target }}
       - name: Linux compiler dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang cmake
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev libdbus-1-dev pkg-config clang cmake
       - name: Windows compiler dependencies
         if: runner.os == 'Windows'
         shell: pwsh
