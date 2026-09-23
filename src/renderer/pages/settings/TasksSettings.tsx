@@ -97,7 +97,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import {
   useAllTasks,
@@ -372,7 +372,8 @@ function getTaskStatusLabel(status: string, t: TFunction) {
   const labels: Record<string, string> = {
     active: t('agent.tasks.status.active'),
     paused: t('agent.tasks.status.paused'),
-    completed: t('agent.tasks.status.completed')
+    completed: t('agent.tasks.status.completed'),
+    missed: t('agent.tasks.status.missed')
   }
   return labels[status] ?? status
 }
@@ -385,6 +386,7 @@ function getTaskScheduleStatusIconPresentation(status: ScheduledTaskEntity['stat
         wrapperClassName: 'bg-info-subtle text-info-subtle-foreground',
         iconClassName: 'text-info-subtle-foreground'
       }
+    case 'missed':
     case 'paused':
       return {
         Icon: CalendarFold,
@@ -961,7 +963,8 @@ const TaskDetail: FC<{
   const hasUndeliverableChannel = selectedChannels.some((channel) => !channel.hasActiveChatIds)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const { data: workspaces } = useQuery('/agent-workspaces')
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
   const workspaceId = task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
   const workspaceLabel =
@@ -1050,7 +1053,8 @@ const TaskDetail: FC<{
               <ArrowLeft size={16} />
             </Button>
             <span className="min-w-0 break-words">{task.name}</span>
-            {!isCompleted && (
+            {task.status === 'missed' && <Badge variant="secondary">{t('agent.tasks.status.missed')}</Badge>}
+            {!isCompleted && task.status !== 'missed' && (
               <Switch
                 className="ml-1 shrink-0"
                 size="sm"
@@ -1197,7 +1201,8 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
   const wasOpenRef = useRef(false)
   const initialDraftRef = useRef<TaskDraftSnapshot | null>(null)
-  const { data: workspaces } = useQuery('/agent-workspaces')
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
@@ -1688,6 +1693,7 @@ const TasksSettings: FC = () => {
                       <SelectItem value="active">{t('agent.tasks.status.active')}</SelectItem>
                       <SelectItem value="paused">{t('agent.tasks.status.paused')}</SelectItem>
                       <SelectItem value="completed">{t('agent.tasks.status.completed')}</SelectItem>
+                      <SelectItem value="missed">{t('agent.tasks.status.missed')}</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>

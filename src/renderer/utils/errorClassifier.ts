@@ -37,7 +37,7 @@ function navTargetFor(category: ErrorCategory, providerSuffix: string): string |
     case 'mcp':
       return '/settings/mcp/servers'
     case 'knowledge':
-      return '/knowledge'
+      return '/app/knowledge'
     default:
       return null
   }

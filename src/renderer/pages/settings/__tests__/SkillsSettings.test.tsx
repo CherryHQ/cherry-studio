@@ -7,10 +7,21 @@ import type { ResourceItem } from '@renderer/types/resourceCatalog'
 
 import { SkillsSettings } from '../SkillsSettings'
 
+const { launchSkillMock, navigateMock, resourceCatalogViewMock } = vi.hoisted(() => ({
+  launchSkillMock: vi.fn(),
+  navigateMock: vi.fn(),
+  resourceCatalogViewMock: vi.fn()
+}))
+
 vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
 
+vi.mock('@renderer/hooks/useSkillLauncher', () => ({
+  useSkillLauncher: () => launchSkillMock
+}))
+
 vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
-  ResourceCatalogView: ({ toolbarFooter, filterResource }: ResourceCatalogViewProps) => {
+  ResourceCatalogView: (props: ResourceCatalogViewProps) => {
+    resourceCatalogViewMock(props)
     const installed = [
       { name: 'System import', scope: 'system', source: 'system', sourceUrl: null },
       { name: 'Builtin skill', scope: 'builtin', source: 'builtin', sourceUrl: null },
@@ -20,11 +31,11 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
     ]
     return (
       <>
-        {toolbarFooter}
+        {props.toolbarFooter}
         <ul aria-label="Installed skills">
           {installed.map((skill) => {
             const resource = { id: skill.name, type: 'skill', raw: skill } as ResourceItem
-            return filterResource?.(resource) && <li key={skill.name}>{skill.name}</li>
+            return props.filterResource?.(resource) && <li key={skill.name}>{skill.name}</li>
           })}
         </ul>
       </>
@@ -32,10 +43,15 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   }
 }))
 
-describe('SkillsSettings source tabs', () => {
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateMock
+}))
+
+describe('SkillsSettings', () => {
   it('filters the supplied catalog by physical scope rather than import provenance', async () => {
     const user = userEvent.setup()
     render(<SkillsSettings />)
+
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['全部', '系统', '内置'])
     expect(screen.getAllByRole('listitem')).toHaveLength(5)
 
@@ -51,5 +67,19 @@ describe('SkillsSettings source tabs', () => {
 
     await user.click(screen.getByRole('tab', { name: '全部' }))
     expect(screen.getAllByRole('listitem')).toHaveLength(5)
+  })
+
+  it('opens the dedicated Skill route and exposes the shared launch action', () => {
+    render(<SkillsSettings />)
+
+    const props = resourceCatalogViewMock.mock.calls.at(-1)?.[0] as ResourceCatalogViewProps
+    expect(props.onLaunchSkill).toBe(launchSkillMock)
+    expect(props.allowColumnToggle).toBe(true)
+
+    props.onOpenSkill?.({ id: 'skill-1' } as Parameters<NonNullable<ResourceCatalogViewProps['onOpenSkill']>>[0])
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/settings/skills/$skillId',
+      params: { skillId: 'skill-1' }
+    })
   })
 })

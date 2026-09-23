@@ -123,9 +123,12 @@ vi.mock('@renderer/hooks/agent/useChannels', () => ({
   useChannels: () => ({ channels: channelDataMock.channels, isLoading: channelDataMock.isLoading })
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
   useQuery: (path: string) =>
-    path === '/agents' ? { data: { items: agentDataMock.agents }, error: undefined, isLoading: false } : { data: [] }
+    path === '/agents'
+      ? { data: { items: agentDataMock.agents }, error: undefined, isLoading: false }
+      : { data: [], refetch: vi.fn() }
 }))
 
 vi.mock('@renderer/components/PromptEditorField', () => ({
@@ -1829,6 +1832,17 @@ describe('TasksSettings detail behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     expect(screen.queryByRole('menuitem', { name: 'agent.tasks.run' })).not.toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'agent.tasks.delete.label' })).toBeInTheDocument()
+  })
+
+  it('shows missed tasks without an enable switch and allows an explicit manual run', async () => {
+    const user = userEvent.setup()
+    taskDataMock.task = { ...taskDataMock.defaultTask, enabled: false, status: 'missed' }
+    render(<TasksSettings />)
+    await screen.findByText('agent.tasks.status.missed')
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.edit' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1'))
   })
 })
 

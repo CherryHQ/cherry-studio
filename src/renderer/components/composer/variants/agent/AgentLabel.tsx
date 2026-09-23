@@ -1,5 +1,5 @@
+import { EmojiIcon } from '@cherrystudio/ui'
 import { AgentRuntimeModeBadge } from '@renderer/components/agent/AgentRuntimeModeBadge'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { cn } from '@renderer/utils/style'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'

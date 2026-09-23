@@ -3,7 +3,7 @@ import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 
-import { remarkLatexMath } from '@renderer/components/markdown'
+import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
 import { classifyHtmlArtifactSource, remarkHtmlArtifact } from '../remarkHtmlArtifact'
 

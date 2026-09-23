@@ -73,6 +73,18 @@ beforeEach(() => {
 })
 
 describe('DshSubagentCoordinator binding', () => {
+  it('holds work when the SDK creation arrives before the lifecycle pipe', () => {
+    coordinator.noteMainChunk(spawnAnchor('call-1', 'review'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child')
+    expect(sink.emitWorkState.mock.calls.map(([active]) => active)).toEqual([true])
+    coordinator.handleLifecycle(startEdge('child', 'run'))
+    coordinator.handleLifecycle(endEdge('child', 'run'))
+    expect(sink.emitWorkState.mock.calls.map(([active]) => active)).toEqual([true, false])
+    coordinator.handleSdkSubagentStarted(MAIN, 'child')
+    expect(sink.emitTasks.mock.lastCall?.[0]).toEqual([])
+    expect(sink.emitWorkState.mock.calls.map(([active]) => active)).toEqual([true, false])
+  })
+
   it('binds the child to its spawning tool call and parents its content chunks', () => {
     coordinator.noteMainChunk(spawnAnchor('call-1', 'research task'))
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))

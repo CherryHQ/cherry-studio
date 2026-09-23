@@ -18,7 +18,7 @@ vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
 vi.mock('@main/ai/mcp/servers/factory', () => ({
   createInMemoryMcpServer: vi.fn(),
   getBuiltinHttpHeaders: () => ({}),
-  getBuiltinRegistryEnv: () => ({}),
+  getBuiltinAutoInstallEnv: () => ({}),
   hasInMemoryImplementation: () => false
 }))
 vi.mock('@main/utils/shellEnv', () => ({

@@ -2,10 +2,10 @@ import type { TFunction } from 'i18next'
 import { Bot, Check } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { EmojiIcon } from '@cherrystudio/ui'
 import { AgentRuntimeModeBadge } from '@renderer/components/agent/AgentRuntimeModeBadge'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ActionDescriptor, ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
@@ -34,15 +34,16 @@ function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null 
 }
 
 const RESOURCE_ICON_SIZE = 24
+const RESOURCE_GLYPH_SIZE = 14
 
-function renderFallbackAssistantIcon(emoji: string | null | undefined, size: number) {
+function renderFallbackAssistantIcon(emoji: string | null | undefined, size: number, glyphSize: number) {
   return emoji ? (
-    <EmojiIcon emoji={emoji} size={size} fontSize={Math.round(size * 0.58)} className="mr-0" />
+    <EmojiIcon emoji={emoji} size={size} />
   ) : (
     <span
       className="flex items-center justify-center rounded-full bg-background-subtle"
       style={{ width: size, height: size }}>
-      <Bot size={Math.round(size * 0.58)} />
+      <Bot size={glyphSize} />
     </span>
   )
 }
@@ -54,7 +55,8 @@ export function renderAssistantEntityIcon(
   iconType: AssistantIconType,
   assistant: { emoji?: string | null; modelId?: string | null; modelName?: string | null },
   fallbackModelId?: string | null,
-  size: number = RESOURCE_ICON_SIZE
+  size: number = RESOURCE_ICON_SIZE,
+  fallbackGlyphSize: number = RESOURCE_GLYPH_SIZE
 ) {
   if (iconType === 'none') return undefined
 
@@ -63,7 +65,7 @@ export function renderAssistantEntityIcon(
     return <ModelAvatar model={modelAvatarModel} size={size} className="border border-border-subtle" />
   }
 
-  return renderFallbackAssistantIcon(assistant.emoji, size)
+  return renderFallbackAssistantIcon(assistant.emoji, size, fallbackGlyphSize)
 }
 
 /**
@@ -84,12 +86,7 @@ export function renderAgentEntityIcon(
     iconType === 'model' && modelAvatarModel ? (
       <ModelAvatar model={modelAvatarModel} size={size} />
     ) : (
-      <EmojiIcon
-        emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI}
-        size={size}
-        fontSize={Math.round(size * 0.58)}
-        className="mr-0"
-      />
+      <EmojiIcon emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI} size={size} />
     )
 
   return (

@@ -1,3 +1,4 @@
+import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -49,6 +50,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getSessionMessage: mocks.getSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
+    getNativeSessionId: vi.fn(),
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages
   }
@@ -125,6 +127,69 @@ beforeEach(() => {
 })
 
 describe('subagent settlement wake (incident replay)', () => {
+  it.each([false, true])(
+    'keeps summaries in the original reply and releases it with a remaining command (%s)',
+    async (commandRemains) => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.runtimeState.connection = {
+        kind: 'connected',
+        connection: {
+          send: vi.fn(),
+          close: vi.fn(),
+          refreshTraceContext: vi.fn(),
+          reconcile: vi.fn().mockResolvedValue('current')
+        },
+        occupancy: {}
+      }
+      const owner = currentTurn(entry)
+      const emit = (event: unknown) => (service as any).handleRuntimeEvent(entry, event)
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: owner.turnId,
+        signal: new AbortController().signal
+      })
+      let final: any
+      const collected = (async () => {
+        for await (const message of readUIMessageStream({ stream })) final = message
+      })()
+      await vi.waitFor(() => expect(entry.runtimeState.execution.stream).toBe('open'))
+      emit({ type: 'background-work-state', active: true })
+      for (const [index, text] of ['Delegated review', 'First reviewer finished', 'Final summary'].entries()) {
+        if (index > 0) emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+        emit({ type: 'chunk', chunk: { type: 'text-start', id: `text-${index}` } })
+        emit({ type: 'chunk', chunk: { type: 'text-delta', id: `text-${index}`, delta: text } })
+        emit({ type: 'chunk', chunk: { type: 'text-end', id: `text-${index}` } })
+        emit({ type: 'chunk', chunk: { type: 'finish', finishReason: 'stop' } })
+        if (index > 0) emit({ type: 'autonomous-turn-state', state: 'finished' })
+        emit({ type: 'turn-complete' })
+        expect(currentTurn(entry)).toBe(owner)
+        expect(entry.runtimeState.execution.stream).toBe('open')
+        expect(service.isSessionBusy('session-1')).toBe(true)
+      }
+      emit({
+        type: 'background-task-event',
+        data: { event: 'notification', taskId: 'child-1', toolUseId: 'spawn-1', status: 'completed' }
+      })
+      emit({ type: 'background-work-state', active: commandRemains, awaitingReply: false })
+      await collected
+      expect(final.parts.filter((part: any) => part.type === 'text').map((part: any) => part.text)).toEqual([
+        'Delegated review',
+        'First reviewer finished',
+        'Final summary'
+      ])
+      expect(final.parts).toContainEqual(
+        expect.objectContaining({
+          type: 'data-agent-task-event',
+          data: expect.objectContaining({ status: 'completed' })
+        })
+      )
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      await service.closeSession('session-1')
+    }
+  )
+
   it('delivers wake-turn chunks into the receive-only stream under background occupancy', async () => {
     const service = new AgentSessionRuntimeService()
     const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
@@ -225,6 +290,64 @@ describe('subagent settlement wake (incident replay)', () => {
     expect(received[0]).toMatchObject({ type: 'start' })
     expect(deltas).toEqual(['wake report part 1', ' part 2', ' part 3'])
 
+    void service.closeSession('session-1')
+  })
+
+  /**
+   * A receive-only turn streams on a connection that already exists, so every facet it records has
+   * to be the one that connection is targeted at. `reasoningEffort` used to be pinned to the literal
+   * `'default'` while `modelId`, `serviceTier`, knowledge scope and Fast all came from
+   * `connectionTarget`. For an agent configured with a non-default effort that made an autonomous
+   * wake disagree with its own connection, and an agent write racing the wake reported drift and
+   * closed a warm connection that was serving correctly.
+   */
+  it('gives a wake turn the effort its connection is targeted at, and survives a racing agent write', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service = new AgentSessionRuntimeService()
+    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
+
+    // `AgentChatContextProvider` is the only production caller of `beginTurn`, and it passes
+    // `req.reasoningEffort ?? agent.configuration.reasoning_effort ?? 'default'`, so a turn for this
+    // agent arrives already resolved to 'high'.
+    service.beginTurn({ ...baseTurnInput, reasoningEffort: 'high' } as any)
+    const entry = getEntry(service)
+    const connection = {
+      send: vi.fn(),
+      close: vi.fn(),
+      events: [],
+      reconcile: vi.fn(async (target: any) => (target.reasoningEffort === 'high' ? 'current' : 'rebuild')),
+      refreshTraceContext: vi.fn()
+    }
+    entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} }
+
+    handleRuntimeEvent({ type: 'turn-complete' })
+    service.markTurnTerminal('session-1', 'success')
+
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-start', id: 'w1' } })
+
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+    expect(currentTurn(entry).reasoningEffort).toBe('high')
+    expect(mocks.startRuntimeTurn.mock.calls[0][0].request.reasoningEffort).toBe('high')
+
+    // An unrelated agent write lands while the wake is streaming: nothing it serves changed, so the
+    // connection must stay open.
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { name: 'Renamed' },
+      { id: 'agent-1', name: 'Renamed', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'high' } }
+    )
+    expect(connection.close).not.toHaveBeenCalled()
+
+    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-end', id: 'w1' } })
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'finished' })
+    handleRuntimeEvent({ type: 'turn-complete' })
     void service.closeSession('session-1')
   })
 })

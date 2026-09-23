@@ -9,6 +9,7 @@ import { providerService } from '@data/services/ProviderService'
 import { resolveAiSdkProviderId } from '@main/ai/provider/endpoint'
 import { ErrorCode } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ProviderSchema } from '@shared/data/types/provider'
 
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
@@ -40,6 +41,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
         {
           id: 'my-relay',
           description: 'Future registry provider',
+          supplementModelsFromRegistry: true,
           endpointConfigs: {
             'openai-chat-completions': {
               adapterFamily: 'future-registry',
@@ -69,6 +71,23 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 
 describe('ProviderService read-time registry merge (#17096)', () => {
   const dbh = setupTestDatabase()
+
+  it.each([
+    { providerId: 'my-relay', presetProviderId: 'my-relay', expected: true },
+    { providerId: 'my-relay', presetProviderId: null, expected: undefined },
+    { providerId: 'relay-copy', presetProviderId: 'my-relay', expected: true },
+    { providerId: 'cherryin', presetProviderId: null, expected: undefined },
+    { providerId: 'custom-provider', presetProviderId: null, expected: undefined }
+  ])(
+    'resolves model-list supplementation for $providerId with preset $presetProviderId',
+    ({ providerId, presetProviderId, expected }) => {
+      dbh.db.insert(userProviderTable).values({ providerId, presetProviderId, name: providerId, orderKey: 'a0' }).run()
+
+      const provider = ProviderSchema.parse(providerService.getByProviderId(providerId))
+
+      expect(provider.supplementModelsFromRegistry).toBe(expected)
+    }
+  )
 
   it.each(['github', 'yi'])(
     'makes retired %s providers and copies unavailable without deleting data',
