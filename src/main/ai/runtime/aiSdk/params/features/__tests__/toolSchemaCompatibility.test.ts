@@ -3,7 +3,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
-import { generateText, tool, wrapLanguageModel } from 'ai'
+import { generateText, jsonSchema, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
@@ -614,5 +614,63 @@ describe('toolSchemaCompatibilityFeature', () => {
         required: ['query']
       })
     }
+  })
+
+  it('keeps propertyNames and additionalProperties out of Gemini wire declarations', async () => {
+    // Wire-level guard for the same contract: drives the real @ai-sdk/google
+    // package through a capturing fetch and pins the emitted declarations.
+    let capturedBody: unknown
+    const captureFetch: typeof globalThis.fetch = async (_input, init) => {
+      capturedBody = JSON.parse(String(init?.body))
+      return new Response(JSON.stringify({ error: { message: 'captured' } }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' }
+      })
+    }
+
+    const model = wrapLanguageModel({
+      model: createGoogleGenerativeAI({ apiKey: 'test-key', fetch: captureFetch })('gemini-3.5-flash'),
+      middleware: await getMiddleware({
+        aiSdkProviderId: 'google',
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        tools: {
+          // MCP-style raw JSON schema (bypasses zod conversion, like live MCP tools).
+          search: {
+            description: 'search',
+            inputSchema: jsonSchema({
+              type: 'object',
+              properties: {
+                query: { type: 'string' },
+                options: {
+                  type: 'object',
+                  properties: { limit: { type: 'integer' } },
+                  propertyNames: { pattern: '^[a-z]+$' },
+                  additionalProperties: { type: 'string' }
+                }
+              },
+              required: ['query'],
+              additionalProperties: false
+            })
+          }
+        }
+      })
+    ).rejects.toBeDefined()
+
+    const declaration = (
+      capturedBody as {
+        tools: Array<{
+          functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, unknown> } }>
+        }>
+      }
+    ).tools[0].functionDeclarations[0]
+    expect(declaration.name).toBe('search')
+    expect(JSON.stringify(declaration.parameters)).not.toMatch(/"(propertyNames|additionalProperties)"/)
   })
 })
