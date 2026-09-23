@@ -18,7 +18,7 @@ import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
-import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import { buildAgentRuntimePrompt, resolvePromptModelName } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -327,6 +327,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       agent,
       citationsGuidance,
       effectiveLanguage: snapshot.effectiveLanguage,
+      promptModelName: resolvePromptModelName(this.input.modelId, agent, snapshot.model),
       // Compensates a custom base for the workspace context the native base owns (claude parity).
       customBaseContext: [
         '## Current Workspace',
