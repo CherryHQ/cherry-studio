@@ -1,4 +1,4 @@
-import type { ProxyConfig } from 'electron'
+import type { ProxyConfig, Session } from 'electron'
 import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
 
@@ -69,6 +69,9 @@ export class ProxyService extends BaseService {
   private desiredKey: string | null = null
   private systemProxyReadFailed = false
   private nodeProxyController: NodeProxyController | null = null
+  private readonly dynamicSessions = new Set<Session>()
+  /** Bumped on registration so an in-flight apply cannot mark a missed session settled. */
+  private dynamicSessionEpoch = 0
 
   // Latest-wins reconciler: rapid proxy-preference toggles (or system-proxy changes) collapse
   // into a single re-read + re-apply — single-flight and level-triggered, so a change landing
@@ -87,6 +90,26 @@ export class ProxyService extends BaseService {
    */
   get appliedProxyKey(): string | null {
     return this.appliedKey
+  }
+
+  /**
+   * Opt `proxySession` into the user proxy. Resolves once that session has the current
+   * config, and includes it in every later proxy update. Idempotent.
+   */
+  async registerProxySession(proxySession: Session): Promise<void> {
+    if (!this.dynamicSessions.has(proxySession)) {
+      this.dynamicSessions.add(proxySession)
+      this.dynamicSessionEpoch += 1
+      this.appliedKey = null
+    }
+    // A previous apply may have failed. Every registration is an explicit retry.
+    this.proxyReconciler.request()
+    await this.proxyReconciler.flush()
+    if (this.appliedKey === this.desiredKey && this.appliedKey !== null) return
+
+    const error = this.proxyReconciler.getLastError()
+    if (error instanceof Error) throw error
+    throw new Error(error == null ? 'Proxy session registration did not converge' : String(error))
   }
 
   /** Read-only view of intent vs. what is in effect, for diagnostics. */
@@ -162,8 +185,9 @@ export class ProxyService extends BaseService {
     else this.clearSystemProxyMonitor()
 
     this.appliedKey = null
-    await this.setGlobalProxy(config)
-    this.appliedKey = proxyConfigKey(config)
+    const registeredEpoch = await this.setGlobalProxy(config)
+    // Registration after the snapshot must not count as settled.
+    if (registeredEpoch === this.dynamicSessionEpoch) this.appliedKey = proxyConfigKey(config)
   }
 
   private ensureSystemProxyMonitor(): void {
@@ -178,12 +202,12 @@ export class ProxyService extends BaseService {
     }
   }
 
-  private async setGlobalProxy(config: ProxyConfig): Promise<void> {
+  private async setGlobalProxy(config: ProxyConfig): Promise<number> {
     await this.getNodeProxyController().configure({
       proxyRules: config.mode === 'direct' ? undefined : config.proxyRules,
       proxyBypassRules: config.proxyBypassRules
     })
-    await this.setSessionsProxy(config)
+    return this.setSessionsProxy(config)
   }
 
   private getNodeProxyController(): NodeProxyController {
@@ -191,16 +215,19 @@ export class ProxyService extends BaseService {
     return this.nodeProxyController
   }
 
-  private async setSessionsProxy(config: ProxyConfig): Promise<void> {
+  private async setSessionsProxy(config: ProxyConfig): Promise<number> {
     // `persist:miniapp:*` is deliberately absent: those partitions run a constant deny-all PAC
     // (features/miniApp/runtime/network.ts) that a user proxy change must never overwrite.
+    const registeredEpoch = this.dynamicSessionEpoch
     const sessions = [
       session.defaultSession,
-      ...Object.values(WEBVIEW_SECURITY_PARTITIONS).map((partition) => session.fromPartition(partition))
+      ...Object.values(WEBVIEW_SECURITY_PARTITIONS).map((partition) => session.fromPartition(partition)),
+      ...this.dynamicSessions
     ]
     // Drain every write even on failure so the next apply cannot race stale session writes.
     const outcomes = await Promise.allSettled([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])
     const failed = outcomes.find((outcome) => outcome.status === 'rejected')
     if (failed) throw failed.reason
+    return registeredEpoch
   }
 }
