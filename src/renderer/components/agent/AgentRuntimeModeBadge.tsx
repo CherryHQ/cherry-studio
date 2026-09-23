@@ -1,8 +1,9 @@
 import type { LucideIcon } from 'lucide-react'
-import { CircleHelp, Code2, Sparkles, SquareTerminal } from 'lucide-react'
+import { CircleHelp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge } from '@cherrystudio/ui'
+import { type IconComponent, PiCli } from '@cherrystudio/ui/icons'
+import { ClaudeCode, Deepseek } from '@cherrystudio/ui/icons/providers'
 import { cn } from '@renderer/utils/style'
 
 type AgentRuntimeModeBadgeProps = {
@@ -12,14 +13,14 @@ type AgentRuntimeModeBadgeProps = {
 }
 
 type RuntimeModeDescriptor = {
-  Icon: LucideIcon
+  Icon: IconComponent | LucideIcon
   modeName: string
 }
 
 const RUNTIME_MODE_DESCRIPTORS: Record<string, RuntimeModeDescriptor> = {
-  'claude-code': { Icon: SquareTerminal, modeName: 'Claude Code' },
-  pi: { Icon: Sparkles, modeName: 'Pi' },
-  dsh: { Icon: Code2, modeName: 'DSH' }
+  'claude-code': { Icon: ClaudeCode, modeName: 'Claude Code' },
+  pi: { Icon: PiCli, modeName: 'Pi' },
+  dsh: { Icon: Deepseek, modeName: 'DSH' }
 }
 
 const UNKNOWN_RUNTIME_MODE: RuntimeModeDescriptor = {
@@ -36,23 +37,24 @@ export function AgentRuntimeModeBadge({ type, className, size = 'default' }: Age
   const descriptor = getRuntimeModeDescriptor(type)
   const modeName = descriptor.modeName === 'unknown' ? t('common.unknown') : descriptor.modeName
   const label = t('agent.runtime_mode.label', { mode: modeName })
-  const iconSize = size === 'compact' ? 9 : 11
   const Icon = descriptor.Icon
 
   return (
-    <Badge
+    <span
       aria-label={label}
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-full border border-background bg-muted p-0 text-foreground-tertiary shadow-sm',
+        'inline-flex shrink-0 items-center justify-center text-foreground-tertiary',
         size === 'compact' ? 'size-3.5' : 'size-4',
         className
       )}
       data-agent-runtime-mode={type && RUNTIME_MODE_DESCRIPTORS[type] ? type : 'unknown'}
       role="img"
-      title={label}
-      variant="outline">
-      <Icon aria-hidden="true" size={iconSize} strokeWidth={2.25} />
-    </Badge>
+      title={label}>
+      <Icon
+        aria-hidden="true"
+        className={cn('size-full', type === 'pi' && 'scale-75', type === 'dsh' && 'scale-125')}
+      />
+    </span>
   )
 }
 

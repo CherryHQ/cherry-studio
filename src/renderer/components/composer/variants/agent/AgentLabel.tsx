@@ -19,7 +19,7 @@ export const AgentLabel = ({ agent, avatarSize = 24, classNames, hideIcon }: Age
   const emoji = getAgentAvatarFromConfiguration(agent?.configuration)
 
   return (
-    <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>
+    <div className={cn('flex w-full min-w-0 items-center gap-2', classNames?.container)}>
       {!hideIcon && (
         <span className="relative shrink-0">
           <EmojiIcon emoji={emoji} className={classNames?.avatar} size={avatarSize} />
