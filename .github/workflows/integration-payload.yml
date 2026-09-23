@@ -11,7 +11,7 @@ on:
         required: false
         type: string
       reuse_native_run:
-        description: Optional payload run whose completed native binaries should be reused
+        description: Optional comma-separated payload runs whose native binaries should be reused, oldest first
         required: false
         type: string
       images_only:
@@ -208,17 +208,12 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
-      - uses: actions/download-artifact@v6
+      - name: Reuse completed native payloads
         if: inputs.reuse_native_run != ''
-        with:
-          pattern: native-tools-*
-          run-id: ${{ inputs.reuse_native_run }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: build/integration-output
-          merge-multiple: true
-      - name: Preserve reused native metadata
-        if: inputs.reuse_native_run != ''
-        run: node -e "const fs=require('fs');const dir='build/integration-output/';for(const name of fs.readdirSync(dir).filter(n=>/^tools-.*\.json$/.test(n)))fs.renameSync(dir+name,dir+'base-'+name)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NATIVE_RUNS: ${{ inputs.reuse_native_run }}
+        run: node scripts/reuse-integration-tools.cjs
       - uses: actions/download-artifact@v6
         if: needs.native.result == 'success'
         with:
