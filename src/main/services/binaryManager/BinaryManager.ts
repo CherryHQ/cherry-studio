@@ -641,12 +641,13 @@ export class BinaryManager extends BaseService {
         operation.action === 'install' &&
         (!derivedTool.application || derivedTool.application.status === 'absent') &&
         (availability.source === 'system' || availability.source === 'bundled')
+      const staleInFlight = this.isStaleInFlightOperation(name, operation?.status)
       snapshots[name] = {
         name,
         ...(definitionsByName.has(name) ? { definition: definitionsByName.get(name)! } : {}),
         availability,
         ...(derivedTool.application ? { application: derivedTool.application } : {}),
-        ...(operation && !staleFailedInstall ? { operation } : {})
+        ...(operation && !staleFailedInstall && !staleInFlight ? { operation } : {})
       }
     }
     return snapshots
@@ -757,9 +758,10 @@ export class BinaryManager extends BaseService {
       const runnable =
         name in bundled || (active !== undefined && (shimNames.has(toShimStem(name)) || exposedNames.has(name)))
       const operation = operations[name]
+      const staleInFlight = this.isStaleInFlightOperation(name, operation?.status)
       const statusRules: ReadonlyArray<readonly [matches: boolean, status: ManagedCliStatus]> = [
-        [operation?.status === 'installing', 'installing'],
-        [operation?.status === 'removing', 'removing'],
+        [!staleInFlight && operation?.status === 'installing', 'installing'],
+        [!staleInFlight && operation?.status === 'removing', 'removing'],
         [operation?.status === 'failed', 'failed'],
         [queryFailed || unobservable.has(name), 'unknown'],
         [runnable, 'ready'],
@@ -1495,6 +1497,11 @@ export class BinaryManager extends BaseService {
     this.broadcastAvailabilityChanged()
   }
 
+  // Abandoned markers must not override live availability; queued mutations still count as active.
+  private isStaleInFlightOperation(name: string, status: string | undefined): boolean {
+    return (status === 'installing' || status === 'removing') && !this.activeMutations.has(name)
+  }
+
   /** Resolve the code-owned fixed definition for a name, if the app ships one. */
   private resolveFixedDefinition(name: string): FixedToolDefinition | undefined {
     return FIXED_CATALOG.get(name)
@@ -1642,41 +1649,32 @@ export class BinaryManager extends BaseService {
   private async installByNameImpl(name: string, targetVersion: string | undefined): Promise<void> {
     const outcome = await this.mutationMutex.runExclusive(
       async (): Promise<{ kind: 'done' } | { kind: 'reject' | 'failed'; error: string }> => {
-        const definition = this.resolveDefinition(name)
-        if (!definition) return { kind: 'reject', error: `Unknown tool: ${name}` }
-
-        // The system probe reads the cached login-shell env, which can predate a
-        // CLI the user installed mid-session; deciding from that stale PATH would
-        // lay down a managed shadow copy over a now-present system binary.
-        // Re-capture before deriving the facts this decision runs on (the fetch
-        // falls back to process.env on failure and never rejects).
-        await refreshShellEnv()
-        const snapshot = (await this.getToolSnapshots([name]))[name]
-        const status = snapshot.application?.status
-        const source = snapshot.availability.source
-
-        // conflict/unknown: the exact recipe is not proven absent, and installing
-        // over a foreign shim or an unreadable backend could shadow an existing
-        // tool — reject without mutating.
-        if (status === 'conflict')
-          return { kind: 'failed', error: `Tool ${name} resolves to a conflicting installation` }
-        if (status === 'unknown') {
-          const reason = snapshot.application?.status === 'unknown' ? snapshot.application.reason : 'query_failed'
-          return { kind: 'failed', error: `Cannot determine ${name} state: ${reason}` }
-        }
-        // applied: nothing to do unless a one-shot target update is requested.
-        if (status === 'applied' && !targetVersion) return { kind: 'done' }
-        // absent + an external copy: a race already satisfied it — never lay down a
-        // managed shadow copy over a bundled/system binary.
-        if (status === 'absent' && (source === 'bundled' || source === 'system')) {
-          logger.info('Skipping managed install; tool already available from an external source', { name, source })
-          return { kind: 'done' }
-        }
-
-        // absent+none, broken, or applied+target → apply the exact recipe. The
-        // returned concrete pin is intentionally ignored: name-only installs never
-        // write Preference.
         try {
+          const definition = this.resolveDefinition(name)
+          if (!definition) return { kind: 'reject', error: `Unknown tool: ${name}` }
+
+          // Refresh PATH so a mid-session system install is not shadowed by a managed copy.
+          await refreshShellEnv()
+          const snapshot = (await this.getToolSnapshots([name]))[name]
+          const status = snapshot.application?.status
+          const source = snapshot.availability.source
+
+          // Unproven ownership must not authorize installing over an existing tool.
+          if (status === 'conflict')
+            return { kind: 'failed', error: `Tool ${name} resolves to a conflicting installation` }
+          if (status === 'unknown') {
+            const reason = snapshot.application?.status === 'unknown' ? snapshot.application.reason : 'query_failed'
+            return { kind: 'failed', error: `Cannot determine ${name} state: ${reason}` }
+          }
+          if (status === 'applied' && !targetVersion) return { kind: 'done' }
+          // absent + an external copy: a race already satisfied it — never lay down a
+          // managed shadow copy over a bundled/system binary.
+          if (status === 'absent' && (source === 'bundled' || source === 'system')) {
+            logger.info('Skipping managed install; tool already available from an external source', { name, source })
+            return { kind: 'done' }
+          }
+
+          // Name-only installs never persist the resolved version into Preference.
           const definitions = await this.appliedRuntimeDefinitions(this.getCustomDefinitions())
           // Invalidate before invoking mise: a failed command may still have made a
           // partial backend change, which must also stale any in-flight latest batch.
@@ -2097,7 +2095,13 @@ export class BinaryManager extends BaseService {
       // A full remove chooses its cleanup path from the live application fact —
       // never the persisted definition — so it fails closed when the backend cannot
       // be read and never uninstalls over a foreign shim.
-      const snapshot = (await this.getToolSnapshots([name]))[name]
+      let snapshot: BinaryToolSnapshot
+      try {
+        snapshot = (await this.getToolSnapshots([name]))[name]
+      } catch (err) {
+        this.setOperation(name, null)
+        return { status: 'cleanup_blocked', reason: 'query_failed', message: this.errorMessage(err) }
+      }
       const application = snapshot.application
 
       // Backend unreadable / unavailable: nothing removed, definition retained.
