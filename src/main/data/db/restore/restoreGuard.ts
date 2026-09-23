@@ -4,7 +4,7 @@ import { readRestoreJournalV2, type RestoreJournalV2State } from './restoreJourn
  * The one question every storage-reclaiming path asks before it deletes
  * anything: is a restore currently holding the database + file surface?
  *
- * Protection covers more than "a promotion is running" (§6.5): a COMPLETED
+ * Protection covers more than "a promotion is running" (§8.2): a COMPLETED
  * restore still owns its recovery asides until the user acknowledges it, and
  * acknowledgement clears the journal LAST — so a `completed` journal on disk is
  * by definition unacknowledged and its asides must survive. Reclaiming against

@@ -25,7 +25,7 @@ import { decideRecoveryAction, phaseForStep, type RecoveryAction, type RecoveryP
 const logger = loggerService.withContext('RestorePromotionV2')
 
 /**
- * The Backup v2 promotion gate (docs/references/backup/README.md §6).
+ * The Backup v2 promotion gate (docs/references/backup/README.md §8).
  *
  * Called once per boot from the preboot shell, after the path registry is
  * frozen and the single-instance lock is held, before anything opens the
@@ -38,8 +38,8 @@ const logger = loggerService.withContext('RestorePromotionV2')
  *
  * - **`armed` is the only entry.** A `prepared` journal a restart merely
  *   stumbled over is EXPIRED, never promoted: preparation is a staged file, not
- *   consent (§6.1).
- * - **The live WAL is checkpointed first** (§6.2). v2 dropped v1's fingerprint,
+ *   consent (§8.2).
+ * - **The live WAL is checkpointed first** (§8.2). v2 dropped v1's fingerprint,
  *   so nothing else proves the parked database carries the user's last
  *   committed transactions. It is also the first effectful step, so a checkpoint
  *   failure aborts having touched nothing.
@@ -68,7 +68,7 @@ interface PromotionContext {
   readonly livePath: string
   /** The archive's database, sealed and waiting. */
   readonly stagedPath: string
-  /** Park slot for the replaced database, retained until acknowledgement (§6.5). */
+  /** Park slot for the replaced database, retained until acknowledgement (§8.2). */
   readonly asidePath: string
 }
 
@@ -288,7 +288,7 @@ export function isLiveDbStrandedV2(): boolean {
  * confirmed and the relaunch never happened), so the only safe reading is that
  * they walked away: freeze the journal to `expired` and drop the staging tree.
  *
- * Terminal state first, tree second, like every other terminal outcome (§6.5):
+ * Terminal state first, tree second, like every other terminal outcome (§8.2):
  * the tree's protection keys on the journal EXISTING and this rewrites rather
  * than clears it, so the tree is covered throughout — while the reverse order
  * deletes a tree the on-disk journal still describes as preparable, and a write
@@ -581,7 +581,7 @@ function runStep(ctx: PromotionContext, step: PromotionStepV2): void {
 }
 
 /**
- * Fold the live WAL into the main file (§6.2). Without v1's fingerprint this is
+ * Fold the live WAL into the main file (§8.2). Without v1's fingerprint this is
  * the only thing that proves the database about to be parked aside carries the
  * user's last committed transactions — a rename moves the main file alone, so
  * un-checkpointed frames would be lost with the sidecar.
@@ -830,7 +830,7 @@ function restoreLiveFromAside(ctx: PromotionContext): void {
 }
 
 /**
- * A state the promotion algorithm cannot produce (§6.4's fail-closed rows).
+ * A state the promotion algorithm cannot produce (§8.2's fail-closed rows).
  * Mutate nothing and keep every artifact for repair. The preboot shell separately
  * refuses an empty live slot and every still-active recovery direction.
  */
@@ -852,7 +852,7 @@ function failClosed(ctx: PromotionContext): never {
  * a failed restore is re-run from the archive, never resumed from a half-moved
  * one. The journal itself is kept for post-boot reporting and acknowledgement.
  *
- * THE TERMINAL STATE GOES FIRST. The tree stays protected either way (§6.5 keys
+ * THE TERMINAL STATE GOES FIRST. The tree stays protected either way (§8.2 keys
  * protection on the journal EXISTING, and this rewrites it rather than clearing
  * it), while the reverse order has a window that costs data: between dropping
  * the tree and writing the state, a still-`promoting` journal describes rolled

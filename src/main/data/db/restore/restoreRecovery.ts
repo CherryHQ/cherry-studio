@@ -2,7 +2,7 @@ import { DB_COMMIT_STEP, PROMOTION_STEP_ORDER_V2, type PromotionStepV2 } from '.
 
 /**
  * Pure crash-recovery decision for a single unit — the DB promotion or one
- * `resource-install` unit — of the Backup v2 promotion (§6.3, §6.4). It maps
+ * `resource-install` unit — of the Backup v2 promotion (§8.2). It maps
  * the durable recovery *direction* (derived from the last-completed global step
  * vs the commit boundary) plus the `(staged, live, aside)` filesystem-existence
  * triple onto exactly one {@link RecoveryAction}.
@@ -13,7 +13,7 @@ import { DB_COMMIT_STEP, PROMOTION_STEP_ORDER_V2, type PromotionStepV2 } from '.
  * The function only chooses the action; Phase 2/3 executes the renames.
  *
  * Totality: the mapping is exhaustive over all 2 × 2³ = 16 states. Eight are
- * the reachable rows named in §6.4; the rest are defensive completions. Two
+ * the reachable rows named in §8.2; the rest are defensive completions. Two
  * families fail closed rather than mutate:
  * - a committed-yet-live-absent state (the DB says done but the target is gone);
  * - a "both source and live present" state where the backup is still staged AND
@@ -25,7 +25,7 @@ import { DB_COMMIT_STEP, PROMOTION_STEP_ORDER_V2, type PromotionStepV2 } from '.
  *   committed `SLA`) could be `live`=installed-backup or `live`=target-only file;
  *   we cannot prove ownership, so restoring/overwriting/discarding it might
  *   destroy a target-only file (violating preservation) → `abort-inconsistent`.
- * `(present, absent, present)` is the ambiguous case §6.4 calls out: rollback
+ * `(present, absent, present)` is the ambiguous case §8.2 calls out: rollback
  * under `pre-commit`, forward under `committed`.
  */
 export type RecoveryPhase = 'pre-commit' | 'committed'
@@ -72,7 +72,7 @@ function key(facts: RecoveryFacts): string {
 
 /**
  * Exhaustive `(phase, staged, live, aside)` → action table. `[R]` marks the
- * eight reachable rows named in §6.4; `[D]` marks defensive completions of the
+ * eight reachable rows named in §8.2; `[D]` marks defensive completions of the
  * 16-state total.
  */
 const RECOVERY_TABLE: Readonly<Record<string, RecoveryAction>> = Object.freeze({

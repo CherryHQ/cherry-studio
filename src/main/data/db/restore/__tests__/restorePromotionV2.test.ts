@@ -54,9 +54,9 @@ vi.mock('@application', () => ({
     getPath: vi.fn((key: string, filename?: string) => {
       const bases: Record<string, string> = {
         'app.userdata': userData,
-        'app.database.file': join(userData, 'cherrystudio.sqlite'),
+        'app.database.file': join(userData, 'Data', 'cherrystudio.sqlite'),
         'app.database.migrations': resolveMigrationsPath(),
-        'feature.backup.restore.file': join(userData, 'restore-journal.json'),
+        'feature.backup.restore.file': join(userData, 'Data', 'restore-journal.json'),
         'feature.backup.restore.staging': join(userData, 'restore-staging'),
         'feature.backup.restore.aside': join(userData, 'restore-aside'),
         'feature.knowledgebase.data': join(userData, 'Data', 'KnowledgeBase')
@@ -143,13 +143,14 @@ vi.mock('@data/db/restore/restoreJournalV2', async (importOriginal) => {
 const RID = '11111111-2222-4333-8444-555555555555'
 const MARKER_KEY = 'restore-test-marker'
 
-const livePath = () => join(userData, 'cherrystudio.sqlite')
-const asideRel = `cherrystudio.sqlite.pre-restore-${RID}`
-const asidePath = () => join(userData, asideRel)
+// Mirrors pathRegistry: the database, its park slot, and the journal live under Data/.
+const livePath = () => join(userData, 'Data', 'cherrystudio.sqlite')
+const asideRel = `Data/cherrystudio.sqlite.pre-restore-${RID}`
+const asidePath = () => join(userData, ...asideRel.split('/'))
 const stagedRel = `restore-staging/${RID}/backup.sqlite`
 const stagedPath = () => join(userData, stagedRel)
 const stagingDir = () => join(userData, 'restore-staging', RID)
-const journalPath = () => join(userData, 'restore-journal.json')
+const journalPath = () => join(userData, 'Data', 'restore-journal.json')
 const parkedPath = () => join(userData, parkedFailedDbRelPathV2(RID))
 
 /**
@@ -298,6 +299,7 @@ function arrangeLiveParked(): void {
 describe('restore promotion v2', () => {
   beforeEach(() => {
     userData = mkdtempSync(join(tmpdir(), 'cs-promote-v2-'))
+    mkdirSync(join(userData, 'Data'))
     mkdirSync(stagingDir(), { recursive: true })
   })
 
@@ -1463,9 +1465,9 @@ describe('restore promotion v2', () => {
       await runRestorePromotionV2()
 
       expect(journalState()).toBe('completed')
-      expect(readMarker(join(relocated, 'cherrystudio.sqlite'))).toBe('new')
+      expect(readMarker(join(relocated, 'Data', 'cherrystudio.sqlite'))).toBe('new')
       // The pre-relocation tree is not this gate's business.
-      expect(readMarker(join(original, 'cherrystudio.sqlite'))).toBe('old')
+      expect(readMarker(join(original, 'Data', 'cherrystudio.sqlite'))).toBe('old')
     } finally {
       userData = original
       rmSync(relocated, { recursive: true, force: true })

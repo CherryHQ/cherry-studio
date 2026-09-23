@@ -14,7 +14,7 @@ const logger = loggerService.withContext('RestoreJournalV2')
 
 /**
  * Restore-promotion journal v2 — the crash-safe contract for the Backup v2
- * replacement flow (docs/references/backup/README.md §6). It is the only
+ * replacement flow (docs/references/backup/README.md §8). It is the only
  * active journal writer. The preboot shell recognizes a leftover version-1
  * sidecar only to park it as pre-release recovery evidence; no runtime path
  * creates or promotes that retired format.
@@ -72,8 +72,8 @@ function pathsPairwiseDistinct(paths: readonly string[]): boolean {
 }
 
 /**
- * One unified `resource-install` unit (§6.3). All paths are userData-relative
- * (relocation-safe, §6.6): `staging` the staged source, `live` the registered
+ * One unified `resource-install` unit (§8.2). All paths are userData-relative
+ * (relocation-safe): `staging` the staged source, `live` the registered
  * destination, `aside` the reserved restore-specific park slot. The three MUST
  * be pairwise distinct under the same collision policy the resource-path
  * validator uses — an entry whose staging and aside (say) alias to one file on
@@ -102,7 +102,7 @@ const ResourceInstallEntrySchema = z
   })
 
 /**
- * DB promotion payload. No `fingerprint`: v2 drops the fingerprint (§6.1). The
+ * DB promotion payload. No `fingerprint`: v2 drops the fingerprint (§8.2). The
  * staged `promote` DB and its `aside` park slot must be distinct paths.
  */
 const DbPromotionSchema = z
@@ -175,7 +175,7 @@ const commonFields = {
    */
   ownerProgress: RestoreOwnerProgressSchema.optional(),
   /**
-   * What materializing THIS archive against THIS device reduced (§4). Carried by
+   * What materializing THIS archive against THIS device reduced (§9.1). Carried by
    * the journal because the restore report is rendered after a relaunch, by
    * which point the staging tree that produced it may already be gone — and a
    * degraded restore must never look like a complete one. Optional, and omitted
@@ -194,7 +194,7 @@ const commonFields = {
  * optional terminal `reason` for post-boot reporting. `strictObject` +
  * `version: z.literal(2)` make a downgraded v1 parser reject a v2 journal (and
  * vice-versa): unknown version/fields → parse failure → the gate preserves the
- * evidence and refuses normal startup rather than reinterpreting it (§5.2).
+ * evidence and refuses normal startup rather than reinterpreting it (§8.2).
  */
 const journalVariants = [
   z.strictObject({ ...commonFields, state: z.literal('prepared') }),
@@ -220,7 +220,7 @@ const journalVariants = [
      * The database is live, but a resource unit did not reach its installed
      * state — so somewhere on disk a unit's only remaining copies are its
      * staging source and its aside. `completed` alone would let acknowledgement
-     * delete both and leave that unit with nothing (§6.5). Absent means every
+     * delete both and leave that unit with nothing (§8.2). Absent means every
      * unit is installed; `true` is the only other value.
      */
     resourcesIncomplete: z.literal(true).optional(),
@@ -251,7 +251,7 @@ const journalVariants = [
     /**
      * The rollback could not put every unit back, so this journal's asides are
      * still the only copy of what they hold — `failed` alone would let the GC
-     * guard and acknowledgement treat them as spent (§6.5). Absent means the
+     * guard and acknowledgement treat them as spent (§8.2). Absent means the
      * rollback finished; `true` is the only other value, so there is exactly one
      * way to say each thing.
      */
@@ -322,7 +322,7 @@ export function dbAsideRelPathV2(restoreId: string): string {
  * The root segment is read back from the path registry rather than written out,
  * so the tree has exactly one definition (src/main/core/paths/README.md). Only
  * its basename is used: everything below here is userData-relative on purpose,
- * so relocating the profile cannot strand a plan (§6.6).
+ * so relocating the profile cannot strand a plan.
  */
 export function resourceAsideRootRelPathV2(restoreId: string): string {
   return `${path.basename(application.getPath('feature.backup.restore.aside'))}/${restoreId}`
@@ -357,16 +357,16 @@ function dbAsidePrefix(): string {
  * the only remaining evidence that a database was parked is the file itself.
  */
 export function findDbAside(): string | null {
-  const userData = application.getPath('app.userdata')
+  const dbDir = path.dirname(application.getPath('app.database.file'))
   let names: string[]
   try {
-    names = fs.readdirSync(userData)
+    names = fs.readdirSync(dbDir)
   } catch {
     return null
   }
   const prefix = dbAsidePrefix()
   const found = names.find((name) => name.startsWith(prefix))
-  return found === undefined ? null : path.join(userData, found)
+  return found === undefined ? null : path.join(dbDir, found)
 }
 
 export type ReadJournalV2Result =
@@ -460,16 +460,6 @@ export function readRestoreJournalV2(): ReadJournalV2FileResult {
   return result.kind === 'ok' ? { kind: 'ok', journal: result.journal } : corrupt('invalid-shape', result.error)
 }
 
-/** Whether cleanup must stand aside for a restore that can still mutate live state. */
-export function hasPendingRestore(): boolean {
-  const result = readRestoreJournalV2()
-  if (result.kind === 'corrupt') return true
-  return (
-    result.kind === 'ok' &&
-    ['prepared', 'armed', 'promoting', 'reverting', 'rollback-armed'].includes(result.journal.state)
-  )
-}
-
 /** Keep the detail where it is useful — the main log — and pass on only the reason. */
 function corrupt(reason: JournalReadFailure, detail: string): ReadJournalV2FileResult {
   logger.error('Restore journal could not be read', { reason, detail })
@@ -485,7 +475,7 @@ function corrupt(reason: JournalReadFailure, detail: string): ReadJournalV2FileR
  * survive power loss, or a cleared restore would come back and promote again.
  * Windows provides the narrower process-crash guarantee documented below.
  *
- * ORDERING CONTRACT (§6.5): this is the LAST step of acknowledgement. While the
+ * ORDERING CONTRACT (§8.2): this is the LAST step of acknowledgement. While the
  * journal exists, the recovery asides are protected; clearing it first would
  * release that protection over asides that are still on disk.
  */

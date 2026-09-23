@@ -33,7 +33,7 @@ vi.mock('@data/bootConfig', () => ({
   bootConfigService: { get: bootConfigGet }
 }))
 
-vi.mock('@data/db/restore/restoreJournalV2', () => ({
+vi.mock('@data/db/restore/restoreGuard', () => ({
   hasPendingRestore: hasPendingRestoreMock
 }))
 
@@ -370,6 +370,23 @@ describe('CacheCleanupService', () => {
 
     expect(cleanup.results[0]?.status).toBe('not_found')
     expect(removeOrphanBaseArtifacts).toHaveBeenCalledWith(baseId)
+    await expectExisting(basePath)
+  })
+
+  it('stands aside from orphan knowledge bases while a restore still owns storage', async () => {
+    // Includes a completed-but-unacknowledged restore, whose asides are the only rollback copy.
+    hasPendingRestoreMock.mockReturnValue(true)
+    const baseId = '22222222-2222-4222-8222-222222222226'
+    const basePath = rootPath('Data', 'KnowledgeBase', baseId)
+    await writeTestFile(path.join(basePath, '.cherry', 'index.sqlite'), 'keep')
+    const oldMtime = new Date(Date.now() - 10 * 60 * 1000)
+    await fs.utimes(basePath, oldMtime, oldMtime)
+
+    const inspection = await cacheCleanupService.inspect(['orphaned_data'])
+    await cacheCleanupService.run(['orphaned_data'])
+
+    expect(inspection.results[0]?.size.completeness).toBe('partial')
+    expect(removeOrphanBaseArtifacts).not.toHaveBeenCalled()
     await expectExisting(basePath)
   })
 
