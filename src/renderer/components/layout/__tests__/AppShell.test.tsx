@@ -132,7 +132,7 @@ vi.mock('@renderer/utils/miniAppKeepAlive', async () => {
   return actual as object
 })
 
-vi.mock('@renderer/utils/webviewStateManager', () => ({
+vi.mock('@renderer/services/MiniAppWebviewService', () => ({
   clearWebviewState: mocks.clearWebviewState,
   clearAllWebviewStates: vi.fn(),
   getWebviewLoaded: vi.fn(() => false),
