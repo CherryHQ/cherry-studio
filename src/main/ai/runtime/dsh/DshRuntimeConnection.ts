@@ -52,7 +52,7 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { resolveDshBunRuntime } from './bunRuntime'
-import { buildDshCompositionYaml, resolveDshRuntimeBinPath } from './compositionBuilder'
+import { buildDshCompositionYaml, materializeDshRuntimeBinPath } from './compositionBuilder'
 import { DshBridgeServer, type DshBridgeServerOptions } from './DshBridgeServer'
 import {
   buildDshCherryToolBridge,
@@ -361,6 +361,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       .filter(Boolean)
       .join('\n\n')
 
+    const dshBin = await materializeDshRuntimeBinPath(dshRoot)
     const yaml = buildDshCompositionYaml({
       providerName: injection.providerName,
       api: injection.api,
@@ -374,7 +375,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       permissionMode: this.permissionMode,
       persona,
       customBase: prompt.base.kind === 'custom',
-      skillDirs: snapshot.additionalSkillPaths
+      skillDirs: snapshot.additionalSkillPaths,
+      runtimeRoot: path.dirname(dshBin)
     })
     this.compositionPath = path.join(dshRoot, 'compositions', `${this.input.sessionId}.${this.generation}.yml`)
     await mkdir(path.dirname(this.compositionPath), { recursive: true })
@@ -456,7 +458,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the routed API key, and the bridge socket.
-      const dshBin = resolveDshRuntimeBinPath()
       const client = new sdk.HarnessClient({
         runtimeExecutable,
         runtimeArgs: ['--no-env-file'],

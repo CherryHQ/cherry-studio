@@ -10,6 +10,8 @@
  * an absolute file URL at generation time: the packaged app runs the
  * composition from a foreign config dir where bare names are not resolvable.
  */
+import { cp, mkdir } from 'node:fs/promises'
+import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { stringify } from 'yaml'
@@ -26,8 +28,9 @@ import type { DshApi } from '@shared/ai/dshModelCompatibility'
 import type { DshModelConfig, DshReasoningEffort } from './modelInjection'
 
 /** Resolve a composition plugin specifier to its packaged on-disk entry. */
-export function resolveDshPluginPath(specifier: DshRuntimeEntrySpecifier): string {
-  return toAsarUnpackedPath(resolveBundledDshRuntimeEntry(specifier))
+export function resolveDshPluginPath(specifier: DshRuntimeEntrySpecifier, runtimeRoot?: string): string {
+  const bundledPath = toAsarUnpackedPath(resolveBundledDshRuntimeEntry(specifier))
+  return runtimeRoot === undefined ? bundledPath : path.join(runtimeRoot, path.basename(bundledPath))
 }
 
 /** Convert a plugin entry path into the URL form required by Node's ESM loader. */
@@ -38,6 +41,14 @@ export function toDshPluginUrl(pluginPath: string, windows = isWin): string {
 /** Resolve Cherry's DSH runtime bin spawned by bundled Bun. */
 export function resolveDshRuntimeBinPath(): string {
   return resolveDshPluginPath('@cherrystudio/dsh-bridge/bin')
+}
+
+export async function materializeDshRuntimeBinPath(dshRoot: string): Promise<string> {
+  const sourceRoot = path.dirname(resolveDshRuntimeBinPath())
+  const targetRoot = path.join(dshRoot, 'runtime')
+  await mkdir(targetRoot, { recursive: true })
+  await cp(sourceRoot, targetRoot, { recursive: true, force: true })
+  return path.join(targetRoot, 'bin.mjs')
 }
 
 export interface DshCompositionInput {
@@ -60,6 +71,8 @@ export interface DshCompositionInput {
   customBase: boolean
   /** Canonical dirs of the agent's enabled Cherry-managed skills (composition customSkillDirs). */
   skillDirs: readonly string[]
+  /** User-writable copy of the bundled runtime, used for packaged Windows launches. */
+  runtimeRoot?: string
   /** Platform override for composition contract tests. */
   platform?: NodeJS.Platform
 }
@@ -123,7 +136,7 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
     config?: Record<string, unknown>
   ): DshCompositionEntry => ({
     id,
-    name: toDshPluginUrl(resolveDshPluginPath(specifier), isWindows),
+    name: toDshPluginUrl(resolveDshPluginPath(specifier, input.runtimeRoot), isWindows),
     ...(config ? { config } : {})
   })
 

@@ -41,7 +41,9 @@ const runtimeMocks = vi.hoisted(() => ({
   usesDshGateway: vi.fn(),
   harnessOptions: undefined as Record<string, any> | undefined,
   getShellEnv: vi.fn(),
-  resolveBun: vi.fn()
+  resolveBun: vi.fn(),
+  materializeDshRuntimeBinPath: vi.fn(),
+  compositionInput: undefined as Record<string, any> | undefined
 }))
 
 const baseSnapshot = () => ({
@@ -103,6 +105,7 @@ class FakeSubscription {
 let subscription = new FakeSubscription()
 
 vi.mock('node:fs/promises', () => ({
+  cp: vi.fn().mockResolvedValue(undefined),
   mkdir: vi.fn().mockResolvedValue(undefined),
   writeFile: vi.fn().mockResolvedValue(undefined),
   rm: vi.fn().mockResolvedValue(undefined)
@@ -117,8 +120,12 @@ vi.mock('../modelInjection', () => ({
   usesDshGateway: runtimeMocks.usesDshGateway
 }))
 vi.mock('../compositionBuilder', () => ({
-  buildDshCompositionYaml: vi.fn(() => 'plugins: []'),
-  resolveDshRuntimeBinPath: vi.fn(() => '/dsh/bin')
+  buildDshCompositionYaml: vi.fn((input) => {
+    runtimeMocks.compositionInput = input
+    return 'plugins: []'
+  }),
+  resolveDshRuntimeBinPath: vi.fn(() => '/dsh/bin'),
+  materializeDshRuntimeBinPath: runtimeMocks.materializeDshRuntimeBinPath
 }))
 vi.mock('../bunRuntime', () => ({ resolveDshBunRuntime: runtimeMocks.resolveBun }))
 vi.mock('../DshBridgeServer', () => ({
@@ -199,7 +206,9 @@ const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 beforeEach(() => {
   runtimeMocks.snapshot = baseSnapshot()
   runtimeMocks.harnessOptions = undefined
+  runtimeMocks.compositionInput = undefined
   runtimeMocks.resolveBun.mockReset().mockResolvedValue('/bundled/bun')
+  runtimeMocks.materializeDshRuntimeBinPath.mockReset().mockResolvedValue('/user/dsh/bin.mjs')
   runtimeMocks.getShellEnv.mockReset().mockResolvedValue({
     PATH: ['/opt/homebrew/bin', '/usr/bin'].join(path.delimiter),
     HOME: '/Users/tester',
@@ -220,6 +229,19 @@ afterEach(() => {
 })
 
 describe('DshRuntimeConnection tracing', () => {
+  it('launches the DSH entry from the user-writable runtime directory', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+
+    expect(runtimeMocks.materializeDshRuntimeBinPath).toHaveBeenCalledWith(expect.any(String))
+    expect(runtimeMocks.harnessOptions).toMatchObject({
+      dshBin: '/user/dsh/bin.mjs',
+      processCwd: '/user/dsh'
+    })
+    expect(runtimeMocks.compositionInput).toMatchObject({ runtimeRoot: '/user/dsh' })
+
+    await connection.close()
+  })
+
   it('records the exact completed turn without a separate checkpoint request', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     const events: AgentRuntimeEvent[] = []
@@ -576,7 +598,7 @@ describe('DshRuntimeConnection tracing', () => {
     expect(runtimeMocks.harnessOptions).toMatchObject({
       runtimeExecutable: '/bundled/bun',
       runtimeArgs: ['--no-env-file'],
-      processCwd: '/dsh'
+      processCwd: '/user/dsh'
     })
     expect(env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
 
