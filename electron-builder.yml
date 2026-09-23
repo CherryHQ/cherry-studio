@@ -187,68 +187,22 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.2 - Stability and User Experience Improvements
+    The Boss 2.1.3 - Workspace tools and Prometheus integration
 
-    ✨ New Features
-    - [Model] Add oMLX as a built-in local provider, with its base URL preset and no API key required.
-    - [Model] Add Moonshot AI global endpoint for users of the international Moonshot console.
-    - [Settings] Renamed Recycle Bin to Archive and promoted it to a standalone settings page with improved layout and navigation.
-    - [MCP] The built-in mcp-auto-install server now keeps its Registry cache and config writes inside Cherry's config directory.
-    - [Sign-in] CherryIN sign-in now uses a local HTTP callback instead of the system custom-protocol handler.
-    - [Agents] Return to the original chat from a link at the fork boundary.
-    - [WebView] The browser pane's “Annotate page” picker now uses a consistent icon and follows your primary color.
-    - [Painting] Honor model-declared maxInputImages for generate_image references.
-
-    🐛 Bug Fixes
-    - [Sidebar] Clicking an app icon in the sidebar replaces the active tab again instead of jumping to another tab.
-    - [Sidebar] All resource shortcuts can now be removed via context menus.
-    - [Settings] Fixed settings, authorization, billing, and feedback links opening in the internal browser instead of the system browser.
-    - [Settings] English search terms now find the V2 serif-font setting.
-    - [Agents] Fixed timeouts when forking long DSH conversations.
-    - [Models] Fix outdated DeepSeek model listings and refresh the bundled catalog and pricing.
-    - [Models] Keep valid LM Studio models when one catalog entry is malformed.
-    - [Tools] Fixed skill installation, Skill tool dependency check, and Windows binary management failing when command lookup times out or errors.
-    - [Input] AskUserQuestion answers now wrap and grow, and keep selected options when a custom note is typed.
-    - [AI] Fixed Gemini requests failing with HTTP 400 when a tool's parameters declare numeric or boolean enum values.
-    - [AI] Fix Gemini requests failing with HTTP 400 when the built-in browser tools are enabled.
-    - [Markdown] Fixed KaTeX-stretched symbols (e.g., square roots) disappearing from rendered formulas.
-    - [Markdown] Keep the UI responsive during long agent streams by avoiding full markdown re-parse on each tick.
-    - [Markdown] Fixed emphasis formatting being lost after saving notes with adjacent punctuation.
-    - [Windows] Fixed agent-session trace history never being saved.
-    - [Chat] Fixed AI replies involving tool or MCP calls having no Edit option; their text is now editable.
-    - [Privacy] Fixed analytics events still being sent after disabling data collection.
-    - [macOS] Warn Apple Silicon users running the Intel build and link to the correct edition's download page.
+    - [Compass] Bundle native Compass with workspace indexing, isolated MCP connections, JSON, SQLite, and remote SurrealDB storage.
+    - [Filesystem] Add managed Rust Filesystem MCP with workspace roots and configurable write access.
+    - [Skills] Package the complete mini skill runtime, Compass skills, OpenSpec, Prometheus, pk, and Node.js. Preserve existing user skills during installation.
+    - [Services] Configure Docker, SurrealDB 3.2.4, surreal-memory-server, and liter-llm from Prometheus settings, including service controls and logs.
+    - [Settings] Add storage selection, command PATH repair, skill installation, and user-invoked operational diagnostics with translated settings.
+    - [Windows] Include native x64 and ARM64 tools and Windows-compatible Prometheus CLI setup.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.2 - 稳定性与用户体验改进
+    The Boss 2.1.3 - 工作区工具与 Prometheus 集成
 
-    ✨ 新功能
-    - [模型] 新增 oMLX 内置本地服务商，预设 base URL，无需 API 密钥。
-    - [模型] 新增 Moonshot AI 全球端点，方便使用国际版 Moonshot 控制台的用户连接。
-    - [设置] 将回收站重命名为归档，并提升为独立设置页面，改进布局和导航。
-    - [MCP] 内置 mcp-auto-install 服务器将 Registry 缓存和配置写入保持在 Cherry 的配置目录。
-    - [登录] CherryIN 登录使用本地 HTTP 回调，不再依赖系统自定义协议处理程序。
-    - [智能体] 从分叉边界链接返回原始对话。
-    - [WebView] 浏览器窗格的”标注页面”选择器现在使用一致的图标并跟随主题色。
-    - [绘图] 生成图像时遵守模型声明的最大输入图片数限制。
-
-    🐛 问题修复
-    - [侧边栏] 点击侧边栏的应用图标再次替换当前标签页，而非跳转到同一应用的其他标签页。
-    - [侧边栏] 所有资源快捷方式现在可以通过右键菜单移除。
-    - [设置] 修复设置、授权、账单和反馈链接在内置浏览器打开而非系统浏览器的问题。
-    - [设置] 英文搜索词现在可以找到 V2 衬线字体设置。
-    - [智能体] 修复分叉长时间 DSH 对话时的超时问题。
-    - [模型] 修复 DeepSeek 模型列表过时的问题，刷新内置目录和定价。
-    - [模型] 当单个目录条目格式错误时保留有效的 LM Studio 模型。
-    - [工具] 修复技能安装、Skill 工具依赖检查和 Windows 二进制管理在命令查找超时或出错时失败的问题。
-    - [输入] AskUserQuestion 回答现在可以换行和增长，并在输入自定义说明时保留已选选项。
-    - [AI] 修复工具参数声明数字或布尔枚举值时 Gemini 请求返回 400 错误的问题。
-    - [AI] 修复启用内置浏览器工具时 Gemini 请求返回 400 错误的问题。
-    - [Markdown] 修复 KaTeX 拉伸符号（如平方根）在渲染公式中消失的问题。
-    - [Markdown] 长 agent 流式输出时避免已稳定段落每 tick 全量重解析，降低界面卡顿。
-    - [Markdown] 修复保存笔记时相邻标点导致强调格式丢失的问题。
-    - [Windows] 修复智能体会话跟踪历史从未保存的问题。
-    - [对话] 修复涉及工具或 MCP 调用的 AI 回复没有编辑选项的问题，现在可以编辑文本。
-    - [隐私] 修复禁用数据收集后仍发送分析事件的问题。
-    - [macOS] 提醒在 Apple Silicon 上运行 Intel 版本的用户，并链接到正确版本的下载页面。
+    - [Compass] 内置原生 Compass，支持工作区索引、独立的 MCP 连接，以及 JSON、SQLite 和远程 SurrealDB 存储。
+    - [文件系统] 新增托管的 Rust Filesystem MCP，可配置工作区访问目录与写入权限。
+    - [技能] 打包完整的 mini 技能运行环境、Compass 技能、OpenSpec、Prometheus、pk 和 Node.js，安装时保留用户已有技能。
+    - [服务] 在 Prometheus 设置中配置 Docker、SurrealDB 3.2.4、surreal-memory-server 和 liter-llm，并提供服务控制与日志。
+    - [设置] 新增存储选择、命令 PATH 修复、技能安装，以及由用户启动的运行诊断，并提供翻译后的设置界面。
+    - [Windows] 内置 x64 和 ARM64 原生工具，并提供兼容 Windows 的 Prometheus CLI 配置。
     <!--LANG:END-->
