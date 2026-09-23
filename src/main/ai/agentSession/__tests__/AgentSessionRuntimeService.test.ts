@@ -4942,17 +4942,17 @@ describe('AgentSessionRuntimeService', () => {
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
 
     // The stop lands while start() is parked: the graceful interrupt preserves the entry and the
-    // still-live turn, so the post-connect continuation must observe the aborted signal itself
-    // instead of admitting the canceled prompt.
+    // still-live turn, so the post-connect continuation must observe the aborted signal itself,
+    // settle the canceled turn through the machine, and end the stream — a dangling open stream
+    // would hang the stop-and-drain on a pipe that never sees another chunk.
     controller.abort('user-requested')
     await vi.waitFor(() => expect(connection.abortTurn).toHaveBeenCalledOnce())
     connectGate.resolve(true)
-    await new Promise((resolve) => setTimeout(resolve, 0))
 
+    await expect(reader.read()).resolves.toMatchObject({ done: true })
     expect(connection.send).toHaveBeenCalledOnce()
     expect(connection.close).not.toHaveBeenCalled()
     expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1' })
-    await reader.cancel().catch(() => undefined)
   })
 
   it('ignores a stop re-dispatched without its turn after the stopped turn already left', async () => {

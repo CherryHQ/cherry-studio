@@ -929,11 +929,20 @@ export class AgentSessionRuntimeService extends BaseService {
           this.applyRuntimeStateEvent(entry, { type: 'flush-transition' })
           if (!this.isTurnLive(entry, turn)) return
           const connected = await this.ensureConnection(entry)
-          // A stop that fired during the connect await must not admit its canceled prompt: a
-          // graceful pre-admission stop preserves the entry and turn, so the guards below still pass.
-          if (input.signal.aborted || !connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) {
+          if (input.signal.aborted) {
+            // The stop already dispatched while this stream was connecting: never admit its
+            // canceled prompt. A graceful pre-admission stop preserves the entry and turn, so the
+            // stream itself must end and settle the machine — a dangling open stream would hang
+            // the stop-and-drain on a pipe that never sees another chunk.
+            this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', outcome: { status: 'paused' } })
+            try {
+              controller.close()
+            } catch {
+              // The consumer cancelled first; the stream is already closed.
+            }
             return
           }
+          if (!connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
           await this.admitTurn(entry, turn)
         } catch (error) {
           controller.error(error)
