@@ -68,7 +68,7 @@ vi.mock('@main/services/TopicNamingService', () => ({
 // `startAgentSessionRun`'s quiesce gate must throw BEFORE prepareDispatch writes rows.
 const prepareDispatchMock = vi.fn()
 vi.mock('../context/AgentChatContextProvider', () => ({
-  agentChatContextProvider: { prepareDispatch: prepareDispatchMock }
+  agentChatContextProvider: { prepareAgentSessionDispatch: prepareDispatchMock }
 }))
 
 const { AiStreamManager } = await import('../AiStreamManager')

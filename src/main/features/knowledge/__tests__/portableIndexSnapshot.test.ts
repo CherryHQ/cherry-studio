@@ -22,7 +22,8 @@ const BASE_ID = '11111111-1111-4111-8111-111111111111'
 const ITEM_ID = '22222222-2222-7222-8222-222222222222'
 const EXTRA_ITEM_ID = '33333333-3333-7333-8333-333333333333'
 const DOCUMENT_TEXT = 'portable knowledge index'
-const defaultApplicationGet = application.get.bind(application)
+// `application.get` is the spied mock itself, so go through the container to reach the defaults.
+const defaultApplicationGet = (name: Parameters<typeof application.get>[0]) => application.getContainer().get(name)
 
 describe('portable Knowledge index snapshot', () => {
   const dbh = setupTestDatabase()

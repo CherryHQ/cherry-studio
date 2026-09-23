@@ -77,7 +77,7 @@ export function WebdavBackupManager({
     } finally {
       setLoading(false)
     }
-  }, [destination, tlsCertificateHint, t])
+  }, [destination, tlsCertificateHint])
 
   useEffect(() => {
     if (visible) {
