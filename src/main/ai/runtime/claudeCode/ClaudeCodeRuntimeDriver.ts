@@ -365,9 +365,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // the model captured when that turn was created, even if the agent was edited since.
     // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
     // also serves best-effort prewarm, which must never surface UI.
+    // Hand the builder the undecoded portable token: it applies `resumeSessionAt`, which the
+    // bare session id kept in `resumeToken` for SDK messages cannot carry.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
-      this.resumeToken,
+      this.input.resumeToken,
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,

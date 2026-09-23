@@ -8,6 +8,7 @@ import { Worker } from 'node:worker_threads'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { encodePortableAgentResumePoint } from '@main/ai/agents/portableProfilePolicy'
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
@@ -715,6 +716,33 @@ describe('ClaudeCodeRuntimeDriver', () => {
         message: { role: 'user', content: 'hello' }
       },
       done: false
+    })
+    void connection.close()
+  })
+
+  it('hands the builder the whole portable resume point but resumes the SDK by session id', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const resumeToken = encodePortableAgentResumePoint({
+      sessionId: '374c8467-e787-4c67-b890-a3d91b50dba6',
+      resumeSessionAt: '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03'
+    })
+
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      resumeToken
+    })
+
+    // Only the builder knows how to turn `resumeSessionAt` into a warm-signature-matching option;
+    // decoding here would silently resume past the boundary the export cut at.
+    expect(mocks.buildRequest.mock.calls[0][1]).toBe(resumeToken)
+    const nextInput = mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
+    await connection.send({ message: userMessage() })
+    await expect(nextInput).resolves.toMatchObject({
+      value: { type: 'user', session_id: '374c8467-e787-4c67-b890-a3d91b50dba6' }
     })
     void connection.close()
   })
