@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { backupRequestSchemas } from '@shared/ipc/schemas/backup'
 
 const service = vi.hoisted(() => ({
   getStatus: vi.fn(),
@@ -622,6 +623,25 @@ describe('backupHandlers', () => {
       await expect(backupHandlers['backup.get_status'](undefined, ctx)).resolves.toMatchObject({
         restore: { kind: 'unreadable' }
       })
+    })
+  })
+
+  describe('destination archive name schema', () => {
+    // The name becomes a path under the configured folder, so the boundary
+    // refuses anything that is not exactly one segment before main sees it.
+    it.each(['../x', 'a/b', 'a\\b', '..', '.hidden', 'bad\u0000name', ''])('rejects %j', (name) => {
+      for (const route of ['backup.delete_destination_backup', 'backup.prepare_restore_from_destination'] as const) {
+        expect(backupRequestSchemas[route].input.safeParse({ destination: 'local', name }).success).toBe(false)
+      }
+    })
+
+    it('accepts the generated and the user-typed name shapes', () => {
+      for (const name of ['cherry-studio.20260102000000.work-laptop.mac.zip', 'before the big update.zip']) {
+        expect(
+          backupRequestSchemas['backup.delete_destination_backup'].input.safeParse({ destination: 'local', name })
+            .success
+        ).toBe(true)
+      }
     })
   })
 

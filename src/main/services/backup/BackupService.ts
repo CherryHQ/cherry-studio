@@ -1,21 +1,18 @@
-import { randomUUID } from 'node:crypto'
-import { basename, join } from 'node:path'
-
-import { ensureDir, remove } from 'fs-extra'
+import { ensureDir } from 'fs-extra'
 
 import { application } from '@application'
 import type { JournalDegradation, PromotionStepV2, RestoreJournalV2State } from '@data/db/restore/restoreJournalV2'
 import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { BackupDestinationId } from '@shared/ipc/schemas/backup'
+import { BackupArchiveNameSchema, type BackupDestinationId } from '@shared/ipc/schemas/backup'
 
 import { archiveName, pruneToLimit, sanitizeArchiveName } from './destinations/archiveRotation'
 import { resolveDestination } from './destinations/destinationConfig'
 import { createTransport, type RemoteArchive } from './destinations/destinationTransport'
-import { BackupBusyError, BackupCancelledError } from './errors'
+import { ArchiveAdmissionError, BackupBusyError, BackupCancelledError, renderUntrustedName } from './errors'
 import { exportArchive, type ExportArchiveResult } from './export/exportArchive'
-import { sweepStaleExportOperations } from './export/exportOperation'
+import { createOwnedScratch, sweepStaleExportOperations } from './export/exportOperation'
 import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } from './restore/acknowledgeRestore'
 import { runPostPromotionWork } from './restore/postPromotion'
 import {
@@ -40,6 +37,19 @@ const POST_PROMOTION_POLL_MS = 10_000
  * on JobManager's own 60s startup window regardless — so it yields the boot.
  */
 const POST_PROMOTION_START_DELAY_MS = 5_000
+
+/**
+ * The IPC schema already refuses these; this is the service's own guard so no
+ * other caller can turn a remote name into a path that leaves the destination.
+ */
+function assertArchiveName(name: string): void {
+  if (!BackupArchiveNameSchema.safeParse(name).success) {
+    throw new ArchiveAdmissionError(
+      'entry-name',
+      `destination archive name is not a single path segment: ${renderUntrustedName(name)}`
+    )
+  }
+}
 
 /** The mutually exclusive long-running operations this service owns. */
 export type BackupOperation = 'export' | 'prepare-restore' | 'arm-restore' | 'rollback-restore'
@@ -271,16 +281,16 @@ export class BackupService extends BaseService {
       // dialog-driven export never needed it because the user picks an existing
       // folder.
       await ensureDir(tempRoot)
-      const stagePath = join(tempRoot, `${randomUUID()}-${name}`)
+      const scratch = await createOwnedScratch(tempRoot, name)
       try {
-        const result = await exportArchive({ outPath: stagePath, signal })
+        const result = await exportArchive({ outPath: scratch.filePath, signal })
         await transport.upload(result.outPath, name)
         // Only now. Pruning first is how a limit of 1 turned a failed upload into
         // a user with no backups at all.
         await pruneToLimit(transport, destination.maxBackups)
         return { name, degradations: result.manifest.degradations }
       } finally {
-        await remove(stagePath).catch(() => {})
+        await scratch.dispose()
       }
     })
   }
@@ -300,17 +310,18 @@ export class BackupService extends BaseService {
    * a second full-size copy for the length of the user's decision.
    */
   public async prepareRestoreFromDestination(id: BackupDestinationId, name: string): Promise<RestorePreview> {
+    assertArchiveName(name)
     const transport = createTransport(await resolveDestination(id))
 
     return this.runExclusive('prepare-restore', async (signal) => {
-      const downloadDir = join(application.getPath('feature.backup.temp'), `download-${randomUUID()}`)
-      const archivePath = join(downloadDir, basename(name))
+      const tempRoot = application.getPath('feature.backup.temp')
+      await ensureDir(tempRoot)
+      const scratch = await createOwnedScratch(tempRoot, name)
       try {
-        await ensureDir(downloadDir)
-        await transport.download(name, archivePath)
-        return await prepareRestore({ archivePath, signal })
+        await transport.download(name, scratch.filePath)
+        return await prepareRestore({ archivePath: scratch.filePath, signal })
       } finally {
-        await remove(downloadDir).catch(() => {})
+        await scratch.dispose()
       }
     })
   }
@@ -329,10 +340,14 @@ export class BackupService extends BaseService {
   public async listDestinationBackups(id: BackupDestinationId): Promise<RemoteArchive[]> {
     const transport = createTransport(await resolveDestination(id))
     const archives = await transport.list()
-    return [...archives].sort((a, b) => b.modifiedAt - a.modifiedAt)
+    // A name the delete and download routes would refuse is not offerable.
+    return archives
+      .filter((archive) => BackupArchiveNameSchema.safeParse(archive.name).success)
+      .sort((a, b) => b.modifiedAt - a.modifiedAt)
   }
 
   public async deleteDestinationBackup(id: BackupDestinationId, name: string): Promise<void> {
+    assertArchiveName(name)
     const transport = createTransport(await resolveDestination(id))
     await transport.remove(name)
   }

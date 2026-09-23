@@ -41,10 +41,14 @@ function sanitize(hostname: string): string {
  * rotation, name something else for deletion.
  */
 export function sanitizeArchiveName(name: string): string {
+  // Mirrors `BackupArchiveNameSchema`: what this returns must round-trip as a
+  // remote name the delete and download routes will accept.
   const flattened = name
     .replace(/[/\\]/g, '-')
+    .replace(/\p{Cc}/gu, '')
     .replace(/\.{2,}/g, '.')
     .trim()
+    .replace(/^\.+/, '')
   const bounded = flattened.slice(0, 120) || `${ARCHIVE_PREFIX}${ARCHIVE_SUFFIX}`
   return bounded.endsWith(ARCHIVE_SUFFIX) ? bounded : `${bounded}${ARCHIVE_SUFFIX}`
 }

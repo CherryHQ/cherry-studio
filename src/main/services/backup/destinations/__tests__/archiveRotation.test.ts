@@ -5,7 +5,9 @@ vi.mock('@main/utils/system', () => ({
   getDeviceType: () => 'mac'
 }))
 
-const { archiveName, isOwnArchive, pruneToLimit } = await import('../archiveRotation')
+import { BackupArchiveNameSchema } from '@shared/ipc/schemas/backup'
+
+const { archiveName, isOwnArchive, pruneToLimit, sanitizeArchiveName } = await import('../archiveRotation')
 
 function transport(names: string[]) {
   const remove = vi.fn().mockResolvedValue(undefined)
@@ -38,6 +40,20 @@ describe('archiveName', () => {
     expect(name).toBe('cherry-studio.20260104090503.work-laptop.mac.zip')
     expect(isOwnArchive(name)).toBe(true)
   })
+})
+
+describe('sanitizeArchiveName', () => {
+  // What export names an upload, the delete and download routes must later
+  // accept — otherwise a user-typed backup can be created but never restored.
+  it.each(['../../etc/passwd', 'a/b\\c', '..', '.', '.hidden', 'x\u0000y\n', '   ', 'a'.repeat(400)])(
+    'produces a name the destination routes accept for %j',
+    (typed) => {
+      const name = sanitizeArchiveName(typed)
+
+      expect(BackupArchiveNameSchema.safeParse(name).success).toBe(true)
+      expect(name.endsWith('.zip')).toBe(true)
+    }
+  )
 })
 
 describe('isOwnArchive', () => {

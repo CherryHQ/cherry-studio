@@ -165,9 +165,21 @@ export type BackupDestinationId = (typeof BACKUP_DESTINATION_IDS)[number]
 
 const DestinationSchema = z.strictObject({ destination: z.enum(BACKUP_DESTINATION_IDS) })
 
+/**
+ * An archive's name at a destination: exactly one path segment. The name becomes
+ * a WebDAV path, an S3 key, and a `path.join` under the local backup folder, so
+ * a separator or `..` in it would reach outside the folder the user configured.
+ * `sanitizeArchiveName` in main produces names that satisfy this.
+ */
+export const BackupArchiveNameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine((value) => !hasControlChar(value) && !value.includes('/') && !value.includes('\\') && !value.startsWith('.'))
+
 /** One archive already sitting at a destination. */
 const RemoteArchiveSchema = z.strictObject({
-  name: z.string().min(1),
+  name: BackupArchiveNameSchema,
   /** Epoch millis, so the renderer sorts and formats without parsing per-destination date shapes. */
   modifiedAt: z.number().int().nonnegative(),
   size: z.number().int().nonnegative()
@@ -338,7 +350,7 @@ export const backupRequestSchemas = {
   }),
   /** Download `name` from the destination and stage it, exactly like a local file. */
   'backup.prepare_restore_from_destination': defineRoute({
-    input: DestinationSchema.extend({ name: z.string().min(1) }),
+    input: DestinationSchema.extend({ name: BackupArchiveNameSchema }),
     output: PrepareOutcomeSchema
   }),
   'backup.list_destination_backups': defineRoute({
@@ -346,7 +358,7 @@ export const backupRequestSchemas = {
     output: z.array(RemoteArchiveSchema)
   }),
   'backup.delete_destination_backup': defineRoute({
-    input: DestinationSchema.extend({ name: z.string().min(1) }),
+    input: DestinationSchema.extend({ name: BackupArchiveNameSchema }),
     output: z.void()
   }),
   /** Are the stored settings usable? False for wrong credentials, not an error. */

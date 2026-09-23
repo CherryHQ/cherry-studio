@@ -237,11 +237,17 @@ async function removeDiscoverablePublishTemps(marker: ExportMarker): Promise<boo
   return true
 }
 
-export async function createExportOperation(stagingParent: string, outPath: string): Promise<ExportOperationOwner> {
+/**
+ * A private, marker-owned `export-*` directory under `stagingParent`. The marker
+ * is what lets {@link sweepStaleExportOperations} reclaim it after a crash.
+ */
+async function createOwnedStaging(
+  stagingParent: string,
+  resolveOutPath: (stagingRoot: string) => string
+): Promise<{ readonly stagingRoot: string; readonly marker: ExportMarker }> {
   const operationId = randomUUID()
   const stagingRoot = await mkdtemp(path.join(stagingParent, STAGING_PREFIX))
   let initializationIdentity: PathIdentity | undefined
-  let marker: ExportMarker
   try {
     const beforeChmod = await identityOf(stagingRoot)
     initializationIdentity = beforeChmod
@@ -250,14 +256,15 @@ export async function createExportOperation(stagingParent: string, outPath: stri
     if (beforeChmod.dev !== stagingIdentity.dev || beforeChmod.ino !== stagingIdentity.ino) {
       throw new Error(`backup staging directory changed during initialization: ${stagingRoot}`)
     }
-    marker = {
+    const marker: ExportMarker = {
       version: 1,
       operationId,
-      outPath: path.resolve(outPath),
+      outPath: path.resolve(resolveOutPath(stagingRoot)),
       stagingPath: path.resolve(stagingRoot),
       stagingIdentity: serializeIdentity(stagingIdentity)
     }
     await writeJsonAtomic(path.join(stagingRoot, STAGING_MARKER), marker)
+    return { stagingRoot, marker }
   } catch (error) {
     if (initializationIdentity) {
       await removeOwnedDirectory(stagingRoot, initializationIdentity).catch((cleanupError) => {
@@ -268,6 +275,43 @@ export async function createExportOperation(stagingParent: string, outPath: stri
     }
     throw error
   }
+}
+
+export interface OwnedScratch {
+  readonly dir: string
+  /** `fileName` inside the scratch: the archive an upload reads or a download writes. */
+  readonly filePath: string
+  dispose(): Promise<void>
+}
+
+/**
+ * Marker-owned scratch for a destination transfer, so an archive left behind by
+ * a crash is swept on the next startup instead of sitting in the temp root
+ * unclaimed. `outPath` points inside the scratch, so publish-temp discovery for
+ * this marker only ever looks in a directory the sweep removes anyway.
+ */
+export async function createOwnedScratch(stagingParent: string, fileName: string): Promise<OwnedScratch> {
+  const { stagingRoot, marker } = await createOwnedStaging(stagingParent, (root) => path.join(root, fileName))
+  return {
+    dir: stagingRoot,
+    filePath: marker.outPath,
+    async dispose(): Promise<void> {
+      try {
+        await safeRemoveOwnedDirectory(stagingRoot, marker.stagingIdentity)
+      } catch (error) {
+        logger.warn('Could not remove destination scratch; startup cleanup will retry', error as Error, {
+          operationId: marker.operationId
+        })
+      }
+    }
+  }
+}
+
+export async function createExportOperation(stagingParent: string, outPath: string): Promise<ExportOperationOwner> {
+  const created = await createOwnedStaging(stagingParent, () => outPath)
+  const { stagingRoot } = created
+  const { operationId } = created.marker
+  let { marker } = created
 
   const updateMarker = async (next: ExportMarker): Promise<void> => {
     await writeJsonAtomic(path.join(stagingRoot, STAGING_MARKER), next)

@@ -1,13 +1,19 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 
+import type { createOwnedScratch, sweepStaleExportOperations } from '../export/exportOperation'
 import type { armPreparedRestore, cancelPreparedRestore, prepareRestore } from '../restore/prepareRestore'
+
+interface ExportOperationModule {
+  createOwnedScratch: typeof createOwnedScratch
+  sweepStaleExportOperations: typeof sweepStaleExportOperations
+}
 
 interface PrepareRestoreModule {
   armPreparedRestore: typeof armPreparedRestore
@@ -58,7 +64,7 @@ const { exportArchiveMock, transportMock } = vi.hoisted(() => ({
   exportArchiveMock: vi.fn<(input: { outPath: string }) => Promise<unknown>>(),
   transportMock: {
     upload: vi.fn<(localPath: string, name: string) => Promise<void>>(async () => undefined),
-    download: vi.fn(async () => undefined),
+    download: vi.fn<(name: string, destPath: string) => Promise<void>>(async () => undefined),
     list: vi.fn<() => Promise<Array<{ name: string; modifiedAt: number; size: number }>>>(async () => []),
     remove: vi.fn<(name: string) => Promise<void>>(async () => undefined),
     check: vi.fn(async () => true)
@@ -66,7 +72,12 @@ const { exportArchiveMock, transportMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('../export/exportArchive', () => ({ exportArchive: exportArchiveMock }))
-vi.mock('../export/exportOperation', () => ({ sweepStaleExportOperations: vi.fn(async () => undefined) }))
+// The scratch is real so the tests can see where the archive lands; only the
+// startup sweep is stubbed out.
+vi.mock('../export/exportOperation', async (importOriginal) => ({
+  ...(await importOriginal<ExportOperationModule>()),
+  sweepStaleExportOperations: vi.fn(async () => undefined)
+}))
 vi.mock('../destinations/destinationConfig', () => ({
   resolveDestination: vi.fn(async () => ({ kind: 'webdav', maxBackups: 1 }))
 }))
@@ -94,7 +105,7 @@ import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { DependencyResolver } from '@main/core/lifecycle/DependencyResolver'
 import { Phase } from '@main/core/lifecycle/types'
 
-import { BackupBusyError } from '../errors'
+import { ArchiveAdmissionError, BackupBusyError } from '../errors'
 
 const { BackupService } = await import('../BackupService')
 
@@ -703,5 +714,79 @@ describe('BackupService.exportToDestination', () => {
     await service.exportToDestination('webdav', 'before-the-big-update')
 
     expect(transportMock.upload).toHaveBeenCalledWith(expect.any(String), 'before-the-big-update.zip')
+  })
+
+  // A crash between export and upload must not strand a credential-bearing
+  // archive: it has to sit where the startup sweep will find it.
+  it('builds the archive inside a marker-owned scratch and leaves the temp root empty after a failure', async () => {
+    const tempRoot = join(userDataDir, 'backup-temp')
+    transportMock.upload.mockImplementationOnce(async (localPath) => {
+      const scratch = dirname(localPath)
+      expect(dirname(scratch)).toBe(tempRoot)
+      expect(existsSync(join(scratch, '.backup-export-owner.json'))).toBe(true)
+      throw new Error('network down')
+    })
+
+    await expect(service.exportToDestination('webdav')).rejects.toThrow('network down')
+
+    expect(readdirSync(tempRoot)).toEqual([])
+  })
+})
+
+describe('BackupService destination archive names', () => {
+  let service: InstanceType<typeof BackupService>
+
+  beforeEach(() => {
+    userDataDir = mkdtempSync(join(tmpdir(), 'cs-backup-names-'))
+    BaseService.resetInstances()
+    vi.clearAllMocks()
+    service = new BackupService()
+    init(service)
+  })
+
+  afterEach(() => {
+    rmSync(userDataDir, { recursive: true, force: true })
+  })
+
+  // The schema refuses these at the IPC boundary; the service refuses them
+  // again so no caller can turn a name into a path outside the destination.
+  it.each(['../x', 'a/b', 'a\\b', '..', '.', '.hidden', 'bad\u0000name'])(
+    'refuses to delete %j without touching the destination',
+    async (name) => {
+      await expect(service.deleteDestinationBackup('webdav', name)).rejects.toBeInstanceOf(ArchiveAdmissionError)
+
+      expect(transportMock.remove).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses to download a traversal name without touching the destination', async () => {
+    await expect(service.prepareRestoreFromDestination('webdav', '../x')).rejects.toBeInstanceOf(ArchiveAdmissionError)
+
+    expect(transportMock.download).not.toHaveBeenCalled()
+    expect(existsSync(join(userDataDir, 'backup-temp'))).toBe(false)
+  })
+
+  it('downloads into a marker-owned scratch and removes it once the preview is staged', async () => {
+    const tempRoot = join(userDataDir, 'backup-temp')
+    transportMock.download.mockImplementationOnce(async (_name: string, destPath: string) => {
+      expect(dirname(dirname(destPath))).toBe(tempRoot)
+      expect(existsSync(join(dirname(destPath), '.backup-export-owner.json'))).toBe(true)
+      throw new Error('network down')
+    })
+
+    await expect(service.prepareRestoreFromDestination('webdav', 'backup.zip')).rejects.toThrow('network down')
+
+    expect(readdirSync(tempRoot)).toEqual([])
+  })
+
+  it('lists only names the delete and download routes would accept', async () => {
+    transportMock.list.mockResolvedValueOnce([
+      { name: '.DS_Store', modifiedAt: 3, size: 1 },
+      { name: 'cherry-studio.20260102000000.work-laptop.mac.zip', modifiedAt: 2, size: 1 }
+    ])
+
+    await expect(service.listDestinationBackups('webdav')).resolves.toEqual([
+      { name: 'cherry-studio.20260102000000.work-laptop.mac.zip', modifiedAt: 2, size: 1 }
+    ])
   })
 })

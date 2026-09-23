@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { createExportOperation, sweepStaleExportOperations } from '../exportOperation'
+import { createExportOperation, createOwnedScratch, sweepStaleExportOperations } from '../exportOperation'
 
 describe('backup export operation ownership', () => {
   let root: string
@@ -80,6 +80,25 @@ describe('backup export operation ownership', () => {
     await expect(readdir(destinationParent)).resolves.toEqual(
       expect.arrayContaining(['.cherrybackup-tmp-replaced', 'original-temp'])
     )
+  })
+
+  it('sweep reclaims a destination scratch left behind by a crash', async () => {
+    const scratch = await createOwnedScratch(stagingParent, 'cherry-studio.zip')
+    await writeFile(scratch.filePath, 'archive with credentials')
+    // No dispose: the process died between export and upload.
+
+    await expect(sweepStaleExportOperations(stagingParent)).resolves.toBe(1)
+    await expect(readdir(stagingParent)).resolves.toEqual([])
+  })
+
+  it('a disposed scratch leaves nothing for the sweep', async () => {
+    const scratch = await createOwnedScratch(stagingParent, 'cherry-studio.zip')
+    await writeFile(scratch.filePath, 'archive')
+
+    await scratch.dispose()
+
+    await expect(readdir(stagingParent)).resolves.toEqual([])
+    await expect(sweepStaleExportOperations(stagingParent)).resolves.toBe(0)
   })
 
   it('ignores unmarked and symlinked export-looking paths', async () => {
