@@ -46,7 +46,7 @@ const {
       buildFromTemplate: vi.fn((template: MenuItemConstructorOptions[]) => ({ template })),
       setApplicationMenu: vi.fn()
     },
-    browserWindowMock: { getFocusedWindow: vi.fn(() => null) },
+    browserWindowMock: { getFocusedWindow: vi.fn<() => BrowserWindow | null>(() => null) },
     shellMock: {
       openExternal: vi.fn()
     },
@@ -198,7 +198,7 @@ describe('AppMenuService', () => {
   it('does not call center when the focused window is unmanaged', async () => {
     await (service as any).onInit()
 
-    browserWindowMock.getFocusedWindow.mockReturnValue({ id: 7 })
+    browserWindowMock.getFocusedWindow.mockReturnValue({ id: 7 } as BrowserWindow)
     windowManagerMock.getWindowId.mockReturnValue(undefined)
 
     const windowSubmenu = latestTemplate()[4].submenu as MenuItemConstructorOptions[]
