@@ -19,7 +19,6 @@ import type {
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
-import { clearAskUserQuestionDraftCache } from '@renderer/components/composer/variants/askUserQuestionDraftCache'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
@@ -49,7 +48,6 @@ type AskUserQuestionApprovalPart = CherryMessagePart & {
   toolCallId?: string
   input?: unknown
   output?: unknown
-  approval?: { id?: string }
 }
 
 export type AgentSendOptions = AgentComposerSendOptions
@@ -114,22 +112,6 @@ function findAskUserQuestionPartByCallId(
     }
   }
   return undefined
-}
-
-/** The renderer's optimistic inputs never land here — parts observed with
- * answers are the runtime's own, streamed or persisted. */
-function getSettledAskUserQuestionApprovalIds(partsByMessageId: Record<string, CherryMessagePart[]>): string[] {
-  const approvalIds: string[] = []
-  for (const parts of Object.values(partsByMessageId)) {
-    for (const part of parts) {
-      if (!isToolUIPart(part)) continue
-      const toolPart = part as AskUserQuestionApprovalPart
-      if (!isAskUserQuestionToolName(getToolNameFromPart(toolPart))) continue
-      if (!hasAskUserQuestionAnswers(toolPart)) continue
-      if (toolPart.approval?.id) approvalIds.push(toolPart.approval.id)
-    }
-  }
-  return approvalIds
 }
 
 export interface AgentChatRuntimeState {
@@ -202,6 +184,7 @@ export function useAgentChatRuntimeState({
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const {
     messages: uiMessages,
+    persistedPartsByMessageId,
     isLoading,
     hasOlder,
     loadOlder,
@@ -323,11 +306,6 @@ export function useAgentChatRuntimeState({
       }
       return changed ? next : current
     })
-    // The sweep is the single draft-eviction point (the updater stays
-    // side-effect-free), so settlements survive remounts too.
-    for (const approvalId of getSettledAskUserQuestionApprovalIds(partsByMessageId)) {
-      clearAskUserQuestionDraftCache(approvalId)
-    }
   }, [partsByMessageId])
 
   const removeOptimisticAskUserQuestionInput = useCallback((toolCallId: string) => {
@@ -382,6 +360,7 @@ export function useAgentChatRuntimeState({
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
+    persistedPartsByMessageId,
     streamingLayers,
     onRespond: respondToolApproval
   })

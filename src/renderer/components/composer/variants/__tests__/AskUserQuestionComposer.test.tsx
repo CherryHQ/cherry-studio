@@ -220,39 +220,20 @@ describe('AskUserQuestionComposer', () => {
     expect(screen.getByRole('button', { name: /Bunyan/ })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('clears the cached answers on a successful approval when the chat path acks persistence', async () => {
-    // The home-chat bridge's ack means Main has already persisted the decision, so
-    // evicting on ack must not reintroduce the remount answer-loss (a remount after
-    // ack reads the settled DB row, not a pending one).
-    const onRespond = vi.fn().mockResolvedValue(undefined)
-    const view = render(
-      <AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} evictDraftOnApprovalAck />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))
-    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
-
-    view.unmount()
-    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    expect(screen.getByRole('heading', { name: 'Choose logger' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'false')
-  })
-
-  it('drops the cached answers once a dismissal is sent', async () => {
+  it('keeps the draft after a dismissal ack until the persisted decision is observed', async () => {
+    const user = userEvent.setup()
     const onRespond = vi.fn().mockResolvedValue(undefined)
     const view = render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
-
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    await user.type(screen.getByPlaceholderText('Enter your answer...'), 'Keep my context')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
     view.unmount()
     render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
 
-    expect(screen.getByRole('heading', { name: 'Choose logger' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByPlaceholderText('Enter your answer...')).toHaveValue('Keep my context')
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('keeps the cached answers when the response fails and restores them on the next mount', async () => {

@@ -237,13 +237,15 @@ export function useChatRuntimeState({
   // comes from refreshed DB state, then Main starts the continuation after
   // every approval settles.
   const respondToolApproval = useToolApprovalBridge(topic.id)
+  const persistedPartsByMessageId = useMemo(
+    () => Object.fromEntries(uiMessages.map((message) => [message.id, message.parts])),
+    [uiMessages]
+  )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
+    persistedPartsByMessageId,
     streamingLayers,
-    onRespond: respondToolApproval,
-    // The home bridge's ack means Main has already applied and persisted the decision
-    // (the MCP approval path writes before resolving), so the draft can go on ack.
-    evictAskUserQuestionDraftOnApprovalAck: true
+    onRespond: respondToolApproval
   })
   const composerContext = useMemo<ComposerContextValue>(
     () => ({ overrides: toolApprovalComposerOverrides }),

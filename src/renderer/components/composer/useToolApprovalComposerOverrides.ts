@@ -1,28 +1,47 @@
-import { useMemo } from 'react'
+import { getToolName, isToolUIPart } from 'ai'
+import { useEffect, useMemo } from 'react'
 
+import { isAskUserQuestionToolName } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { ComposerOverride } from './ComposerContext'
 import { createAskUserQuestionComposerOverride } from './variants/AskUserQuestionComposer'
 import { findLatestPendingAskUserQuestionRequest } from './variants/askUserQuestionComposerRequest'
+import { clearAskUserQuestionDraftCache } from './variants/askUserQuestionDraftCache'
 import { createPermissionRequestComposerOverride } from './variants/PermissionRequestComposer'
 import { findNextPendingPermissionRequest } from './variants/permissionRequestComposerRequest'
 
 type ToolApprovalComposerOverridesOptions = {
   partsByMessageId: Record<string, CherryMessagePart[]>
+  /** Database message parts, before live overlays or optimistic projections. */
+  persistedPartsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
-  /** Chat paths whose approval ack already means durable persistence may evict the draft on ack. */
-  evictAskUserQuestionDraftOnApprovalAck?: boolean
 }
 
 export function useToolApprovalComposerOverrides({
   partsByMessageId,
+  persistedPartsByMessageId,
   streamingLayers,
-  onRespond,
-  evictAskUserQuestionDraftOnApprovalAck
+  onRespond
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
+  useEffect(() => {
+    for (const parts of Object.values(persistedPartsByMessageId)) {
+      for (const part of parts) {
+        if (!isToolUIPart(part) || !isAskUserQuestionToolName(getToolName(part))) continue
+        if (
+          part.state !== 'approval-responded' &&
+          part.state !== 'output-available' &&
+          part.state !== 'output-denied'
+        ) {
+          continue
+        }
+        if (part.approval?.id) clearAskUserQuestionDraftCache(part.approval.id)
+      }
+    }
+  }, [persistedPartsByMessageId])
+
   const settledHistoryParts = useMemo<Record<string, CherryMessagePart[]> | null>(() => {
     if (!streamingLayers) return null
 
@@ -66,8 +85,7 @@ export function useToolApprovalComposerOverrides({
       overrides.push(
         createAskUserQuestionComposerOverride({
           request: askUserQuestionRequest,
-          onRespond,
-          evictDraftOnApprovalAck: evictAskUserQuestionDraftOnApprovalAck
+          onRespond
         })
       )
     }
@@ -82,5 +100,5 @@ export function useToolApprovalComposerOverrides({
     }
 
     return overrides
-  }, [askUserQuestionRequest, evictAskUserQuestionDraftOnApprovalAck, onRespond, permissionRequest])
+  }, [askUserQuestionRequest, onRespond, permissionRequest])
 }

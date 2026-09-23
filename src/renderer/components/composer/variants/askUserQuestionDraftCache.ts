@@ -8,7 +8,7 @@ import type { CacheAskUserQuestionDraft } from '@shared/data/cache/cacheValueTyp
  * switching conversations and coming back, for example — used to discard them.
  * They are small and short-lived, so they are kept in the renderer memory cache
  * (the same tier as the composer drafts) keyed by approval id, and are dropped
- * as soon as the question is answered or dismissed.
+ * when a persisted message records the answer or dismissal.
  */
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 

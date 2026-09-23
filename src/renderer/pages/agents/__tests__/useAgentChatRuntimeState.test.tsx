@@ -70,10 +70,6 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicOverlayHandoffOnTerminal: mocks.useTopicOverlayHandoffOnTerminal
 }))
 
-vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
-  useToolApprovalComposerOverrides: () => []
-}))
-
 vi.mock('@renderer/services/messageUiStateCache', () => ({
   invalidateCachedMessageUiStates: mocks.invalidateMessages
 }))
@@ -219,6 +215,7 @@ describe('useAgentChatRuntimeState', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
     mocks.refresh.mockResolvedValue([assistantMessage])
     mocks.seedReservedMessages.mockResolvedValue(undefined)
@@ -228,6 +225,7 @@ describe('useAgentChatRuntimeState', () => {
     mocks.sendTurn.mockResolvedValue(true)
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],
+      persistedPartsByMessageId: {},
       isLoading: false,
       hasOlder: false,
       loadOlder: vi.fn(),
@@ -288,20 +286,6 @@ describe('useAgentChatRuntimeState', () => {
     })
 
     expect(sent).toBe(false)
-  })
-
-  it('does not wire per-overlay finish refresh for agent sessions', () => {
-    renderHook(() =>
-      useAgentChatRuntimeState({
-        sessionId: 'session-1',
-        sessionMessagesEnabled: true,
-        reservedMessages: []
-      })
-    )
-
-    expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
-    expect(mocks.refresh).not.toHaveBeenCalled()
-    expect(mocks.disposeOverlay).not.toHaveBeenCalled()
   })
 
   it('invalidates disclosure state after deleting a session message', async () => {
@@ -489,8 +473,20 @@ describe('useAgentChatRuntimeState', () => {
     })
     expect(readAskUserQuestionDraftCache('approval-ask').selectedAnswers[0]).toEqual(['Winston'])
 
-    // Terminal persistence arrives: the refreshed parts carry the settled
-    // answers, which retires both the optimistic input and the draft.
+    const liveAnswer = makeAskUserQuestionPart({ state: 'output-available', input: askUserQuestionUpdatedInput })
+    mocks.useAgentSessionParts.mockReturnValue({
+      ...mocks.useAgentSessionParts(),
+      messages: [{ ...assistantMessage, parts: [liveAnswer] }],
+      persistedPartsByMessageId: { 'assistant-1': [makeAskUserQuestionPart()] }
+    })
+    mocks.useExecutionOverlay.mockReturnValue({
+      ...mocks.useExecutionOverlay(),
+      overlay: { 'assistant-1': [liveAnswer] }
+    })
+    rerender()
+    expect(readAskUserQuestionDraftCache('approval-ask').selectedAnswers[0]).toEqual(['Winston'])
+
+    // Only the database update allows the draft to be retired.
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [
         {
@@ -498,6 +494,9 @@ describe('useAgentChatRuntimeState', () => {
           parts: [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
         }
       ],
+      persistedPartsByMessageId: {
+        'assistant-1': [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+      },
       isLoading: false,
       hasOlder: false,
       loadOlder: vi.fn(),
@@ -539,6 +538,9 @@ describe('useAgentChatRuntimeState', () => {
           parts: [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
         }
       ],
+      persistedPartsByMessageId: {
+        'assistant-1': [makeAskUserQuestionPart({ state: 'approval-responded', input: askUserQuestionUpdatedInput })]
+      },
       isLoading: false,
       hasOlder: false,
       loadOlder: vi.fn(),

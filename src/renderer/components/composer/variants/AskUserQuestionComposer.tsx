@@ -10,11 +10,7 @@ import { cn } from '@renderer/utils/style'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { AskUserQuestionComposerRequest } from './askUserQuestionComposerRequest'
-import {
-  clearAskUserQuestionDraftCache,
-  readAskUserQuestionDraftCache,
-  writeAskUserQuestionDraftCache
-} from './askUserQuestionDraftCache'
+import { readAskUserQuestionDraftCache, writeAskUserQuestionDraftCache } from './askUserQuestionDraftCache'
 
 export type { AskUserQuestionComposerRequest } from './askUserQuestionComposerRequest'
 
@@ -23,44 +19,28 @@ const logger = loggerService.withContext('AskUserQuestionComposer')
 type AskUserQuestionComposerProps = {
   request: AskUserQuestionComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
-  /** Set by chat paths whose ack already means durable persistence (see respond). */
-  evictDraftOnApprovalAck?: boolean
   className?: string
 }
 
 type AskUserQuestionComposerOverrideOptions = {
   request: AskUserQuestionComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
-  evictDraftOnApprovalAck?: boolean
 }
 
 type AnswersByIndex = Record<number, string[]>
 
 export function createAskUserQuestionComposerOverride({
   request,
-  onRespond,
-  evictDraftOnApprovalAck
+  onRespond
 }: AskUserQuestionComposerOverrideOptions): ComposerOverride {
   return {
     id: `ask-user-question:${request.approvalId}`,
     priority: 100,
-    render: ({ className }) => (
-      <AskUserQuestionComposer
-        request={request}
-        onRespond={onRespond}
-        evictDraftOnApprovalAck={evictDraftOnApprovalAck}
-        className={className}
-      />
-    )
+    render: ({ className }) => <AskUserQuestionComposer request={request} onRespond={onRespond} className={className} />
   }
 }
 
-export default function AskUserQuestionComposer({
-  request,
-  onRespond,
-  evictDraftOnApprovalAck,
-  className
-}: AskUserQuestionComposerProps) {
+export default function AskUserQuestionComposer({ request, onRespond, className }: AskUserQuestionComposerProps) {
   const { t } = useTranslation()
   const questions = request.input.questions
   // Answers are restored from the cache so a remount (switching conversations and
@@ -145,10 +125,6 @@ export default function AskUserQuestionComposer({
       setIsSubmitting(true)
       try {
         await onRespond(input)
-        // A dismissal keeps no answers, so evict now. An approval's draft outlives the ack unless
-        // the caller's ack already means durable persistence (home chat) — agent sessions defer
-        // eviction to the runtime's settled-part effect instead.
-        if (!input.approved || evictDraftOnApprovalAck) clearAskUserQuestionDraftCache(request.approvalId)
       } catch (error) {
         logger.error('Failed to send ask-user-question response', error as Error, {
           approvalId: request.approvalId,
@@ -159,7 +135,7 @@ export default function AskUserQuestionComposer({
         setIsSubmitting(false)
       }
     },
-    [evictDraftOnApprovalAck, onRespond, request.approvalId, request.messageId, request.toolCallId, t]
+    [onRespond, request.approvalId, request.messageId, request.toolCallId, t]
   )
 
   const submitAnswers = useCallback(
