@@ -1,10 +1,11 @@
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import type { FC, UIEventHandler } from 'react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { useCache } from '@data/hooks/useCache'
 
 import type { PaintingStripEntry } from '../hooks/usePaintingHistory'
 import type { PaintingData } from '../model/types/paintingData'
@@ -14,12 +15,10 @@ import PaintingSkeletonSurface from './PaintingSkeletonSurface'
 
 interface PaintingStripProps {
   selectedPaintingId?: string
-  /** Id of the painting with an in-flight generation, or undefined when idle. */
-  runningPaintingId?: string
   items: PaintingStripEntry[]
   hasMore: boolean
   loadMore: () => void
-  onDeletePainting: (painting: PaintingData) => void | Promise<void>
+  onDeletePainting: (painting: PaintingData) => void
   onSelectPainting: (painting: PaintingData) => void
   onAddPainting: () => void
   adding?: boolean
@@ -28,13 +27,15 @@ interface PaintingStripProps {
 const PaintingStripItem: FC<{
   painting: PaintingStripEntry
   selected: boolean
-  loading: boolean
   onDelete: (painting: PaintingStripEntry) => void
   onSelect: (painting: PaintingStripEntry) => void
   selectLabel: string
   deleteLabel: string
-}> = ({ painting, selected, loading, onDelete, onSelect, selectLabel, deleteLabel }) => {
-  const previewFile = painting.files?.[0]
+  position: number
+}> = ({ painting, selected, onDelete, onSelect, selectLabel, deleteLabel, position }) => {
+  const [generation] = useCache(`painting.generation.${painting.id}`)
+  const loading = generation?.status === 'running'
+  const previewFile = painting.previewFile ?? painting.files?.[0]
   const previewUrl = previewFile ? getPaintingFileUrl(previewFile) : undefined
 
   return (
@@ -42,7 +43,8 @@ const PaintingStripItem: FC<{
       <button
         type="button"
         className="absolute inset-0 z-0"
-        aria-label={selectLabel}
+        aria-label={`${selectLabel} ${position}`}
+        aria-busy={loading}
         onClick={() => onSelect(painting)}>
         <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[12px]">
           {previewUrl ? (
@@ -72,7 +74,7 @@ const PaintingStripItem: FC<{
 
       <button
         type="button"
-        aria-label={deleteLabel}
+        aria-label={`${deleteLabel} ${position}`}
         className={paintingClasses.historyDelete}
         onClick={(event) => {
           event.stopPropagation()
@@ -86,7 +88,6 @@ const PaintingStripItem: FC<{
 
 const PaintingStrip: FC<PaintingStripProps> = ({
   selectedPaintingId,
-  runningPaintingId,
   items,
   hasMore,
   loadMore,
@@ -96,6 +97,7 @@ const PaintingStrip: FC<PaintingStripProps> = ({
   adding = false
 }) => {
   const { t } = useTranslation()
+  const [pendingDelete, setPendingDelete] = useState<PaintingStripEntry | null>(null)
   const stripRef = useRef<HTMLDivElement>(null)
   const handleScroll: UIEventHandler<HTMLDivElement> = (event) => {
     const target = event.currentTarget
@@ -127,16 +129,16 @@ const PaintingStrip: FC<PaintingStripProps> = ({
             <Plus className="size-4" />
           </Button>
         </Tooltip>
-        {items.map((painting) => (
+        {items.map((painting, index) => (
           <PaintingStripItem
             key={painting.id}
             painting={painting}
             selected={painting.id === selectedPaintingId}
-            loading={painting.id === runningPaintingId}
-            onDelete={(painting) => void onDeletePainting(painting)}
+            onDelete={setPendingDelete}
             onSelect={onSelectPainting}
             selectLabel={t('paintings.button.select.image')}
             deleteLabel={t('paintings.button.delete.image.label')}
+            position={index + 1}
           />
         ))}
         {hasMore && <Loader2 className="mx-auto size-4 shrink-0 animate-spin text-foreground-tertiary" aria-hidden />}
@@ -148,6 +150,25 @@ const PaintingStrip: FC<PaintingStripProps> = ({
           100% { transform: translateX(260%); }
         }
       `}</style>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDelete(null)
+          }
+        }}
+        title={t('paintings.button.delete.image.confirm')}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={() => {
+          if (pendingDelete) {
+            onDeletePainting(pendingDelete)
+          }
+          setPendingDelete(null)
+        }}
+      />
     </>
   )
 }

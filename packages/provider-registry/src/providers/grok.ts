@@ -6,6 +6,8 @@ export default defineProvider({
   availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
+    'openai-image-generation': { adapterFamily: 'xai', baseUrl: 'https://api.x.ai/v1' },
+    'openai-image-edit': { adapterFamily: 'xai', baseUrl: 'https://api.x.ai/v1' },
     'openai-chat-completions': {
       adapterFamily: 'xai',
       baseUrl: 'https://api.x.ai'

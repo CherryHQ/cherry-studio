@@ -1,3 +1,4 @@
+import * as z from 'zod'
 /**
  * Model API Schema definitions
  *
@@ -5,7 +6,7 @@
  * DTO types are derived from Zod schemas in ../../types/model
  */
 
-import * as z from 'zod'
+import { ImageGenerationConfigSchema } from '@shared/ai/imageGenerationConfig'
 
 import {
   ENDPOINT_TYPE,
@@ -66,7 +67,8 @@ export const CreateModelSchema = z.strictObject({
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
   /** Pricing configuration */
-  pricing: RuntimeModelPricingSchema.optional()
+  pricing: RuntimeModelPricingSchema.optional(),
+  imageGenerationConfig: ImageGenerationConfigSchema.nullable().optional()
 })
 export type CreateModelDto = z.infer<typeof CreateModelSchema>
 
@@ -280,6 +282,7 @@ export type ModelSchemas = {
   '/providers/:providerId/models/:modelId*/image-generation-support': {
     GET: {
       params: { providerId: string; modelId: string }
+      query: { catalogOnly?: boolean }
       response: ImageGenerationSupport | null
     }
   }

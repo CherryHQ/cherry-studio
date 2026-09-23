@@ -61,3 +61,15 @@ pnpm --filter @cherrystudio/provider-registry compat:baseline
 Run `pnpm --filter @cherrystudio/provider-registry compat:check` to verify the current catalog.
 Runtime-semantic additions that older applications cannot execute must also raise
 `REGISTRY_MIN_APP_VERSION`; Zod compatibility only protects the JSON shape.
+
+## Scoped model changes
+
+To regenerate selected models without refreshing unrelated live catalog metadata, run:
+
+```bash
+pnpm exec tsx packages/provider-registry/scripts/generate-catalog.ts --write --model-ids=gpt-image-2,grok-imagine-image-2.0
+```
+
+The existing generated files supply the baseline for unselected models and their overrides.
+Selected IDs must exist in the source-derived catalog. Provider declarations and derived
+server-tool indexes are still regenerated from source and the resulting model set.

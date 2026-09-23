@@ -34,6 +34,7 @@ renderer-side transport that connects to them.
 | [Agent Prompt Layers](./agent-prompt-layers.md) | Agent System Prompt, workspace `system.md`, `SOUL.md`, precedence, update boundary, and variable lifecycle |
 | [Params Pipeline](./params-pipeline.md) | `buildAgentParams` + `RequestFeature` model: how capabilities, plugins, tools, and provider-specific quirks are composed |
 | [Tool Registry](./tool-registry.md) | Built-in web/knowledge/file/image/MCP-resource tools, selected MCP tools, meta-tools, and deferred exposition |
+| [Image Workflow](./image-workflow.md) | Image model settings, standard protocols, painting versions, task recovery, and conversation file delivery |
 | [Chat Attachments](./chat-attachments.md) | How attached files reach the model: native file parts when supported, capped extracted text otherwise, `read_file` for overflow paging |
 | [Provider Resolution](./provider-resolution.md) | `Provider.endpointConfigs` schema, endpoint resolution chain, variant suffixes, custom provider extensions (aihubmix, newapi) |
 | [Model Retry & Fallback](./model-retry.md) | `ai-retry` integration: same-model transient retry + user-configured fallback models, `wrapModel` hook, `chat.retry.*` preferences, embedding/rerank policies |

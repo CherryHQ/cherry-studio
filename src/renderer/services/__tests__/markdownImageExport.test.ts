@@ -193,6 +193,42 @@ describe('collectExportableImages', () => {
     ])
   })
 
+  it.each(['pi', 'claude-code', 'mcp', 'mcp-text'])(
+    'exports %s generated-image references into portable assets',
+    async (runtime) => {
+      const envelope = { type: 'generated-images', images: [{ id: 'gen-1', name: 'painting.png' }] }
+      const content = [{ type: 'text', text: JSON.stringify(envelope) }]
+      const outputs: Record<string, unknown> = {
+        pi: envelope,
+        'claude-code': { content: envelope, metadata: { type: 'mcp', serverName: 'cherry-tools' } },
+        mcp: { content, structuredContent: envelope },
+        'mcp-text': { content }
+      }
+      mockPhysicalPaths({ 'gen-1': '/data/Files/gen-1.png' })
+      const message = view(
+        [
+          {
+            type: 'dynamic-tool',
+            toolName: 'mcp__cherry-tools__generate_image',
+            toolCallId: 'nested::exec::1',
+            state: 'output-available',
+            input: {},
+            output: outputs[runtime]
+          }
+        ],
+        'assistant'
+      )
+      const { refs, unresolvedCount } = await collectExportableImages([message])
+      expect(unresolvedCount).toBe(0)
+      expect(refs).toEqual([
+        { key: 'gen-1', url: 'file:///data/Files/gen-1.png', filename: 'painting.png', mime: undefined }
+      ])
+      const result = await serializeMessagesWithImages([message], 'folder', refs)
+      expect(result.pendingWrites).toHaveLength(1)
+      expect(result.overrides.get(message.id)).toBe(`![painting.png](assets/${result.pendingWrites[0].fileName})`)
+    }
+  )
+
   it('drops an unresolvable generate_image entry, counts it, and keeps the rest', async () => {
     mockPhysicalPaths({ gone: null })
     mockPhysicalPaths({ 'gen-2': '/data/Files/gen-2.png' })

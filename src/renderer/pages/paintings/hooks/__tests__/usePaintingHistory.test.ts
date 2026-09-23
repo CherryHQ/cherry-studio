@@ -45,6 +45,7 @@ function toStripEntry(record: Painting): PaintingStripEntry {
     files: [],
     inputFiles: [],
     persistedAt: record.createdAt,
+    stepStatus: record.stepStatus,
     model: record.modelId ?? undefined
   }
 }
@@ -55,6 +56,7 @@ function mockQueryRecords(records: Painting[]) {
     total: records.length,
     nextCursor: undefined
   }
+  const refresh = vi.fn().mockResolvedValue([page])
   mockUseInfiniteFlatItems.mockReturnValue(records)
   mockUseInfiniteQuery.mockReturnValue({
     pages: [page],
@@ -63,10 +65,11 @@ function mockQueryRecords(records: Painting[]) {
     error: undefined,
     hasNext: false,
     loadNext: vi.fn(),
-    refresh: vi.fn().mockResolvedValue([page]),
+    refresh,
     reset: vi.fn().mockResolvedValue([page]),
     mutate: vi.fn().mockResolvedValue([page])
   })
+  return refresh
 }
 
 describe('usePaintingHistory', () => {
@@ -76,6 +79,40 @@ describe('usePaintingHistory', () => {
     mockRecordsToPaintingDataList.mockReset()
     mockRecordsToPaintingDataList.mockImplementation(async (records: Painting[]) => records.map(toStripEntry))
   })
+
+  it.each([undefined, 'project'])(
+    'refreshes recovered background completion through data notifications for %s',
+    async (projectId) => {
+      const running = { ...createRecord('step'), projectId: 'project', stepStatus: 'running' as const }
+      const completed = { ...running, stepStatus: 'completed' as const, files: { input: [], output: ['saved-result'] } }
+      const refresh = mockQueryRecords([running])
+      const { result, rerender, unmount } = renderHook(() => usePaintingHistory(projectId))
+      await waitFor(() => expect(result.current.items[0]?.stepStatus).toBe('running'))
+      refresh.mockImplementation(async () => {
+        mockQueryRecords([completed])
+        rerender()
+        return [{ items: [completed], total: 1 }]
+      })
+
+      act(() => MockUseDataApiUtils.emitDataChange([{ endpoint: '/models', kind: 'projection', entityIds: ['step'] }]))
+      expect(refresh).not.toHaveBeenCalled()
+      await act(async () => {
+        MockUseDataApiUtils.emitDataChange([
+          { endpoint: '/paintings', kind: 'projection', entityIds: ['step', 'project'] }
+        ])
+      })
+      await waitFor(() => expect(result.current.items[0]?.stepStatus).toBe('completed'))
+      expect(mockRecordsToPaintingDataList).toHaveBeenLastCalledWith([completed])
+      expect(refresh).toHaveBeenCalledOnce()
+
+      const nextRefresh = mockUseInfiniteQuery.mock.results.at(-1)!.value.refresh
+      unmount()
+      act(() =>
+        MockUseDataApiUtils.emitDataChange([{ endpoint: '/paintings', kind: 'projection', entityIds: ['step'] }])
+      )
+      expect(nextRefresh).not.toHaveBeenCalled()
+    }
+  )
 
   it('uses cursor infinite DataApi pagination for the strip history', async () => {
     const loadNext = vi.fn()
@@ -96,7 +133,7 @@ describe('usePaintingHistory', () => {
     const { result } = renderHook(() => usePaintingHistory())
 
     await waitFor(() => expect(result.current.items).toHaveLength(30))
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/paintings', { limit: 30 })
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/paintings', { limit: 30, query: { projectsOnly: true } })
     expect(result.current.hasMore).toBe(true)
 
     act(() => {

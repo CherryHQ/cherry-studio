@@ -9,16 +9,6 @@ import { generatePainting } from './generatePainting'
 import type { GenerateInput } from './types/generateInput'
 import type { PaintingData } from './types/paintingData'
 
-/** Encode raw image bytes as a `data:` URL for the main-process image IPC. */
-function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
-  let binary = ''
-  const chunkSize = 0x8000
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize))
-  }
-  return `data:${mime || 'image/png'};base64,${btoa(binary)}`
-}
-
 export interface CanonicalGenerateOptions<T extends PaintingData> {
   /**
    * Throw a vendor-specific validation error before the generate call
@@ -121,27 +111,14 @@ export async function canonicalGenerate<T extends PaintingData>(
     }
   }
 
-  // 4. Pre-fetch attached image bytes (encoded as `data:` URLs for the IPC),
-  //    carried separately from `paramValues` — they're encoded files, not form
-  //    params. The vendor image-model adapter picks the right edit endpoint.
-  const inputImages =
-    inputImageFiles.length > 0
-      ? await Promise.all(
-          inputImageFiles.map(async (entry) => {
-            const onDiskName = `${entry.id}${entry.ext ? `.${entry.ext}` : ''}`
-            const { data, mime } = await window.api.file.binaryImage(onDiskName)
-            return bytesToDataUrl(new Uint8Array(data), mime)
-          })
-        )
-      : undefined
-
   return generatePainting({
     provider,
     signal: abortController.signal,
     modelId,
+    paintingId: painting.id,
     prompt,
     ...(options.mode && { mode: options.mode }),
     paramValues,
-    ...(inputImages && { inputImages })
+    ...(inputImageFiles.length > 0 && { inputFileIds: inputImageFiles.map((entry) => entry.id) })
   })
 }

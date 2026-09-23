@@ -284,7 +284,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function decodeToolResult(result: ToolResult, outputSchema: unknown, toolName: string): unknown {
   if (!outputSchema) return result
-  if (result.details !== undefined) return result.details
+  if (result.details !== undefined && result.details !== null) return result.details
 
   const textContent = result.content.filter((part) => part.type === 'text')
   if (textContent.length === 0) {

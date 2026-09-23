@@ -1,3 +1,4 @@
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 /**
  * Model Service - handles model CRUD operations
  *
@@ -6,8 +7,6 @@
  * - Row to Model conversion
  * - Registry import support
  */
-
-import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
 import { application } from '@application'
@@ -33,7 +32,12 @@ import {
 import { isProviderIdentityAvailable, providerService } from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import {
+  applyImageGenerationConfig,
+  imagePresetSupportId,
+  type ImageGenerationConfig
+} from '@shared/ai/imageGenerationConfig'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
@@ -300,7 +304,8 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'isEnabled',
   'isHidden',
   'isDeprecated',
-  'notes'
+  'notes',
+  'imageGenerationConfig'
 ]
 
 /** Convert CreateModelDto to an InsertUserModelRow (shared by preset and custom paths). */
@@ -310,6 +315,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     providerId: dto.providerId,
     modelId: dto.modelId,
     presetModelId: null,
+    imageGenerationConfig: dto.imageGenerationConfig ?? null,
     name: dto.name ?? dto.modelId,
     description: dto.description ?? null,
     group: dto.group ?? null,
@@ -375,6 +381,7 @@ function presetDeltaToNewUserModel(
     providerId: dto.providerId,
     modelId: dto.modelId,
     presetModelId,
+    imageGenerationConfig: dto.imageGenerationConfig ?? null,
     name: fields.has('name') ? (dto.name ?? null) : null,
     description: fields.has('description') ? (dto.description ?? null) : null,
     group: fields.has('group') ? (dto.group ?? null) : null,
@@ -535,12 +542,52 @@ class ModelService {
     return dtoValues
   }
 
+  getImageGenerationSupport(providerId: string, modelId: string, catalogOnly = false) {
+    if (catalogOnly)
+      return (
+        providerRegistryService.getImagePresetSupport(modelId) ??
+        providerRegistryService.getImageGenerationSupport(providerId, modelId)
+      )
+    try {
+      const model = this.getByKey(providerId, modelId)
+      if (model.imageGeneration) return model.imageGeneration
+    } catch (error) {
+      if (!isDataApiError(error) || error.code !== ErrorCode.NOT_FOUND) throw error
+    }
+    return providerRegistryService.getImageGenerationSupport(providerId, modelId)
+  }
+
+  private validateImageConfigTx(
+    tx: Pick<DbType, 'select'>,
+    providerId: string,
+    modelId: string,
+    config: ImageGenerationConfig
+  ): void {
+    const context = providerService.getReasoningContextsByProviderIdsTx(tx, [providerId]).get(providerId)
+    if (!context) throw DataApiErrorFactory.invalidOperation('save image parameters', 'Provider unavailable')
+    const resolved = providerRegistryService.resolveModel(
+      config.preset === 'catalog' ? context : { id: '' },
+      config.preset === 'catalog' ? modelId : imagePresetSupportId(config.preset)
+    )
+    const base = resolved.registryOverride?.imageGeneration ?? resolved.presetModel?.imageGeneration
+    try {
+      applyImageGenerationConfig(base, config)
+    } catch (error) {
+      throw DataApiErrorFactory.invalidOperation(
+        'save image parameters',
+        error instanceof Error ? error.message : String(error)
+      )
+    }
+  }
+
   private buildUpdatesTx(
     tx: Pick<DbType, 'select'>,
     existing: UserModelRow,
     dto: UpdateModelDto
   ): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
+    if (dto.imageGenerationConfig)
+      this.validateImageConfigTx(tx, existing.providerId, existing.modelId, dto.imageGenerationConfig)
     const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
       .map(dtoKeyToDbKey)
       .some(isPresetDeltaField)
@@ -713,117 +760,137 @@ class ModelService {
       tx,
       rows.map((row) => row.providerId)
     )
-    return rows.flatMap((row) => {
-      const providerContext = providerContexts.get(row.providerId)
-      if (!providerContext) return []
-      if (row.presetModelId) {
-        try {
-          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-            providerRegistryService.resolveModel(providerContext, row.modelId)
-          if (!presetModel) {
-            return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
-          }
+    const configs = new Map(rows.map((row) => [row.id, row.imageGenerationConfig]))
+    return rows
+      .flatMap((row) => {
+        const providerContext = providerContexts.get(row.providerId)
+        if (!providerContext) return []
+        if (row.presetModelId) {
+          try {
+            const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+              providerRegistryService.resolveModel(providerContext, row.modelId)
+            if (!presetModel) {
+              return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
+            }
 
-          const baseline = mergePresetModel(
-            presetModel,
-            registryOverride,
-            row.providerId,
-            reasoningProfile.wire,
-            reasoningProfile.support,
-            serviceTierControl
-          )
-          const resolved = applyStoredPresetDeltas(baseline, row)
-          const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
-          return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
-        } catch (error) {
-          logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
-            providerId: row.providerId,
-            modelId: row.modelId,
-            error
-          })
-          return createPresetFallback(row)
-        }
-      }
-
-      const model = customRowToRuntimeModel(row)
-      const modelId = model.apiModelId
-      if (!modelId) return model
-      try {
-        const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-          providerRegistryService.resolveModel(providerContext, modelId)
-        const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
-        const registryModel = presetModel
-          ? mergePresetModel(
+            const baseline = mergePresetModel(
               presetModel,
               registryOverride,
-              model.providerId,
+              row.providerId,
               reasoningProfile.wire,
               reasoningProfile.support,
               serviceTierControl
             )
-          : undefined
-
-        const updates: Partial<Model> = {}
-        if (imageGeneration) updates.imageGeneration = imageGeneration
-        if (model.description === undefined && registryModel?.description !== undefined) {
-          updates.description = registryModel.description
-        }
-        const hasExplicitInputModalities =
-          row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
-        if (!hasExplicitInputModalities && registryModel?.inputModalities !== undefined) {
-          updates.inputModalities = registryModel.inputModalities
-        }
-        if (model.outputModalities === undefined && registryModel?.outputModalities !== undefined) {
-          updates.outputModalities = registryModel.outputModalities
-        }
-        if (model.contextWindow === undefined && registryModel?.contextWindow !== undefined) {
-          updates.contextWindow = registryModel.contextWindow
-        }
-        if (model.maxInputTokens === undefined && registryModel?.maxInputTokens !== undefined) {
-          updates.maxInputTokens = registryModel.maxInputTokens
-        }
-        if (model.maxOutputTokens === undefined && registryModel?.maxOutputTokens !== undefined) {
-          updates.maxOutputTokens = registryModel.maxOutputTokens
-        }
-        if (model.parameterSupport === undefined && registryModel?.parameterSupport !== undefined) {
-          updates.parameterSupport = registryModel.parameterSupport
-        }
-        if (model.pricing === undefined && registryModel?.pricing !== undefined) {
-          updates.pricing = registryModel.pricing
-        }
-        if (registryOverride?.supportsFastMode) updates.supportsFastMode = true
-        if (serviceTierControl) {
-          updates.requestControls = {
-            serviceTier: { default: serviceTierControl.default, options: serviceTierControl.options }
+            const resolved = applyStoredPresetDeltas(baseline, row)
+            const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
+            return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
+          } catch (error) {
+            logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
+              providerId: row.providerId,
+              modelId: row.modelId,
+              error
+            })
+            return createPresetFallback(row)
           }
         }
-        const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
-        if (ownedBy) updates.ownedBy = ownedBy
-        let reasoning: RuntimeReasoning | undefined
-        if (registryModel) {
-          reasoning = registryModel.reasoning
-        } else if (model.reasoning?.controls?.length) {
-          reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
-        } else {
-          reasoning = inferCustomModelReasoning(modelId, reasoningProfile.wire, {
-            declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
+
+        const model = customRowToRuntimeModel(row)
+        const modelId = model.apiModelId
+        if (!modelId) return model
+        try {
+          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+            providerRegistryService.resolveModel(providerContext, modelId)
+          const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
+          const registryModel = presetModel
+            ? mergePresetModel(
+                presetModel,
+                registryOverride,
+                model.providerId,
+                reasoningProfile.wire,
+                reasoningProfile.support,
+                serviceTierControl
+              )
+            : undefined
+
+          const updates: Partial<Model> = {}
+          if (imageGeneration) updates.imageGeneration = imageGeneration
+          if (model.description === undefined && registryModel?.description !== undefined) {
+            updates.description = registryModel.description
+          }
+          const hasExplicitInputModalities =
+            row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
+          if (!hasExplicitInputModalities && registryModel?.inputModalities !== undefined) {
+            updates.inputModalities = registryModel.inputModalities
+          }
+          if (model.outputModalities === undefined && registryModel?.outputModalities !== undefined) {
+            updates.outputModalities = registryModel.outputModalities
+          }
+          if (model.contextWindow === undefined && registryModel?.contextWindow !== undefined) {
+            updates.contextWindow = registryModel.contextWindow
+          }
+          if (model.maxInputTokens === undefined && registryModel?.maxInputTokens !== undefined) {
+            updates.maxInputTokens = registryModel.maxInputTokens
+          }
+          if (model.maxOutputTokens === undefined && registryModel?.maxOutputTokens !== undefined) {
+            updates.maxOutputTokens = registryModel.maxOutputTokens
+          }
+          if (model.parameterSupport === undefined && registryModel?.parameterSupport !== undefined) {
+            updates.parameterSupport = registryModel.parameterSupport
+          }
+          if (model.pricing === undefined && registryModel?.pricing !== undefined) {
+            updates.pricing = registryModel.pricing
+          }
+          if (registryOverride?.supportsFastMode) updates.supportsFastMode = true
+          if (serviceTierControl) {
+            updates.requestControls = {
+              serviceTier: { default: serviceTierControl.default, options: serviceTierControl.options }
+            }
+          }
+          const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
+          if (ownedBy) updates.ownedBy = ownedBy
+          let reasoning: RuntimeReasoning | undefined
+          if (registryModel) {
+            reasoning = registryModel.reasoning
+          } else if (model.reasoning?.controls?.length) {
+            reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
+          } else {
+            reasoning = inferCustomModelReasoning(modelId, reasoningProfile.wire, {
+              declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
+            })
+          }
+          if (reasoning) updates.reasoning = reasoning
+          else if (model.reasoning) updates.reasoning = undefined
+          return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
+        } catch (error) {
+          // A registry-lookup failure must not silently strip a model's
+          // imageGeneration / capabilities — log so a real registry/IO fault
+          // is diagnosable rather than masquerading as "model isn't image-gen".
+          logger.warn('Registry enrichment failed; serving model without registry metadata', {
+            providerId: model.providerId,
+            modelId,
+            error
           })
+          return model
         }
-        if (reasoning) updates.reasoning = reasoning
-        else if (model.reasoning) updates.reasoning = undefined
-        return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
-      } catch (error) {
-        // A registry-lookup failure must not silently strip a model's
-        // imageGeneration / capabilities — log so a real registry/IO fault
-        // is diagnosable rather than masquerading as "model isn't image-gen".
-        logger.warn('Registry enrichment failed; serving model without registry metadata', {
-          providerId: model.providerId,
-          modelId,
-          error
-        })
-        return model
-      }
-    })
+      })
+      .map((model) => {
+        const config = configs.get(model.id)
+        if (!config) return model
+        const base =
+          config.preset === 'catalog'
+            ? model.imageGeneration
+            : providerRegistryService.resolveModel({ id: '' }, imagePresetSupportId(config.preset)).presetModel
+                ?.imageGeneration
+        try {
+          return { ...model, imageGenerationConfig: config, imageGeneration: applyImageGenerationConfig(base, config) }
+        } catch (error) {
+          return {
+            ...model,
+            imageGenerationConfig: config,
+            imageGenerationConfigError: error instanceof Error ? error.message : String(error)
+          }
+        }
+      })
   }
 
   /**
@@ -934,6 +1001,9 @@ class ModelService {
     }
 
     const db = application.get('DbService').getDb()
+    for (const { dto } of items)
+      if (dto.imageGenerationConfig)
+        this.validateImageConfigTx(db, dto.providerId, dto.modelId, dto.imageGenerationConfig)
     const values = items.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
 
     const rows = withSqliteErrors(

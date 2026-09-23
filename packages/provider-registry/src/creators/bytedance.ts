@@ -1,3 +1,4 @@
+import { seedreamImageSupport } from './imageCanvases'
 import { defineCreator } from './types'
 
 export default defineCreator({
@@ -328,7 +329,7 @@ export default defineCreator({
       capabilities: ['image-generation'],
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
-      imageGeneration: {
+      imageGeneration: seedreamImageSupport({
         modes: {
           generate: {
             maxInputImages: 10,
@@ -350,7 +351,7 @@ export default defineCreator({
             }
           }
         }
-      }
+      })
     },
     {
       id: 'doubao-seedream-5-0-lite',
@@ -358,7 +359,7 @@ export default defineCreator({
       capabilities: ['image-generation'],
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
-      imageGeneration: {
+      imageGeneration: seedreamImageSupport({
         modes: {
           generate: {
             maxInputImages: 14,
@@ -391,7 +392,7 @@ export default defineCreator({
             }
           }
         }
-      }
+      })
     },
     {
       id: 'doubao-seedream-4-5',
@@ -399,7 +400,7 @@ export default defineCreator({
       capabilities: ['image-generation'],
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
-      imageGeneration: {
+      imageGeneration: seedreamImageSupport({
         modes: {
           generate: {
             maxInputImages: 14,
@@ -427,7 +428,7 @@ export default defineCreator({
             }
           }
         }
-      }
+      })
     },
     {
       id: 'doubao-seedream-4-0',
@@ -435,7 +436,7 @@ export default defineCreator({
       capabilities: ['image-generation'],
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
-      imageGeneration: {
+      imageGeneration: seedreamImageSupport({
         modes: {
           generate: {
             maxInputImages: 14,
@@ -463,7 +464,7 @@ export default defineCreator({
             }
           }
         }
-      }
+      })
     },
     // Seedream 3.0 (text-to-image) and SeedEdit 3.0 (image editing) — older image line; params fall
     // back to the provider painting form (no bespoke imageGeneration block).

@@ -6430,11 +6430,162 @@
       "id": "doubao-seedream-4-0",
       "imageGeneration": {
         "modes": {
-          "generate": {
+          "edit": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2560x1440"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1440x2560"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2304x1728"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1728x2304"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2496x1664"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1664x2496"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              }
+            ],
             "maxInputImages": 14,
             "supports": {
               "addWatermark": {
                 "type": "switch"
+              },
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "maxImages": {
+                "default": 15,
+                "max": 15,
+                "min": 1,
+                "type": "range"
+              },
+              "sequentialImageGeneration": {
+                "default": "disabled",
+                "options": ["disabled", "auto"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2560x1440"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1440x2560"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2304x1728"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1728x2304"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2496x1664"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1664x2496"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              }
+            ],
+            "maxInputImages": 14,
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
+                "render": "chips",
+                "type": "enum"
               },
               "imageResolution": {
                 "default": "2K",
@@ -6468,11 +6619,152 @@
       "id": "doubao-seedream-4-5",
       "imageGeneration": {
         "modes": {
-          "generate": {
+          "edit": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2560x1440"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1440x2560"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2304x1728"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1728x2304"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2496x1664"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1664x2496"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              }
+            ],
             "maxInputImages": 14,
             "supports": {
               "addWatermark": {
                 "type": "switch"
+              },
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "maxImages": {
+                "default": 15,
+                "max": 15,
+                "min": 1,
+                "type": "range"
+              },
+              "sequentialImageGeneration": {
+                "default": "disabled",
+                "options": ["disabled", "auto"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2560x1440"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1440x2560"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2304x1728"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1728x2304"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2496x1664"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1664x2496"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              }
+            ],
+            "maxInputImages": 14,
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
+                "render": "chips",
+                "type": "enum"
               },
               "imageResolution": {
                 "default": "2K",
@@ -6506,11 +6798,167 @@
       "id": "doubao-seedream-5-0-lite",
       "imageGeneration": {
         "modes": {
-          "generate": {
+          "edit": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2560x1440"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1440x2560"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2304x1728"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1728x2304"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2496x1664"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1664x2496"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "3K",
+                "size": "3072x3072"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              }
+            ],
             "maxInputImages": 14,
             "supports": {
               "addWatermark": {
                 "type": "switch"
+              },
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["2K", "3K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "maxImages": {
+                "default": 15,
+                "max": 15,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "jpeg",
+                "options": ["jpeg", "png"],
+                "type": "enum"
+              },
+              "sequentialImageGeneration": {
+                "default": "disabled",
+                "options": ["disabled", "auto"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2560x1440"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1440x2560"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2304x1728"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1728x2304"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2496x1664"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1664x2496"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "3K",
+                "size": "3072x3072"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              }
+            ],
+            "maxInputImages": 14,
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
+                "render": "chips",
+                "type": "enum"
               },
               "imageResolution": {
                 "default": "2K",
@@ -6549,11 +6997,126 @@
       "id": "doubao-seedream-5-0-pro",
       "imageGeneration": {
         "modes": {
-          "generate": {
+          "edit": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2560x1440"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1440x2560"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2304x1728"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1728x2304"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2496x1664"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1664x2496"
+              }
+            ],
             "maxInputImages": 10,
             "supports": {
               "addWatermark": {
                 "type": "switch"
+              },
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "outputFormat": {
+                "default": "jpeg",
+                "options": ["jpeg", "png"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2560x1440"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1440x2560"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2304x1728"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1728x2304"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2496x1664"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1664x2496"
+              }
+            ],
+            "maxInputImages": 10,
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
+                "render": "chips",
+                "type": "enum"
               },
               "imageResolution": {
                 "default": "2K",
@@ -8522,7 +9085,463 @@
       "id": "gemini-3-1-flash-image",
       "imageGeneration": {
         "modes": {
+          "edit": {
+            "expectedSizes": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "848x1264"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1264x848"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "896x1200"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1200x896"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "928x1152"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1152x928"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "768x1376"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1376x768"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1584x672"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "1K",
+                "size": "512x2048"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "1K",
+                "size": "2048x512"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "1K",
+                "size": "384x3072"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "1K",
+                "size": "3072x384"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1696x2528"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2528x1696"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1792x2400"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2400x1792"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1856x2304"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2304x1856"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1536x2752"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2752x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "3168x1344"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "2K",
+                "size": "1024x4096"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "2K",
+                "size": "4096x1024"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "2K",
+                "size": "768x6144"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "2K",
+                "size": "6144x768"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "3392x5056"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "5056x3392"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "3584x4800"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "4800x3584"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "3712x4608"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "4608x3712"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "3072x5504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "5504x3072"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "6336x2688"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "4K",
+                "size": "2048x8192"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "4K",
+                "size": "8192x2048"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "4K",
+                "size": "1536x12288"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "4K",
+                "size": "12288x1536"
+              }
+            ],
+            "supports": {
+              "aspectRatio": {
+                "default": "auto",
+                "options": [
+                  "auto",
+                  "ASPECT_1_1",
+                  "ASPECT_1_4",
+                  "ASPECT_1_8",
+                  "ASPECT_2_3",
+                  "ASPECT_3_2",
+                  "ASPECT_3_4",
+                  "ASPECT_4_1",
+                  "ASPECT_4_3",
+                  "ASPECT_4_5",
+                  "ASPECT_5_4",
+                  "ASPECT_8_1",
+                  "ASPECT_9_16",
+                  "ASPECT_16_9",
+                  "ASPECT_21_9"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "auto",
+                "options": ["auto", "1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
           "generate": {
+            "expectedSizes": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "848x1264"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1264x848"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "896x1200"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1200x896"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "928x1152"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1152x928"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "768x1376"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1376x768"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1584x672"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "1K",
+                "size": "512x2048"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "1K",
+                "size": "2048x512"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "1K",
+                "size": "384x3072"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "1K",
+                "size": "3072x384"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1696x2528"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2528x1696"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1792x2400"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2400x1792"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1856x2304"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2304x1856"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1536x2752"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2752x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "3168x1344"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "2K",
+                "size": "1024x4096"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "2K",
+                "size": "4096x1024"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "2K",
+                "size": "768x6144"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "2K",
+                "size": "6144x768"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "3392x5056"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "5056x3392"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "3584x4800"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "4800x3584"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "3712x4608"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "4608x3712"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "3072x5504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "5504x3072"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "6336x2688"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "4K",
+                "size": "2048x8192"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "4K",
+                "size": "8192x2048"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "4K",
+                "size": "1536x12288"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "4K",
+                "size": "12288x1536"
+              }
+            ],
             "supports": {
               "aspectRatio": {
                 "default": "auto",
@@ -8603,7 +9622,445 @@
       "id": "gemini-3-1-flash-image-preview",
       "imageGeneration": {
         "modes": {
+          "edit": {
+            "expectedSizes": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "848x1264"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1264x848"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "896x1200"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1200x896"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "928x1152"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1152x928"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "768x1376"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1376x768"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1584x672"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "1K",
+                "size": "512x2048"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "1K",
+                "size": "2048x512"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "1K",
+                "size": "384x3072"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "1K",
+                "size": "3072x384"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1696x2528"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2528x1696"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1792x2400"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2400x1792"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1856x2304"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2304x1856"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1536x2752"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2752x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "3168x1344"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "2K",
+                "size": "1024x4096"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "2K",
+                "size": "4096x1024"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "2K",
+                "size": "768x6144"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "2K",
+                "size": "6144x768"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "3392x5056"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "5056x3392"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "3584x4800"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "4800x3584"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "3712x4608"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "4608x3712"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "3072x5504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "5504x3072"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "6336x2688"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "4K",
+                "size": "2048x8192"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "4K",
+                "size": "8192x2048"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "4K",
+                "size": "1536x12288"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "4K",
+                "size": "12288x1536"
+              }
+            ],
+            "supports": {
+              "aspectRatio": {
+                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
           "generate": {
+            "expectedSizes": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "848x1264"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1264x848"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "896x1200"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1200x896"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "928x1152"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1152x928"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "768x1376"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1376x768"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1584x672"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "1K",
+                "size": "512x2048"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "1K",
+                "size": "2048x512"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "1K",
+                "size": "384x3072"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "1K",
+                "size": "3072x384"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1696x2528"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2528x1696"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1792x2400"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2400x1792"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1856x2304"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2304x1856"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1536x2752"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2752x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "3168x1344"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "2K",
+                "size": "1024x4096"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "2K",
+                "size": "4096x1024"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "2K",
+                "size": "768x6144"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "2K",
+                "size": "6144x768"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "3392x5056"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "5056x3392"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "3584x4800"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "4800x3584"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "3712x4608"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "4608x3712"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "3072x5504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "5504x3072"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "6336x2688"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "4K",
+                "size": "2048x8192"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "4K",
+                "size": "8192x2048"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "4K",
+                "size": "1536x12288"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "4K",
+                "size": "12288x1536"
+              }
+            ],
             "supports": {
               "aspectRatio": {
                 "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
@@ -9439,7 +10896,445 @@
       "id": "gemini-3-pro-image",
       "imageGeneration": {
         "modes": {
+          "edit": {
+            "expectedSizes": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "848x1264"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1264x848"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "896x1200"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1200x896"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "928x1152"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1152x928"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "768x1376"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1376x768"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1584x672"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "1K",
+                "size": "512x2048"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "1K",
+                "size": "2048x512"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "1K",
+                "size": "384x3072"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "1K",
+                "size": "3072x384"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1696x2528"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2528x1696"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1792x2400"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2400x1792"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1856x2304"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2304x1856"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1536x2752"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2752x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "3168x1344"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "2K",
+                "size": "1024x4096"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "2K",
+                "size": "4096x1024"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "2K",
+                "size": "768x6144"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "2K",
+                "size": "6144x768"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "3392x5056"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "5056x3392"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "3584x4800"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "4800x3584"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "3712x4608"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "4608x3712"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "3072x5504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "5504x3072"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "6336x2688"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "4K",
+                "size": "2048x8192"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "4K",
+                "size": "8192x2048"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "4K",
+                "size": "1536x12288"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "4K",
+                "size": "12288x1536"
+              }
+            ],
+            "supports": {
+              "aspectRatio": {
+                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
           "generate": {
+            "expectedSizes": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "848x1264"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1264x848"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "896x1200"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1200x896"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "928x1152"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1152x928"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "768x1376"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1376x768"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1584x672"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "1K",
+                "size": "512x2048"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "1K",
+                "size": "2048x512"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "1K",
+                "size": "384x3072"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "1K",
+                "size": "3072x384"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1696x2528"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2528x1696"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1792x2400"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2400x1792"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1856x2304"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2304x1856"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1536x2752"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2752x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "3168x1344"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "2K",
+                "size": "1024x4096"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "2K",
+                "size": "4096x1024"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "2K",
+                "size": "768x6144"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "2K",
+                "size": "6144x768"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "3392x5056"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "5056x3392"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "3584x4800"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "4800x3584"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "3712x4608"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "4608x3712"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "3072x5504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "5504x3072"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "6336x2688"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "4K",
+                "size": "2048x8192"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "4K",
+                "size": "8192x2048"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "4K",
+                "size": "1536x12288"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "4K",
+                "size": "12288x1536"
+              }
+            ],
             "supports": {
               "aspectRatio": {
                 "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
@@ -9502,7 +11397,445 @@
       "id": "gemini-3-pro-image-preview",
       "imageGeneration": {
         "modes": {
+          "edit": {
+            "expectedSizes": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "848x1264"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1264x848"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "896x1200"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1200x896"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "928x1152"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1152x928"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "768x1376"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1376x768"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1584x672"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "1K",
+                "size": "512x2048"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "1K",
+                "size": "2048x512"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "1K",
+                "size": "384x3072"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "1K",
+                "size": "3072x384"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1696x2528"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2528x1696"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1792x2400"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2400x1792"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1856x2304"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2304x1856"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1536x2752"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2752x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "3168x1344"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "2K",
+                "size": "1024x4096"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "2K",
+                "size": "4096x1024"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "2K",
+                "size": "768x6144"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "2K",
+                "size": "6144x768"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "3392x5056"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "5056x3392"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "3584x4800"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "4800x3584"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "3712x4608"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "4608x3712"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "3072x5504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "5504x3072"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "6336x2688"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "4K",
+                "size": "2048x8192"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "4K",
+                "size": "8192x2048"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "4K",
+                "size": "1536x12288"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "4K",
+                "size": "12288x1536"
+              }
+            ],
+            "supports": {
+              "aspectRatio": {
+                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
           "generate": {
+            "expectedSizes": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "848x1264"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1264x848"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "896x1200"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1200x896"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "928x1152"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1152x928"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "768x1376"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1376x768"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1584x672"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "1K",
+                "size": "512x2048"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "1K",
+                "size": "2048x512"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "1K",
+                "size": "384x3072"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "1K",
+                "size": "3072x384"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1696x2528"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2528x1696"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1792x2400"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2400x1792"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1856x2304"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2304x1856"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1536x2752"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2752x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "3168x1344"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "2K",
+                "size": "1024x4096"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "2K",
+                "size": "4096x1024"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "2K",
+                "size": "768x6144"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "2K",
+                "size": "6144x768"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "4096x4096"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "3392x5056"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "5056x3392"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "3584x4800"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "4800x3584"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "3712x4608"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "4608x3712"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "3072x5504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "5504x3072"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "6336x2688"
+              },
+              {
+                "aspectRatio": "1:4",
+                "resolution": "4K",
+                "size": "2048x8192"
+              },
+              {
+                "aspectRatio": "4:1",
+                "resolution": "4K",
+                "size": "8192x2048"
+              },
+              {
+                "aspectRatio": "1:8",
+                "resolution": "4K",
+                "size": "1536x12288"
+              },
+              {
+                "aspectRatio": "8:1",
+                "resolution": "4K",
+                "size": "12288x1536"
+              }
+            ],
             "supports": {
               "aspectRatio": {
                 "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
@@ -17503,10 +19836,267 @@
       "id": "gpt-image-2",
       "imageGeneration": {
         "modes": {
-          "generate": {
+          "edit": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1536x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "1024x1536"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1536x864"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "864x1536"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1024x768"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "768x1024"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "896x1120"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1120x896"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "1K",
+                "size": "1536x768"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "1K",
+                "size": "768x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1792x768"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "1K",
+                "size": "768x1792"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "1K",
+                "size": "1536x512"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "1K",
+                "size": "512x1536"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2016x1344"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1344x2016"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2048x1152"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1152x2048"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2048x1536"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1536x2048"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1600x2000"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2000x1600"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "2K",
+                "size": "2048x1024"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "2K",
+                "size": "1024x2048"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "2352x1008"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "2K",
+                "size": "1008x2352"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "2K",
+                "size": "2016x672"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "2K",
+                "size": "672x2016"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "2880x2880"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "3504x2336"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "2336x3504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "3264x2448"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "2448x3264"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "2560x3200"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "3200x2560"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "4K",
+                "size": "3840x1920"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "4K",
+                "size": "1920x3840"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "3808x1632"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "4K",
+                "size": "1632x3808"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "4K",
+                "size": "3840x1280"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "4K",
+                "size": "1280x3840"
+              }
+            ],
+            "maxInputImages": 16,
             "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": [
+                  "1:1",
+                  "16:9",
+                  "9:16",
+                  "4:3",
+                  "3:4",
+                  "3:2",
+                  "2:3",
+                  "4:5",
+                  "5:4",
+                  "2:1",
+                  "1:2",
+                  "21:9",
+                  "9:21",
+                  "3:1",
+                  "1:3"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
               "background": {
-                "options": ["auto", "opaque"],
+                "default": "auto",
+                "options": ["auto", "opaque", "transparent"],
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
                 "type": "enum"
               },
               "numImages": {
@@ -17515,14 +20105,414 @@
                 "min": 1,
                 "type": "range"
               },
+              "outputCompression": {
+                "default": 100,
+                "max": 100,
+                "min": 0,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "png",
+                "options": ["png", "jpeg", "webp"],
+                "type": "enum"
+              },
               "quality": {
+                "default": "auto",
                 "options": ["auto", "low", "medium", "high"],
                 "type": "enum"
               },
               "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1024x768",
+                  "768x1024",
+                  "896x1120",
+                  "1120x896",
+                  "1536x768",
+                  "768x1536",
+                  "1792x768",
+                  "768x1792",
+                  "1536x512",
+                  "512x1536",
+                  "2048x2048",
+                  "2016x1344",
+                  "1344x2016",
+                  "2048x1152",
+                  "1152x2048",
+                  "2048x1536",
+                  "1536x2048",
+                  "1600x2000",
+                  "2000x1600",
+                  "2048x1024",
+                  "1024x2048",
+                  "2352x1008",
+                  "1008x2352",
+                  "2016x672",
+                  "672x2016",
+                  "2880x2880",
+                  "3504x2336",
+                  "2336x3504",
+                  "3840x2160",
+                  "2160x3840",
+                  "3264x2448",
+                  "2448x3264",
+                  "2560x3200",
+                  "3200x2560",
+                  "3840x1920",
+                  "1920x3840",
+                  "3808x1632",
+                  "1632x3808",
+                  "3840x1280",
+                  "1280x3840"
+                ],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1536x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "1024x1536"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1536x864"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "864x1536"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1024x768"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "768x1024"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "896x1120"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1120x896"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "1K",
+                "size": "1536x768"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "1K",
+                "size": "768x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1792x768"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "1K",
+                "size": "768x1792"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "1K",
+                "size": "1536x512"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "1K",
+                "size": "512x1536"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2016x1344"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1344x2016"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2048x1152"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1152x2048"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2048x1536"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1536x2048"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1600x2000"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2000x1600"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "2K",
+                "size": "2048x1024"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "2K",
+                "size": "1024x2048"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "2352x1008"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "2K",
+                "size": "1008x2352"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "2K",
+                "size": "2016x672"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "2K",
+                "size": "672x2016"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "2880x2880"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "3504x2336"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "2336x3504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "3264x2448"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "2448x3264"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "2560x3200"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "3200x2560"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "4K",
+                "size": "3840x1920"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "4K",
+                "size": "1920x3840"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "3808x1632"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "4K",
+                "size": "1632x3808"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "4K",
+                "size": "3840x1280"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "4K",
+                "size": "1280x3840"
+              }
+            ],
+            "maxInputImages": 16,
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": [
+                  "1:1",
+                  "16:9",
+                  "9:16",
+                  "4:3",
+                  "3:4",
+                  "3:2",
+                  "2:3",
+                  "4:5",
+                  "5:4",
+                  "2:1",
+                  "1:2",
+                  "21:9",
+                  "9:21",
+                  "3:1",
+                  "1:3"
+                ],
                 "render": "chips",
+                "type": "enum"
+              },
+              "background": {
+                "default": "auto",
+                "options": ["auto", "opaque", "transparent"],
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "moderation": {
+                "default": "auto",
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "outputCompression": {
+                "default": 100,
+                "max": 100,
+                "min": 0,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "png",
+                "options": ["png", "jpeg", "webp"],
+                "type": "enum"
+              },
+              "quality": {
+                "default": "auto",
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1024x768",
+                  "768x1024",
+                  "896x1120",
+                  "1120x896",
+                  "1536x768",
+                  "768x1536",
+                  "1792x768",
+                  "768x1792",
+                  "1536x512",
+                  "512x1536",
+                  "2048x2048",
+                  "2016x1344",
+                  "1344x2016",
+                  "2048x1152",
+                  "1152x2048",
+                  "2048x1536",
+                  "1536x2048",
+                  "1600x2000",
+                  "2000x1600",
+                  "2048x1024",
+                  "1024x2048",
+                  "2352x1008",
+                  "1008x2352",
+                  "2016x672",
+                  "672x2016",
+                  "2880x2880",
+                  "3504x2336",
+                  "2336x3504",
+                  "3840x2160",
+                  "2160x3840",
+                  "3264x2448",
+                  "2448x3264",
+                  "2560x3200",
+                  "3200x2560",
+                  "3840x1920",
+                  "1920x3840",
+                  "3808x1632",
+                  "1632x3808",
+                  "3840x1280",
+                  "1280x3840"
+                ],
                 "type": "enum"
               }
             }
@@ -17550,12 +20540,697 @@
       }
     },
     {
-      "capabilities": ["image-recognition", "image-generation"],
+      "capabilities": ["image-recognition", "image-generation", "file-input"],
       "family": "gpt-image",
       "id": "gpt-image-2-5-flare",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1536x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "1024x1536"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1536x864"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "864x1536"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1024x768"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "768x1024"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "896x1120"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1120x896"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "1K",
+                "size": "1536x768"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "1K",
+                "size": "768x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1792x768"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "1K",
+                "size": "768x1792"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "1K",
+                "size": "1536x512"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "1K",
+                "size": "512x1536"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2016x1344"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1344x2016"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2048x1152"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1152x2048"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2048x1536"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1536x2048"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1600x2000"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2000x1600"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "2K",
+                "size": "2048x1024"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "2K",
+                "size": "1024x2048"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "2352x1008"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "2K",
+                "size": "1008x2352"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "2K",
+                "size": "2016x672"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "2K",
+                "size": "672x2016"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "2880x2880"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "3504x2336"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "2336x3504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "3264x2448"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "2448x3264"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "2560x3200"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "3200x2560"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "4K",
+                "size": "3840x1920"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "4K",
+                "size": "1920x3840"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "3808x1632"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "4K",
+                "size": "1632x3808"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "4K",
+                "size": "3840x1280"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "4K",
+                "size": "1280x3840"
+              }
+            ],
+            "maxInputImages": 16,
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": [
+                  "1:1",
+                  "16:9",
+                  "9:16",
+                  "4:3",
+                  "3:4",
+                  "3:2",
+                  "2:3",
+                  "4:5",
+                  "5:4",
+                  "2:1",
+                  "1:2",
+                  "21:9",
+                  "9:21",
+                  "3:1",
+                  "1:3"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "background": {
+                "default": "auto",
+                "options": ["auto", "opaque", "transparent"],
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "outputCompression": {
+                "default": 100,
+                "max": 100,
+                "min": 0,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "png",
+                "options": ["png", "jpeg", "webp"],
+                "type": "enum"
+              },
+              "quality": {
+                "default": "auto",
+                "options": ["auto", "low", "medium", "high", "xhigh", "max"],
+                "type": "enum"
+              },
+              "size": {
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1024x768",
+                  "768x1024",
+                  "896x1120",
+                  "1120x896",
+                  "1536x768",
+                  "768x1536",
+                  "1792x768",
+                  "768x1792",
+                  "1536x512",
+                  "512x1536",
+                  "2048x2048",
+                  "2016x1344",
+                  "1344x2016",
+                  "2048x1152",
+                  "1152x2048",
+                  "2048x1536",
+                  "1536x2048",
+                  "1600x2000",
+                  "2000x1600",
+                  "2048x1024",
+                  "1024x2048",
+                  "2352x1008",
+                  "1008x2352",
+                  "2016x672",
+                  "672x2016",
+                  "2880x2880",
+                  "3504x2336",
+                  "2336x3504",
+                  "3840x2160",
+                  "2160x3840",
+                  "3264x2448",
+                  "2448x3264",
+                  "2560x3200",
+                  "3200x2560",
+                  "3840x1920",
+                  "1920x3840",
+                  "3808x1632",
+                  "1632x3808",
+                  "3840x1280",
+                  "1280x3840"
+                ],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1536x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "1024x1536"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1536x864"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "864x1536"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1024x768"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "768x1024"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "896x1120"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1120x896"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "1K",
+                "size": "1536x768"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "1K",
+                "size": "768x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1792x768"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "1K",
+                "size": "768x1792"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "1K",
+                "size": "1536x512"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "1K",
+                "size": "512x1536"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2016x1344"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1344x2016"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2048x1152"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1152x2048"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2048x1536"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1536x2048"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1600x2000"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2000x1600"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "2K",
+                "size": "2048x1024"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "2K",
+                "size": "1024x2048"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "2352x1008"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "2K",
+                "size": "1008x2352"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "2K",
+                "size": "2016x672"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "2K",
+                "size": "672x2016"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "2880x2880"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "3504x2336"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "2336x3504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "3264x2448"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "2448x3264"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "2560x3200"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "3200x2560"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "4K",
+                "size": "3840x1920"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "4K",
+                "size": "1920x3840"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "3808x1632"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "4K",
+                "size": "1632x3808"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "4K",
+                "size": "3840x1280"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "4K",
+                "size": "1280x3840"
+              }
+            ],
+            "maxInputImages": 16,
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": [
+                  "1:1",
+                  "16:9",
+                  "9:16",
+                  "4:3",
+                  "3:4",
+                  "3:2",
+                  "2:3",
+                  "4:5",
+                  "5:4",
+                  "2:1",
+                  "1:2",
+                  "21:9",
+                  "9:21",
+                  "3:1",
+                  "1:3"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "background": {
+                "default": "auto",
+                "options": ["auto", "opaque", "transparent"],
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "moderation": {
+                "default": "auto",
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "outputCompression": {
+                "default": 100,
+                "max": 100,
+                "min": 0,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "png",
+                "options": ["png", "jpeg", "webp"],
+                "type": "enum"
+              },
+              "quality": {
+                "default": "auto",
+                "options": ["auto", "low", "medium", "high", "xhigh", "max"],
+                "type": "enum"
+              },
+              "size": {
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1024x768",
+                  "768x1024",
+                  "896x1120",
+                  "1120x896",
+                  "1536x768",
+                  "768x1536",
+                  "1792x768",
+                  "768x1792",
+                  "1536x512",
+                  "512x1536",
+                  "2048x2048",
+                  "2016x1344",
+                  "1344x2016",
+                  "2048x1152",
+                  "1152x2048",
+                  "2048x1536",
+                  "1536x2048",
+                  "1600x2000",
+                  "2000x1600",
+                  "2048x1024",
+                  "1024x2048",
+                  "2352x1008",
+                  "1008x2352",
+                  "2016x672",
+                  "672x2016",
+                  "2880x2880",
+                  "3504x2336",
+                  "2336x3504",
+                  "3840x2160",
+                  "2160x3840",
+                  "3264x2448",
+                  "2448x3264",
+                  "2560x3200",
+                  "3200x2560",
+                  "3840x1920",
+                  "1920x3840",
+                  "3808x1632",
+                  "1632x3808",
+                  "3840x1280",
+                  "1280x3840"
+                ],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "GPT Image 2.5 Flare",
+      "name": "gpt-image-2.5-flare",
       "outputModalities": ["image"],
       "ownedBy": "openai",
       "pricing": {
@@ -17574,12 +21249,697 @@
       }
     },
     {
-      "capabilities": ["image-recognition", "image-generation"],
+      "capabilities": ["image-recognition", "image-generation", "file-input"],
       "family": "gpt-image",
       "id": "gpt-image-2-5-sunburst",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1536x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "1024x1536"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1536x864"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "864x1536"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1024x768"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "768x1024"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "896x1120"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1120x896"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "1K",
+                "size": "1536x768"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "1K",
+                "size": "768x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1792x768"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "1K",
+                "size": "768x1792"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "1K",
+                "size": "1536x512"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "1K",
+                "size": "512x1536"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2016x1344"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1344x2016"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2048x1152"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1152x2048"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2048x1536"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1536x2048"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1600x2000"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2000x1600"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "2K",
+                "size": "2048x1024"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "2K",
+                "size": "1024x2048"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "2352x1008"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "2K",
+                "size": "1008x2352"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "2K",
+                "size": "2016x672"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "2K",
+                "size": "672x2016"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "2880x2880"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "3504x2336"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "2336x3504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "3264x2448"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "2448x3264"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "2560x3200"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "3200x2560"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "4K",
+                "size": "3840x1920"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "4K",
+                "size": "1920x3840"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "3808x1632"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "4K",
+                "size": "1632x3808"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "4K",
+                "size": "3840x1280"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "4K",
+                "size": "1280x3840"
+              }
+            ],
+            "maxInputImages": 16,
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": [
+                  "1:1",
+                  "16:9",
+                  "9:16",
+                  "4:3",
+                  "3:4",
+                  "3:2",
+                  "2:3",
+                  "4:5",
+                  "5:4",
+                  "2:1",
+                  "1:2",
+                  "21:9",
+                  "9:21",
+                  "3:1",
+                  "1:3"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "background": {
+                "default": "auto",
+                "options": ["auto", "opaque", "transparent"],
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "outputCompression": {
+                "default": 100,
+                "max": 100,
+                "min": 0,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "png",
+                "options": ["png", "jpeg", "webp"],
+                "type": "enum"
+              },
+              "quality": {
+                "default": "auto",
+                "options": ["auto", "low", "medium", "high", "xhigh", "max"],
+                "type": "enum"
+              },
+              "size": {
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1024x768",
+                  "768x1024",
+                  "896x1120",
+                  "1120x896",
+                  "1536x768",
+                  "768x1536",
+                  "1792x768",
+                  "768x1792",
+                  "1536x512",
+                  "512x1536",
+                  "2048x2048",
+                  "2016x1344",
+                  "1344x2016",
+                  "2048x1152",
+                  "1152x2048",
+                  "2048x1536",
+                  "1536x2048",
+                  "1600x2000",
+                  "2000x1600",
+                  "2048x1024",
+                  "1024x2048",
+                  "2352x1008",
+                  "1008x2352",
+                  "2016x672",
+                  "672x2016",
+                  "2880x2880",
+                  "3504x2336",
+                  "2336x3504",
+                  "3840x2160",
+                  "2160x3840",
+                  "3264x2448",
+                  "2448x3264",
+                  "2560x3200",
+                  "3200x2560",
+                  "3840x1920",
+                  "1920x3840",
+                  "3808x1632",
+                  "1632x3808",
+                  "3840x1280",
+                  "1280x3840"
+                ],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "canvases": [
+              {
+                "aspectRatio": "1:1",
+                "resolution": "1K",
+                "size": "1024x1024"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "1K",
+                "size": "1536x1024"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "1K",
+                "size": "1024x1536"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "1K",
+                "size": "1536x864"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "1K",
+                "size": "864x1536"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "1K",
+                "size": "1024x768"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "1K",
+                "size": "768x1024"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "1K",
+                "size": "896x1120"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "1K",
+                "size": "1120x896"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "1K",
+                "size": "1536x768"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "1K",
+                "size": "768x1536"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "1K",
+                "size": "1792x768"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "1K",
+                "size": "768x1792"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "1K",
+                "size": "1536x512"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "1K",
+                "size": "512x1536"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "2K",
+                "size": "2048x2048"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "2K",
+                "size": "2016x1344"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "2K",
+                "size": "1344x2016"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "2K",
+                "size": "2048x1152"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "2K",
+                "size": "1152x2048"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "2K",
+                "size": "2048x1536"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "2K",
+                "size": "1536x2048"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "2K",
+                "size": "1600x2000"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "2K",
+                "size": "2000x1600"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "2K",
+                "size": "2048x1024"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "2K",
+                "size": "1024x2048"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "2K",
+                "size": "2352x1008"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "2K",
+                "size": "1008x2352"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "2K",
+                "size": "2016x672"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "2K",
+                "size": "672x2016"
+              },
+              {
+                "aspectRatio": "1:1",
+                "resolution": "4K",
+                "size": "2880x2880"
+              },
+              {
+                "aspectRatio": "3:2",
+                "resolution": "4K",
+                "size": "3504x2336"
+              },
+              {
+                "aspectRatio": "2:3",
+                "resolution": "4K",
+                "size": "2336x3504"
+              },
+              {
+                "aspectRatio": "16:9",
+                "resolution": "4K",
+                "size": "3840x2160"
+              },
+              {
+                "aspectRatio": "9:16",
+                "resolution": "4K",
+                "size": "2160x3840"
+              },
+              {
+                "aspectRatio": "4:3",
+                "resolution": "4K",
+                "size": "3264x2448"
+              },
+              {
+                "aspectRatio": "3:4",
+                "resolution": "4K",
+                "size": "2448x3264"
+              },
+              {
+                "aspectRatio": "4:5",
+                "resolution": "4K",
+                "size": "2560x3200"
+              },
+              {
+                "aspectRatio": "5:4",
+                "resolution": "4K",
+                "size": "3200x2560"
+              },
+              {
+                "aspectRatio": "2:1",
+                "resolution": "4K",
+                "size": "3840x1920"
+              },
+              {
+                "aspectRatio": "1:2",
+                "resolution": "4K",
+                "size": "1920x3840"
+              },
+              {
+                "aspectRatio": "21:9",
+                "resolution": "4K",
+                "size": "3808x1632"
+              },
+              {
+                "aspectRatio": "9:21",
+                "resolution": "4K",
+                "size": "1632x3808"
+              },
+              {
+                "aspectRatio": "3:1",
+                "resolution": "4K",
+                "size": "3840x1280"
+              },
+              {
+                "aspectRatio": "1:3",
+                "resolution": "4K",
+                "size": "1280x3840"
+              }
+            ],
+            "maxInputImages": 16,
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": [
+                  "1:1",
+                  "16:9",
+                  "9:16",
+                  "4:3",
+                  "3:4",
+                  "3:2",
+                  "2:3",
+                  "4:5",
+                  "5:4",
+                  "2:1",
+                  "1:2",
+                  "21:9",
+                  "9:21",
+                  "3:1",
+                  "1:3"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "background": {
+                "default": "auto",
+                "options": ["auto", "opaque", "transparent"],
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "moderation": {
+                "default": "auto",
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "outputCompression": {
+                "default": 100,
+                "max": 100,
+                "min": 0,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "png",
+                "options": ["png", "jpeg", "webp"],
+                "type": "enum"
+              },
+              "quality": {
+                "default": "auto",
+                "options": ["auto", "low", "medium", "high", "xhigh", "max"],
+                "type": "enum"
+              },
+              "size": {
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1024x768",
+                  "768x1024",
+                  "896x1120",
+                  "1120x896",
+                  "1536x768",
+                  "768x1536",
+                  "1792x768",
+                  "768x1792",
+                  "1536x512",
+                  "512x1536",
+                  "2048x2048",
+                  "2016x1344",
+                  "1344x2016",
+                  "2048x1152",
+                  "1152x2048",
+                  "2048x1536",
+                  "1536x2048",
+                  "1600x2000",
+                  "2000x1600",
+                  "2048x1024",
+                  "1024x2048",
+                  "2352x1008",
+                  "1008x2352",
+                  "2016x672",
+                  "672x2016",
+                  "2880x2880",
+                  "3504x2336",
+                  "2336x3504",
+                  "3840x2160",
+                  "2160x3840",
+                  "3264x2448",
+                  "2448x3264",
+                  "2560x3200",
+                  "3200x2560",
+                  "3840x1920",
+                  "1920x3840",
+                  "3808x1632",
+                  "1632x3808",
+                  "3840x1280",
+                  "1280x3840"
+                ],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "GPT Image 2.5 Sunburst",
+      "name": "gpt-image-2.5-sunburst",
       "outputModalities": ["image"],
       "ownedBy": "openai",
       "pricing": {
@@ -20924,10 +25284,103 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["image-recognition", "image-generation", "file-input"],
-      "contextWindow": 64000,
+      "capabilities": ["image-generation", "image-recognition", "file-input"],
       "family": "grok",
       "id": "grok-imagine-image-2-0",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 5,
+            "supports": {
+              "aspectRatio": {
+                "default": "auto",
+                "options": [
+                  "auto",
+                  "1:1",
+                  "16:9",
+                  "9:16",
+                  "4:3",
+                  "3:4",
+                  "3:2",
+                  "2:3",
+                  "2:1",
+                  "1:2",
+                  "21:9",
+                  "19.5:9",
+                  "9:19.5",
+                  "20:9",
+                  "9:20",
+                  "5:2"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "default": "auto",
+                "options": ["auto", "low", "medium"],
+                "type": "enum"
+              },
+              "resolution": {
+                "default": "1k",
+                "options": ["1k", "2k"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "maxInputImages": 5,
+            "supports": {
+              "aspectRatio": {
+                "default": "auto",
+                "options": [
+                  "auto",
+                  "1:1",
+                  "16:9",
+                  "9:16",
+                  "4:3",
+                  "3:4",
+                  "3:2",
+                  "2:3",
+                  "2:1",
+                  "1:2",
+                  "21:9",
+                  "19.5:9",
+                  "9:19.5",
+                  "20:9",
+                  "9:20",
+                  "5:2"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "default": "auto",
+                "options": ["auto", "low", "medium"],
+                "type": "enum"
+              },
+              "resolution": {
+                "default": "1k",
+                "options": ["1k", "2k"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "Grok Imagine Image 2.0",
@@ -22446,5 +26899,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "b266093d9b453039"
+  "version": "7f20a6c5c9f08b72"
 }

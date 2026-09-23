@@ -3,26 +3,46 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 
-const { getImageGenerationSupport, getModelByKey, loggerWarn } = vi.hoisted(() => ({
+const {
+  getImageGenerationSupport,
+  getModelByKey,
+  loggerWarn,
+  searchKeywords,
+  fetchUrls,
+  kbSearch,
+  kbReadConcept,
+  kbGrepConcept,
+  kbGetOrganizationTree,
+  kbAddItems,
+  kbDeleteConcepts,
+  kbRefreshConcepts,
+  listBasesForDiscovery,
+  listRootItems,
+  getPreference,
+  generateImage,
+  fileRead,
+  fileMetadata
+} = vi.hoisted(() => ({
   getImageGenerationSupport: vi.fn(),
   getModelByKey: vi.fn(),
-  loggerWarn: vi.fn()
+  loggerWarn: vi.fn(),
+  searchKeywords: vi.fn(),
+  fetchUrls: vi.fn(),
+  kbSearch: vi.fn(),
+  kbReadConcept: vi.fn(),
+  kbGrepConcept: vi.fn(),
+  kbGetOrganizationTree: vi.fn(),
+  kbAddItems: vi.fn(),
+  kbDeleteConcepts: vi.fn(),
+  kbRefreshConcepts: vi.fn(),
+  listBasesForDiscovery: vi.fn(),
+  listRootItems: vi.fn(),
+  getPreference: vi.fn(),
+  generateImage: vi.fn(),
+  fileRead: vi.fn(),
+  fileMetadata: vi.fn()
 }))
 
-const searchKeywords = vi.fn()
-const fetchUrls = vi.fn()
-const kbSearch = vi.fn()
-const kbReadConcept = vi.fn()
-const kbGrepConcept = vi.fn()
-const kbGetOrganizationTree = vi.fn()
-const kbAddItems = vi.fn()
-const kbDeleteConcepts = vi.fn()
-const kbRefreshConcepts = vi.fn()
-const listBasesForDiscovery = vi.fn()
-const listRootItems = vi.fn()
-const getPreference = vi.fn()
-const generateImage = vi.fn()
-const fileRead = vi.fn()
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: getModelByKey }
 }))
@@ -37,30 +57,27 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'WebSearchService') return { searchKeywords, fetchUrls }
-      if (name === 'KnowledgeService') {
-        return {
-          search: kbSearch,
-          readConcept: kbReadConcept,
-          grepConcept: kbGrepConcept,
-          getOrganizationTree: kbGetOrganizationTree,
-          addItems: kbAddItems,
-          deleteConcepts: kbDeleteConcepts,
-          refreshConcepts: kbRefreshConcepts,
-          listBasesForDiscovery,
-          listRootItems
-        }
-      }
-      if (name === 'PreferenceService') return { get: getPreference }
-      if (name === 'AiService') return { generateImage }
-      if (name === 'FileManager') return { read: fileRead }
-      throw new Error(`unexpected service: ${name}`)
-    }
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const overrides = {
+    WebSearchService: { searchKeywords, fetchUrls },
+    KnowledgeService: {
+      search: kbSearch,
+      readConcept: kbReadConcept,
+      grepConcept: kbGrepConcept,
+      getOrganizationTree: kbGetOrganizationTree,
+      addItems: kbAddItems,
+      deleteConcepts: kbDeleteConcepts,
+      refreshConcepts: kbRefreshConcepts,
+      listBasesForDiscovery,
+      listRootItems
+    },
+    PreferenceService: { get: getPreference },
+    AiService: { generateImage },
+    FileManager: { read: fileRead, getMetadata: fileMetadata }
   }
-}))
+  return mockApplicationFactory(overrides)
+})
 
 const {
   callCherryBuiltinTool: callCherryBuiltinToolRaw,
@@ -132,6 +149,7 @@ describe('cherryBuiltinTools', () => {
     getPreference.mockReset()
     generateImage.mockReset()
     fileRead.mockReset()
+    fileMetadata.mockReset()
     getImageGenerationSupport.mockReset()
     getModelByKey.mockReset()
     getModelByKey.mockReturnValue({})
@@ -625,7 +643,7 @@ describe('cherryBuiltinTools', () => {
     expect(textOf(result)).toContain('Error:')
   })
 
-  it('routes generate_image through AiService, summarizes it, and attaches the image inline', async () => {
+  it('returns saved file references without re-encoding image bytes', async () => {
     getPreference.mockReturnValue('openai::dall-e-3')
     generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'image-1.png' }] })
     fileRead.mockResolvedValue({ content: 'BASE64DATA', mime: 'image/png', version: 1 })
@@ -636,12 +654,14 @@ describe('cherryBuiltinTools', () => {
     expect(generateImage).toHaveBeenCalledWith(
       expect.objectContaining({ uniqueModelId: 'openai::dall-e-3', prompt: 'a cat' })
     )
-    // Model-facing text summary comes first…
-    expect(textOf(result)).toContain('Generated 1 image(s)')
+    expect(JSON.parse(textOf(result))).toEqual({
+      type: 'generated-images',
+      images: [{ id: 'f1', name: 'image-1.png' }]
+    })
     expect(textOf(result)).toContain('image-1.png')
-    // …followed by the base64 image content block the agent renderer shows inline.
-    expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
-    expect(result.content[1]).toEqual({ type: 'image', data: 'BASE64DATA', mimeType: 'image/png' })
+    expect(fileRead).not.toHaveBeenCalled()
+    expect(result.content).toHaveLength(1)
+    expect(result.structuredContent).toEqual(JSON.parse(textOf(result)))
   })
 
   it('advertises provider-accurate generate_image params from the configured model', () => {
@@ -677,7 +697,7 @@ describe('cherryBuiltinTools', () => {
     } satisfies ImageGenerationSupport
     getPreference.mockReturnValue('openai::gpt-image-1')
     getImageGenerationSupport.mockReturnValue(support)
-    fileRead.mockResolvedValue({ content: 'AAAA', mime: 'image/png' })
+    fileMetadata.mockResolvedValue({ kind: 'file', type: 'image', mime: 'image/png' })
     generateImage.mockResolvedValue({ files: [] })
 
     const result = await callCherryBuiltinTool(
@@ -687,26 +707,40 @@ describe('cherryBuiltinTools', () => {
     )
 
     expect(result.isError).toBeFalsy()
-    expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
+    expect(fileRead).not.toHaveBeenCalled()
     expect(generateImage).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: 'edit',
-        inputImages: ['data:image/png;base64,AAAA'],
+        inputFileIds: ['f1'],
         paramValues: { quality: 'high' }
       })
     )
   })
 
-  it('still summarizes generate_image when reading the file back for inline rendering fails', async () => {
+  it('rejects non-image file references before requesting an edit', async () => {
+    getPreference.mockReturnValue('openai::gpt-image-1')
+    getImageGenerationSupport.mockReturnValue({ modes: { edit: { supports: {} } } })
+    fileMetadata.mockResolvedValue({ kind: 'file', type: 'document', mime: 'text/plain' })
+
+    const result = await callCherryBuiltinTool('generate_image', { prompt: 'make it blue', image_ids: ['f1'] }, signal)
+
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('valid generated-image FileEntry ids')
+    expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('does not require a second image read after persistence', async () => {
     getPreference.mockReturnValue('openai::dall-e-3')
     generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'image-1.png' }] })
     fileRead.mockRejectedValue(new Error('file gone'))
 
     const result = await callCherryBuiltinTool('generate_image', { prompt: 'a cat' }, signal)
 
-    // A failed read drops the inline image but must not fail the generation.
     expect(result.isError).toBeFalsy()
-    expect(textOf(result)).toContain('Generated 1 image(s)')
+    expect(JSON.parse(textOf(result))).toEqual({
+      type: 'generated-images',
+      images: [{ id: 'f1', name: 'image-1.png' }]
+    })
     expect(result.content).toHaveLength(1)
   })
 
@@ -715,7 +749,7 @@ describe('cherryBuiltinTools', () => {
 
     const result = await callCherryBuiltinTool('generate_image', { prompt: 'a cat' }, signal)
 
-    expect(result.isError).toBeFalsy()
+    expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('No painting model is configured')
     expect(textOf(result)).toContain('do not retry')
     expect(generateImage).not.toHaveBeenCalled()

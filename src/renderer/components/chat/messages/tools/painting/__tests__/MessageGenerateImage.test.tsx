@@ -1,30 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import type * as SharedFileUtils from '@shared/utils/file'
 
 const { getPhysicalPath } = vi.hoisted(() => ({ getPhysicalPath: vi.fn() }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
-// Partial mock: only `toSafeFileUrl` is stubbed. Replacing the whole barrel
-// breaks any module that pulls a different export from it at import time.
-vi.mock('@shared/utils/file', async (importOriginal) => ({
-  ...(await importOriginal<typeof SharedFileUtils>()),
-  toSafeFileUrl: (path: string) => `file://${path}`
-}))
-vi.mock('@renderer/components/Spinner', () => ({
-  default: ({ text }: { text: React.ReactNode }) => <div data-testid="spinner">{text}</div>
-}))
-vi.mock('../../../blocks/ImageBlock', () => ({
-  default: ({ images, isPending }: { images: string[]; isPending?: boolean }) => (
-    <div data-testid="image-block" data-pending={String(isPending)}>
-      {images.join('|')}
-    </div>
-  )
-}))
+vi.unmock('@cherrystudio/ui')
 
 import { MessageGenerateImageToolTitle } from '../MessageGenerateImage'
 
@@ -63,13 +48,17 @@ describe('MessageGenerateImageToolTitle', () => {
     ;(window as unknown as { api: unknown }).api = { file: { getPhysicalPath } }
   })
 
-  it('renders the generated images resolved to file URLs', async () => {
-    render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: [{ id: 'f1', name: 'a.png' }] })} />)
-    await waitFor(() => expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png'))
-    expect(getPhysicalPath).toHaveBeenCalledWith({ id: 'f1' })
+  it.each(['legacy', 'envelope', 'pi-content'])('renders %s generated results as local images', async (shape) => {
+    const images = [{ id: 'f1', name: 'a.png' }]
+    const envelope = { type: 'generated-images', images }
+    const response =
+      shape === 'legacy' ? images : shape === 'envelope' ? envelope : [{ type: 'text', text: JSON.stringify(envelope) }]
+    render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response })} />)
+    await waitFor(() => expect(screen.getByRole('img')).toHaveAttribute('src', 'file:///data/f1.png'))
   })
 
-  it('groups multiple generated images into one preview sequence', async () => {
+  it('opens any generated image and navigates the entire result group', async () => {
+    const user = userEvent.setup()
     getPhysicalPath.mockImplementation(({ id }: { id: string }) => Promise.resolve(`/data/${id}.png`))
     render(
       <MessageGenerateImageToolTitle
@@ -81,10 +70,14 @@ describe('MessageGenerateImageToolTitle', () => {
         })}
       />
     )
-    await waitFor(() =>
-      expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png|file:///data/f2.png')
-    )
-    expect(screen.getAllByTestId('image-block')).toHaveLength(1)
+    await waitFor(() => expect(screen.getAllByRole('img')).toHaveLength(2))
+    await user.click(screen.getAllByRole('img')[1])
+    const dialog = screen.getByRole('dialog', { name: 'preview.label' })
+    expect(within(dialog).getByRole('presentation', { hidden: true })).toHaveAttribute('src', 'file:///data/f2.png')
+    await user.click(within(dialog).getByRole('button', { name: 'preview.previous' }))
+    expect(within(dialog).getByRole('presentation', { hidden: true })).toHaveAttribute('src', 'file:///data/f1.png')
+    await user.click(within(dialog).getByRole('button', { name: 'preview.next' }))
+    expect(within(dialog).getByRole('presentation', { hidden: true })).toHaveAttribute('src', 'file:///data/f2.png')
   })
 
   it('renders agent MCP image blocks without resolving FileEntry paths', () => {
@@ -100,7 +93,7 @@ describe('MessageGenerateImageToolTitle', () => {
       />
     )
 
-    expect(screen.getByTestId('image-block')).toHaveTextContent('data:image/png;base64,iVBORw0KGgo=')
+    expect(screen.getByRole('img')).toHaveAttribute('src', 'data:image/png;base64,iVBORw0KGgo=')
     expect(getPhysicalPath).not.toHaveBeenCalled()
   })
 
@@ -113,17 +106,18 @@ describe('MessageGenerateImageToolTitle', () => {
 
     expect(screen.getByText('chat.input.tools.generate_image.failed')).toBeInTheDocument()
     expect(screen.queryByText('Image generation failed')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('image-block')).not.toBeInTheDocument()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 
   it('shows localized failure copy (not the English error note) when generation returned an error', () => {
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: { error: 'boom' } })} />)
     expect(screen.getByText('chat.input.tools.generate_image.failed')).toBeInTheDocument()
     expect(screen.queryByText('boom')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('image-block')).not.toBeInTheDocument()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 
-  it('keeps the resolvable images when only some FileEntry paths fail', async () => {
+  it('keeps surviving results and restores an unavailable image on retry', async () => {
+    const user = userEvent.setup()
     getPhysicalPath
       .mockReset()
       .mockImplementation(({ id }: { id: string }) =>
@@ -139,22 +133,25 @@ describe('MessageGenerateImageToolTitle', () => {
         })}
       />
     )
-    // Only the resolvable tile renders; the failed one is dropped, not shown as an overall failure.
-    await waitFor(() => expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png'))
-    expect(screen.getAllByTestId('image-block')).toHaveLength(1)
-    expect(screen.queryByText('chat.input.tools.generate_image.failed')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('img')).toHaveAttribute('src', 'file:///data/f1.png'))
+    expect(screen.getAllByRole('img')).toHaveLength(1)
+    expect(screen.getByText('b.png')).toBeInTheDocument()
+    getPhysicalPath.mockImplementation(({ id }: { id: string }) => Promise.resolve(`/data/${id}.png`))
+    await user.click(screen.getByRole('button', { name: 'common.retry' }))
+    await waitFor(() => expect(screen.getAllByRole('img')).toHaveLength(2))
+    expect(screen.queryByText('file_preview.unavailable.description')).not.toBeInTheDocument()
   })
 
   it('falls back to an error note (not a perpetual spinner) when path resolution fails', async () => {
     getPhysicalPath.mockReset().mockRejectedValue(new Error('file gone'))
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: [{ id: 'f1', name: 'a.png' }] })} />)
-    await waitFor(() => expect(screen.getByText('chat.input.tools.generate_image.failed')).toBeInTheDocument())
-    expect(screen.queryByTestId('image-block')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('file_preview.unavailable.description')).toBeInTheDocument())
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 
   it('renders a spinner while the tool is still running', () => {
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ status: 'pending', response: undefined })} />)
-    expect(screen.getByTestId('spinner')).toHaveTextContent('chat.input.tools.generate_image.generating')
+    expect(screen.getByText('chat.input.tools.generate_image.generating')).toBeInTheDocument()
   })
 
   it('renders the denied outcome and rejection reason instead of a perpetual spinner', () => {
@@ -170,6 +167,6 @@ describe('MessageGenerateImageToolTitle', () => {
 
     expect(screen.getByText('agent.toolPermission.decisionDenied')).toBeInTheDocument()
     expect(screen.getByText('Use the approved image provider instead')).toBeInTheDocument()
-    expect(screen.queryByTestId('spinner')).not.toBeInTheDocument()
+    expect(screen.queryByText('chat.input.tools.generate_image.generating')).not.toBeInTheDocument()
   })
 })

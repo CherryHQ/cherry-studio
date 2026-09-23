@@ -1,9 +1,13 @@
-import { useCallback, useRef, useState } from 'react'
+import { type Dispatch, type SetStateAction, useCallback, useRef, useState } from 'react'
 
+import i18n from '@renderer/i18n/resolver'
 import type { FileEntry } from '@shared/data/types/file'
+import type { Model } from '@shared/data/types/model'
 
+import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
+import { canEditPaintingModel, canGeneratePaintingModel } from '../model/utils/paintingModelOptions'
 import { presentPaintingGenerationGuardFeedback } from '../utils/presentPaintingGenerationGuardFeedback'
 import { usePaintingGeneration } from './usePaintingGeneration'
 import { usePaintingGenerationGuard } from './usePaintingGenerationGuard'
@@ -13,39 +17,11 @@ export type MaterializeInputs = () => Promise<{ entries: FileEntry[]; complete: 
 
 interface UsePaintingGenerationSubmitInput {
   painting: PaintingData
-  onPaintingChange: (painting: PaintingData) => void
+  onPaintingChange: Dispatch<SetStateAction<PaintingData>>
   ensureCurrentCatalog: () => Promise<ModelOption[]>
 }
 
-/**
- * Single owner of the painting generation request: `validate -> materialize ->
- * generate`, plus the re-entrancy guard, cancel, and the state the UI reads.
- *
- * **Materialization is part of the request, not a step before it.** It is injected
- * as a capability rather than passed as data because the draft attachments live in
- * the composer's tool context, below this hook in the tree — so the owner decides
- * *when* inputs are resolved while their holder only supplies *how*. Doing it the
- * other way round (composer materializes, then calls in) put irreversible side
- * effects ahead of a check that could have refused the request for free: a guard
- * failure would strand freshly-created `delete_when_unreferenced` entries that no
- * painting ref ever claims.
- *
- * Two gates, deliberately at different points:
- * - `validateBeforeGenerate` asks whether a request is possible at all
- *   (provider enabled, model present and resolvable). Cheap and side-effect free,
- *   so it runs before anything is created.
- * - the `complete` flag asks whether the request's inputs fully resolved. It can
- *   only be answered after materialization, and aborts before the paid call.
- *
- * State: `submitting` is this hook's own — one user-initiated request in flight.
- * `generating` is *not*; it is derived from `painting.generationStatus` and can be
- * set by a run this component never started (a resumed generation rehydrates it
- * from the cache mirror). Both compose into the guard, and both are forwarded so
- * the UI can disable a send without owning either.
- *
- * `cancel(paintingId)` keeps the original signature so list-side flows
- * (e.g. cancel-before-delete) can target a specific painting.
- */
+/** Validates and prepares each painting independently before starting generation. */
 export function usePaintingGenerationSubmit({
   painting,
   onPaintingChange,
@@ -60,19 +36,27 @@ export function usePaintingGenerationSubmit({
     onPaintingChange
   })
 
-  // Ref is the re-entrancy source of truth (it blocks a second call in the same
-  // tick, before any state-driven disable has re-rendered); the state mirrors it
-  // for the UI.
-  const submittingRef = useRef(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [preparing, setPreparing] = useState(false)
+  const pendingIdsRef = useRef(new Map<string, symbol>())
+  const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set())
+  const [preparingToken, setPreparingToken] = useState<symbol | null>(null)
+  const submitting = pendingIds.has(painting.id)
+  const preparing = preparingToken !== null
 
   const submit = useCallback(
-    async (materialize: MaterializeInputs) => {
-      if (generating || submittingRef.current) return
-      submittingRef.current = true
-      setSubmitting(true)
-      setPreparing(true)
+    async (materialize: MaterializeInputs, instruction?: string) => {
+      const id = painting.id
+      if (generating || pendingIdsRef.current.has(id)) return
+      const token = Symbol(id)
+      pendingIdsRef.current.set(id, token)
+      setPendingIds(new Set(pendingIdsRef.current.keys()))
+      setPreparingToken(token)
+      const finishPreparation = () => {
+        if (pendingIdsRef.current.get(id) === token) {
+          pendingIdsRef.current.delete(id)
+          setPendingIds(new Set(pendingIdsRef.current.keys()))
+        }
+        setPreparingToken((current) => (current === token ? null : current))
+      }
       try {
         const guardResult = await validateBeforeGenerate()
         if (!guardResult.ok) {
@@ -80,18 +64,31 @@ export function usePaintingGenerationSubmit({
           return
         }
         const { entries, complete } = await materialize()
-        // An incomplete set must never reach generation — the composer has already
-        // dropped the failed chip and told the user; generating anyway would spend
-        // the request on a silently smaller input set.
+        // Do not spend a request with partially materialized references.
         if (!complete) return
-        await generate(entries, () => setPreparing(false))
+        const needsEdit = painting.files.length > 0 || !!painting.sourceFileId || entries.length > 0
+        if (needsEdit) {
+          const option = (await ensureCurrentCatalog()).find((item) => item.value === painting.model)
+          if (!option?.raw || !canEditPaintingModel(option.raw as Model)) {
+            presentPaintingGenerateError(new Error(i18n.t('paintings.steps.edit_unsupported')))
+            return
+          }
+        }
+        if (!needsEdit) {
+          const option = (await ensureCurrentCatalog()).find((item) => item.value === painting.model)
+          if (option?.raw && !canGeneratePaintingModel(option.raw as Model)) {
+            presentPaintingGenerateError(new Error(i18n.t('paintings.steps.generate_unsupported')))
+            return
+          }
+        }
+        await generate(entries, finishPreparation, instruction)
+      } catch (error) {
+        presentPaintingGenerateError(error)
       } finally {
-        submittingRef.current = false
-        setSubmitting(false)
-        setPreparing(false)
+        finishPreparation()
       }
     },
-    [generate, generating, painting.providerId, validateBeforeGenerate]
+    [generate, generating, painting, ensureCurrentCatalog, validateBeforeGenerate]
   )
 
   return { generating, submitting, preparing, submit, cancel }

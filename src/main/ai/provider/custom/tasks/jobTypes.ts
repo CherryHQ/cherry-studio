@@ -22,6 +22,8 @@ import type { ImageTransportDescriptor } from '../imageGenerationModel'
  */
 export interface ImageGenerationJobPayload {
   uniqueModelId: UniqueModelId
+  /** Optional painting step that should receive terminal job results after restart. */
+  paintingId?: string
   prompt?: string
   n: number
   size?: string

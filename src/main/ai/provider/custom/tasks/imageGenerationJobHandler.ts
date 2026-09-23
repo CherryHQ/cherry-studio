@@ -2,12 +2,16 @@ import type { ImageModelV3File } from '@ai-sdk/provider'
 
 import { application } from '@application'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import type { JobContext, JobHandler } from '@main/core/job/types'
+import type { JobContext, JobHandler, JobSettledEvent } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
+import { paintingService } from '@main/data/services/PaintingService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { imageConfigProtocol } from '@shared/ai/imageGenerationConfig'
+import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/types/file'
@@ -21,6 +25,50 @@ import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobT
 
 const logger = loggerService.withContext('ImageGenerationJobHandler')
 
+function paintingIdFromInput(input: unknown): string | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const id = (input as { paintingId?: unknown }).paintingId
+  return typeof id === 'string' && id.length > 0 ? id : undefined
+}
+
+/** Run during AI initialization, before any current-process generation starts. */
+export function reconcileImageGenerationJobs(): void {
+  const jobs = jobService.list({ type: 'image-generation.generate', status: ['pending', 'delayed', 'running'] })
+  const activePaintingIds = new Set<string>()
+  const abandonedIds: string[] = []
+  for (const job of jobs) {
+    const paintingId = paintingIdFromInput(job.input)
+    const resumable =
+      readResumableImageUrls(job.metadata.imageUrls) ||
+      (typeof job.metadata.taskId === 'string' && job.metadata.taskId.length > 0)
+    const unsubmitted = job.startedAt === null && job.metadata.submissionStarted !== true
+    if (paintingId && !job.cancelRequested && (resumable || unsubmitted)) {
+      activePaintingIds.add(paintingId)
+    } else {
+      abandonedIds.push(job.id)
+    }
+  }
+  jobService.cancelByIds(abandonedIds, {
+    code: JOB_ERROR_CODES.CANCELLED,
+    message: 'Interrupted image generation cannot be safely resumed',
+    retryable: false
+  })
+  paintingService.markOrphanedRunningSteps(activePaintingIds)
+}
+
+export async function cancelImageGenerationJobs(paintingIds: ReadonlySet<string>): Promise<void> {
+  const jobs = jobService.list({ type: 'image-generation.generate', status: ['pending', 'delayed', 'running'] })
+  const manager = application.get('JobManager')
+  await Promise.all(
+    jobs
+      .filter((job) => {
+        const id = paintingIdFromInput(job.input)
+        return id !== undefined && paintingIds.has(id)
+      })
+      .map((job) => manager.cancel(job.id, 'painting cancelled'))
+  )
+}
+
 /**
  * Async image-generation handler for custom-provider submit/poll transports
  * (ppio / dashscope / modelscope / dmxapi-bespoke). Mirrors
@@ -31,33 +79,64 @@ const logger = loggerService.withContext('ImageGenerationJobHandler')
  * referenced by FileEntry id and read back from FileManager, keeping the payload
  * under the 1MB job cap.
  *
- * **Deliberately not restart-durable.** The job's only consumer is the in-process
- * awaiter in `AiService.generateImageViaJob` (`await handle.finished`) — the sole
- * `handle.finished` in the main process; every other job type's result is a durable
- * side effect the handler writes itself. Nothing here designates a durable
- * destination: the payload records no consumer identity, so a result produced after
- * a restart reaches nobody. It would be downloaded, persisted as zero-referenced
- * `delete_when_unreferenced` entries, and reclaimed an hour later — and if the crash
- * landed after the vendor accepted the submit but before the task id was durable,
- * resuming would submit a second time and bill the user twice. So non-terminal jobs
- * are cancelled at startup (`recovery: 'abandon'`) instead of resumed.
- *
- * To make results survive a restart, do what `file-processing.remote-poll` does:
- * carry a durable destination in the payload (for paintings, the already-persisted
- * `painting.id` — the row exists before enqueue) and have this handler write the
- * result there, which registers `painting_file_ref` rows and makes GC correct for
- * free. Then switch `recovery` back to `'retry'` and restore the resume branch from
- * the recipe in `docs/references/job-and-scheduler/handler-authoring.md`.
+ * Painting requests carry their persisted step id as a durable destination. The
+ * handler stores a remote task id (or a small URL list) in job metadata before
+ * polling/downloading, so startup recovery can continue without resubmitting.
+ * Startup reconciliation abandons calls without a durable destination and
+ * submissions whose remote outcome is unknown instead of spending quota twice.
  */
 export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = {
-  recovery: 'abandon',
+  recovery: 'retry',
   defaultQueue: (input) => `image-generation.${parseUniqueModelId(input.uniqueModelId).providerId}`,
   defaultConcurrency: 2,
   // The transport already retries transient poll errors internally; a job-level
   // retry would re-submit and burn the user's vendor quota, so cap at 1 attempt
   // (parity with agent.task).
-  defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
+  defaultRetryPolicy: {
+    maxAttempts: 1,
+    backoff: 'none',
+    baseDelayMs: 0,
+    maxDelayMs: 0
+  },
   defaultTimeoutMs: 30 * 60_000,
+  async onSettled(event: JobSettledEvent<ImageGenerationJobPayload>) {
+    const paintingId = event.input.paintingId
+    if (!paintingId) return
+    try {
+      const painting = paintingService.getById(paintingId)
+      if (painting.stepStatus !== 'running') return
+      if (event.status === 'completed') {
+        const output = event.output as ImageGenerationJobOutput | null | undefined
+        const files = output?.files ?? []
+        if (files.length === 0) {
+          paintingService.update(paintingId, {
+            stepStatus: 'failed',
+            stepError: 'Image generation returned no images'
+          })
+          return
+        }
+        paintingService.update(paintingId, {
+          stepStatus: 'completed',
+          stepError: null,
+          files: {
+            output: files.map((file) => file.id),
+            input: painting.files.input
+          }
+        })
+        return
+      }
+      paintingService.update(paintingId, {
+        stepStatus: event.status === 'cancelled' ? 'canceled' : 'failed',
+        stepError: event.status === 'cancelled' ? null : (event.error?.message ?? 'Image generation failed')
+      })
+    } catch (error) {
+      logger.warn('Failed to reconcile terminal painting job', {
+        paintingId,
+        status: event.status,
+        error
+      })
+    }
+  },
   async execute(ctx) {
     const input = ctx.input
     const { providerId, modelId } = parseUniqueModelId(input.uniqueModelId)
@@ -66,15 +145,18 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     const model = modelService.getByKey(providerId, modelId)
     if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
+    const imageEndpoint = input.inputFileIds?.length ? 'openai-image-edit' : 'openai-image-generation'
+    const resolvedEndpoint = resolveEffectiveEndpoint(
+      provider,
+      provider.endpointConfigs?.[imageEndpoint] ? { ...model, endpointTypes: [imageEndpoint] } : model
+    )
+    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, { resolvedEndpoint })
     const sdkConfig = {
       ...config,
-      modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+      modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
     }
-    // Built fresh every execution and held in memory only. Upstream persists this
-    // to job metadata so a resumed run can still attribute its cost; with
-    // `recovery: 'abandon'` no run outlives the process, so persisting it would be
-    // a write nobody reads — and would imply a durability this handler does not have.
+    // Built fresh every execution and held in memory only. A resumed job creates
+    // a fresh usage capture context for the resumed provider attempt.
     const captureContext = createAiUsageCaptureContext({
       providerId: provider.id,
       providerName: provider.name,
@@ -89,25 +171,43 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     })
     const usageStartedAt = Date.now()
 
-    const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
+    const transport = resolveImageTransport(
+      imageConfigProtocol(model.imageGenerationConfig) ?? provider.presetProviderId ?? sdkConfig.providerId,
+      sdkConfig.modelId,
+      sdkConfig.providerSettings
+    )
     if (!transport) {
       throw new Error(
         `Image generation job: no async transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`
       )
     }
 
-    // No persisted-task resume branch: `recovery: 'abandon'` means a job never
-    // outlives the process that enqueued it, so every execution starts at submit.
+    const metadataUrls = readResumableImageUrls(ctx.metadata.imageUrls)
+    const metadataTaskId = typeof ctx.metadata.taskId === 'string' ? ctx.metadata.taskId : undefined
     let urls: string[]
-    const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
-    if (submit.imageUrls) {
-      urls = submit.imageUrls
-    } else if (submit.taskId) {
-      urls = await pollUntilDone(transport, submit.taskId, ctx)
+    if (metadataUrls) {
+      urls = metadataUrls
+    } else if (metadataTaskId) {
+      urls = await pollUntilDone(transport, metadataTaskId, ctx)
     } else {
-      // A malformed submit response (neither URLs nor a task id) must fail the
-      // job rather than silently complete with zero files (a paid no-op).
-      throw new Error(`Image generation submit for '${sdkConfig.modelId}' returned neither imageUrls nor a taskId`)
+      if (ctx.metadata.submissionStarted === true)
+        throw new Error('The previous image submission has an unknown outcome; it will not be submitted again')
+      const submitInput = await buildSubmitInput(input, sdkConfig.modelId, ctx.signal)
+      if (ctx.signal.aborted) throw createAbortError('Image generation aborted')
+      await ctx.patchMetadata({ submissionStarted: true })
+      if (ctx.signal.aborted) throw createAbortError('Image generation aborted')
+      const submit = await transport.submit(submitInput)
+      if (submit.imageUrls) {
+        urls = submit.imageUrls
+        if (isResumableImageUrls(urls)) await ctx.patchMetadata({ imageUrls: urls })
+      } else if (submit.taskId) {
+        await ctx.patchMetadata({ taskId: submit.taskId })
+        urls = await pollUntilDone(transport, submit.taskId, ctx)
+      } else {
+        // A malformed submit response (neither URLs nor a task id) must fail the
+        // job rather than silently complete with zero files (a paid no-op).
+        throw new Error(`Image generation submit for '${sdkConfig.modelId}' returned neither imageUrls nor a taskId`)
+      }
     }
 
     // Record before local download: the provider invocation completed even if file
@@ -120,7 +220,9 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
         context: captureContext,
         modality: 'image',
         imageCount: urls.length,
-        metrics: { timeCompletionMs: Math.max(0, completedAt - usageStartedAt) },
+        metrics: {
+          timeCompletionMs: Math.max(0, completedAt - usageStartedAt)
+        },
         completedAt
       })
     }
@@ -209,6 +311,20 @@ async function resolveImageDataUrl(url: string): Promise<Base64String | null> {
   return `data:${downloaded.media_type || 'image/png'};base64,${downloaded.data}`
 }
 
+function isResumableImageUrls(value: readonly string[]): boolean {
+  if (value.length === 0 || value.some((url) => url.startsWith('data:'))) return false
+  try {
+    return JSON.stringify(value).length <= 200_000
+  } catch {
+    return false
+  }
+}
+
+function readResumableImageUrls(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || !value.every((url): url is string => typeof url === 'string')) return undefined
+  return isResumableImageUrls(value) ? [...value] : undefined
+}
+
 /** Persist result URLs (always non-empty — the caller guards) as internal FileEntries. */
 async function downloadAndPersistImageUrls(
   urls: string[],
@@ -221,7 +337,13 @@ async function downloadAndPersistImageUrls(
     if (signal.aborted) throw createAbortError('Image generation aborted')
     const data = await resolveImageDataUrl(url)
     if (!data) continue
-    files.push(await fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy }))
+    files.push(
+      await fileManager.createInternalEntry({
+        source: 'base64',
+        data,
+        cleanupPolicy
+      })
+    )
   }
   // The remote generation succeeded (it returned URLs); surfacing a hard failure
   // when none could be downloaded avoids reporting a paid generation as an empty,
@@ -230,7 +352,10 @@ async function downloadAndPersistImageUrls(
     throw new Error(`Image generation produced ${urls.length} URL(s) but all downloads failed`)
   }
   if (files.length < urls.length) {
-    logger.warn('Some generated image downloads failed', { requested: urls.length, persisted: files.length })
+    logger.warn('Some generated image downloads failed', {
+      requested: urls.length,
+      persisted: files.length
+    })
   }
   return files
 }

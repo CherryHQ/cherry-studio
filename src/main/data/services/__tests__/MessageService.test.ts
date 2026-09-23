@@ -1856,6 +1856,30 @@ describe('MessageService', () => {
       expect(refs.map((ref) => ref.fileEntryId)).toEqual([fileB])
     })
 
+    it('registers generated tool image references independently of painting history', async () => {
+      const topicId = 'topic-generated-image'
+      const fileId = '019606a0-0000-7000-8000-00000000fa0a'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileId)
+      const part = {
+        type: 'dynamic-tool' as const,
+        toolName: 'generate_image',
+        toolCallId: 'image-call',
+        state: 'output-available' as const,
+        input: {},
+        output: [{ id: fileId, name: 'generated.png' }]
+      }
+      const message = messageService.create(topicId, { role: 'assistant', data: { parts: [part] }, status: 'success' })
+      expect(
+        dbh.db.select().from(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, message.id)).all()
+      ).toEqual([expect.objectContaining({ fileEntryId: fileId, role: 'tool_output' })])
+      expect(messageService.getById(message.id).data.parts).toEqual([part])
+      messageService.update(message.id, { data: { parts: [] } })
+      expect(
+        dbh.db.select().from(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, message.id)).all()
+      ).toEqual([])
+    })
+
     it('keeps file refs when a data patch omits parts', async () => {
       const topicId = 'topic-ref-partial-data'
       const fileId = '019606a0-0000-7000-8000-00000000fa0a'

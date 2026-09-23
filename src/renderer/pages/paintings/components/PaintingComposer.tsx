@@ -1,4 +1,4 @@
-import { Settings2 } from 'lucide-react'
+import { Settings2, Zap } from 'lucide-react'
 import { type FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,7 +15,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
-import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
+import type { ComposerDraftToken, ComposerSerializedDraft } from '@renderer/components/composer/tokens'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import {
   COMPOSER_SELECTOR_BUTTON_CLASS,
@@ -25,9 +25,10 @@ import { fileToComposerToken } from '@renderer/components/composer/variants/shar
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { FILE_TYPE } from '@renderer/types/file'
+import { imageSizeSelection } from '@shared/ai/imageCanvases'
+import type { FileEntry } from '@shared/data/types/file'
 import type { Model } from '@shared/data/types/model'
 import { imageExts } from '@shared/utils/file'
-import { isEditImageModel } from '@shared/utils/model'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { controlValue, finiteParamNumberOr, optionalFiniteNumber } from '../form/fieldValue'
@@ -38,6 +39,8 @@ import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { type InputCapability, usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { MaterializeInputs } from '../hooks/usePaintingGenerationSubmit'
 import type { PaintingData } from '../model/types/paintingData'
+import { canEditPaintingModel } from '../model/utils/paintingModelOptions'
+import { getPaintingFileUrl } from '../utils/paintingFileUrl'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import { PaintingImageAddButton, PaintingImageGallery } from './PaintingImageGallery'
 import PaintingModelSelector from './PaintingModelSelector'
@@ -138,7 +141,9 @@ export interface PaintingComposerProps {
    * but does not orchestrate the request — materialization is the request's first
    * step, run by its owner only once the preconditions pass.
    */
-  onGenerate: (materialize: MaterializeInputs) => void | Promise<void>
+  onGenerate: (materialize: MaterializeInputs, instruction?: string) => void | Promise<void>
+  onLocateSource?: () => void
+  sourcePainting?: PaintingData
   onCancel: () => void
   onModelSelect: (selection: { providerId: string; modelId: string }) => void
   onConfigChange: (updates: Partial<PaintingData>) => void
@@ -157,7 +162,29 @@ const PaintingParamsButton: FC<{
     () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) }),
     [registrySupport, painting.mode]
   )
-  const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
+  const summary = useMemo(() => {
+    const selection = imageSizeSelection(
+      registrySupport,
+      tabToImageGenerationMode(painting.mode) ?? 'generate',
+      painting.params ?? {}
+    )
+    if (!selection.tier && !selection.ratio) return paramsSummary(painting.params, configItems, t)
+    const other = paramsSummary(
+      painting.params,
+      configItems.filter((item) => !['imageResolution', 'resolution', 'aspectRatio', 'size'].includes(item.key)),
+      t
+    )
+    return [
+      selection.tier,
+      selection.ratio,
+      selection.pixels
+        ? t('paintings.model_parameters.expected_size', { size: selection.pixels.replace('x', '×') })
+        : undefined,
+      other
+    ]
+      .filter(Boolean)
+      .join(' · ')
+  }, [registrySupport, painting.mode, painting.params, configItems, t])
 
   if (configItems.length === 0) return null
 
@@ -196,6 +223,8 @@ interface PaintingComposerInnerProps extends PaintingComposerProps {
   couldAddImageFile: boolean
 }
 
+const EMPTY_INPUT_FILES: FileEntry[] = []
+
 const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   painting,
   generating,
@@ -203,6 +232,8 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   onPromptChange,
   onGenerate,
   onCancel,
+  onLocateSource,
+  sourcePainting,
   onModelSelect,
   onConfigChange,
   onGenerateRandomSeed,
@@ -219,10 +250,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
 
-  // `couldAddImageFile` is modality-based (isEditImageModel → inputModalities includes
-  // image): whether the model takes an image at all. Whether an image is *required* —
-  // the model can only edit, not generate from text — is the one thing modality can't
-  // answer, so it reads the registry's modes (no `generate` mode ⇒ image mandatory).
+  // Required-input rules come from the mode catalog; a selected output already supplies the source image.
   const support = useImageGenerationSupport(painting.providerId, painting.model)
   const imageRequired =
     couldAddImageFile && !!support?.modes && !support.modes.generate && Object.keys(support.modes).length > 0
@@ -234,13 +262,17 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   // chip is removed. `canonicalGenerate` re-checks `EDIT_IMAGE_REQUIRED` on the
   // materialized entries, so this gate only has to match what the user can see.
   const draftImageCount = files.filter((file) => file.type === FILE_TYPE.IMAGE).length
-  const missingRequiredImage = imageRequired && draftImageCount === 0
+  const hasSource = painting.files.length > 0 || !!painting.sourceFileId
+  const missingRequiredImage = imageRequired && draftImageCount === 0 && !hasSource
+  const editUnsupported = hasSource && !couldAddImageFile
 
-  const placeholder = !couldAddImageFile
-    ? t('paintings.prompt_placeholder')
-    : imageRequired
-      ? t('paintings.prompt_placeholder_upload_required')
-      : t('paintings.prompt_placeholder_upload')
+  const placeholder = hasSource
+    ? t('paintings.steps.edit_placeholder')
+    : !couldAddImageFile
+      ? t('paintings.prompt_placeholder')
+      : imageRequired
+        ? t('paintings.prompt_placeholder_upload_required')
+        : t('paintings.prompt_placeholder_upload')
 
   // `unknown` while the model is still resolving from the async catalog; `accept`
   // once it resolves to an edit-capable model, `reject` otherwise. Drives the
@@ -249,7 +281,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
 
   const { materializeInputs } = usePaintingComposerInputFiles({
     paintingId: painting.id,
-    inputFiles: painting.inputFiles ?? [],
+    inputFiles: painting.persistedAt ? EMPTY_INPUT_FILES : (painting.inputFiles ?? EMPTY_INPUT_FILES),
     files,
     setFiles,
     inputCapability,
@@ -270,7 +302,17 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   // holds the re-entrancy guard and runs materialization only after the preconditions
   // pass. This composer reports intent and hands over the resolver; it deliberately
   // keeps no send state of its own.
-  const handleSendDraft = useCallback(() => onGenerate(materializeInputs), [materializeInputs, onGenerate])
+  const handleSendDraft = useCallback(
+    (draft: ComposerSerializedDraft) => onGenerate(materializeInputs, draft.text),
+    [materializeInputs, onGenerate]
+  )
+
+  const source = sourcePainting ?? (painting.files.length ? painting : undefined)
+  const sourceFile =
+    source?.files.find(
+      (file) => file.id === (painting.files.length ? painting.selectedFileId : painting.sourceFileId)
+    ) ?? source?.files[0]
+  const sourceLabel = t('paintings.steps.based_on', { number: source?.stepNumber ?? (source ? 1 : '…') })
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={couldAddImageFile} extensions={PAINTING_IMAGE_EXTS}>
@@ -284,10 +326,41 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         topContent={couldAddImageFile ? <PaintingImageGallery /> : undefined}
         leadingContent={couldAddImageFile ? <PaintingImageAddButton /> : undefined}
         placeholder={placeholder}
-        sendDisabled={
-          generating || submitting || !model || (text.trim().length === 0 && files.length === 0) || missingRequiredImage
+        sendAccessory={
+          hasSource ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 shrink-0 gap-1.5 rounded-md px-2 text-xs font-normal text-muted-foreground"
+              aria-label={sourceLabel}
+              title={editUnsupported ? t('paintings.steps.edit_unsupported') : sourceLabel}
+              onClick={onLocateSource}>
+              {sourceFile && (
+                <img
+                  className="hidden size-6 rounded object-contain @[600px]/painting-composer:block"
+                  alt=""
+                  src={getPaintingFileUrl(sourceFile)}
+                />
+              )}
+              <span>{sourceLabel}</span>
+            </Button>
+          ) : undefined
         }
-        sendBlockedReason={missingRequiredImage ? t('paintings.edit.image_required') : undefined}
+        sendDisabled={
+          generating ||
+          submitting ||
+          !model ||
+          (text.trim().length === 0 && files.length === 0) ||
+          missingRequiredImage ||
+          editUnsupported
+        }
+        sendBlockedReason={
+          editUnsupported
+            ? t('paintings.steps.edit_unsupported')
+            : missingRequiredImage
+              ? t('paintings.edit.image_required')
+              : undefined
+        }
         isLoading={generating}
         onSendDraft={handleSendDraft}
         onPause={onCancel}
@@ -301,12 +374,13 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
         narrowMode
-        getToolLaunchers={() => getLaunchers()}
+        getToolLaunchers={() => getLaunchers().filter((launcher) => launcher.id !== 'attachment')}
         toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         renderLeftControls={(inputAdapter, unifiedPanelControl) => (
           <ComposerToolbarControls
             inputAdapter={inputAdapter}
+            showToolMenu={false}
             unifiedPanelControl={unifiedPanelControl}
             renderContextControls={() => (
               <>
@@ -321,6 +395,17 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
                   onConfigChange={onConfigChange}
                   onGenerateRandomSeed={onGenerateRandomSeed}
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, 'text-muted-foreground')}
+                  aria-label={t('settings.prompts.title')}
+                  disabled={!unifiedPanelControl?.available}
+                  onClick={() => unifiedPanelControl?.open({ launcherId: 'quick-phrases' })}>
+                  <Zap className="size-3.5" />
+                  {t('settings.prompts.title')}
+                </Button>
               </>
             )}
           />
@@ -345,7 +430,7 @@ const PaintingComposer: FC<PaintingComposerProps> = (props) => {
         : undefined,
     [models, painting.providerId, painting.model]
   )
-  const couldAddImageFile = model ? isEditImageModel(model) : false
+  const couldAddImageFile = model ? canEditPaintingModel(model) : false
 
   return (
     // Key the provider (which owns `files`) by painting id only: a different painting

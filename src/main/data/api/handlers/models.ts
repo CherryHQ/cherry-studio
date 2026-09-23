@@ -180,8 +180,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
   },
 
   '/providers/:providerId/models/:modelId*/image-generation-support': {
-    GET: async ({ params }) => {
-      return providerRegistryService.getImageGenerationSupport(params.providerId, params.modelId)
-    }
+    GET: async ({ params, query }) =>
+      modelService.getImageGenerationSupport(params.providerId, params.modelId, query?.catalogOnly)
   }
 }

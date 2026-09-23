@@ -50,11 +50,28 @@ const publishOptions = {
   compatDirectory: COMPAT_DIRECTORY,
   currentVersion: 2,
   minAppVersion: '2.0.13',
-  sourceAppVersion: '2.0.12',
+  sourceAppVersion: '2.0.13',
   revision: 41
 }
 
 describe('publishRegistryCatalog', () => {
+  it('keeps published snapshots untouched before the compatible application release', async () => {
+    const { sourceDirectory, destinationDirectory } = makeDirectories()
+    fs.mkdirSync(path.join(destinationDirectory, 'v2'))
+    const previous = path.join(destinationDirectory, 'v2/models.json')
+    fs.writeFileSync(previous, 'previous snapshot')
+    const published = await publishRegistryCatalog({
+      ...publishOptions,
+      sourceDirectory,
+      destinationDirectory,
+      minAppVersion: '2.1.3',
+      sourceAppVersion: '2.1.2'
+    })
+    expect(published).toEqual([])
+    expect(fs.readFileSync(previous, 'utf8')).toBe('previous snapshot')
+    expect(fs.readdirSync(destinationDirectory)).toEqual(['v2'])
+  })
+
   it('keeps a model reaching an older schema by dropping only what it cannot represent', async () => {
     const { sourceDirectory, destinationDirectory } = makeDirectories()
     writeCatalog(sourceDirectory, OVERRIDE_WITH_UNKNOWN_EFFORT)
@@ -97,7 +114,7 @@ describe('publishRegistryCatalog', () => {
     expect(fs.readFileSync(path.join(destinationDirectory, 'v1/models.json'), 'utf8')).toBe('previous snapshot')
   })
 
-  it('keeps an older stream on the semantic floor it was published with', async () => {
+  it('raises older streams to the runtime semantic floor too', async () => {
     const { sourceDirectory, destinationDirectory } = makeDirectories()
     writeCatalog(sourceDirectory, OVERRIDE_WITH_UNKNOWN_EFFORT)
     fs.mkdirSync(path.join(destinationDirectory, 'v1'))
@@ -110,7 +127,7 @@ describe('publishRegistryCatalog', () => {
 
     const v1 = JSON.parse(fs.readFileSync(path.join(destinationDirectory, 'v1/manifest.json'), 'utf8'))
     const v2 = JSON.parse(fs.readFileSync(path.join(destinationDirectory, 'v2/manifest.json'), 'utf8'))
-    expect(v1).toMatchObject({ minAppVersion: '2.0.9', schemaVersion: 1, revision: 41 })
+    expect(v1).toMatchObject({ minAppVersion: '2.0.13', schemaVersion: 1, revision: 41 })
     expect(v2).toMatchObject({ minAppVersion: '2.0.13', schemaVersion: 2 })
     expect(v1.files).toEqual({ 'models.json': 'm1', 'providers.json': 'p1', 'provider-models.json': 'pm1' })
   })

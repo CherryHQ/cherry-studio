@@ -24,6 +24,7 @@ import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { withPiPaintingResults } from '@main/ai/tools/adapters/piPaintingTool'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -390,7 +391,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         )
       )
       const customTools = createPiCodeModeTools(
-        this.mcpBridge.tools,
+        withPiPaintingResults(this.mcpBridge.tools, (event) => this.adapter.handleEvent(event)),
         (toolName) => this.disabledTools.has(toolName),
         authorizeTool
       )

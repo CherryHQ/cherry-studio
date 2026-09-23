@@ -1,4 +1,4 @@
-import type { OptionItem, OptionsConfigItem } from './baseConfigItem'
+import { isOptionsConfigItem, type BaseConfigItem, type OptionItem, type OptionsConfigItem } from './baseConfigItem'
 import { catalogValueOr, controlValue } from './fieldValue'
 
 /**
@@ -32,4 +32,19 @@ export function resolveOptionValue(
     (option) => normalized !== '' && controlValue(option.value) === normalized
   )
   return match?.value ?? item.initialValue
+}
+
+export function reconcileDependentOptions(
+  items: BaseConfigItem[],
+  params: Record<string, unknown>
+): Record<string, unknown> {
+  const next = { ...params }
+  for (const item of items) {
+    if (!isOptionsConfigItem(item) || typeof item.options !== 'function') continue
+    const options = item.options(item, next)
+    const value = next[item.key] ?? item.initialValue
+    if (!options.some((o) => o.value === value))
+      next[item.key] = options.find((o) => o.value === item.initialValue)?.value ?? options[0]?.value
+  }
+  return next
 }

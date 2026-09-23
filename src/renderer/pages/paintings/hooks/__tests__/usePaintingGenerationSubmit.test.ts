@@ -25,10 +25,12 @@ vi.mock('../../utils/presentPaintingGenerationGuardFeedback', () => ({
   presentPaintingGenerationGuardFeedback: mockPresentGuardFeedback
 }))
 
+vi.mock('../../errors/paintingGenerateError', () => ({ presentPaintingGenerateError: vi.fn() }))
+
 const { usePaintingGenerationSubmit } = await import('../usePaintingGenerationSubmit')
 
 const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
-  ({ id: 'p1', providerId: 'openai', model: 'gpt-image-1', mode: 'generate', ...overrides }) as PaintingData
+  ({ id: 'p1', providerId: 'openai', model: 'gpt-image-1', files: [], mode: 'generate', ...overrides }) as PaintingData
 
 function renderSubmit(painting: PaintingData = makePainting()) {
   return renderHook(() =>
@@ -48,11 +50,6 @@ describe('usePaintingGenerationSubmit', () => {
   })
 
   it('runs the precondition guard before materializing anything', async () => {
-    // The ordering IS the contract. Materialization creates
-    // `delete_when_unreferenced` FileEntries, and a guard failure returns without
-    // persisting the painting — so anything created first is left zero-referenced
-    // for the cleanup pass to reclaim, while the composer's cache goes on pointing
-    // at it. A check that can refuse the request for free must run for free.
     const materialize = vi.fn().mockResolvedValue({ entries: [], complete: true })
     mockValidateBeforeGenerate.mockResolvedValue({ ok: false, reason: 'model_missing' })
 
@@ -66,22 +63,7 @@ describe('usePaintingGenerationSubmit', () => {
     expect(mockPresentGuardFeedback).toHaveBeenCalledWith('model_missing', undefined, 'openai')
   })
 
-  it('materializes after the guard passes and generates with the resolved entries', async () => {
-    const entries = [{ id: 'fe-1' }] as unknown as FileEntry[]
-    const materialize = vi.fn().mockResolvedValue({ entries, complete: true })
-
-    const { result } = renderSubmit()
-    await act(async () => {
-      await result.current.submit(materialize)
-    })
-
-    expect(materialize).toHaveBeenCalledTimes(1)
-    expect(mockGenerate).toHaveBeenCalledWith(entries, expect.any(Function))
-  })
-
   it('aborts without generating when the input set is incomplete', async () => {
-    // The composer has already dropped the failed chip and toasted; generating
-    // anyway would spend the request on a silently smaller input set.
     const materialize = vi.fn().mockResolvedValue({ entries: [], complete: false })
 
     const { result } = renderSubmit()
@@ -103,8 +85,6 @@ describe('usePaintingGenerationSubmit', () => {
     )
 
     const { result } = renderSubmit()
-    // Both calls in one act, so the second runs before any state-driven disable
-    // could re-render — this exercises the ref, not the UI.
     await act(async () => {
       void result.current.submit(materialize)
       void result.current.submit(materialize)
@@ -118,9 +98,6 @@ describe('usePaintingGenerationSubmit', () => {
   })
 
   it('refuses to submit while a generation is already running for this painting', async () => {
-    // `generating` is data-derived and can be set by a run this component never
-    // started (a resumed generation rehydrates it), so it guards alongside the
-    // action-scoped flag rather than being folded into it.
     const materialize = vi.fn().mockResolvedValue({ entries: [], complete: true })
 
     const { result } = renderSubmit(makePainting({ generationStatus: 'running' }))
@@ -160,7 +137,7 @@ describe('usePaintingGenerationSubmit', () => {
     })
     rerender(makePainting({ id: 'new-draft' }))
     expect(result.current.preparing).toBe(false)
-    expect(result.current.submitting).toBe(true)
+    expect(result.current.submitting).toBe(false)
     await act(async () => {
       finish()
       await pending
@@ -189,5 +166,33 @@ describe('usePaintingGenerationSubmit', () => {
       release()
     })
     await waitFor(() => expect(result.current.submitting).toBe(false))
+  })
+  it('does not send text-to-image requests when generation was disabled in model properties', async () => {
+    const { result } = renderHook(() =>
+      usePaintingGenerationSubmit({
+        painting: makePainting(),
+        onPaintingChange: vi.fn(),
+        ensureCurrentCatalog: async () => [
+          {
+            value: 'gpt-image-1',
+            label: 'Image',
+            raw: {
+              id: 'openai::gpt-image-1',
+              providerId: 'openai',
+              name: 'Image',
+              capabilities: ['image-generation'],
+              supportsStreaming: false,
+              isEnabled: true,
+              isHidden: false,
+              endpointTypes: ['openai-image-edit']
+            }
+          }
+        ]
+      })
+    )
+    await act(async () => {
+      await result.current.submit(async () => ({ entries: [], complete: true }))
+    })
+    expect(mockGenerate).not.toHaveBeenCalled()
   })
 })

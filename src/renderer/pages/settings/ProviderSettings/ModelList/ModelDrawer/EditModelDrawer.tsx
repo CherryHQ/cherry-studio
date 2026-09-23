@@ -24,8 +24,10 @@ import {
   getModelApiId
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
+import { ModelChatProtocolFields } from './ModelChatProtocolFields'
 import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
+import { ModelImageSettings } from './ModelImageSettings'
 import { ModelPricingFields } from './ModelPricingFields'
 import {
   applyModelPurpose,
@@ -35,7 +37,6 @@ import {
   inferModelPurpose,
   type ModelPurposeFields
 } from './modelPurpose'
-import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
 import type {
   ModelCapabilityToggle,
   ModelClassificationState,
@@ -153,7 +154,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextMaxOutputTokens = hasMaxOutputTokensOverride ? overrides?.maxOutputTokens : maxOutputTokens
       const nextPurposeFields = overrides?.purposeFields ?? purposeFields
       const nextClassification = overrides?.classification
-      const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
+      const shouldApplyPurpose = hasPurposeFieldsOverride || (mode === 'purpose' && nextClassification != null)
       const effectiveClassification = nextClassification ?? classification
       const classifiedCapabilities =
         shouldApplyPurpose || nextClassification
@@ -291,9 +292,27 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const handlePrimaryTypeChange = useCallback(
     (primaryType: ModelPrimaryType) => {
-      commitClassification({ ...classification, primaryType })
+      const next = {
+        ...classification,
+        primaryType,
+        inputModalities:
+          primaryType === 'image'
+            ? new Set([...classification.inputModalities, 'image' as const])
+            : classification.inputModalities
+      }
+      if (primaryType === 'image' || classification.primaryType === 'image') {
+        const fields = applyModelPurpose(purposeFields, primaryType === 'image' ? 'image-both' : 'chat', {
+          chatEndpointType
+        })
+        setPurposeFields(fields)
+        setEndpointTypes(fields.endpointTypes)
+        setClassification(next)
+        autoSave({ classification: next, purposeFields: fields })
+      } else {
+        commitClassification(next)
+      }
     },
-    [classification, commitClassification]
+    [classification, commitClassification, purposeFields, chatEndpointType, autoSave]
   )
 
   const handleToggleCapability = useCallback(
@@ -336,7 +355,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
   }
 
-  if (initializedModel !== model) {
+  if (initializedModel?.id !== model.id) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
   }
 
@@ -388,30 +407,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 autoSave({ endpointTypes: nextEndpointTypes })
               }}
             />
-            {mode === 'purpose' && (
-              <ModelPurposeFieldsControl
-                purpose={modelPurpose}
+            {mode === 'purpose' && classification.primaryType !== 'image' && (
+              <ModelChatProtocolFields
                 chatEndpointType={chatEndpointType}
                 chatEndpointTypes={providerChatEndpointTypes}
-                onPurposeChange={(nextPurpose) => {
-                  const nextPurposeFields = applyModelPurpose(purposeFields, nextPurpose, {
-                    previousPurpose: modelPurpose,
-                    chatEndpointType
-                  })
-                  const nextClassification = {
-                    ...classification,
-                    primaryType:
-                      nextPurpose === 'chat'
-                        ? classification.primaryType === 'image'
-                          ? ('text' as const)
-                          : classification.primaryType
-                        : ('image' as const)
-                  }
-                  setPurposeFields(nextPurposeFields)
-                  setEndpointTypes(nextPurposeFields.endpointTypes)
-                  setClassification(nextClassification)
-                  autoSave({ purposeFields: nextPurposeFields, classification: nextClassification })
-                }}
                 onChatEndpointTypeChange={(nextEndpointType) => {
                   const nextPurposeFields = applyModelPurpose(purposeFields, 'chat', {
                     previousPurpose: modelPurpose,
@@ -425,6 +424,28 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
             )}
           </div>
         </ProviderSection>
+
+        <ProviderSection className={drawerClasses.section}>
+          <div className={drawerClasses.sectionCard}>
+            <ModelClassificationControls
+              value={classification}
+              hasChanges={hasClassificationChanges}
+              onPrimaryTypeChange={handlePrimaryTypeChange}
+              onCapabilityToggle={handleToggleCapability}
+              onInputModalityToggle={handleToggleInputModality}
+              onReset={handleResetClassification}
+            />
+          </div>
+        </ProviderSection>
+
+        {classification.primaryType === 'image' && (
+          <ModelImageSettings
+            key={model.id}
+            providerId={providerId}
+            modelId={apiModelId}
+            initialConfig={model.imageGenerationConfig}
+          />
+        )}
 
         <ProviderActions>
           <Button
@@ -440,17 +461,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         {showMoreSettings && (
           <ProviderSection className={drawerClasses.section}>
             <div data-testid="provider-settings-model-more-settings" className="space-y-4">
-              <div className={drawerClasses.sectionCard}>
-                <ModelClassificationControls
-                  value={classification}
-                  hasChanges={hasClassificationChanges}
-                  onPrimaryTypeChange={handlePrimaryTypeChange}
-                  onCapabilityToggle={handleToggleCapability}
-                  onInputModalityToggle={handleToggleInputModality}
-                  onReset={handleResetClassification}
-                />
-              </div>
-
               <div className={drawerClasses.sectionCard}>
                 <ModelContextWindowFields
                   contextWindow={contextWindow}

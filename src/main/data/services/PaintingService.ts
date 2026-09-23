@@ -15,7 +15,7 @@
  */
 
 import type { SQL } from 'drizzle-orm'
-import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, getTableColumns, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -57,15 +57,36 @@ interface PaintingFileSnapshot {
  * `files` is intentionally NOT in this map: file membership is owned by
  * `painting_file_ref`, not the painting row. The update path handles it separately.
  */
-export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = ['providerId', 'modelId', 'prompt']
+export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = [
+  'providerId',
+  'modelId',
+  'prompt',
+  'stepStatus',
+  'stepError'
+]
 
-function rowToPainting(row: PaintingRow, files: PaintingFiles, fileDataFingerprint?: string): Painting {
+function rowToPainting(
+  row: PaintingRow & { previewFileId?: string | null },
+  files: PaintingFiles,
+  fileDataFingerprint?: string
+): Painting {
   return {
     id: row.id,
     providerId: row.providerId,
     modelId: row.modelId,
     prompt: row.prompt,
+    projectId: row.projectId,
+    stepNumber: row.stepNumber,
+    parentId: row.parentId,
+    sourceFileId: row.sourceFileId,
+    operation: row.operation,
+    params: row.params,
+    stepStatus: row.stepStatus,
+    stepError: row.stepError,
+    selectedStepId: row.selectedStepId,
+    selectedFileId: row.selectedFileId,
     files,
+    ...(row.previewFileId ? { previewFileId: row.previewFileId } : {}),
     ...(fileDataFingerprint ? { fileDataFingerprint } : {}),
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
@@ -136,12 +157,50 @@ function loadFilesForPaintings(paintingIds: readonly string[]): Map<string, Pain
   return new Map(
     [...grouped].map(([paintingId, snapshot]) => [
       paintingId,
-      { files: snapshot.files, fingerprint: JSON.stringify(snapshot.dependencies) }
+      {
+        files: snapshot.files,
+        fingerprint: JSON.stringify(snapshot.dependencies)
+      }
     ])
   )
 }
 
 class PaintingService {
+  /**
+   * Mark running steps that no longer have an active image-generation job.
+   *
+   * A running step is normally owned by either the renderer's synchronous
+   * request or an `image-generation.generate` job. After a process restart the
+   * former has no durable owner, so leaving it running would expose a stale
+   * cancel/retry state forever. The caller supplies the active job-owned
+   * painting ids; this method only transitions the remaining rows.
+   */
+  markOrphanedRunningSteps(activePaintingIds: ReadonlySet<string>): string[] {
+    const dbService = application.get('DbService')
+    const db = dbService.getDb()
+    const runningIds = db
+      .select({ id: paintingTable.id })
+      .from(paintingTable)
+      .where(and(eq(paintingTable.stepStatus, 'running'), isNull(paintingTable.deletedAt)))
+      .all()
+      .map(({ id }) => id)
+    const orphanedIds = runningIds.filter((id) => !activePaintingIds.has(id))
+    if (orphanedIds.length === 0) return []
+
+    const stepError = 'Image generation was interrupted when the application stopped.'
+    dbService.withWriteTx((tx) => {
+      tx.update(paintingTable)
+        .set({ stepStatus: 'interrupted', stepError, updatedAt: Date.now() })
+        .where(and(inArray(paintingTable.id, orphanedIds), eq(paintingTable.stepStatus, 'running')))
+        .run()
+    })
+    this.notifyReadModelChange(orphanedIds, 'projection')
+    logger.info('Marked orphaned painting steps as interrupted', {
+      count: orphanedIds.length
+    })
+    return orphanedIds
+  }
+
   notifyReadModelChange(paintingIds: readonly string[], kind: 'membership' | 'projection'): void {
     if (paintingIds.length === 0) return
     const entityIds = [...new Set(paintingIds)]
@@ -156,13 +215,19 @@ class PaintingService {
     const conditions: SQL[] = []
     const filterConditions: SQL[] = []
     const limit = Math.min(query.limit ?? PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT)
-    const ordering = keysetOrdering(paintingTable.orderKey, paintingTable.id, { major: 'asc', tie: 'asc' })
+    const ordering = keysetOrdering(paintingTable.orderKey, paintingTable.id, {
+      major: 'asc',
+      tie: 'asc'
+    })
     const cursor = decodeListCursor(query.cursor, asStringKey, 'painting')
 
     if (query.providerId) {
       filterConditions.push(eq(paintingTable.providerId, query.providerId))
     }
 
+    if (query.projectsOnly || query.inTrash) filterConditions.push(isNull(paintingTable.projectId))
+    if (query.projectId)
+      filterConditions.push(or(eq(paintingTable.id, query.projectId), eq(paintingTable.projectId, query.projectId))!)
     // Trash filter lives in filterConditions so the page query AND the
     // count(*) query below honor it — total must match the visible set.
     filterConditions.push(query.inTrash === true ? isNotNull(paintingTable.deletedAt) : isNull(paintingTable.deletedAt))
@@ -176,7 +241,24 @@ class PaintingService {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
     const rows = db
-      .select()
+      .select({
+        ...getTableColumns(paintingTable),
+        previewFileId: query.projectsOnly
+          ? sql<string | null>`(
+          SELECT refs.file_entry_id FROM painting AS steps
+          JOIN painting AS project ON project.id = COALESCE(steps.project_id, steps.id)
+          JOIN painting_file_ref AS refs ON refs.source_id = steps.id AND refs.role = 'output'
+          JOIN file_entry AS files ON files.id = refs.file_entry_id AND files.deleted_at IS NULL
+          WHERE (steps.id = painting.id OR steps.project_id = painting.id)
+            AND steps.step_status = 'completed'
+          ORDER BY (steps.id = COALESCE(project.selected_step_id, '')) DESC,
+            steps.step_number DESC,
+            (refs.file_entry_id = COALESCE(project.selected_file_id, '')) DESC,
+            refs.created_at ASC, refs.rowid ASC
+          LIMIT 1
+        )`
+          : sql<null>`NULL`
+      })
       .from(paintingTable)
       .where(whereClause)
       .orderBy(...ordering.orderBy)
@@ -221,12 +303,52 @@ class PaintingService {
     return rowToPainting(row, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
   }
 
+  getProjectStepIds(projectId: string): string[] {
+    const project = this.getById(projectId)
+    if (project.projectId) throw DataApiErrorFactory.invalidOperation('Expected a project root')
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: paintingTable.id })
+      .from(paintingTable)
+      .where(
+        and(
+          or(eq(paintingTable.id, projectId), eq(paintingTable.projectId, projectId)),
+          isNull(paintingTable.deletedAt)
+        )
+      )
+      .all()
+      .map(({ id }) => id)
+  }
+
   create(dto: CreatePaintingDto): Painting {
     const dbService = application.get('DbService')
 
     const row = withSqliteErrors(
       () =>
         dbService.withWriteTx((tx) => {
+          if (dto.projectId) {
+            const project = this.getById(dto.projectId)
+            if (project.projectId) throw DataApiErrorFactory.invalidOperation('Expected a project root')
+          }
+          if (dto.parentId) {
+            const parent = this.getById(dto.parentId)
+            if ((parent.projectId ?? parent.id) !== dto.projectId)
+              throw DataApiErrorFactory.invalidOperation('Parent belongs to a different project')
+            if (dto.sourceFileId && !parent.files.output.includes(dto.sourceFileId))
+              throw DataApiErrorFactory.invalidOperation('Source image is not an output of the parent step')
+          }
+          if (dto.operation === 'edit' && (!dto.sourceFileId || !dto.files.input.includes(dto.sourceFileId)))
+            throw DataApiErrorFactory.invalidOperation('Editing requires the referenced source image')
+          const stepNumber = dto.projectId
+            ? (tx
+                .select({
+                  number: sql<number>`max(${paintingTable.stepNumber})`
+                })
+                .from(paintingTable)
+                .where(or(eq(paintingTable.id, dto.projectId), eq(paintingTable.projectId, dto.projectId)))
+                .get()?.number ?? 0) + 1
+            : 1
           const inserted = insertWithOrderKey(
             tx,
             paintingTable,
@@ -234,7 +356,14 @@ class PaintingService {
               id: dto.id,
               providerId: dto.providerId,
               modelId: normalizeModelId(dto.providerId, dto.modelId),
-              prompt: dto.prompt
+              prompt: dto.prompt,
+              projectId: dto.projectId,
+              stepNumber,
+              parentId: dto.parentId,
+              sourceFileId: dto.sourceFileId,
+              operation: dto.operation,
+              params: dto.params,
+              stepStatus: dto.stepStatus
             },
             {
               pkColumn: paintingTable.id,
@@ -282,6 +411,24 @@ class PaintingService {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
 
+    const existingFiles = dto.files && loadFilesForPaintings([existing.id]).get(existing.id)?.files
+    const isIdempotentCompletedReplay =
+      existing.stepStatus === 'completed' &&
+      dto.stepStatus === 'completed' &&
+      dto.files !== undefined &&
+      existingFiles !== undefined &&
+      JSON.stringify(existingFiles) === JSON.stringify(dto.files)
+
+    if (
+      existing.projectId &&
+      existing.stepStatus !== 'running' &&
+      (dto.prompt !== undefined ||
+        dto.providerId !== undefined ||
+        dto.modelId !== undefined ||
+        (dto.files !== undefined && !isIdempotentCompletedReplay))
+    ) {
+      throw DataApiErrorFactory.invalidOperation('Completed steps are immutable; create a new step')
+    }
     const updates: Partial<InsertPaintingRow> = {}
     for (const key of UPDATE_PAINTING_FIELD_MAP) {
       if (dto[key] !== undefined) {
@@ -333,6 +480,7 @@ class PaintingService {
     )
 
     logger.info('Updated painting', { id, changes: Object.keys(dto) })
+    this.notifyReadModelChange([id, ...(row.projectId ? [row.projectId] : [])], 'projection')
     // On a files write, echo the requested `dto.files` for the same reason as
     // `create` (transition-era ids aren't in `file_entry` yet, so the persisted
     // refs would under-report). Otherwise hydrate from the stored refs.
@@ -341,10 +489,29 @@ class PaintingService {
     return rowToPainting(row, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
   }
 
+  selectStep(projectId: string, stepId: string, fileId?: string): Painting {
+    return application.get('DbService').withWriteTx((tx) => {
+      const project = this.getById(projectId)
+      const step = this.getById(stepId)
+      if (project.projectId || (step.projectId ?? step.id) !== projectId)
+        throw DataApiErrorFactory.invalidOperation('Step belongs to a different project')
+      if (fileId && !step.files.output.includes(fileId))
+        throw DataApiErrorFactory.invalidOperation('Image is not an output of the selected step')
+      tx.update(paintingTable)
+        .set({
+          selectedStepId: stepId,
+          selectedFileId: fileId ?? step.files.output[0] ?? null
+        })
+        .where(eq(paintingTable.id, projectId))
+        .run()
+      return this.getById(projectId)
+    })
+  }
+
   /**
    * Delete a painting.
    *
-   * Default (Delete): move to the Recycle Bin by setting `deletedAt` on the painting row only.
+   * Default (Delete): move the entire project and its version history to the Recycle Bin.
    * `painting_file_ref` rows are untouched (no row delete → no FK cascade), so
    * the file orphan sweep still sees the generated images as owned and the
    * disk files stay safe while the painting sits in the trash.
@@ -355,6 +522,14 @@ class PaintingService {
    */
   delete(id: string, options: { permanent?: boolean } = {}): void {
     const db = application.get('DbService').getDb()
+    const target = db
+      .select({ projectId: paintingTable.projectId })
+      .from(paintingTable)
+      .where(eq(paintingTable.id, id))
+      .get()
+    if (!target) throw DataApiErrorFactory.notFound('Painting', id)
+    if (target.projectId)
+      throw DataApiErrorFactory.invalidOperation('Delete the whole project to preserve version history')
 
     if (options.permanent === true) {
       const result = withSqliteErrors(
@@ -376,7 +551,7 @@ class PaintingService {
     const result = db
       .update(paintingTable)
       .set({ deletedAt: Date.now() })
-      .where(and(eq(paintingTable.id, id), isNull(paintingTable.deletedAt)))
+      .where(and(or(eq(paintingTable.id, id), eq(paintingTable.projectId, id)), isNull(paintingTable.deletedAt)))
       .run()
     if (result.changes === 0) {
       throw DataApiErrorFactory.notFound('Painting', id)
@@ -392,16 +567,20 @@ class PaintingService {
    */
   restore(id: string): Painting {
     const db = application.get('DbService').getDb()
-    const [row] = db
+    const root = db
+      .select()
+      .from(paintingTable)
+      .where(and(eq(paintingTable.id, id), isNull(paintingTable.projectId), isNotNull(paintingTable.deletedAt)))
+      .get()
+    if (!root) throw DataApiErrorFactory.notFound('Painting', id)
+    const rows = db
       .update(paintingTable)
       .set({ deletedAt: null })
-      .where(and(eq(paintingTable.id, id), isNotNull(paintingTable.deletedAt)))
+      .where(and(or(eq(paintingTable.id, id), eq(paintingTable.projectId, id)), isNotNull(paintingTable.deletedAt)))
       .returning()
       .all()
-
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Painting', id)
-    }
+    const row = rows.find((item) => item.id === id)
+    if (!row) throw DataApiErrorFactory.notFound('Painting', id)
 
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored painting', { id })
@@ -422,7 +601,9 @@ class PaintingService {
     const rows = tx
       .select({ id: paintingTable.id })
       .from(paintingTable)
-      .where(and(isNotNull(paintingTable.deletedAt), lt(paintingTable.deletedAt, cutoffMs)))
+      .where(
+        and(isNull(paintingTable.projectId), isNotNull(paintingTable.deletedAt), lt(paintingTable.deletedAt, cutoffMs))
+      )
       .limit(limit)
       .all()
 

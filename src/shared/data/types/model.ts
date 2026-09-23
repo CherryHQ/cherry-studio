@@ -1,3 +1,4 @@
+import * as z from 'zod'
 /**
  * Model - Merged runtime model type
  *
@@ -9,8 +10,6 @@
  * 2. provider-models.json (catalog provider-level override)
  * 3. models.json (catalog base definition)
  */
-
-import * as z from 'zod'
 
 import type {
   CanonicalParamKey,
@@ -39,6 +38,7 @@ import {
   ReasoningControlSchema,
   SERVER_TOOL
 } from '@cherrystudio/provider-registry'
+import { ImageGenerationConfigSchema } from '@shared/ai/imageGenerationConfig'
 
 // Re-export const objects for consumers
 export {
@@ -428,6 +428,8 @@ export const ModelSchema = z.object({
    * catalog fetch.
    */
   imageGeneration: ImageGenerationSupportSchema.optional(),
+  imageGenerationConfig: ImageGenerationConfigSchema.optional(),
+  imageGenerationConfigError: z.string().optional(),
 
   // Status
   /** Whether this model is available for use */

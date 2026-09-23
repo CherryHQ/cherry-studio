@@ -11,12 +11,12 @@ import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 import type { ToolApplyScope } from '../../types'
 
-const { getPreference, getModelByKey, getImageGenerationSupport, generateImage, fileRead } = vi.hoisted(() => ({
+const { getPreference, getModelByKey, getImageGenerationSupport, generateImage, fileMetadata } = vi.hoisted(() => ({
   getPreference: vi.fn(),
   getModelByKey: vi.fn(),
   getImageGenerationSupport: vi.fn(),
   generateImage: vi.fn(),
-  fileRead: vi.fn()
+  fileMetadata: vi.fn()
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -32,7 +32,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'PreferenceService') return { get: getPreference }
       if (name === 'AiService') return { generateImage }
-      if (name === 'FileManager') return { read: fileRead }
+      if (name === 'FileManager') return { getMetadata: fileMetadata }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -40,7 +40,13 @@ vi.mock('@application', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), silly: vi.fn() })
+    withContext: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      silly: vi.fn()
+    })
   }
 }))
 
@@ -116,7 +122,7 @@ describe('generate_image', () => {
     getModelByKey.mockReset()
     getImageGenerationSupport.mockReset()
     generateImage.mockReset()
-    fileRead.mockReset()
+    fileMetadata.mockReset()
     getModelByKey.mockReturnValue({})
     getImageGenerationSupport.mockReturnValue(null)
   })
@@ -158,13 +164,19 @@ describe('generate_image', () => {
 
   it('resolves the painting model and returns the generated file items', async () => {
     getPreference.mockReturnValue('openai::dall-e-3')
-    generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'image-1.png' }] })
+    generateImage.mockResolvedValue({
+      files: [{ id: 'f1', name: 'image-1.png' }]
+    })
 
     const result = await callExecute({ prompt: 'a cat' })
 
     expect(result).toEqual([{ id: 'f1', name: 'image-1.png' }])
     expect(generateImage).toHaveBeenCalledWith(
-      expect.objectContaining({ uniqueModelId: 'openai::dall-e-3', prompt: 'a cat', paramValues: {} })
+      expect.objectContaining({
+        uniqueModelId: 'openai::dall-e-3',
+        prompt: 'a cat',
+        paramValues: {}
+      })
     )
   })
 
@@ -174,7 +186,9 @@ describe('generate_image', () => {
     await callExecute({ prompt: 'a cat', size: '1792x1024', numImages: 2 }, undefined, buildTool(generateSupport))
 
     expect(generateImage).toHaveBeenCalledWith(
-      expect.objectContaining({ paramValues: { size: '1792x1024', numImages: 2 } })
+      expect.objectContaining({
+        paramValues: { size: '1792x1024', numImages: 2 }
+      })
     )
   })
 
@@ -182,7 +196,11 @@ describe('generate_image', () => {
     generateImage.mockResolvedValue({ files: [] })
 
     await callExecute(
-      { prompt: 'a wide landscape', size: '1024x1024', customSize: '1536x1024' },
+      {
+        prompt: 'a wide landscape',
+        size: '1024x1024',
+        customSize: '1536x1024'
+      },
       undefined,
       buildTool(getZhipuCogViewSupport())
     )
@@ -190,8 +208,12 @@ describe('generate_image', () => {
     expect(generateImage).toHaveBeenCalledWith(expect.objectContaining({ paramValues: { size: '1536x1024' } }))
   })
 
-  it('resolves edit image ids to base64 data URLs and selects edit mode', async () => {
-    fileRead.mockResolvedValue({ content: 'AAAA', mime: 'image/png' })
+  it('passes edit image FileEntry ids without reading image bytes in the tool layer', async () => {
+    fileMetadata.mockResolvedValue({
+      kind: 'file',
+      type: 'image',
+      mime: 'image/png'
+    })
     generateImage.mockResolvedValue({ files: [] })
 
     await callExecute(
@@ -200,11 +222,11 @@ describe('generate_image', () => {
       buildTool(editableSupport)
     )
 
-    expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
+    expect(fileMetadata).toHaveBeenCalledWith('f1')
     expect(generateImage).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: 'edit',
-        inputImages: ['data:image/png;base64,AAAA'],
+        inputFileIds: ['f1'],
         paramValues: { quality: 'high' }
       })
     )
@@ -214,17 +236,22 @@ describe('generate_image', () => {
     getPreference.mockReturnValue('openai::dall-e-3')
     getImageGenerationSupport.mockReturnValue(generateSupport)
 
-    const result = await generateImageFromPrompt({ prompt: 'edit it', image_ids: ['f1'] })
+    const result = await generateImageFromPrompt({
+      prompt: 'edit it',
+      image_ids: ['f1']
+    })
 
     expect(result).toEqual({ error: PAINTING_EDIT_NOT_SUPPORTED_NOTE })
-    expect(fileRead).not.toHaveBeenCalled()
+    expect(fileMetadata).not.toHaveBeenCalled()
     expect(generateImage).not.toHaveBeenCalled()
   })
 
   it('returns a configuration note (and skips generation) when no model is configured', async () => {
     getPreference.mockReturnValue(null)
 
-    const result = (await callExecute({ prompt: 'a cat' })) as { error: string }
+    const result = (await callExecute({ prompt: 'a cat' })) as {
+      error: string
+    }
 
     expect(result).toEqual({ error: PAINTING_MODEL_NOT_CONFIGURED_NOTE })
     expect(result.error).toContain('No painting model is configured')
@@ -256,27 +283,32 @@ describe('generate_image', () => {
 
   it('rethrows an abort instead of converting it to an error discriminant', async () => {
     getPreference.mockReturnValue('openai::dall-e-3')
-    const abortError = Object.assign(new Error('aborted'), { name: 'AbortError' })
+    const abortError = Object.assign(new Error('aborted'), {
+      name: 'AbortError'
+    })
     generateImage.mockRejectedValue(abortError)
 
     await expect(callExecute({ prompt: 'a cat' })).rejects.toBe(abortError)
   })
 
   describe('toModelOutput', () => {
-    it('summarizes a successful file array', () => {
+    it('returns a structured generated-images envelope for the renderer', () => {
       const toModelOutput = entry.tool.toModelOutput!
-      const view = toModelOutput({ output: [{ id: 'f1', name: 'image-1.png' }] } as never) as unknown as {
-        type: string
-        value: string
-      }
-      expect(view.type).toBe('text')
-      expect(view.value).toContain('Generated 1 image(s)')
-      expect(view.value).toContain('image-1.png')
+      expect(toModelOutput({ output: [{ id: 'f1', name: 'image-1.png' }] } as never)).toEqual({
+        type: 'json',
+        value: {
+          type: 'generated-images',
+          images: [{ id: 'f1', name: 'image-1.png' }]
+        }
+      })
     })
 
     it('surfaces the error note on the error path', () => {
       const toModelOutput = entry.tool.toModelOutput!
-      expect(toModelOutput({ output: { error: 'x' } } as never)).toEqual({ type: 'text', value: 'x' })
+      expect(toModelOutput({ output: { error: 'x' } } as never)).toEqual({
+        type: 'text',
+        value: 'x'
+      })
     })
   })
 })

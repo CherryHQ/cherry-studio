@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@cherrystudio/ui'
 import Spinner from '@renderer/components/Spinner'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { toSafeFileUrl } from '@shared/utils/file'
@@ -9,39 +10,15 @@ import ImageBlock from '../../blocks/ImageBlock'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { parseGeneratedImageOutput } from './generateImageTool'
 
-/**
- * Resolve `generate_image` output FileEntry ids to renderable `file://` URLs.
- * The tool returns only `{ id, name }`; the on-disk path comes from a separate
- * `getPhysicalPath` IPC (same round-trip the Paintings page uses). Keyed on the
- * joined id string so the effect doesn't re-fire on every render (safeParse
- * hands back a fresh array each time).
- *
- * `failed` distinguishes "still resolving" (urls empty, not failed) from
- * "resolution failed" (urls empty, failed) — e.g. a historical message whose
- * file was since deleted — so the caller can show an error instead of a spinner
- * that never resolves.
- */
-function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean } {
+type ImageResolution = { key: string; urls: (string | null)[] }
+
+function useGeneratedImageUrls(ids: string[], attempt: number) {
   const key = ids.join(',')
-  const [state, setState] = useState<{ urls: string[]; failed: boolean }>({ urls: [], failed: false })
-  // Key of the last completed resolution: an <Activity> re-show re-runs the
-  // effect with an unchanged key, and re-resolving would blank the tiles and
-  // re-pay one getPhysicalPath IPC per image.
-  const resolvedKeyRef = useRef<string | null>(null)
+  const [state, setState] = useState<ImageResolution>({ key: '', urls: [] })
   useEffect(() => {
-    const list = key ? key.split(',') : []
-    if (list.length === 0) {
-      resolvedKeyRef.current = null
-      setState((current) => (current.urls.length === 0 && !current.failed ? current : { urls: [], failed: false }))
-      return
-    }
-    if (resolvedKeyRef.current === key) return
     let cancelled = false
-    // Back to "resolving" for this id set (drops any stale failed flag from a previous set).
-    setState({ urls: [], failed: false })
-    // Resolve each id independently so one deleted/unreadable FileEntry drops only its own tile
-    // instead of blanking the whole group; only flag `failed` when every id fails to resolve.
-    // Per-item try/catch means the outer promise never rejects, so it is fire-and-forget (`void`).
+    const list = key ? key.split(',') : []
+    setState({ key: '', urls: [] })
     void Promise.all(
       list.map(async (id) => {
         try {
@@ -50,17 +27,14 @@ function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean
           return null
         }
       })
-    ).then((resolved) => {
-      if (cancelled) return
-      const urls = resolved.filter((url): url is NonNullable<typeof url> => url !== null)
-      resolvedKeyRef.current = key
-      setState({ urls, failed: urls.length === 0 })
+    ).then((urls) => {
+      if (!cancelled) setState({ key, urls })
     })
     return () => {
       cancelled = true
     }
-  }, [key])
-  return state
+  }, [key, attempt])
+  return state.key === key ? state.urls : []
 }
 
 const NoteText = ({ children }: { children: React.ReactNode }) => (
@@ -73,9 +47,18 @@ export const MessageGenerateImageToolTitle = ({
   toolResponse: McpToolResponse | NormalToolResponse
 }) => {
   const { t } = useTranslation()
-  const { inlineUrls, items } = useMemo(() => parseGeneratedImageOutput(toolResponse.response), [toolResponse.response])
-  const { urls: resolvedUrls, failed: resolveFailed } = useGeneratedImageUrls(items.map((item) => item.id))
-  const urls = inlineUrls.length > 0 ? inlineUrls : resolvedUrls
+  const { inlineItems, inlineUrls, items } = useMemo(
+    () => parseGeneratedImageOutput(toolResponse.response),
+    [toolResponse.response]
+  )
+  const allItems = useMemo(() => [...items, ...inlineItems], [inlineItems, items])
+  const [attempt, setAttempt] = useState(0)
+  const resolvedUrls = useGeneratedImageUrls(
+    allItems.map((item) => item.id),
+    attempt
+  )
+
+  const previewImages = [...resolvedUrls.filter((url): url is string => Boolean(url)), ...inlineUrls]
 
   if (toolResponse.approval?.approved === false) {
     return <ToolApprovalOutcome approval={toolResponse.approval} />
@@ -86,30 +69,38 @@ export const MessageGenerateImageToolTitle = ({
     return <Spinner text={<NoteText>{t('chat.input.tools.generate_image.generating')}</NoteText>} />
   }
 
-  // Failure: a returned `{ error }` note, a thrown error, or files we could no longer resolve to a
-  // path (`resolveFailed`) — otherwise the success branch below would spin forever. The main-side
-  // `{ error }` / MCP text are English, model-facing notes; show localized UI copy instead of piping
-  // them straight to the user (i18n: all user-visible strings go through i18next).
-  if (urls.length === 0 && (items.length === 0 || resolveFailed)) {
+  if (allItems.length === 0 && inlineUrls.length === 0) {
     return <NoteText>{t('chat.input.tools.generate_image.failed')}</NoteText>
   }
 
-  // No card chrome — just a caption and the image(s) laid out like any other image group
-  // (single = bare, multiple = flex-wrap grid; mirrors MessagePartsRenderer).
-  const isSingle = Math.max(items.length, urls.length) === 1
   return (
     <div className="group/tool my-px flex flex-col gap-1 first:mt-0 first:pt-0">
       <NoteText>{t('chat.input.tools.generate_image.title')}</NoteText>
-      {isSingle ? (
-        <ImageBlock images={urls} isPending={urls.length === 0} isSingle />
-      ) : urls.length > 0 ? (
-        <ImageBlock images={urls} isSingle={false} />
-      ) : (
+      {allItems.length > 0 ? (
         <div className="flex flex-wrap gap-2.5">
-          {items.map((item) => (
-            <ImageBlock key={item.id} images={[]} isPending isSingle={false} />
-          ))}
+          {allItems.map((item, index) => {
+            const url = resolvedUrls[index]
+            return url === null ? (
+              <div key={item.id} role="status" className="rounded-lg border border-border-subtle p-3 text-sm">
+                <p>{item.name}</p>
+                <p>{t('file_preview.unavailable.description')}</p>
+                <Button variant="ghost" size="sm" onClick={() => setAttempt((value) => value + 1)}>
+                  {t('common.retry')}
+                </Button>
+              </div>
+            ) : (
+              <ImageBlock
+                key={item.id}
+                images={url ? [url] : []}
+                previewImages={previewImages}
+                isPending={!url}
+                isSingle={allItems.length === 1}
+              />
+            )
+          })}
         </div>
+      ) : (
+        <ImageBlock images={inlineUrls} isSingle={inlineUrls.length === 1} />
       )}
     </div>
   )

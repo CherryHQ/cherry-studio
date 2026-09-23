@@ -8,7 +8,7 @@ import type { GenerateInput } from '../types/generateInput'
 import type { PaintingData } from '../types/paintingData'
 
 // Capture the options handed to the shared generate skeleton — this is the
-// canonical `paramValues` bag (+ encoded inputImages) under test. The
+// canonical `paramValues` bag (+ FileEntry input ids) under test. The
 // native-vs-vendor partition now lives in main (`splitParamValues`), so the bag
 // stays canonical (no `numImages → n` rename here).
 const generatePaintingMock = vi.fn<(opts: unknown) => Promise<FileMetadata[]>>(async () => [] as FileMetadata[])
@@ -23,6 +23,7 @@ vi.mock('../../utils/checkProviderEnabled', () => ({
 interface CapturedGenerate {
   paramValues: Record<string, unknown>
   inputImages?: string[]
+  inputFileIds?: string[]
 }
 
 function lastGenerateCall(): CapturedGenerate {
@@ -128,17 +129,17 @@ describe('canonicalGenerate', () => {
     expect(lastGenerateCall().paramValues).toEqual({})
   })
 
-  it('prefetches attached input images as data URLs, carried separately from paramValues', async () => {
+  it('passes attached input image FileEntry ids separately from paramValues', async () => {
     const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
     ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
 
     const inputFiles = [{ id: 'file-1', ext: 'png' }] as unknown as FileEntry[]
     await canonicalGenerate(makeInput({}, { inputFiles }))
 
-    expect(binaryImage).toHaveBeenCalledWith('file-1.png')
     const call = lastGenerateCall()
     // Encoded to a `data:` URL (`base64('\x01\x02\x03') === 'AQID'`); not in paramValues.
-    expect(call.inputImages).toEqual(['data:image/png;base64,AQID'])
+    expect(call.inputFileIds).toEqual(['file-1'])
+    expect(call.inputImages).toBeUndefined()
     expect(call.paramValues).toEqual({})
   })
 
@@ -171,10 +172,9 @@ describe('canonicalGenerate', () => {
     ] as unknown as FileEntry[]
     await canonicalGenerate(makeInput({}, { inputFiles }))
 
-    // Only the image was fetched/encoded; the .txt was filtered out.
-    expect(binaryImage).toHaveBeenCalledTimes(1)
-    expect(binaryImage).toHaveBeenCalledWith('pic.png')
-    expect(lastGenerateCall().inputImages).toEqual(['data:image/png;base64,AQID'])
+    // Only the image id is passed; the .txt was filtered out before IPC.
+    expect(lastGenerateCall().inputFileIds).toEqual(['pic'])
+    expect(lastGenerateCall().inputImages).toBeUndefined()
   })
 
   it('throws EDIT_IMAGE_REQUIRED for an image-requiring mode with no image input', async () => {

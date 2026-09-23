@@ -139,6 +139,8 @@ const aiChatRequestShape = {
 const aiImagePayloadSchema = z.strictObject({
   ...aiRequestShape,
   prompt: z.string(),
+  /** Optional painting step that owns an async job result. */
+  paintingId: z.string().min(1).optional(),
   /**
    * The image-generation mode (which tab). A request property — NOT a param — so
    * main can derive per-model transport routing (`vendorTransport` → descriptor)
@@ -152,8 +154,10 @@ const aiImagePayloadSchema = z.strictObject({
    * in the renderer's `buildParamsSchema`; this is the value-type gate.
    */
   paramValues: imageParamsSchema,
-  /** Attached images / mask are encoded file bytes (data URLs), not form params. */
+  /** Attached images supplied by agent/tool callers as encoded data URLs. */
   inputImages: z.array(z.string()).optional(),
+  /** Painting-owned FileEntry ids; main reads them directly without renderer Base64. */
+  inputFileIds: z.array(z.string().min(1)).optional(),
   mask: z.string().optional(),
   // Required: the calling business feature decides the cleanup intent for the
   // generated OUTPUT entries (file-entry-cleanup.md §4.1) — main never defaults it.
@@ -214,6 +218,14 @@ export const aiRequestSchemas = {
   'ai.image.abort': defineRoute({
     // Was a one-way `ipcOn`; per the migration guide a one-off becomes a `void` request.
     input: z.strictObject({ requestId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.image.cancel_painting': defineRoute({
+    input: z.strictObject({ paintingId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.image.cancel_project': defineRoute({
+    input: z.strictObject({ projectId: z.string().min(1) }),
     output: z.void()
   }),
 

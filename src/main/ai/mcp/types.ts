@@ -11,6 +11,8 @@ export interface McpToolResultContent {
   text?: string
   data?: string
   mimeType?: string
+  /** Cherry-managed asset created at the MCP boundary for UI/history reuse. */
+  assetId?: string
   resource?: {
     uri?: string
     text?: string

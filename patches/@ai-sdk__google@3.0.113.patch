@@ -1,7 +1,80 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 5b85ae135fec2cfd416597a804eda57a45aea312..baea600a3653affb87f7f0eb56ab8f1cdaecc988 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -31,8 +31,8 @@ declare const googleLanguageModelOptions: _ai_sdk_provider_utils.LazySchema<{
+     labels?: Record<string, string> | undefined;
+     mediaResolution?: "MEDIA_RESOLUTION_UNSPECIFIED" | "MEDIA_RESOLUTION_LOW" | "MEDIA_RESOLUTION_MEDIUM" | "MEDIA_RESOLUTION_HIGH" | undefined;
+     imageConfig?: {
+-        aspectRatio?: "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9" | "1:8" | "8:1" | "1:4" | "4:1" | undefined;
+-        imageSize?: "1K" | "2K" | "4K" | "512" | undefined;
++        aspectRatio?: string | undefined;
++        imageSize?: string | undefined;
+         personGeneration?: "PERSON_GENERATION_UNSPECIFIED" | "ALLOW_ALL" | "ALLOW_ADULT" | "ALLOW_NONE" | undefined;
+         prominentPeople?: "PROMINENT_PEOPLE_UNSPECIFIED" | "ALLOW_PROMINENT_PEOPLE" | "BLOCK_PROMINENT_PEOPLE" | undefined;
+         imageOutputOptions?: {
+@@ -322,16 +322,16 @@ declare const googleInteractionsLanguageModelOptions: _ai_sdk_provider_utils.Laz
+         [x: string]: unknown;
+         type: "image";
+         mimeType?: string | null | undefined;
+-        aspectRatio?: "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9" | "1:8" | "8:1" | "1:4" | "4:1" | null | undefined;
+-        imageSize?: "1K" | "2K" | "4K" | "512" | null | undefined;
++        aspectRatio?: string | undefined;
++        imageSize?: string | undefined;
+     } | {
+         [x: string]: unknown;
+         type: "audio";
+         mimeType?: string | null | undefined;
+     })[] | null | undefined;
+     imageConfig?: {
+-        aspectRatio?: "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9" | "1:8" | "8:1" | "1:4" | "4:1" | null | undefined;
+-        imageSize?: "1K" | "2K" | "4K" | "512" | null | undefined;
++        aspectRatio?: string | undefined;
++        imageSize?: string | undefined;
+     } | null | undefined;
+     mediaResolution?: "low" | "medium" | "high" | "ultra_high" | null | undefined;
+     responseModalities?: ("text" | "image" | "document" | "video" | "audio")[] | null | undefined;
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 5b85ae135fec2cfd416597a804eda57a45aea312..baea600a3653affb87f7f0eb56ab8f1cdaecc988 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -31,8 +31,8 @@ declare const googleLanguageModelOptions: _ai_sdk_provider_utils.LazySchema<{
+     labels?: Record<string, string> | undefined;
+     mediaResolution?: "MEDIA_RESOLUTION_UNSPECIFIED" | "MEDIA_RESOLUTION_LOW" | "MEDIA_RESOLUTION_MEDIUM" | "MEDIA_RESOLUTION_HIGH" | undefined;
+     imageConfig?: {
+-        aspectRatio?: "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9" | "1:8" | "8:1" | "1:4" | "4:1" | undefined;
+-        imageSize?: "1K" | "2K" | "4K" | "512" | undefined;
++        aspectRatio?: string | undefined;
++        imageSize?: string | undefined;
+         personGeneration?: "PERSON_GENERATION_UNSPECIFIED" | "ALLOW_ALL" | "ALLOW_ADULT" | "ALLOW_NONE" | undefined;
+         prominentPeople?: "PROMINENT_PEOPLE_UNSPECIFIED" | "ALLOW_PROMINENT_PEOPLE" | "BLOCK_PROMINENT_PEOPLE" | undefined;
+         imageOutputOptions?: {
+@@ -322,16 +322,16 @@ declare const googleInteractionsLanguageModelOptions: _ai_sdk_provider_utils.Laz
+         [x: string]: unknown;
+         type: "image";
+         mimeType?: string | null | undefined;
+-        aspectRatio?: "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9" | "1:8" | "8:1" | "1:4" | "4:1" | null | undefined;
+-        imageSize?: "1K" | "2K" | "4K" | "512" | null | undefined;
++        aspectRatio?: string | undefined;
++        imageSize?: string | undefined;
+     } | {
+         [x: string]: unknown;
+         type: "audio";
+         mimeType?: string | null | undefined;
+     })[] | null | undefined;
+     imageConfig?: {
+-        aspectRatio?: "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9" | "1:8" | "8:1" | "1:4" | "4:1" | null | undefined;
+-        imageSize?: "1K" | "2K" | "4K" | "512" | null | undefined;
++        aspectRatio?: string | undefined;
++        imageSize?: string | undefined;
+     } | null | undefined;
+     mediaResolution?: "low" | "medium" | "high" | "ultra_high" | null | undefined;
+     responseModalities?: ("text" | "image" | "document" | "video" | "audio")[] | null | undefined;
 diff --git a/dist/index.js b/dist/index.js
+index 2d9bb719e10163d2cbcc9367438d517cd5e6f008..a332dd2b25539cc060608028de389de019dc8b6f 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -866,7 +866,7 @@
+@@ -866,7 +866,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
@@ -10,7 +83,33 @@ diff --git a/dist/index.js b/dist/index.js
  }
  
  // src/google-generative-ai-options.ts
-@@ -2931,7 +2931,7 @@
+@@ -957,23 +957,8 @@ var googleLanguageModelOptions = (0, import_provider_utils5.lazySchema)(
+        * https://ai.google.dev/gemini-api/docs/image-generation#aspect_ratios
+        */
+       imageConfig: import_v44.z.object({
+-        aspectRatio: import_v44.z.enum([
+-          "1:1",
+-          "2:3",
+-          "3:2",
+-          "3:4",
+-          "4:3",
+-          "4:5",
+-          "5:4",
+-          "9:16",
+-          "16:9",
+-          "21:9",
+-          "1:8",
+-          "8:1",
+-          "1:4",
+-          "4:1"
+-        ]).optional(),
+-        imageSize: import_v44.z.enum(["1K", "2K", "4K", "512"]).optional(),
++        aspectRatio: import_v44.z.string().optional(),
++        imageSize: import_v44.z.string().optional(),
+         /**
+          * Optional. Controls the generation of people in images.
+          * Vertex AI only.
+@@ -2931,7 +2916,7 @@ var GoogleGenerativeAIImageModel = class {
        parameters
      };
      const { responseHeaders, value: response } = await (0, import_provider_utils14.postJsonToApi)({
@@ -19,7 +118,7 @@ diff --git a/dist/index.js b/dist/index.js
        headers: (0, import_provider_utils14.combineHeaders)(await (0, import_provider_utils14.resolve)(this.config.headers), headers),
        body,
        failedResponseHandler: googleFailedResponseHandler,
-@@ -3083,7 +3083,7 @@
+@@ -3083,7 +3068,7 @@ var GoogleGenerativeAIImageModel = class {
    }
  };
  function isGeminiModel(modelId) {
@@ -28,10 +127,63 @@ diff --git a/dist/index.js b/dist/index.js
  }
  var googleImageResponseSchema = (0, import_provider_utils14.lazySchema)(
    () => (0, import_provider_utils14.zodSchema)(
+@@ -4956,23 +4941,8 @@ var googleInteractionsLanguageModelOptions = (0, import_provider_utils18.lazySch
+           import_v416.z.object({
+             type: import_v416.z.literal("image"),
+             mimeType: import_v416.z.string().nullish(),
+-            aspectRatio: import_v416.z.enum([
+-              "1:1",
+-              "2:3",
+-              "3:2",
+-              "3:4",
+-              "4:3",
+-              "4:5",
+-              "5:4",
+-              "9:16",
+-              "16:9",
+-              "21:9",
+-              "1:8",
+-              "8:1",
+-              "1:4",
+-              "4:1"
+-            ]).nullish(),
+-            imageSize: import_v416.z.enum(["1K", "2K", "4K", "512"]).nullish()
++            aspectRatio: import_v416.z.string().nullish(),
++            imageSize: import_v416.z.string().nullish()
+           }).loose(),
+           import_v416.z.object({
+             type: import_v416.z.literal("audio"),
+@@ -4987,23 +4957,8 @@ var googleInteractionsLanguageModelOptions = (0, import_provider_utils18.lazySch
+        * emits a warning when set.
+        */
+       imageConfig: import_v416.z.object({
+-        aspectRatio: import_v416.z.enum([
+-          "1:1",
+-          "2:3",
+-          "3:2",
+-          "3:4",
+-          "4:3",
+-          "4:5",
+-          "5:4",
+-          "9:16",
+-          "16:9",
+-          "21:9",
+-          "1:8",
+-          "8:1",
+-          "1:4",
+-          "4:1"
+-        ]).nullish(),
+-        imageSize: import_v416.z.enum(["1K", "2K", "4K", "512"]).nullish()
++        aspectRatio: import_v416.z.string().nullish(),
++        imageSize: import_v416.z.string().nullish()
+       }).nullish(),
+       mediaResolution: import_v416.z.enum(["low", "medium", "high", "ultra_high"]).nullish(),
+       responseModalities: import_v416.z.array(import_v416.z.enum(["text", "image", "audio", "video", "document"])).nullish(),
 diff --git a/dist/index.mjs b/dist/index.mjs
+index 3e2971fe0d209f9cf22d74ee76b1596f07dea5bd..2193a316b066f7b365b478ed48ce83e5e5ede4cc 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -874,7 +874,7 @@
+@@ -874,7 +874,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
@@ -40,7 +192,33 @@ diff --git a/dist/index.mjs b/dist/index.mjs
  }
  
  // src/google-generative-ai-options.ts
-@@ -2974,7 +2974,7 @@
+@@ -968,23 +968,8 @@ var googleLanguageModelOptions = lazySchema4(
+        * https://ai.google.dev/gemini-api/docs/image-generation#aspect_ratios
+        */
+       imageConfig: z4.object({
+-        aspectRatio: z4.enum([
+-          "1:1",
+-          "2:3",
+-          "3:2",
+-          "3:4",
+-          "4:3",
+-          "4:5",
+-          "5:4",
+-          "9:16",
+-          "16:9",
+-          "21:9",
+-          "1:8",
+-          "8:1",
+-          "1:4",
+-          "4:1"
+-        ]).optional(),
+-        imageSize: z4.enum(["1K", "2K", "4K", "512"]).optional(),
++        aspectRatio: z4.string().optional(),
++        imageSize: z4.string().optional(),
+         /**
+          * Optional. Controls the generation of people in images.
+          * Vertex AI only.
+@@ -2974,7 +2959,7 @@ var GoogleGenerativeAIImageModel = class {
        parameters
      };
      const { responseHeaders, value: response } = await postJsonToApi3({
@@ -49,7 +227,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        headers: combineHeaders3(await resolve3(this.config.headers), headers),
        body,
        failedResponseHandler: googleFailedResponseHandler,
-@@ -3126,7 +3126,7 @@
+@@ -3126,7 +3111,7 @@ var GoogleGenerativeAIImageModel = class {
    }
  };
  function isGeminiModel(modelId) {
@@ -58,10 +236,63 @@ diff --git a/dist/index.mjs b/dist/index.mjs
  }
  var googleImageResponseSchema = lazySchema11(
    () => zodSchema11(
+@@ -5027,23 +5012,8 @@ var googleInteractionsLanguageModelOptions = lazySchema14(
+           z16.object({
+             type: z16.literal("image"),
+             mimeType: z16.string().nullish(),
+-            aspectRatio: z16.enum([
+-              "1:1",
+-              "2:3",
+-              "3:2",
+-              "3:4",
+-              "4:3",
+-              "4:5",
+-              "5:4",
+-              "9:16",
+-              "16:9",
+-              "21:9",
+-              "1:8",
+-              "8:1",
+-              "1:4",
+-              "4:1"
+-            ]).nullish(),
+-            imageSize: z16.enum(["1K", "2K", "4K", "512"]).nullish()
++            aspectRatio: z16.string().nullish(),
++            imageSize: z16.string().nullish()
+           }).loose(),
+           z16.object({
+             type: z16.literal("audio"),
+@@ -5058,23 +5028,8 @@ var googleInteractionsLanguageModelOptions = lazySchema14(
+        * emits a warning when set.
+        */
+       imageConfig: z16.object({
+-        aspectRatio: z16.enum([
+-          "1:1",
+-          "2:3",
+-          "3:2",
+-          "3:4",
+-          "4:3",
+-          "4:5",
+-          "5:4",
+-          "9:16",
+-          "16:9",
+-          "21:9",
+-          "1:8",
+-          "8:1",
+-          "1:4",
+-          "4:1"
+-        ]).nullish(),
+-        imageSize: z16.enum(["1K", "2K", "4K", "512"]).nullish()
++        aspectRatio: z16.string().nullish(),
++        imageSize: z16.string().nullish()
+       }).nullish(),
+       mediaResolution: z16.enum(["low", "medium", "high", "ultra_high"]).nullish(),
+       responseModalities: z16.array(z16.enum(["text", "image", "audio", "video", "document"])).nullish(),
 diff --git a/dist/internal/index.js b/dist/internal/index.js
+index de745a76fa60c2d16d7d20d87331e8a6adf37bf8..883591ef5f52ffddc18b4bed30f47d5e1090bcae 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
-@@ -649,7 +649,7 @@
+@@ -649,7 +649,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
@@ -70,10 +301,89 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
  }
  
  // src/google-error.ts
+@@ -760,23 +760,8 @@ var googleLanguageModelOptions = (0, import_provider_utils3.lazySchema)(
+        * https://ai.google.dev/gemini-api/docs/image-generation#aspect_ratios
+        */
+       imageConfig: import_v42.z.object({
+-        aspectRatio: import_v42.z.enum([
+-          "1:1",
+-          "2:3",
+-          "3:2",
+-          "3:4",
+-          "4:3",
+-          "4:5",
+-          "5:4",
+-          "9:16",
+-          "16:9",
+-          "21:9",
+-          "1:8",
+-          "8:1",
+-          "1:4",
+-          "4:1"
+-        ]).optional(),
+-        imageSize: import_v42.z.enum(["1K", "2K", "4K", "512"]).optional(),
++        aspectRatio: import_v42.z.string().optional(),
++        imageSize: import_v42.z.string().optional(),
+         /**
+          * Optional. Controls the generation of people in images.
+          * Vertex AI only.
+@@ -4179,23 +4164,8 @@ var googleInteractionsLanguageModelOptions = (0, import_provider_utils14.lazySch
+           import_v412.z.object({
+             type: import_v412.z.literal("image"),
+             mimeType: import_v412.z.string().nullish(),
+-            aspectRatio: import_v412.z.enum([
+-              "1:1",
+-              "2:3",
+-              "3:2",
+-              "3:4",
+-              "4:3",
+-              "4:5",
+-              "5:4",
+-              "9:16",
+-              "16:9",
+-              "21:9",
+-              "1:8",
+-              "8:1",
+-              "1:4",
+-              "4:1"
+-            ]).nullish(),
+-            imageSize: import_v412.z.enum(["1K", "2K", "4K", "512"]).nullish()
++            aspectRatio: import_v412.z.string().nullish(),
++            imageSize: import_v412.z.string().nullish()
+           }).loose(),
+           import_v412.z.object({
+             type: import_v412.z.literal("audio"),
+@@ -4210,23 +4180,8 @@ var googleInteractionsLanguageModelOptions = (0, import_provider_utils14.lazySch
+        * emits a warning when set.
+        */
+       imageConfig: import_v412.z.object({
+-        aspectRatio: import_v412.z.enum([
+-          "1:1",
+-          "2:3",
+-          "3:2",
+-          "3:4",
+-          "4:3",
+-          "4:5",
+-          "5:4",
+-          "9:16",
+-          "16:9",
+-          "21:9",
+-          "1:8",
+-          "8:1",
+-          "1:4",
+-          "4:1"
+-        ]).nullish(),
+-        imageSize: import_v412.z.enum(["1K", "2K", "4K", "512"]).nullish()
++        aspectRatio: import_v412.z.string().nullish(),
++        imageSize: import_v412.z.string().nullish()
+       }).nullish(),
+       mediaResolution: import_v412.z.enum(["low", "medium", "high", "ultra_high"]).nullish(),
+       responseModalities: import_v412.z.array(import_v412.z.enum(["text", "image", "audio", "video", "document"])).nullish(),
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index b539dabcad0fc4e09179992d7e17c98dc8f61663..91e90ac13d5b2959ac9ecf586e550c2d77831730 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
-@@ -633,7 +633,7 @@
+@@ -633,7 +633,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
@@ -82,3 +392,113 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
  }
  
  // src/google-error.ts
+@@ -751,23 +751,8 @@ var googleLanguageModelOptions = lazySchema2(
+        * https://ai.google.dev/gemini-api/docs/image-generation#aspect_ratios
+        */
+       imageConfig: z2.object({
+-        aspectRatio: z2.enum([
+-          "1:1",
+-          "2:3",
+-          "3:2",
+-          "3:4",
+-          "4:3",
+-          "4:5",
+-          "5:4",
+-          "9:16",
+-          "16:9",
+-          "21:9",
+-          "1:8",
+-          "8:1",
+-          "1:4",
+-          "4:1"
+-        ]).optional(),
+-        imageSize: z2.enum(["1K", "2K", "4K", "512"]).optional(),
++        aspectRatio: z2.string().optional(),
++        imageSize: z2.string().optional(),
+         /**
+          * Optional. Controls the generation of people in images.
+          * Vertex AI only.
+@@ -4206,23 +4191,8 @@ var googleInteractionsLanguageModelOptions = lazySchema10(
+           z12.object({
+             type: z12.literal("image"),
+             mimeType: z12.string().nullish(),
+-            aspectRatio: z12.enum([
+-              "1:1",
+-              "2:3",
+-              "3:2",
+-              "3:4",
+-              "4:3",
+-              "4:5",
+-              "5:4",
+-              "9:16",
+-              "16:9",
+-              "21:9",
+-              "1:8",
+-              "8:1",
+-              "1:4",
+-              "4:1"
+-            ]).nullish(),
+-            imageSize: z12.enum(["1K", "2K", "4K", "512"]).nullish()
++            aspectRatio: z12.string().nullish(),
++            imageSize: z12.string().nullish()
+           }).loose(),
+           z12.object({
+             type: z12.literal("audio"),
+@@ -4237,23 +4207,8 @@ var googleInteractionsLanguageModelOptions = lazySchema10(
+        * emits a warning when set.
+        */
+       imageConfig: z12.object({
+-        aspectRatio: z12.enum([
+-          "1:1",
+-          "2:3",
+-          "3:2",
+-          "3:4",
+-          "4:3",
+-          "4:5",
+-          "5:4",
+-          "9:16",
+-          "16:9",
+-          "21:9",
+-          "1:8",
+-          "8:1",
+-          "1:4",
+-          "4:1"
+-        ]).nullish(),
+-        imageSize: z12.enum(["1K", "2K", "4K", "512"]).nullish()
++        aspectRatio: z12.string().nullish(),
++        imageSize: z12.string().nullish()
+       }).nullish(),
+       mediaResolution: z12.enum(["low", "medium", "high", "ultra_high"]).nullish(),
+       responseModalities: z12.array(z12.enum(["text", "image", "audio", "video", "document"])).nullish(),
+diff --git a/src/google-generative-ai-options.ts b/src/google-generative-ai-options.ts
+index a0fa4c7638970cc26eeab67d11c2f697984c3147..d38eed379ce52935e63b92574a364c4bec8329d7 100644
+--- a/src/google-generative-ai-options.ts
++++ b/src/google-generative-ai-options.ts
+@@ -158,25 +158,9 @@ export const googleLanguageModelOptions = lazySchema(() =>
+        */
+       imageConfig: z
+         .object({
+-          aspectRatio: z
+-            .enum([
+-              '1:1',
+-              '2:3',
+-              '3:2',
+-              '3:4',
+-              '4:3',
+-              '4:5',
+-              '5:4',
+-              '9:16',
+-              '16:9',
+-              '21:9',
+-              '1:8',
+-              '8:1',
+-              '1:4',
+-              '4:1',
+-            ])
++          aspectRatio: z.string()
+             .optional(),
+-          imageSize: z.enum(['1K', '2K', '4K', '512']).optional(),
++          imageSize: z.string().optional(),
+ 
+           /**
+            * Optional. Controls the generation of people in images.

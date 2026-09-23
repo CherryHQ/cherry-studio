@@ -175,6 +175,20 @@
       "when": 1789636472109,
       "tag": "0024_lying_shatterstar",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1790000272844,
+      "tag": "0025_rare_sunset_bain",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1790004815542,
+      "tag": "0026_uneven_marvel_zombies",
+      "breakpoints": true
     }
   ],
   "version": "7"

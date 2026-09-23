@@ -21,6 +21,9 @@ protocols:
       - cherrystudio
 files:
   - "**/*"
+  - "!dist/**"
+  - "!test-results/**"
+  - "!playwright-report/**"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"

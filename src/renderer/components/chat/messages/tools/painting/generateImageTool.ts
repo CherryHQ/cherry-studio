@@ -1,29 +1,34 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { getToolName, isToolUIPart } from 'ai'
 
-import { GENERATE_IMAGE_TOOL_NAME, generateImageOutputSchema } from '@shared/ai/builtinTools'
+import { generatedImagesFromOutput, isGeneratedImageToolName } from '@shared/ai/generateImageTool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildToolResponseFromPart } from '../toolResponse'
 
-const CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`
-
-export function isGenerateImageToolName(toolName: string): boolean {
-  return toolName === GENERATE_IMAGE_TOOL_NAME || toolName === CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME
-}
+export const isGenerateImageToolName = isGeneratedImageToolName
 
 export function parseGeneratedImageOutput(response: unknown) {
-  const outputParse = generateImageOutputSchema.safeParse(response)
-  const mcpOutputParse = CallToolResultSchema.safeParse(response)
+  const content =
+    response && typeof response === 'object' && !Array.isArray(response) && Array.isArray((response as any).content)
+      ? ((response as { content: unknown[] }).content as Array<Record<string, unknown>>)
+      : null
+  const inlineItems: Array<{ id: string; name: string }> = []
+  const inlineUrls: string[] = []
+  for (const item of content ?? []) {
+    if (item.type !== 'image') continue
+    if (typeof item.assetId === 'string' && item.assetId) {
+      inlineItems.push({ id: item.assetId, name: 'generated-image.png' })
+      continue
+    }
+    if (typeof item.data === 'string' && item.data) {
+      inlineUrls.push(`data:${typeof item.mimeType === 'string' ? item.mimeType : 'image/png'};base64,${item.data}`)
+    }
+  }
   return {
-    items: outputParse.success ? outputParse.data : [],
-    inlineUrls:
-      mcpOutputParse.success && mcpOutputParse.data.isError !== true
-        ? mcpOutputParse.data.content.flatMap((item) =>
-            item.type === 'image' && item.data ? [`data:${item.mimeType ?? 'image/png'};base64,${item.data}`] : []
-          )
-        : []
+    items: generatedImagesFromOutput(response),
+    inlineItems,
+    inlineUrls
   }
 }
 

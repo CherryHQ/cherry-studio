@@ -296,7 +296,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
       ]
     },
     deepseek: {
-      'web-search': ['deepseek-flash', 'deepseek-flash-latest', 'deepseek-v4-pro']
+      'web-search': ['deepseek-flash', 'deepseek-v4-pro']
     },
     'new-api': {
       'web-search': [
@@ -869,6 +869,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'grok-4-3',
         'grok-4-5',
         'grok-4-6',
+        'grok-4-7',
         'grok-4-fast'
       ]
     },
@@ -1046,6 +1047,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'grok-4-3',
         'grok-4-5',
         'grok-4-6',
+        'grok-4-7',
         'grok-4-fast',
         'kimi-k2',
         'kimi-k2-5',

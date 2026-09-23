@@ -64,7 +64,7 @@ export const DIFFUSION_WIRE_PROFILE: WireProfile = {
  * profile). Dual-keyed under `openai` + the provider id by the registry.
  */
 export const OPENAI_WIRE_PROFILE: WireProfile = {
-  forward: ['quality', 'background', 'moderation', 'style']
+  forward: ['quality', 'background', 'moderation', 'style', 'outputFormat', 'outputCompression']
 }
 
 /**
@@ -138,7 +138,8 @@ const aspectRatioImageConfigRule: WireRule = {
  *  `@ai-sdk/google` reads it as `providerOptions.<key>.imageConfig.imageSize`.
  *  Shared by the google / google-vertex family and the dmxapi google-routed block. */
 const imageResolutionImageConfigRule: WireRule = {
-  contribute: (v): Record<string, JSONValue> => (typeof v === 'string' ? { imageConfig: { imageSize: v } } : {})
+  contribute: (v): Record<string, JSONValue> =>
+    typeof v === 'string' && v !== 'auto' ? { imageConfig: { imageSize: v } } : {}
 }
 
 /**
@@ -233,7 +234,13 @@ export interface WireRegistration {
  */
 export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   openrouter: { profile: OPENROUTER_WIRE_PROFILE },
-  openai: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
+  openai: {
+    profile: {
+      ...OPENAI_WIRE_PROFILE,
+      fields: { outputFormat: { to: 'outputFormat' }, outputCompression: { to: 'outputCompression' } }
+    },
+    dualOpenAI: true
+  },
   'openai-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   azure: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   'azure-responses': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
@@ -264,6 +271,7 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   // `openai` mirror stays clean (mapped fields only).
   aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
   dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] },
+  xai: { profile: { forward: ['resolution', 'quality'] } },
   ollama: { profile: OLLAMA_WIRE_PROFILE },
   minimax: { profile: MINIMAX_WIRE_PROFILE }
 }

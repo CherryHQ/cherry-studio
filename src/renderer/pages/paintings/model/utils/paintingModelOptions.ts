@@ -1,5 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import { isEditImageModel } from '@shared/utils/model'
 
 import type { ModelOption } from '../types/paintingModel'
 
@@ -49,4 +50,20 @@ export async function loadPaintingModelOptions(providerId: string): Promise<Mode
   })
 
   return getPaintingModelOptions(providerId, models)
+}
+
+/** Explicit image endpoints are authoritative for custom OpenAI-compatible models. */
+export function canEditPaintingModel(model: Model): boolean {
+  if (model.imageGeneration) return Boolean(model.imageGeneration.modes.edit)
+  if (model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)) return true
+  if (model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)) return false
+  return isEditImageModel(model)
+}
+
+export function canGeneratePaintingModel(model: Model): boolean {
+  if (model.imageGeneration) return Boolean(model.imageGeneration.modes.generate)
+  return (
+    !model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT) ||
+    model.endpointTypes.includes(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)
+  )
 }

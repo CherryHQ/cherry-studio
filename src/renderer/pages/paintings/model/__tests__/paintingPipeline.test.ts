@@ -68,7 +68,7 @@ describe('paintingGenerate', () => {
     expect(canonicalGenerateMock).toHaveBeenCalledWith(input, { requirePrompt: false, support, mode: 'edit' })
   })
 
-  it('falls back to the first declared mode when the tab mode is unsupported', async () => {
+  it('preserves edit intent when only generation controls are catalogued', async () => {
     // painting.mode 'edit' → canonicalMode 'edit', but the model only declares 'generate'.
     const support = { modes: { generate: { requirePrompt: true, supports: {} } } }
     prefetchMock.mockResolvedValue(support)
@@ -76,7 +76,7 @@ describe('paintingGenerate', () => {
     const input = makeInput({ mode: 'edit', model: 'qwen-image' })
     await paintingGenerate(input)
 
-    expect(canonicalGenerateMock).toHaveBeenCalledWith(input, { requirePrompt: true, support, mode: 'generate' })
+    expect(canonicalGenerateMock).toHaveBeenCalledWith(input, { support, mode: 'edit' })
   })
 
   it('passes no options when the model has no id (skips the prefetch handoff)', async () => {

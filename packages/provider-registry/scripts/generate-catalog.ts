@@ -58,6 +58,12 @@ const SERVER_TOOL_MODELS_GEN_PATH = path.join(__dirname, '../src/patterns/server
 const SERVER_TOOL_CONSTRAINTS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-constraints.gen.ts')
 const WRITE = process.argv.includes('--write')
 const REPORT = process.argv.includes('--report')
+const selectedModelIds = new Set(
+  (process.argv.find((arg) => arg.startsWith('--model-ids='))?.slice('--model-ids='.length) ?? '')
+    .split(',')
+    .filter(Boolean)
+    .map(canonOf)
+)
 // Each artifact's `version` is a hash of its own (version-less, key-sorted) content: equal content ⇒
 // equal version, ANY content change ⇒ new version. Seeders (`PresetProviderSeeder` via `SeedRunner`)
 // skip when the journal version matches, so a date stamp would let a same-day regeneration change
@@ -660,7 +666,17 @@ void (async () => {
 
   const index = buildIndex(md, or)
   const claimed = await assignCreators(index, md)
-  const models = buildModels(index, claimed)
+  let models = buildModels(index, claimed)
+  if (selectedModelIds.size) {
+    const previous = JSON.parse(fs.readFileSync(MODELS_PATH, 'utf8')).models as Array<{ id: string }>
+    const scoped = new Map(previous.map((model) => [model.id, model]))
+    for (const id of selectedModelIds) {
+      const model = models.get(id)
+      if (!model) throw new Error(`Selected model not found in generated catalog: ${id}`)
+      scoped.set(id, model)
+    }
+    models = scoped
+  }
 
   const unassigned = [...index.keys()].filter((k) => !claimed.has(k))
   console.log(`creators: ${CREATORS.length}`)
@@ -703,6 +719,17 @@ void (async () => {
     })
   const providers = buildProviders()
   const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
+  if (selectedModelIds.size) {
+    const previous = JSON.parse(fs.readFileSync(PROVIDER_MODELS_PATH, 'utf8')).overrides as Array<{
+      providerId: string
+      modelId: string
+      [key: string]: any
+    }>
+    pm.overrides = [
+      ...previous.filter((row) => !selectedModelIds.has(row.modelId)),
+      ...pm.overrides.filter((row) => selectedModelIds.has(row.modelId))
+    ].sort((a, b) => `${a.providerId} ${a.modelId}`.localeCompare(`${b.providerId} ${b.modelId}`))
+  }
   const serviceTierErrors = getServiceTierCatalogErrors(providers, pm.overrides)
   if (serviceTierErrors.length > 0) {
     throw new Error(`Invalid service tier catalog:\n${serviceTierErrors.join('\n')}`)

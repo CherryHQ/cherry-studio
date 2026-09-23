@@ -1,5 +1,7 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { toSafeFileUrl } from '@shared/utils/file'
 
 import { ToolArgsTable } from '../shared/ArgsTable'
 import { ToolHeader } from '../shared/GenericTools'
@@ -22,27 +24,64 @@ const getToolDisplayName = (name: string) => {
 }
 
 /**
- * Extract the text preview and any inline `image` content blocks from an MCP CallToolResult.
- * Returns null when the output is not a valid CallToolResult. Images ride along as base64 (the
- * standard MCP multimedia protocol) — the older path that surfaced them as separate IMAGE_COMPLETE
- * blocks was carved out with the v2 renderer, so they are rendered here alongside the text.
+ * Extract the text preview and any image content blocks from an MCP CallToolResult.
+ * Persisted results may carry only a Cherry FileEntry asset id; current-turn
+ * results may still carry the original bytes for the model.
  */
-function extractMcpContent(
-  output: unknown
-): { text: string | null; images: Array<{ data: string; mimeType: string }> } | null {
-  const result = CallToolResultSchema.safeParse(output)
-  if (!result.success) return null
+function extractMcpContent(output: unknown): {
+  text: string | null
+  images: Array<{ data: string; mimeType: string; assetId?: string }>
+} | null {
+  if (!output || typeof output !== 'object' || Array.isArray(output)) return null
+  const rawContents = (output as { content?: unknown }).content
+  if (!Array.isArray(rawContents)) return null
 
   const textParts: string[] = []
-  const images: Array<{ data: string; mimeType: string }> = []
-  for (const item of result.data.content) {
-    if (item.type === 'text' && item.text) {
-      textParts.push(item.text)
-    } else if (item.type === 'image' && item.data) {
-      images.push({ data: item.data, mimeType: item.mimeType ?? 'image/png' })
+  const images: Array<{ data: string; mimeType: string; assetId?: string }> = []
+  for (const item of rawContents) {
+    if (!item || typeof item !== 'object') continue
+    const content = item as Record<string, unknown>
+    if (content.type === 'text' && typeof content.text === 'string' && content.text) {
+      textParts.push(content.text)
+    } else if (content.type === 'image') {
+      const data = typeof content.data === 'string' ? content.data : ''
+      const assetId = typeof content.assetId === 'string' ? content.assetId : undefined
+      if (data || assetId) {
+        images.push({
+          data,
+          mimeType: typeof content.mimeType === 'string' ? content.mimeType : 'image/png',
+          assetId
+        })
+      }
     }
   }
   return { text: textParts.length > 0 ? textParts.join('\n\n') : null, images }
+}
+
+function McpImage({ image, alt }: { image: { data: string; mimeType: string; assetId?: string }; alt: string }) {
+  const [src, setSrc] = useState(image.data ? `data:${image.mimeType};base64,${image.data}` : '')
+
+  useEffect(() => {
+    let cancelled = false
+    if (!image.assetId) {
+      setSrc(image.data ? `data:${image.mimeType};base64,${image.data}` : '')
+      return
+    }
+    void window.api.file
+      .getPhysicalPath({ id: image.assetId })
+      .then((path) => {
+        if (!cancelled) setSrc(toSafeFileUrl(path, null))
+      })
+      .catch(() => {
+        if (!cancelled) setSrc(image.data ? `data:${image.mimeType};base64,${image.data}` : '')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [image.assetId, image.data, image.mimeType])
+
+  if (!src) return null
+  return <img src={src} alt={alt} className="mt-2 max-w-[300px] rounded" />
 }
 
 /**
@@ -97,12 +136,7 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
         {normalizedInput && <ToolArgsTable args={normalizedInput} title={t('message.tools.sections.input')} />}
         {normalizedOutput && <ToolArgsTable args={normalizedOutput} title={t('message.tools.sections.output')} />}
         {mcpImages.map((img, idx) => (
-          <img
-            key={idx}
-            src={`data:${img.mimeType};base64,${img.data}`}
-            alt={t('message.tools.sections.output')}
-            className="mt-2 max-w-[300px] rounded"
-          />
+          <McpImage key={idx} image={img} alt={t('message.tools.sections.output')} />
         ))}
         {!normalizedInput && !normalizedOutput && mcpImages.length === 0 && (
           <div className="text-foreground-500 p-3 text-xs">{t('message.tools.noData')}</div>

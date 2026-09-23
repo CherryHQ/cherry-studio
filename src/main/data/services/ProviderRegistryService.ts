@@ -1,3 +1,6 @@
+import { isEqual } from 'es-toolkit/compat'
+
+import { application } from '@application'
 /**
  * Registry Service — merge-dependent operations that bridge registry data with SQLite.
  *
@@ -13,9 +16,6 @@
  * Pure JSON loading, caching, and lookups live in @cherrystudio/provider-registry
  * (RegistryLoader, buildPersistedEndpointConfigs).
  */
-
-import { isEqual } from 'es-toolkit/compat'
-
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -52,6 +52,7 @@ import {
 import { type RegistryFileName, RegistryLoader } from '@cherrystudio/provider-registry/node'
 import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
+import { IMAGE_CONFIG_PRESETS } from '@shared/ai/imageGenerationConfig'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
 import type {
@@ -706,6 +707,7 @@ export function projectRuntimeReasoning(
  */
 class ProviderRegistryService {
   private loader: RegistryLoader | null = null
+  private bundledImageLoader: RegistryLoader | null = null
 
   /** Lazily create the shared RegistryLoader instance. */
   private getLoader(): RegistryLoader {
@@ -715,8 +717,21 @@ class ProviderRegistryService {
     return this.loader
   }
 
+  private getBundledImageModel(modelId: string): ProtoModelConfig | null {
+    const normalizedId = modelId.toLowerCase().replace(/[._]/g, '-')
+    const canonicalId = normalizedId === 'seedream' ? 'doubao-seedream-5-0-lite' : normalizedId
+    if (!IMAGE_CONFIG_PRESETS.some((preset) => preset.id !== 'catalog' && preset.id === canonicalId)) return null
+    this.bundledImageLoader ??= new RegistryLoader({
+      models: application.getPath('feature.provider_registry.data', 'models.json'),
+      providers: application.getPath('feature.provider_registry.data', 'providers.json'),
+      providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
+    })
+    return this.bundledImageLoader.findModel(canonicalId)
+  }
+
   clearCache(): void {
     this.loader = null
+    this.bundledImageLoader = null
   }
 
   /**
@@ -840,7 +855,22 @@ class ProviderRegistryService {
 
       const keys = new Set([...Object.keys(presetConfigs ?? {}), ...Object.keys(rowConfigs ?? {})]) as Set<EndpointType>
       const merged: Partial<Record<EndpointType, EndpointConfig>> = {}
+      const hasCustomChatUrl = Object.entries(rowConfigs ?? {}).some(
+        ([endpoint, config]) =>
+          ['openai-chat-completions', 'openai-responses', 'anthropic-messages', 'google-generate-content'].includes(
+            endpoint
+          ) &&
+          config?.baseUrl !== undefined &&
+          config.baseUrl !== presetConfigs?.[endpoint as EndpointType]?.baseUrl
+      )
       for (const ep of keys) {
+        // Preserve the existing connection until the user explicitly configures an image endpoint.
+        if (
+          hasCustomChatUrl &&
+          rowConfigs?.[ep]?.baseUrl === undefined &&
+          (ep === 'openai-image-generation' || ep === 'openai-image-edit')
+        )
+          continue
         const presetConfig = presetConfigs?.[ep]
         const rowConfig = rowConfigs?.[ep]
         if (!presetConfig && !rowConfig) continue
@@ -1093,10 +1123,17 @@ class ProviderRegistryService {
   } {
     const loader = this.getLoader()
     const presetProvider = this.resolveProviderPreset(providerContext.id, providerContext.presetProviderId)
-    const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
-    const presetModel =
+    let registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
+    const bundledImage = this.getBundledImageModel(registryOverride?.modelId ?? modelId)
+    let presetModel =
       loader.findModel(registryOverride?.modelId ?? modelId) ??
+      bundledImage ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
+    // Image presets describe installed transport capabilities, not remote catalog metadata.
+    if (bundledImage?.imageGeneration) {
+      if (presetModel) presetModel = { ...presetModel, imageGeneration: bundledImage.imageGeneration }
+      if (registryOverride) registryOverride = { ...registryOverride, imageGeneration: bundledImage.imageGeneration }
+    }
 
     return {
       presetModel,
@@ -1298,6 +1335,10 @@ class ProviderRegistryService {
    * Used by: GET /providers/:providerId/models/:modelId/image-generation-support
    * (greedy `:modelId` capture for HuggingFace-style ids containing `/`).
    */
+  getImagePresetSupport(modelId: string): ImageGenerationSupport | null {
+    return (this.getBundledImageModel(modelId) ?? this.getLoader().findModel(modelId))?.imageGeneration ?? null
+  }
+
   getImageGenerationSupport(providerId: string, modelId: string): ImageGenerationSupport | null {
     getDataService('ProviderService').assertAvailable(providerId)
     const { presetModel, registryOverride } = this.lookupModel(providerId, modelId)

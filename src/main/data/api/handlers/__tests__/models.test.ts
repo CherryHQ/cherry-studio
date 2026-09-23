@@ -48,6 +48,7 @@ vi.mock('@data/services/ModelService', () => ({
     bulkDelete: bulkDeleteMock,
     create: createMock,
     bulkUpdate: bulkUpdateMock,
+    getImageGenerationSupport: getImageGenerationSupportMock,
     reconcileForProvider: reconcileForProviderMock
   }
 }))
@@ -505,7 +506,7 @@ describe('/providers/:providerId/models:resolve', () => {
 })
 
 describe('/providers/:providerId/models/:modelId*/image-generation-support', () => {
-  it('forwards (providerId, modelId) to the registry service and returns the block', async () => {
+  it('returns effective image support from the model owner', async () => {
     const block = {
       modes: ['generate'],
       sizes: ['1024x1024'],
@@ -517,10 +518,11 @@ describe('/providers/:providerId/models/:modelId*/image-generation-support', () 
     getImageGenerationSupportMock.mockReturnValueOnce(block)
 
     const result = await modelHandlers['/providers/:providerId/models/:modelId*/image-generation-support'].GET({
+      query: {},
       params: { providerId: 'silicon', modelId: 'Kwai-Kolors/Kolors' }
     })
 
-    expect(getImageGenerationSupportMock).toHaveBeenCalledWith('silicon', 'Kwai-Kolors/Kolors')
+    expect(getImageGenerationSupportMock).toHaveBeenCalledWith('silicon', 'Kwai-Kolors/Kolors', undefined)
     expect(result).toBe(block)
   })
 
@@ -528,6 +530,7 @@ describe('/providers/:providerId/models/:modelId*/image-generation-support', () 
     getImageGenerationSupportMock.mockReturnValueOnce(null)
 
     const result = await modelHandlers['/providers/:providerId/models/:modelId*/image-generation-support'].GET({
+      query: {},
       params: { providerId: 'silicon', modelId: 'unknown-model' }
     })
 

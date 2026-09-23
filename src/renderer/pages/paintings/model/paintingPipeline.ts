@@ -65,7 +65,7 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
         })) ?? undefined
       const modes = support?.modes
       effectiveMode =
-        canonicalMode && modes?.[canonicalMode]
+        canonicalMode && (canonicalMode === 'edit' || modes?.[canonicalMode])
           ? canonicalMode
           : modes
             ? (Object.keys(modes)[0] as ImageGenerationMode)

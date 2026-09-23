@@ -9,6 +9,8 @@ export default defineProvider({
   availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
+    'openai-image-generation': { adapterFamily: 'openai', baseUrl: 'https://api.openai.com/v1' },
+    'openai-image-edit': { adapterFamily: 'openai', baseUrl: 'https://api.openai.com/v1' },
     'openai-responses': {
       adapterFamily: 'openai',
       baseUrl: 'https://api.openai.com',

@@ -54,18 +54,14 @@ async function resolveEntries(ids: string[]): Promise<FileEntry[]> {
   return entries.filter((e): e is FileEntry => e !== null)
 }
 
-/**
- * Hydrate a persisted painting record (frozen receipt: prompt + files) into
- * the renderer's PaintingData draft shape. The DB record carries no mode,
- * mediaType, or params — those are live form-state concerns. The draft built
- * here defaults `mode` to `'generate'` so callers that select a past painting
- * land on the generate tab; the form will overwrite this when the user picks
- * a different tab.
- */
+/** Restore immutable step metadata; completed steps start with an empty edit instruction. */
 export async function recordToPaintingData(record: PaintingRecord): Promise<PaintingData> {
-  const [outputEntries, inputFiles] = await Promise.all([
+  const [outputEntries, inputFiles, previewEntries] = await Promise.all([
     resolveEntries(record.files.output),
-    resolveEntries(record.files.input)
+    resolveEntries(record.files.input),
+    resolveEntries(
+      record.previewFileId && !record.files.output.includes(record.previewFileId) ? [record.previewFileId] : []
+    )
   ])
   const files = await Promise.all(outputEntries.map(fileEntryToMetadata))
 
@@ -74,9 +70,23 @@ export async function recordToPaintingData(record: PaintingRecord): Promise<Pain
   return {
     id: record.id,
     providerId: record.providerId,
-    mode: 'generate',
-    prompt: record.prompt,
+    mode: files.length || record.sourceFileId ? 'edit' : 'generate',
+    prompt: record.stepStatus && record.stepStatus !== 'completed' ? record.prompt : '',
+    operationPrompt: record.prompt,
+    projectId: record.projectId,
+    parentId: record.parentId,
+    sourceFileId: record.sourceFileId,
+    operation: record.operation,
+    stepNumber: record.stepNumber,
+    stepStatus: record.stepStatus,
+    stepError: record.stepError,
+    selectedStepId: record.selectedStepId,
+    selectedFileId: record.selectedFileId,
+    params: record.params ?? {},
     files,
+    previewFile:
+      files.find((file) => file.id === record.previewFileId) ??
+      (previewEntries[0] ? await fileEntryToMetadata(previewEntries[0]) : undefined),
     inputFiles,
     persistedAt: record.createdAt,
     model
