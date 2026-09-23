@@ -305,9 +305,11 @@ before convergence; restart rebinds only when no lease is active.
 
 LAN commands are serialized with listener cleanup. Enabling LAN requires an
 enabled, running local gateway; it binds the new listener before persisting
-`host = 0.0.0.0`. A bind or preference-write failure closes the new listener
-without changing the local gateway's enabled intent. Disabling LAN persists
-`host = 127.0.0.1` and stops only the LAN listener.
+`host = 0.0.0.0`. A bind failure or a failed `host` write closes the new
+listener without changing the local gateway's enabled intent; persisting
+`lan_port` is best-effort — its failure is logged and leaves the listener up,
+at the cost of a possible port reassignment on the next start. Disabling LAN
+persists `host = 127.0.0.1` and stops only the LAN listener.
 
 An explicit gateway stop atomically persists `enabled = false` and the return
 from LAN to loopback, then closes the LAN listener and clears its pairing code.
