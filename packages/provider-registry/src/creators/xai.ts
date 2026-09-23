@@ -9,6 +9,7 @@ export default defineCreator({
   modelsDevProviders: ['xai'],
   reasoningFamilies: [
     { pattern: '^grok-4\\.3(?!.*non-reasoning)', effort: ['none', 'low', 'medium', 'high'] },
+    { pattern: '^grok-4[.-][67](?!.*non-reasoning)', effort: ['low', 'medium', 'high', 'xhigh'] },
     // grok-4-fast's on/off knob exists ONLY on OpenRouter's rebroadcast (the
     // request path special-cases it by SKU); no rule here — a synthesized
     // vocabulary would leak an unsupported reasoningEffort onto the native
@@ -27,6 +28,32 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: GROK_IMAGE_SUPPORT
+    },
+    {
+      id: 'grok-4-7',
+      name: 'Grok 4.7',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output'],
+      inputModalities: ['text', 'image'],
+      contextWindow: 500000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        output: { currency: 'USD', perMillionTokens: 6 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.5 }
+      },
+      reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }] }
+    },
+    {
+      id: 'grok-4-6',
+      name: 'Grok 4.6',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output'],
+      inputModalities: ['text', 'image'],
+      contextWindow: 500000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        output: { currency: 'USD', perMillionTokens: 6 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.5 }
+      },
+      reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }] }
     },
     {
       id: 'grok-4',

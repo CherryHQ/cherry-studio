@@ -8,7 +8,7 @@ sources:
   - src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts
   - src/main/data/services/PaintingService.ts
   - src/renderer/pages/paintings
-  - tests/e2e/specs/image-workflow.spec.ts
+  - tests/e2e/smoke/image-workflow.test.ts
 ---
 
 # Image Workflow
@@ -114,8 +114,8 @@ state. The isolated Electron case verifies generated-file persistence across an
 application restart. The model-settings script exercises configuration and HTTP
 requests against a local fixture:
 
-- [Image workflow E2E](../../../tests/e2e/specs/image-workflow.spec.ts)
-- [Model settings desktop fixture](../../../tests/e2e/utils/check-image-settings.cjs)
+- [Image workflow E2E](../../../tests/e2e/smoke/image-workflow.test.ts)
+- [Model settings desktop fixture](../../../tests/e2e/smoke/utils/check-image-settings.cjs)
 - [E2E setup and commands](../../../tests/e2e/README.md)
 
 Mocked responses establish request shape and local application behavior, not real

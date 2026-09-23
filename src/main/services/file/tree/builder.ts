@@ -117,6 +117,7 @@ async function findNearestExistingDirectory(absPath: string): Promise<string> {
 
 export interface DirectoryTreeBuilder extends Disposable {
   readonly root: TreeDirRoot
+  readonly isDisposed: boolean
   readonly onMutation: (listener: (e: TreeMutationEvent) => void) => Disposable
   /** O(1) lookup of any node by its absolute path. */
   getNode(absPath: string): TreeNode | null
@@ -604,6 +605,10 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
 
   snapshot(): SerializedTreeNode {
     return this.root.toJSON()
+  }
+
+  get isDisposed(): boolean {
+    return this.disposed
   }
 
   dispose(): void {
