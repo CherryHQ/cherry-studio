@@ -12,7 +12,7 @@
     },
     "prometheus": {
       "repository": "Prometheus-AGS/prometheus-skill-system",
-      "revision": "d7c25e8a683db5e60bc2d7677bf1c42f97a1700f"
+      "revision": "a867a6713e822081c25efa00dd648c7211e22625"
     },
     "pk": {
       "repository": "Prometheus-AGS/prometheus-knowledge-rs",
@@ -20,11 +20,11 @@
     },
     "mini": {
       "repository": "Prometheus-AGS/prometheus-skills-mini",
-      "revision": "d3fa2b56e1827e70c1b66cd1320c50dfc78d09e3"
+      "revision": "7d3fd056a966a1a30933c3e30c47813d6f1d3e6d"
     },
     "surreal-memory": {
       "repository": "Prometheus-AGS/surreal-memory-server",
-      "revision": "d287add6e63dfba90ef363f7713965f2f82708e7"
+      "revision": "6acb60565949334beda22f52bcd36b33895b1db6"
     },
     "liter-llm": {
       "repository": "GQAdonis/liter-llm",

@@ -10,10 +10,19 @@ on:
         description: Optional payload run whose completed service images should be reused
         required: false
         type: string
+      reuse_native_run:
+        description: Optional payload run whose completed native binaries should be reused
+        required: false
+        type: string
+      images_only:
+        description: Rebuild service images without publishing a native payload
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
   native:
+    if: inputs.reuse_native_run == '' && !inputs.images_only
     name: Native tools (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
@@ -46,6 +55,7 @@ jobs:
           choco install nasm --no-progress -y
           'C:\Program Files\NASM' >> $env:GITHUB_PATH
       - uses: actions/cache@v6
+        id: native-cache
         with:
           path: |
             ~/.cargo/registry
@@ -55,6 +65,14 @@ jobs:
           restore-keys: native-${{ matrix.platform }}-
       - name: Build final native tool payload
         run: node scripts/build-integration-tools.cjs ${{ matrix.target }}
+      - uses: actions/cache/save@v6
+        if: always() && steps.native-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            build/integration-source/**/target
+          key: ${{ steps.native-cache.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v5
         with:
           name: native-tools-${{ matrix.platform }}
@@ -152,7 +170,7 @@ jobs:
 
   publish:
     needs: [native, image-manifests]
-    if: always() && needs.native.result == 'success' && (needs.image-manifests.result == 'success' || inputs.reuse_image_run != '')
+    if: always() && !inputs.images_only && (needs.native.result == 'success' || inputs.reuse_native_run != '') && (needs.image-manifests.result == 'success' || inputs.reuse_image_run != '')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -164,13 +182,15 @@ jobs:
           node-version-file: .node-version
       - uses: actions/download-artifact@v6
         with:
+          pattern: native-tools-*
+          run-id: ${{ inputs.reuse_native_run || github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           path: build/integration-output
           merge-multiple: true
       - uses: actions/download-artifact@v6
-        if: inputs.reuse_image_run != ''
         with:
           name: service-image-manifests
-          run-id: ${{ inputs.reuse_image_run }}
+          run-id: ${{ inputs.reuse_image_run || github.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: build/integration-output
       - name: Publish complete payload and checksum manifest
