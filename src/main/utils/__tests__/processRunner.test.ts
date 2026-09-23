@@ -117,18 +117,40 @@ describe('executeCommand', () => {
     expect(result).toBe('中文🙂')
   })
 
-  it('does not launch an already cancelled command or one cancelled during environment lookup', async () => {
+  it.each(['structured', 'stdout'])('cancels environment lookup without launching a command (%s)', async (mode) => {
     const controller = new AbortController()
     const env = Promise.withResolvers<Record<string, string>>()
-    vi.mocked(getShellEnv).mockReturnValueOnce(env.promise)
-    const pending = executeCommand(process.execPath, printStdout, { signal: controller.signal, result: 'structured' })
-    controller.abort()
-    env.resolve({})
-    expect(await pending).toMatchObject({ code: null, output: '', failure: expect.stringContaining('cancelled') })
-    await expect(executeCommand(process.execPath, printStdout, { signal: controller.signal })).rejects.toThrow(
-      'cancelled'
-    )
+    vi.mocked(getShellEnv).mockImplementationOnce((signal) => {
+      signal?.addEventListener('abort', () => env.reject(signal.reason), { once: true })
+      return env.promise
+    })
+    const run = () =>
+      mode === 'structured'
+        ? executeCommand(process.execPath, printStdout, { signal: controller.signal, result: 'structured' })
+        : executeCommand(process.execPath, printStdout, { signal: controller.signal })
+    let settled = false
+    const pending = run()
+      .catch((error) => error)
+      .finally(() => {
+        settled = true
+      })
+    try {
+      controller.abort()
+      await expect.poll(() => settled).toBe(true)
+      for (const result of [await pending, await run().catch((error) => error)]) {
+        if (mode === 'structured') {
+          expect(result).toMatchObject({ code: null, output: '', failure: expect.stringContaining('cancelled') })
+        } else {
+          expect(result).toBeInstanceOf(Error)
+          expect(result.message).toContain('cancelled')
+        }
+      }
+    } finally {
+      env.resolve({})
+      await pending
+    }
     expect(crossSpawn).not.toHaveBeenCalled()
+    expect(getShellEnv).toHaveBeenCalledTimes(1)
   })
 
   it('cancels the process tree and releases streams before returning', async () => {

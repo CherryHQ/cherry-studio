@@ -245,7 +245,8 @@ export class DshBridgeServer {
       }
       if (method === 'hook/cancel') {
         const cancel = params as BridgeNotificationMap['hook/cancel']
-        if (cancel.sessionId === this.options.sessionId) this.activeHookCalls.get(cancel.callId)?.abort()
+        if (cancel.sessionId === (this.options.nativeSessionId ?? this.options.sessionId))
+          this.activeHookCalls.get(cancel.callId)?.abort()
         return
       }
       if (method === 'subagent/lifecycle') {
@@ -307,7 +308,8 @@ export class DshBridgeServer {
   private async handleHook(
     call: BridgePluginRequestMap['hook/run']['params']
   ): Promise<BridgePluginRequestMap['hook/run']['result']> {
-    if (call.sessionId !== this.options.sessionId) throw new Error('dsh bridge Hook used the wrong session')
+    if (call.sessionId !== (this.options.nativeSessionId ?? this.options.sessionId))
+      throw new Error('dsh bridge Hook used the wrong session')
     if (
       typeof call.callId !== 'string' ||
       !call.callId ||

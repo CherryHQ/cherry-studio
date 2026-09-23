@@ -38,13 +38,15 @@ function makeServer(
     Promise.reject(new Error('unexpected tool call')),
   readyTimeoutMs?: number,
   onGuardCheck: DshBridgeServerOptions['onGuardCheck'] = async () => ({ kind: 'allow' }),
-  onHook?: DshBridgeServerOptions['onHook']
+  onHook?: DshBridgeServerOptions['onHook'],
+  nativeSessionId?: string
 ): Pick<Harness, 'server' | 'events' | 'eventSources' | 'lifecycleEdges'> {
   const events: AgentRuntimeEvent[] = []
   const eventSources: Harness['eventSources'] = []
   const lifecycleEdges: Harness['lifecycleEdges'] = []
   const server = new DshBridgeServer({
     sessionId: SESSION_ID,
+    nativeSessionId,
     emit: (event, source) => {
       events.push(event)
       eventSources.push(source)
@@ -106,14 +108,16 @@ async function makeHarness(
   userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
   onToolCall?: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }>,
   onGuardCheck?: DshBridgeServerOptions['onGuardCheck'],
-  onHook?: DshBridgeServerOptions['onHook']
+  onHook?: DshBridgeServerOptions['onHook'],
+  nativeSessionId?: string
 ): Promise<Harness> {
   const { server, events, eventSources, lifecycleEdges } = makeServer(
     userResponse,
     onToolCall,
     undefined,
     onGuardCheck,
-    onHook
+    onHook,
+    nativeSessionId
   )
   await server.listen()
   const plugin = await connectPlugin(server)
@@ -132,11 +136,11 @@ afterEach(async () => {
 })
 
 describe('DSH Agent Hooks', () => {
-  it('returns deny reasons through authenticated RPC and rejects other session identities', async () => {
+  it.each([undefined, 'native-session'])('routes Hooks only for the runtime session (%s)', async (nativeSessionId) => {
     const onHook = vi.fn(async () => ({ denied: true, reason: 'script denied write' }))
-    const { transport } = await makeHarness('stream', undefined, undefined, onHook)
+    const { transport } = await makeHarness('stream', undefined, undefined, onHook, nativeSessionId)
     const params = {
-      sessionId: SESSION_ID,
+      sessionId: nativeSessionId ?? SESSION_ID,
       callId: 'hook-1',
       event: 'preToolUse',
       toolName: 'write',
@@ -144,21 +148,27 @@ describe('DSH Agent Hooks', () => {
       toolInput: { path: 'a' }
     }
     expect(await transport.request('hook/run', params)).toEqual({ denied: true, reason: 'script denied write' })
-    await expect(transport.request('hook/run', { ...params, sessionId: 'other' })).rejects.toThrow('wrong session')
+    await expect(
+      transport.request('hook/run', { ...params, sessionId: nativeSessionId ? SESSION_ID : 'other' })
+    ).rejects.toThrow('wrong session')
     expect(onHook).toHaveBeenCalledTimes(1)
   })
 
-  it.each(['cancel', 'disconnect'])('cancels owned Hook execution on %s', async (action) => {
+  it.each([
+    ['cancel', undefined],
+    ['cancel', 'native-session'],
+    ['disconnect', 'native-session']
+  ])('cancels owned Hook execution on %s (%s)', async (action, nativeSessionId) => {
     let activeSignal: AbortSignal | undefined
     const onHook: NonNullable<DshBridgeServerOptions['onHook']> = async (_input, signal) => {
       activeSignal = signal
       await new Promise<void>((resolve) => signal!.addEventListener('abort', () => resolve(), { once: true }))
       return { denied: true, reason: 'cancelled' }
     }
-    const { transport, socket } = await makeHarness('stream', undefined, undefined, onHook)
+    const { transport, socket } = await makeHarness('stream', undefined, undefined, onHook, nativeSessionId)
     const pending = transport
       .request('hook/run', {
-        sessionId: SESSION_ID,
+        sessionId: nativeSessionId ?? SESSION_ID,
         callId: 'hook-1',
         event: 'preToolUse',
         toolName: 'write',
@@ -167,7 +177,8 @@ describe('DSH Agent Hooks', () => {
       })
       .catch(() => ({}))
     await expect.poll(() => activeSignal).toBeDefined()
-    if (action === 'cancel') transport.notify('hook/cancel', { sessionId: SESSION_ID, callId: 'hook-1' })
+    if (action === 'cancel')
+      transport.notify('hook/cancel', { sessionId: nativeSessionId ?? SESSION_ID, callId: 'hook-1' })
     else {
       socket.end()
       transport.close()

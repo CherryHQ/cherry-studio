@@ -226,7 +226,14 @@ export async function executeCommand(
   args: string[],
   options: ExecuteCommandOptions = {}
 ): Promise<string | CommandResult> {
-  const env = options.env ?? (options.signal?.aborted ? {} : await getShellEnv())
+  let env = options.env ?? {}
+  if (!options.env && !options.signal?.aborted) {
+    try {
+      env = await getShellEnv(options.signal)
+    } catch (error) {
+      if (!options.signal?.aborted) throw error
+    }
+  }
   let outputLimitError: CommandOutputLimitError | undefined
   const result = await new Promise<CommandResult>((resolve) => {
     if (options.signal?.aborted) {
