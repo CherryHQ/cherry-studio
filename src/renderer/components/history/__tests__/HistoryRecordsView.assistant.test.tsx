@@ -324,7 +324,7 @@ vi.mock('react-i18next', () => ({
         'recycle_bin.already_moved': 'Already in Recycle Bin',
         'recycle_bin.move.blocked_generation': 'Stop generation before moving this conversation to the Recycle Bin.',
         'recycle_bin.move_failed': 'Could not move to Recycle Bin',
-        'history.records.bulkDelete': 'Batch Delete',
+        'history.records.bulkArchive': 'Batch Archive',
         'history.records.bulkDeleteTopics.description': 'Delete {{count}} selected conversation(s)?',
         'history.records.bulkDeleteTopics.title': 'Delete selected conversations',
         'history.records.bulkMove': 'Batch Move',
@@ -458,7 +458,7 @@ const flushCommandMenuAction = flushAnimationFrame
 
 async function clickBulkDelete() {
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Archive/ }))
     await flushAnimationFrame()
   })
 }
@@ -590,7 +590,7 @@ describe('HistoryRecordsView assistant mode', () => {
       boxes.filter((box) => !box.hasAttribute('disabled')).every((box) => box.getAttribute('aria-checked') === 'true')
     ).toBe(true)
     expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
-    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
+    expect(screen.getByRole('button', { name: /Batch Archive/ })).toHaveTextContent('Batch Archive (2)')
     await user.keyboard('{Control>}a{/Control}')
     expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
   })
@@ -1006,7 +1006,7 @@ describe('HistoryRecordsView assistant mode', () => {
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
 
-    expect(screen.getByRole('button', { name: 'Batch Delete' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Batch Archive' })).toBeDisabled()
     expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
   })
 
@@ -1044,7 +1044,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(alphaCheckbox).toHaveAttribute('aria-checked', 'true')
     expect(betaCheckbox).toHaveAttribute('aria-checked', 'false')
     expect(gammaCheckbox).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
+    expect(screen.getByRole('button', { name: /Batch Archive/ })).toHaveTextContent('Batch Archive (2)')
   })
 
   it('bulk moves selected topics to another assistant from the query toolbar', async () => {

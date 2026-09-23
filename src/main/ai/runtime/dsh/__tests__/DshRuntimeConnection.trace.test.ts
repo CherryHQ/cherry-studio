@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises'
 import path from 'node:path'
 
 import { SessionSeq } from '@deepseek-ai/dsh-session'
@@ -173,6 +174,7 @@ vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: v
 vi.mock('@main/ai/steerReminder', () => ({ wrapSteerReminder: vi.fn((text: string) => text) }))
 
 const { DshBridgeServer } = await import('../DshBridgeServer')
+const { buildDshCherryToolBridge } = await import('../DshCherryToolBridge')
 const { DshRuntimeConnection } = await import('../DshRuntimeConnection')
 const { DshRuntimeDriver } = await import('../DshRuntimeDriver')
 
@@ -431,46 +433,70 @@ describe('DshRuntimeConnection tracing', () => {
     }
   })
 
-  it('bounds fork flushes without closing the source connection', async () => {
-    const connection = await new DshRuntimeConnection(connectInput).start()
-    try {
-      runtimeMocks.bridgeRequest.mockResolvedValueOnce({})
-      await expect(connection.flushForFork()).resolves.toBeUndefined()
-      expect(runtimeMocks.bridgeRequest).toHaveBeenLastCalledWith(
-        'session/flush',
-        { sessionId: 'session-1' },
-        { timeoutMs: 60_000, signal: undefined }
-      )
-      runtimeMocks.bridgeRequest.mockRejectedValueOnce(new Error('flush timed out'))
-      await expect(connection.flushForFork()).rejects.toThrow('flush timed out')
-      expect(runtimeMocks.clientClose).not.toHaveBeenCalled()
-      runtimeMocks.bridgeRequest.mockResolvedValueOnce({})
-      await expect(connection.flushForFork()).resolves.toBeUndefined()
-    } finally {
-      await connection.close()
+  it.each([
+    { identity: {}, expectedSessionId: 'session-1' },
+    { identity: { nativeSessionId: 'fresh-native-session' }, expectedSessionId: 'fresh-native-session' },
+    {
+      identity: { nativeSessionId: 'old-native-session', resumeToken: 'edited-native-session' },
+      expectedSessionId: 'edited-native-session'
     }
-  })
+  ])(
+    'bounds fork flushes for $expectedSessionId without closing the source',
+    async ({ identity, expectedSessionId }) => {
+      const connection = await new DshRuntimeConnection({ ...connectInput, ...identity }).start()
+      try {
+        runtimeMocks.bridgeRequest.mockResolvedValueOnce({})
+        await expect(connection.flushForFork()).resolves.toBeUndefined()
+        expect(runtimeMocks.bridgeRequest).toHaveBeenLastCalledWith(
+          'session/flush',
+          { sessionId: expectedSessionId },
+          { timeoutMs: 60_000, signal: undefined }
+        )
+        runtimeMocks.bridgeRequest.mockRejectedValueOnce(new Error('flush timed out'))
+        await expect(connection.flushForFork()).rejects.toThrow('flush timed out')
+        expect(runtimeMocks.clientClose).not.toHaveBeenCalled()
+        runtimeMocks.bridgeRequest.mockResolvedValueOnce({})
+        await expect(connection.flushForFork()).resolves.toBeUndefined()
+      } finally {
+        await connection.close()
+      }
+    }
+  )
 
   it('resumes native history using the saved token', async () => {
     const connection = await new DshRuntimeConnection({
       ...connectInput,
-      resumeToken: 'session-1'
+      resumeToken: 'edited-native-session'
     }).start()
     try {
-      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith('session/open', expect.objectContaining({ resume: true }))
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+        'session/open',
+        expect.objectContaining({ resume: true, sessionId: 'edited-native-session' })
+      )
     } finally {
       await connection.close()
     }
   })
 
-  it('reports a bridge disconnect and closes the runtime event stream', async () => {
-    const connection = await new DshRuntimeConnection(connectInput).start()
+  it.each([false, true])('cleans up after a bridge disconnect (client close fails: %s)', async (closeFails) => {
+    const onClosed = vi.fn()
+    const connection = await new DshRuntimeConnection(connectInput, onClosed).start()
+    const toolBridge = await vi.mocked(buildDshCherryToolBridge).mock.results.at(-1)!.value
+    vi.mocked(toolBridge.close).mockClear()
+    vi.mocked(rm).mockClear()
+    const failure = new Error('client close failed')
+    if (closeFails) runtimeMocks.clientClose.mockRejectedValueOnce(failure)
     const events: AgentRuntimeEvent[] = []
     const consume = (async () => {
       for await (const event of connection.events) events.push(event)
     })()
     vi.mocked(DshBridgeServer).mock.calls[0][0].onDisconnect!()
-    await connection.close()
+    if (closeFails) await expect(connection.close()).rejects.toBe(failure)
+    else await connection.close()
+    expect(vi.mocked(DshBridgeServer).mock.results[0].value.close).toHaveBeenCalledOnce()
+    expect(toolBridge.close).toHaveBeenCalled()
+    expect(rm).toHaveBeenCalledWith(expect.any(String), { force: true })
+    expect(onClosed).toHaveBeenCalledOnce()
     await consume
     expect(events).toContainEqual({
       type: 'error',
