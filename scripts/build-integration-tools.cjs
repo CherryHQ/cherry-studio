@@ -21,6 +21,8 @@ function checkout(name) {
   fs.mkdirSync(directory, { recursive: true })
   run('git', ['init'], directory)
   run('git', ['fetch', '--depth=1', `https://github.com/${pin.repository}.git`, pin.revision], directory)
+  // Archived KBD records contain timestamp filenames that Windows cannot create.
+  if (name === 'prometheus') run('git', ['sparse-checkout', 'set', '--no-cone', '/*', '!/.kbd-orchestrator/'], directory)
   run('git', ['checkout', '--detach', 'FETCH_HEAD'], directory)
   return directory
 }
