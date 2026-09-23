@@ -182,6 +182,13 @@
       "when": 1790054811563,
       "tag": "0025_overconfident_mathemanic",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1790181184603,
+      "tag": "0026_remote-command-device-cascade",
+      "breakpoints": true
     }
   ],
   "version": "7"

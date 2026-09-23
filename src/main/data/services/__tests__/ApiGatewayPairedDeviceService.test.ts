@@ -1,12 +1,51 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { apiGatewayPairedDeviceTable } from '@data/db/schemas/apiGatewayPairedDevice'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
+import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { ErrorCode } from '@shared/data/api/errors'
 
 describe('ApiGatewayPairedDeviceService', () => {
   const dbh = setupTestDatabase()
+
+  it.each(['service', 'database'])('removes only the deleted device receipts via %s deletion', (via) => {
+    const devices = ['phone', 'tablet'].map((peerIdentity) =>
+      apiGatewayPairedDeviceService.approveRemote({
+        name: peerIdentity,
+        platform: 'ios',
+        peerIdentity,
+        capabilities: ['agent']
+      })
+    )
+    const keys = devices.flatMap(({ device, authorization }) =>
+      ['previous-grant', authorization.grants[0].grantId].map((grantId) => ({
+        deviceId: device.id,
+        grantId,
+        commandId: 'command-1'
+      }))
+    )
+    for (const key of keys) {
+      remoteCommandService.admit(key, { method: 'agent.messages.send', identityDigest: 'digest' })
+      remoteCommandService.settle(key, { status: 'applied', result: { executionId: 'execution-1' } })
+    }
+    const retained = keys.slice(2).map((key) => remoteCommandService.get(key))
+
+    if (via === 'service') apiGatewayPairedDeviceService.delete(devices[0].device.id)
+    else
+      dbh.db.delete(apiGatewayPairedDeviceTable).where(eq(apiGatewayPairedDeviceTable.id, devices[0].device.id)).run()
+
+    expect(keys.slice(0, 2).map((key) => remoteCommandService.get(key))).toEqual([undefined, undefined])
+    expect(keys.slice(2).map((key) => remoteCommandService.get(key))).toEqual(retained)
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('rejects a receipt whose paired device does not exist', () => {
+    const key = { deviceId: 'missing-device', grantId: 'grant', commandId: 'command' }
+    expect(() => remoteCommandService.admit(key, { method: 'agent.messages.send', identityDigest: 'digest' })).toThrow()
+    expect(remoteCommandService.get(key)).toBeUndefined()
+  })
 
   it('grants only the capabilities confirmed during pairing and binds them to the proven key', () => {
     const { device, authorization } = apiGatewayPairedDeviceService.approveRemote({
