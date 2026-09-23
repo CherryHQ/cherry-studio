@@ -54,7 +54,7 @@ async function locateSdkTranscript(
   const fileName = `${sdkSessionId}.jsonl`
   if (cwd) {
     const exact = path.join(projectsRoot, encodeClaudeProjectDir(cwd), fileName)
-    if (await exists(asAbsolutePath(exact))) return exact
+    if (await isRegularFile(exact)) return exact
   }
   let entries: string[]
   try {
@@ -64,9 +64,18 @@ async function locateSdkTranscript(
   }
   for (const entry of entries) {
     const candidate = path.join(projectsRoot, entry, fileName)
-    if (await exists(asAbsolutePath(candidate))) return candidate
+    if (await isRegularFile(candidate)) return candidate
   }
   return null
+}
+
+/** `lstat`, not `stat`: a symlink under `projects/` would copy whatever it points at into the archive. */
+async function isRegularFile(filePath: string): Promise<boolean> {
+  try {
+    return (await fs.lstat(filePath)).isFile()
+  } catch {
+    return false
+  }
 }
 
 /**

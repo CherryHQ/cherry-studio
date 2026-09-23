@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync, symlinkSync } from 'node:fs'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -151,6 +151,24 @@ describe('stagePortableAgentTranscript', () => {
     })
 
     expect(readFileSync(stagedPath, 'utf8')).toBe(`${line('u-1', 'user')}\n${line(BOUNDARY)}\n`)
+  })
+
+  it('refuses a transcript that is a symlink to a file outside the projects root', async () => {
+    const secret = path.join(root, 'secret.txt')
+    writeFileSync(secret, `${line(BOUNDARY)}\n`)
+    const dir = path.join(claudeRoot, 'projects', encodeClaudeProjectDir(workspacePath))
+    mkdirSync(dir, { recursive: true })
+    symlinkSync(secret, path.join(dir, `${SDK_SESSION_ID}.jsonl`))
+
+    await expect(
+      stagePortableAgentTranscript({
+        detachedDbPath,
+        transcriptRoot,
+        agentRuntimeConfigRoot: claudeRoot,
+        sourcePath: path.join(transcriptRoot, `${SESSION_ID}.jsonl`),
+        stagedPath: path.join(root, 'staged.jsonl')
+      })
+    ).rejects.toThrow('was not found under the SDK projects root')
   })
 
   it('fails when no transcript exists for the retained session', async () => {
