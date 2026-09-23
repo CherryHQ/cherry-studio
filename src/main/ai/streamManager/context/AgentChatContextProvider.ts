@@ -369,6 +369,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     const persisted = application.get('DbService').withWriteTx((tx) => {
+      ctx?.beforePersist?.()
       const reserved = this.persistDispatchTx(tx, validated, ctx?.expectedAgentId)
       onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
       return reserved

@@ -242,7 +242,8 @@ export class SessionJournal {
   async startRun(
     text: string,
     expectedAgentId: string,
-    onPersist: (tx: DbOrTx, reservation: { executionId: string; messageId: string; userMessageId: string }) => void
+    onPersist: (tx: DbOrTx, reservation: { executionId: string; messageId: string; userMessageId: string }) => void,
+    beforePersist?: () => void
   ): Promise<{ started: true; executionId: string } | { started: false; reason: 'busy' | 'session-invalid' }> {
     const listener = new RemoteAgentListener(this, randomUUID())
     const userParts: CherryMessagePart[] = [{ type: 'text', text }]
@@ -253,6 +254,7 @@ export class SessionJournal {
         userParts,
         listeners: [listener],
         requireIdle: { expectedAgentId },
+        beforePersist,
         onPersist: (tx, messages) =>
           onPersist(tx, {
             executionId: listener.executionId,

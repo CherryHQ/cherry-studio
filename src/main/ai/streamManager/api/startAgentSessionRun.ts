@@ -28,6 +28,8 @@ export async function startAgentSessionRun(input: {
   /** Recipients authorized only for this run; [] deliberately disables notify. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   requireIdle?: { expectedAgentId: string }
+  /** Synchronously assert admission after preparation, inside the message-write transaction. */
+  beforePersist?: () => void
   /** Commit caller-owned durable admission alongside the reserved messages, before activation. */
   onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
 }): Promise<StartAgentSessionRunResult> {
@@ -88,7 +90,8 @@ export async function startAgentSessionRun(input: {
         {
           hasLiveStream: false,
           requireIdle: input.requireIdle !== undefined,
-          expectedAgentId: input.requireIdle?.expectedAgentId
+          expectedAgentId: input.requireIdle?.expectedAgentId,
+          beforePersist: input.beforePersist
         },
         input.onPersist
       )

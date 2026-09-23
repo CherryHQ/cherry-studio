@@ -185,16 +185,16 @@ export function registerAgentMethods(
   on('agent.messages.send', (params, auth) => {
     const summary = summaryOf(params.sessionId)
     return command(auth, 'agent.messages.send', params, params.sessionId, async () => {
-      if (summary.idleRevision !== params.expectedIdleRevision)
-        return {
-          status: 'rejected',
-          error: { reason: 'CONFLICT', message: 'Session is not idle at the expected revision' }
+      const started = await hub.journal(params.sessionId).startRun(
+        params.text,
+        summary.agentId,
+        (tx, reservation) =>
+          remoteCommandService.reserveExecutionTx(tx, { ...auth, commandId: params.commandId }, reservation),
+        () => {
+          if (summaryOf(params.sessionId).idleRevision !== params.expectedIdleRevision)
+            throw new RemoteRpcError('CONFLICT', 'Session is not idle at the expected revision')
         }
-      const started = await hub
-        .journal(params.sessionId)
-        .startRun(params.text, summary.agentId, (tx, reservation) =>
-          remoteCommandService.reserveExecutionTx(tx, { ...auth, commandId: params.commandId }, reservation)
-        )
+      )
       if (!started.started)
         return {
           status: 'rejected',

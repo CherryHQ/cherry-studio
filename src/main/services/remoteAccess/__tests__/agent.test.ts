@@ -31,7 +31,10 @@ import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
 import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { StreamErrorResult } from '@main/ai/streamManager'
-import { AgentChatContextProvider } from '@main/ai/streamManager/context/AgentChatContextProvider'
+import {
+  agentChatContextProvider,
+  AgentChatContextProvider
+} from '@main/ai/streamManager/context/AgentChatContextProvider'
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -49,6 +52,10 @@ const fake = vi.hoisted(() => {
     replayBudget: undefined as number | undefined,
     onStarted: undefined as undefined | ((listeners: StreamListener[]) => Promise<void>),
     manager: {
+      withDispatchLock: vi.fn(async (_topic: string, run: () => Promise<unknown>) => run()),
+      whenTerminalDispatchSettled: async () => {},
+      isWriteQuiesced: false,
+      send: vi.fn(),
       hasLiveStream: (topicId: string) => streams.has(topicId),
       addListener: (topicId: string, listener: StreamListener) => {
         const listeners = streams.get(topicId)
@@ -88,12 +95,14 @@ vi.mock('@main/ai/streamManager', () => ({
       sessionId: string
       userParts: CherryMessagePart[]
       listeners: StreamListener[]
+      beforePersist?: () => void
       onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
     }) => {
       const topicId = `agent-session:${input.sessionId}`
       if (fake.streams.has(topicId)) return { mode: 'not-started', reason: 'busy' }
       const { application } = await import('@application')
       application.get('DbService').withWriteTx((tx) => {
+        input.beforePersist?.()
         const userMessageId = randomUUID()
         agentSessionMessageService.saveMessagesTx(tx, {
           sessionId: input.sessionId,
@@ -688,6 +697,96 @@ describe('remote agent access', () => {
       settle.mockRestore()
     }
   })
+
+  it.each(['lock', 'preparation'])(
+    'rejects an idle revision changed during %s without reserving messages',
+    async (phase) => {
+      seedModel('revision-provider', 'model', 'Model')
+      const { startAgentSessionRun: realStart } = await vi.importActual<{
+        startAgentSessionRun: typeof startAgentSessionRun
+      }>('@main/ai/streamManager')
+      vi.mocked(startAgentSessionRun).mockImplementationOnce(realStart)
+      const { session } = await call('agent.sessions.get', { sessionId })
+      const params = {
+        commandId: randomUUID(),
+        sessionId,
+        text: 'stale send',
+        expectedIdleRevision: session.idleRevision
+      }
+      let release!: () => void
+      let entered!: () => void
+      const waiting = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      if (phase === 'lock')
+        fake.manager.withDispatchLock.mockImplementationOnce(async (_topic, run) => {
+          entered()
+          await gate
+          return run()
+        })
+      const validate = vi.spyOn(agentChatContextProvider, 'validateDispatch').mockImplementation(async () => {
+        if (phase === 'preparation') {
+          entered()
+          await gate
+        }
+        return {
+          sessionId,
+          topicId: `agent-session:${sessionId}`,
+          agentId: 'agent-1',
+          agentUpdatedAt: new Date().toISOString(),
+          agentType: 'claude-code',
+          agentName: 'Agent',
+          uniqueModelId: 'revision-provider::model',
+          reasoningEffort: 'default',
+          serviceTier: 'standard',
+          headless: false,
+          messageSnapshot: {
+            id: 'agent-1',
+            name: 'Agent',
+            model: { id: 'model', name: 'Model', provider: 'revision-provider' }
+          },
+          userMessageId: randomUUID(),
+          userMessageParts: [{ type: 'text', text: params.text }],
+          shouldAutoNameInitialTurn: false
+        }
+      })
+      let activated = false
+      const activate = vi.spyOn(agentChatContextProvider, 'activateDispatch').mockImplementation(() => {
+        activated = true
+        throw new Error('Stale send reached runtime activation')
+      })
+      try {
+        const sending = call('agent.messages.send', params)
+        await waiting
+        await tick()
+        agentSessionMessageService.saveMessage({
+          sessionId,
+          message: {
+            id: randomUUID(),
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'intervening local turn' }] }
+          }
+        })
+        const history = agentSessionMessageService.listSessionMessages(sessionId).items
+        release()
+        const receipt = await sending
+        expect(receipt).toMatchObject({ status: 'rejected', error: { reason: 'CONFLICT' } })
+        expect(receipt.executionId).toBeUndefined()
+        expect(activated).toBe(false)
+        expect(agentSessionMessageService.listSessionMessages(sessionId).items).toEqual(history)
+        expect(await call('agent.messages.send', params)).toEqual(receipt)
+        expect(await call('agent.commands.get', { commandId: params.commandId })).toEqual(receipt)
+      } finally {
+        release()
+        validate.mockRestore()
+        activate.mockRestore()
+      }
+    }
+  )
 
   it('preserves committed message identities when activation is interrupted and never retries the send', async () => {
     fake.onStarted = async () => {
