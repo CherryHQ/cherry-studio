@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { resolveApiGatewayRuntime } from '@main/ai/runtime/agentApiGateway'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -13,7 +14,14 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const get = result.application.getContainer().get.bind(result.application.getContainer())
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'ApiGatewayService') return { getCurrentConfig: mocks.getGatewayConfig }
+    if (name === 'ApiGatewayService')
+      return {
+        getCurrentConfig: mocks.getGatewayConfig,
+        isRunning: () => true,
+        ensureValidApiKey: async () => 'gateway-key',
+        getAgentSessionUsageHeaders: () => ({}),
+        getInternalRequestToken: () => 'internal-token'
+      }
     return get(name)
   })
   return result
@@ -41,16 +49,20 @@ describe('dshGatewayBypassRule', () => {
     expect(dshGatewayBypassRule(provider, model)).toBeUndefined()
   })
 
-  it('returns the configured gateway hostname for gateway routes', () => {
+  it.each([
+    ['', 0, 'http://127.0.0.1:23333', '127.0.0.1'],
+    ['127.0.0.2', 24444, 'http://127.0.0.2:24444', '127.0.0.2'],
+    ['0.0.0.0', 24444, 'http://127.0.0.1:24444', '127.0.0.1'],
+    ['::', 24444, 'http://[::1]:24444', '[::1]'],
+    ['::2', 24444, 'http://[::2]:24444', '[::2]'],
+    ['gateway.local', 24444, 'http://gateway.local:24444', 'gateway.local']
+  ])('keeps the gateway route and proxy bypass aligned for %s:%i', async (host, port, origin, hostname) => {
     mocks.usesDshGateway.mockReturnValue(true)
-    mocks.getGatewayConfig.mockReturnValue({ enabled: true, host: '127.0.0.2', port: 23333 })
-    expect(dshGatewayBypassRule(provider, model)).toBe('127.0.0.2')
-  })
+    mocks.getGatewayConfig.mockReturnValue({ enabled: true, host, port })
 
-  it('falls back to loopback when the gateway bind is unconfigured', () => {
-    mocks.usesDshGateway.mockReturnValue(true)
-    mocks.getGatewayConfig.mockReturnValue({ enabled: false, host: '', port: 0 })
-    expect(dshGatewayBypassRule(provider, model)).toBe('127.0.0.1')
+    expect((await resolveApiGatewayRuntime('session-1')).baseUrl).toBe(origin)
+    expect(dshGatewayBypassRule(provider, model)).toBe(hostname)
+    expect(buildDshProxyEnvironment(provider, model, PROXY_ENV).NO_PROXY?.split(',')).toContain(hostname)
   })
 })
 

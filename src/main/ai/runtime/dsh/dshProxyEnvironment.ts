@@ -1,9 +1,9 @@
 import { application } from '@application'
+import { getApiGatewayClientOrigin } from '@main/ai/runtime/agentApiGateway'
 import { mergeAgentLoopbackProxyBypass } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 
 import { usesDshGateway } from './modelInjection'
 
@@ -11,10 +11,8 @@ import { usesDshGateway } from './modelInjection'
 export function dshGatewayBypassRule(provider: Provider, model: Model): string | undefined {
   if (!usesDshGateway(provider, model)) return undefined
   const config = application.get('ApiGatewayService').getCurrentConfig()
-  const host = config.host || '127.0.0.1'
-  const port = config.port || 23333
   try {
-    return new URL(gatewayClientOrigin(host, port)).hostname
+    return new URL(getApiGatewayClientOrigin(config)).hostname
   } catch {
     return undefined
   }
