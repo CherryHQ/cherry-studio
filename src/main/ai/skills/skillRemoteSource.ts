@@ -281,7 +281,9 @@ async function fetchFromClawhub(
     }
     detailChunks.push(chunk)
   }
-  const detailResult = ClawhubSkillDetailSchema.safeParse(JSON.parse(Buffer.concat(detailChunks).toString('utf8')))
+  const detailResult = ClawhubSkillDetailSchema.safeParse(
+    JSON.parse(new TextDecoder().decode(Buffer.concat(detailChunks)))
+  )
   if (!detailResult.success) {
     throw new Error('clawhub detail returned invalid metadata')
   }
@@ -305,6 +307,7 @@ async function fetchFromClawhub(
 
   const advertisedSize = Number(downloadResp.headers.get('content-length') ?? NaN)
   if (Number.isFinite(advertisedSize) && advertisedSize > MAX_SKILL_SIZE) {
+    await downloadResp.body?.cancel()
     throw new Error(`clawhub archive advertises ${advertisedSize} bytes, over the ${MAX_SKILL_SIZE}-byte limit`)
   }
 
@@ -319,7 +322,9 @@ async function fetchFromClawhub(
       if (received > MAX_SKILL_SIZE) {
         throw new Error(`clawhub archive exceeds the ${MAX_SKILL_SIZE}-byte limit`)
       }
-      await handle.write(chunk)
+      for (let offset = 0; offset < chunk.byteLength;) {
+        offset += (await handle.write(chunk, offset)).bytesWritten
+      }
     }
   } finally {
     await handle.close()

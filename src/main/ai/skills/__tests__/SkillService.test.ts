@@ -1520,22 +1520,37 @@ describe('SkillService', () => {
           { headers: { 'Content-Type': 'application/json' }, status: 200 }
         )
 
+      const oversizedArchiveResponse = (onCancel = () => {}) =>
+        new Response(new ReadableStream<Uint8Array>({ cancel: onCancel }), {
+          headers: { 'Content-Length': String(skillArchive.MAX_SKILL_SIZE + 1) },
+          status: 200
+        })
+
       it('rejects an archive whose Content-Length is over the skill size limit before reading it', async () => {
         const skillService = new SkillService()
+        let cancelled = false
         vi.mocked(net.fetch)
           .mockResolvedValueOnce(clawhubDetailResponse())
-          .mockResolvedValueOnce(
-            new Response(new Uint8Array([1, 2, 3]), {
-              headers: { 'Content-Length': String(skillArchive.MAX_SKILL_SIZE + 1) },
-              status: 200
-            })
-          )
+          .mockResolvedValueOnce(oversizedArchiveResponse(() => void (cancelled = true)))
 
         await expect(skillService.install({ installSource: 'clawhub:ivangdavila/code' })).rejects.toThrow(
           `clawhub archive advertises ${skillArchive.MAX_SKILL_SIZE + 1} bytes`
         )
+        expect(cancelled).toBe(true)
         expect(skillPaths.createTempDir).not.toHaveBeenCalled()
         expect(skillArchive.extractZip).not.toHaveBeenCalled()
+      })
+
+      it('accepts a detail response that starts with a UTF-8 byte order mark', async () => {
+        const skillService = new SkillService()
+        const detail = await clawhubDetailResponse().text()
+        vi.mocked(net.fetch)
+          .mockResolvedValueOnce(new Response(`\uFEFF${detail}`, { status: 200 }))
+          .mockResolvedValueOnce(oversizedArchiveResponse())
+
+        await expect(skillService.install({ installSource: 'clawhub:ivangdavila/code' })).rejects.toThrow(
+          'clawhub archive advertises'
+        )
       })
 
       it('stops reading an unannounced archive once it crosses the skill size limit', async () => {
