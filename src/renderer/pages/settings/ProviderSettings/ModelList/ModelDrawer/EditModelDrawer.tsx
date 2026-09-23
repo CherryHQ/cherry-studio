@@ -156,6 +156,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextMaxOutputTokens = hasMaxOutputTokensOverride ? overrides?.maxOutputTokens : maxOutputTokens
       const nextPurposeFields = overrides?.purposeFields ?? purposeFields
       const nextClassification = overrides?.classification
+      const shouldRebuildServerToolOverrides =
+        hasEndpointTypesOverride || hasPurposeFieldsOverride || nextClassification != null
       const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
       const effectiveClassification = nextClassification ?? classification
       const classifiedCapabilities =
@@ -215,7 +217,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           ? { maxOutputTokens: nextMaxOutputTokens }
           : {}),
         ...(hasPricingOverride ? { pricing: overrides.pricing } : {}),
-        ...(nextClassification
+        ...(shouldRebuildServerToolOverrides
           ? {
               serverToolOverrides: buildServerToolOverrides(
                 effectiveClassification,
@@ -330,16 +332,21 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const registryWebSearchAvailable = useMemo(() => {
     if (!model || !provider) return false
-    return isBuiltinWebSearchAvailable({ ...model, serverToolOverrides: undefined }, provider)
-  }, [model, provider])
+    return isBuiltinWebSearchAvailable({ ...model, endpointTypes, serverToolOverrides: undefined }, provider)
+  }, [endpointTypes, model, provider])
 
   const webSearchEnableAllowed = useMemo(() => {
-    const endpoints = endpointTypes.length ? endpointTypes : model?.endpointTypes
-    return provider ? getDeliverableWebSearchEndpointTypes(endpoints, provider, defaultChatEndpoint).length > 0 : false
-  }, [defaultChatEndpoint, endpointTypes, model?.endpointTypes, provider])
+    if (!provider) return false
+    const activeEndpoint = endpointTypes[0]
+    return (
+      getDeliverableWebSearchEndpointTypes(activeEndpoint ? [activeEndpoint] : undefined, provider, defaultChatEndpoint)
+        .length > 0
+    )
+  }, [defaultChatEndpoint, endpointTypes, provider])
 
   const webSearchSelected =
-    classification.webSearch === 'enabled' || (classification.webSearch === 'inherit' && registryWebSearchAvailable)
+    (classification.webSearch === 'enabled' && webSearchEnableAllowed) ||
+    (classification.webSearch === 'inherit' && registryWebSearchAvailable)
 
   const handleToggleWebSearch = useCallback(() => {
     let next: ModelWebSearchOverride
