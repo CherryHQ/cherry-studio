@@ -224,6 +224,50 @@ describe('listModels — provider network transport', () => {
     }
   })
 
+  it('uses an opted-in scoped session for setup discovery while the provider remains disabled', async () => {
+    const endpointConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
+    }
+    const scoped = {
+      fetch: vi.fn(async () => Response.json({ data: [{ id: 'local-model' }] })),
+      setCertificateVerifyProc: vi.fn(),
+      webRequest: { onBeforeSendHeaders: vi.fn() }
+    }
+    const original = vi.mocked(session.fromPartition).getMockImplementation()
+    vi.mocked(session.fromPartition).mockReturnValue(scoped as never)
+    vi.mocked(net.fetch).mockImplementation(async () => Response.json({ data: [{ id: 'strict-model' }] }))
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    aiSdkGetFromApiMock.mockImplementation((options) => actual.getFromApi(options))
+    const setupOptions = {
+      throwOnError: true,
+      requestContext: 'provider-setup'
+    } as { throwOnError: true; requestContext: 'provider-setup' }
+
+    try {
+      const provider = makeProvider({
+        id: 'setup-provider',
+        isEnabled: false,
+        settings: { allowSelfSignedTls: true },
+        endpointConfigs
+      })
+
+      expect((await listModels(provider, undefined, setupOptions)).map((model) => model.apiModelId)).toEqual([
+        'local-model'
+      ])
+      expect(scoped.fetch).toHaveBeenCalledWith('https://llm.internal/v1/models', expect.any(Object))
+      expect(net.fetch).not.toHaveBeenCalled()
+
+      scoped.fetch.mockClear()
+      expect((await listModels(provider, undefined, { throwOnError: true })).map((model) => model.apiModelId)).toEqual([
+        'strict-model'
+      ])
+      expect(net.fetch).toHaveBeenCalledWith('https://llm.internal/v1/models', expect.any(Object))
+      expect(scoped.fetch).not.toHaveBeenCalled()
+    } finally {
+      if (original) vi.mocked(session.fromPartition).mockImplementation(original)
+    }
+  })
+
   it('uses the Electron session for Ollama model metadata and existence probes', async () => {
     const provider = makeProvider({
       id: 'ollama',

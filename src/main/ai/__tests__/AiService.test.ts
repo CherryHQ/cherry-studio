@@ -2671,6 +2671,24 @@ describe('AiService.listModels', () => {
     await expect(service.listModels({ providerId: provider.id, throwOnError: true })).rejects.toThrow('Unauthorized')
   })
 
+  it('forwards provider setup context to model discovery', async () => {
+    const service = createService()
+    const provider = { id: 'custom', modelListSource: 'api', isEnabled: false }
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockResolvedValue([])
+
+    await service.listModels({
+      providerId: provider.id,
+      throwOnError: true,
+      requestContext: 'provider-setup'
+    })
+
+    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, {
+      throwOnError: true,
+      requestContext: 'provider-setup'
+    })
+  })
+
   it('does not impose a service-level timeout on model listing', async () => {
     vi.useFakeTimers()
     const service = createService()

@@ -100,6 +100,11 @@ type ModelFetcher = {
   fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Partial<Model>[]>
 }
 
+interface ListModelsOptions {
+  throwOnError?: boolean
+  requestContext?: 'provider-setup'
+}
+
 function getErrorType(error: unknown) {
   return error instanceof Error ? error.name : typeof error
 }
@@ -1050,11 +1055,14 @@ const fetchers: ModelFetcher[] = [
 export async function listModels(
   provider: Provider,
   abortSignal?: AbortSignal,
-  options?: { throwOnError?: boolean }
+  options?: ListModelsOptions
 ): Promise<Partial<Model>[]> {
   try {
-    const fetcher = fetchers.find((f) => f.match(provider))!
-    return await fetcher.fetch(provider, abortSignal, options)
+    // Setup intentionally keeps the provider disabled until its models and credentials
+    // are verified. The explicit request context activates TLS only for this discovery call.
+    const discoveryProvider = options?.requestContext === 'provider-setup' ? { ...provider, isEnabled: true } : provider
+    const fetcher = fetchers.find((f) => f.match(discoveryProvider))!
+    return await fetcher.fetch(discoveryProvider, abortSignal, options)
   } catch (error) {
     logger.error('Error listing models', { providerId: provider.id, errorType: getErrorType(error) })
     if (options?.throwOnError) {

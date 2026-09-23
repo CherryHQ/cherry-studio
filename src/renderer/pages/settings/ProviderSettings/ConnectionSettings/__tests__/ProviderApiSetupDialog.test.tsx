@@ -220,7 +220,9 @@ describe('ProviderApiSetupDialog', () => {
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={onClose} />)
 
-    await waitFor(() => expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai'))
+    await waitFor(() =>
+      expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai', { requestContext: 'provider-setup' })
+    )
     const cancelButton = screen.getByRole('button', { name: 'settings.provider.api_setup.skip' })
     expect(cancelButton).toBeEnabled()
 
@@ -244,7 +246,7 @@ describe('ProviderApiSetupDialog', () => {
     await screen.findAllByText('alpha')
     expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
     expect(updateApiKeysMock).toHaveBeenCalledWith([{ id: expect.any(String), key: 'sk-valid', isEnabled: true }])
-    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
+    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai', { requestContext: 'provider-setup' })
     expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')).toHaveLength(2)
     expect(
       screen.getAllByLabelText('settings.provider.api_setup.select_model').every((item) => !item.matches(':checked'))
@@ -482,7 +484,9 @@ describe('ProviderApiSetupDialog', () => {
     storedApiKeysLoading = false
     rerender(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
 
-    await waitFor(() => expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai'))
+    await waitFor(() =>
+      expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai', { requestContext: 'provider-setup' })
+    )
   })
 
   it('returns to key entry when the saved keys are all disabled', async () => {

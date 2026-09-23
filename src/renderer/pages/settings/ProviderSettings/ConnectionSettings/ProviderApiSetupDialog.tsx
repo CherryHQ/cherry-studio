@@ -83,7 +83,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     localModels,
     reloadModels,
     isLoadingModels
-  } = useProviderModelPullReconcile(providerId)
+  } = useProviderModelPullReconcile(providerId, { requestContext: 'provider-setup' })
   const [step, setStep] = useState<ProviderApiSetupStep>(initialStep)
   const [apiKey, setApiKey] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)

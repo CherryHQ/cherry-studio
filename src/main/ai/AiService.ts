@@ -1249,7 +1249,10 @@ export class AiService extends BaseService {
         presetProviderId: provider.presetProviderId ?? null
       })
     }
-    const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    const remoteModels = await listModelsFromProvider(provider, undefined, {
+      throwOnError: request.throwOnError,
+      ...(request.requestContext ? { requestContext: request.requestContext } : {})
+    })
     if (!provider.supplementModelsFromRegistry) {
       return remoteModels
     }

@@ -222,7 +222,8 @@ export const aiRequestSchemas = {
     input: z.strictObject({
       providerId: z.string().optional(),
       assistantId: z.string().optional(),
-      throwOnError: z.boolean().optional()
+      throwOnError: z.boolean().optional(),
+      requestContext: z.literal('provider-setup').optional()
     }),
     output: z.array(ModelSchema.partial())
   }),
