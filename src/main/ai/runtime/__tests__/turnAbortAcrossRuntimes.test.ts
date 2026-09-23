@@ -75,4 +75,41 @@ describe('runtime turn abort without session teardown', () => {
     expect((connection as any).bridge).toBe(bridge)
     expect((connection as any).closed).toBe(false)
   })
+
+  it('cancels a resumed DSH session by its resume identity, not the host id', async () => {
+    const resumedInput = { ...input, resumeToken: 'resume-1' } as never
+    const connection = new DshRuntimeConnection(resumedInput)
+    const bridge = {
+      request: vi.fn(async () => {
+        ;(connection as any).turnActive = false
+      })
+    }
+    ;(connection as any).bridge = bridge
+    ;(connection as any).turnActive = true
+
+    // A resumed session is addressed on the wire by its resume identity — the same id close()
+    // cancels and plugin notifications carry. Cancelling by the host id would miss the live
+    // session and fall back to tearing down a runtime the stop must preserve.
+    await expect(connection.abortTurn()).resolves.toBe(true)
+    expect(bridge.request).toHaveBeenCalledWith('session/cancel', { sessionId: 'resume-1' }, { timeoutMs: 5_000 })
+    expect((connection as any).bridge).toBe(bridge)
+    expect((connection as any).closed).toBe(false)
+  })
+
+  it('cancels an edited-turn DSH session by its native identity, not the host id', async () => {
+    const editedInput = { ...input, nativeSessionId: 'native-1' } as never
+    const connection = new DshRuntimeConnection(editedInput)
+    const bridge = {
+      request: vi.fn(async () => {
+        ;(connection as any).turnActive = false
+      })
+    }
+    ;(connection as any).bridge = bridge
+    ;(connection as any).turnActive = true
+
+    await expect(connection.abortTurn()).resolves.toBe(true)
+    expect(bridge.request).toHaveBeenCalledWith('session/cancel', { sessionId: 'native-1' }, { timeoutMs: 5_000 })
+    expect((connection as any).bridge).toBe(bridge)
+    expect((connection as any).closed).toBe(false)
+  })
 })

@@ -663,7 +663,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     // stop keeps the preserved runtime instead of falling back to the teardown.
     if (!this.turnActive) return true
     try {
-      await this.bridge.request('session/cancel', { sessionId: this.input.sessionId }, { timeoutMs: 5_000 })
+      // A resumed or edited session lives on the wire under its resume/native identity —
+      // cancelling by the host id would miss the live session and fall back to teardown.
+      await this.bridge.request('session/cancel', { sessionId: this.runtimeSessionId }, { timeoutMs: 5_000 })
       // A graceful cancel keeps this connection (and its registrations) alive, so
       // approvals still awaiting a renderer decision must be denied here, not just
       // at close(), or they outlive the cancelled turn.
