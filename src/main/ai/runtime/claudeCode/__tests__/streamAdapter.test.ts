@@ -1,6 +1,7 @@
 import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { generatedImagesFromOutput } from '@shared/ai/generateImageTool'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 
 const loggerMocks = vi.hoisted(() => ({
@@ -792,6 +793,33 @@ describe('ClaudeCodeStreamAdapter', () => {
       toolCallId: 'tool-2',
       output: { ok: true }
     })
+  })
+
+  it('preserves generated file references through the Claude MCP result envelope', () => {
+    const { adapter, parts } = createAdapter()
+    const images = [{ id: 'saved-image', name: 'result.png' }]
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 'image-1', name: 'mcp__cherry-tools__generate_image', input: {} }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'mcp_tool_result',
+          tool_use_id: 'image-1',
+          is_error: false,
+          content: [{ type: 'text', text: JSON.stringify({ type: 'generated-images', images }) }]
+        }
+      })
+    )
+    const output = parts.find((part) => part.type === 'tool-output-available')!
+    expect(generatedImagesFromOutput(output.output)).toEqual(images)
   })
 
   it('maps streamed MCP tool use and result blocks', () => {

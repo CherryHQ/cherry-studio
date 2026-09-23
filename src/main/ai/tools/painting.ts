@@ -24,6 +24,7 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
+import type { GeneratedImageResult } from '@shared/ai/generateImageTool'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import {
   type ImageGenerationMode,
@@ -88,15 +89,16 @@ export function isPaintingError(output: PaintingResult): output is PaintingError
 }
 
 /** Shared model-output projection: an error renders its note; success renders a one-line summary. */
-export function paintingModelOutput(output: PaintingResult): { type: 'text'; value: string } {
+export function paintingModelOutput(
+  output: PaintingResult
+): { type: 'json'; value: GeneratedImageResult } | { type: 'text'; value: string } {
   if (isPaintingError(output)) {
     return { type: 'text', value: output.error }
   }
   if (output.length === 0) {
     return { type: 'text', value: 'Image generation returned no images.' }
   }
-  const list = output.map((file) => `${file.name} (${file.id})`).join(', ')
-  return { type: 'text', value: `Generated ${output.length} image(s): ${list}` }
+  return { type: 'json', value: { type: 'generated-images', images: output } }
 }
 
 export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null {
@@ -106,8 +108,9 @@ export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null
   if (!uniqueModelId) return null
 
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  let configuredModel
   try {
-    modelService.getByKey(providerId, modelId)
+    configuredModel = modelService.getByKey(providerId, modelId)
   } catch (error) {
     if (isDataApiNotFoundError(error)) return null
     throw error
@@ -115,7 +118,7 @@ export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null
 
   return {
     uniqueModelId,
-    support: providerRegistryService.getImageGenerationSupport(providerId, modelId)
+    support: configuredModel?.imageGeneration ?? providerRegistryService.getImageGenerationSupport(providerId, modelId)
   }
 }
 
@@ -151,18 +154,20 @@ function extractParamValues(
   return Object.fromEntries([...regularEntries, ...pairedSizeEntries])
 }
 
-async function resolveInputImages(
+async function resolveInputImageIds(
   imageIds: readonly string[],
   support: ConfiguredPaintingModel['support']
 ): Promise<string[]> {
   const ids = limitGenerateImageInputIds(imageIds, editInputImageLimit(support))
-  return Promise.all(
+  await Promise.all(
     ids.map(async (id) => {
-      const { content, mime } = await application.get('FileManager').read(id, { encoding: 'base64' })
-      if (!mime.startsWith('image/')) throw new Error(`FileEntry ${id} is not an image`)
-      return `data:${mime};base64,${content}`
+      const metadata = await application.get('FileManager').getMetadata(id)
+      if (metadata.kind !== 'file' || metadata.type !== 'image' || !metadata.mime.startsWith('image/')) {
+        throw new Error(`FileEntry ${id} is not an image`)
+      }
     })
   )
+  return ids
 }
 
 export async function generateImageFromPrompt(
@@ -175,13 +180,15 @@ export async function generateImageFromPrompt(
   const { uniqueModelId, support } = configuredModel
   const mode = resolveMode(input)
   if ((mode === 'edit' && !support?.modes.edit) || (mode === 'generate' && support && !support.modes.generate)) {
-    return { error: mode === 'edit' ? PAINTING_EDIT_NOT_SUPPORTED_NOTE : PAINTING_GENERATE_NOT_SUPPORTED_NOTE }
+    return {
+      error: mode === 'edit' ? PAINTING_EDIT_NOT_SUPPORTED_NOTE : PAINTING_GENERATE_NOT_SUPPORTED_NOTE
+    }
   }
 
-  let inputImages: string[] | undefined
+  let inputFileIds: string[] | undefined
   if (mode === 'edit') {
     try {
-      inputImages = await resolveInputImages(input.image_ids ?? [], support)
+      inputFileIds = await resolveInputImageIds(input.image_ids ?? [], support)
     } catch (error) {
       if (signal?.aborted || isAbortError(error)) throw error
       logger.warn('Failed to resolve generate_image input images', { error })
@@ -194,14 +201,10 @@ export async function generateImageFromPrompt(
       uniqueModelId,
       prompt: input.prompt,
       mode,
-      ...(inputImages && { inputImages }),
+      ...(inputFileIds && { inputFileIds }),
       paramValues: extractParamValues(input, support, mode),
-      // `manual` (confirmed no ref backing): this builtin tool's output only lives
-      // in the tool-call part's text result — it is never emitted as a `file` part,
-      // so `extractChatMessageFileEntryIds` skips it and none of the *_file_ref
-      // tables register it. Auto-reclaiming it would unrecoverably delete images
-      // still shown in chat history. Tracked in #17169: once the output is
-      // registered as a chat_message ref upstream, flip to 'delete_when_unreferenced'.
+      // Keep unclaimed results until interrupted and external-runtime deliveries can be reconciled.
+      // Message persistence records references once the result reaches its owner.
       cleanupPolicy: 'manual',
       requestOptions: signal ? { signal } : undefined
     })
@@ -210,7 +213,9 @@ export async function generateImageFromPrompt(
     // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
-    logger.error('AiService.generateImage failed', error as Error, { uniqueModelId })
+    logger.error('AiService.generateImage failed', error as Error, {
+      uniqueModelId
+    })
     return { error: PAINTING_ERROR_NOTE }
   }
 }
