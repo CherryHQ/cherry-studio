@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { paintingService } from '@data/services/PaintingService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { PaintingsSchemas } from '@shared/data/api/schemas/paintings'
@@ -18,6 +20,13 @@ export const paintingHandlers: HandlersFor<PaintingsSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreatePaintingSchema.parse(body)
       return paintingService.create(parsed)
+    }
+  },
+
+  '/paintings/:id/selection': {
+    PATCH: async ({ params, body }) => {
+      const selection = z.strictObject({ stepId: z.string().min(1), fileId: z.string().min(1).optional() }).parse(body)
+      return paintingService.selectStep(params.id, selection.stepId, selection.fileId)
     }
   },
 

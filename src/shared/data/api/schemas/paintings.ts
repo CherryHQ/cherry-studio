@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
 import type { Painting } from '@shared/data/types/painting'
-import { PaintingFilesSchema } from '@shared/data/types/painting'
+import { PaintingFilesSchema, PaintingStepStatusSchema } from '@shared/data/types/painting'
 
 import type { CursorPaginationParams, CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
@@ -15,8 +15,11 @@ const OptionalNullableTrimmedStringSchema = TrimmedStringSchema.nullable()
 export const ListPaintingsQuerySchema = z
   .object({
     providerId: TrimmedStringSchema.optional(),
+    projectId: TrimmedStringSchema.optional(),
+    projectsOnly: z.boolean().optional(),
     /** true = list the Recycle Bin (trashed paintings only); omitted/false = active only. */
     inTrash: z.boolean().optional(),
+
     cursor: z.string().optional(),
     limit: z.int().positive().max(PAINTINGS_MAX_LIMIT).default(PAINTINGS_DEFAULT_LIMIT)
   })
@@ -30,6 +33,12 @@ export const CreatePaintingSchema = z
     providerId: TrimmedStringSchema,
     modelId: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string(),
+    projectId: TrimmedStringSchema.optional(),
+    parentId: TrimmedStringSchema.optional(),
+    sourceFileId: TrimmedStringSchema.optional(),
+    operation: z.enum(['generate', 'edit', 'import']).optional(),
+    params: z.record(z.string(), z.unknown()).optional(),
+    stepStatus: PaintingStepStatusSchema.optional(),
     files: PaintingFilesSchema
   })
   .strict()
@@ -40,6 +49,8 @@ export const UpdatePaintingSchema = z
     providerId: TrimmedStringSchema.optional(),
     modelId: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string().optional(),
+    stepStatus: PaintingStepStatusSchema.optional(),
+    stepError: z.string().nullable().optional(),
     files: PaintingFilesSchema.optional()
   })
   .strict()
@@ -68,6 +79,14 @@ export type PaintingsSchemas = {
     }
     POST: {
       body: CreatePaintingDto
+      response: Painting
+    }
+  }
+
+  '/paintings/:id/selection': {
+    PATCH: {
+      params: { id: string }
+      body: { stepId: string; fileId?: string }
       response: Painting
     }
   }

@@ -1,18 +1,8 @@
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { type AnySQLiteColumn, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 
-/**
- * Painting row — a frozen receipt of a completed image generation.
- *
- * Output and input files are NOT stored on the row. Each painting has zero or
- * more `painting_file_ref` rows with `sourceId=painting.id`,
- * `role='output'|'input'`. PaintingService writes those refs on create/update;
- * row deletion cascades refs at the database layer. The frozen receipt shape
- * avoids carrying mutable form state (mode, size, seed, etc.) on the row — the
- * live painting draft lives in renderer React state and is discarded on app
- * exit.
- */
+/** A project root or an immutable generation/edit step, with shared file references. */
 export const paintingTable = sqliteTable(
   'painting',
   {
@@ -20,10 +10,24 @@ export const paintingTable = sqliteTable(
     providerId: text('provider_id').notNull(),
     modelId: text('model_id'),
     prompt: text().notNull(),
+    projectId: text('project_id').references((): AnySQLiteColumn => paintingTable.id, { onDelete: 'cascade' }),
+    parentId: text('parent_id'),
+    stepNumber: integer('step_number').notNull().default(1),
+    sourceFileId: text('source_file_id'),
+    operation: text('operation', { enum: ['generate', 'edit', 'import'] })
+      .notNull()
+      .default('generate'),
+    params: text('params', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+    stepStatus: text('step_status', { enum: ['running', 'completed', 'failed', 'canceled', 'interrupted'] })
+      .notNull()
+      .default('completed'),
+    stepError: text('step_error'),
+    selectedStepId: text('selected_step_id'),
+    selectedFileId: text('selected_file_id'),
     ...orderKeyColumns,
     ...createUpdateDeleteTimestamps
   },
-  (t) => [orderKeyIndex('painting')(t)]
+  (t) => [orderKeyIndex('painting')(t), index('painting_project_idx').on(t.projectId)]
 )
 
 export type PaintingRow = typeof paintingTable.$inferSelect

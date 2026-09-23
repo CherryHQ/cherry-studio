@@ -1,6 +1,7 @@
 import { isUndefined, omitBy } from 'es-toolkit/compat'
 import { useCallback } from 'react'
 
+import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { CreatePaintingDto, ListPaintingsQueryParams, UpdatePaintingDto } from '@shared/data/api/schemas/paintings'
@@ -13,7 +14,9 @@ export function usePaintings(query?: ListPaintingsQueryParams) {
   const { trigger: createTrigger } = useMutation('POST', '/paintings', { refresh: ['/paintings'] })
   const { trigger: updateTrigger } = useMutation('PATCH', '/paintings/:id', { refresh: ['/paintings'] })
   const { trigger: deleteTrigger } = useMutation('DELETE', '/paintings/:id', { refresh: ['/paintings'] })
+  const { trigger: selectionTrigger } = useMutation('PATCH', '/paintings/:id/selection', { refresh: ['/paintings'] })
   const { trigger: restoreTrigger } = useMutation('POST', '/paintings/:id/restore', { refresh: ['/paintings'] })
+
   const { applyReorderedList } = useReorder('/paintings')
 
   const createPainting = useCallback(
@@ -51,7 +54,19 @@ export function usePaintings(query?: ListPaintingsQueryParams) {
     [applyReorderedList]
   )
 
+  const selectPainting = useCallback(
+    (projectId: string, stepId: string, fileId?: string) =>
+      selectionTrigger({ params: { id: projectId }, body: { stepId, fileId } }),
+    [selectionTrigger]
+  )
+  const getPainting = useCallback(
+    (id: string) => dataApiService.get(`/paintings/${encodeURIComponent(id)}` as '/paintings/:id'),
+    []
+  )
+
   return {
+    selectPainting,
+    getPainting,
     records: data?.items ?? [],
     total: data?.total ?? 0,
     isLoading,

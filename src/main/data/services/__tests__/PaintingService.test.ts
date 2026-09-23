@@ -13,8 +13,12 @@ import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 
-const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
+  notifyDataApiDataChangeMock: vi.fn()
+}))
+vi.mock('@data/dataApiDataChange', () => ({
+  notifyDataApiDataChange: notifyDataApiDataChangeMock
+}))
 
 import { fileRefService } from '../FileRefService'
 import { paintingService } from '../PaintingService'
@@ -148,7 +152,9 @@ describe('PaintingService', () => {
     const modelId = await insertModel('aihubmix', 'gpt-image-1')
     const painting = paintingService.create(p({ providerId: 'aihubmix', modelId, prompt: 'with model' }))
 
-    const updated = paintingService.update(painting.id, { providerId: 'zhipu' })
+    const updated = paintingService.update(painting.id, {
+      providerId: 'zhipu'
+    })
 
     expect(updated.providerId).toBe('zhipu')
     expect(updated.modelId).toBeNull()
@@ -194,15 +200,29 @@ describe('PaintingService', () => {
     // under the old single-key cursor and passes under the tuple — proving the
     // tuple is collision-proof by construction.
     await dbh.db.insert(paintingTable).values([
-      { id: 'collide-1', providerId: 'aihubmix', prompt: 'first', orderKey: 'a0' },
-      { id: 'collide-2', providerId: 'aihubmix', prompt: 'second', orderKey: 'a0' }
+      {
+        id: 'collide-1',
+        providerId: 'aihubmix',
+        prompt: 'first',
+        orderKey: 'a0'
+      },
+      {
+        id: 'collide-2',
+        providerId: 'aihubmix',
+        prompt: 'second',
+        orderKey: 'a0'
+      }
     ])
 
     const page1 = paintingService.list({ providerId: 'aihubmix', limit: 1 })
     expect(page1.items.map((item) => item.id)).toEqual(['collide-1'])
     expect(page1.nextCursor).toBe('a0:collide-1')
 
-    const page2 = paintingService.list({ providerId: 'aihubmix', limit: 1, cursor: page1.nextCursor })
+    const page2 = paintingService.list({
+      providerId: 'aihubmix',
+      limit: 1,
+      cursor: page1.nextCursor
+    })
     expect(page2.items.map((item) => item.id)).toEqual(['collide-2'])
     expect(page2.nextCursor).toBeUndefined()
   })
@@ -246,6 +266,20 @@ describe('PaintingService', () => {
     expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx - before).toBe(4)
   })
 
+  it('marks running steps without an active image job as interrupted', () => {
+    const orphan = paintingService.create(p({ providerId: 'aihubmix', prompt: 'orphan' }))
+    const owned = paintingService.create(p({ providerId: 'aihubmix', prompt: 'owned' }))
+    paintingService.update(orphan.id, { stepStatus: 'running' })
+    paintingService.update(owned.id, { stepStatus: 'running' })
+
+    expect(paintingService.markOrphanedRunningSteps(new Set([owned.id]))).toEqual([orphan.id])
+    expect(paintingService.getById(orphan.id)).toMatchObject({
+      stepStatus: 'interrupted',
+      stepError: 'Image generation was interrupted when the application stopped.'
+    })
+    expect(paintingService.getById(owned.id).stepStatus).toBe('running')
+  })
+
   describe('file refs', () => {
     it('creates painting_file_ref rows for output and input files', async () => {
       const outputId = '019606a0-0000-7000-8000-00000000c101'
@@ -254,13 +288,25 @@ describe('PaintingService', () => {
       await seedFileEntry(inputId)
 
       const painting = paintingService.create(
-        p({ providerId: 'aihubmix', prompt: 'with files', files: { output: [outputId], input: [inputId] } })
+        p({
+          providerId: 'aihubmix',
+          prompt: 'with files',
+          files: { output: [outputId], input: [inputId] }
+        })
       )
 
       expect(painting.files).toEqual({ output: [outputId], input: [inputId] })
       expect(await listPaintingRefs(painting.id)).toEqual([
-        expect.objectContaining({ fileEntryId: inputId, sourceId: painting.id, role: 'input' }),
-        expect.objectContaining({ fileEntryId: outputId, sourceId: painting.id, role: 'output' })
+        expect.objectContaining({
+          fileEntryId: inputId,
+          sourceId: painting.id,
+          role: 'input'
+        }),
+        expect.objectContaining({
+          fileEntryId: outputId,
+          sourceId: painting.id,
+          role: 'output'
+        })
       ])
       expect(paintingService.getById(painting.id)).toMatchObject({
         files: { output: [outputId], input: [inputId] }
@@ -271,7 +317,11 @@ describe('PaintingService', () => {
       const outputId = '019606a0-0000-7000-8000-00000000c111'
       await seedFileEntry(outputId)
       const painting = paintingService.create(
-        p({ providerId: 'aihubmix', prompt: 'fingerprint', files: { output: [outputId], input: [] } })
+        p({
+          providerId: 'aihubmix',
+          prompt: 'fingerprint',
+          files: { output: [outputId], input: [] }
+        })
       )
 
       const before = paintingService.getById(painting.id).fileDataFingerprint
@@ -319,17 +369,32 @@ describe('PaintingService', () => {
         await seedFileEntry(id)
       }
       const painting = paintingService.create(
-        p({ providerId: 'aihubmix', prompt: 'old files', files: { output: [oldOutputId], input: [oldInputId] } })
+        p({
+          providerId: 'aihubmix',
+          prompt: 'old files',
+          files: { output: [oldOutputId], input: [oldInputId] }
+        })
       )
 
       const updated = paintingService.update(painting.id, {
         files: { output: [newOutputId], input: [newInputId] }
       })
 
-      expect(updated.files).toEqual({ output: [newOutputId], input: [newInputId] })
+      expect(updated.files).toEqual({
+        output: [newOutputId],
+        input: [newInputId]
+      })
       expect(await listPaintingRefs(painting.id)).toEqual([
-        expect.objectContaining({ fileEntryId: newInputId, sourceId: painting.id, role: 'input' }),
-        expect.objectContaining({ fileEntryId: newOutputId, sourceId: painting.id, role: 'output' })
+        expect.objectContaining({
+          fileEntryId: newInputId,
+          sourceId: painting.id,
+          role: 'input'
+        }),
+        expect.objectContaining({
+          fileEntryId: newOutputId,
+          sourceId: painting.id,
+          role: 'output'
+        })
       ])
       expect(paintingService.getById(painting.id)).toMatchObject({
         files: { output: [newOutputId], input: [newInputId] }
@@ -346,16 +411,27 @@ describe('PaintingService', () => {
         p({
           providerId: 'aihubmix',
           prompt: 'dangling files',
-          files: { output: [existingOutputId, missingOutputId], input: [missingInputId] }
+          files: {
+            output: [existingOutputId, missingOutputId],
+            input: [missingInputId]
+          }
         })
       )
 
       expect(await listPaintingRefs(painting.id)).toEqual([
-        expect.objectContaining({ fileEntryId: existingOutputId, sourceId: painting.id, role: 'output' })
+        expect.objectContaining({
+          fileEntryId: existingOutputId,
+          sourceId: painting.id,
+          role: 'output'
+        })
       ])
       expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
         'Dropped painting file refs without matching file_entry',
-        expect.objectContaining({ paintingId: painting.id, dropped: 2, total: 3 })
+        expect.objectContaining({
+          paintingId: painting.id,
+          dropped: 2,
+          total: 3
+        })
       )
     })
   })
@@ -386,15 +462,32 @@ describe('PaintingService', () => {
       await seedFileEntry(fileEntryId)
       const now = Date.now()
       await dbh.db.insert(paintingFileRefTable).values([
-        { fileEntryId, sourceId: painting.id, role: 'output', createdAt: now, updatedAt: now },
-        { fileEntryId, sourceId: painting.id, role: 'input', createdAt: now, updatedAt: now }
+        {
+          fileEntryId,
+          sourceId: painting.id,
+          role: 'output',
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          fileEntryId,
+          sourceId: painting.id,
+          role: 'input',
+          createdAt: now,
+          updatedAt: now
+        }
       ])
 
       paintingService.delete(painting.id)
       paintingService.delete(painting.id, { permanent: true })
 
       expect(await paintingExists(painting.id)).toBe(false)
-      expect(fileRefService.findBySource({ sourceType: 'painting', sourceId: painting.id })).toEqual([])
+      expect(
+        fileRefService.findBySource({
+          sourceType: 'painting',
+          sourceId: painting.id
+        })
+      ).toEqual([])
     })
 
     it('permanent=true succeeds when the painting has no file refs (today’s real path)', async () => {
@@ -409,7 +502,11 @@ describe('PaintingService', () => {
       const fileEntryId = '019606a0-0000-7000-8000-00000000d101'
       await seedFileEntry(fileEntryId)
       const trashed = paintingService.create(
-        p({ providerId: 'aihubmix', prompt: 'trashed', files: { output: [fileEntryId], input: [] } })
+        p({
+          providerId: 'aihubmix',
+          prompt: 'trashed',
+          files: { output: [fileEntryId], input: [] }
+        })
       )
       const kept = paintingService.create(p({ providerId: 'aihubmix', prompt: 'kept' }))
       notifyDataApiDataChangeMock.mockClear()
@@ -429,7 +526,11 @@ describe('PaintingService', () => {
       const [row] = await dbh.db.select().from(paintingTable).where(eq(paintingTable.id, trashed.id))
       expect(row.deletedAt).not.toBeNull()
       expect(await listPaintingRefs(trashed.id)).toEqual([
-        expect.objectContaining({ fileEntryId, sourceId: trashed.id, role: 'output' })
+        expect.objectContaining({
+          fileEntryId,
+          sourceId: trashed.id,
+          role: 'output'
+        })
       ])
     })
 
@@ -453,7 +554,11 @@ describe('PaintingService', () => {
       const fileEntryId = '019606a0-0000-7000-8000-00000000d102'
       await seedFileEntry(fileEntryId)
       const painting = paintingService.create(
-        p({ providerId: 'aihubmix', prompt: 'trash then purge', files: { output: [fileEntryId], input: [] } })
+        p({
+          providerId: 'aihubmix',
+          prompt: 'trash then purge',
+          files: { output: [fileEntryId], input: [] }
+        })
       )
       paintingService.delete(painting.id)
 
@@ -511,7 +616,11 @@ describe('PaintingService', () => {
       await seedFileEntry(outputId)
       await seedFileEntry(inputId)
       const painting = paintingService.create(
-        p({ providerId: 'aihubmix', prompt: 'round trip', files: { output: [outputId], input: [inputId] } })
+        p({
+          providerId: 'aihubmix',
+          prompt: 'round trip',
+          files: { output: [outputId], input: [inputId] }
+        })
       )
       paintingService.delete(painting.id)
       notifyDataApiDataChangeMock.mockClear()
@@ -522,10 +631,17 @@ describe('PaintingService', () => {
       expect(restored.deletedAt).toBeUndefined()
       expect(restored.files).toEqual({ output: [outputId], input: [inputId] })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
-        { endpoint: '/paintings', kind: 'membership', entityIds: [painting.id] },
+        {
+          endpoint: '/paintings',
+          kind: 'membership',
+          entityIds: [painting.id]
+        },
         { endpoint: '/paintings/:id', entityIds: [painting.id] }
       ])
-      expect(paintingService.getById(painting.id).files).toEqual({ output: [outputId], input: [inputId] })
+      expect(paintingService.getById(painting.id).files).toEqual({
+        output: [outputId],
+        input: [inputId]
+      })
       expect(paintingService.list({ limit: 20 }).items.map((item) => item.id)).toEqual([painting.id])
       expect(paintingService.list({ inTrash: true, limit: 20 }).items).toEqual([])
     })
@@ -556,7 +672,11 @@ describe('PaintingService', () => {
       const expiredRefId = '019606a0-0000-7000-8000-00000000d301'
       await seedFileEntry(expiredRefId)
       const expired = paintingService.create(
-        p({ providerId: 'aihubmix', prompt: 'expired', files: { output: [expiredRefId], input: [] } })
+        p({
+          providerId: 'aihubmix',
+          prompt: 'expired',
+          files: { output: [expiredRefId], input: [] }
+        })
       )
       const fresh = paintingService.create(p({ providerId: 'aihubmix', prompt: 'fresh trash' }))
       const active = paintingService.create(p({ providerId: 'aihubmix', prompt: 'still active' }))
