@@ -16126,6 +16126,234 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "deepseek-ai/DeepSeek-V4-Flash",
+      "limits": {
+        "contextWindow": 163840,
+        "maxOutputTokens": 32768
+      },
+      "modelId": "deepseek-v4-flash",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.0882
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.1764
+        }
+      },
+      "providerId": "gitgot",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "literal",
+                    "value": "high"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "deepseek-ai/DeepSeek-V4-Pro",
+      "limits": {
+        "contextWindow": 163840,
+        "maxOutputTokens": 32768
+      },
+      "modelId": "deepseek-v4-pro",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.274
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.548
+        }
+      },
+      "providerId": "gitgot",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "literal",
+                    "value": "high"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "openai/gpt-oss-120b",
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 32768
+      },
+      "modelId": "gpt-oss-120b",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.03626
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.1666
+        }
+      },
+      "providerId": "gitgot",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high"]
+              }
+            ],
+            "defaultEffort": "medium"
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "moonshotai/Kimi-K2.6",
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 64000
+      },
+      "modelId": "kimi-k2-6",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.735
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.43
+        }
+      },
+      "providerId": "gitgot",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": []
+          },
+          "wire": {
+            "disabled": true
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "moonshotai/Kimi-K2.7-Code",
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 64000
+      },
+      "modelId": "kimi-k2-7-code",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.6664
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.332
+        }
+      },
+      "providerId": "gitgot",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": []
+          },
+          "wire": {
+            "disabled": true
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "meta-llama/Llama-3.3-70B-Instruct",
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 32768
+      },
+      "modelId": "llama-3-3-70b-instruct",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1323
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.392
+        }
+      },
+      "providerId": "gitgot"
+    },
+    {
       "apiModelId": "grok-4.20-0309-non-reasoning",
       "capabilities": {
         "force": ["function-call", "image-recognition"]

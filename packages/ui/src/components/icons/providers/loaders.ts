@@ -115,6 +115,7 @@ export const PROVIDER_ICON_LOADERS = {
   nvidia: () => import('./nvidia').then(({ NvidiaIcon }) => NvidiaIcon),
   ocoolai: () => import('./ocoolai').then(({ OcoolaiIcon }) => OcoolaiIcon),
   ollama: () => import('./ollama').then(({ OllamaIcon }) => OllamaIcon),
+  gitgot: () => import('./gitgot/gitgot').then(({ GitGotIcon }) => GitGotIcon),
   omlx: () => import('./omlx/omlx').then(({ OmlxIcon }) => OmlxIcon),
   openai: () => import('./openai').then(({ OpenaiIcon }) => OpenaiIcon),
   openclaw: () => import('./openclaw').then(({ OpenclawIcon }) => OpenclawIcon),
