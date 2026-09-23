@@ -21,21 +21,21 @@ describe('CommandShortcutPreferenceUpgradeSeeder', () => {
       .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))
       .get()?.value
 
-  it('preserves edited unmarked sidebar shortcuts as user-owned values', () => {
+  it('preserves edited unmarked sidebar shortcuts even when migration timestamps are equal', () => {
     dbh.db
       .insert(preferenceTable)
       .values([
         {
           createdAt: 100,
           key: SIDEBAR_SHORTCUT_KEYS[0],
-          updatedAt: 200,
-          value: { binding: ['CommandOrControl', '['], enabled: true }
+          updatedAt: 100,
+          value: { binding: ['CommandOrControl', 'Shift', '['], enabled: true }
         },
         {
           createdAt: 100,
           key: SIDEBAR_SHORTCUT_KEYS[1],
-          updatedAt: 200,
-          value: { binding: ['CommandOrControl', ']'], enabled: false }
+          updatedAt: 100,
+          value: { binding: ['CommandOrControl', 'Shift', ']'], enabled: false }
         }
       ])
       .run()
@@ -43,34 +43,31 @@ describe('CommandShortcutPreferenceUpgradeSeeder', () => {
     new CommandShortcutPreferenceUpgradeSeeder().run(dbh.db)
 
     expect(readPreference(SIDEBAR_SHORTCUT_KEYS[0])).toEqual({
-      binding: ['CommandOrControl', '['],
+      binding: ['CommandOrControl', 'Shift', '['],
       customized: true,
       enabled: true
     })
     expect(readPreference(SIDEBAR_SHORTCUT_KEYS[1])).toEqual({
-      binding: ['CommandOrControl', ']'],
+      binding: ['CommandOrControl', 'Shift', ']'],
       customized: true,
       enabled: false
     })
   })
 
-  it('leaves untouched legacy defaults unmarked so macOS adopts the new sidebar defaults', () => {
-    for (const [key, binding] of [
-      [SIDEBAR_SHORTCUT_KEYS[0], ['CommandOrControl', '[']],
-      [SIDEBAR_SHORTCUT_KEYS[1], ['CommandOrControl', ']']]
+  it('marks legacy defaults uncustomized regardless of timestamps or enabled state', () => {
+    for (const [key, binding, enabled] of [
+      [SIDEBAR_SHORTCUT_KEYS[0], ['Ctrl', '['], false],
+      [SIDEBAR_SHORTCUT_KEYS[1], ['Command', ']'], true]
     ] as const) {
-      dbh.db
-        .insert(preferenceTable)
-        .values({ createdAt: 100, key, updatedAt: 100, value: { binding, enabled: true } })
-        .run()
+      dbh.db.insert(preferenceTable).values({ createdAt: 100, key, updatedAt: 200, value: { binding, enabled } }).run()
     }
 
     new CommandShortcutPreferenceUpgradeSeeder().run(dbh.db)
 
     const appSidebar = readPreference(SIDEBAR_SHORTCUT_KEYS[0]) as PreferenceShortcutType
     const topicSidebar = readPreference(SIDEBAR_SHORTCUT_KEYS[1]) as PreferenceShortcutType
-    expect(appSidebar).not.toHaveProperty('customized')
-    expect(topicSidebar).not.toHaveProperty('customized')
+    expect(appSidebar).toMatchObject({ customized: false, enabled: false })
+    expect(topicSidebar).toMatchObject({ customized: false, enabled: true })
     expect(resolveCommandShortcutPreference('app.sidebar.toggle', appSidebar, 'darwin')?.binding).toEqual([
       'CommandOrControl',
       'Alt',

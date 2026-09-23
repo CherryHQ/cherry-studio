@@ -1,6 +1,8 @@
 import { and, eq, inArray } from 'drizzle-orm'
 
 import { preferenceTable } from '@data/db/schemas/preference'
+import { inferLegacySidebarShortcutCustomized } from '@shared/utils/command'
+import { normalizeShortcutBinding } from '@shared/utils/shortcut'
 
 import type { DbType, ISeeder } from '../../types'
 
@@ -26,23 +28,23 @@ export class CommandShortcutPreferenceUpgradeSeeder implements ISeeder {
     const rows = db
       .select({
         key: preferenceTable.key,
-        value: preferenceTable.value,
-        createdAt: preferenceTable.createdAt,
-        updatedAt: preferenceTable.updatedAt
+        value: preferenceTable.value
       })
       .from(preferenceTable)
       .where(and(eq(preferenceTable.scope, 'default'), inArray(preferenceTable.key, [...LEGACY_SIDEBAR_SHORTCUT_KEYS])))
       .all()
-    const updates = rows.flatMap(({ key, value, createdAt, updatedAt }) =>
-      updatedAt > createdAt && isUnmarkedShortcutPreference(value) ? [{ key, value }] : []
-    )
+    const updates = rows.flatMap(({ key, value }) => {
+      if (!isUnmarkedShortcutPreference(value)) return []
+      const customized = inferLegacySidebarShortcutCustomized(key, normalizeShortcutBinding(value.binding))
+      return customized === undefined ? [] : [{ customized, key, value }]
+    })
 
     if (!updates.length) return
 
     db.transaction((tx) => {
-      for (const { key, value } of updates) {
+      for (const { customized, key, value } of updates) {
         tx.update(preferenceTable)
-          .set({ value: { ...value, customized: true } })
+          .set({ value: { ...value, customized } })
           .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))
           .run()
       }

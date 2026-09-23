@@ -262,6 +262,16 @@ describe('command shortcut preferences', () => {
     ).toEqual(['CommandOrControl', ']'])
   })
 
+  it('uses the current platform default for an explicitly uncustomized legacy shortcut', () => {
+    expect(
+      resolveCommandShortcutPreference(
+        'app.sidebar.toggle',
+        { binding: ['Ctrl', '['], customized: false, enabled: false },
+        'darwin'
+      )
+    ).toEqual({ binding: ['CommandOrControl', 'Alt', '['], enabled: false })
+  })
+
   it('applies the platform default to preferences hydrated from the schema default', () => {
     // usePreference never yields undefined: unset keys arrive as the schema default.
     expect(

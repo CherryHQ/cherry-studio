@@ -78,6 +78,7 @@ describe('transformShortcuts', () => {
 
     expect(result['shortcut.app.sidebar.toggle']).toEqual({
       binding: ['CommandOrControl', 'Shift', '['],
+      customized: true,
       enabled: false
     })
     expect(result).not.toHaveProperty('shortcut.general.toggle_sidebar')
@@ -98,6 +99,7 @@ describe('transformShortcuts', () => {
     expect(result).toEqual({
       'shortcut.topic.sidebar.toggle': {
         binding: ['CommandOrControl', ']'],
+        customized: false,
         enabled: true
       }
     })

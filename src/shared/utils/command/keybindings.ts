@@ -110,6 +110,29 @@ const shortcutBindingMatches = (left: ShortcutBinding, right: ShortcutBinding): 
   return right.every((token) => leftTokens.has(canonicalTriggerToken(token)))
 }
 
+type LegacySidebarShortcutPreferenceKey = 'shortcut.app.sidebar.toggle' | 'shortcut.topic.sidebar.toggle'
+
+const LEGACY_SIDEBAR_DEFAULT_BINDINGS: Record<LegacySidebarShortcutPreferenceKey, readonly ShortcutBinding[]> = {
+  'shortcut.app.sidebar.toggle': [
+    ['CommandOrControl', '['],
+    ['Command', '['],
+    ['Ctrl', '[']
+  ],
+  'shortcut.topic.sidebar.toggle': [
+    ['CommandOrControl', ']'],
+    ['Command', ']'],
+    ['Ctrl', ']']
+  ]
+}
+
+export const inferLegacySidebarShortcutCustomized = (
+  preferenceKey: string,
+  binding: ShortcutBinding
+): boolean | undefined => {
+  const defaults = LEGACY_SIDEBAR_DEFAULT_BINDINGS[preferenceKey as LegacySidebarShortcutPreferenceKey]
+  return defaults ? !defaults.some((candidate) => shortcutBindingMatches(binding, candidate)) : undefined
+}
+
 const getTriggerBindings = (
   binding: ShortcutBinding,
   additionalBindings: readonly ShortcutBinding[] = []
@@ -189,6 +212,9 @@ const resolvePreferredBinding = (
     return binding
   }
   const platformBinding = getRulePlatformBinding(rule.defaultBinding, platform)
+  if (preference.customized === false) {
+    return platformBinding ?? getSharedDefaultBinding(rule)
+  }
   if (platformBinding && shortcutBindingMatches(binding, getSharedDefaultBinding(rule))) {
     return platformBinding
   }
