@@ -2228,6 +2228,46 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getSessionById.mockReset()
   })
 
+  it('keeps a goal-round receive-only wake on the warm connection model when the override changes', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: switchedModelId })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    mocks.saveMessage.mockReturnValue({
+      id: 'assistant-ro',
+      role: 'assistant',
+      status: 'pending',
+      data: { parts: [] }
+    })
+
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    entry.connection = {
+      send: vi.fn(),
+      close: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('current'),
+      refreshTraceContext: vi.fn()
+    }
+    service.markTurnTerminal('session-1', 'success')
+    mocks.startRuntimeTurn.mockClear()
+
+    await (service as any).handleSessionModelUpdated('session-1')
+    ;(service as any).handleRuntimeEvent(entry, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'goal-round', round: 1 }
+    })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.objectContaining({ modelId: baseTurnInput.modelId })
+      })
+    )
+    expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: baseTurnInput.modelId }))
+    mocks.getSessionById.mockReset()
+  })
+
   it('reads the agent once per session on a push reconcile, not twice', async () => {
     // `agentService.getAgent` is four uncached queries. `handleAgentUpdated` already holds the
     // updated entity, so walking every session of that agent must not re-read it per session.
