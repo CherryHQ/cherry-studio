@@ -11,7 +11,7 @@ const PLATFORMS = [
 
 function createDownloadTable({ productName, repository, tag }) {
   const version = tag.startsWith('v') ? tag.slice(1) : tag
-  const lines = [`## Downloads (${tag})`, '', '| Platform | Architecture | Global |', '| --- | --- | --- |']
+  const lines = [`## Downloads (${tag})`, '', '| Platform | Architecture | Download |', '| --- | --- | --- |']
 
   for (const platform of PLATFORMS) {
     const groups = getReleaseDownloadGroups({ edition: GLOBAL_EDITION, platform: platform.id, productName, version })
@@ -39,7 +39,7 @@ function createReleaseNotes(curatedNotes) {
     .slice(curatedNotes.indexOf(start) + start.length, curatedNotes.indexOf('<!--LANG:zh-CN-->'))
     .trim()
 
-  return `## Release Notes\n\n<details>\n<summary>English</summary>\n\n${content}\n\n</details>`
+  return `<details>\n<summary>Release Notes</summary>\n\n${content}\n\n</details>`
 }
 
 function composeReleaseBody({ builderContent, generatedNotes, productName, repository, tag }) {
@@ -50,7 +50,7 @@ function composeReleaseBody({ builderContent, generatedNotes, productName, repos
   const body = `${createDownloadTable({ productName, repository, tag })}\n\n${createReleaseNotes(curatedNotes)}`
   if (!changes) return `${body}\n`
 
-  return `${body}\n\n---\n\n${changes}\n`
+  return `${body}\n\n${changes}\n`
 }
 
 function main() {

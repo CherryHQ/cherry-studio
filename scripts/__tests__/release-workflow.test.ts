@@ -731,12 +731,15 @@ describe('release publication state', () => {
       '[RPM](https://github.com/CherryHQ/cherry-studio/releases/download/v1.2.0/Cherry-Studio-1.2.0-linux-arm64.rpm)'
     )
     expect(body).not.toMatch(/\.(?:blockmap|ya?ml|json)\)/)
-    expect(body).toContain('<summary>English</summary>\n\nEnglish notes\n\n</details>')
-    expect(body).toContain('| Platform | Architecture | Global |\n| --- | --- | --- |')
+    expect(body).toContain('<summary>Release Notes</summary>\n\nEnglish notes\n\n</details>')
+    expect(body).toContain('| Platform | Architecture | Download |\n| --- | --- | --- |')
     expect(body).not.toMatch(/下载|发布说明|简体中文|中文说明|China Edition|Cherry-Studio-CN-/)
     expect(body.indexOf('| macOS | Apple M Series |')).toBeLessThan(body.indexOf('| macOS | Intel |'))
     expect(body).not.toContain('<!--LANG:')
-    expect(body.indexOf('## Release Notes\n')).toBeLessThan(body.indexOf("## What's Changed"))
+    expect(body).not.toContain('## Release Notes')
+    expect(body.match(/<summary>/g)).toHaveLength(1)
+    expect(body).toContain("</details>\n\n## What's Changed")
+    expect(body.indexOf('<summary>Release Notes</summary>')).toBeLessThan(body.indexOf("## What's Changed"))
     expect(body).toContain("## What's Changed\n- Fix one\n\n## New Contributors\n- @new\n")
 
     const bodyWithoutChanges = composeReleaseBody({
@@ -746,9 +749,9 @@ describe('release publication state', () => {
       repository: 'CherryHQ/cherry-studio',
       tag: 'v1.2.0'
     })
-    expect(bodyWithoutChanges.trim()).toBe(body.split('\n\n---\n\n')[0])
+    expect(bodyWithoutChanges.trim()).toBe(body.split("\n\n## What's Changed")[0])
     expect(bodyWithoutChanges).not.toContain("## What's Changed")
-    expect(bodyWithoutChanges).toContain('<summary>English</summary>\n\nEnglish notes\n\n</details>')
+    expect(bodyWithoutChanges).toContain('<summary>Release Notes</summary>\n\nEnglish notes\n\n</details>')
   })
 
   it('accepts only an exact-head all-platform build with artifacts and no open release pull request', () => {
