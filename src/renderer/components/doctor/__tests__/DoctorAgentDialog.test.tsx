@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DoctorAgentState } from '@shared/types/doctorAgent'
@@ -46,6 +47,12 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: mocks.openSettingsTab }))
+// jsdom has no layout, so the virtualizer would render nothing; render every row instead.
+vi.mock('@renderer/components/VirtualList', () => ({
+  DynamicVirtualList: <T,>({ list, children }: { list: T[]; children: (item: T, index: number) => ReactNode }) => (
+    <>{list.map((item, index) => children(item, index))}</>
+  )
+}))
 vi.mock('@renderer/components/markdown', () => ({
   StaticMarkdown: ({ children }: { children: string }) => <div data-testid="markdown">{children}</div>
 }))

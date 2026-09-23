@@ -25,6 +25,7 @@ import {
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { StaticMarkdown } from '@renderer/components/markdown'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useDoctorAgent } from '@renderer/hooks/doctor'
 import { useModels } from '@renderer/hooks/useModel'
@@ -40,6 +41,10 @@ import type {
 } from '@shared/types/doctorAgent'
 import { doctorCheckTitleKey, doctorScopeKey, doctorStateCacheKey } from '@shared/utils/doctor'
 import { isGatewayRoutableModel } from '@shared/utils/model'
+
+// Item (size sm, title + description) plus the 8px gap below it.
+const MODEL_ROW_HEIGHT = 74
+const MODEL_LIST_HEIGHT = 340
 
 const PROPOSAL_STATUS_KEYS = {
   pending: 'settings.doctor.agent.proposal_status.pending',
@@ -152,42 +157,49 @@ function ModelPicker({
       ) : (
         <RadioGroup
           aria-label={t('settings.doctor.agent.model_picker.title')}
-          className="grid-cols-1 gap-2 max-h-[40vh] overflow-y-auto"
+          className="block"
           value={value}
           onValueChange={setSelected}>
-          {candidates.map(({ model, provider }) => {
-            const optionId = `${uid}-${model.id}`
-            const isSelected = model.id === value
-            return (
-              <Item
-                key={model.id}
-                asChild
-                size="sm"
-                variant="outline"
-                className="cursor-pointer hover:bg-accent/50 has-[[data-slot=radio-group-item]:focus-visible]:ring-1 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring has-[[data-slot=radio-group-item]:focus-visible]:ring-inset">
-                <Label htmlFor={optionId}>
-                  <RadioGroupItem id={optionId} value={model.id} className="sr-only" />
-                  <ItemMedia>
-                    <ModelAvatar model={model} size={24} className="border border-border" />
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle>{model.name}</ItemTitle>
-                    <ItemDescription>{getProviderDisplayName(provider)}</ItemDescription>
-                  </ItemContent>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {t(
-                      model.id === defaultModelId
-                        ? 'settings.doctor.agent.model_picker.default'
-                        : 'settings.doctor.agent.model_picker.configured'
-                    )}
-                  </span>
-                  <ItemActions className="size-4 shrink-0">
-                    {isSelected ? <Check className="size-4 text-primary" /> : null}
-                  </ItemActions>
-                </Label>
-              </Item>
-            )
-          })}
+          <DynamicVirtualList
+            list={candidates}
+            size={Math.min(MODEL_LIST_HEIGHT, candidates.length * MODEL_ROW_HEIGHT)}
+            estimateSize={() => MODEL_ROW_HEIGHT}
+            getItemKey={(index) => candidates[index].model.id}
+            itemContainerStyle={{ paddingBottom: 8 }}
+            overscan={6}>
+            {({ model, provider }) => {
+              const optionId = `${uid}-${model.id}`
+              const isSelected = model.id === value
+              return (
+                <Item
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="cursor-pointer hover:bg-accent/50 has-[[data-slot=radio-group-item]:focus-visible]:ring-1 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring has-[[data-slot=radio-group-item]:focus-visible]:ring-inset">
+                  <Label htmlFor={optionId}>
+                    <RadioGroupItem id={optionId} value={model.id} className="sr-only" />
+                    <ItemMedia>
+                      <ModelAvatar model={model} size={24} className="border border-border" />
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle>{model.name}</ItemTitle>
+                      <ItemDescription>{getProviderDisplayName(provider)}</ItemDescription>
+                    </ItemContent>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {t(
+                        model.id === defaultModelId
+                          ? 'settings.doctor.agent.model_picker.default'
+                          : 'settings.doctor.agent.model_picker.configured'
+                      )}
+                    </span>
+                    <ItemActions className="size-4 shrink-0">
+                      {isSelected ? <Check className="size-4 text-primary" /> : null}
+                    </ItemActions>
+                  </Label>
+                </Item>
+              )
+            }}
+          </DynamicVirtualList>
         </RadioGroup>
       )}
       <DialogFooter>
