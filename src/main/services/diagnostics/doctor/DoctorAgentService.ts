@@ -55,6 +55,8 @@ export class DoctorAgentService extends BaseService {
   private readonly active = new Map<DoctorScopeKey, ActiveRun>()
   /** Session → scope, so a tool call can find the run it belongs to without carrying the scope. */
   private readonly sessions = new Map<string, DoctorScopeKey>()
+  /** One write at a time per scope: a double click or an Agent auto-fix must never interleave. */
+  private readonly writeQueues = new Map<DoctorScopeKey, Promise<unknown>>()
 
   protected override onStop(): void {
     for (const scope of Array.from(this.active.keys())) this.abort(scope, 'service stopping')
@@ -130,43 +132,57 @@ export class DoctorAgentService extends BaseService {
     return { status: 'canceled' }
   }
 
-  async apply(input: { scope: DoctorScopeKey; runId: string; proposalId: string }): Promise<DoctorAgentApplyResult> {
-    const state = this.currentState(input.scope)
-    if (state.status === 'idle' || state.runId !== input.runId) return { status: 'stale' }
-    const proposal = state.proposals.find((item) => item.id === input.proposalId)
-    if (!proposal || proposal.status !== 'pending') return { status: 'stale' }
-    if (proposal.write.kind === 'doctor_fix' && this.currentReport(input.scope)?.runId !== state.reportRunId) {
-      this.patchProposal(input.scope, input.runId, proposal.id, { status: 'rejected', error: 'report superseded' })
-      return { status: 'stale' }
-    }
-    try {
-      const applied = await applyWrite(proposal.write)
-      const change = this.recordChange(input.scope, input.runId, proposal.write, proposal.summary, applied, proposal.id)
-      this.patchProposal(input.scope, input.runId, proposal.id, { status: 'applied' })
-      return { status: 'applied', change, ...(applied.fix ? { fix: applied.fix } : {}) }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      this.patchProposal(input.scope, input.runId, proposal.id, { status: 'failed', error: message })
-      return { status: 'failed', message }
-    }
+  apply(input: { scope: DoctorScopeKey; runId: string; proposalId: string }): Promise<DoctorAgentApplyResult> {
+    return this.serialized(input.scope, async () => {
+      // Re-read under the lock: a queued duplicate must see the first click's outcome.
+      const state = this.currentState(input.scope)
+      if (state.status === 'idle' || state.runId !== input.runId) return { status: 'stale' }
+      const proposal = state.proposals.find((item) => item.id === input.proposalId)
+      if (!proposal || proposal.status !== 'pending') return { status: 'stale' }
+      // Every proposal was reasoned from one report; once that report expired or was replaced the
+      // reasoning no longer holds, whatever the write touches.
+      if (this.currentReport(input.scope)?.runId !== state.reportRunId) {
+        this.patchProposal(input.scope, input.runId, proposal.id, { status: 'rejected', error: 'report superseded' })
+        return { status: 'stale' }
+      }
+      try {
+        const applied = await applyWrite(proposal.write)
+        const change = this.recordChange(
+          input.scope,
+          input.runId,
+          proposal.write,
+          proposal.summary,
+          applied,
+          proposal.id
+        )
+        this.patchProposal(input.scope, input.runId, proposal.id, { status: 'applied' })
+        return { status: 'applied', change, ...(applied.fix ? { fix: applied.fix } : {}) }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        this.patchProposal(input.scope, input.runId, proposal.id, { status: 'failed', error: message })
+        return { status: 'failed', message }
+      }
+    })
   }
 
-  async undo(input: { scope: DoctorScopeKey; runId: string; changeId: string }): Promise<DoctorAgentUndoResult> {
-    const state = this.currentState(input.scope)
-    if (state.status === 'idle' || state.runId !== input.runId) return { status: 'stale' }
-    const change = state.changes.find((item) => item.id === input.changeId)
-    if (!change || !change.undoable || change.undone) return { status: 'stale' }
-    try {
-      await undoWrite(change.write, change.before)
-    } catch (error) {
-      return { status: 'failed', message: error instanceof Error ? error.message : String(error) }
-    }
-    const undone = { ...change, undone: true }
-    this.update(input.scope, input.runId, (current) => ({
-      ...current,
-      changes: current.changes.map((item) => (item.id === change.id ? undone : item))
-    }))
-    return { status: 'undone', change: undone }
+  undo(input: { scope: DoctorScopeKey; runId: string; changeId: string }): Promise<DoctorAgentUndoResult> {
+    return this.serialized(input.scope, async () => {
+      const state = this.currentState(input.scope)
+      if (state.status === 'idle' || state.runId !== input.runId) return { status: 'stale' }
+      const change = state.changes.find((item) => item.id === input.changeId)
+      if (!change || !change.undoable || change.undone) return { status: 'stale' }
+      try {
+        await undoWrite(change.write, change.before)
+      } catch (error) {
+        return { status: 'failed', message: error instanceof Error ? error.message : String(error) }
+      }
+      const undone = { ...change, undone: true }
+      this.update(input.scope, input.runId, (current) => ({
+        ...current,
+        changes: current.changes.map((item) => (item.id === change.id ? undone : item))
+      }))
+      return { status: 'undone', change: undone }
+    })
   }
 
   /** Tool entry point: run low-risk writes now, queue the rest for the user. */
@@ -177,12 +193,21 @@ export class DoctorAgentService extends BaseService {
       this.update(scope, runId, (current) => ({ ...current, proposals: [...current.proposals, proposal] }))
       return { status: 'proposed', proposal }
     }
-    try {
-      const applied = await applyWrite(write)
-      return { status: 'applied', change: this.recordChange(scope, runId, write, summary, applied) }
-    } catch (error) {
-      return { status: 'failed', message: error instanceof Error ? error.message : String(error) }
-    }
+    return this.serialized(scope, async () => {
+      try {
+        const applied = await applyWrite(write)
+        return { status: 'applied', change: this.recordChange(scope, runId, write, summary, applied) }
+      } catch (error) {
+        return { status: 'failed', message: error instanceof Error ? error.message : String(error) }
+      }
+    })
+  }
+
+  private serialized<T>(scope: DoctorScopeKey, task: () => Promise<T>): Promise<T> {
+    const previous = this.writeQueues.get(scope) ?? Promise.resolve()
+    const next = previous.then(task, task)
+    this.writeQueues.set(scope, next.catch(() => undefined))
+    return next
   }
 
   reportForSession(sessionId: string): unknown {

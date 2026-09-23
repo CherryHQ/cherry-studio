@@ -42,7 +42,7 @@ vi.mock('@application', async () => {
 
 import DoctorServer from '@main/ai/mcp/servers/doctor'
 
-import { writeRisk } from '../doctorWrites'
+import { applyWrite, undoWrite, writeRisk } from '../doctorWrites'
 
 async function connect() {
   const server = new DoctorServer('session-1')
@@ -106,6 +106,23 @@ describe('doctor data_api tool', () => {
     await client.close()
   })
 
+  it('refuses a credential field nested inside an allowed map', async () => {
+    const client = await connect()
+    const result = await client.callTool({
+      name: 'data_api',
+      arguments: {
+        method: 'PATCH',
+        path: '/mcp-servers/s1',
+        body: { env: { OPENAI_API_KEY: 'sk-1', DEBUG: '1' } },
+        summary: 'set env'
+      }
+    })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('env.OPENAI_API_KEY')
+    expect(mocks.requestWrite).not.toHaveBeenCalled()
+    await client.close()
+  })
+
   it('turns an allowed PATCH into a write request with the model summary', async () => {
     const client = await connect()
     const result = await client.callTool({
@@ -139,6 +156,19 @@ describe('doctor preference tool', () => {
       arguments: { action: 'set', key: 'app.language', value: 'en-US', summary: 'switch language' }
     })
     expect(denied.isError).toBe(true)
+    expect(mocks.requestWrite).not.toHaveBeenCalled()
+
+    const wrongType = await client.callTool({
+      name: 'preference',
+      arguments: { action: 'set', key: 'app.proxy.mode', value: 'yes', summary: 'x' }
+    })
+    expect(wrongType.isError).toBe(true)
+    const withCredentials = await client.callTool({
+      name: 'preference',
+      arguments: { action: 'set', key: 'app.proxy.url', value: 'http://user:pw@proxy:8080', summary: 'x' }
+    })
+    expect(withCredentials.isError).toBe(true)
+    expect(text(withCredentials)).toContain('credentials')
     expect(mocks.requestWrite).not.toHaveBeenCalled()
 
     await client.callTool({
@@ -224,6 +254,32 @@ describe('doctor read_file tool', () => {
     expect(result.isError).toBe(true)
     expect(text(result)).not.toContain('nope')
     await client.close()
+  })
+})
+
+describe('applyWrite / undoWrite guards', () => {
+  const patch = { kind: 'data_api_patch', path: '/mcp-servers/s1', body: { env: { DEBUG: '1' } } } as const
+
+  it('refuses to patch a field whose stored value carries a credential, so undo can never write a placeholder', async () => {
+    mocks.handleRequest.mockResolvedValueOnce({
+      id: 'x',
+      status: 200,
+      data: { id: 's1', env: { OPENAI_API_KEY: 'sk-live', DEBUG: '0' } }
+    })
+    await expect(applyWrite(patch)).rejects.toThrow('carries credentials')
+    expect(mocks.handleRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('snapshots the real prior value and refuses to undo once the user changed the field again', async () => {
+    mocks.handleRequest
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: '0' } } })
+      .mockResolvedValueOnce({ id: 'x', status: 200 })
+    const applied = await applyWrite(patch)
+    expect(applied.before).toEqual({ env: { DEBUG: '0' } })
+
+    mocks.handleRequest.mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: 'user-edit' } } })
+    await expect(undoWrite(patch, applied.before)).rejects.toThrow('changed since')
+    expect(mocks.handleRequest).toHaveBeenCalledTimes(3)
   })
 })
 

@@ -101,6 +101,9 @@ function getAgentDescription(id: string, description: string, configuration: unk
   return ''
 }
 
+/** The doctor Agent only ever runs inside the System Doctor; it has no place in the Agents page. */
+const notDoctorAgent: SQL = sql`coalesce(json_extract(${agentsTable.configuration}, '$.builtin_role'), '') <> ${BUILTIN_AGENT_ROLE.DOCTOR}`
+
 function buildAgentSearchPredicate(search: string): SQL {
   const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`
   const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
@@ -591,7 +594,8 @@ export class AgentService {
     // AND-compose deletedAt-null + optional server-side search. The localized builtin
     // fallback is part of the predicate, so pagination and full-library search stay authoritative.
     const conditions: SQL[] = [
-      options.inTrash === true ? isNotNull(agentsTable.deletedAt) : isNull(agentsTable.deletedAt)
+      options.inTrash === true ? isNotNull(agentsTable.deletedAt) : isNull(agentsTable.deletedAt),
+      notDoctorAgent
     ]
     if (options.ids) conditions.push(inArray(agentsTable.id, options.ids))
     if (options.search) {
@@ -670,7 +674,7 @@ export class AgentService {
 
   search(options: { q: string; limit: number; updatedAtFrom?: number }): AgentEntitySearchItem[] {
     const database = application.get('DbService').getDb()
-    const conditions: SQL[] = [isNull(agentsTable.deletedAt), buildAgentSearchPredicate(options.q)]
+    const conditions: SQL[] = [isNull(agentsTable.deletedAt), notDoctorAgent, buildAgentSearchPredicate(options.q)]
     if (options.updatedAtFrom !== undefined) {
       conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
     }

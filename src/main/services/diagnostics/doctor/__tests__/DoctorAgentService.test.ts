@@ -179,6 +179,49 @@ describe('DoctorAgentService writes', () => {
     expect(await service.undo({ scope: 'global', runId, changeId })).toEqual({ status: 'stale' })
   })
 
+  it('rejects a pending preference proposal once the report it came from is superseded', async () => {
+    const { service, runId } = await startedService()
+    const outcome = await service.requestWrite(
+      'session-1',
+      { kind: 'preference_set', key: 'app.proxy.mode', value: 'none' },
+      'Disable the proxy'
+    )
+    const proposalId = (outcome as { proposal: { id: string } }).proposal.id
+    application
+      .get('CacheService')
+      .setShared(doctorStateCacheKey('global'), { status: 'completed', report: { ...report, runId: 'report-2' } })
+
+    expect(await service.apply({ scope: 'global', runId, proposalId })).toEqual({ status: 'stale' })
+    expect(mocks.applyWrite).not.toHaveBeenCalled()
+    expect(agentState()).toMatchObject({ proposals: [{ id: proposalId, status: 'rejected' }] })
+  })
+
+  it('applies a proposal once even when two clicks race', async () => {
+    const { service, runId } = await startedService()
+    let release!: () => void
+    mocks.applyWrite.mockImplementation(
+      () => new Promise((resolve) => (release = () => resolve({ before: { apiHost: 'old' }, undoable: true })))
+    )
+    const outcome = await service.requestWrite(
+      'session-1',
+      { kind: 'data_api_patch', path: '/providers/openai', body: { apiHost: 'new' } },
+      'Fix the base URL'
+    )
+    const proposalId = (outcome as { proposal: { id: string } }).proposal.id
+
+    const first = service.apply({ scope: 'global', runId, proposalId })
+    const second = service.apply({ scope: 'global', runId, proposalId })
+    await wait(10)
+    release()
+    expect((await first).status).toBe('applied')
+    expect((await second).status).toBe('stale')
+    expect(mocks.applyWrite).toHaveBeenCalledTimes(1)
+    const finalState = agentState()
+    expect(finalState?.status).toBe('running')
+    if (finalState?.status !== 'running') return
+    expect(finalState.changes).toEqual([expect.objectContaining({ proposalId })])
+  })
+
   it('runs a low-risk catalog fix immediately and records it as not undoable', async () => {
     const { service } = await startedService()
     mocks.applyWrite.mockResolvedValue({ before: null, undoable: false, fix: { status: 'fixed', result: {} } })

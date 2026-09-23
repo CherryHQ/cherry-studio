@@ -118,11 +118,20 @@ function ModelPicker({
   const { providers } = useProviders({ enabled: true })
   const { models } = useModels({ enabled: true })
   const [selected, setSelected] = useState<Model | undefined>(undefined)
-  const model = selected ?? models.find((candidate) => candidate.id === defaultModelId)
   const filter = useCallback<ModelSelectorFilter>(
     (candidate, provider) => provider?.isEnabled !== false && isGatewayRoutableModel(candidate),
     []
   )
+  const model =
+    selected ??
+    models.find(
+      (candidate) =>
+        candidate.id === defaultModelId &&
+        filter(
+          candidate,
+          providers.find((provider) => provider.id === candidate.providerId)
+        )
+    )
 
   return (
     <>

@@ -22,6 +22,7 @@ import {
   assertNoSecretFields,
   isDataApiPatchPath,
   isPreferenceWritable,
+  parsePreferenceWrite,
   PREFERENCE_WRITE_ALLOWLIST,
   queryDataApi,
   redactForModel
@@ -152,7 +153,13 @@ list: every key and value, secrets redacted. get: one key. set: recorded as a pr
       throw new ToolError(`Preference "${key}" is not writable by the doctor`, ToolErrorCode.InvalidParams)
     }
     if (!('value' in args)) throw new ToolError("'value' is required", ToolErrorCode.InvalidParams)
-    return requestWrite(ctx, { kind: 'preference_set', key, value: args.value }, requireString(args, 'summary'))
+    let parsed: ReturnType<typeof parsePreferenceWrite>
+    try {
+      parsed = parsePreferenceWrite(key, args.value)
+    } catch (error) {
+      throw new ToolError(error instanceof Error ? error.message : String(error), ToolErrorCode.InvalidParams)
+    }
+    return requestWrite(ctx, { kind: 'preference_set', key: parsed.key, value: parsed.value }, requireString(args, 'summary'))
   }
 }
 

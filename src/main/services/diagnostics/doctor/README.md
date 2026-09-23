@@ -172,7 +172,10 @@ Reads pass through `redactForModel`. Writes are bounded by `doctorWrites.ts`, no
 | `data_api_patch` | DataApi `PATCH` on providers / mcp-servers / assistants / agents | proposal |
 | `preference_set` | `PreferenceService.set`, keys in `PREFERENCE_WRITE_ALLOWLIST` | proposal |
 
-A proposal runs only when the user applies it from the panel; every executed write lands in the ledger with the
-snapshot `undoWrite` restores (catalog fixes are not undoable). Credential fields, POST/DELETE, API-key routes and
-the core Bash/Edit/Write tools are never reachable. The Agent runs with `bypassPermissions` because the headless
+A proposal runs only when the user applies it from the panel, only while the report it was reasoned from is still
+current, and writes for one scope are serialized so a double click cannot apply twice. Every executed write lands in
+the ledger with the snapshot `undoWrite` restores; undo refuses once the field changed again, and catalog fixes are
+not undoable. Credential fields at any depth, fields whose stored value carries a credential, credential-bearing proxy
+URLs, POST/DELETE, API-key routes and the core Bash/Edit/Write tools are never reachable. Preference writes are
+validated against a per-key schema. The doctor Agent row is excluded from Agent lists and search. The Agent runs with `bypassPermissions` because the headless
 turn has no responder; that is why every `doctor` tool policy is `auto` and the gate lives in the proposal model.
