@@ -7,6 +7,7 @@ import type * as CherryUi from '@cherrystudio/ui'
 import type * as PreferenceModule from '@data/PreferenceService'
 import { preferenceService } from '@data/PreferenceService'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import { ipcApi } from '@renderer/ipc'
 import type { AgentHook } from '@shared/ai/agentHook'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 
@@ -17,6 +18,8 @@ const { isMacTransparentWindowMock, navigateMock } = vi.hoisted(() => ({
   isMacTransparentWindowMock: vi.fn(),
   navigateMock: vi.fn()
 }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) } }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryUi>()
@@ -61,7 +64,14 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Outlet: () => null,
+  Outlet: () => (
+    <>
+      <a href="https://open.cherryin.ai" target="_blank" rel="noreferrer">
+        <span>Provider website</span>
+      </a>
+      <a href="#provider">Internal settings</a>
+    </>
+  ),
   useLocation: () => ({ pathname: '/settings/provider' }),
   useNavigate: () => navigateMock,
   useRouter: () => ({ history: { canGoBack: () => false, back: vi.fn() } }),
@@ -143,6 +153,30 @@ describe('SettingsPage', () => {
     preferenceBridge.get.mockReset().mockImplementation(async (key) => getDefaultValue(key))
     isMacTransparentWindowMock.mockReturnValue(false)
     navigateMock.mockReset()
+    vi.mocked(ipcApi.request).mockClear()
+  })
+
+  it.each(['click', 'auxclick'])(
+    'opens settings websites externally on %s even when internal browsing is enabled',
+    async (type) => {
+      await preferenceService.set('app.browser.open_links_in_browser', true)
+      render(<SettingsPage />)
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: type === 'auxclick' ? 1 : 0 })
+      fireEvent(screen.getByText('Provider website'), event)
+      expect(event.defaultPrevented).toBe(true)
+      expect(ipcApi.request).toHaveBeenCalledWith('system.shell.open_external_website', 'https://open.cherryin.ai/')
+    }
+  )
+
+  it('leaves internal settings navigation and right-click menus alone', () => {
+    render(<SettingsPage />)
+    const internalClick = new MouseEvent('click', { bubbles: true, cancelable: true })
+    fireEvent(screen.getByText('Internal settings'), internalClick)
+    const rightClick = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 2 })
+    fireEvent(screen.getByText('Provider website'), rightClick)
+    expect(internalClick.defaultPrevented).toBe(false)
+    expect(rightClick.defaultPrevented).toBe(false)
+    expect(ipcApi.request).not.toHaveBeenCalled()
   })
 
   it('mounts the full-width search field from the header icon only on demand', () => {

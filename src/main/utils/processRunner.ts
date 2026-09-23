@@ -198,6 +198,14 @@ export interface CommandResult {
   failure?: string
 }
 
+/** Rejection of `executeCommand` when output passes `maxOutputBytes`; the command has been killed. */
+export class CommandOutputLimitError extends Error {
+  constructor(maxOutputBytes: number) {
+    super(`Command output exceeded ${maxOutputBytes} bytes`)
+    this.name = 'CommandOutputLimitError'
+  }
+}
+
 /**
  * Execute with cross-platform argument handling and bounded process-tree cleanup.
  * Default mode returns stdout (or an empty string for capture=false) and rejects on failure.
@@ -219,6 +227,7 @@ export async function executeCommand(
   options: ExecuteCommandOptions = {}
 ): Promise<string | CommandResult> {
   const env = options.env ?? (options.signal?.aborted ? {} : await getShellEnv())
+  let outputLimitError: CommandOutputLimitError | undefined
   const result = await new Promise<CommandResult>((resolve) => {
     if (options.signal?.aborted) {
       resolve({ code: null, stdout: '', stderr: '', output: '', failure: 'Command execution was cancelled.' })
@@ -280,7 +289,8 @@ export async function executeCommand(
       }
       outputBytes += chunk.length
       if (options.maxOutputBytes !== undefined && outputBytes > options.maxOutputBytes) {
-        stop(`Command output exceeded ${options.maxOutputBytes} bytes`)
+        outputLimitError = new CommandOutputLimitError(options.maxOutputBytes)
+        stop(outputLimitError.message)
       }
     }
     child.stdout?.on('data', (chunk: Buffer) => collectOutput(chunk, stdout))
@@ -303,7 +313,7 @@ export async function executeCommand(
   })
 
   if (options.result === 'structured') return result
-  if (result.failure) throw new Error(result.failure)
+  if (result.failure) throw outputLimitError ?? new Error(result.failure)
   if (result.code !== 0) throw new Error(result.stderr || `Command failed with code ${result.code}`)
   return options.capture !== false ? result.stdout : ''
 }

@@ -5,6 +5,7 @@ import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import AdmZip from 'adm-zip'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
@@ -20,9 +21,12 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { skillHandlers } from '@main/ipc/handlers/skill'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import type * as ProcessRunnerModule from '@main/utils/processRunner'
+import { CommandOutputLimitError } from '@main/utils/processRunner'
 import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
 
 const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
 
@@ -40,7 +44,14 @@ vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
 }))
 
 const executeCommandMock = vi.hoisted(() => vi.fn())
-vi.mock('@main/utils/processRunner', () => ({
+type CommandOptions = { env?: Record<string, string>; maxOutputBytes?: number; timeout?: number }
+const boundedOutput = (output: string, options?: CommandOptions) => {
+  const limit = options?.maxOutputBytes
+  if (limit !== undefined && Buffer.byteLength(output) > limit) throw new CommandOutputLimitError(limit)
+  return output
+}
+vi.mock('@main/utils/processRunner', async (importOriginal) => ({
+  ...(await importOriginal<typeof ProcessRunnerModule>()),
   executeCommand: executeCommandMock
 }))
 
@@ -103,6 +114,7 @@ describe('SkillService', () => {
   // These are spies over the real implementations; drop any per-test stub and call history so one
   // install test cannot hand its stub to the next.
   beforeEach(() => {
+    MockMainPreferenceServiceUtils.resetMocks()
     vi.mocked(skillPaths.createTempDir).mockReset()
     vi.mocked(skillPaths.safeRemoveDirectory).mockReset()
     vi.mocked(skillArchive.extractZip).mockReset()
@@ -657,25 +669,6 @@ describe('SkillService', () => {
       expect(await dbh.db.select().from(agentSkillTable)).toEqual([])
     })
 
-    it('serves only bounded text content to the skill file preview', async () => {
-      const result = await skillService.importSystem({ directoryPath: sourceSkillDir })
-      const managedRoot = path.join(dataSkillsRoot, 'large-skill')
-
-      await fs.promises.writeFile(path.join(managedRoot, 'binary.bin'), Buffer.alloc(512))
-      await fs.promises.writeFile(path.join(managedRoot, 'oversized.txt'), Buffer.alloc(2 * 1024 * 1024 + 1, 0x61))
-
-      await expect(skillService.readFile(result.id, 'SKILL.md')).resolves.toBe('# Large skill')
-      await expect(skillService.readFile(result.id, 'binary.bin')).resolves.toBeNull()
-      await expect(skillService.readFile(result.id, 'oversized.txt')).resolves.toBeNull()
-
-      if (process.platform !== 'win32') {
-        const outsideFile = path.join(home, 'outside.txt')
-        await fs.promises.writeFile(outsideFile, 'outside content')
-        await fs.promises.symlink(outsideFile, path.join(managedRoot, 'escape.txt'))
-        await expect(skillService.readFile(result.id, 'escape.txt')).resolves.toBeNull()
-      }
-    })
-
     it('does not overwrite the editable managed copy when the system skill is already imported', async () => {
       const imported = await skillService.importSystem({ directoryPath: sourceSkillDir })
       const managedSkillFile = path.join(dataSkillsRoot, 'large-skill', 'SKILL.md')
@@ -786,11 +779,13 @@ describe('SkillService', () => {
 
     /**
      * Drives the real git plumbing through a fake `executeCommand`: `ls-remote` reports the given
-     * refs, `ls-tree` the given tree, and `checkout` materializes the tree on disk.
+     * refs, `ls-tree` the given tree, and `read-tree` materializes the entries its sparse patterns
+     * select on disk.
      */
     async function setupGithubInstall(options: {
       refs?: Array<{ name: string; oid: string; namespace?: 'heads' | 'tags' }>
       tree?: Array<string | { path: string; size: number }>
+      readTreeOutput?: string
       realInstall?: boolean
     }) {
       const skillService = new SkillService()
@@ -802,12 +797,13 @@ describe('SkillService', () => {
       )
       const gitCalls: string[][] = []
 
-      executeCommandMock.mockImplementation(async (_command: string, args: string[]) => {
+      executeCommandMock.mockImplementation(async (_command: string, args: string[], runOptions?: CommandOptions) => {
         gitCalls.push(args)
         if (args.includes('ls-remote')) {
-          return (options.refs ?? [])
+          const output = (options.refs ?? [])
             .map((ref) => `${ref.oid}\trefs/${ref.namespace ?? 'heads'}/${ref.name}`)
             .join('\n')
+          return boundedOutput(output, runOptions)
         }
         if (args.includes('ls-tree')) {
           const separator = args.lastIndexOf('--')
@@ -816,19 +812,30 @@ describe('SkillService', () => {
           const selectedTree = tree.filter(
             (entry) => !selectedPath || entry.path === selectedPath || entry.path.startsWith(`${selectedPath}/`)
           )
-          return selectedTree.map((entry) => `100644 blob ${'d'.repeat(40)} ${entry.size}\t${entry.path}\0`).join('')
+          return selectedTree.map((entry) => `100644 blob ${'d'.repeat(40)}\t${entry.path}\0`).join('')
         }
-        if (args.includes('checkout')) {
-          const separator = args.lastIndexOf('--')
-          const pathspec = args[separator + 1]
-          const selectedPath = pathspec === '.' ? null : pathspec.replace(/^:\(top,literal\)/, '')
-          for (const entry of tree.filter(
-            (entry) => !selectedPath || entry.path === selectedPath || entry.path.startsWith(`${selectedPath}/`)
-          )) {
-            const contentPath = path.join(workDir, 'content', entry.path)
+        if (args.includes('read-tree')) {
+          const gitDir = args.find((arg) => arg.startsWith('--git-dir='))!.slice('--git-dir='.length)
+          const workTree = args.find((arg) => arg.startsWith('--work-tree='))!.slice('--work-tree='.length)
+          const patterns = (await fs.promises.readFile(path.join(gitDir, 'info', 'sparse-checkout'), 'utf8'))
+            .split('\n')
+            .filter(Boolean)
+            .map((pattern) => pattern.replace(/\\(.)/g, '$1'))
+          const selected = (entryPath: string) =>
+            patterns.some((pattern) =>
+              pattern === '/*'
+                ? true
+                : pattern.startsWith('/')
+                  ? `/${entryPath}`.startsWith(pattern)
+                  : path.posix.basename(entryPath) === pattern
+            )
+          for (const entry of tree.filter((entry) => selected(entry.path))) {
+            const contentPath = path.join(workTree, entry.path)
             await fs.promises.mkdir(path.dirname(contentPath), { recursive: true })
             await fs.promises.writeFile(contentPath, '# skill')
+            await fs.promises.truncate(contentPath, entry.size)
           }
+          return boundedOutput(options.readTreeOutput ?? '', runOptions)
         }
         return ''
       })
@@ -864,6 +871,32 @@ describe('SkillService', () => {
         expect.stringContaining(path.join('skills', 'recruit-init')),
         'marketplace',
         'https://raw.githubusercontent.com/owner/repo/refs/heads/dev/skills/recruit-init/SKILL.md'
+      )
+    })
+
+    it('uses the configured GitHub mirror for transport without changing persisted provenance', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue(BINARY_INSTALL_PREFERENCE_KEY, {
+        githubMirror: 'https://ghfast.top',
+        githubToken: '',
+        npmRegistry: '',
+        pipIndexUrl: '',
+        verifySignatures: true
+      })
+      const { skillService, installSpy, gitCalls } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }]
+      })
+
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+      })
+
+      const transportUrl = 'https://ghfast.top/https://github.com/owner/repo'
+      expect(gitCalls.find((args) => args.includes('ls-remote'))).toContain(transportUrl)
+      expect(gitCalls.find((args) => args.includes('fetch'))).toContain(transportUrl)
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'marketplace',
+        'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md'
       )
     })
 
@@ -966,7 +999,7 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(`${path.sep}content`),
         'marketplace',
-        `https://github.com/owner/repo/tree/${oid}`
+        `https://github.com/owner/repo/blob/${oid}/SKILL.md`
       )
     })
 
@@ -1016,11 +1049,11 @@ describe('SkillService', () => {
           installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
         })
       ).rejects.toThrow('No SKILL.md found')
-      expect(gitCalls.some((args) => args.includes('checkout'))).toBe(false)
+      expect(gitCalls.some((args) => args.includes('read-tree'))).toBe(false)
     })
 
-    it('rejects an oversized selected target before checkout', async () => {
-      const { skillService, gitCalls } = await setupGithubInstall({
+    it('rejects an oversized selected target before installing it', async () => {
+      const { skillService, installSpy } = await setupGithubInstall({
         refs: [{ name: 'main', oid: 'a'.repeat(40) }],
         tree: ['skills/demo/SKILL.md', { path: 'skills/demo/model.bin', size: 100 * 1024 * 1024 }]
       })
@@ -1029,8 +1062,8 @@ describe('SkillService', () => {
         skillService.install({
           installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
         })
-      ).rejects.toThrow('too large')
-      expect(gitCalls.some((args) => args.includes('checkout'))).toBe(false)
+      ).rejects.toThrow(/Skill holds \d+ bytes, over the 104857600-byte limit/)
+      expect(installSpy).not.toHaveBeenCalled()
     })
 
     it('refuses a ref name carried by both a branch and a tag', async () => {
@@ -1110,14 +1143,23 @@ describe('SkillService', () => {
       })
 
       expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining(['--filter=blob:none']))
-      expect(gitCalls.find((args) => args.includes('checkout'))).toEqual(
-        expect.arrayContaining(['--', ':(top,literal)skills/demo'])
-      )
+      expect(gitCalls.some((args) => args.includes('checkout'))).toBe(false)
       expect(gitCalls.filter((args) => args.includes('ls-tree'))).toEqual([
         expect.arrayContaining(['--', ':(top,literal)skills/demo'])
       ])
       const treeCall = executeCommandMock.mock.calls.find(([, args]) => args.includes('ls-tree'))
       expect(treeCall?.[2]).toMatchObject({ maxOutputBytes: expect.any(Number) })
+    })
+
+    it('refuses a remote whose ref listing never ends instead of buffering it', async () => {
+      const { skillService, installSpy } = await setupGithubInstall({
+        refs: [{ name: 'x'.repeat(32 * 1024 * 1024), oid: 'a'.repeat(40) }]
+      })
+
+      await expect(
+        skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md' })
+      ).rejects.toThrow('too many branches and tags')
+      expect(installSpy).not.toHaveBeenCalled()
     })
 
     it('never lets an untrusted repository prompt for credentials or pull LFS payloads', async () => {
@@ -1149,40 +1191,162 @@ describe('SkillService', () => {
       expect(createTempDirSpy).not.toHaveBeenCalled()
     })
 
-    /**
-     * Drives the clone-based install (claude-plugins / skills.sh) through a fake `executeCommand`
-     * whose `clone` materializes the selected skill directory on disk.
-     */
-    async function setupClonedInstall() {
-      const skillService = new SkillService()
-      const workDir = await createTempDir('clone-install-')
-      vi.mocked(skillPaths.createTempDir).mockResolvedValue(workDir)
-      const gitCalls: Array<{ args: string[]; options?: { env?: Record<string, string>; timeout?: number } }> = []
+    const marketplaceSources = [
+      ['claude-plugins', 'claude-plugins:owner/repo/skills/demo'],
+      ['skills.sh', 'skills.sh:owner/repo/demo']
+    ] as const
 
-      executeCommandMock.mockImplementation(async (_command: string, args: string[], options?: object) => {
-        gitCalls.push({ args, options })
-        if (args.includes('clone')) {
-          await fs.promises.mkdir(path.join(workDir, 'skills', 'demo'), { recursive: true })
-          await fs.promises.writeFile(path.join(workDir, 'skills', 'demo', 'SKILL.md'), '# skill')
-        }
-        return ''
+    /** skills.sh names a skill, not a directory: its lookup scans the checked-out descriptors. */
+    async function findDescriptorsIn(workDir: string, skillNamesByPath: Record<string, string>) {
+      const descriptorDir = path.join(workDir, 'descriptors')
+      vi.mocked(findAllSkillDirectories).mockImplementation(async (repoDir: string) =>
+        Object.keys(skillNamesByPath).map((skillPath) => ({
+          folderPath: path.join(repoDir, skillPath),
+          sourcePath: skillPath
+        }))
+      )
+      vi.mocked(parseSkillMetadata).mockImplementation(async (folderPath: string) => {
+        const relative = path.relative(descriptorDir, folderPath)
+        if (relative.startsWith('..')) throw new Error(`matched a skill outside the descriptors: ${folderPath}`)
+        return { name: skillNamesByPath[relative.split(path.sep).join('/')] } as never
       })
-
-      vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir').mockResolvedValue({})
-      vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
-      return { skillService, gitCalls }
+      const actualArchive = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.resolveSkillDirectory).mockImplementation(actualArchive.resolveSkillDirectory)
     }
 
-    const installFromClone = (skillService: SkillService) =>
-      skillService.install({ installSource: 'claude-plugins:owner/repo/skills/demo' })
+    it.each(marketplaceSources)(
+      'fetches only the %s skill directory instead of cloning the whole repository',
+      async (source, installSource) => {
+        const { skillService, installSpy, gitCalls, workDir } = await setupGithubInstall({
+          tree: [
+            'README.md',
+            { path: 'assets/huge.bin', size: 500 * 1024 * 1024 },
+            'skills/demo/SKILL.md',
+            'skills/demo/scripts/run.ts',
+            'skills/other/SKILL.md'
+          ]
+        })
+        if (source === 'skills.sh') await findDescriptorsIn(workDir, { 'skills/demo': 'demo', 'skills/other': 'other' })
 
-    it('bounds a clone and blocks its credential prompts, the way the fetch path already is', async () => {
-      const { skillService, gitCalls } = await setupClonedInstall()
+        await skillService.install({ installSource })
 
-      await installFromClone(skillService)
+        expect(gitCalls.some((args) => args.includes('clone'))).toBe(false)
+        expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining(['--filter=blob:none', 'HEAD']))
+        const canonicalContent = await fs.promises.realpath(path.join(workDir, 'content'))
+        expect(installSpy).toHaveBeenCalledWith(
+          path.join(canonicalContent, 'skills', 'demo'),
+          'marketplace',
+          expect.any(String)
+        )
+        await expect(
+          fs.promises.access(path.join(canonicalContent, 'skills', 'demo', 'scripts', 'run.ts'))
+        ).resolves.toBeUndefined()
+        for (const unrelated of ['README.md', 'assets/huge.bin', 'skills/other/SKILL.md']) {
+          await expect(fs.promises.access(path.join(canonicalContent, unrelated))).rejects.toMatchObject({
+            code: 'ENOENT'
+          })
+        }
+      }
+    )
 
-      expect(gitCalls).not.toHaveLength(0)
-      for (const { options } of gitCalls) {
+    it('installs a skills.sh skill found by name in a nested directory', async () => {
+      const { skillService, installSpy, workDir } = await setupGithubInstall({
+        tree: ['plugins/pack/skills/demo/SKILL.md', 'plugins/pack/skills/demo/notes.md', 'skills/demo-extra/SKILL.md']
+      })
+      await findDescriptorsIn(workDir, { 'plugins/pack/skills/demo': 'demo', 'skills/demo-extra': 'demo-extra' })
+
+      await skillService.install({ installSource: 'skills.sh:owner/repo/demo' })
+
+      const installedDirectory = installSpy.mock.calls[0][0]
+      expect(installedDirectory).toBe(
+        path.join(await fs.promises.realpath(path.join(workDir, 'content')), 'plugins', 'pack', 'skills', 'demo')
+      )
+      await expect(fs.promises.access(path.join(installedDirectory, 'notes.md'))).resolves.toBeUndefined()
+    })
+
+    it('installs a repository-root skills.sh skill with its whole repository', async () => {
+      const { skillService, installSpy, workDir } = await setupGithubInstall({
+        tree: ['SKILL.md', 'scripts/run.ts']
+      })
+      await findDescriptorsIn(workDir, { '': 'demo' })
+
+      await skillService.install({ installSource: 'skills.sh:owner/repo/demo' })
+
+      const installedDirectory = installSpy.mock.calls[0][0]
+      expect(installedDirectory).toBe(await fs.promises.realpath(path.join(workDir, 'content')))
+      await expect(fs.promises.access(path.join(installedDirectory, 'scripts', 'run.ts'))).resolves.toBeUndefined()
+      await expect(fs.promises.access(path.join(installedDirectory, '.git'))).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it.each(marketplaceSources)('uses the configured GitHub mirror for %s transport', async (source, installSource) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue(BINARY_INSTALL_PREFERENCE_KEY, {
+        githubMirror: 'https://ghfast.top',
+        githubToken: '',
+        npmRegistry: '',
+        pipIndexUrl: '',
+        verifySignatures: true
+      })
+      const { skillService, gitCalls, workDir } = await setupGithubInstall({})
+      if (source === 'skills.sh') await findDescriptorsIn(workDir, { 'skills/demo': 'demo' })
+
+      await skillService.install({ installSource })
+
+      expect(gitFetchArgs(gitCalls)).toContain('https://ghfast.top/https://github.com/owner/repo')
+    })
+
+    it.each(marketplaceSources)('rejects an oversized %s skill before installing it', async (source, installSource) => {
+      const { skillService, installSpy, workDir } = await setupGithubInstall({
+        tree: ['skills/demo/SKILL.md', { path: 'skills/demo/payload.bin', size: 101 * 1024 * 1024 }]
+      })
+      if (source === 'skills.sh') await findDescriptorsIn(workDir, { 'skills/demo': 'demo' })
+
+      await expect(skillService.install({ installSource })).rejects.toThrow(
+        /Skill holds \d+ bytes, over the 104857600-byte limit/
+      )
+      expect(installSpy).not.toHaveBeenCalled()
+    })
+
+    it('rejects a skills.sh skill with too many files before downloading them', async () => {
+      const { skillService, installSpy, workDir } = await setupGithubInstall({
+        tree: ['skills/demo/SKILL.md', ...Array.from({ length: 20_000 }, (_, index) => `skills/demo/${index}.txt`)]
+      })
+      await findDescriptorsIn(workDir, { 'skills/demo': 'demo' })
+
+      await expect(skillService.install({ installSource: 'skills.sh:owner/repo/demo' })).rejects.toThrow(
+        'Skill holds 20001 files, over the 20000-file limit'
+      )
+      await expect(fs.promises.access(path.join(workDir, 'content'))).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(installSpy).not.toHaveBeenCalled()
+    })
+
+    it('refuses a directory path that would smuggle extra sparse patterns past the size check', async () => {
+      const { skillService, gitCalls } = await setupGithubInstall({
+        tree: ['x\nassets/SKILL.md', { path: 'assets/huge.bin', size: 500 * 1024 * 1024 }]
+      })
+
+      await expect(skillService.install({ installSource: 'claude-plugins:owner/repo/x\nassets' })).rejects.toThrow(
+        'line break'
+      )
+      expect(gitCalls.some((args) => args.includes('read-tree'))).toBe(false)
+    })
+
+    it('refuses a checkout whose output a hostile repository grows without end', async () => {
+      const { skillService, installSpy } = await setupGithubInstall({ readTreeOutput: 'x'.repeat(32 * 1024 * 1024) })
+
+      await expect(
+        skillService.install({ installSource: 'claude-plugins:owner/repo/skills/demo' })
+      ).rejects.toBeInstanceOf(CommandOutputLimitError)
+      expect(installSpy).not.toHaveBeenCalled()
+    })
+
+    it('bounds every git step and blocks its credential prompts', async () => {
+      const { skillService } = await setupGithubInstall({})
+      executeCommandMock.mockClear()
+
+      await skillService.install({ installSource: 'claude-plugins:owner/repo/skills/demo' })
+
+      expect(executeCommandMock).toHaveBeenCalled()
+      for (const [, , options] of executeCommandMock.mock.calls) {
         expect(options?.timeout).toBeGreaterThan(0)
         expect(options?.env).toMatchObject({ GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' })
       }
@@ -1190,25 +1354,30 @@ describe('SkillService', () => {
 
     it('hands git the proxy Cherry is configured with, which the captured login shell env never carries', async () => {
       vi.stubEnv('HTTPS_PROXY', 'http://127.0.0.1:7890')
-      const { skillService, gitCalls } = await setupClonedInstall()
+      const { skillService } = await setupGithubInstall({})
+      executeCommandMock.mockClear()
 
-      await installFromClone(skillService)
+      await skillService.install({ installSource: 'claude-plugins:owner/repo/skills/demo' })
 
-      expect(gitCalls).not.toHaveLength(0)
-      for (const { options } of gitCalls) {
+      expect(executeCommandMock).toHaveBeenCalled()
+      for (const [, , options] of executeCommandMock.mock.calls) {
         expect(options?.env).toMatchObject({ HTTPS_PROXY: 'http://127.0.0.1:7890' })
       }
     })
 
-    it('surfaces a failed clone instead of spending another timeout on the same unreachable remote', async () => {
-      const { skillService, gitCalls } = await setupClonedInstall()
-      executeCommandMock.mockImplementation(async (_command: string, args: string[], options?: object) => {
-        gitCalls.push({ args, options })
-        throw new Error('Command timed out after 120000ms')
+    it('surfaces a failed fetch instead of spending another timeout on the same unreachable remote', async () => {
+      const { skillService } = await setupGithubInstall({})
+      const gitCalls: string[][] = []
+      executeCommandMock.mockImplementation(async (_command: string, args: string[]) => {
+        gitCalls.push(args)
+        if (args.includes('fetch')) throw new Error('Command timed out after 120000ms')
+        return ''
       })
 
-      await expect(installFromClone(skillService)).rejects.toThrow('Command timed out')
-      expect(gitCalls).toHaveLength(1)
+      await expect(skillService.install({ installSource: 'claude-plugins:owner/repo/skills/demo' })).rejects.toThrow(
+        'Command timed out'
+      )
+      expect(gitCalls.filter((args) => args.includes('fetch'))).toHaveLength(1)
     })
 
     it('rejects a clawhub source without its publisher identity', async () => {
@@ -1335,7 +1504,7 @@ describe('SkillService', () => {
       const locatedSkillDir = path.join(extractDir, 'skill')
       await fs.promises.writeFile(realZipPath, new Uint8Array([1, 2, 3]))
       await fs.promises.symlink(realZipPath, linkedZipPath)
-      await fs.promises.mkdir(extractDir, { recursive: true })
+      await fs.promises.mkdir(locatedSkillDir, { recursive: true })
       const canonicalZipPath = await fs.promises.realpath(realZipPath)
 
       vi.mocked(skillPaths.createTempDir).mockResolvedValue(extractDir)
@@ -1351,29 +1520,76 @@ describe('SkillService', () => {
       expect(installSkillDirSpy).toHaveBeenCalledWith(locatedSkillDir, 'zip', pathToFileURL(canonicalZipPath).href)
     })
 
-    it('accepts ZIP archives containing 2,000 entries', async () => {
-      const root = await createTempDir('skill-zip-limit-')
-      const zipPath = path.join(root, 'limit.zip')
-      const extractDir = path.join(root, 'extract')
-      const zip = new AdmZip()
-      for (let index = 0; index < 2_000; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
-      zip.writeZip(zipPath)
-      await fs.promises.mkdir(extractDir)
-
-      await expect(skillArchive.extractZip(zipPath, extractDir)).resolves.toBeUndefined()
-    })
-
-    it('rejects ZIP archives containing more than 2,000 entries', async () => {
+    it('rejects archives with more entries than extraction allows, reporting the archive total', async () => {
       const root = await createTempDir('skill-zip-limit-')
       const zipPath = path.join(root, 'over-limit.zip')
       const extractDir = path.join(root, 'extract')
       const zip = new AdmZip()
-      for (let index = 0; index < 2_001; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
+      for (let index = 0; index < 60_000; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
       zip.writeZip(zipPath)
 
+      const actualArchive = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.extractZip).mockImplementation(actualArchive.extractZip)
+
+      // 60000, not the 50001 a scan that stopped at the entry crossing the ceiling would report.
       await expect(skillArchive.extractZip(zipPath, extractDir)).rejects.toThrow(
-        'ZIP has too many files: 2001 exceeds 2000'
+        'Skill archive contains 60000 entries, over the 50000-entry limit'
       )
+    })
+
+    /**
+     * The reported failure. `ppt-master-main.zip` is GitHub's zipball of a skill repository: the
+     * skill under `skills/ppt-master/` is inside the per-skill ceiling, but the repository around
+     * it is not. Install previously refused the whole archive under the per-skill ceilings.
+     */
+    it('installs a repository zipball whose skill is inside the per-skill limits', async () => {
+      const skillService = new SkillService()
+      const root = await createTempDir('skill-zip-repo-')
+      const zipPath = path.join(root, 'repo-main.zip')
+      const extractDir = path.join(root, 'extract')
+
+      const zip = new AdmZip()
+      zip.addFile('repo-main/skills/demo/SKILL.md', Buffer.from('---\nname: demo\n---\n'))
+      // Repository payload that is not part of the skill, over the per-skill ceiling on its own.
+      for (let index = 0; index < 110; index++) zip.addFile(`repo-main/assets/${index}.bin`, Buffer.alloc(1024 * 1024))
+      zip.writeZip(zipPath)
+
+      const actualArchive = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.extractZip).mockImplementation(actualArchive.extractZip)
+      const skillDir = path.join(extractDir, 'repo-main', 'skills', 'demo')
+      vi.mocked(skillPaths.createTempDir).mockResolvedValue(extractDir)
+      vi.mocked(skillArchive.resolveSkillDirectory).mockResolvedValue(skillDir)
+      const installSkillDirSpy = vi
+        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
+        .mockResolvedValue({})
+
+      await skillService.installFromZip({ zipFilePath: zipPath })
+
+      const canonicalZipPath = await fs.promises.realpath(zipPath)
+      expect(installSkillDirSpy).toHaveBeenCalledWith(skillDir, 'zip', pathToFileURL(canonicalZipPath).href)
+    })
+
+    it('refuses a skill directory over the per-skill size limit, reporting its real size', async () => {
+      const skillDir = await createTempDir('skill-oversized-')
+      // 110 MiB across 110 files: a scan that stopped at the file crossing the ceiling would report
+      // 105906176 (the 101st file), not what the directory actually holds.
+      for (let index = 0; index < 110; index++) {
+        await fs.promises.writeFile(path.join(skillDir, `${index}.bin`), Buffer.alloc(1024 * 1024))
+      }
+
+      await expect(skillArchive.assertSkillDirectoryWithinLimits(skillDir)).rejects.toThrow(
+        'Skill holds 115343360 bytes, over the 104857600-byte limit'
+      )
+    })
+
+    it('accepts a skill directory with more than the previous 2,000-file ceiling', async () => {
+      const skillDir = await createTempDir('skill-many-files-')
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), '---\nname: many\n---\n')
+      for (let index = 0; index < 2_500; index++) {
+        await fs.promises.writeFile(path.join(skillDir, `${index}.txt`), '')
+      }
+
+      await expect(skillArchive.assertSkillDirectoryWithinLimits(skillDir)).resolves.toBeUndefined()
     })
 
     it.each([

@@ -13,7 +13,7 @@ import { getShellEnv } from '../shellEnv'
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: vi.fn() }))
 vi.mock('cross-spawn', { spy: true })
 
-import { executeCommand, terminateProcessTree, waitForProcessExit } from '../processRunner'
+import { CommandOutputLimitError, executeCommand, terminateProcessTree, waitForProcessExit } from '../processRunner'
 
 const printStdout = ['-e', "process.stdout.write('command output')"]
 
@@ -43,7 +43,7 @@ describe('executeCommand', () => {
         env: process.env,
         maxOutputBytes: 16
       })
-    ).rejects.toThrow('output exceeded 16 bytes')
+    ).rejects.toThrow(CommandOutputLimitError)
   })
 
   it('preserves legacy rejection with stderr or the exit code', async () => {
