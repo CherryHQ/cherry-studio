@@ -1,12 +1,15 @@
-import { session } from 'electron'
+import { mockProxyService } from '@test-mocks/main/application'
+import { net, session } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
+import { customFetch } from '../customFetch'
 import {
   CERT_VERIFY_ACCEPT,
   CERT_VERIFY_USE_CHROMIUM,
   collectAllowSelfSignedTlsHostnames,
+  createProviderScopedFetch,
   hostnameFromApiBaseUrl,
   installProviderCertificateVerifyProc,
   resolveCertificateVerifyResult
@@ -107,7 +110,9 @@ describe('installProviderCertificateVerifyProc', () => {
     ) => void
   }
 
-  it('accepts only enabled opted-in provider hosts and verifies other certificates', () => {
+  it('keeps the default session fail-closed for opted-in, disabled, unlisted, and non-opted hosts', () => {
+    // Bug: defaultSession's certificate callback is hostname-wide, so one opted-in
+    // provider accepts unrelated and non-opted requests to the same host.
     listProvidersMock.mockReturnValue([
       {
         isEnabled: true,
@@ -134,10 +139,7 @@ describe('installProviderCertificateVerifyProc', () => {
     const proc = captureProc()
     const callback = vi.fn()
 
-    proc({ hostname: 'llm.internal' }, callback)
-    expect(callback).toHaveBeenCalledWith(CERT_VERIFY_ACCEPT)
-
-    for (const hostname of ['strict.internal', 'disabled.internal', 'api.openai.com']) {
+    for (const hostname of ['llm.internal', 'strict.internal', 'disabled.internal', 'api.openai.com']) {
       callback.mockClear()
       proc({ hostname }, callback)
       expect(callback).toHaveBeenCalledWith(CERT_VERIFY_USE_CHROMIUM)
@@ -159,5 +161,121 @@ describe('installProviderCertificateVerifyProc', () => {
     const dispose = installProviderCertificateVerifyProc()
     dispose()
     expect(session.defaultSession.setCertificateVerifyProc).toHaveBeenLastCalledWith(null)
+  })
+})
+
+describe('createProviderScopedFetch', () => {
+  const host = {
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
+  }
+
+  const partitions = new Map<
+    string,
+    {
+      fetch: ReturnType<typeof vi.fn>
+      setCertificateVerifyProc: ReturnType<typeof vi.fn>
+      webRequest: { onBeforeSendHeaders: ReturnType<typeof vi.fn> }
+    }
+  >()
+
+  beforeEach(() => {
+    partitions.clear()
+    mockProxyService.registerProxySession.mockReset().mockResolvedValue(undefined)
+  })
+
+  function verify(hostname: string): number {
+    const proc = [...partitions.values()][0].setCertificateVerifyProc.mock.calls.at(-1)?.[0] as (
+      request: { hostname: string },
+      callback: (result: number) => void
+    ) => void
+    const callback = vi.fn()
+    proc({ hostname }, callback)
+    return callback.mock.calls[0]?.[0] as number
+  }
+
+  it('accepts only the opted-in provider host on its in-memory session', async () => {
+    // Bug: a default-session hostname callback would also accept other callers of llm.internal.
+    const original = vi.mocked(session.fromPartition).getMockImplementation()
+    vi.mocked(session.defaultSession.setCertificateVerifyProc).mockClear()
+    vi.mocked(session.fromPartition).mockImplementation((partition: string) => {
+      let created = partitions.get(partition)
+      if (!created) {
+        created = {
+          fetch: vi.fn(async () => new Response('scoped')),
+          setCertificateVerifyProc: vi.fn(),
+          webRequest: { onBeforeSendHeaders: vi.fn() }
+        }
+        partitions.set(partition, created)
+      }
+      return created as never
+    })
+    vi.mocked(net.fetch).mockImplementation(async () => new Response('default'))
+
+    try {
+      const opted = await createProviderScopedFetch({
+        id: 'opted',
+        isEnabled: true,
+        settings: { allowSelfSignedTls: true },
+        endpointConfigs: host
+      })('https://llm.internal/v1/models')
+
+      expect(await opted.text()).toBe('scoped')
+      expect(mockProxyService.registerProxySession).toHaveBeenCalledTimes(1)
+      expect(net.fetch).not.toHaveBeenCalled()
+      expect(session.defaultSession.setCertificateVerifyProc).not.toHaveBeenCalled()
+      expect([...partitions.keys()]).toEqual([expect.not.stringMatching(/^persist:/)])
+      expect([...partitions.values()][0].webRequest.onBeforeSendHeaders).toHaveBeenCalledTimes(1)
+      expect(verify('llm.internal')).toBe(CERT_VERIFY_ACCEPT)
+      expect(verify('unlisted.example')).toBe(CERT_VERIFY_USE_CHROMIUM)
+      await createProviderScopedFetch({
+        id: 'opted',
+        isEnabled: true,
+        settings: { allowSelfSignedTls: true },
+        endpointConfigs: host
+      })('https://llm.internal/v1/models')
+      expect(partitions.size).toBe(1)
+
+      for (const provider of [
+        { id: 'strict', isEnabled: true, settings: { allowSelfSignedTls: false }, endpointConfigs: host },
+        { id: 'disabled', isEnabled: false, settings: { allowSelfSignedTls: true }, endpointConfigs: host }
+      ]) {
+        const response = await createProviderScopedFetch(provider)('https://llm.internal/v1/models')
+        expect(await response.text()).toBe('default')
+      }
+      expect(await (await customFetch('https://llm.internal/v1/models')).text()).toBe('default')
+      expect(partitions.size).toBe(1)
+      expect(net.fetch).toHaveBeenCalledTimes(3)
+    } finally {
+      if (original) vi.mocked(session.fromPartition).mockImplementation(original)
+    }
+  })
+
+  it('retries proxy registration before sending after an initial failure', async () => {
+    const original = vi.mocked(session.fromPartition).getMockImplementation()
+    const scoped = {
+      fetch: vi.fn(async () => new Response('scoped')),
+      setCertificateVerifyProc: vi.fn(),
+      webRequest: { onBeforeSendHeaders: vi.fn() }
+    }
+    vi.mocked(session.fromPartition).mockReturnValue(scoped as never)
+    const registrationError = new Error('Proxy registration failed')
+    mockProxyService.registerProxySession.mockRejectedValueOnce(registrationError).mockResolvedValue(undefined)
+    const providerFetch = createProviderScopedFetch({
+      id: 'retry',
+      isEnabled: true,
+      settings: { allowSelfSignedTls: true },
+      endpointConfigs: host
+    })
+
+    try {
+      await expect(providerFetch('https://llm.internal/v1/models')).rejects.toBe(registrationError)
+      expect(scoped.fetch).not.toHaveBeenCalled()
+
+      await expect(providerFetch('https://llm.internal/v1/models')).resolves.toBeInstanceOf(Response)
+      expect(mockProxyService.registerProxySession).toHaveBeenCalledTimes(2)
+      expect(scoped.fetch).toHaveBeenCalledTimes(1)
+    } finally {
+      if (original) vi.mocked(session.fromPartition).mockImplementation(original)
+    }
   })
 })

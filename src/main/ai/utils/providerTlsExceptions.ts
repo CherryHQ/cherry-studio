@@ -1,10 +1,10 @@
-import { session } from 'electron'
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { type Session, session } from 'electron'
 
-import { providerService } from '@data/services/ProviderService'
-import { loggerService } from '@logger'
+import { application } from '@application'
 import type { Provider } from '@shared/data/types/provider'
 
-const logger = loggerService.withContext('ProviderTlsExceptions')
+import { createProviderFetch, customFetch, installProviderUserAgentInterceptor } from './customFetch'
 
 /** Chromium default verification result (do not override). */
 export const CERT_VERIFY_USE_CHROMIUM = -3
@@ -12,6 +12,12 @@ export const CERT_VERIFY_USE_CHROMIUM = -3
 export const CERT_VERIFY_ACCEPT = 0
 
 type ProviderTlsSource = Pick<Provider, 'isEnabled' | 'settings' | 'endpointConfigs'>
+
+/** In-memory partition prefix. `persist:` would write the exception to disk. */
+const PROVIDER_TLS_PARTITION_PREFIX = 'cherry-provider-tls:'
+
+/** Sessions that already have the User-Agent interceptor. The verify proc is refreshed per call. */
+const hookedTlsSessions = new WeakSet<Session>()
 
 /**
  * Parse the hostname of a provider API base URL.
@@ -56,30 +62,60 @@ export function resolveCertificateVerifyResult(
   return allowedHostnames.has(hostname.toLowerCase()) ? CERT_VERIFY_ACCEPT : CERT_VERIFY_USE_CHROMIUM
 }
 
-function loadAllowedHostnames(): Set<string> {
-  try {
-    return collectAllowSelfSignedTlsHostnames(providerService.list({}))
-  } catch (error) {
-    // Boot may install the proc before DbService is queryable; fail closed.
-    logger.warn('Failed to load provider TLS exception hostnames; verifying certificates', error as Error)
-    return new Set()
-  }
-}
-
 /**
- * Install a default-session certificate verify proc that accepts TLS errors only
- * for hostnames belonging to providers with `allowSelfSignedTls` enabled.
+ * Keep the default session on Chromium verification.
  *
- * AI provider HTTP uses Electron `net.fetch` on `session.defaultSession`, so this
- * is the upstream choke point for custom LLM endpoints (WebDAV's Node
- * `rejectUnauthorized: false` agent does not apply here). Returns a disposer that
- * restores Chromium's default verify proc.
+ * A hostname allowlist here would accept every caller to that host, including
+ * disabled providers and unrelated requests. Opted-in calls use
+ * {@link createProviderScopedFetch} instead. Returns a disposer that restores
+ * Chromium's default verify proc.
  */
 export function installProviderCertificateVerifyProc(): () => void {
   session.defaultSession.setCertificateVerifyProc((request, callback) => {
-    const allowed = loadAllowedHostnames()
-    callback(resolveCertificateVerifyResult(request.hostname, allowed))
+    void request
+    callback(CERT_VERIFY_USE_CHROMIUM)
   })
 
   return () => session.defaultSession.setCertificateVerifyProc(null)
+}
+
+/**
+ * Fetch for one provider's opted-in TLS exception.
+ *
+ * Enabled providers with `allowSelfSignedTls` use a reused in-memory session
+ * whose verify proc accepts only that provider's HTTPS hosts. The session is
+ * registered with ProxyService and sends through {@link createProviderFetch}.
+ * Every other provider uses {@link customFetch} (`net.fetch` on the default session).
+ * The default session never receives this verify proc.
+ */
+export function createProviderScopedFetch(provider: ProviderTlsSource & Pick<Provider, 'id'>): FetchFunction {
+  const allowed = collectAllowSelfSignedTlsHostnames([provider])
+  if (allowed.size === 0) return customFetch
+
+  const scoped = session.fromPartition(`${PROVIDER_TLS_PARTITION_PREFIX}${provider.id}`)
+  scoped.setCertificateVerifyProc((request, callback) => {
+    callback(resolveCertificateVerifyResult(request.hostname, allowed))
+  })
+  if (!hookedTlsSessions.has(scoped)) {
+    hookedTlsSessions.add(scoped)
+    installProviderUserAgentInterceptor(scoped)
+  }
+
+  const sessionFetch = createProviderFetch((input, init) => scoped.fetch(input, init))
+  let proxyReady: Promise<void> | undefined
+  let proxySettled = false
+  return (input, init) => {
+    if (proxySettled) return sessionFetch(input, init)
+    proxyReady ??= application
+      .get('ProxyService')
+      .registerProxySession(scoped)
+      .then(() => {
+        proxySettled = true
+      })
+      .catch((error) => {
+        proxyReady = undefined
+        throw error
+      })
+    return proxyReady.then(() => sessionFetch(input, init))
+  }
 }

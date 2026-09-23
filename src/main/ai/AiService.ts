@@ -399,7 +399,7 @@ export class AiService extends BaseService {
     // Restore provider custom `User-Agent` headers that Chromium's net.fetch stack
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
-    // Accept TLS errors only for provider hosts with allowSelfSignedTls (#20500).
+    // Default session stays fail-closed. Opted-in requests use a scoped session (#20500).
     this.registerDisposable(installProviderCertificateVerifyProc())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
     // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at

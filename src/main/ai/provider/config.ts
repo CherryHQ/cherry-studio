@@ -39,8 +39,8 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
-import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, getProviderAppHeaders, routeToEndpoint } from '../utils/provider'
+import { createProviderScopedFetch } from '../utils/providerTlsExceptions'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCherryCloudProviderConfig } from './cherryCloud'
@@ -68,6 +68,7 @@ interface BuilderContext {
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
+  providerFetch: typeof globalThis.fetch
 }
 
 type ApiKeyBuilderContext = BuilderContext & {
@@ -208,7 +209,8 @@ export async function resolveProviderAiSdkConfig(
     apiKeyOverride: options?.apiKeyOverride,
     endpointType,
     endpoint,
-    aiSdkProviderId
+    aiSdkProviderId,
+    providerFetch: createProviderScopedFetch(provider)
   }
 
   const builders: ConfigBuilderEntry[] = [
@@ -298,7 +300,7 @@ export async function resolveProviderAiSdkConfig(
           settings.headers = { ...settings.headers, 'X-Fornax-Trace': 'true' }
         }
         settings.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-          const response = await customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
+          const response = await ctx.providerFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
           return normalizeArkResponsesResponse(input, response)
         }
         return config
@@ -312,7 +314,7 @@ export async function resolveProviderAiSdkConfig(
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
         config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
-          customFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
+          ctx.providerFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
         return config
       })
     },
@@ -385,11 +387,9 @@ export async function resolveProviderAiSdkConfig(
   }
 
   const { config } = resolved
-  // Default every provider to the proxy-aware net.fetch base so the app proxy
-  // (ProxyService → session.setProxy) applies to provider HTTP traffic. Builders
-  // that install their own fetch wrapper (e.g. CherryAI request signing) compose
-  // on top of customFetch; `??=` preserves them rather than clobbering them.
-  config.providerSettings.fetch ??= customFetch
+  // ??=: a builder that already wrapped fetch (signing, body rewrite) stays intact.
+  // Opted-in providers get a scoped session; every other provider gets customFetch.
+  config.providerSettings.fetch ??= ctx.providerFetch
 
   return {
     config,
@@ -454,12 +454,12 @@ function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
       // request in the custom fetch below, overriding this placeholder.
       apiKey: 'codex-oauth',
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
-      fetch: buildCodexFetch()
+      fetch: buildCodexFetch(ctx.providerFetch)
     }
   }
 }
 
-function buildCodexFetch() {
+function buildCodexFetch(providerFetch: typeof globalThis.fetch) {
   // Token fetch + not-signed-in guard + 401 force-refresh retry live in
   // OAuthRuntimeService.authenticatedFetch; this wrapper only shapes the codex
   // request (headers + body coercion), re-applied with the fresh token on retry.
@@ -477,7 +477,7 @@ function buildCodexFetch() {
           body: coerceCodexRequestBody(init?.body)
         }
       }),
-      customFetch,
+      providerFetch,
       { notSignedInMessage: 'Not signed in to OpenAI Codex. Open the provider settings and sign in again.' }
     )
 }
@@ -507,12 +507,12 @@ function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
       // request in the custom fetch below, overriding this placeholder.
       apiKey: 'grok-cli-oauth',
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
-      fetch: buildGrokCliFetch()
+      fetch: buildGrokCliFetch(ctx.providerFetch)
     }
   }
 }
 
-function buildGrokCliFetch() {
+function buildGrokCliFetch(providerFetch: typeof globalThis.fetch) {
   // See buildCodexFetch: shared token/refresh/401-retry lives in
   // OAuthRuntimeService.authenticatedFetch; this only shapes the Grok request.
   return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -538,7 +538,7 @@ function buildGrokCliFetch() {
           body
         }
       }),
-      customFetch,
+      providerFetch,
       { notSignedInMessage: 'Not signed in to Grok CLI. Open the provider settings and sign in again.' }
     )
   }
@@ -560,7 +560,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
           query: '',
           body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
         })
-        return customFetch(input, { ...init, headers: { ...init?.headers, ...signature } })
+        return ctx.providerFetch(input, { ...init, headers: { ...init?.headers, ...signature } })
       }
     }
   }
@@ -791,7 +791,7 @@ function buildAzureConfig(
     providerSettings.fetch = (input, init) => {
       const url = new URL(input instanceof Request ? input.url : input)
       url.searchParams.set('api-version', apiVersion || 'v1')
-      return customFetch(url, init)
+      return ctx.providerFetch(url, init)
     }
   }
 

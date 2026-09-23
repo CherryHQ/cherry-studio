@@ -129,6 +129,7 @@ vi.mock('electron', () => {
           clearCache: vi.fn(),
           clearStorageData: vi.fn(),
           clearCodeCaches: vi.fn(),
+          setCertificateVerifyProc: vi.fn(),
           setProxy: vi.fn(async () => {}),
           setPermissionRequestHandler: vi.fn(),
           setPermissionCheckHandler: vi.fn(),

@@ -80,6 +80,11 @@ export const mockJobManager = {
   enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
 }
 
+/** Minimal ProxyService mock for consumers that register scoped Electron sessions. */
+export const mockProxyService = {
+  registerProxySession: vi.fn().mockResolvedValue(undefined)
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -90,7 +95,8 @@ export const defaultServiceInstances = {
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
-  JobManager: mockJobManager
+  JobManager: mockJobManager,
+  ProxyService: mockProxyService
 } as const
 
 /** Type for per-service overrides */

@@ -1,6 +1,6 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { net } from 'electron'
+import { net, session } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -147,10 +147,10 @@ describe('listModels — default grouping', () => {
 })
 
 describe('listModels — provider network transport', () => {
-  it.each([true, false])('lists models through Electron when TLS opt-in is %s', async (allowSelfSignedTls) => {
+  it('lists models for a provider without TLS opt-in through the default Electron fetch', async () => {
     const provider = makeProvider({
       id: 'custom',
-      settings: { allowSelfSignedTls },
+      settings: { allowSelfSignedTls: false },
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
       }
@@ -168,6 +168,59 @@ describe('listModels — provider network transport', () => {
       expect(nodeFetch).not.toHaveBeenCalled()
     } finally {
       nodeFetch.mockRestore()
+    }
+  })
+
+  it('lists opted-in models on an in-memory session and keeps the same host strict otherwise', async () => {
+    const endpointConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
+    }
+    const partitions = new Map<
+      string,
+      {
+        fetch: ReturnType<typeof vi.fn>
+        setCertificateVerifyProc: ReturnType<typeof vi.fn>
+        webRequest: { onBeforeSendHeaders: ReturnType<typeof vi.fn> }
+      }
+    >()
+    const original = vi.mocked(session.fromPartition).getMockImplementation()
+    vi.mocked(session.fromPartition).mockImplementation((partition: string) => {
+      let created = partitions.get(partition)
+      if (!created) {
+        created = {
+          fetch: vi.fn(async () => Response.json({ data: [{ id: 'local-model' }] })),
+          setCertificateVerifyProc: vi.fn(),
+          webRequest: { onBeforeSendHeaders: vi.fn() }
+        }
+        partitions.set(partition, created)
+      }
+      return created as never
+    })
+    const nodeFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Node fetch bypassed Electron session'))
+    vi.mocked(net.fetch).mockImplementation(async () => Response.json({ data: [{ id: 'local-model' }] }))
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    aiSdkGetFromApiMock.mockImplementation((options) => actual.getFromApi(options))
+
+    try {
+      const opted = makeProvider({ id: 'opted', settings: { allowSelfSignedTls: true }, endpointConfigs })
+      const strict = makeProvider({ id: 'strict', settings: { allowSelfSignedTls: false }, endpointConfigs })
+
+      expect((await listModels(opted, undefined, { throwOnError: true })).map((model) => model.apiModelId)).toEqual([
+        'local-model'
+      ])
+      expect([...partitions.keys()]).toEqual([expect.not.stringMatching(/^persist:/)])
+      expect(net.fetch).not.toHaveBeenCalled()
+
+      vi.mocked(net.fetch).mockClear()
+      expect((await listModels(strict, undefined, { throwOnError: true })).map((model) => model.apiModelId)).toEqual([
+        'local-model'
+      ])
+      expect(partitions.size).toBe(1)
+      expect(net.fetch).toHaveBeenCalledWith('https://llm.internal/v1/models', expect.any(Object))
+      expect(nodeFetch).not.toHaveBeenCalled()
+    } finally {
+      nodeFetch.mockRestore()
+      if (original) vi.mocked(session.fromPartition).mockImplementation(original)
     }
   })
 

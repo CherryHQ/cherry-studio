@@ -248,8 +248,7 @@ describe('createProviderFetch', () => {
       .mockResolvedValueOnce(new Response('ok'))
     const scopedFetch = createProviderFetch(send)
     const slot: HttpTraceFinalBodySlot = {}
-
-    const response = await scopedFetch('https://api.test/v1/chat', {
+    const init: RequestInit & { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } = {
       method: 'POST',
       headers: {
         'User-Agent': 'ScopedAgent/1.0',
@@ -259,7 +258,9 @@ describe('createProviderFetch', () => {
       },
       body: '{"message":"hello"}',
       [HTTP_TRACE_FINAL_BODY_SLOT]: slot
-    })
+    }
+
+    const response = await scopedFetch('https://api.test/v1/chat', init)
 
     expect(await response.text()).toBe('ok')
     expect(send).toHaveBeenCalledTimes(2)

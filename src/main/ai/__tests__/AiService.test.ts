@@ -64,6 +64,7 @@ const mockInstallBuiltinSkills = vi.fn()
 const mockReconcileSkills = vi.fn()
 const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
+const mockCreateProviderScopedFetch = vi.fn()
 const mockRecordRequest = vi.fn()
 const mockAddFileRefsTx = vi.fn()
 
@@ -111,6 +112,7 @@ vi.mock('../utils/customFetch', async (importOriginal) => ({
 }))
 
 vi.mock('../utils/providerTlsExceptions', () => ({
+  createProviderScopedFetch: (...args: unknown[]) => mockCreateProviderScopedFetch(...args),
   installProviderCertificateVerifyProc: () => () => {}
 }))
 
@@ -259,6 +261,7 @@ describe('AiService', () => {
     vi.clearAllMocks()
     vi.mocked(mockedCustomFetch).mockReset()
     vi.mocked(net.fetch).mockReset()
+    mockCreateProviderScopedFetch.mockReset().mockReturnValue(mockedCustomFetch)
     mockCreateAgent.mockReset()
     mockAssistantGetById.mockReturnValue(undefined)
     mockReadRetryPolicy.mockReturnValue({
