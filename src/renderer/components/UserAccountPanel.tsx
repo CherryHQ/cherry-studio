@@ -108,7 +108,11 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
       setPlanRequestVersion((version) => version + 1)
     } else if (subscriptionLookup.status === 'ready') {
       onRequestClose?.()
-      void openCherryCloudAccountPortal()
+      if (subscriptionLookup.planName) {
+        openSettingsTab('/settings/subscription')
+      } else {
+        void openCherryCloudAccountPortal()
+      }
     }
   }
   const cloudHeaderAction: {
