@@ -320,8 +320,8 @@ describe('UserPopup', () => {
   })
 
   it.each([
-    { edition: 'cn' as const, path: '/settings/usage' },
-    { edition: 'global' as const, path: '/settings/subscription' }
+    { edition: 'cn' as const, path: '/settings/profile' },
+    { edition: 'global' as const, path: '/settings/profile' }
   ])('opens $path from the identity avatar or name in the $edition edition', async ({ edition, path }) => {
     const user = userEvent.setup()
     mocks.appEdition = edition

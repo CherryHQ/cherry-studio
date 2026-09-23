@@ -40,6 +40,7 @@ import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings/notifications'
 import { Route as SettingsOcrRouteImport } from './routes/settings/ocr'
+import { Route as SettingsProfileRouteImport } from './routes/settings/profile'
 import { Route as SettingsPromptsRouteImport } from './routes/settings/prompts'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quick-assistant'
@@ -226,6 +227,11 @@ const SettingsOcrRoute = SettingsOcrRouteImport.update({
   path: '/ocr',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsProfileRoute = SettingsProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
   id: '/prompts',
   path: '/prompts',
@@ -407,6 +413,7 @@ export interface FileRoutesByFullPath {
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/ocr': typeof SettingsOcrRoute
+  '/settings/profile': typeof SettingsProfileRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
@@ -467,6 +474,7 @@ export interface FileRoutesByTo {
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/ocr': typeof SettingsOcrRoute
+  '/settings/profile': typeof SettingsProfileRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
@@ -528,6 +536,7 @@ export interface FileRoutesById {
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/ocr': typeof SettingsOcrRoute
+  '/settings/profile': typeof SettingsProfileRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
@@ -592,6 +601,7 @@ export interface FileRouteTypes {
     | '/settings/model'
     | '/settings/notifications'
     | '/settings/ocr'
+    | '/settings/profile'
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
@@ -652,6 +662,7 @@ export interface FileRouteTypes {
     | '/settings/model'
     | '/settings/notifications'
     | '/settings/ocr'
+    | '/settings/profile'
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
@@ -712,6 +723,7 @@ export interface FileRouteTypes {
     | '/settings/model'
     | '/settings/notifications'
     | '/settings/ocr'
+    | '/settings/profile'
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
@@ -966,6 +978,13 @@ declare module '@tanstack/react-router' {
       path: '/ocr'
       fullPath: '/settings/ocr'
       preLoaderRoute: typeof SettingsOcrRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/profile': {
+      id: '/settings/profile'
+      path: '/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof SettingsProfileRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/prompts': {
@@ -1286,6 +1305,7 @@ interface SettingsRouteChildren {
   SettingsModelRoute: typeof SettingsModelRoute
   SettingsNotificationsRoute: typeof SettingsNotificationsRoute
   SettingsOcrRoute: typeof SettingsOcrRoute
+  SettingsProfileRoute: typeof SettingsProfileRoute
   SettingsPromptsRoute: typeof SettingsPromptsRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
@@ -1320,6 +1340,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsModelRoute: SettingsModelRoute,
   SettingsNotificationsRoute: SettingsNotificationsRoute,
   SettingsOcrRoute: SettingsOcrRoute,
+  SettingsProfileRoute: SettingsProfileRoute,
   SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,
