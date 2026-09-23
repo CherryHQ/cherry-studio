@@ -1067,7 +1067,7 @@ index 5c27d8f..703956b 100644
      )
    ) {
      warnings.push({
-@@ -1325,7 +1351,8 @@ export async function convertToOpenAIResponsesInput({
+@@ -1325,7 +1355,8 @@ export async function convertToOpenAIResponsesInput({
        item =>
          !('type' in item) ||
          item.type !== 'reasoning' ||
@@ -1077,7 +1077,7 @@ index 5c27d8f..703956b 100644
      );
    }
 
-@@ -1335,6 +1362,7 @@ export async function convertToOpenAIResponsesInput({
+@@ -1335,6 +1363,7 @@ export async function convertToOpenAIResponsesInput({
  const openaiResponsesReasoningProviderOptionsSchema = z.object({
    itemId: z.string().nullish(),
    reasoningEncryptedContent: z.string().nullish(),
