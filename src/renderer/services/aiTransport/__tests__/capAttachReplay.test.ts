@@ -2,11 +2,16 @@ import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import type { StreamChunkPayload } from '@shared/ai/transport'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { capAttachReplayChunks, dropCoveredOverflow, MAX_ATTACH_REPLAY_CHUNKS } from '../capAttachReplay'
 
 function textDelta(id: string, delta: string): StreamChunkPayload {
   return { topicId: 't', chunk: { type: 'text-delta', id, delta } }
+}
+
+function execTextDelta(executionId: UniqueModelId, id: string, delta: string): StreamChunkPayload {
+  return { topicId: 't', executionId, chunk: { type: 'text-delta', id, delta } }
 }
 
 describe('capAttachReplayChunks', () => {
@@ -43,12 +48,8 @@ describe('capAttachReplayChunks', () => {
   })
 
   it('drops orphaned tool-output when tool-input was truncated by the cap', () => {
-    const exec = 'provider-a::model-a'
-    const filler = Array.from({ length: 1100 }, (_, i) => ({
-      topicId: 't',
-      executionId: exec,
-      chunk: { type: 'text-delta', id: 'x', delta: `f-${i}` }
-    }))
+    const exec: UniqueModelId = 'provider-a::model-a'
+    const filler = Array.from({ length: 1100 }, (_, i) => execTextDelta(exec, 'x', `f-${i}`))
     const bufferedChunks: StreamChunkPayload[] = [
       {
         topicId: 't',
@@ -71,12 +72,8 @@ describe('capAttachReplayChunks', () => {
   })
 
   it('synthesizes dynamic tool-input-start with the dynamic discriminator', () => {
-    const exec = 'provider-a::model-a'
-    const filler = Array.from({ length: 1100 }, (_, i) => ({
-      topicId: 't',
-      executionId: exec,
-      chunk: { type: 'text-delta', id: 'x', delta: `f-${i}` }
-    }))
+    const exec: UniqueModelId = 'provider-a::model-a'
+    const filler = Array.from({ length: 1100 }, (_, i) => execTextDelta(exec, 'x', `f-${i}`))
     const bufferedChunks: StreamChunkPayload[] = [
       {
         topicId: 't',
@@ -108,12 +105,8 @@ describe('capAttachReplayChunks', () => {
   })
 
   it('synthesizes tool-input-start from full-buffer identity when the cap lands mid-run', () => {
-    const exec = 'provider-a::model-a'
-    const filler = Array.from({ length: 1100 }, (_, i) => ({
-      topicId: 't',
-      executionId: exec,
-      chunk: { type: 'text-delta', id: 'x', delta: `f-${i}` }
-    }))
+    const exec: UniqueModelId = 'provider-a::model-a'
+    const filler = Array.from({ length: 1100 }, (_, i) => execTextDelta(exec, 'x', `f-${i}`))
     const bufferedChunks: StreamChunkPayload[] = [
       {
         topicId: 't',
@@ -135,18 +128,10 @@ describe('capAttachReplayChunks', () => {
   })
 
   it('keeps replay from every execution scope in a multi-model stream', () => {
-    const execA = 'provider-a::model-a'
-    const execB = 'provider-b::model-b'
-    const chunksA = Array.from({ length: 10 }, (_, i) => ({
-      topicId: 't',
-      executionId: execA,
-      chunk: { type: 'text-delta', id: 'a', delta: `a-${i}` }
-    }))
-    const chunksB = Array.from({ length: 5000 }, (_, i) => ({
-      topicId: 't',
-      executionId: execB,
-      chunk: { type: 'text-delta', id: 'b', delta: `b-${i}` }
-    }))
+    const execA: UniqueModelId = 'provider-a::model-a'
+    const execB: UniqueModelId = 'provider-b::model-b'
+    const chunksA = Array.from({ length: 10 }, (_, i) => execTextDelta(execA, 'a', `a-${i}`))
+    const chunksB = Array.from({ length: 5000 }, (_, i) => execTextDelta(execB, 'b', `b-${i}`))
     const bufferedChunks: StreamChunkPayload[] = [...chunksA, ...chunksB]
 
     const out = capAttachReplayChunks(bufferedChunks, 100).replay
