@@ -12,9 +12,12 @@ import {
   encodeAgentCommand
 } from '@cherrystudio/remote-protocol/agent'
 import { RemoteRpcError, type RemoteRpcServer } from '@cherrystudio/remote-transport'
+import { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { remoteCommandService, type RemoteCommandOutcome } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { serializeError } from '@main/ai/utils/serializeError'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 
 import type { RemoteAgentHub } from './agentJournal'
 import {
@@ -90,7 +93,12 @@ export function registerAgentMethods(
       outcome = await run()
     } catch (error) {
       if (error instanceof RemoteRpcError) outcome = { status: 'rejected', error: error.data as RemoteFailure }
-      else {
+      else if (error instanceof AgentSessionDeliveryRoutingError && error.code === 'TARGET_UNAVAILABLE') {
+        outcome = {
+          status: 'rejected',
+          error: { reason: 'TARGET_UNAVAILABLE', message: toExecutionFailure(serializeError(error)).message }
+        }
+      } else {
         logger.error('Remote command failed before settling', error as Error)
         outcome = {
           status: 'interrupted',

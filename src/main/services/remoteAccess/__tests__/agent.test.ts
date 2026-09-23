@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import type { UIMessageChunk } from 'ai'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -14,18 +15,22 @@ import {
 } from '@cherrystudio/remote-protocol/agent'
 import type { SecureChannel } from '@cherrystudio/remote-transport'
 import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
-import type { StreamListener } from '@main/ai/streamManager'
+import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { StreamErrorResult } from '@main/ai/streamManager'
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { RemoteAgentHub } from '../agentJournal'
-import { sha256 } from '../agentQueries'
+import { sha256, toMessageModel } from '../agentQueries'
 import { RemoteConnection } from '../RemoteConnection'
 import { RemotePairing } from '../RemotePairing'
 import { RemoteTokens } from '../RemoteTokens'
@@ -92,6 +97,21 @@ function makeChannel(remoteIdentity: string, notifications: unknown[]): SecureCh
 describe('remote agent access', () => {
   const dbh = setupTestDatabase()
   const hub = new RemoteAgentHub()
+  function seedModel(providerId: string, modelId: string, name: string) {
+    dbh.db.insert(userProviderTable).values({ providerId, name: 'Desktop provider', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: `${providerId}::${modelId}`,
+        providerId,
+        modelId,
+        name,
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'a0'
+      })
+      .run()
+  }
   const notifications: unknown[] = []
   let connection: RemoteConnection
   let sessionId: string
@@ -104,6 +124,23 @@ describe('remote agent access', () => {
     if (response.error) throw response.error
     return response.result
   }
+  it('returns a durable target rejection with the admission reason and never resends it', async () => {
+    const start = vi.mocked(startAgentSessionRun)
+    start.mockRejectedValueOnce(
+      new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', 'Agent has no model configured')
+    )
+    const { session } = await call('agent.sessions.get', { sessionId })
+    const params = { commandId: randomUUID(), sessionId, text: 'hello', expectedIdleRevision: session.idleRevision }
+    const result = await call('agent.messages.send', params)
+    expect(result).toMatchObject({
+      status: 'rejected',
+      error: { reason: 'TARGET_UNAVAILABLE', message: 'Agent has no model configured' }
+    })
+    const calls = start.mock.calls.length
+    expect(await call('agent.messages.send', params)).toEqual(result)
+    expect(start.mock.calls.length).toBe(calls)
+    expect(await call('agent.commands.get', { commandId: params.commandId })).toEqual(result)
+  })
   const emit = (chunk: UIMessageChunk, anchorMessageId: string) => {
     for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
       listener.onChunk(chunk, undefined, anchorMessageId)
@@ -353,6 +390,8 @@ describe('remote agent access', () => {
         status: 'success',
         anchorMessageId: anchor,
         isTopicDone: true,
+        modelId: 'provider::unsaved-model',
+        runtimeTiming: { startedAt: 100, completedAt: 400, spans: [] },
         persistence: { status: 'failed', failure }
       })
     fake.streams.delete(`agent-session:${sessionId}`)
@@ -364,8 +403,126 @@ describe('remote agent access', () => {
       persistenceFailure: failure
     })
     expect(projection.executions[receipt.executionId].history).toBeUndefined()
-    expect(projection.messages[anchor]).toMatchObject({ status: 'success' })
+    expect(projection.messages[anchor]).toMatchObject({ status: 'success', usage: { durationMs: 300 } })
+    await call('agent.subscriptions.close', { subscriptionId: prepared.subscriptionId })
+    const preparedAgain = await call('agent.sessions.subscribe', { sessionId })
+    const restored = await installCheckpoint(preparedAgain.subscriptionId, preparedAgain.checkpoint)
+    expect(restored.projection.messages[anchor].usage).toMatchObject({ durationMs: 300 })
+    expect(restored.projection.messages[anchor].model).toEqual({
+      modelId: 'unsaved-model',
+      providerId: 'provider',
+      name: 'unsaved-model'
+    })
     expect(projection.parts[`${anchor}:text:text`]).toMatchObject({ content: { text: 'Unsaved answer' } })
+  })
+
+  it('loads persisted usage through history and includes it in the terminal message event', async () => {
+    seedModel('provider', 'model', 'Current name')
+    const { session } = await call('agent.sessions.get', { sessionId })
+    const prepared = await call('agent.sessions.subscribe', { sessionId })
+    const initial = (await installCheckpoint(prepared.subscriptionId, prepared.checkpoint)).projection
+    await call('agent.subscriptions.activate', {
+      subscriptionId: prepared.subscriptionId,
+      appliedCursor: initial.cursor
+    })
+    await call('agent.messages.send', {
+      commandId: randomUUID(),
+      sessionId,
+      text: 'hello',
+      expectedIdleRevision: session.idleRevision
+    })
+    const anchor = randomUUID()
+    emit({ type: 'text-start', id: 'text' }, anchor)
+    agentSessionMessageService.saveMessage({
+      sessionId,
+      message: {
+        id: anchor,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [] },
+        modelId: 'provider::model',
+        messageSnapshot: {
+          id: 'agent-1',
+          name: 'Agent',
+          model: { id: 'model', provider: 'provider', name: 'Historical model' }
+        }
+      }
+    })
+    aiUsageRecordService.recordInvocation({
+      requestId: randomUUID(),
+      context: createAiUsageCaptureContext({
+        providerId: 'provider',
+        modelId: 'model',
+        messageRef: { kind: 'agent-session', id: anchor }
+      }),
+      modality: 'language',
+      usage: { inputTokens: 40, outputTokens: 0, totalTokens: 40, cacheReadTokens: 12 },
+      completedAt: Date.now()
+    })
+    await finish(anchor, [{ type: 'text', text: 'done', state: 'done' }])
+    await tick()
+    const events = (notifications as Array<{ params: AgentEventBatch }>).flatMap((n) => n.params.events)
+    expect(
+      events.find((event) => event.kind === 'message.updated' && event.payload.message.status === 'success')
+    ).toMatchObject({ payload: { message: { usage: { totalTokens: 40, outputTokens: 0, cacheReadTokens: 12 } } } })
+    expect(
+      events.find((event) => event.kind === 'message.updated' && event.payload.message.status === 'success')
+    ).toMatchObject({
+      payload: { message: { model: { modelId: 'model', providerId: 'provider', name: 'Historical model' } } }
+    })
+    const projection = await drain(initial)
+    const history = await call('agent.messages.list', {
+      sessionId,
+      historyRevision: projection.session.historyRevision
+    })
+    expect(history.items.find((message: { messageId: string }) => message.messageId === anchor).usage).toMatchObject({
+      totalTokens: 40,
+      outputTokens: 0,
+      cacheReadTokens: 12
+    })
+  })
+
+  it('keeps message model identity independent from the current agent model', async () => {
+    seedModel('provider', 'current', 'Current model')
+    const snapshot = {
+      id: 'agent-1',
+      name: 'Agent',
+      model: { id: 'old', provider: 'provider', name: 'Original display name' }
+    }
+    expect(toMessageModel({ messageSnapshot: snapshot })).toEqual({
+      modelId: 'old',
+      providerId: 'provider',
+      name: 'Original display name'
+    })
+    expect(toMessageModel({ modelId: 'provider::actual', messageSnapshot: snapshot })).toEqual({
+      modelId: 'actual',
+      providerId: 'provider',
+      name: 'actual'
+    })
+    expect(toMessageModel({ modelId: 'invalid' })).toBeUndefined()
+    const message = agentSessionMessageService.saveMessage({
+      sessionId,
+      message: { role: 'assistant', data: { parts: [] }, messageSnapshot: snapshot }
+    })
+    dbh.db.update(agentTable).set({ model: 'provider::current' }).where(eq(agentTable.id, 'agent-1')).run()
+    const { session } = await call('agent.sessions.get', { sessionId })
+    const history = await call('agent.messages.list', { sessionId, historyRevision: session.historyRevision })
+    expect(history.items.find((item: { messageId: string }) => item.messageId === message.id).model).toEqual({
+      modelId: 'old',
+      providerId: 'provider',
+      name: 'Original display name'
+    })
+  })
+
+  it('lists the current agent model display name and represents no configured model explicitly', async () => {
+    expect((await call('agent.agents.list', {})).items[0].model).toBeNull()
+    seedModel('remote-model-provider', 'model', 'Configured model')
+    dbh.db.update(agentTable).set({ model: 'remote-model-provider::model' }).where(eq(agentTable.id, 'agent-1')).run()
+    expect((await call('agent.agents.list', {})).items[0].model).toEqual({
+      modelId: 'model',
+      providerId: 'remote-model-provider',
+      name: 'Configured model'
+    })
   })
 
   it('creates a system workspace exactly once and returns its actual identity', async () => {

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { getToolName, isToolUIPart } from 'ai'
 
+import { modelSummarySchema } from '@cherrystudio/remote-protocol/agent'
 import type {
   AgentInteraction,
   AgentParams,
@@ -20,7 +21,10 @@ import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
+
+import { toMessageUsage } from './agentUsage'
 
 /** Text above this many UTF-16 units travels as a content reference so records stay under the wire budget. */
 export const INLINE_TEXT_LIMIT = 4096
@@ -168,10 +172,34 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
   return projected
 }
 
+/** Prefer the actual producing identity, with the matching immutable display name. */
+export function toMessageModel(
+  message: Partial<Pick<AgentSessionMessageEntity, 'modelId' | 'messageSnapshot'>>
+): AgentMessage['model'] {
+  const snapshot = message.messageSnapshot?.model
+  const parsedId = UniqueModelIdSchema.safeParse(message.modelId)
+  const identity = parsedId.success
+    ? parseUniqueModelId(parsedId.data)
+    : snapshot
+      ? { modelId: snapshot.id, providerId: snapshot.provider }
+      : undefined
+  if (!identity) return undefined
+  const name =
+    snapshot?.id === identity.modelId && snapshot.provider === identity.providerId
+      ? snapshot.name.trim() || identity.modelId
+      : identity.modelId
+  const result = modelSummarySchema.safeParse({ ...identity, name })
+  return result.success ? result.data : undefined
+}
+
 export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
+  const usage = toMessageUsage(message.stats)
+  const model = toMessageModel(message)
   const error = message.data.parts?.find((part) => part.type === 'data-error')
   return {
     messageId: message.id,
+    ...(usage ? { usage } : {}),
+    ...(model ? { model } : {}),
     revision: revisionOf(message.updatedAt),
     role: message.role,
     partIds: projectPersistedParts(message).map(({ part }) => part.partId),
@@ -271,7 +299,11 @@ export function listAgents(cursor?: string, limit?: number) {
   return pageOf(
     agents.map((agent) => {
       const emoji = agent.configuration?.avatar?.trim() || '🤖'
-      return { agentId: agent.id, name: agent.name, emoji: emoji.length <= 64 ? emoji : '🤖' }
+      const identity = toMessageModel({ modelId: agent.model })
+      const named =
+        identity && modelSummarySchema.safeParse({ ...identity, name: agent.modelName?.trim() || identity.name })
+      const model = named?.success ? named.data : (identity ?? null)
+      return { agentId: agent.id, name: agent.name, emoji: emoji.length <= 64 ? emoji : '🤖', model }
     }),
     cursor,
     limit

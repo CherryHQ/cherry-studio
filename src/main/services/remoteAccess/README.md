@@ -48,3 +48,19 @@ clients and persisted command recovery. See the [protocol package](../../../../p
 
 Agent catalogs include the configured emoji, falling back to the desktop's robot avatar when it
 is empty or exceeds the wire limit. They never expose desktop avatar file paths.
+
+Known dispatch target validation failures settle commands as rejected with `TARGET_UNAVAILABLE`
+and a sanitized diagnostic message. They are distinct from interrupted commands with an unknown
+outcome and from model failures after execution admission. Replaying the same command returns the
+recorded rejection; it never starts another execution.
+
+`agentUsage.ts` projects host-owned message stats into the portable usage summary. Historical
+queries and persisted terminal events read the same materialized row; unsaved terminal messages
+retain available final metadata and runtime timing. Overlapping tool/wait spans are unioned before
+sending durations. Missing provider data is never estimated from text. This endpoint does not
+expose the accounting ledger or claim main-model latency from multi-model aggregates.
+
+Model display metadata follows its owner: Agent catalogs use `AgentService`'s current model/name,
+while message history and terminal events use the persisted model identity and matching immutable
+snapshot. A changed or removed Agent model never rewrites historical message identity. Unsaved
+terminal answers retain final message metadata or the terminal producing model ID.

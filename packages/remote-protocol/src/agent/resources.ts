@@ -49,6 +49,42 @@ export const executionSchema = z
     if (!terminal && (value.durable || value.history || value.persistenceFailure))
       ctx.addIssue({ code: 'custom', message: 'Running executions cannot claim terminal persistence' })
   })
+// Bounded materialized message statistics, not the host's per-request ledger.
+const usageCount = z.number().nonnegative()
+export const messageUsageSchema = z.looseObject({
+  inputTokens: usageCount.optional(),
+  outputTokens: usageCount.optional(),
+  totalTokens: usageCount.optional(),
+  noCacheTokens: usageCount.optional(),
+  cacheReadTokens: usageCount.optional(),
+  cacheWriteTokens: usageCount.optional(),
+  reasoningTokens: usageCount.optional(),
+  durationMs: usageCount.optional(),
+  toolDurationMs: usageCount.optional(),
+  approvalDurationMs: usageCount.optional(),
+  requestCount: z.number().int().nonnegative().optional(),
+  hasUnpricedRecords: z.boolean().optional(),
+  costs: z
+    .array(
+      z.looseObject({
+        currency: z.string().regex(/^[A-Z]{3}$/),
+        amount: usageCount,
+        providerReportedRequestCount: z.number().int().nonnegative(),
+        computedRequestCount: z.number().int().nonnegative()
+      })
+    )
+    .max(32)
+    .optional()
+})
+export type AgentMessageUsage = z.infer<typeof messageUsageSchema>
+
+/** Public model identity; no provider configuration or credentials. */
+export const modelSummarySchema = z.looseObject({
+  modelId: unicodeText.min(1).max(2048),
+  providerId: opaqueId,
+  name: unicodeText.min(1).max(2048)
+})
+
 export const messageSchema = z
   .looseObject({
     messageId: opaqueId,
@@ -56,6 +92,8 @@ export const messageSchema = z
     role: z.enum(['user', 'assistant', 'system']),
     partIds: z.array(opaqueId).max(4096),
     status: z.enum(['pending', 'success', 'error', 'paused']),
+    usage: messageUsageSchema.optional(),
+    model: modelSummarySchema.optional(),
     failure: executionFailureSchema.optional()
   })
   .superRefine((value, ctx) => {

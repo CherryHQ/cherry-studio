@@ -41,3 +41,16 @@ versioned reason vocabulary without rewriting bytes used by checkpoint digests.
 Agent catalogs optionally include `emoji` (nonempty Unicode text, at most 64 UTF-16 units).
 It is display metadata, not a file path or URL. Omission remains compatible with older hosts;
 clients keep their normal fallback. Image transfer is outside this field's contract.
+
+### Message usage
+
+`AgentMessage.usage` is an optional materialized summary. It carries nonnegative token counts,
+cache/reasoning breakdowns, bounded per-currency costs and request counts, and completed runtime
+durations. Absence means unknown, not zero. It deliberately excludes per-request accounting rows
+and runtime span arrays. The message owns the snapshot, so history responses, message updates,
+and checkpoint/replay use one schema. Older peers may omit it; no pairing capability gate changes.
+
+The optional public model summary (`modelId`, `providerId`, `name`) is shared by message snapshots
+and Agent catalog entries. A message records its producing model; the catalog records current
+configuration (`null` for unconfigured, omitted for older hosts). Neither carries provider secrets
+or requires the receiving device to have the model installed.

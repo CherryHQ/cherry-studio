@@ -10,6 +10,7 @@ import {
   interactionResponseSchema,
   workspaceSelectionSchema,
   messageSchema,
+  modelSummarySchema,
   partSchema,
   sessionSchema
 } from './resources'
@@ -29,7 +30,8 @@ export const agentMethods = {
       z.looseObject({
         agentId: opaqueId,
         name: unicodeText.max(4096),
-        emoji: unicodeText.trim().min(1).max(64).optional()
+        emoji: unicodeText.trim().min(1).max(64).optional(),
+        model: modelSummarySchema.nullable().optional()
       })
     )
   ),

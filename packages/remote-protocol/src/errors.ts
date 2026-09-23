@@ -9,6 +9,7 @@ export const remoteFailureSchema = z.looseObject({
     'GRANT_REVOKED',
     'FORBIDDEN',
     'NOT_FOUND',
+    'TARGET_UNAVAILABLE',
     'CONFLICT',
     'IDEMPOTENCY_CONFLICT',
     'RESET_REQUIRED',

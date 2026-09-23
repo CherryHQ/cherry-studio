@@ -34,8 +34,10 @@ import {
   revisionOf,
   sha256,
   toSessionSummary,
+  toMessageModel,
   utf8
 } from './agentQueries'
+import { toMessageUsage } from './agentUsage'
 
 const logger = loggerService.withContext('RemoteAgentJournal')
 const integrity = { sha256 }
@@ -454,6 +456,20 @@ export class SessionJournal {
               result.modelId,
               'host'
             )
+    const stored = saved ? agentSessionMessageService.getSessionMessage(this.sessionId, messageId) : undefined
+    const stats = stored
+      ? stored.stats
+      : {
+          ...result.finalMessage?.metadata?.stats,
+          ...(result.runtimeTiming ? { runtimeTiming: result.runtimeTiming } : {})
+        }
+    const model = toMessageModel(
+      stored ?? {
+        modelId: result.modelId ?? result.finalMessage?.metadata?.modelId,
+        messageSnapshot: result.finalMessage?.metadata?.messageSnapshot
+      }
+    )
+    const usage = toMessageUsage(stats)
     const status = result.status === 'success' ? 'completed' : result.status === 'paused' ? 'cancelled' : 'failed'
     const message = this.projection.messages[messageId]
     if (message)
@@ -464,6 +480,8 @@ export class SessionJournal {
           message: {
             ...message,
             revision: this.next(),
+            ...(usage ? { usage } : {}),
+            ...(model ? { model } : {}),
             status: result.status === 'error' ? 'error' : result.status === 'paused' ? 'paused' : 'success',
             ...(failure ? { failure } : {})
           }
