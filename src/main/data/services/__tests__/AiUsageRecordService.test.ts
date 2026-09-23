@@ -228,9 +228,7 @@ describe('AiUsageRecordService', () => {
     })
     const wrapped = await capture.wrapStream!({ doStream: async () => ({ stream }) } as never)
 
-    for await (const _part of wrapped.stream) {
-      // drain
-    }
+    await wrapped.stream.pipeTo(new WritableStream())
 
     expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
       inputTokens: 1_000_000,

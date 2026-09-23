@@ -40,6 +40,15 @@ describe('usageNormalize', () => {
     })
   })
 
+  it('preserves provider raw cost metadata when normalizing flat usage', () => {
+    const raw = { cost: 0.0123, currency: 'USD' }
+    expect(normalizeFlatV3Usage({ inputTokens: 10, outputTokens: 5, raw })).toEqual({
+      inputTokens: { total: 10, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+      outputTokens: { total: 5, text: undefined, reasoning: undefined },
+      raw
+    })
+  })
+
   it('prefers the provider flat total when input and output are absent', () => {
     expect(recordTotalTokens({ totalTokens: 42 } as never, undefined, undefined)).toBe(42)
   })

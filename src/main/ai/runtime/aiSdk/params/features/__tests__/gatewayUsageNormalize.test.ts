@@ -25,8 +25,8 @@ describe('gatewayUsageNormalizeFeature', () => {
   })
 
   it('applies to every provider path', () => {
-    expect(gatewayUsageNormalizeFeature.applies({ sdkConfig: { providerId: 'gateway' } } as never)).toBe(true)
-    expect(gatewayUsageNormalizeFeature.applies({ sdkConfig: { providerId: 'openai' } } as never)).toBe(true)
+    expect(gatewayUsageNormalizeFeature.applies!({ sdkConfig: { providerId: 'gateway' } } as never)).toBe(true)
+    expect(gatewayUsageNormalizeFeature.applies!({ sdkConfig: { providerId: 'openai' } } as never)).toBe(true)
   })
 
   it('normalizes non-streaming flat usage', async () => {

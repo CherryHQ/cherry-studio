@@ -321,4 +321,37 @@ describe('createLanguageUsageMiddleware', () => {
       })
     )
   })
+
+  it('preserves provider cost when gateway normalization runs before billing capture', async () => {
+    const capture = createLanguageUsageMiddleware({
+      ...context,
+      trustProviderReportedCost: true,
+      reportedCostCurrency: 'USD'
+    })
+    const gatewayUsageNormalizeMiddleware = await getGatewayUsageNormalizeMiddleware()
+    const rawFinish = {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage: {
+        inputTokens: 100,
+        outputTokens: 20,
+        totalTokens: 120,
+        raw: { cost: 0.0123 }
+      }
+    } as unknown as LanguageModelV3StreamPart
+
+    const wrapped = await capture.wrapStream!({
+      doStream: () =>
+        gatewayUsageNormalizeMiddleware.wrapStream!({
+          doStream: async () => ({ stream: streamOf([rawFinish]) })
+        } as never)
+    } as never)
+    await readAll(wrapped.stream)
+
+    expect(recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerCost: { amount: 0.0123, currency: 'USD' }
+      })
+    )
+  })
 })

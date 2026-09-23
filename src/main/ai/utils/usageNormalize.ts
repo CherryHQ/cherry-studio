@@ -6,6 +6,7 @@ export interface FlatV3Usage {
   totalTokens?: number
   reasoningTokens?: number
   cachedInputTokens?: number
+  raw?: LanguageModelV3Usage['raw']
 }
 
 export function isFlatV3Usage(usage: unknown): usage is FlatV3Usage {
@@ -39,7 +40,8 @@ export function normalizeFlatV3Usage(flat: FlatV3Usage): LanguageModelV3Usage {
       total: flat.outputTokens,
       text: undefined,
       reasoning: flat.reasoningTokens
-    }
+    },
+    ...(flat.raw !== undefined ? { raw: flat.raw } : {})
   }
 }
 
