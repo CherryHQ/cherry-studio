@@ -20,7 +20,7 @@
     },
     "mini": {
       "repository": "Prometheus-AGS/prometheus-skills-mini",
-      "revision": "35ceed50391eb69c4b2628177141eef0bb2f7694"
+      "revision": "d3fa2b56e1827e70c1b66cd1320c50dfc78d09e3"
     },
     "surreal-memory": {
       "repository": "Prometheus-AGS/surreal-memory-server",
