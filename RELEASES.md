@@ -5,6 +5,26 @@ Each entry is immutable: a CID always resolves to that exact build.
 
 <!-- releases:newest-first -->
 
+## v2.1.2 — 2026-09-22 22:40 UTC
+
+Commit [`6f2cec47b`](https://github.com/Prometheus-AGS/the-boss/commit/6f2cec47b0839598d17e67e5d9f7c787e5dcaa8e)
+
+| Installer | Size | Download |
+|---|---|---|
+| `The-Boss-2.1.2-win-arm64-setup.exe` | 284.6 MB | [bafybeidqkxu…](https://ipfs.prometheusags.ai/ipfs/bafybeidqkxueupzeslonrzv2xigenjxplruh4heo2iylqljgwykgcg4qui) |
+| `The-Boss-2.1.2-win-x64-setup.exe` | 303.2 MB | [bafybeie66so…](https://ipfs.prometheusags.ai/ipfs/bafybeie66soi4samajin3szpuwrmxibknozc3p7kfycdip4aj5yxj43cju) |
+| `The-Boss-2.1.2-mac-arm64.dmg` | 364.5 MB | [bafybeicqfcw…](https://ipfs.prometheusags.ai/ipfs/bafybeicqfcwn5lzaowm2ybat5zomjf6ipaovfax3cl7mnfj4imnkivoczi) |
+| `The-Boss-2.1.2-mac-x64.dmg` | 385.9 MB | [bafybeidg37v…](https://ipfs.prometheusags.ai/ipfs/bafybeidg37v3moihg2ixzsovan647ed3zx7krl4bgrbuqjjnjdblagmzrq) |
+
+## v2.1.2 — 2026-09-22 21:38 UTC
+
+Commit [`640fde2a5`](https://github.com/Prometheus-AGS/the-boss/commit/640fde2a5bff20381293bb9e526fe1407f838338)
+
+| Installer | Size | Download |
+|---|---|---|
+| `The-Boss-2.1.2-win-arm64-setup.exe` | 284.6 MB | [bafybeidhnxp…](https://ipfs.prometheusags.ai/ipfs/bafybeidhnxpg25ze3tap4ruka5sgpc5udwjdwphrtauasbipbnbosythdq) |
+| `The-Boss-2.1.2-win-x64-setup.exe` | 303.2 MB | [bafybeiah7ri…](https://ipfs.prometheusags.ai/ipfs/bafybeiah7ribzsjp5oeblphzg6z6mlzlgwwxcybteo647uxkwpwz4yj3he) |
+
 ## v2.1.1 — 2026-09-21 16:34 UTC
 
 Commit [`22d34893d`](https://github.com/Prometheus-AGS/the-boss/commit/22d34893da65f7989d36c8b7ed804594272b407b)
