@@ -119,6 +119,18 @@ describe('DoctorAgentService.start', () => {
     expect(listener!.isAlive()).toBe(false)
   })
 
+  it('runs on the model the user picked and remembers it in the state', async () => {
+    mocks.updateAgent.mockImplementation((_id: string, updates: { model: string }) => ({
+      id: 'doctor-agent',
+      model: updates.model
+    }))
+    const service = new DoctorAgentService()
+    const started = await service.start({ scope: 'global', reportRunId: 'report-1', modelId: 'deepseek::v3' })
+    expect(started.status).toBe('started')
+    expect(mocks.updateAgent).toHaveBeenCalledWith('doctor-agent', { model: 'deepseek::v3' })
+    expect(agentState()).toMatchObject({ status: 'running', modelId: 'deepseek::v3' })
+  })
+
   it('reports a missing model instead of starting a session', async () => {
     mocks.ensureBuiltinAgent.mockReturnValue({ id: 'doctor-agent', model: null })
     const service = new DoctorAgentService()

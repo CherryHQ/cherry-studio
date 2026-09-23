@@ -159,7 +159,8 @@ describe('DoctorPopup', () => {
       void DoctorPopup.show({ initialPanel: 'report' })
     })
 
-    const dialog = await screen.findByRole('dialog')
+    // First test pays the lazy DoctorDialog import, which now pulls the model hooks in cold.
+    const dialog = await screen.findByRole('dialog', {}, { timeout: 8000 })
     expect(dialog).toHaveClass('max-h-[calc(100vh-100px)]')
     expect(dialog).not.toHaveClass('h-[min(760px,calc(100vh-2rem))]')
     expect(dialog).not.toHaveAccessibleDescription()

@@ -39,6 +39,8 @@ export interface DoctorAgentRun {
   /** The Doctor report this analysis read; proposals bound to it go stale with it. */
   readonly reportRunId: string
   readonly sessionId: string
+  /** `providerId::modelId` the turn ran on; shown in the consultation header. */
+  readonly modelId: string
   readonly startedAt: string
   /** Streamed assistant text, markdown. */
   readonly text: string

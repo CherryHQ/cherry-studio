@@ -60,14 +60,18 @@ export class DoctorAgentService extends BaseService {
     for (const scope of Array.from(this.active.keys())) this.abort(scope, 'service stopping')
   }
 
-  async start(input: { scope: DoctorScopeKey; reportRunId: string }): Promise<DoctorAgentStartResult> {
+  async start(input: {
+    scope: DoctorScopeKey
+    reportRunId: string
+    modelId?: string
+  }): Promise<DoctorAgentStartResult> {
     const { scope, reportRunId } = input
     const busy = this.active.get(scope)
     if (busy) return { status: 'busy', runId: busy.runId }
     const report = this.currentReport(scope)
     if (!report || report.runId !== reportRunId) return { status: 'stale' }
 
-    const agent = this.ensureDoctorAgent()
+    const agent = this.ensureDoctorAgent(input.modelId as UniqueModelId | undefined)
     if (!agent.model) return { status: 'no_model' }
 
     const session = agentSessionService.create(
@@ -80,6 +84,7 @@ export class DoctorAgentService extends BaseService {
       runId,
       reportRunId,
       sessionId: session.id,
+      modelId: agent.model,
       startedAt: new Date().toISOString(),
       text: '',
       toolCalls: [],
@@ -200,16 +205,18 @@ export class DoctorAgentService extends BaseService {
     return { scope, runId: state.runId, reportRunId: state.reportRunId }
   }
 
-  private ensureDoctorAgent() {
+  /** The user's pick wins; otherwise keep the Agent's model, falling back to the chat default. */
+  private ensureDoctorAgent(requestedModel?: UniqueModelId) {
     const agent = agentService.ensureBuiltinAgent(loadBuiltinAgentEnsureInput(BUILTIN_AGENT_ROLE.DOCTOR))
-    if (agent.model) return agent
-    // The Agent may predate the user's first model; follow the current default before giving up.
-    const defaultModel = application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null
-    if (!defaultModel) return agent
+    const model =
+      requestedModel ??
+      agent.model ??
+      (application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null)
+    if (!model || model === agent.model) return agent
     try {
-      return agentService.updateAgent(agent.id, { model: defaultModel }) ?? agent
+      return agentService.updateAgent(agent.id, { model }) ?? agent
     } catch (error) {
-      logger.warn('Could not assign the default model to the doctor Agent', error as Error)
+      logger.warn('Could not assign the requested model to the doctor Agent', error as Error)
       return agent
     }
   }
@@ -341,6 +348,6 @@ export class DoctorAgentService extends BaseService {
 }
 
 function toRun(state: Exclude<DoctorAgentState, { status: 'idle' }>): DoctorAgentRun {
-  const { runId, reportRunId, sessionId, startedAt, text, toolCalls, proposals, changes } = state
-  return { runId, reportRunId, sessionId, startedAt, text, toolCalls, proposals, changes }
+  const { runId, reportRunId, sessionId, modelId, startedAt, text, toolCalls, proposals, changes } = state
+  return { runId, reportRunId, sessionId, modelId, startedAt, text, toolCalls, proposals, changes }
 }

@@ -156,7 +156,9 @@ separate global full-system Doctor without replacing the contextual report.
 `DoctorAgentService` runs the `doctor` built-in Agent (bundle `resources/builtin-agents/cherry-doctor`) over a
 completed report: one headless turn in a hidden `background` session, published on
 `doctorAgentStateCacheKey(scope)` as streamed text, tool calls, proposals and a change ledger. Routes:
-`diagnostics.doctor.agent.{start,cancel,apply,undo}`; the panel section is `DoctorAgentSection`.
+`diagnostics.doctor.agent.{start,cancel,apply,undo}`. The renderer entry is the footer button "AI consultation"
+(`DoctorAgentDialog`: model picker → consultation with proposals/ledger) in the Doctor panel and the Error Details
+dialog; a completed analysis also shows as the `DoctorAgentAccordionItem` row above the checks.
 
 Diagnosis is open-ended: the Agent mounts the `assistant` server (`diagnose`, `product_info`) and the `doctor`
 server (`read_file`, `report`, `data_api`, `preference`, `probe_endpoint`, `doctor_fix`; see `ai/agents/doctor/doctorTools.ts`).

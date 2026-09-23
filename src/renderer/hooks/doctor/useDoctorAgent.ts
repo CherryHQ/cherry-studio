@@ -22,20 +22,23 @@ export function useDoctorAgent({ scope, reportRunId }: { scope: DoctorScopeKey; 
   /** The analysis on screen read a report the user no longer sees; its proposals may not apply. */
   const isStale = state.status !== 'idle' && reportRunId !== undefined && state.reportRunId !== reportRunId
 
-  const start = useCallback(async () => {
-    if (!reportRunId) return
-    setBusy({ kind: 'start' })
-    try {
-      const result = await ipcApi.request('diagnostics.doctor.agent.start', { scope, reportRunId })
-      if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
-      else if (result.status === 'no_model') toast.error(t('settings.doctor.agent.messages.no_model'))
-    } catch (error) {
-      logger.error('Failed to start the doctor analysis', error as Error)
-      toast.error(t('settings.doctor.agent.messages.start_failed'))
-    } finally {
-      setBusy(null)
-    }
-  }, [reportRunId, scope, t])
+  const start = useCallback(
+    async (modelId?: string) => {
+      if (!reportRunId) return
+      setBusy({ kind: 'start' })
+      try {
+        const result = await ipcApi.request('diagnostics.doctor.agent.start', { scope, reportRunId, modelId })
+        if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
+        else if (result.status === 'no_model') toast.error(t('settings.doctor.agent.messages.no_model'))
+      } catch (error) {
+        logger.error('Failed to start the doctor analysis', error as Error)
+        toast.error(t('settings.doctor.agent.messages.start_failed'))
+      } finally {
+        setBusy(null)
+      }
+    },
+    [reportRunId, scope, t]
+  )
 
   const cancel = useCallback(async () => {
     if (state.status !== 'running') return

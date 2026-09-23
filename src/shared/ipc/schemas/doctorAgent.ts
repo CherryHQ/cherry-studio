@@ -16,7 +16,9 @@ const scopeKeySchema = z.custom<DoctorScopeKey>(isDoctorScopeKey)
 /** Progress, proposals and the change ledger are read through `doctorAgentStateCacheKey(scope)`. */
 export const doctorAgentRequestSchemas = {
   'diagnostics.doctor.agent.start': defineRoute({
-    input: z.object({ scope: scopeKeySchema, reportRunId: z.string().min(1) }).strict(),
+    input: z
+      .object({ scope: scopeKeySchema, reportRunId: z.string().min(1), modelId: z.string().min(1).optional() })
+      .strict(),
     output: z.custom<DoctorAgentStartResult>()
   }),
   'diagnostics.doctor.agent.cancel': defineRoute({
