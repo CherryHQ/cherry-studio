@@ -1,16 +1,17 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { application } from '@application'
 import type { IntegrationConfig, IntegrationDiagnostic, WorkspaceIntegration } from '@shared/types/prometheusIntegration'
 import { readSecrets } from './integrationConfig'
 import { registerWorkspaceServers, workspaceDatabase } from './workspaceMcp'
 import { surrealSql } from './surrealConnection'
 
-type ToolResult = { isError?: boolean; content?: unknown; structuredContent?: unknown }
-function text(result: ToolResult): string {
+function text(value: unknown): string {
+  const result = CallToolResultSchema.parse(value)
   if (result.isError) throw new Error('prometheus.error.toolOperation')
-  return Array.isArray(result.content) ? result.content.filter((entry) => entry.type === 'text').map((entry) => entry.text).join('\n') : ''
+  return result.content.filter((entry) => entry.type === 'text').map((entry) => entry.text).join('\n')
 }
 
 /** Explicit Settings action; never runs as an automatic test or during startup. */
