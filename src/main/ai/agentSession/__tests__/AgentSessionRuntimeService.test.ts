@@ -4930,7 +4930,7 @@ describe('AgentSessionRuntimeService', () => {
     // Turn 2 begins on the warm entry; hold its stream in the pre-admission connect window.
     const secondHandle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-2') })
     const connectGate = createDeferred<boolean>()
-    const realEnsure = ((service as any).ensureConnection as any).bind(service)
+    const realEnsure = (service as any).ensureConnection.bind(service)
     vi.spyOn(service as any, 'ensureConnection').mockImplementationOnce(async (target: unknown) => {
       const connected = await realEnsure(target)
       return connectGate.promise.then(() => connected)
