@@ -1,7 +1,6 @@
 {
   "agent.builtin.cherry_assistant.description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills",
   "agent.builtin.cherry_support.description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback",
-  "agent.heartbeat.workspace_name": "Heartbeat — {{name}}",
   "agent.session.dsh.bun_unavailable": "DSH could not start because its bundled runtime is unavailable. Reinstall Cherry Studio and try again.",
   "agent.session.dsh.bun_unavailable_dev": "DSH could not start because its bundled runtime is unavailable. Run pnpm download:binaries in the development checkout and try again.",
   "agent.session.fork.execution_not_inherited": "Execution was not inherited by this session fork.",
