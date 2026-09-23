@@ -1306,6 +1306,7 @@
   "error.diagnosis.ai_loading": "Se diagnostichează",
   "error.diagnosis.ai_result": "Rezultatul diagnosticului IA",
   "error.diagnosis.auth": "Cheia API nu este validă; verific-o și configureaz-o din nou",
+  "error.diagnosis.bad_request": "Solicitarea către furnizor a eșuat (HTTP 400)",
   "error.diagnosis.content": "Conținutul a fost blocat de sistemul de siguranță; modifică-l și încearcă din nou",
   "error.diagnosis.context_length": "Conversația este prea lungă, te rugăm să ștergi istoricul sau să începi o conversație nouă",
   "error.diagnosis.deprecated": "Acest model a fost retras, te rugăm să treci la alt model",

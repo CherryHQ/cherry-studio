@@ -1306,6 +1306,7 @@
   "error.diagnosis.ai_loading": "Chẩn đoán",
   "error.diagnosis.ai_result": "Kết quả chẩn đoán AI",
   "error.diagnosis.auth": "Khóa API không hợp lệ, vui lòng kiểm tra và cấu hình lại",
+  "error.diagnosis.bad_request": "Yêu cầu đến nhà cung cấp thất bại (HTTP 400)",
   "error.diagnosis.content": "Nội dung bị chặn bởi hệ thống an toàn, vui lòng sửa đổi và thử lại",
   "error.diagnosis.context_length": "Cuộc hội thoại quá dài, vui lòng xóa lịch sử hoặc bắt đầu cuộc trò chuyện mới",
   "error.diagnosis.deprecated": "Mô hình này đã ngừng hoạt động, vui lòng chuyển sang mô hình khác",

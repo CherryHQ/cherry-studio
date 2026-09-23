@@ -2,6 +2,20 @@ import { describe, expect, it } from 'vitest'
 
 import { classifyErrorCategory, isProxyErrorMessage } from '../errorCategory'
 
+describe('classifyErrorCategory HTTP 400', () => {
+  it('identifies a provider request failure without guessing its cause', () => {
+    expect(classifyErrorCategory({ status: 400, text: 'API Error: 400 Provider returned error' })).toBe('bad_request')
+  })
+
+  it.each([
+    ['insufficient balance', 'quota'],
+    ['content_filter triggered', 'content'],
+    ['prompt is too long', 'context_length']
+  ] as const)('preserves the specific diagnosis for %s', (text, category) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe(category)
+  })
+})
+
 // Transport failures from #19926 must reach a recovery category (network /
 // stream / proxy) instead of falling through to 'unknown', which hides the
 // settings recovery action and triggers a needless AI diagnosis call.

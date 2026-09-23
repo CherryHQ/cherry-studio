@@ -1306,6 +1306,7 @@
   "error.diagnosis.ai_loading": "A diagnosticar",
   "error.diagnosis.ai_result": "Resultado do diagnóstico IA",
   "error.diagnosis.auth": "Chave API inválida, por favor verifique e reconfigure",
+  "error.diagnosis.bad_request": "O pedido ao fornecedor falhou (HTTP 400)",
   "error.diagnosis.content": "Conteúdo bloqueado pelo sistema de segurança, modifique e tente novamente",
   "error.diagnosis.context_length": "Conversa muito longa, por favor limpe o histórico ou inicie um novo chat",
   "error.diagnosis.deprecated": "Este modelo foi descontinuado; por favor, mude para outro modelo.",

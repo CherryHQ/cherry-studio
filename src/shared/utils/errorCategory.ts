@@ -4,6 +4,7 @@
 
 export const ERROR_CATEGORIES = [
   'auth',
+  'bad_request',
   'permission',
   'region',
   'model',
@@ -310,5 +311,5 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'parse'
   }
 
-  return 'unknown'
+  return status === 400 ? 'bad_request' : 'unknown'
 }

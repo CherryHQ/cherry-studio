@@ -63,7 +63,7 @@ export class ClaudeCodeResultError extends Error {
     /** The result's diagnostic strings — match against these, not the joined `message`. */
     readonly errors: readonly string[],
     readonly terminalReason?: SDKResultMessage['terminal_reason'],
-    readonly apiErrorStatus?: number | null
+    readonly statusCode?: number | null
   ) {
     super(message)
     this.name = 'ClaudeCodeResultError'
