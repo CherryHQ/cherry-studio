@@ -47,8 +47,11 @@ export function collectAllowSelfSignedTlsHostnames(providers: readonly ProviderT
   for (const provider of providers) {
     if (!provider.isEnabled || provider.settings?.allowSelfSignedTls !== true) continue
     for (const config of Object.values(provider.endpointConfigs ?? {})) {
-      const hostname = hostnameFromApiBaseUrl(config?.baseUrl ?? '')
-      if (hostname) hosts.add(hostname)
+      const urls = [config?.baseUrl, ...Object.values(config?.modelsApiUrls ?? {})]
+      for (const url of urls) {
+        const hostname = hostnameFromApiBaseUrl(url ?? '')
+        if (hostname) hosts.add(hostname)
+      }
     }
   }
   return hosts

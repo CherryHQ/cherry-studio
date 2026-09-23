@@ -365,7 +365,11 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
 
     await waitFor(() =>
-      expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', { apiKey: 'sk-fresh', timeout: 15000 })
+      expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', {
+        apiKey: 'sk-fresh',
+        requestContext: 'provider-setup',
+        timeout: 15000
+      })
     )
     expect(checkApiMock).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(enableProviderMock).toHaveBeenCalledTimes(1))
@@ -425,7 +429,10 @@ describe('ProviderApiSetupDialog', () => {
     })
     expect(activeCheckStep).toHaveAttribute('aria-current', 'step')
     expect(within(activeCheckStep).getByRole('status')).toHaveTextContent('common.loading')
-    expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', { timeout: 15000 })
+    expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', {
+      requestContext: 'provider-setup',
+      timeout: 15000
+    })
     expect(enableProviderMock).not.toHaveBeenCalled()
     resolveCheck?.({ latency: 12 })
     expect(

@@ -1874,6 +1874,59 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('activates an opted-in disabled provider only for a setup model probe', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'test-provider',
+      name: 'Test Provider',
+      apiKeys: [],
+      authType: 'api-key',
+      reportsActualCost: false,
+      settings: { allowSelfSignedTls: true },
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
+      },
+      isEnabled: false
+    })
+
+    await service.checkModel({
+      uniqueModelId: 'test-provider::test-model',
+      requestContext: 'provider-setup'
+    })
+
+    expect(generateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resolvedModel: expect.objectContaining({ provider: expect.objectContaining({ isEnabled: true }) })
+      })
+    )
+  })
+
+  it('keeps an opted-in disabled provider strict for an ordinary model probe', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'test-provider',
+      name: 'Test Provider',
+      apiKeys: [],
+      authType: 'api-key',
+      reportsActualCost: false,
+      settings: { allowSelfSignedTls: true },
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://llm.internal/v1' }
+      },
+      isEnabled: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-model' })
+
+    expect(generateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resolvedModel: expect.objectContaining({ provider: expect.objectContaining({ isEnabled: false }) })
+      })
+    )
+  })
+
   it('disables reasoning on the text-generation probe', async () => {
     const service = createService()
     const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })

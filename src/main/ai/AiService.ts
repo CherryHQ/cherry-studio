@@ -1307,11 +1307,13 @@ export class AiService extends BaseService {
 
   /** Dispatches rerank first, then prefers text for chat-primary models over embedding. */
   async checkModel(
-    request: AsInProcess<AiRequest> & { timeout?: number },
+    request: AsInProcess<AiRequest> & { timeout?: number; requestContext?: 'provider-setup' },
     options?: { chatOnly: boolean }
   ): Promise<{ latency: number }> {
     request.requestOptions?.signal?.throwIfAborted()
-    const { provider, model } = this.getProviderAndModel(request)
+    const { provider: configuredProvider, model } = this.getProviderAndModel(request)
+    const provider =
+      request.requestContext === 'provider-setup' ? { ...configuredProvider, isEnabled: true } : configuredProvider
     const start = performance.now()
     const timeout = request.timeout ?? 15000
 
@@ -1329,7 +1331,11 @@ export class AiService extends BaseService {
       onAbort = () => reject(signal.reason)
       signal.addEventListener('abort', onAbort, { once: true })
     })
-    const probeRequest = { ...request, requestOptions: { ...request.requestOptions, signal } }
+    const probeRequest = {
+      ...request,
+      requestOptions: { ...request.requestOptions, signal },
+      resolvedModel: { provider, model }
+    }
     try {
       let probe: Promise<unknown>
       if (isOllamaProvider(provider) && !options?.chatOnly) {

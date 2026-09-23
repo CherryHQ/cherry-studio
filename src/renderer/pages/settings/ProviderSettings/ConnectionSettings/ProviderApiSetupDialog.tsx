@@ -354,6 +354,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
       try {
         await checkApi(probeModel.id, {
           ...(verificationApiKey ? { apiKey: verificationApiKey } : {}),
+          requestContext: 'provider-setup',
           timeout: 15000
         })
         probeSucceededModelIdRef.current = probeModel.id
