@@ -119,6 +119,8 @@ win:
     - target: portable
   signtoolOptions:
     sign: scripts/win-sign.js
+  signExts:
+    - .node
   verifyUpdateCodeSignature: false
 nsis:
   # Preserve the existing global installer identity so either edition replaces the same Windows installation.
