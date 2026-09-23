@@ -160,8 +160,9 @@ export type AgentRuntimeEvent =
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
   /** Whether work outliving the current turn still needs this connection kept alive. `false` is a
    *  runtime-quiescence boundary: all trailing lifecycle output and autonomous generation for that
-   *  work have drained. This does not block host-admitted user turns unless a rebuild is required. */
-  | { type: 'background-work-state'; active: boolean }
+   *  work have drained. `awaitingReply` defaults to `active`; false keeps detached commands alive
+   *  without holding the current reply open. */
+  | { type: 'background-work-state'; active: boolean; awaitingReply?: boolean }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
   /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto

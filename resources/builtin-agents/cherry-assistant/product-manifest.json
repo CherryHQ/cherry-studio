@@ -97,6 +97,7 @@
       "/settings/mcp/npx-search",
       "/settings/mcp/servers",
       "/settings/scheduled-tasks/$taskId",
+      "/settings/skills/$skillId",
       "/app/mini-app",
       "/app/paintings",
       "/settings/mcp/settings/$serverId"
@@ -174,6 +175,23 @@
       "keybinding": {
         "defaultBinding": [],
         "global": true
+      }
+    },
+    {
+      "id": "app.window.close",
+      "titleKey": "settings.shortcuts.close_window",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "main",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "W"
+        ],
+        "editable": false,
+        "supportedPlatforms": [
+          "darwin"
+        ]
       }
     },
     {
@@ -423,6 +441,18 @@
         "defaultBinding": [
           "CommandOrControl",
           "]"
+        ]
+      }
+    },
+    {
+      "id": "tab.close",
+      "titleKey": "settings.shortcuts.close_tab",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "W"
         ]
       }
     },
