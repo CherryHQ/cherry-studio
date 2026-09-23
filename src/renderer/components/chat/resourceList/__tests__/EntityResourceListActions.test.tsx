@@ -64,7 +64,8 @@ const tabsContextMocks = vi.hoisted(() => ({
   closeConversationTabs: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async () => ({
+  Badge: (await import('@cherrystudio/ui/components/primitives/badge')).Badge,
   BlurCancelPointerSensor: class BlurCancelPointerSensor {},
   Button: ({ children, onClick, ...props }: { children?: ReactNode; onClick?: () => void }) => (
     <button {...props} type="button" onClick={onClick}>
