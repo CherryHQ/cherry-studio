@@ -100,7 +100,7 @@ describe('armRestoreRollback', () => {
     writeRestoreJournalV2({
       ...completedJournal(),
       state: 'prepared'
-    } as RestoreJournalV2)
+    })
 
     await expect(armRestoreRollback()).rejects.toThrowError(RestoreStateError)
     expect(relaunchMock).not.toHaveBeenCalled()

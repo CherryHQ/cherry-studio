@@ -26,7 +26,7 @@ describe('nutstoreHandlers', () => {
   it('answers with the display name only, never the credential', async () => {
     resolveAccountMock.mockResolvedValue({ username: 'someone', userid: 'u1', access_token: 'secret-token' })
 
-    const account = await nutstoreHandlers['nutstore.get_account'](undefined as never, ctx)
+    const account = await nutstoreHandlers['nutstore.get_account'](undefined, ctx)
 
     expect(account).toEqual({ username: 'someone' })
     expect(JSON.stringify(account)).not.toContain('secret-token')

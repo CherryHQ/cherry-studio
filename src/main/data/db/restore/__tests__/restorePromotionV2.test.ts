@@ -250,7 +250,7 @@ function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
   if (state === 'completed' || state === 'rollback-armed' || state === 'rolled-back') {
     return { ...base, state }
   }
-  return { ...base, state } as RestoreJournalV2
+  return { ...base, state }
 }
 
 function journalState(): string {

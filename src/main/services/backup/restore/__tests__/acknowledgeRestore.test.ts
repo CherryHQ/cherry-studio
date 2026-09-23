@@ -56,7 +56,7 @@ function journal(overrides: Record<string, unknown> = {}): RestoreJournalV2 {
     },
     resourceInstalls: [],
     ...overrides
-  } as RestoreJournalV2
+  }
 }
 
 describe('acknowledgeRestore', () => {

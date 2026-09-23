@@ -17,7 +17,7 @@ describe('isSafeRelativeSubpath', () => {
 
   it('rejects non-strings and empty', () => {
     for (const p of [undefined, null, 42, '', {}]) {
-      expect(isSafeRelativeSubpath(p as unknown)).toBe(false)
+      expect(isSafeRelativeSubpath(p)).toBe(false)
     }
   })
 

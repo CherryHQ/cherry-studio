@@ -42,10 +42,10 @@ describe('portable Knowledge index snapshot', () => {
       const base = key === 'feature.knowledgebase.data' ? knowledgeRoot : path.join(tempDir, key)
       return filename ? path.join(base, filename) : base
     })
-    getSpy = vi.spyOn(application, 'get').mockImplementation(((name: Parameters<typeof application.get>[0]) => {
+    getSpy = vi.spyOn(application, 'get').mockImplementation((name: Parameters<typeof application.get>[0]) => {
       if (name === 'KnowledgeVectorStoreService') return service
       return defaultApplicationGet(name)
-    }) as never)
+    })
 
     dbh.db
       .insert(knowledgeBaseTable)
