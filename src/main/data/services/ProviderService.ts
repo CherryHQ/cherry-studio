@@ -6,6 +6,9 @@
  * - Row to Provider conversion
  */
 
+import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -13,9 +16,10 @@ import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/us
 import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
+import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
-import type { ProviderDisplayMetadata } from '@data/services/ProviderRegistryService'
+import type { ProviderDisplayMetadata, ReasoningProviderContext } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import {
   clearSingleFileRefTx,
@@ -41,8 +45,6 @@ import type {
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
-import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 import { isRetiredProvider } from '../retiredProviders'
 
@@ -67,11 +69,11 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 }
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
-type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
+export type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
 function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
   const availableInEditions = provider.availableInEditions
-  return !availableInEditions || availableInEditions.includes(getAppEdition())
+  return isMigratedFromV1() || !availableInEditions || availableInEditions.includes(getAppEdition())
 }
 
 function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMetadata | null {
@@ -84,8 +86,31 @@ function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMet
   return isProviderAvailableInCurrentEdition(metadata) ? metadata : null
 }
 
-function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
+/**
+ * Edition availability of a persisted provider, decided from the identity columns
+ * alone: static registry metadata, the build-time edition, and the preboot v1-origin
+ * flag. Callers that already hold `providerId` / `presetProviderId` — anything reading
+ * inside someone else's transaction — must use this instead of a service method that
+ * opens its own connection.
+ */
+export function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
   return getAvailableProviderMetadata(row) !== null
+}
+
+function rowToReasoningProviderContext(
+  row: Pick<UserProviderRow, 'providerId' | 'presetProviderId' | 'endpointConfigs' | 'defaultChatEndpoint'>,
+  metadata: ProviderDisplayMetadata
+): ReasoningProviderContext {
+  const providerRegistryService = getDataService('ProviderRegistryService')
+
+  return {
+    id: row.providerId,
+    presetProviderId: row.presetProviderId,
+    endpointConfigs:
+      providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
+      undefined,
+    defaultChatEndpoint: row.defaultChatEndpoint ?? metadata.defaultChatEndpoint
+  }
 }
 
 /**
@@ -279,7 +304,7 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
   // Merge settings
   const settings: ProviderSettings = {
     ...DEFAULT_PROVIDER_SETTINGS,
-    ...(row.providerSettings as Partial<ProviderSettings> | null)
+    ...row.providerSettings
   }
 
   // An uploaded logo's file id lives in the ref table (single source of truth);
@@ -309,6 +334,7 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
       undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
     modelListSource: presetMetadata.modelListSource,
+    supplementModelsFromRegistry: presetMetadata.supplementModelsFromRegistry,
     authMethods: presetMetadata.authMethods,
     authOptional: presetMetadata.authOptional,
     serverTools: presetMetadata.serverTools ?? [],
@@ -387,6 +413,32 @@ class ProviderService {
       .all()
 
     return new Set(rows.filter(isProviderIdentityAvailable).map((row) => row.providerId))
+  }
+
+  /** Resolve provider registry contexts inside a caller-owned database transaction. */
+  getReasoningContextsByProviderIdsTx(
+    tx: Pick<DbType, 'select'>,
+    providerIds: Iterable<string>
+  ): Map<string, ReasoningProviderContext> {
+    const ids = [...new Set(providerIds)]
+    if (ids.length === 0) return new Map()
+
+    const rows = tx
+      .select({
+        providerId: userProviderTable.providerId,
+        presetProviderId: userProviderTable.presetProviderId,
+        endpointConfigs: userProviderTable.endpointConfigs,
+        defaultChatEndpoint: userProviderTable.defaultChatEndpoint
+      })
+      .from(userProviderTable)
+      .where(inArray(userProviderTable.providerId, ids))
+      .all()
+    const contexts = new Map<string, ReasoningProviderContext>()
+    for (const row of rows) {
+      const metadata = getAvailableProviderMetadata(row)
+      if (metadata) contexts.set(row.providerId, rowToReasoningProviderContext(row, metadata))
+    }
+    return contexts
   }
 
   /** Check whether a persisted provider is available to runtime callers in this application edition. */

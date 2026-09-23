@@ -1,10 +1,11 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { toast } from '@renderer/services/toast'
-import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
+import type { ExternalOpenTarget } from '@shared/types/externalApp'
 
 const mocks = vi.hoisted(() => ({
   openTarget: vi.fn(),

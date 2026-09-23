@@ -4,7 +4,6 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -14,6 +13,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 
 const mocks = vi.hoisted(() => ({
   findByIdOrName: vi.fn(),
@@ -187,15 +188,26 @@ describe('DshCherryToolBridge', () => {
     await expect(readFile(audioPath)).resolves.toEqual(audio)
     await expect(readFile(videoPath)).resolves.toEqual(video)
     await expect(readFile(documentPath)).resolves.toEqual(document)
-    const { detectImage } = await import(
+    const { prepareImageFile } = await import(
       pathToFileURL(resolveDshRuntimeEntry('@deepseek-ai/dsh-attachment-local')).href
     )
-    await expect(detectImage(await readFile(imagePath))).resolves.toEqual({
+    const prepared = await prepareImageFile(
+      { data: await readFile(imagePath), mediaType: 'image/png' },
+      {
+        maxImageBytes: 1048576,
+        maxImagesPerMessage: 1,
+        maxMessageImageBytes: 1048576,
+        maxImagePixels: 1024,
+        maxImageDimension: 32
+      },
+      { maxPixels: 1024, maxDimension: 32, maxBytes: 1048576 }
+    )
+    expect(prepared.ref).toMatchObject({
       mediaType: 'image/png',
       width: 1,
       height: 1
     })
-    expect((await stat(imagePath)).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect((await stat(imagePath)).mode & 0o777).toBe(0o600)
     await bridge.close()
   })
 
@@ -239,5 +251,33 @@ describe('DshCherryToolBridge', () => {
     await expect(bridge.callTool('mcp__server__run', {})).rejects.toThrow('tool failed')
     await expect(access(toolResultRoot)).rejects.toMatchObject({ code: 'ENOENT' })
     await bridge.close()
+  })
+
+  // Real-chain behavior tests driven by fake timers: the SDK client's request timer actually
+  // runs, so a regression to the 60s default fires it and turns these red (#20266). Outcomes
+  // are asserted, never the RequestOptions shape (#20297 review).
+  describe('forwarding behavior', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('completes a signal-less call that outlasts the SDK 60s default timeout (#20266)', async () => {
+      const server = createServer([tool('run')], async () => {
+        await new Promise((resolve) => setTimeout(resolve, 65_000))
+        return { content: [{ type: 'text', text: 'slow but done' }] }
+      })
+      const bridge = await buildDshCherryToolBridge({ server: { name: 'server', instance: server } }, bridgeOptions())
+
+      const completion = expect(bridge.callTool('mcp__server__run', { value: 'x' })).resolves.toMatchObject({
+        text: 'slow but done'
+      })
+      await vi.advanceTimersByTimeAsync(65_000)
+      await completion
+      await bridge.close()
+    })
   })
 })

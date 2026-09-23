@@ -1,13 +1,15 @@
+import { mkdtemp, rm, stat } from 'fs/promises'
+import { tmpdir } from 'os'
+import path from 'path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api/errors'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { mkdtemp, rm, stat } from 'fs/promises'
-import { tmpdir } from 'os'
-import path from 'path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const SYSTEM_WORKSPACE_CREATED_AT = Date.parse('2026-07-27T10:00:00Z')
 
@@ -208,7 +210,7 @@ describe('AgentWorkspaceService', () => {
     // below (which hits the UNIQUE constraint on the already-created row).
     const emptyResult = { all: () => [] }
     const limitable = { limit: () => emptyResult }
-    const afterWhere = { ...limitable, orderBy: () => limitable }
+    const afterWhere = { ...limitable, ...emptyResult, orderBy: () => limitable }
     const racingTx = {
       select: () => ({
         from: () => ({

@@ -1,10 +1,11 @@
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import { v4 as uuidv4 } from 'uuid'
 
 import { loadBuiltinAgentEnsureInput } from './ensureBuiltinAgent'
 
@@ -22,7 +23,7 @@ export function createBuiltinSupportSession(): AgentSessionEntity {
     return result
   })
 
-  if (ensured.created) {
+  if (ensured.created || ensured.restored) {
     agentService.emitAgentCreated(ensured.agent)
   }
   agentSessionService.notifyReadModelChange([sessionId], 'membership')

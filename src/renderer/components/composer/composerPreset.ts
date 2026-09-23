@@ -1,5 +1,6 @@
-import { Placeholder } from '@renderer/components/RichEditor/extensions/placeholder'
 import type { EditorOptions } from '@tiptap/core'
+
+import { Placeholder, type PlaceholderOptions } from '@renderer/components/RichEditor/extensions/placeholder'
 
 import {
   ComposerDocument,
@@ -12,7 +13,7 @@ import { ComposerTokenNode, type ComposerTokenRenderer } from './ComposerTokenNo
 import { type ComposerSuggestionSource, createComposerSuggestionExtension } from './quickPanel'
 
 export interface ComposerEditorPresetOptions {
-  placeholder?: string
+  placeholder?: PlaceholderOptions['placeholder']
   enableUndoRedo?: boolean
   renderToken?: ComposerTokenRenderer
   suggestionSources?: readonly ComposerSuggestionSource[]

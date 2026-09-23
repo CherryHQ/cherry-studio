@@ -1,3 +1,8 @@
+import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
+import type { KeyboardEvent, ReactNode } from 'react'
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
@@ -8,10 +13,6 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
-import type { KeyboardEvent, ReactNode } from 'react'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
 import { type DataSourceStatusViewModel, dataSourceTypeDisplayConfig } from './utils/models'
@@ -237,11 +238,11 @@ const KnowledgeItemRow = ({
           <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>
-          <span className="min-w-0 flex-1 truncate text-foreground text-sm" title={fullTitle}>
+          <span className="min-w-0 flex-1 truncate text-sm text-foreground" title={fullTitle}>
             {title}
           </span>
         </div>
-        <div role="gridcell" className="truncate text-muted-foreground text-xs">
+        <div role="gridcell" className="truncate text-xs text-muted-foreground">
           {typeLabel}
         </div>
         <div role="gridcell">
@@ -260,7 +261,7 @@ const KnowledgeItemRow = ({
             }
           />
         </div>
-        <div role="gridcell" className="truncate text-foreground-tertiary text-xs">
+        <div role="gridcell" className="truncate text-xs text-foreground-tertiary">
           {updatedAt}
         </div>
         <div role="gridcell" className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>

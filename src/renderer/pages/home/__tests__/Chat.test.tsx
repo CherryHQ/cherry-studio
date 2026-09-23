@@ -1,10 +1,12 @@
-import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
-import { popup } from '@renderer/services/popup'
-import type { Topic } from '@renderer/types/topic'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import type * as PaneShellModule from '@renderer/components/chat/panes/Shell'
+import { popup } from '@renderer/services/popup'
+import type { Topic } from '@renderer/types/topic'
 
 import Chat from '../Chat'
 
@@ -22,6 +24,16 @@ const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<vo
 const eventEmitMock = vi.hoisted(() => vi.fn())
 const clearTopicMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
+const citationBrowserMocks = vi.hoisted(() => ({ ensure: vi.fn(), tryOpen: vi.fn() }))
+
+vi.mock('@renderer/services/AgentBrowserRuntimeService', () => ({
+  topicBrowserRuntimeService: { ensure: citationBrowserMocks.ensure }
+}))
+
+vi.mock('@renderer/components/chat/panes/Shell', async (importOriginal) => ({
+  ...(await importOriginal<typeof PaneShellModule>()),
+  useRightPanelActions: () => ({ tryOpen: citationBrowserMocks.tryOpen })
+}))
 
 const topic: Topic = {
   id: 'topic-1',
@@ -161,10 +173,6 @@ vi.mock('react-hotkeys-hook', () => ({
   useHotkeys: vi.fn()
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
-}))
-
 vi.mock('../ChatContent', async () => {
   const { useChatLayoutMode } = await vi.importActual<typeof ChatLayoutModeContextModule>(
     '@renderer/components/chat/layout/ChatLayoutModeContext'
@@ -203,10 +211,6 @@ vi.mock('../components/ChatNavbar', () => ({
   )
 }))
 
-vi.mock('../components/TopicBranchSwitcher', () => ({
-  default: () => null
-}))
-
 vi.mock('../components/TopicRightPane', () => {
   const TopicRightPane = {
     Scope: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -240,6 +244,23 @@ describe('Chat', () => {
 
     expect(popup.confirm).toHaveBeenCalled()
     expect(clearTopicMessagesMock).toHaveBeenCalledWith(topic.id)
+  })
+
+  it('opens citations in the active topic browser and closes the citation panel', () => {
+    render(<Chat activeTopic={topic} />)
+    act(() => {
+      chatContentProps.current.onOpenCitationsPanel({ citations: [] })
+    })
+    const panel = conversationShellProps.current.sidePanel.props.children
+    expect(panel.props.open).toBe(true)
+
+    act(() => {
+      panel.props.openBrowserUrl('https://example.com/reference')
+    })
+
+    expect(citationBrowserMocks.ensure).toHaveBeenCalledExactlyOnceWith(topic.id, 'https://example.com/reference')
+    expect(citationBrowserMocks.tryOpen).toHaveBeenCalledExactlyOnceWith('browser', { userInitiated: true })
+    expect(conversationShellProps.current.sidePanel.props.children.props.open).toBe(false)
   })
 
   it('leaves the topic untouched when the confirmation is dismissed', async () => {

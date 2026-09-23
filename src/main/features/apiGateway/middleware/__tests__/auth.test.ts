@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { authorizeApiRequest } from '../auth'
+import { hashPairedDeviceToken } from '../../pairedDeviceToken'
+import { authorizeApiRequest, authorizePairedDeviceRequest } from '../auth'
 
 // Mock preferenceService via application.get()
-const { mockPreferenceGet } = vi.hoisted(() => ({
+const { mockHasTokenHash, mockPreferenceGet } = vi.hoisted(() => ({
+  mockHasTokenHash: vi.fn(),
   mockPreferenceGet: vi.fn()
+}))
+
+vi.mock('@data/services/ApiGatewayPairedDeviceService', () => ({
+  apiGatewayPairedDeviceService: { hasTokenHash: mockHasTokenHash }
 }))
 
 vi.mock('@application', async () => {
@@ -22,6 +28,7 @@ vi.mock('@application', async () => {
 describe('authorizeApiRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockHasTokenHash.mockReturnValue(false)
   })
 
   describe('Missing credentials', () => {
@@ -157,5 +164,30 @@ describe('authorizeApiRequest', () => {
       expect(Buffer.byteLength(multibyte)).not.toBe(Buffer.byteLength(validApiKey))
       expect(authorizeApiRequest(multibyte, undefined)).toEqual({ status: 403, error: 'Forbidden' })
     })
+  })
+})
+
+describe('authorizePairedDeviceRequest', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPreferenceGet.mockReturnValue('desktop-api-key')
+    mockHasTokenHash.mockImplementation(
+      (tokenHash: string) => tokenHash === hashPairedDeviceToken('paired-device-token')
+    )
+  })
+
+  it('authenticates a paired device token', () => {
+    expect(authorizePairedDeviceRequest('paired-device-token')).toBeUndefined()
+  })
+
+  it('rejects missing credentials with 401', () => {
+    expect(authorizePairedDeviceRequest(undefined)).toEqual({
+      status: 401,
+      error: 'Unauthorized: missing credentials'
+    })
+  })
+
+  it('does not grant the desktop API key access to a device-only route', () => {
+    expect(authorizePairedDeviceRequest('desktop-api-key')).toEqual({ status: 403, error: 'Forbidden' })
   })
 })

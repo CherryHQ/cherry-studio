@@ -4,8 +4,9 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
-import { loggerService } from '@logger'
 import StreamZip from 'node-stream-zip'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('FileProcessingResultPersistence')
 

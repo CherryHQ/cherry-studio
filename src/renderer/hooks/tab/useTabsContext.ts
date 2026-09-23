@@ -1,5 +1,6 @@
-import type { Tab, TabType } from '@shared/data/cache/cacheValueTypes'
 import { createContext, use } from 'react'
+
+import type { Tab, TabType } from '@shared/data/cache/cacheValueTypes'
 
 /**
  * Options for opening a tab

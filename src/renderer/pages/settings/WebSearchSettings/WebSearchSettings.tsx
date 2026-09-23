@@ -1,8 +1,9 @@
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getWebSearchCapabilityTitleKey } from '@renderer/utils/webSearchProviderMeta'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ToolSourceSettings } from './components/ToolSourceSettings'
 import { WebSearchGeneralSettings } from './components/WebSearchGeneralSettings'

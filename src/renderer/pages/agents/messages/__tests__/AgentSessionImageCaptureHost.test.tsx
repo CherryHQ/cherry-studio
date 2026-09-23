@@ -1,7 +1,8 @@
-import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 const messageListProviderMock = vi.hoisted(() => vi.fn(() => ({}) as MessageListProviderValue))
 const messageCaptureMessagesMock = vi.hoisted(() =>

@@ -1,3 +1,7 @@
+import type { TFunction } from 'i18next'
+import { Check } from 'lucide-react'
+import { useId } from 'react'
+
 import {
   Item,
   ItemActions,
@@ -14,9 +18,6 @@ import { ClaudeCode, Deepseek } from '@cherrystudio/ui/icons/providers'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
-import type { TFunction } from 'i18next'
-import { Check } from 'lucide-react'
-import { useId } from 'react'
 
 /**
  * Shared presentation for the agent runtimes.

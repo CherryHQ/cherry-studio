@@ -1,7 +1,8 @@
-import { Button, NormalTooltip } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { type FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, NormalTooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import type { PaintingTemplatePreset } from '../hooks/usePaintingTemplateCatalog'
 
@@ -63,7 +64,7 @@ const PaintingTemplateShowcase: FC<PaintingTemplateShowcaseProps> = ({ paintingI
 
   return (
     <div
-      className="relative flex max-h-[220px] min-h-0 w-full flex-1 items-center justify-center overflow-hidden [container-type:size]"
+      className="[container-type:size] relative flex max-h-[220px] min-h-0 w-full flex-1 items-center justify-center overflow-hidden"
       role="group"
       aria-label={t('paintings.showcase.styles_label')}>
       {templates.map((preset, index) => {
@@ -92,7 +93,7 @@ const PaintingTemplateShowcase: FC<PaintingTemplateShowcaseProps> = ({ paintingI
               aria-label={preset.label}
               tabIndex={isHidden ? -1 : 0}
               className={cn(
-                'group absolute top-1/2 left-1/2 h-[clamp(44px,min(18cqw,66cqh),148px)] w-[clamp(36px,min(14cqw,53cqh),118px)] overflow-visible rounded-xl p-0 opacity-100 transition-[transform,opacity,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform hover:z-50 hover:bg-transparent hover:shadow-lg focus-visible:z-50 focus-visible:ring-2 focus-visible:ring-muted-foreground focus-visible:ring-inset focus-visible:ring-offset-0',
+                'group absolute top-1/2 left-1/2 h-[clamp(44px,min(18cqw,66cqh),148px)] w-[clamp(36px,min(14cqw,53cqh),118px)] overflow-visible rounded-xl p-0 opacity-100 transition-[transform,opacity,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform hover:z-50 hover:bg-transparent hover:shadow-lg focus-visible:z-50 focus-visible:ring-2 focus-visible:ring-muted-foreground focus-visible:ring-offset-0 focus-visible:ring-inset',
                 carouselPosition.className,
                 isHidden && 'pointer-events-none opacity-0',
                 isSelected && 'shadow-md'

@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   type ProtoReasoningSupport,
   REASONING_FORMAT_PROFILES,
@@ -6,7 +8,6 @@ import {
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, type EndpointType, type Model, type RuntimeReasoning } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   mapAnthropicThinkingToProviderOptions,
@@ -76,7 +77,7 @@ function model(providerId: string, modelId: string, endpointType: EndpointType, 
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 const anthropicBudgetModel = model('anthropic', 'claude-3-7-sonnet', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, {
@@ -120,6 +121,50 @@ describe('same-dialect lossless pass-through', () => {
     expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, { type: 'disabled' })).toEqual({
       anthropic: { thinking: { type: 'disabled' } }
     })
+  })
+
+  it('omits a native effort when the resolved wire carries no effort field (#20287)', () => {
+    const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+
+    expect(
+      mapAnthropicThinkingToProviderOptions(
+        target,
+        anthropicBudgetModel,
+        { type: 'enabled', budget_tokens: 4096 },
+        'minimal'
+      )
+    ).toEqual({ anthropic: { thinking: { type: 'enabled', budgetTokens: 4096 } } })
+    expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, { type: 'disabled' }, 'ultra')).toEqual({
+      anthropic: { thinking: { type: 'disabled' } }
+    })
+  })
+
+  it('projects a native effort when the resolved wire carries an effort field (#20287)', () => {
+    const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    const adaptiveWire = REASONING_FORMAT_PROFILES['anthropic'].wire
+    mocks.resolveReasoningProfile.mockReturnValueOnce({ format: 'anthropic', wire: adaptiveWire })
+    expect(
+      mapAnthropicThinkingToProviderOptions(
+        target,
+        anthropicBudgetModel,
+        { type: 'enabled', budget_tokens: 4096 },
+        'minimal'
+      )
+    ).toEqual({ anthropic: { thinking: { type: 'enabled', budgetTokens: 4096 }, effort: 'low' } })
+    mocks.resolveReasoningProfile.mockReturnValueOnce({ format: 'anthropic', wire: adaptiveWire })
+    expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, { type: 'disabled' }, 'ultra')).toEqual({
+      anthropic: { thinking: { type: 'disabled' }, effort: 'high' }
+    })
+  })
+
+  it('omits a native effort the model cannot express instead of sending it literally (#20287)', () => {
+    const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+
+    expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, undefined, 'default')).toBeUndefined()
+    expect(
+      mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, { type: 'disabled' }, 'default')
+    ).toEqual({ anthropic: { thinking: { type: 'disabled' } } })
+    expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, undefined, 'auto')).toBeUndefined()
   })
 
   it.each([

@@ -1,8 +1,9 @@
+import { ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon } from 'lucide-react'
+import * as React from 'react'
+
 import type { Button } from '@cherrystudio/ui/components/primitives/button'
 import { buttonVariants } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon } from 'lucide-react'
-import * as React from 'react'
 
 function Pagination({ className, ...props }: React.ComponentProps<'nav'>) {
   return (
@@ -40,7 +41,7 @@ function PaginationLink({ className, isActive, size = 'icon', ...props }: Pagina
           variant: isActive ? 'outline' : 'ghost',
           size
         }),
-        'text-foreground hover:text-primary hover:shadow-none hover:bg-primary/10 rounded-md',
+        'rounded-md text-foreground hover:bg-primary/10 hover:text-primary hover:shadow-none',
         isActive && 'bg-background text-primary',
         className
       )}

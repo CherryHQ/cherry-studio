@@ -28,6 +28,7 @@ export function createIdempotencyKey(): string {
 
 export function createDeviceSignature(input: {
   privateKey: string
+  machineCode: string
   method: string
   requestTarget: string
   body: Uint8Array
@@ -39,13 +40,14 @@ export function createDeviceSignature(input: {
   const requestId = input.requestId ?? randomUUID()
   const bodyHash = createHash('sha256').update(input.body).digest('hex')
   const canonical = [
-    'cherry-device-signature-v1',
+    'cherry-device-signature-v2',
     input.method.toUpperCase(),
     input.requestTarget,
     timestamp,
     requestId,
     bodyHash,
-    input.idempotencyKey ?? ''
+    input.idempotencyKey ?? '',
+    input.machineCode
   ].join('\n')
   const privateKey = createPrivateKey({
     key: Buffer.from(input.privateKey, 'base64'),
@@ -57,7 +59,8 @@ export function createDeviceSignature(input: {
     'Cherry-Request-ID': requestId,
     'Cherry-Timestamp': timestamp,
     'Cherry-Body-SHA256': bodyHash,
-    'Cherry-Signature-Version': '1',
+    'Cherry-Signature-Version': '2',
+    'Cherry-Machine-Code': input.machineCode,
     'Cherry-Signature': sign(null, Buffer.from(canonical, 'utf8'), privateKey).toString('base64url')
   }
 }

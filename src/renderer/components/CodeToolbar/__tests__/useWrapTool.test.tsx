@@ -1,8 +1,9 @@
-import type { ActionTool } from '@renderer/components/ActionTools'
-import { useWrapTool } from '@renderer/components/CodeToolbar/hooks/useWrapTool'
 import { act, renderHook } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { useWrapTool } from '@renderer/components/CodeToolbar/hooks/useWrapTool'
 
 const mocks = vi.hoisted(() => ({
   t: (key: string) => key

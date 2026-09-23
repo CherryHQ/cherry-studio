@@ -1,3 +1,9 @@
+import { omit } from 'es-toolkit/compat'
+import { ImageOff } from 'lucide-react'
+import { type CSSProperties, type JSX, type MouseEvent as ReactMouseEvent, useMemo, useState } from 'react'
+import type { Components, ExtraProps } from 'streamdown'
+import { useIsCodeFenceIncomplete } from 'streamdown'
+
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
@@ -6,11 +12,6 @@ import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRen
 import { OgCard } from '@renderer/components/OgCard'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
-import { omit } from 'es-toolkit/compat'
-import { ImageOff } from 'lucide-react'
-import { type CSSProperties, type JSX, type MouseEvent as ReactMouseEvent, useMemo, useState } from 'react'
-import type { Components, ExtraProps } from 'streamdown'
-import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import MarkdownSvgRenderer from './MarkdownSvgRenderer'
 import { useMarkdownHost } from './useMarkdownHost'

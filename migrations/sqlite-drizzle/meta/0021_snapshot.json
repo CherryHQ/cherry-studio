@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e2ca44cb-c43b-44df-9408-c4bf0739944c",
+  "id": "6c3a7ff2-86f0-45cc-b1ba-79a637eae98a",
   "prevId": "5aa247ef-31a6-45ca-bbce-f6f2aec894b6",
   "tables": {
     "agent": {
@@ -692,55 +692,6 @@
           "columnsFrom": ["task_schedule_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "agent_task_session": {
-      "name": "agent_task_session",
-      "columns": {
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "task_id": {
-          "name": "task_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_task_session_task_id_idx": {
-          "name": "agent_task_session_task_id_idx",
-          "columns": ["task_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "agent_task_session_session_id_agent_session_id_fk": {
-          "name": "agent_task_session_session_id_agent_session_id_fk",
-          "tableFrom": "agent_task_session",
-          "tableTo": "agent_session",
-          "columnsFrom": ["session_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "agent_task_session_task_id_job_schedule_id_fk": {
-          "name": "agent_task_session_task_id_job_schedule_id_fk",
-          "tableFrom": "agent_task_session",
-          "tableTo": "job_schedule",
-          "columnsFrom": ["task_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -1497,6 +1448,64 @@
           "value": "\"ai_usage_record\".\"cost\" IS NULL OR \"ai_usage_record\".\"cost\" <= 1.7976931348623157e308"
         }
       }
+    },
+    "api_gateway_paired_device": {
+      "name": "api_gateway_paired_device",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "platform": {
+          "name": "platform",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "api_gateway_paired_device_token_hash_unique_idx": {
+          "name": "api_gateway_paired_device_token_hash_unique_idx",
+          "columns": ["token_hash"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "app_state": {
       "name": "app_state",

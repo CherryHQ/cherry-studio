@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamManager } from '../../AiStreamManager'
 import type { StreamListener } from '../../types'

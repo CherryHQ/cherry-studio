@@ -81,6 +81,10 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     expect(providers[19]?.id).toBe('radeon-cloud')
   })
 
+  it('makes CherryIN available in the China edition', () => {
+    expect(PROVIDERS.find((provider) => provider.id === 'cherryin')?.availableInEditions).toContain('cn')
+  })
+
   it('classifies every source provider by supported application edition', () => {
     for (const provider of PROVIDERS) {
       expect(provider.availableInEditions).toContain('global')

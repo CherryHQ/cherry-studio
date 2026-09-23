@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isSchemaOutOfSyncError } from '../migrationErrors'
+import { describeErrorChain, isSchemaOutOfSyncError } from '../migrationErrors'
 
 /**
  * Build an Error carrying an optional SQLite `code` and `.cause`, mirroring how
@@ -65,5 +65,46 @@ describe('isSchemaOutOfSyncError', () => {
       chain = makeError('wrapper', { code: 'SQLITE_ERROR', cause: chain })
     }
     expect(isSchemaOutOfSyncError(chain)).toBe(false)
+  })
+})
+
+describe('describeErrorChain', () => {
+  it('surfaces the driver reason and code that DrizzleQueryError.message omits', () => {
+    // The real shape behind "Migration Failed": drizzle names the statement, the
+    // wrapped SqliteError is the only thing that says why it could not run.
+    const driver = makeError('database or disk is full', { code: 'SQLITE_FULL' })
+    const drizzle = makeError(
+      'Failed query: CREATE INDEX `agent_session_message_created_at_id_idx` ON `agent_session_message`\nparams: ',
+      { cause: driver }
+    )
+
+    const described = describeErrorChain(drizzle)
+
+    expect(described).toContain('SQLITE_FULL')
+    expect(described).toContain('database or disk is full')
+  })
+
+  it('keeps every link of a multi-level chain', () => {
+    const driver = makeError('database is locked', { code: 'SQLITE_BUSY' })
+    const drizzle = makeError('Failed query: CREATE INDEX ...', { cause: driver })
+    const wrapper = new Error('Database schema migration failed', { cause: drizzle })
+
+    const described = describeErrorChain(wrapper)
+
+    expect(described).toContain('Database schema migration failed')
+    expect(described).toContain('Failed query: CREATE INDEX ...')
+    expect(described).toContain('[SQLITE_BUSY] database is locked')
+  })
+
+  it('falls back to the value itself when it is not an Error', () => {
+    expect(describeErrorChain('boom')).toBe('boom')
+  })
+
+  it('terminates on a cyclic cause chain', () => {
+    const a = makeError('a')
+    const b = makeError('b', { cause: a })
+    a.cause = b
+
+    expect(describeErrorChain(a).split('caused by:')).toHaveLength(5)
   })
 })

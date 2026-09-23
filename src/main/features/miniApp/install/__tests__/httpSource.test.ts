@@ -3,10 +3,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
-import { MINI_APP_MAX_PACKAGE_BYTES } from '@shared/types/miniAppManifest'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { MINI_APP_MAX_PACKAGE_BYTES } from '@shared/types/miniAppManifest'
 
 const isInChina = vi.fn(async () => false)
 vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina } }))

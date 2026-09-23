@@ -1,5 +1,6 @@
-import { parseDataUrl } from '@shared/utils/dataUrl'
 import type { DataContent, ModelMessage } from 'ai'
+
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { TokenDialect } from './dialect'
 import type { ImageDims } from './imageTokens'

@@ -1,8 +1,9 @@
 import type { FileDiffOptions } from '@pierre/diffs'
 import { parseDiffFromFile } from '@pierre/diffs'
 import { FileDiff } from '@pierre/diffs/react'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useMemo } from 'react'
+
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 
 import type { AgentFileDiffHunk } from './AgentFileDiffView'
 import { DiffStyleToggle, useDiffStyle } from './DiffStyleToggle'

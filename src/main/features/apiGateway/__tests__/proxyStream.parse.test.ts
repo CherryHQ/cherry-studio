@@ -1,12 +1,12 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { StreamListener } from '@main/ai/streamManager/types'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Pins the gateway model-id contract: `model` is `providerId:apiModelId`, split on
- * the FIRST `:` (v1 used `::`). See the breaking-changes entry
- * `2026-06-06-api-gateway-model-id-separator.md`.
+ * the FIRST `:` (v1 used `::`).
  */
 
 const {
@@ -109,7 +109,7 @@ function mockAvailableModel(providerId: string, internalModelId: string, apiMode
 /** Resolve a valid (non-streaming) request after capturing the streamPrompt args. */
 async function resolveValid(model: string): Promise<string | undefined> {
   const promise = processMessage({
-    params: { model, messages: [] } as any,
+    params: { model, messages: [] },
     inputFormat: 'openai',
     outputFormat: 'openai'
   })
@@ -223,7 +223,7 @@ describe('processMessage model-id parsing', () => {
     mockAvailableModel('deepseek', 'agent/deepseek-v4-flash')
     const promise = processMessage({
       // Gemini bodies have no `model`; the route passes it in from the URL path.
-      params: { contents: [] } as any,
+      params: { contents: [] },
       modelString: 'deepseek:agent/deepseek-v4-flash',
       inputFormat: 'gemini',
       outputFormat: 'gemini'

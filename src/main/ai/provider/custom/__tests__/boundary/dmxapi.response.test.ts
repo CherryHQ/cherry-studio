@@ -75,11 +75,7 @@ describe('DMXAPI response boundary', () => {
   for (const c of CASES) {
     it(`${c.name}: matches the inbound contract and parses to snapshot`, async () => {
       c.schema.parse(c.response)
-      const result = await submitWithResponse(
-        transport,
-        { ...base, modelId: c.modelId, prompt: 'a fox' } as ImageGenerationSubmitInput,
-        c.response
-      )
+      const result = await submitWithResponse(transport, { ...base, modelId: c.modelId, prompt: 'a fox' }, c.response)
       expect(result.imageUrls).toMatchSnapshot()
     })
   }

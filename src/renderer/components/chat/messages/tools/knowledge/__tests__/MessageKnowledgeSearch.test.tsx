@@ -1,4 +1,3 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -28,16 +27,14 @@ describe('MessageKnowledgeSearchToolTitle', () => {
   it('wraps result details in the shared disclosure container', async () => {
     render(
       <MessageKnowledgeSearchToolTitle
-        toolResponse={
-          {
-            id: 'tool-call-1',
-            toolCallId: 'tool-call-1',
-            tool: { id: 'knowledge-search', name: 'kb_search', type: 'builtin' },
-            status: 'done',
-            arguments: { query: 'Cherry Studio', baseIds: ['base-1'] },
-            response: [{ id: 1, content: 'Cherry Studio', score: 0.9 }]
-          } as NormalToolResponse
-        }
+        toolResponse={{
+          id: 'tool-call-1',
+          toolCallId: 'tool-call-1',
+          tool: { id: 'knowledge-search', name: 'kb_search', type: 'builtin' },
+          status: 'done',
+          arguments: { query: 'Cherry Studio', baseIds: ['base-1'] },
+          response: [{ id: 1, content: 'Cherry Studio', score: 0.9 }]
+        }}
       />
     )
 

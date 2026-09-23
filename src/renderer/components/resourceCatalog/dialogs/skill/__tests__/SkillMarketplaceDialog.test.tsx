@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { SkillSearchResult } from '@shared/types/skill'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { SkillSearchResult } from '@shared/types/skill'
 
 import { SkillMarketplaceDialog } from '../SkillMarketplaceDialog'
 

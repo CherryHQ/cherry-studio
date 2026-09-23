@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FileInfoSchema } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   getStatusMock,
@@ -24,12 +25,14 @@ const {
     waitDocumentParsingResultMock,
     ocrMock,
     netFetchMock,
-    PaddleOCRClientMock: vi.fn(() => ({
-      getStatus: getStatusMock,
-      submitDocumentParsing: submitDocumentParsingMock,
-      waitDocumentParsingResult: waitDocumentParsingResultMock,
-      ocr: ocrMock
-    }))
+    PaddleOCRClientMock: vi.fn(function PaddleOCRClientMock() {
+      return {
+        getStatus: getStatusMock,
+        submitDocumentParsing: submitDocumentParsingMock,
+        waitDocumentParsingResult: waitDocumentParsingResultMock,
+        ocr: ocrMock
+      }
+    })
   }
 })
 
@@ -239,7 +242,7 @@ describe('paddleocr handlers', () => {
   })
 
   it('sanitizes image OCR result fetches and forbids redirects during the real ocr flow', async () => {
-    PaddleOCRClientMock.mockImplementationOnce((options?: { fetch?: typeof fetch }) => {
+    PaddleOCRClientMock.mockImplementationOnce(function PaddleOCRClientMockOnce(options?: { fetch?: typeof fetch }) {
       const safeFetch = options?.fetch
       if (!safeFetch) {
         throw new Error('Expected PaddleOCR client to receive a fetch implementation')
@@ -258,7 +261,7 @@ describe('paddleocr handlers', () => {
       }
     })
 
-    netFetchMock.mockResolvedValue({ ok: true } as never)
+    netFetchMock.mockResolvedValue({ ok: true })
 
     const prepared = await paddleImageToTextHandler.prepare(imageFile, createConfig('image_to_text', 'PP-OCRv6'))
     if (prepared.mode !== 'background') {
@@ -327,7 +330,7 @@ describe('paddleocr handlers', () => {
   })
 
   it('sanitizes document result fetches and forbids redirects during the real done flow', async () => {
-    PaddleOCRClientMock.mockImplementationOnce((options?: { fetch?: typeof fetch }) => {
+    PaddleOCRClientMock.mockImplementationOnce(function PaddleOCRClientMockOnce(options?: { fetch?: typeof fetch }) {
       const safeFetch = options?.fetch
       if (!safeFetch) {
         throw new Error('Expected PaddleOCR client to receive a fetch implementation')
@@ -346,7 +349,7 @@ describe('paddleocr handlers', () => {
       }
     })
 
-    netFetchMock.mockResolvedValue({ ok: true } as never)
+    netFetchMock.mockResolvedValue({ ok: true })
     getStatusMock.mockResolvedValueOnce({ state: 'done' })
 
     await expect(

@@ -1,5 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
 
 // i18n is only used for display strings (assistant name, error text); return
 // the defaultValue so assertions stay independent of the translation catalog.

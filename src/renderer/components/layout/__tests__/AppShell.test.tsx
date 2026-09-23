@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
 const mocks = vi.hoisted(() => ({
   closeTab: vi.fn(),
@@ -596,5 +596,23 @@ describe('AppShell', () => {
 
     expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: true })
     expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: true })
+  })
+
+  it('closes the active tab from the tab-close shortcut', () => {
+    mocks.tabs = [...mocks.tabs, { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' }]
+    mocks.activeTabId = 'tab2'
+
+    render(<AppShell />)
+    mocks.commandHandlers.get('tab.close')?.handler()
+
+    expect(mocks.closeTab).toHaveBeenCalledWith('tab2')
+  })
+
+  it('disables the tab-close shortcut when no tab is active', () => {
+    mocks.activeTabId = 'missing'
+
+    render(<AppShell />)
+
+    expect(mocks.commandHandlers.get('tab.close')?.options).toEqual({ enabled: false })
   })
 })

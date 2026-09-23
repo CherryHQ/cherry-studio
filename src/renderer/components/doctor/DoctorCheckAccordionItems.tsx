@@ -1,0 +1,517 @@
+import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  Alert,
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+  DialogTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Scrollbar
+} from '@cherrystudio/ui'
+import type { DoctorController } from '@renderer/hooks/doctor'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import {
+  DOCTOR_NAVIGATION_LABEL_KEYS,
+  DOCTOR_STATUS_LABEL_KEYS,
+  doctorCheckDetailParams,
+  resolveDoctorFixLabel
+} from '@renderer/utils/doctor'
+import { type DoctorAction, type DoctorCheckId, type DoctorCheckResult } from '@shared/types/doctor'
+import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
+
+type DoctorFixTargetNameResolver = (target: string) => string | undefined
+type DoctorStatusIconStatus =
+  | DoctorController['viewModel']['rows'][number]['status']
+  | DoctorController['viewModel']['groups'][number]['status']
+
+function useDoctorFixTargetName(): DoctorFixTargetNameResolver {
+  const { mcpServers } = useMcpServers()
+  return useCallback((target) => mcpServers.find((server) => server.id === target)?.name, [mcpServers])
+}
+
+/** Renders check items inside an existing Accordion root owned by the host. */
+export function DoctorCheckAccordionItems({
+  compact = false,
+  controller,
+  defaultLocalDetailsExpanded = false,
+  rows = controller.viewModel.rows,
+  showActionRequiredTag = false,
+  showEvidence = true,
+  showStatusIcon = true
+}: {
+  readonly compact?: boolean
+  readonly controller: DoctorController
+  readonly defaultLocalDetailsExpanded?: boolean
+  readonly rows?: DoctorController['viewModel']['rows']
+  readonly showActionRequiredTag?: boolean
+  readonly showEvidence?: boolean
+  readonly showStatusIcon?: boolean
+}) {
+  const resolveFixTargetName = useDoctorFixTargetName()
+  return (
+    <DoctorCheckListItems
+      compact={compact}
+      controller={controller}
+      defaultLocalDetailsExpanded={defaultLocalDetailsExpanded}
+      rows={rows}
+      resolveFixTargetName={resolveFixTargetName}
+      showActionRequiredTag={showActionRequiredTag}
+      showEvidence={showEvidence}
+      showStatusIcon={showStatusIcon}
+    />
+  )
+}
+
+function DoctorCheckListItems({
+  compact = false,
+  controller,
+  defaultLocalDetailsExpanded = false,
+  resolveFixTargetName,
+  rows,
+  showActionRequiredTag,
+  showEvidence,
+  showStatusIcon
+}: {
+  readonly compact?: boolean
+  readonly controller: DoctorController
+  readonly defaultLocalDetailsExpanded?: boolean
+  readonly resolveFixTargetName: DoctorFixTargetNameResolver
+  readonly rows: DoctorController['viewModel']['rows']
+  readonly showActionRequiredTag: boolean
+  readonly showEvidence: boolean
+  readonly showStatusIcon: boolean
+}) {
+  return (
+    <>
+      {rows.map((row) => (
+        <DoctorCheckListItem
+          key={row.id}
+          compact={compact}
+          controller={controller}
+          defaultLocalDetailsExpanded={defaultLocalDetailsExpanded}
+          resolveFixTargetName={resolveFixTargetName}
+          row={row}
+          showActionRequiredTag={showActionRequiredTag}
+          showEvidence={showEvidence}
+          showStatusIcon={showStatusIcon}
+        />
+      ))}
+    </>
+  )
+}
+
+function DoctorCheckListItem({
+  compact,
+  controller,
+  defaultLocalDetailsExpanded,
+  resolveFixTargetName,
+  row,
+  showActionRequiredTag,
+  showEvidence,
+  showStatusIcon
+}: {
+  readonly compact: boolean
+  readonly controller: DoctorController
+  readonly defaultLocalDetailsExpanded: boolean
+  readonly resolveFixTargetName: DoctorFixTargetNameResolver
+  readonly row: DoctorController['viewModel']['rows'][number]
+  readonly showActionRequiredTag: boolean
+  readonly showEvidence: boolean
+  readonly showStatusIcon: boolean
+}) {
+  const { t } = useTranslation()
+  return (
+    <AccordionItem value={`doctor-${row.id}`} className={compact ? 'px-4' : 'px-2'}>
+      <AccordionTrigger className="rounded-none py-3 font-normal hover:bg-transparent focus:bg-transparent focus-visible:bg-transparent">
+        <span className="flex min-w-0 items-center gap-2">
+          {showStatusIcon ? <StatusIcon status={row.status} /> : null}
+          <span className={compact ? 'min-w-0 truncate text-xs font-medium' : 'min-w-0 truncate text-sm font-medium'}>
+            {t(doctorCheckTitleKey(row.id))}
+          </span>
+          {showActionRequiredTag ? (
+            <Badge variant="outline" className="shrink-0 border-warning-border text-xs font-normal text-warning">
+              {t('error.diagnostics.action_required_tag')}
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className={`shrink-0 text-xs font-normal ${showStatusIcon ? '' : statusBadgeClass(row.status)}`}>
+              {t(DOCTOR_STATUS_LABEL_KEYS[row.status])}
+            </Badge>
+          )}
+        </span>
+      </AccordionTrigger>
+      <AccordionContent className={`space-y-2 pb-3 ${compact ? '' : 'pl-6'}`}>
+        <CheckDescription result={row.result} />
+        {showEvidence ? (
+          <DoctorCheckEvidence
+            controller={controller}
+            defaultLocalDetailsExpanded={defaultLocalDetailsExpanded}
+            row={row}
+          />
+        ) : null}
+        <DoctorCheckActionButtons
+          controller={controller}
+          resolveFixTargetName={resolveFixTargetName}
+          row={row}
+          className="flex flex-wrap justify-end gap-2"
+        />
+      </AccordionContent>
+    </AccordionItem>
+  )
+}
+
+function DoctorCheckEvidence({
+  controller,
+  defaultLocalDetailsExpanded,
+  row
+}: {
+  readonly controller: DoctorController
+  readonly defaultLocalDetailsExpanded: boolean
+  readonly row: DoctorController['viewModel']['rows'][number]
+}) {
+  const { t } = useTranslation()
+  const result = row.result
+  const evidenceGrant = controller.session.evidenceGrant
+  const isEvidenceRevealed =
+    !!evidenceGrant && evidenceGrant.runId === controller.viewModel.runId && evidenceGrant.checkIds.includes(row.id)
+  const publicEvidence = result?.evidence?.filter((item) => item.dataClass === 'public') ?? []
+  const localEvidence = result?.evidence?.filter((item) => item.dataClass === 'local_only') ?? []
+  const sensitiveEvidence = result?.evidence?.filter((item) => item.dataClass === 'consent_required') ?? []
+  const sensitiveEvidenceRef = useRef<HTMLDListElement>(null)
+  const evidenceItemValue = `doctor-evidence-${row.id}`
+  const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(isEvidenceRevealed || defaultLocalDetailsExpanded)
+  const isConfirming =
+    controller.session.interaction.kind === 'confirm-evidence' && controller.session.interaction.checkId === row.id
+
+  useEffect(() => {
+    if (isEvidenceRevealed) sensitiveEvidenceRef.current?.focus()
+  }, [isEvidenceRevealed])
+
+  return (
+    <>
+      {publicEvidence.length > 0 ? (
+        <dl className="selectable grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 pt-1 text-xs">
+          {publicEvidence.map((item) => (
+            <Evidence key={`${item.key}-${String(item.value)}`} name={item.key} value={String(item.value)} />
+          ))}
+        </dl>
+      ) : null}
+      {localEvidence.length > 0 || sensitiveEvidence.length > 0 ? (
+        <Accordion
+          type="single"
+          collapsible
+          value={isEvidenceExpanded ? evidenceItemValue : ''}
+          onValueChange={(value) => setIsEvidenceExpanded(value === evidenceItemValue)}
+          className="pt-1 text-xs">
+          <AccordionItem value={evidenceItemValue} className="border-0 first:border-t-0">
+            <AccordionTrigger className="text-muted-foreground py-1 text-xs font-normal">
+              {t('settings.doctor.evidence.local_details')}
+            </AccordionTrigger>
+            <AccordionContent className="pb-0">
+              <dl
+                ref={sensitiveEvidenceRef}
+                tabIndex={isEvidenceRevealed ? -1 : undefined}
+                className="selectable grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+                {localEvidence.map((item) => (
+                  <Evidence
+                    key={`${item.key}-${String(item.value)}`}
+                    name={`${item.key} · ${t('settings.doctor.evidence.local_only')}`}
+                    value={String(item.value)}
+                  />
+                ))}
+                {sensitiveEvidence.map((item) => (
+                  <Evidence
+                    key={`${item.key}-${String(item.value)}`}
+                    name={`${item.key} · ${t('settings.doctor.evidence.consent_required')}`}
+                    value={isEvidenceRevealed ? String(item.value) : '••••••'}
+                  />
+                ))}
+              </dl>
+              {sensitiveEvidence.length > 0 && !isEvidenceRevealed ? (
+                <Dialog
+                  open={isConfirming}
+                  onOpenChange={(open) => {
+                    if (!open && isConfirming) controller.cancelConfirmation()
+                  }}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="link"
+                      className="mt-2 h-auto px-0 py-0 text-xs"
+                      disabled={controller.isInteracting}
+                      onClick={() => controller.requestEvidence(row.id)}>
+                      {t('settings.doctor.actions.show_details')}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent
+                    aria-describedby={undefined}
+                    closeOnOverlayClick={false}
+                    showCloseButton={false}
+                    className="max-h-[calc(100vh-2rem)] gap-0 overflow-hidden p-0 sm:max-w-xl">
+                    <DialogTitle className="sr-only">{t('settings.doctor.confirm_evidence.title')}</DialogTitle>
+                    <ConfirmationPanel
+                      title={t('settings.doctor.confirm_evidence.title')}
+                      description={t('settings.doctor.confirm_evidence.description')}
+                      confirmLabel={t('settings.doctor.actions.show_details')}
+                      onCancel={controller.cancelConfirmation}
+                      onConfirm={controller.confirmEvidence}
+                    />
+                  </DialogContent>
+                </Dialog>
+              ) : null}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      ) : null}
+    </>
+  )
+}
+
+export function DoctorCheckActions({
+  className = 'flex flex-wrap justify-end gap-2',
+  controller,
+  row
+}: {
+  readonly className?: string
+  readonly controller: DoctorController
+  readonly row: DoctorController['viewModel']['rows'][number]
+}) {
+  const resolveFixTargetName = useDoctorFixTargetName()
+  return (
+    <DoctorCheckActionButtons
+      className={className}
+      controller={controller}
+      resolveFixTargetName={resolveFixTargetName}
+      row={row}
+    />
+  )
+}
+
+function DoctorCheckActionButtons({
+  className,
+  controller,
+  resolveFixTargetName,
+  row
+}: {
+  readonly className: string
+  readonly controller: DoctorController
+  readonly resolveFixTargetName: DoctorFixTargetNameResolver
+  readonly row: DoctorController['viewModel']['rows'][number]
+}) {
+  const { t } = useTranslation()
+  const runId = controller.viewModel.report?.runId
+  const primaryAction = row.actions[0]
+
+  if (!primaryAction) return null
+
+  return (
+    <div className={className}>
+      <DoctorActionButton
+        controller={controller}
+        resolveFixTargetName={resolveFixTargetName}
+        row={row}
+        action={primaryAction}
+        runId={runId}
+      />
+      {row.actions.length > 1 ? (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" disabled={row.actionsDisabled || controller.isInteracting}>
+              {t('settings.doctor.actions.more')}
+              <ChevronDown className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {row.actions.slice(1).map((action, index) => (
+              <DropdownMenuItem
+                key={`${action.kind}-${index}`}
+                disabled={row.actionsDisabled || controller.isInteracting}
+                onSelect={() => void controller.executeAction(row.id, action, runId)}>
+                {actionLabel(t, row.id, action, resolveFixTargetName)}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+    </div>
+  )
+}
+
+function DoctorActionButton({
+  action,
+  controller,
+  resolveFixTargetName,
+  row,
+  runId
+}: {
+  readonly action: DoctorAction
+  readonly controller: DoctorController
+  readonly resolveFixTargetName: DoctorFixTargetNameResolver
+  readonly row: DoctorController['viewModel']['rows'][number]
+  readonly runId?: string
+}) {
+  const { t } = useTranslation()
+  const disabled = row.actionsDisabled || controller.isInteracting
+  const loading =
+    (controller.session.interaction.kind === 'fixing' && controller.session.interaction.request.checkId === row.id) ||
+    (controller.session.interaction.kind === 'action' && controller.session.interaction.checkId === row.id)
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      loading={loading}
+      disabled={disabled}
+      onClick={() => void controller.executeAction(row.id, action, runId)}>
+      {actionLabel(t, row.id, action, resolveFixTargetName)}
+    </Button>
+  )
+}
+
+function CheckDescription({ result }: { readonly result?: DoctorCheckResult }) {
+  const { t } = useTranslation()
+  const className = 'min-w-0 break-words text-muted-foreground text-xs'
+  if (!result) return <p className={className}>{t('settings.doctor.checks.pending')}</p>
+  if (result.status === 'error') {
+    return <p className={className}>{t('settings.doctor.checks.error')}</p>
+  }
+  if (result.status === 'skip' && 'skippedBy' in result) {
+    return (
+      <p className={className}>
+        {t('settings.doctor.checks.skipped', { check: t(doctorCheckTitleKey(result.skippedBy)) })}
+      </p>
+    )
+  }
+  if (!result.detail) return <p className={className}>{t(DOCTOR_STATUS_LABEL_KEYS[result.status])}</p>
+  return (
+    <p className={className}>
+      {t(doctorCheckDetailKey(result.id, result.detail.variant), doctorCheckDetailParams(t, result.detail.params))}
+    </p>
+  )
+}
+
+function Evidence({ name, value }: { readonly name: string; readonly value: string }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{name}</dt>
+      <dd className="min-w-0 break-words">{value}</dd>
+    </>
+  )
+}
+
+function ConfirmationPanel({
+  confirmLabel,
+  description,
+  onCancel,
+  onConfirm,
+  title
+}: {
+  readonly confirmLabel: string
+  readonly description: ReactNode
+  readonly onCancel: () => void
+  readonly onConfirm: () => void
+  readonly title: string
+}) {
+  const { t } = useTranslation()
+  const focusRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => focusRef.current?.focus(), [])
+
+  return (
+    <div ref={focusRef} tabIndex={-1} className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto]">
+      <Scrollbar className="min-h-0 px-6 py-4">
+        <Alert type="warning" showIcon message={title} description={description} />
+      </Scrollbar>
+      <DialogFooter className="border-t border-border px-6 py-4">
+        <Button variant="outline" onClick={onCancel}>
+          {t('common.cancel')}
+        </Button>
+        <Button variant="emphasis" onClick={onConfirm}>
+          {confirmLabel}
+        </Button>
+      </DialogFooter>
+    </div>
+  )
+}
+
+function actionLabel(
+  t: ReturnType<typeof useTranslation>['t'],
+  checkId: DoctorCheckId,
+  action: DoctorAction,
+  resolveFixTargetName: DoctorFixTargetNameResolver
+): string {
+  switch (action.kind) {
+    case 'fix': {
+      const label = resolveDoctorFixLabel(checkId, action, resolveFixTargetName)
+      return t(label.key, label.params)
+    }
+    case 'navigate':
+      return t(DOCTOR_NAVIGATION_LABEL_KEYS[action.target])
+    case 'open_path':
+      return t('settings.doctor.actions.open_path')
+    case 'open_external':
+      return t('settings.doctor.actions.open_link')
+    case 'relaunch':
+      return t('settings.doctor.actions.relaunch')
+    case 'report':
+      return t('settings.doctor.actions.report_problem')
+    default:
+      return assertNever(action)
+  }
+}
+
+function statusBadgeClass(status: DoctorStatusIconStatus): string {
+  switch (status) {
+    case 'pass':
+      return 'border-success-border text-success'
+    case 'fail':
+    case 'error':
+      return 'border-error-border text-error'
+    case 'pending':
+    case 'running':
+    case 'warn':
+      return 'border-warning-border text-warning'
+    default:
+      return ''
+  }
+}
+
+function StatusIcon({ status }: { readonly status: DoctorStatusIconStatus }): ReactNode {
+  switch (status) {
+    case 'pass':
+      return <CircleCheck className="size-4 shrink-0 text-success" aria-hidden />
+    case 'warn':
+      return <CircleAlert className="size-4 shrink-0 text-warning" aria-hidden />
+    case 'fail':
+    case 'error':
+      return <CircleX className="text-error size-4 shrink-0" aria-hidden />
+    case 'pending':
+    case 'running':
+      return (
+        <span className="inline-flex shrink-0 motion-safe:animate-spin" aria-hidden>
+          <CircleDashed className="text-muted-foreground size-4" />
+        </span>
+      )
+    case 'skip':
+    case 'neutral':
+      return <CircleMinus className="text-muted-foreground size-4 shrink-0" aria-hidden />
+    default:
+      return assertNever(status)
+  }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled Doctor value: ${JSON.stringify(value)}`)
+}

@@ -1,3 +1,8 @@
+import { FileSearch, Settings2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolFooterAction } from '@renderer/components/composer/toolLauncher'
@@ -13,10 +18,6 @@ import {
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { FileSearch, Settings2 } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   launcher: ToolLauncherApi
