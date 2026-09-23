@@ -34,7 +34,7 @@ const uncompilableTool = {
 describe('listToolsTolerant', () => {
   let client: Client
   let server: McpServer
-  let result: { tools: unknown; nextCursor?: string }
+  let result: { tools?: unknown; nextCursor?: unknown }
 
   beforeEach(async () => {
     mockMainLoggerService.warn.mockClear()
@@ -72,6 +72,48 @@ describe('listToolsTolerant', () => {
     })
   })
 
+  it.each([
+    ['name', { name: 123 }],
+    ['title', { title: 123 }],
+    ['description', { description: 123 }],
+    ['annotations', { annotations: 'invalid' }],
+    ['annotations.title', { annotations: { title: 123 } }],
+    ['annotations.readOnlyHint', { annotations: { readOnlyHint: 'true' } }],
+    ['execution', { execution: 'invalid' }],
+    ['execution.taskSupport', { execution: { taskSupport: 'invalid' } }],
+    ['icons', { icons: [{ src: 123 }] }],
+    ['_meta', { _meta: 'invalid' }],
+    ['icons.mimeType', { icons: [{ src: 'icon.png', mimeType: 123 }] }],
+    ['icons.sizes', { icons: [{ src: 'icon.png', sizes: [123] }] }]
+  ])('skips a malformed %s while retaining healthy peers', async (field, invalidFields) => {
+    result = { tools: [...validTools, { name: 'invalid', inputSchema: { type: 'object' }, ...invalidFields }] }
+
+    await expect(listToolsTolerant(client)).resolves.toEqual(validTools)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Skipping invalid MCP tool',
+      expect.objectContaining({ toolIndex: validTools.length, reason: expect.stringContaining(field.split('.')[0]) })
+    )
+  })
+
+  it('retains SDK-valid metadata and nested protocol extensions', async () => {
+    const tool = {
+      name: '',
+      title: 'Display name',
+      description: 'Description',
+      inputSchema: { type: 'object', properties: { value: {} }, required: ['value'], extension: true },
+      annotations: { title: 'Annotation title', readOnlyHint: true, extension: 'preserved' },
+      execution: { taskSupport: 'optional', extension: 'preserved' },
+      icons: [{ src: 'icon.png', mimeType: 'image/png', sizes: ['48x48'], theme: 'dark', extension: true }],
+      _meta: { extension: 'preserved' },
+      extension: true
+    }
+    result = { tools: [tool] }
+
+    await expect(client.listTools()).resolves.toMatchObject({ tools: [{ name: '' }] })
+    await expect(listToolsTolerant(client)).resolves.toEqual([tool])
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+  })
+
   it.each([true, false])('preserves output validation for the boolean subschema %s', async (value) => {
     await listToolsTolerant(client)
     await expect(client.callTool({ name: `state-${value}`, arguments: {} })).rejects.toThrow(
@@ -82,6 +124,27 @@ describe('listToolsTolerant', () => {
   it('still rejects a malformed tools/list envelope', async () => {
     result = { tools: 'not an array' }
     await expect(listToolsTolerant(client)).rejects.toThrow()
+  })
+
+  it.each([{}, { tools: null }])('rejects missing or null tools: %j', async (envelope) => {
+    result = envelope
+    await expect(listToolsTolerant(client)).rejects.toThrow()
+  })
+
+  it('rejects a non-string pagination cursor', async () => {
+    result = { tools: validTools, nextCursor: 123 }
+    await expect(listToolsTolerant(client)).rejects.toThrow(/nextCursor/)
+  })
+
+  it('retains all accepted tools when metadata caching is unsupported', async () => {
+    result = { tools: validTools }
+    const requestOnlyClient = { request: client.request.bind(client) } as unknown as Client
+
+    await expect(listToolsTolerant(requestOnlyClient)).resolves.toEqual(validTools)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledExactlyOnceWith(
+      'MCP tool metadata caching is unsupported; retaining accepted tools',
+      expect.objectContaining({ reason: expect.stringContaining('cacheToolMetadata') })
+    )
   })
 
   it('resolves with valid tools and rebuilds their metadata after skipping an uncompilable output schema', async () => {
