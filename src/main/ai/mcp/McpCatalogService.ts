@@ -142,7 +142,7 @@ export class McpCatalogService extends BaseService {
         const serverTool: McpTool = {
           ...tool,
           inputSchema: MCP_TOOL_INPUT_SCHEMA.parse(tool.inputSchema),
-          outputSchema: tool.outputSchema ? MCP_TOOL_OUTPUT_SCHEMA.parse(tool.outputSchema) : undefined,
+          outputSchema: tool.outputSchema === undefined ? undefined : MCP_TOOL_OUTPUT_SCHEMA.parse(tool.outputSchema),
           id: buildMcpToolWireId({
             serverId: server.id,
             serverName: server.name,

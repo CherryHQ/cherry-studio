@@ -123,6 +123,16 @@ describe('McpCatalogService', () => {
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'connected')
   })
 
+  it('preserves a false output schema that rejects every result', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue([{ ...sdkTool('reject-all'), outputSchema: false }])
+
+    const service = new McpCatalogService()
+    await service.refreshTools('server-1')
+
+    expect(service.listTools('server-1', { includeDisabled: true })[0].outputSchema).toBe(false)
+  })
+
   it('mints distinct ids for non-ASCII server names with the same readable slug', async () => {
     getById.mockImplementation((id: string) =>
       id === 'server-a' ? server({ id, name: 'mysql_报销' }) : server({ id, name: 'mysql_电梯' })
