@@ -61,6 +61,7 @@ const DeviceConnectionsSettings: FC = () => {
   const [isUpdatingLan, setIsUpdatingLan] = useState(false)
   const [revokingId, setRevokingId] = useState<string>()
   const invitationRequestId = useRef(0)
+  const claimRequestId = useRef(0)
 
   const openMobileDownload = () => {
     const language = i18n.resolvedLanguage ?? i18n.language
@@ -70,28 +71,34 @@ const DeviceConnectionsSettings: FC = () => {
 
   const clearInvitation = useCallback(() => {
     invitationRequestId.current += 1
+    claimRequestId.current += 1
     setInvitation(undefined)
     setClaims([])
     setIsCreatingInvitation(false)
   }, [])
 
   const refreshClaims = useCallback(async () => {
+    if (!connectionReady) return
+    const requestId = ++claimRequestId.current
     try {
-      setClaims(await ipcApi.request('api_gateway.remote.list_claims'))
+      const pending = await ipcApi.request('api_gateway.remote.list_claims')
+      if (requestId === claimRequestId.current) setClaims(pending)
     } catch {
-      setClaims([])
+      if (requestId === claimRequestId.current) setClaims([])
     }
-  }, [])
+  }, [connectionReady])
 
   useDataChange('/api-gateway/paired-devices', () => void refetchDevices())
   useIpcOn('api_gateway.remote.pairing_changed', () => void refreshClaims())
 
   useEffect(() => {
     clearInvitation()
+    void refreshClaims()
     return () => {
       invitationRequestId.current += 1
+      claimRequestId.current += 1
     }
-  }, [connectionReady, clearInvitation])
+  }, [refreshClaims, clearInvitation])
 
   useEffect(() => {
     if (!invitation) return

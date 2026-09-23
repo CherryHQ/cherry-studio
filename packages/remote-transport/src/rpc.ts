@@ -15,6 +15,8 @@ interface Schema<T> {
 export class RemoteRpcError extends JSONRPCErrorException {
   constructor(reason: RemoteFailure['reason'], message: string, details?: RemoteFailure['details']) {
     super(message, 1000, { reason, message, ...(details ? { details } : {}) })
+    // json-rpc-2.0 resets the prototype to its base exception, losing subclass identity.
+    Object.setPrototypeOf(this, new.target.prototype)
   }
 }
 

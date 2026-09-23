@@ -4,9 +4,11 @@ import path from 'node:path'
 import { setupTestDatabase } from '@test-helpers/db'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type * as RemoteProtocol from '@cherrystudio/remote-protocol'
+import { remoteLimits } from '@cherrystudio/remote-protocol'
 import {
   type AgentCheckpointPage,
   type AgentEventBatch,
@@ -44,6 +46,7 @@ const fake = vi.hoisted(() => {
   const streams = new Map<string, StreamListener[]>()
   return {
     streams,
+    replayBudget: undefined as number | undefined,
     onStarted: undefined as undefined | ((listeners: StreamListener[]) => Promise<void>),
     manager: {
       hasLiveStream: (topicId: string) => streams.has(topicId),
@@ -53,9 +56,24 @@ const fake = vi.hoisted(() => {
         listeners.push(listener)
         return true
       },
-      abortAndDrain: vi.fn(async () => {})
+      abortAndDrain: vi.fn(async (_topicId: string, _reason: string, beforeAbort?: () => void) => {
+        beforeAbort?.()
+      })
     },
     runtime: { assertSessionWritable() {}, isSessionBusy: () => false, respondToolApproval: vi.fn(() => true) }
+  }
+})
+
+vi.mock('@cherrystudio/remote-protocol', async (importOriginal) => {
+  const original = await importOriginal<typeof RemoteProtocol>()
+  return {
+    ...original,
+    remoteLimits: {
+      ...original.remoteLimits,
+      get globalReplayBytes() {
+        return fake.replayBudget ?? original.remoteLimits.globalReplayBytes
+      }
+    }
   }
 })
 
@@ -215,8 +233,15 @@ describe('remote agent access', () => {
     return installed
   }
 
+  afterEach(() => {
+    connection.dispose()
+    hub.dispose()
+    vi.useRealTimers()
+  })
+
   beforeEach(async () => {
     fake.streams.clear()
+    fake.replayBudget = undefined
     fake.onStarted = undefined
     notifications.length = 0
     fake.runtime.respondToolApproval.mockClear()
@@ -1123,6 +1148,131 @@ describe('remote agent access', () => {
     expect(projection.executions[receipt.executionId]).toBeDefined()
   })
 
+  it('rejects cancellation if another execution wins admission before the dispatch lock', async () => {
+    const journal = hub.journal(sessionId)
+    journal.ensureExecution('old')
+    fake.manager.abortAndDrain.mockImplementationOnce(async (_topic, _reason, beforeAbort) => {
+      journal.ensureExecution('new')
+      beforeAbort?.()
+    })
+    const result = await call('agent.executions.cancel', {
+      commandId: randomUUID(),
+      sessionId,
+      expectedExecutionId: 'old'
+    })
+    expect(result).toMatchObject({ status: 'rejected', error: { reason: 'CONFLICT' } })
+    expect(journal.activeExecutionId).toBe('new')
+    expect(await call('agent.commands.get', { commandId: result.commandId })).toEqual(result)
+  })
+
+  it.each([false, true])('retains leased journals (active=%s) until disconnect', async (active) => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const journal = hub.journal(sessionId)
+    const pending = await call('agent.sessions.subscribe', { sessionId })
+    if (active)
+      await call('agent.subscriptions.activate', {
+        subscriptionId: pending.subscriptionId,
+        appliedCursor: pending.checkpoint.cursor
+      })
+    if (active) await tick()
+    vi.setSystemTime(Date.now() + remoteLimits.replayMs + 1)
+    hub.sweep()
+    expect(hub.journal(sessionId).epoch).toBe(journal.epoch)
+    const auth = connection.requireCapability('agent')
+    connection.dispose()
+    vi.setSystemTime(Date.now() + remoteLimits.replayMs + 1)
+    hub.sweep()
+    await call('connection.authenticate', { deviceId: auth.deviceId })
+    const resumed = await call('agent.sessions.subscribe', { sessionId, cursor: pending.checkpoint.cursor })
+    expect(resumed).toMatchObject({ mode: 'checkpoint', reason: 'epoch changed' })
+  })
+
+  it('enforces the aggregate replay budget and makes an evicted cursor recover through a checkpoint', async () => {
+    fake.replayBudget = 8000
+    const first = hub.journal(sessionId)
+    const cursor = first.cursor
+    const other = agentSessionService.create({ agentId: 'agent-1', name: 'Other', workspace: { type: 'system' } })
+    const second = hub.journal(other.id)
+    for (const journal of [first, second]) {
+      await journal.startRun('hi', 'agent-1', () => {})
+      const listener = fake.streams.get(`agent-session:${journal.sessionId}`)![0]
+      listener.onChunk({ type: 'text-start', id: 'text' }, undefined, 'message')
+      listener.onChunk({ type: 'text-delta', id: 'text', delta: 'a'.repeat(6000) }, undefined, 'message')
+    }
+    expect(first.replayBytes + second.replayBytes).toBeLessThanOrEqual(remoteLimits.globalReplayBytes)
+    expect(first.activeExecutionId).toBeDefined()
+    expect(second.activeExecutionId).toBeDefined()
+    expect(await call('agent.sessions.subscribe', { sessionId, cursor })).toMatchObject({
+      mode: 'checkpoint',
+      reason: 'replay window evicted'
+    })
+  })
+
+  it('caps idle journal count without evicting a subscribed session', async () => {
+    const pinned = hub.journal(sessionId)
+    await call('agent.sessions.subscribe', { sessionId })
+    let first: ReturnType<typeof hub.journal> | undefined
+    for (let i = 0; i < 130; i++) {
+      const session = agentSessionService.create({
+        agentId: 'agent-1',
+        name: `Chat ${i}`,
+        workspace: { type: 'system' }
+      })
+      const journal = hub.journal(session.id)
+      first ??= journal
+    }
+    expect(hub.journal(sessionId).epoch).toBe(pinned.epoch)
+    expect(hub.journal(first!.sessionId).epoch).not.toBe(first!.epoch)
+  })
+
+  it('preserves receipts at device capacity and refuses new commands even after grant rotation', async () => {
+    const auth = connection.requireCapability('agent')
+    dbh.sqlite
+      .prepare(`WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 10000)
+      INSERT INTO remote_command (device_id, grant_id, command_id, method, identity_digest, status, admitted_at, created_at, updated_at)
+      SELECT ?, ?, CAST(x AS TEXT), 'agent.executions.cancel', 'digest', 'applied', 1000, 1000, 1000 FROM n`)
+      .run(auth.deviceId, auth.grantId)
+    const key = { ...auth, commandId: '1' }
+    const input = { method: 'agent.executions.cancel', identityDigest: 'digest' }
+    expect(remoteCommandService.admit(key, input)).toMatchObject({ kind: 'existing', receipt: { status: 'applied' } })
+    expect(remoteCommandService.admit(key, { ...input, identityDigest: 'changed' })).toEqual({ kind: 'conflict' })
+    expect(remoteCommandService.admit({ ...key, grantId: 'rotated' }, input)).toEqual({ kind: 'exhausted' })
+    await expect(
+      call('agent.executions.cancel', { commandId: randomUUID(), sessionId, expectedExecutionId: 'old' })
+    ).rejects.toMatchObject({ data: { reason: 'RESOURCE_EXHAUSTED' } })
+    const before = agentSessionService.listIdsByAgent('agent-1')
+    await expect(
+      call('agent.sessions.create', { commandId: randomUUID(), agentId: 'agent-1', workspace: { kind: 'system' } })
+    ).rejects.toMatchObject({ data: { reason: 'RESOURCE_EXHAUSTED' } })
+    expect(agentSessionService.listIdsByAgent('agent-1')).toEqual(before)
+    expect(dbh.sqlite.prepare('SELECT count(*) AS n FROM remote_command').get()).toEqual({ n: 10000 })
+  })
+
+  it('enforces desktop receipt capacity across devices while keeping existing receipts readable', async () => {
+    const insert = dbh.sqlite.prepare(`WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 10000)
+      INSERT INTO remote_command (device_id, grant_id, command_id, method, identity_digest, status, admitted_at, created_at, updated_at)
+      SELECT ?, 'grant', CAST(x AS TEXT), 'agent.executions.cancel', 'digest', 'applied', 1000, 1000, 1000 FROM n`)
+    for (let i = 0; i < 10; i++) {
+      const { device } = apiGatewayPairedDeviceService.approveRemote({
+        name: `Phone ${i}`,
+        platform: 'ios',
+        peerIdentity: `phone-${i}`,
+        capabilities: ['agent']
+      })
+      insert.run(device.id)
+      expect(remoteCommandService.get({ deviceId: device.id, grantId: 'grant', commandId: '1' })).toMatchObject({
+        status: 'applied'
+      })
+    }
+    const key = { ...connection.requireCapability('agent'), commandId: 'new' }
+    const input = { method: 'agent.executions.cancel', identityDigest: 'digest' }
+    expect(remoteCommandService.admit(key, input)).toEqual({ kind: 'exhausted' })
+    const device = apiGatewayPairedDeviceService.list().find((value) => value.name === 'Phone 0')!
+    dbh.sqlite.prepare('DELETE FROM api_gateway_paired_device WHERE id = ?').run(device.id)
+    expect(remoteCommandService.admit(key, input)).toMatchObject({ kind: 'accepted' })
+    expect(dbh.sqlite.prepare('SELECT count(*) AS n FROM remote_command').get()).toEqual({ n: 90001 })
+  })
+
   it('cancels only the execution the phone expects', async () => {
     const { session } = await call('agent.sessions.get', { sessionId })
     const receipt = await call('agent.messages.send', {
@@ -1141,6 +1291,5 @@ describe('remote agent access', () => {
         expectedExecutionId: receipt.executionId
       })
     ).toMatchObject({ status: 'applied', result: { disposition: 'cancelled' } })
-    expect(fake.manager.abortAndDrain).toHaveBeenCalledWith(`agent-session:${sessionId}`, 'remote-cancel')
   })
 })

@@ -99,10 +99,24 @@ describe('pairing-time capability authorization', () => {
       capabilities: ['configuration'] as const
     }
     const claim = pairing.claimInvitation('phone', { ...input, capabilities: [...input.capabilities] })
+    expect(pairing.claimInvitation('phone', { ...input, capabilities: [...input.capabilities] })).toEqual(claim)
+    expect(pairing.pending()).toHaveLength(1)
+    for (const changed of [{ deviceName: 'Changed' }, { platform: 'android' }, { capabilities: ['agent'] as const }]) {
+      expect(() =>
+        pairing.claimInvitation('phone', {
+          ...input,
+          ...changed,
+          capabilities: [...(changed.capabilities ?? input.capabilities)]
+        })
+      ).toThrow('already claimed')
+    }
     expect(() => pairing.claimInvitation('other', { ...input, capabilities: [...input.capabilities] })).toThrow(
       'already claimed'
     )
     pairing.decide(claim.claimId, null)
+    expect(() => pairing.claimInvitation('phone', { ...input, capabilities: [...input.capabilities] })).toThrow(
+      'already claimed'
+    )
     expect(pairing.get(claim.claimId, 'phone')).toEqual({ status: 'rejected' })
     expect(() => pairing.decide(claim.claimId, ['configuration'])).toThrow('expired')
     pairing.create()

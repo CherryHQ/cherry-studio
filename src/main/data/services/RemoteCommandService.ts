@@ -1,10 +1,13 @@
-import { and, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 
 import { application } from '@application'
 import type { RemoteFailure } from '@cherrystudio/remote-protocol'
 import type { CommandReceipt } from '@cherrystudio/remote-protocol/agent'
 import { type RemoteCommandRow, remoteCommandTable } from '@data/db/schemas/remoteCommand'
 import type { DbOrTx } from '@data/db/types'
+
+const DEVICE_RECEIPTS = 10_000
+const GLOBAL_RECEIPTS = 100_000
 
 export interface RemoteCommandKey {
   deviceId: string
@@ -81,6 +84,7 @@ export class RemoteCommandService {
   ):
     | { kind: 'existing'; receipt: CommandReceipt }
     | { kind: 'conflict' }
+    | { kind: 'exhausted' }
     | { kind: 'accepted'; receipt: CommandReceipt } {
     return application.get('DbService').withWriteTx((tx) => {
       const existing = tx.select().from(remoteCommandTable).where(this.where(key)).get()
@@ -89,6 +93,17 @@ export class RemoteCommandService {
           ? { kind: 'existing', receipt: toReceipt(existing) }
           : { kind: 'conflict' }
       }
+      // Keep deduplication receipts for the grant lifetime; reject new work instead of replaying expired commands.
+      const deviceCount = tx
+        .select({ count: count() })
+        .from(remoteCommandTable)
+        .where(eq(remoteCommandTable.deviceId, key.deviceId))
+        .get()!.count
+      if (
+        deviceCount >= DEVICE_RECEIPTS ||
+        tx.select({ count: count() }).from(remoteCommandTable).get()!.count >= GLOBAL_RECEIPTS
+      )
+        return { kind: 'exhausted' }
       const row = tx
         .insert(remoteCommandTable)
         .values({

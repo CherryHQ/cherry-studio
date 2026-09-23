@@ -102,6 +102,8 @@ export function registerAgentMethods(
       identityDigest: sha256(encodeAgentCommand(method, params)),
       sessionId
     })
+    if (admission.kind === 'exhausted')
+      throw new RemoteRpcError('RESOURCE_EXHAUSTED', 'Command receipt capacity reached for this device or desktop')
     if (admission.kind === 'conflict')
       throw new RemoteRpcError('IDEMPOTENCY_CONFLICT', 'Command body differs from the recorded command')
     if (admission.kind === 'existing') return admission.receipt
@@ -157,6 +159,8 @@ export function registerAgentMethods(
         throw error
       })
     }
+    if (admission.kind === 'exhausted')
+      throw new RemoteRpcError('RESOURCE_EXHAUSTED', 'Command receipt capacity reached for this device or desktop')
     if (admission.kind === 'conflict')
       throw new RemoteRpcError('IDEMPOTENCY_CONFLICT', 'Command body differs from the recorded command')
     if (admission.kind === 'accepted' && admission.receipt.sessionId)
@@ -205,11 +209,12 @@ export function registerAgentMethods(
   on('agent.executions.cancel', (params, auth) => {
     getSession(params.sessionId)
     return command(auth, 'agent.executions.cancel', params, params.sessionId, async () => {
-      if (hub.journal(params.sessionId).activeExecutionId !== params.expectedExecutionId)
-        return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Execution is not active' } }
       await application
         .get('AiStreamManager')
-        .abortAndDrain(buildAgentSessionTopicId(params.sessionId), 'remote-cancel')
+        .abortAndDrain(buildAgentSessionTopicId(params.sessionId), 'remote-cancel', () => {
+          if (hub.journal(params.sessionId).activeExecutionId !== params.expectedExecutionId)
+            throw new RemoteRpcError('CONFLICT', 'Execution is not active')
+        })
       return {
         status: 'applied',
         executionId: params.expectedExecutionId,

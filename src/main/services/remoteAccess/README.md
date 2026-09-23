@@ -66,3 +66,20 @@ Model display metadata follows its owner: Agent catalogs use `AgentService`'s cu
 while message history and terminal events use the persisted model identity and matching immutable
 snapshot. A changed or removed Agent model never rewrites historical message identity. Unsaved
 terminal answers retain final message metadata or the terminal producing model ID.
+
+Resource limits preserve recovery semantics: replay events share a 64 MiB desktop budget
+in addition to the per-session 8 MiB / five-minute window. The hub retains at most 128
+journals, evicts unused idle journals after five minutes (or earlier under count pressure),
+and keeps prepared/active subscriptions and running executions attached. Evicted cursors
+recover through checkpoints. This is a replay budget, not a bound on all runtime memory.
+
+Command receipts are retained until their paired device is removed. New admission stops
+at 10,000 receipts per device or 100,000 per desktop with `RESOURCE_EXHAUSTED`; grant rotation
+does not reset this limit. Identical retries and receipt queries still work at capacity.
+Removing a paired device cascades its receipts. Receipts are not aged out: silently forgetting
+an old command would allow its side effect to run again on retry.
+
+Cancellation checks the expected execution inside the stream manager's dispatch lock.
+An identical pending pairing claim can be retried by the same proven device key; changed
+claim contents or another key still conflict. Settings reads pending claims on entry and
+ignores responses superseded by later pairing events or a stopped LAN listener.

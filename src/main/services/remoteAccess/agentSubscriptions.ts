@@ -73,6 +73,7 @@ export class AgentSubscriptions {
             : undefined
     if (cursor && !reason) {
       subscription.cursorSeq = Number(cursor.seq)
+      subscription.unobserve = journal.observe(() => this.schedule(subscription))
       this.subscriptions.set(subscription.id, subscription)
       return {
         subscriptionId: subscription.id,
@@ -85,6 +86,7 @@ export class AgentSubscriptions {
     const checkpoint = journal.capture()
     subscription.cursorSeq = Number(checkpoint.descriptor.cursor.seq)
     subscription.checkpoint = checkpoint
+    subscription.unobserve = journal.observe(() => this.schedule(subscription))
     this.subscriptions.set(subscription.id, subscription)
     return {
       subscriptionId: subscription.id,
@@ -137,7 +139,6 @@ export class AgentSubscriptions {
         subscription.checkpoint = undefined
         subscription.lastSent = subscription.cursorSeq
         subscription.lastAck = subscription.cursorSeq
-        subscription.unobserve = subscription.journal.observe(() => this.schedule(subscription))
         this.schedule(subscription)
       }
     }

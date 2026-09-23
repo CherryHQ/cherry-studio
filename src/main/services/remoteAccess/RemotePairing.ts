@@ -54,7 +54,19 @@ export class RemotePairing {
       !timingSafeEqual(secret, expected)
     )
       throw new RemoteRpcError('FORBIDDEN', 'Invitation is invalid or expired')
-    if (this.claim) throw new RemoteRpcError('CONFLICT', 'Invitation already claimed')
+    if (this.claim) {
+      const claim = this.claim
+      if (
+        claim.status !== 'pending' ||
+        claim.peerIdentity !== peerIdentity ||
+        claim.deviceName !== input.deviceName ||
+        claim.platform !== input.platform ||
+        claim.capabilities.length !== input.capabilities.length ||
+        claim.capabilities.some((capability) => !input.capabilities.includes(capability))
+      )
+        throw new RemoteRpcError('CONFLICT', 'Invitation already claimed')
+      return { claimId: claim.claimId, verificationCode: claim.verificationCode, expiresAt: claim.expiresAt }
+    }
     this.claim = {
       claimId: randomUUID(),
       peerIdentity,

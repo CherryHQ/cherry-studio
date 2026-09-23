@@ -44,6 +44,7 @@ const logger = loggerService.withContext('RemoteAgentJournal')
 const integrity = { sha256 }
 const APPEND_CHARS = 4096
 const PAGE_BYTES = 48_000
+const MAX_JOURNALS = 128
 
 type Distribute<T> = T extends unknown ? Omit<T, 'seq'> : never
 type PendingEvent = Distribute<AgentEvent>
@@ -94,6 +95,8 @@ export class SessionJournal {
   epoch = randomUUID()
   projection: AgentProjection
   readonly pins = new Map<string, Uint8Array>()
+  lastUsedAt = Date.now()
+  private starting = 0
   private seq = 0
   private revision = 0
   private entries: Entry[] = []
@@ -104,9 +107,34 @@ export class SessionJournal {
   private readonly observers = new Set<() => void>()
   private readonly topicId: string
 
-  constructor(readonly sessionId: string) {
+  constructor(
+    readonly sessionId: string,
+    private readonly onAppend: () => void = () => {}
+  ) {
     this.topicId = buildAgentSessionTopicId(sessionId)
     this.projection = this.emptyProjection()
+  }
+
+  get replayBytes(): number {
+    return this.retainedBytes
+  }
+
+  get oldestReplayAt(): number {
+    return this.entries[0]?.at ?? Infinity
+  }
+
+  get disposable(): boolean {
+    return (
+      !this.starting &&
+      !this.execution &&
+      !this.observers.size &&
+      !application.get('AiStreamManager').hasLiveStream(this.topicId) &&
+      !application.get('AgentSessionRuntimeService').isSessionBusy(this.sessionId)
+    )
+  }
+
+  trimReplay(maxBytes: number): void {
+    while (this.entries.length && this.retainedBytes > maxBytes) this.retainedBytes -= this.entries.shift()!.bytes
   }
 
   get cursor(): AgentCursor {
@@ -218,25 +246,31 @@ export class SessionJournal {
   ): Promise<{ started: true; executionId: string } | { started: false; reason: 'busy' | 'session-invalid' }> {
     const listener = new RemoteAgentListener(this, randomUUID())
     const userParts: CherryMessagePart[] = [{ type: 'text', text }]
-    const result = await startAgentSessionRun({
-      sessionId: this.sessionId,
-      userParts,
-      listeners: [listener],
-      requireIdle: { expectedAgentId },
-      onPersist: (tx, messages) =>
-        onPersist(tx, {
-          executionId: listener.executionId,
-          messageId: messages.assistantMessageId,
-          userMessageId: messages.userMessageId
-        })
-    })
-    if (result.mode !== 'started') {
-      listener.current = false
-      return { started: false, reason: result.reason }
+    this.starting += 1
+    try {
+      const result = await startAgentSessionRun({
+        sessionId: this.sessionId,
+        userParts,
+        listeners: [listener],
+        requireIdle: { expectedAgentId },
+        onPersist: (tx, messages) =>
+          onPersist(tx, {
+            executionId: listener.executionId,
+            messageId: messages.assistantMessageId,
+            userMessageId: messages.userMessageId
+          })
+      })
+      if (result.mode !== 'started') {
+        listener.current = false
+        return { started: false, reason: result.reason }
+      }
+      this.listener = listener
+      if (listener.current) this.ensureExecution(listener.executionId)
+      return { started: true, executionId: listener.executionId }
+    } finally {
+      this.starting -= 1
+      this.lastUsedAt = Date.now()
     }
-    this.listener = listener
-    if (listener.current) this.ensureExecution(listener.executionId)
-    return { started: true, executionId: listener.executionId }
   }
 
   ensureExecution(executionId: string): LiveExecution {
@@ -712,7 +746,9 @@ export class SessionJournal {
     const bytes = utf8(JSON.stringify(event)).length
     this.entries.push({ event, bytes, at: Date.now() })
     this.retainedBytes += bytes
+    this.lastUsedAt = Date.now()
     this.evict()
+    this.onAppend()
     for (const observer of this.observers) observer()
   }
 
@@ -722,6 +758,7 @@ export class SessionJournal {
     this.entries = []
     this.retainedBytes = 0
     this.pins.clear()
+    this.interactionInputs.clear()
     this.projection = this.emptyProjection()
     for (const observer of this.observers) observer()
   }
@@ -778,9 +815,18 @@ export class RemoteAgentHub {
   journal(sessionId: string): SessionJournal {
     let journal = this.journals.get(sessionId)
     if (!journal) {
-      journal = new SessionJournal(sessionId)
+      if (this.journals.size >= MAX_JOURNALS) {
+        const oldest = [...this.journals.values()]
+          .filter((value) => value.disposable)
+          .sort((a, b) => a.lastUsedAt - b.lastUsedAt)[0]
+        if (!oldest) throw new RemoteRpcError('RESOURCE_EXHAUSTED', 'Too many retained session journals')
+        oldest.dispose()
+        this.journals.delete(oldest.sessionId)
+      }
+      journal = new SessionJournal(sessionId, () => this.enforceReplayBudget())
       this.journals.set(sessionId, journal)
     }
+    journal.lastUsedAt = Date.now()
     journal.poll()
     return journal
   }
@@ -795,7 +841,23 @@ export class RemoteAgentHub {
   }
 
   sweep(): void {
-    for (const journal of this.journals.values()) journal.poll()
+    for (const journal of this.journals.values()) {
+      if (journal.disposable && journal.lastUsedAt <= Date.now() - remoteLimits.replayMs) {
+        journal.dispose()
+        this.journals.delete(journal.sessionId)
+      } else journal.poll()
+    }
+  }
+
+  private enforceReplayBudget(): void {
+    const journals = [...this.journals.values()].sort((a, b) => a.oldestReplayAt - b.oldestReplayAt)
+    let excess = journals.reduce((bytes, journal) => bytes + journal.replayBytes, 0) - remoteLimits.globalReplayBytes
+    for (const journal of journals) {
+      if (excess <= 0) break
+      const before = journal.replayBytes
+      journal.trimReplay(Math.max(0, before - excess))
+      excess -= before - journal.replayBytes
+    }
   }
 
   dispose(): void {

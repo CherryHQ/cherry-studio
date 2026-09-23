@@ -9,7 +9,8 @@ import enUS from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
 import type { OutputFor } from '@shared/ipc/types'
 
-const { requestMock, navigateMock, useApiGatewayMock, useIpcOnMock } = vi.hoisted(() => ({
+const { invitationMock, requestMock, navigateMock, useApiGatewayMock, useIpcOnMock } = vi.hoisted(() => ({
+  invitationMock: vi.fn(),
   requestMock: vi.fn(),
   navigateMock: vi.fn(),
   useApiGatewayMock: vi.fn(),
@@ -79,7 +80,12 @@ describe('DeviceConnectionsSettings', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [])
-    requestMock.mockReset()
+    invitationMock.mockReset()
+    requestMock.mockReset().mockImplementation(async (name: string) => {
+      if (name === 'api_gateway.remote.list_claims') return []
+      if (name === 'api_gateway.remote.create_invitation') return invitationMock()
+      return undefined
+    })
     navigateMock.mockReset()
     MockUseCacheUtils.resetMocks()
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
@@ -130,11 +136,13 @@ describe('DeviceConnectionsSettings', () => {
 
     await user.click(screen.getByRole('button', { name: enabled ? 'Enable LAN access' : 'Disable LAN access' }))
 
-    expect(requestMock.mock.calls).toEqual([['api_gateway.lan.set_enabled', { enabled }]])
+    expect(requestMock.mock.calls.filter(([name]) => name !== 'api_gateway.remote.list_claims')).toEqual([
+      ['api_gateway.lan.set_enabled', { enabled }]
+    ])
   })
 
   it('renders the QR from the Main-owned invitation', async () => {
-    requestMock.mockResolvedValue(createInvitation('live-invitation'))
+    invitationMock.mockResolvedValue(createInvitation('live-invitation'))
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
 
@@ -157,7 +165,7 @@ describe('DeviceConnectionsSettings', () => {
   it('discards a pre-stop QR response without interrupting the new request after restart', async () => {
     let resolveOld!: (invitation: OutputFor<'api_gateway.remote.create_invitation'>) => void
     let resolveNew!: (invitation: OutputFor<'api_gateway.remote.create_invitation'>) => void
-    requestMock
+    invitationMock
       .mockReturnValueOnce(
         new Promise((resolve) => {
           resolveOld = resolve
@@ -190,15 +198,17 @@ describe('DeviceConnectionsSettings', () => {
   })
 
   it('replaces the QR with the claim and approves only the capabilities left checked', async () => {
+    let pending = false
     requestMock.mockImplementation(async (name: string) => {
       if (name === 'api_gateway.remote.create_invitation') return createInvitation('live-invitation')
-      if (name === 'api_gateway.remote.list_claims') return [claim]
+      if (name === 'api_gateway.remote.list_claims') return pending ? [claim] : []
       return undefined
     })
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
     await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
     await screen.findByRole('img', { name: 'Pair a device' })
+    pending = true
 
     await act(async () => {
       useIpcOnMock.mock.calls.find(([event]) => event === 'api_gateway.remote.pairing_changed')![1]()
@@ -218,15 +228,13 @@ describe('DeviceConnectionsSettings', () => {
     expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeEnabled()
   })
 
-  it('rejects a claim without granting anything', async () => {
+  it('loads a pending claim on mount and rejects it without granting anything', async () => {
     requestMock.mockImplementation(async (name: string) =>
       name === 'api_gateway.remote.list_claims' ? [claim] : undefined
     )
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
-    await act(async () => {
-      useIpcOnMock.mock.calls.find(([event]) => event === 'api_gateway.remote.pairing_changed')![1]()
-    })
+    expect(await screen.findByRole('group', { name: 'Pairing request' })).toHaveTextContent('123456')
 
     await user.click(screen.getByRole('button', { name: 'Reject' }))
 
@@ -235,6 +243,39 @@ describe('DeviceConnectionsSettings', () => {
       capabilities: null
     })
     expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('does not restore claims from a request started before the LAN listener stopped', async () => {
+    let resolve!: (claims: (typeof claim)[]) => void
+    requestMock.mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        })
+    )
+    const { rerender } = render(<DeviceConnectionsSettings />)
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
+    rerender(<DeviceConnectionsSettings />)
+    await act(async () => resolve([claim]))
+    expect(screen.queryByRole('group', { name: 'Pairing request' })).not.toBeInTheDocument()
+  })
+
+  it('keeps a newer pairing event result when the mount query finishes late', async () => {
+    let resolve!: (claims: (typeof claim)[]) => void
+    requestMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done
+          })
+      )
+      .mockResolvedValue([])
+    render(<DeviceConnectionsSettings />)
+    await act(async () => {
+      useIpcOnMock.mock.calls.find(([event]) => event === 'api_gateway.remote.pairing_changed')![1]()
+    })
+    await act(async () => resolve([claim]))
+    expect(screen.queryByRole('group', { name: 'Pairing request' })).not.toBeInTheDocument()
   })
 
   it('shows loading until an empty device list has actually been fetched', () => {
@@ -288,7 +329,7 @@ describe('DeviceConnectionsSettings', () => {
 
   it('removes an expired QR and lets the user request a fresh one', async () => {
     let resolveInvitation!: (invitation: OutputFor<'api_gateway.remote.create_invitation'>) => void
-    requestMock.mockReturnValueOnce(
+    invitationMock.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveInvitation = resolve
       })

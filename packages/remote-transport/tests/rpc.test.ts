@@ -2,11 +2,26 @@ import { describe, expect, it } from 'vitest'
 
 import { connectionMethods, remoteAuthorizationSchema } from '@cherrystudio/remote-protocol'
 
-import { RemoteRpcServer } from '../src/index'
+import { RemoteRpcError, RemoteRpcServer } from '../src/index'
 
 const ping = connectionMethods(remoteAuthorizationSchema)['connection.ping']
 
 describe('request-only JSON-RPC dispatch', () => {
+  it('preserves typed domain errors through a catch and RPC serialization', async () => {
+    const server = new RemoteRpcServer<void>(() => {})
+    server.addMethod('connection.ping', ping, () => {
+      try {
+        throw new RemoteRpcError('CONFLICT', 'Execution changed')
+      } catch (error) {
+        if (error instanceof RemoteRpcError) throw error
+        throw new RemoteRpcError('INTERNAL', 'Unknown outcome')
+      }
+    })
+    expect(
+      await server.receive({ jsonrpc: '2.0', id: 1, method: 'connection.ping', params: { nonce: 'n' } }, undefined)
+    ).toMatchObject({ error: { code: 1000, data: { reason: 'CONFLICT', message: 'Execution changed' } } })
+  })
+
   it('distinguishes null IDs from notifications and rejects whole oversized batches before side effects', async () => {
     let count = 0
     const server = new RemoteRpcServer<void>(() => {})
