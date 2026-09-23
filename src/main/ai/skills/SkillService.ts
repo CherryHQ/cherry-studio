@@ -36,7 +36,6 @@ import {
 import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
 import {
-  buildFileTree,
   createTempDir,
   normalizeFolderKey,
   reservedFolderNameStem,
@@ -641,26 +640,14 @@ export class SkillService {
       version: metadata.version ?? null,
       tags,
       contentHash,
+      ...(source === 'marketplace' ? { sourceUrl } : {}),
       ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
     }
 
     if (existing) {
       // Update metadata in-place to preserve the skill ID and its agent_skills rows.
       application.get('DbService').withWriteTx((tx) => {
-<<<<<<< HEAD
-        agentGlobalSkillService.updateTx(tx, existing.id, {
-          name: metadata.name,
-          description: metadata.description ?? null,
-          author: metadata.author ?? null,
-          version: metadata.version ?? null,
-          tags,
-          contentHash,
-          ...(source === 'marketplace' ? { sourceUrl } : {}),
-          ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
-        })
-=======
         agentGlobalSkillService.updateTx(tx, existing.id, metadataUpdate)
->>>>>>> 9823c891a4 (fix(skill-install): gate folder migration on GitHub-root origin)
       })
       const updated = agentGlobalSkillService.getById(existing.id)!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName: destFolderName, source })
