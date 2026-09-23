@@ -32,7 +32,7 @@ const mocks = vi.hoisted(() => ({
   miniApps: {
     openedKeepAliveMiniApps: [] as unknown[],
     currentMiniAppId: '',
-    openedOneOffMiniApp: null as unknown,
+    openedOneOffMiniApp: null,
     setOpenedKeepAliveMiniApps: vi.fn(),
     setCurrentMiniAppId: vi.fn(),
     setMiniAppShow: vi.fn()
@@ -129,7 +129,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 
 vi.mock('@renderer/utils/miniAppKeepAlive', async () => {
   const actual = await vi.importActual('@renderer/utils/miniAppKeepAlive')
-  return actual as object
+  return actual
 })
 
 vi.mock('@renderer/services/MiniAppWebviewService', () => ({
