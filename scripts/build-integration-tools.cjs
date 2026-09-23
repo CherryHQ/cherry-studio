@@ -56,12 +56,14 @@ async function main() {
     if (!recipe) throw new Error(`Unknown native tool: ${name}`)
     const source = checkout(recipe.source)
     const cwd = path.join(source, recipe.directory || '')
-    const env = name === 'compass' ? { PROJECT_ROOT: await parserSources(), TSLP_OFFLINE: '1' } : {}
+    const env = { RUSTC_WRAPPER: '', CARGO_BUILD_BUILD_DIR: path.join(cwd, 'target'),
+      ...(name === 'compass' ? { PROJECT_ROOT: await parserSources(), TSLP_OFFLINE: '1' } : {}) }
     run('cargo', ['build', '--release', '--locked', '-p', recipe.package, '--bin', name, '--target', target, ...(recipe.features ? ['--features', recipe.features] : [])], cwd, env)
     const binary = name + (process.platform === 'win32' ? '.exe' : '')
     const asset = `${name}-${platform}${process.platform === 'win32' ? '.exe' : ''}`
     fs.copyFileSync(path.join(cwd, 'target', target, 'release', binary), path.join(output, asset))
     records.push({ name, version: recipe.version, platform, asset, sha256: hash(path.join(output, asset)), binaries: [binary], archive: 'none' })
+    fs.writeFileSync(path.join(output, `tools-${platform}.json`), JSON.stringify(records, null, 2))
     if (name === 'compass' && platform === 'linux-x64') {
       const skills = path.join(output, 'compass-skills')
       fs.mkdirSync(skills, { recursive: true })

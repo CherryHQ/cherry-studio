@@ -80,6 +80,7 @@ jobs:
             build/integration-source/**/target
           key: ${{ steps.native-cache.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v5
+        if: always()
         with:
           name: native-tools-${{ matrix.platform }}
           path: build/integration-output/*
