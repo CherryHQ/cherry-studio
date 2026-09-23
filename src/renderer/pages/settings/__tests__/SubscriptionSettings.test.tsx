@@ -32,9 +32,9 @@ afterEach(() => {
 })
 
 describe('SubscriptionSettings', () => {
-  it('opens the Dev account center externally when the cloud API runs locally', async () => {
-    vi.stubEnv('DEV', true)
-    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', 'http://127.0.0.1:8084')
+  it('opens the production account center on the cloud origin', async () => {
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', 'https://cloud.cherryai.com')
     requestMock.mockImplementation((route: string) => {
       if (route === 'cherry_cloud.account_plans.get') {
         return Promise.resolve({ measured_at: '2026-09-21T00:00:00Z', entitlements: [], available_plans: [] })
@@ -49,7 +49,7 @@ describe('SubscriptionSettings', () => {
 
     expect(requestMock).toHaveBeenCalledWith(
       'system.shell.open_external_website',
-      'https://accounts-dev.cherryai.com/account/plans'
+      'https://cloud.cherryai.com/account/plans'
     )
   })
 

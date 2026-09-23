@@ -5,6 +5,6 @@ export function openCherryCloudAccountPortal(): Promise<void> {
   const usesDevAccount =
     import.meta.env.DEV || new URL(configured || 'https://cloud.cherryai.com').hostname === 'cloud-dev.cherryai.com'
   return openExternalWebsite(
-    usesDevAccount ? 'https://accounts-dev.cherryai.com/account/plans' : 'https://accounts.cherryai.com/account/plans'
+    usesDevAccount ? 'https://cloud-dev.cherryai.com/account/plans' : 'https://cloud.cherryai.com/account/plans'
   )
 }
