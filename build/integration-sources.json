@@ -12,7 +12,7 @@
     },
     "prometheus": {
       "repository": "Prometheus-AGS/prometheus-skill-system",
-      "revision": "a867a6713e822081c25efa00dd648c7211e22625"
+      "revision": "e57421a86fae08ac4d1e3a625a213cf3f3eb98bc"
     },
     "pk": {
       "repository": "Prometheus-AGS/prometheus-knowledge-rs",
