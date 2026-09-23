@@ -1,8 +1,12 @@
 {
   "version": "2.1.3",
-  "source": "61dab176d4e9bcd1ab78fb51c13ccb13e06e587c",
-  "publishedAt": "2026-09-23T14:48:02.352Z",
-  "pendingPlatforms": ["win32-arm64", "darwin-x64", "linux-x64", "linux-arm64"],
+  "source": "7eb418076277b48e61429e78e94e645254120fa8",
+  "publishedAt": "2026-09-23T15:14:47.999Z",
+  "pendingPlatforms": [
+    "win32-arm64",
+    "linux-x64",
+    "linux-arm64"
+  ],
   "artifacts": [
     {
       "name": "The-Boss-2.1.3-win-x64-setup.exe",
@@ -23,6 +27,16 @@
       "platform": "darwin",
       "arch": "arm64",
       "source": "61dab176d4e9bcd1ab78fb51c13ccb13e06e587c"
+    },
+    {
+      "name": "The-Boss-2.1.3-mac-x64.dmg",
+      "size": 494736002,
+      "sha256": "9e5a8a301b7798e2bf5f992908494dbae629877152c49109761d3c1dcf2e9be5",
+      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-mac-x64.dmg",
+      "signing": "unsigned (not notarized)",
+      "platform": "darwin",
+      "arch": "x64",
+      "source": "7eb418076277b48e61429e78e94e645254120fa8"
     }
   ]
 }
