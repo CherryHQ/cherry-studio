@@ -2,10 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { hasPendingRestore } from '@data/db/restore/restoreGuard'
 import type { RestoreJournalV2, RestoreJournalV2State } from '@data/db/restore/restoreJournalV2'
 import { writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * The reclaim guard is what stands between a running restore and the orphan

@@ -1,11 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import Database from 'better-sqlite3'
+import { readMigrationFiles } from 'drizzle-orm/migrator'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { fsyncDirectorySync, renameOnlySync } from '@main/utils/file'
-import Database from 'better-sqlite3'
-import { readMigrationFiles } from 'drizzle-orm/migrator'
 
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'

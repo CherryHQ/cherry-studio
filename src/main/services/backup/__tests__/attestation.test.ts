@@ -2,10 +2,11 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { application } from '@application'
-import { buildPathRegistry, type PathKey } from '@main/core/paths/pathRegistry'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { buildPathRegistry, type PathKey } from '@main/core/paths/pathRegistry'
 
 import { buildManifestAttestation, verifyManifestAttestation } from '../attestation'
 import { isPathContainedIn } from '../portability/managedPathRebase'

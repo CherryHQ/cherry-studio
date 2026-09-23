@@ -2,10 +2,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { durableFileIo } from '@main/utils/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * File I/O for the v2 journal. The pure schema is covered by

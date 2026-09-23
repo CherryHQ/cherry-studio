@@ -4,11 +4,12 @@ import { stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import zlib from 'node:zlib'
 
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+
 import { applyMigrations } from '@data/db/applyMigrations'
 import { type AppliedMigration, readAppliedChain } from '@data/db/restore/appliedChain'
 import { snapshotTo } from '@data/db/restore/snapshot'
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 import type { BackupManifest, ResourcePayload } from '../../manifest'
 

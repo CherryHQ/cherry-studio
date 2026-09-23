@@ -1,7 +1,8 @@
+import * as z from 'zod'
+
 import type { PortableProfileSanitization } from '@data/db/restore/portableProfileContracts'
 import type { McpServerRow } from '@data/db/schemas/mcpServer'
 import { McpConfigSampleSchema } from '@shared/data/types/mcpServer'
-import * as z from 'zod'
 
 /** Reference-bearing MCP values read from an untrusted detached database. */
 export interface McpServerCapabilityInput {

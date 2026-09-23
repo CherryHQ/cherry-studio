@@ -1,6 +1,7 @@
-import { applyMigrations } from '@data/db/applyMigrations'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
+
+import { applyMigrations } from '@data/db/applyMigrations'
 
 import { ArchiveAdmissionError, renderUntrustedName } from '../errors'
 

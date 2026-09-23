@@ -15,6 +15,11 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { applyMigrations } from '@data/db/applyMigrations'
 import { readAppliedChain } from '@data/db/restore/appliedChain'
 import type * as ResourceInstallModule from '@data/db/restore/resourceInstallV2'
@@ -30,10 +35,6 @@ import {
 } from '@data/db/restore/restorePromotionV2'
 import { appStateTable } from '@data/db/schemas/appState'
 import { runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
-import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Crash matrix for the Backup v2 promotion gate.

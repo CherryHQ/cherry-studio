@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { MAX_RESOURCE_INSTALL_ENTRIES } from '@data/db/restore/restoreLimits'
 import { RELATIVE_SUBPATH_LIMITS } from '@main/utils/relativePath'
-import { describe, expect, it } from 'vitest'
 
 import { BACKUP_CEILINGS } from '../ceilings'
 

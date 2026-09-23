@@ -1,6 +1,10 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import Database from 'better-sqlite3'
+import { and, desc, eq, isNotNull } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+
 import { application } from '@application'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -13,9 +17,6 @@ import {
 } from '@main/ai/agents/portableProfilePolicy'
 import { atomicWriteFile, ensureDir, exists, read } from '@main/utils/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import Database from 'better-sqlite3'
-import { and, desc, eq, isNotNull } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 const logger = loggerService.withContext('portableTranscript')
 

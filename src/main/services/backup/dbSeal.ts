@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs'
 
-import { checkpointTruncateAssert } from '@data/db/restore/checkpoint'
 import type Database from 'better-sqlite3'
+
+import { checkpointTruncateAssert } from '@data/db/restore/checkpoint'
 
 import { DbSealError } from './errors'
 

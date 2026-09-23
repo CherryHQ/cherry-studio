@@ -1,5 +1,6 @@
-import type { PortableAgentPermissionMode } from '@main/ai/agents/portableProfilePolicy'
 import { describe, expect, expectTypeOf, it } from 'vitest'
+
+import type { PortableAgentPermissionMode } from '@main/ai/agents/portableProfilePolicy'
 
 import { type AgentChannelCapabilityMalformedField, sanitizeAgentChannelCapability } from '../portableProfilePolicy'
 

@@ -1,10 +1,11 @@
+import { t } from 'i18next'
+import { useEffect } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { BACKUP_RESTORE_NOTICE_KEY } from '@renderer/utils/backupRestoreNotice'
 import type { OutputFor } from '@shared/ipc/types'
-import { t } from 'i18next'
-import { useEffect } from 'react'
 
 const logger = loggerService.withContext('useBackupRestoreNotice')
 

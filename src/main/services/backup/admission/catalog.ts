@@ -1,5 +1,6 @@
-import { isSafeRelativeSubpath, portableCollisionKey, toRelativeSegments } from '@main/utils/relativePath'
 import StreamZip from 'node-stream-zip'
+
+import { isSafeRelativeSubpath, portableCollisionKey, toRelativeSegments } from '@main/utils/relativePath'
 
 import { ATTESTATION_ENTRY, DB_ENTRY, MANIFEST_ENTRY, RESOURCES_PREFIX } from '../archiveLayout'
 import { MAX_ATTESTATION_ENTRY_BYTES } from '../ceilings'

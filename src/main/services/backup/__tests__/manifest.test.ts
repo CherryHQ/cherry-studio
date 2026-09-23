@@ -1,5 +1,6 @@
-import { RESTORE_JOURNAL_VERSION } from '@data/db/restore/restoreJournalV2'
 import { describe, expect, it } from 'vitest'
+
+import { RESTORE_JOURNAL_VERSION } from '@data/db/restore/restoreJournalV2'
 
 import {
   BACKUP_FORMAT_VERSION,

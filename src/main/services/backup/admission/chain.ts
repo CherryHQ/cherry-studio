@@ -1,10 +1,11 @@
 import { stat } from 'node:fs/promises'
 
-import { applyMigrations } from '@data/db/applyMigrations'
-import { type AppliedMigration, readAppliedChain } from '@data/db/restore/appliedChain'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
+
+import { applyMigrations } from '@data/db/applyMigrations'
+import { type AppliedMigration, readAppliedChain } from '@data/db/restore/appliedChain'
 
 import { assertDbIntegrity, assertNoDbSidecars, sealDetachedDb } from '../dbSeal'
 import { ArchiveAdmissionError, BackupCancelledError, BackupMigrationCompatibilityError, DbSealError } from '../errors'

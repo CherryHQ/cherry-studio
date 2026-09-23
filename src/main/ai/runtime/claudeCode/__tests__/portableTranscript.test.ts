@@ -3,13 +3,14 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { encodePortableAgentResumePoint } from '@main/ai/agents/portableProfilePolicy'
-import { setupTestDatabase } from '@test-helpers/db'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let root = ''
 
@@ -23,9 +24,8 @@ vi.mock('@application', () => ({
   }
 }))
 
-const { encodeClaudeProjectDir, projectRestoredAgentTranscript, stagePortableAgentTranscript } = await import(
-  '../portableTranscript'
-)
+const { encodeClaudeProjectDir, projectRestoredAgentTranscript, stagePortableAgentTranscript } =
+  await import('../portableTranscript')
 const { truncateTranscriptAtBoundary } = await import('../portableTranscript')
 
 const SESSION_ID = 'host-session-1'

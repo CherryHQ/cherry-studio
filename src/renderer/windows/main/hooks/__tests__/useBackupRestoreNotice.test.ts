@@ -1,6 +1,7 @@
-import { toast } from '@renderer/services/toast'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 const { requestMock } = vi.hoisted(() => ({ requestMock: vi.fn() }))
 

@@ -1,5 +1,6 @@
-import type { AgentConfigurationField } from '@shared/data/api/schemas/agents'
 import { describe, expect, expectTypeOf, it } from 'vitest'
+
+import type { AgentConfigurationField } from '@shared/data/api/schemas/agents'
 
 import {
   type PortableAgentPermissionMode,

@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   installResourceUnits,
   recoverResourceUnits,
@@ -10,7 +12,6 @@ import {
 } from '@data/db/restore/resourceInstallV2'
 import type { ResourceInstallEntry } from '@data/db/restore/restoreJournalV2'
 import type { RecoveryPhase } from '@data/db/restore/restoreRecovery'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type NodeFs = typeof nodeFs
 

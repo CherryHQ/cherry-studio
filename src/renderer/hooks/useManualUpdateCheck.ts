@@ -1,8 +1,9 @@
+import { useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { useCallback, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const MANUAL_CHECK_THROTTLE_MS = 2_000
 

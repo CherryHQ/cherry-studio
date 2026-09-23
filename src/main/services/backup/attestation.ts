@@ -1,9 +1,10 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 
+import * as z from 'zod'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import * as z from 'zod'
 
 import { ATTESTATION_ENTRY } from './archiveLayout'
 
