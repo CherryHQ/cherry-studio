@@ -12,6 +12,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
+const semver = require('semver')
 
 const CATALOG_FILES = ['models.json', 'providers.json', 'provider-models.json']
 
@@ -85,6 +86,10 @@ async function publishRegistryCatalog({
   revision
 }) {
   const published = []
+  if (semver.lt(sourceAppVersion, minAppVersion)) {
+    console.warn(`Catalog publication held: app ${sourceAppVersion} is older than the required ${minAppVersion}`)
+    return published
+  }
 
   for (const version of listSchemaVersions(compatDirectory, currentVersion)) {
     const { validateCatalogFile } = await import(
@@ -110,9 +115,9 @@ async function publishRegistryCatalog({
 
     const destination = path.join(destinationDirectory, `v${version}`)
     const manifestPath = path.join(destination, 'manifest.json')
-    // An older dir keeps the semantic floor it was published with; only the
-    // current version tracks REGISTRY_MIN_APP_VERSION.
-    const floor = (version === currentVersion ? null : readPublishedMinAppVersion(manifestPath)) ?? minAppVersion
+    // Schema down-conversion cannot restore runtime semantics, so every stream shares this floor.
+    const previousFloor = readPublishedMinAppVersion(manifestPath)
+    const floor = previousFloor && semver.gt(previousFloor, minAppVersion) ? previousFloor : minAppVersion
     const manifest = {
       minAppVersion: floor,
       sourceAppVersion,

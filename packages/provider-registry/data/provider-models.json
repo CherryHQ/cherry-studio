@@ -27423,7 +27423,7 @@
                 "type": "enum"
               },
               "background": {
-                "options": ["auto", "opaque"],
+                "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
               "numImages": {
@@ -27445,7 +27445,7 @@
                 "type": "enum"
               },
               "background": {
-                "options": ["auto", "opaque"],
+                "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
               "numImages": {
@@ -27483,7 +27483,7 @@
                 "type": "enum"
               },
               "background": {
-                "options": ["auto", "opaque"],
+                "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
               "numImages": {
@@ -27505,7 +27505,7 @@
                 "type": "enum"
               },
               "background": {
-                "options": ["auto", "opaque"],
+                "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
               "numImages": {
@@ -39969,5 +39969,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "f418fc7b44b466bb"
+  "version": "6468c3069cd65e5d"
 }

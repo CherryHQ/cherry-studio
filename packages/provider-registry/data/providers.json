@@ -1044,6 +1044,14 @@
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
       "endpointConfigs": {
+        "openai-image-edit": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.openai.com/v1"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.openai.com/v1"
+        },
         "openai-responses": {
           "adapterFamily": "openai",
           "baseUrl": "https://api.openai.com",
@@ -1748,6 +1756,14 @@
             }
           }
         },
+        "openai-image-edit": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3"
+        },
         "openai-responses": {
           "adapterFamily": "openai",
           "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
@@ -2001,6 +2017,14 @@
         "openai-chat-completions": {
           "adapterFamily": "xai",
           "baseUrl": "https://api.x.ai"
+        },
+        "openai-image-edit": {
+          "adapterFamily": "xai",
+          "baseUrl": "https://api.x.ai/v1"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "xai",
+          "baseUrl": "https://api.x.ai/v1"
         },
         "openai-responses": {
           "adapterFamily": "xai-responses",
@@ -2636,5 +2660,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "2707d81b155c6c98"
+  "version": "e75c3a6e74981ae7"
 }

@@ -1,4 +1,5 @@
 import { openaiCompatible } from './_api'
+import { GROK_IMAGE_SUPPORT } from './imageCanvases'
 import { defineCreator } from './types'
 
 export default defineCreator({
@@ -19,6 +20,14 @@ export default defineCreator({
   ],
   idPrefixes: ['grok'],
   models: [
+    {
+      id: 'grok-imagine-image-2.0',
+      name: 'Grok Imagine Image 2.0',
+      capabilities: ['image-generation', 'image-recognition', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: GROK_IMAGE_SUPPORT
+    },
     {
       id: 'grok-4',
       name: 'Grok 4',

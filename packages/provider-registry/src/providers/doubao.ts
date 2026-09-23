@@ -130,6 +130,11 @@ export default defineProvider({
   // Ark only serves /responses for 250615+ SKUs. Responses is opted into per model below.
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
+    'openai-image-generation': {
+      adapterFamily: 'openai-compatible',
+      baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
+    },
+    'openai-image-edit': { adapterFamily: 'openai-compatible', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3' },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
       baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',

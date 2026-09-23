@@ -1,4 +1,5 @@
 import { googleModels } from './_api'
+import { withImageEditing } from './imageCanvases'
 import { defineCreator } from './types'
 
 export default defineCreator({
@@ -102,7 +103,7 @@ export default defineCreator({
       capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
-      imageGeneration: {
+      imageGeneration: withImageEditing({
         modes: {
           generate: {
             supports: {
@@ -119,7 +120,7 @@ export default defineCreator({
             }
           }
         }
-      }
+      })
     },
     {
       id: 'imagen-4-0-ultra-generate-001',
@@ -519,7 +520,7 @@ export default defineCreator({
       ],
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text', 'image'],
-      imageGeneration: {
+      imageGeneration: withImageEditing({
         modes: {
           generate: {
             supports: {
@@ -555,7 +556,7 @@ export default defineCreator({
             }
           }
         }
-      }
+      })
     },
     {
       id: 'gemini-3-1-flash-image-preview',
@@ -564,7 +565,7 @@ export default defineCreator({
       capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
-      imageGeneration: {
+      imageGeneration: withImageEditing({
         modes: {
           generate: {
             supports: {
@@ -581,7 +582,7 @@ export default defineCreator({
             }
           }
         }
-      }
+      })
     },
     {
       id: 'imagen-4-0-generate-preview-06-06',
@@ -651,7 +652,7 @@ export default defineCreator({
       ],
       inputModalities: ['image', 'text'],
       outputModalities: ['text', 'image'],
-      imageGeneration: {
+      imageGeneration: withImageEditing({
         modes: {
           generate: {
             supports: {
@@ -668,7 +669,7 @@ export default defineCreator({
             }
           }
         }
-      }
+      })
     }
   ]
 })

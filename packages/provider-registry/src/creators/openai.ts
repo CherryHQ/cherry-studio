@@ -1,4 +1,5 @@
 import { openaiCompatible } from './_api'
+import { openAIImageSupport } from './imageCanvases'
 import { defineCreator } from './types'
 
 const gptImageFullSupports = {
@@ -71,6 +72,16 @@ export default defineCreator({
   // web-search limitations); gpt-5.x sub-versions use the `none` tier and are fine.
   webSearchUnsupportedEfforts: [{ pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', efforts: ['minimal'] }],
   models: [
+    ...['gpt-image-2.5-sunburst', 'gpt-image-2.5-flare'].map((id) => ({
+      id,
+      name: id,
+      family: 'gpt-image',
+      capabilities: ['image-recognition' as const, 'image-generation' as const, 'file-input' as const],
+      inputModalities: ['text' as const, 'image' as const],
+      outputModalities: ['image' as const],
+      imageGeneration: openAIImageSupport(true)
+    })),
+
     {
       id: 'gpt-6-astra',
       name: 'GPT-6 Astra',
@@ -182,34 +193,7 @@ export default defineCreator({
       capabilities: ['image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
-      imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              background: {
-                options: ['auto', 'opaque'],
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 10,
-                min: 1,
-                type: 'range'
-              },
-              quality: {
-                options: ['auto', 'low', 'medium', 'high'],
-                type: 'enum'
-              },
-              size: {
-                default: '1024x1024',
-                options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          }
-        }
-      }
+      imageGeneration: openAIImageSupport()
     },
     {
       id: 'gpt-image-1',

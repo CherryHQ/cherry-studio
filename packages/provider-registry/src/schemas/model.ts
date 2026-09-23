@@ -337,6 +337,22 @@ const ImageSupportsSchema = z.partialRecord(CanonicalParamKeySchema, SupportSpec
  */
 const ImageModeDefSchema = z.object({
   supports: ImageSupportsSchema,
+  canvases: z
+    .array(z.object({ resolution: z.string(), aspectRatio: z.string(), size: z.string().regex(/^\d+x\d+$/) }))
+    .optional(),
+  customCanvases: z.array(z.object({ resolution: z.string(), aspectRatio: z.string(), size: z.string() })).optional(),
+  sizeRules: z
+    .record(
+      z.string(),
+      z.object({
+        longEdge: z.number().int().positive(),
+        maxPixels: z.number().int().positive().optional(),
+        multiple: z.number().int().positive().default(16)
+      })
+    )
+    .optional(),
+  expectedSizes: z.array(z.object({ resolution: z.string(), aspectRatio: z.string(), size: z.string() })).optional(),
+  userConfigured: z.boolean().optional(),
   maxInputImages: z.number().int().positive().optional(),
   vendorTransport: z
     .object({
