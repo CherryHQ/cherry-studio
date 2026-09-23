@@ -53,6 +53,7 @@
 | Document | Description |
 |----------|-------------|
 | [API Gateway Reference](./references/api-gateway/README.md) | Local HTTP gateway for OpenAI, Anthropic, Gemini, Cherry REST, and MCP-compatible clients |
+| [Remote Agent Access (Design)](./references/api-gateway/remote-agent-access.md) | Design proposal for remote desktop Agent access through a shared direct and relay transport |
 
 ### Architecture
 

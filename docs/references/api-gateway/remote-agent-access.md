@@ -1,3 +1,11 @@
+---
+description: Design proposal for remote desktop Agent access through a shared direct and relay transport
+sources:
+  - src/main/features/apiGateway
+  - src/main/ai/streamManager
+  - src/shared/ai/transport
+---
+
 # Remote Agent Access (Design)
 
 > **Status: design proposal — not yet implemented.**
