@@ -9,7 +9,7 @@ if (!/^boss-tools-[a-zA-Z0-9.-]+$/.test(tag || '')) throw new Error('A unique bo
 const repository = process.env.GITHUB_REPOSITORY
 const url = (asset) => `https://github.com/${repository}/releases/download/${tag}/${asset}`
 const tools = new Map()
-for (const filename of fs.readdirSync(directory).filter((file) => /^tools-.*\.json$/.test(file))) {
+for (const filename of fs.readdirSync(directory).filter((file) => /^(?:base-)?tools-.*\.json$/.test(file)).sort()) {
   for (const { name, version, platform, asset, ...record } of JSON.parse(fs.readFileSync(path.join(directory, filename)))) {
     if (!tools.has(name)) tools.set(name, { name, version, packages: {} })
     tools.get(name).packages[platform] = { ...record, url: url(asset) }
@@ -30,5 +30,5 @@ for (const service of ['surreal-memory', 'liter-llm']) {
 const skills = JSON.parse(fs.readFileSync(path.join(directory, 'compass-skills.json')))
 const manifest = { schema: 1, sources: pins.sources, tools: [...tools.values()], images, compassSkills: { url: url(skills.asset), sha256: skills.sha256 } }
 fs.writeFileSync(path.join(directory, 'integration-artifacts.json'), JSON.stringify(manifest, null, 2) + '\n')
-const assets = fs.readdirSync(directory).filter((name) => !name.endsWith('-image.json') && !name.startsWith('tools-') && name !== 'compass-skills.json').map((name) => path.join(directory, name))
+const assets = fs.readdirSync(directory).filter((name) => !name.endsWith('-image.json') && !/^(?:base-)?tools-/.test(name) && name !== 'compass-skills.json').map((name) => path.join(directory, name))
 execFileSync('gh', ['release', 'create', tag, ...assets, '--target', process.env.GITHUB_SHA, '--title', `The Boss native integration payload ${tag}`, '--notes', 'Pinned native executables, Compass skills, service image digests, and checksums for installer packaging. Installed Windows acceptance remains pending.'], { stdio: 'inherit' })

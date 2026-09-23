@@ -50,7 +50,10 @@ async function parserSources() {
 async function main() {
   fs.mkdirSync(output, { recursive: true })
   const records = []
-  for (const [name, recipe] of Object.entries(pins.tools)) {
+  const selected = process.env.INTEGRATION_TOOLS ? process.env.INTEGRATION_TOOLS.split(',').filter(Boolean) : Object.keys(pins.tools)
+  for (const name of selected) {
+    const recipe = pins.tools[name]
+    if (!recipe) throw new Error(`Unknown native tool: ${name}`)
     const source = checkout(recipe.source)
     const cwd = path.join(source, recipe.directory || '')
     const env = name === 'compass' ? { PROJECT_ROOT: await parserSources(), TSLP_OFFLINE: '1' } : {}
