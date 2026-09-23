@@ -79,11 +79,11 @@ import {
   buildMcpGlobalConfigFooterItem,
   buildMcpStatusItems,
   createMcpStatusLauncher,
-  isMcpToolbarActive,
   McpStatusComposerRuntime,
   resolveMcpConfigTarget,
   updateMcpBinding
 } from '../mcpStatusTool'
+import { isMcpToolbarActive } from '../mcpToolbarState'
 
 const translations: Record<string, string> = {
   'settings.mcp.runtimeStatus.connected': 'Connected',

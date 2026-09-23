@@ -28,7 +28,7 @@ import {
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
-import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpStatusTool'
+import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'

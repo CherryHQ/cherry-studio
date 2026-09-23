@@ -387,6 +387,12 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
   }
 })
 
+// #20766: Vitest 4 still loads AgentComposer when useAgent is missing from the mock.
+// Evaluating mcpStatusTool must fail the suite until that static import is gone.
+vi.mock('@renderer/components/composer/tools/definitions/mcpStatusTool', () => {
+  throw new Error('AgentComposer evaluated mcpStatusTool')
+})
+
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeProvider: ({
     children,
@@ -1858,6 +1864,27 @@ describe('AgentComposer', () => {
     expect(within(compactControls).queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
     expect(within(compactControls).queryByRole('button', { name: /Claude Sonnet 4.5/ })).not.toBeInTheDocument()
     expect(within(compactControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+  })
+
+  // #20766: first paint highlights MCP from the agent's current bindings, before the panel opens.
+  it('highlights MCP from the agent bindings on first render before the panel opens', () => {
+    mocks.pinnedToolIds = ['mcp-status']
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ['server-1'] }}
+      />
+    )
+
+    expect(within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })).toHaveAttribute(
+      'data-active',
+      'true'
+    )
   })
 
   it('exposes slash commands and MCP as skill-style toolbar shortcuts', () => {

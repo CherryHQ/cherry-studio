@@ -25,7 +25,7 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpStatusTool'
+import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -214,26 +215,6 @@ export function resolveMcpConfigTarget(options: {
     return options.agentId ? { kind: 'agent', id: options.agentId, initialTab: 'tools.mcp' } : null
   }
   return options.assistantId ? { kind: 'assistant', id: options.assistantId, initialTab: 'tools.mcp' } : null
-}
-
-/**
- * Whether the composer MCP toolbar shortcut should show activation feedback.
- * Chat: auto mode is always active; manual requires at least one bound server; disabled is idle.
- * Session: active when the agent has at least one MCP binding.
- */
-export function isMcpToolbarActive(options: {
-  scope: TopicType.Chat | TopicType.Session
-  assistant?: (Pick<Assistant, 'mcpServerIds'> & { settings?: Pick<Assistant['settings'], 'mcpMode'> }) | null
-  agent?: McpStatusAgent | null
-}): boolean {
-  if (options.scope === TopicType.Session) {
-    return (options.agent?.mcps?.length ?? 0) > 0
-  }
-
-  const mode = options.assistant?.settings?.mcpMode ?? DEFAULT_MCP_MODE
-  if (mode === 'disabled') return false
-  if (mode === 'auto') return true
-  return (options.assistant?.mcpServerIds?.length ?? 0) > 0
 }
 
 export function buildMcpConfigFooterItem(
