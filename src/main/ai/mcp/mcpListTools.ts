@@ -38,6 +38,30 @@ export async function listToolsTolerant(client: Client): Promise<SDKTool[]> {
     tools.push(parsed.data as SDKTool)
   }
   // Preserve listTools()'s output-validation/task metadata cache; the SDK types this hook as private.
-  ;(client as unknown as { cacheToolMetadata(tools: SDKTool[]): void }).cacheToolMetadata(tools)
+  const metadataClient = client as unknown as { cacheToolMetadata(tools: SDKTool[]): void }
+  try {
+    metadataClient.cacheToolMetadata(tools)
+  } catch (error) {
+    logger.warn('Failed to cache MCP tool metadata; checking tools individually', { reason: String(error) })
+    const retainedTools = tools.filter((tool) => {
+      try {
+        metadataClient.cacheToolMetadata([tool])
+        return true
+      } catch (error) {
+        logger.warn('Skipping invalid MCP tool', { toolName: tool.name, reason: String(error) })
+        return false
+      }
+    })
+    // Each probe clears all SDK caches; rebuild validators and task flags together.
+    try {
+      metadataClient.cacheToolMetadata(retainedTools)
+    } catch (error) {
+      logger.warn('Failed to cache MCP tool metadata; retaining validated tools', {
+        toolCount: retainedTools.length,
+        reason: String(error)
+      })
+    }
+    return retainedTools
+  }
   return tools
 }

@@ -25,6 +25,12 @@ const validTools = [
   }
 ]
 
+const uncompilableTool = {
+  name: 'uncompilable',
+  inputSchema: { type: 'object' },
+  outputSchema: { type: 'object', properties: { x: { type: 'bogus' } } }
+}
+
 describe('listToolsTolerant', () => {
   let client: Client
   let server: McpServer
@@ -76,5 +82,42 @@ describe('listToolsTolerant', () => {
   it('still rejects a malformed tools/list envelope', async () => {
     result = { tools: 'not an array' }
     await expect(listToolsTolerant(client)).rejects.toThrow()
+  })
+
+  it('resolves with valid tools and rebuilds their metadata after skipping an uncompilable output schema', async () => {
+    const taskTool = { name: 'task', inputSchema: { type: 'object' }, execution: { taskSupport: 'required' } }
+    const retainedTools = [taskTool, ...validTools]
+    result = { tools: [taskTool, uncompilableTool, ...validTools] }
+
+    await expect(listToolsTolerant(client)).resolves.toEqual(retainedTools)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Skipping invalid MCP tool',
+      expect.objectContaining({ toolName: 'uncompilable', reason: expect.stringContaining('bogus') })
+    )
+    for (const value of [true, false]) {
+      await expect(client.callTool({ name: `state-${value}`, arguments: {} })).rejects.toThrow(
+        /has an output schema but did not return structured content/
+      )
+    }
+    await expect(client.callTool({ name: 'task', arguments: {} })).rejects.toThrow(/requires task-based execution/)
+  })
+
+  it('resolves with no tools when every output schema is uncompilable', async () => {
+    result = { tools: [uncompilableTool, { ...uncompilableTool, name: 'also-uncompilable' }] }
+
+    await expect(listToolsTolerant(client)).resolves.toEqual([])
+    for (const toolName of ['uncompilable', 'also-uncompilable']) {
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Skipping invalid MCP tool',
+        expect.objectContaining({ toolName, reason: expect.stringContaining('bogus') })
+      )
+    }
+  })
+
+  it('returns healthy tools unchanged without warnings', async () => {
+    result = { tools: validTools }
+
+    await expect(listToolsTolerant(client)).resolves.toEqual(validTools)
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
   })
 })
