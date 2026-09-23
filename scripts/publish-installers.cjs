@@ -23,8 +23,10 @@ async function main() {
     const name = `The-Boss-${version}-${os}-${arch}${extension}`
     const digest = crypto.createHash('sha256')
     for await (const chunk of fs.createReadStream(filename)) digest.update(chunk)
+    const size = fs.statSync(filename).size
     const releaseAsset = path.join(directory, name)
-    fs.copyFileSync(filename, releaseAsset)
+    const usesCanonicalName = path.resolve(filename) === path.resolve(releaseAsset)
+    if (!usesCanonicalName) fs.copyFileSync(filename, releaseAsset)
     const tag = `v${version}`
     const uploaded = spawnSync(
       'gh',
@@ -33,10 +35,10 @@ async function main() {
     )
     process.stdout.write(uploaded.stdout || '')
     process.stderr.write(uploaded.stderr || '')
-    fs.rmSync(releaseAsset)
+    if (!usesCanonicalName) fs.rmSync(releaseAsset)
     if (uploaded.status !== 0) throw new Error(`GitHub Release rejected ${name}`)
     const url = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${tag}/${name}`
-    let signing = 'unsigned'
+    let signing = platform === 'darwin' ? 'unsigned (not notarized)' : 'unsigned'
     if (platform === 'win32' && process.env.HAS_SIGNING === 'true') {
       const output = execFileSync(
         'powershell.exe',
@@ -49,7 +51,7 @@ async function main() {
         { env: { ...process.env, BOSS_INSTALLER: filename }, encoding: 'utf8' }
       ).trim()
       signing = output === 'Valid' ? 'signed' : `Authenticode: ${output}`
-    } else if (platform === 'darwin') {
+    } else if (platform === 'darwin' && process.env.HAS_SIGNING === 'true') {
       const app = path.join(directory, arch === 'arm64' ? 'mac-arm64' : 'mac', 'The Boss.app')
       try {
         execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'pipe' })
@@ -59,7 +61,7 @@ async function main() {
         signing = 'unsigned or signature invalid'
       }
     }
-    artifacts.push({ name, size: fs.statSync(filename).size, sha256: digest.digest('hex'), url, signing })
+    artifacts.push({ name, size, sha256: digest.digest('hex'), url, signing })
     console.log(`Published ${name}: ${url}`)
   }
   fs.writeFileSync(

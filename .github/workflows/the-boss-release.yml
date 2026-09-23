@@ -66,7 +66,10 @@ jobs:
           key: binaries-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('build/integration-artifacts.json', 'scripts/download-binaries.js') }}
       - name: Install Linux packaging dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y rpm libarchive-tools libfuse2 libsecret-1-dev
+        run: >-
+          sudo apt-get update && sudo apt-get install -y
+          rpm libarchive-tools libfuse2 libsecret-1-dev libdbus-1-dev pkg-config
+          libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
       - name: Install macOS packaging dependencies
         if: runner.os == 'macOS'
         run: brew install python-setuptools
