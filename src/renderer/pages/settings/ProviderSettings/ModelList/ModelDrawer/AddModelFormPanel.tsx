@@ -284,32 +284,43 @@ export default function AddModelFormPanel({
     }
   }, [addSingleModel, formState, mode, onSuccess, t])
 
+  const selectedEndpointTypes =
+    mode === 'purpose'
+      ? purposeFields.endpointTypes
+      : mode === 'endpoint-types'
+        ? formState.endpointTypes
+        : prefill?.model?.endpointTypes
+
   const registryWebSearchAvailable = useMemo(() => {
     if (!provider || !prefill?.model) return false
-    return isBuiltinWebSearchAvailable({ ...prefill.model, serverToolOverrides: undefined }, provider)
-  }, [prefill?.model, provider])
+    return isBuiltinWebSearchAvailable(
+      {
+        ...prefill.model,
+        endpointTypes: selectedEndpointTypes ? [...selectedEndpointTypes] : undefined,
+        serverToolOverrides: undefined
+      },
+      provider
+    )
+  }, [prefill?.model, provider, selectedEndpointTypes])
 
   const webSearchEnableAllowed = useMemo(() => {
-    const endpoints =
-      purposeFields.endpointTypes?.length || formState.endpointTypes?.length
-        ? (purposeFields.endpointTypes ?? formState.endpointTypes)
-        : prefill?.model?.endpointTypes
-    return provider ? getDeliverableWebSearchEndpointTypes(endpoints, provider, defaultChatEndpoint).length > 0 : false
-  }, [
-    defaultChatEndpoint,
-    formState.endpointTypes,
-    prefill?.model?.endpointTypes,
-    provider,
-    purposeFields.endpointTypes
-  ])
+    if (!provider) return false
+    const activeEndpoint = selectedEndpointTypes?.[0]
+    return (
+      getDeliverableWebSearchEndpointTypes(activeEndpoint ? [activeEndpoint] : undefined, provider, defaultChatEndpoint)
+        .length > 0
+    )
+  }, [defaultChatEndpoint, provider, selectedEndpointTypes])
 
   const webSearchSelected =
-    classification.webSearch === 'enabled' || (classification.webSearch === 'inherit' && registryWebSearchAvailable)
+    (classification.webSearch === 'enabled' && webSearchEnableAllowed) ||
+    (classification.webSearch === 'inherit' && registryWebSearchAvailable)
 
   const handleToggleWebSearch = useCallback(() => {
     setClassification((current) => {
       const selected =
-        current.webSearch === 'enabled' || (current.webSearch === 'inherit' && registryWebSearchAvailable)
+        (current.webSearch === 'enabled' && webSearchEnableAllowed) ||
+        (current.webSearch === 'inherit' && registryWebSearchAvailable)
       let next: ModelWebSearchOverride
       if (selected) {
         next = registryWebSearchAvailable ? 'disabled' : 'inherit'
