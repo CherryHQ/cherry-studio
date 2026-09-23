@@ -16,12 +16,14 @@ import {
   ItemActions,
   ItemContent,
   ItemDescription,
+  ItemMedia,
   ItemTitle,
   Label,
   RadioGroup,
   RadioGroupItem
 } from '@cherrystudio/ui'
 import { useSharedCacheValue } from '@data/hooks/useCache'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useDoctorAgent } from '@renderer/hooks/doctor'
@@ -165,6 +167,9 @@ function ModelPicker({
                 className="cursor-pointer hover:bg-accent/50 has-[[data-slot=radio-group-item]:focus-visible]:ring-1 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring has-[[data-slot=radio-group-item]:focus-visible]:ring-inset">
                 <Label htmlFor={optionId}>
                   <RadioGroupItem id={optionId} value={model.id} className="sr-only" />
+                  <ItemMedia>
+                    <ModelAvatar model={model} size={24} className="border border-border" />
+                  </ItemMedia>
                   <ItemContent>
                     <ItemTitle>{model.name}</ItemTitle>
                     <ItemDescription>{getProviderDisplayName(provider)}</ItemDescription>
