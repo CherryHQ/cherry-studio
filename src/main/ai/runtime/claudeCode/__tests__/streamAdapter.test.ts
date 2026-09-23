@@ -1230,13 +1230,65 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
     expect(thrown).toMatchObject({
-      message: resultText,
+      message: expect.stringContaining(resultText),
       subtype: 'success',
       errors: [resultText]
     })
     expect(sessionIds).toEqual(['sdk-result'])
     expect(parts.map((part) => part.type)).toEqual(['message-metadata'])
     expect(loggerMocks.info).not.toHaveBeenCalledWith(expect.stringContaining('Stream completed'))
+  })
+
+  describe('timeout classification', () => {
+    const timeoutText = 'API Error: The operation timed out.'
+
+    it('keeps the raw timeout diagnostic verbatim while naming phase, limit and retry', () => {
+      const { adapter } = createAdapter()
+      let thrown: unknown
+
+      try {
+        adapter.handleMessage(successResult({ is_error: true, result: timeoutText }))
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+      expect(thrown).toMatchObject({ errors: [timeoutText] })
+      const message = (thrown as Error).message
+      expect(message).toContain(timeoutText)
+      expect(message).toContain('agent query')
+      expect(message).toContain('API_TIMEOUT_MS')
+      expect(message).toContain('retry')
+    })
+
+    // The enriched message must stay classifiable as `network` downstream: dropping the
+    // timeout vocabulary here would silently reroute the error in ErrorBlock/errorCategory.
+    it('keeps the shared network vocabulary so downstream classification still matches', () => {
+      const { adapter } = createAdapter()
+      let thrown: unknown
+
+      try {
+        adapter.handleMessage(successResult({ is_error: true, result: timeoutText }))
+      } catch (error) {
+        thrown = error
+      }
+
+      expect((thrown as Error).message.toLowerCase()).toContain('timed out')
+    })
+
+    it('leaves non-timeout errors untouched', () => {
+      const { adapter } = createAdapter()
+      let thrown: unknown
+
+      try {
+        adapter.handleMessage(successResult({ subtype: 'error_during_execution', is_error: true, errors: ['boom'] }))
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+      expect(thrown).toMatchObject({ message: 'boom', errors: ['boom'] })
+    })
   })
 
   it('emits final live usage metadata before throwing on error results', () => {
@@ -1555,7 +1607,7 @@ describe('ClaudeCodeStreamAdapter', () => {
 
       expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
       expect(thrown).toMatchObject({
-        message: 'API Error: The operation timed out.',
+        message: expect.stringContaining('API Error: The operation timed out.'),
         subtype: 'success',
         terminalReason: 'api_error',
         apiErrorStatus: 504
