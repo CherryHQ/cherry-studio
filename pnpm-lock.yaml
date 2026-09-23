@@ -154,8 +154,6 @@ overrides:
   '@img/sharp-win32-x64': 0.35.3
   '@napi-rs/canvas': 0.1.97
   onnxruntime-node: 1.25.1
-  '@napi-rs/system-ocr-darwin-arm64': 1.0.2
-  '@napi-rs/system-ocr-darwin-x64': 1.0.2
   '@ai-sdk/provider': 3.0.15
   '@ai-sdk/provider-utils': 4.0.50
   '@ai-sdk/openai': 3.0.109
@@ -175,7 +173,7 @@ patchedDependencies:
   '@deepseek-ai/dsh-llm-pi-ai@0.1.2-rc.1': f7f6f9cc47a1ad112122e1b0813f890afa6c157d3cbc26b8f20bbe40d1ca22d7
   '@earendil-works/pi-ai@0.80.6': 8ae915ecde8054da94741cecb272baf207ce5b7e596758c87ecdad572489e24d
   '@earendil-works/pi-coding-agent@0.80.3': 1717b3290d2aaa3819537bd040f531534184c38f2e8c0e6d6b52fdb1ed02b564
-  '@napi-rs/system-ocr@1.1.0': aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
+  '@napi-rs/system-ocr@1.2.0': 72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
   '@opeoginni/github-copilot-openai-compatible@1.0.0': 73beae4e712f7adc915602407dd74fd0c8ab448c7ed03f6beacd83ed51bf3fcb
   '@streamdown/code@1.1.1': 41d33cca06822523e0dc1118ef7b24d80de81afc0d2d39cef9a12f20c5dc9547
@@ -231,8 +229,8 @@ importers:
         specifier: 0.1.97
         version: 0.1.97
       '@napi-rs/system-ocr':
-        specifier: 1.1.0
-        version: 1.1.0(patch_hash=aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde)
+        specifier: 1.2.0
+        version: 1.2.0(patch_hash=72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0)
       '@node-rs/xxhash':
         specifier: 1.7.6
         version: 1.7.6
@@ -1496,17 +1494,17 @@ importers:
         specifier: 0.1.97
         version: 0.1.97
       '@napi-rs/system-ocr-darwin-arm64':
-        specifier: 1.0.2
-        version: 1.0.2
+        specifier: 1.2.0
+        version: 1.2.0
       '@napi-rs/system-ocr-darwin-x64':
-        specifier: 1.0.2
-        version: 1.0.2
+        specifier: 1.2.0
+        version: 1.2.0
       '@napi-rs/system-ocr-win32-arm64-msvc':
-        specifier: 1.1.0
-        version: 1.1.0
+        specifier: 1.2.0
+        version: 1.2.0
       '@napi-rs/system-ocr-win32-x64-msvc':
-        specifier: 1.1.0
-        version: 1.1.0
+        specifier: 1.2.0
+        version: 1.2.0
       '@node-rs/xxhash-darwin-arm64':
         specifier: 1.7.6
         version: 1.7.6
@@ -5328,32 +5326,32 @@ packages:
     resolution: {integrity: sha512-8cFniXvrIEnVwuNSRCW9wirRZbHvrD3JVujdS2P5n5xiJZNZMOZcfOvJ1pb66c7jXMKHHglJEDVJGbm8XWFcXQ==}
     engines: {node: '>= 10'}
 
-  '@napi-rs/system-ocr-darwin-arm64@1.0.2':
-    resolution: {integrity: sha512-/9E1T4+Pzbk8eI1QC1a1wimj4wgweKn9NUGtmO9Vf0rDi1TxYaJsv6ioSzdmhlazkKxd27Brk5VfLfUg6Bha6A==}
+  '@napi-rs/system-ocr-darwin-arm64@1.2.0':
+    resolution: {integrity: sha512-cK8dcDBEl3P4A04xmFJSHEJQxfDytaAIFyDCLqavTp92FVU5plESttWzZsqtTkS81/kzKiBfHyPQffSIndfWbQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
 
-  '@napi-rs/system-ocr-darwin-x64@1.0.2':
-    resolution: {integrity: sha512-z8FiuVjMEXrqU9O5tIWfLkNWzyx8moQZ/kgYo1jPvbiaC+bA0gBBo9X8C1dYrF7Q3nLug0zTU59FMAESXbhJpA==}
+  '@napi-rs/system-ocr-darwin-x64@1.2.0':
+    resolution: {integrity: sha512-u3TBvBGrhmT5Os6AfaxbUEg6VHe8lvrFJNPgThJgshJHyRXUx/wCfTyOroJ22KdVCP5AE4GpwS5tFHMb6p6iaQ==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
 
-  '@napi-rs/system-ocr-win32-arm64-msvc@1.1.0':
-    resolution: {integrity: sha512-pf/sm+sSQaNiAA2sOnwdyGh+cidDhvgxoNuYLYjWdo/YvyRHj3wEWHM+pF4FAXR6cvR4znd0/fvyzIMrdPx0uw==}
+  '@napi-rs/system-ocr-win32-arm64-msvc@1.2.0':
+    resolution: {integrity: sha512-7ej8uMvmXomw3NXo5gZ5p2Nl6UKsHI+VRU3ELv0mhcxR0sJ6wFifYTu5bJrM1TGcz1/RsaX+TjWMmsDq8vriKQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
 
-  '@napi-rs/system-ocr-win32-x64-msvc@1.1.0':
-    resolution: {integrity: sha512-kMYoHhTztTZ3bXDrjmKkp1icGLifTjM82iAOw2AqJLSRYzUqsxEUGc4GXN/39mEIws+bHzkV/riBNY5uV+gP0w==}
+  '@napi-rs/system-ocr-win32-x64-msvc@1.2.0':
+    resolution: {integrity: sha512-oOoCj3FPWDVctTxx98vMBiMI6m51U+w7SMmMefvmtpcpLelzZ/zYTqdwtWZFAjShaHO+RdaKkcpeVcQuBQiVbA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
 
-  '@napi-rs/system-ocr@1.1.0':
-    resolution: {integrity: sha512-WWAe4AsuvBuC8qhREnShyk7D2tFa3l+eP/37vU/a07K+FlnKm02COwCLZi7pLsqWUbctHguOg4kSf/SqpTm0Yg==}
+  '@napi-rs/system-ocr@1.2.0':
+    resolution: {integrity: sha512-r0f2xNH6U+sth44qF+lUP+2WuHSGUBAry5KSCNuaLDGRbgslFqeROr/qJJ/fb6AjBp3Ov+CJP5MdrOWoaoM3cw==}
     engines: {node: '>= 10'}
 
   '@napi-rs/wasm-runtime@0.2.12':
@@ -20713,24 +20711,24 @@ snapshots:
       '@napi-rs/canvas-win32-arm64-msvc': 0.1.97
       '@napi-rs/canvas-win32-x64-msvc': 0.1.97
 
-  '@napi-rs/system-ocr-darwin-arm64@1.0.2':
+  '@napi-rs/system-ocr-darwin-arm64@1.2.0':
     optional: true
 
-  '@napi-rs/system-ocr-darwin-x64@1.0.2':
+  '@napi-rs/system-ocr-darwin-x64@1.2.0':
     optional: true
 
-  '@napi-rs/system-ocr-win32-arm64-msvc@1.1.0':
+  '@napi-rs/system-ocr-win32-arm64-msvc@1.2.0':
     optional: true
 
-  '@napi-rs/system-ocr-win32-x64-msvc@1.1.0':
+  '@napi-rs/system-ocr-win32-x64-msvc@1.2.0':
     optional: true
 
-  '@napi-rs/system-ocr@1.1.0(patch_hash=aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde)':
+  '@napi-rs/system-ocr@1.2.0(patch_hash=72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0)':
     optionalDependencies:
-      '@napi-rs/system-ocr-darwin-arm64': 1.0.2
-      '@napi-rs/system-ocr-darwin-x64': 1.0.2
-      '@napi-rs/system-ocr-win32-arm64-msvc': 1.1.0
-      '@napi-rs/system-ocr-win32-x64-msvc': 1.1.0
+      '@napi-rs/system-ocr-darwin-arm64': 1.2.0
+      '@napi-rs/system-ocr-darwin-x64': 1.2.0
+      '@napi-rs/system-ocr-win32-arm64-msvc': 1.2.0
+      '@napi-rs/system-ocr-win32-x64-msvc': 1.2.0
 
   '@napi-rs/wasm-runtime@0.2.12':
     dependencies:

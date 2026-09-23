@@ -43,7 +43,8 @@ const SourceFilterTrigger = ({
     <ChevronDown
       className={cn(
         'size-4 shrink-0 text-muted-foreground',
-        hasValue && 'transition-opacity group-focus-within/source-select:opacity-0 group-hover/source-select:opacity-0'
+        hasValue &&
+          'transition-opacity group-focus-within/source-select:opacity-0 group-hover/source-select:opacity-0 no-hover:opacity-0'
       )}
     />
   </button>
@@ -73,7 +74,7 @@ export const HistorySourceFilterField = ({
           event.stopPropagation()
           onClear()
         }}
-        className="pointer-events-none absolute top-1/2 right-2 flex size-5 min-h-0 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] group-focus-within/source-select:pointer-events-auto group-focus-within/source-select:opacity-100 group-hover/source-select:pointer-events-auto group-hover/source-select:opacity-100 hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100">
+        className="pointer-events-none absolute top-1/2 right-2 flex size-5 min-h-0 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] group-focus-within/source-select:pointer-events-auto group-focus-within/source-select:opacity-100 group-hover/source-select:pointer-events-auto group-hover/source-select:opacity-100 hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100">
         <X size={12} />
       </Button>
     ) : null}

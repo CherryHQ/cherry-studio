@@ -355,6 +355,13 @@ export function apply(ctx: Context): void {
     }
   })
 
+  ctx.on('agent/status', ({ agent, status }) => {
+    if (!openedSessionIds.has(agent.id)) return
+    const lastEvent = agent.session.snapshotEvents().at(-1)
+    if (!lastEvent) return
+    link.notify('session/state', { sessionId: agent.id, sessionEventSeq: lastEvent.seq, status })
+  })
+
   // Per-epoch residency edges (a cold resume opens a new epoch). The parent id is
   // read at start while the child agent is live and cached for the end edge.
   const subagentRunParents = new Map<string, string>()

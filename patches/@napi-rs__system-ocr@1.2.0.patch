@@ -22,7 +22,7 @@ index dc071739e79876dff88e1be06a9168e294222d13..b9df7525c62bdf777e89e732e1b0c81f
 +  module.exports = {OcrAccuracy: {
 +    Fast: 0,
 +    Accurate: 1
-+  }, recognize: () => Promise.resolve({text: '', confidence: 1.0})}
++  }, recognize: () => Promise.resolve({text: '', confidence: 1.0, lines: []})}
 +}else{
 +  module.exports = nativeBinding
 +  module.exports.OcrAccuracy = nativeBinding.OcrAccuracy
