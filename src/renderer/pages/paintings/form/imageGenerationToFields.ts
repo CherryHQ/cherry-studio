@@ -1,3 +1,4 @@
+import { imageSizeSelection } from '@shared/ai/imageCanvases'
 import type {
   CanonicalParamKey,
   ImageGenerationMode,
@@ -17,15 +18,30 @@ import type { BaseConfigItem, CustomSizeConfigItem, OptionItem, SliderConfigItem
  */
 const KEY_LABELS: Record<CanonicalParamKey, { title: string; tooltip?: string }> = {
   size: { title: 'paintings.image.size' },
-  numImages: { title: 'paintings.number_images', tooltip: 'paintings.number_images_tip' },
+  numImages: {
+    title: 'paintings.number_images',
+    tooltip: 'paintings.number_images_tip'
+  },
   aspectRatio: { title: 'paintings.aspect_ratio' },
   imageResolution: { title: 'paintings.image.size' },
   customSize: { title: 'paintings.custom_size' },
-  negativePrompt: { title: 'paintings.negative_prompt', tooltip: 'paintings.negative_prompt_tip' },
+  negativePrompt: {
+    title: 'paintings.negative_prompt',
+    tooltip: 'paintings.negative_prompt_tip'
+  },
   seed: { title: 'paintings.seed', tooltip: 'paintings.seed_tip' },
-  promptEnhancement: { title: 'paintings.prompt_enhancement', tooltip: 'paintings.prompt_enhancement_tip' },
-  promptExtend: { title: 'paintings.prompt_enhancement', tooltip: 'paintings.prompt_enhancement_tip' },
-  thinkingMode: { title: 'paintings.thinking_mode', tooltip: 'paintings.thinking_mode_tip' },
+  promptEnhancement: {
+    title: 'paintings.prompt_enhancement',
+    tooltip: 'paintings.prompt_enhancement_tip'
+  },
+  promptExtend: {
+    title: 'paintings.prompt_enhancement',
+    tooltip: 'paintings.prompt_enhancement_tip'
+  },
+  thinkingMode: {
+    title: 'paintings.thinking_mode',
+    tooltip: 'paintings.thinking_mode_tip'
+  },
   magicPromptOption: { title: 'paintings.magic_prompt_option' },
   addWatermark: { title: 'paintings.watermark' },
   outputFormat: { title: 'paintings.ppio.output_format' },
@@ -34,14 +50,32 @@ const KEY_LABELS: Record<CanonicalParamKey, { title: string; tooltip?: string }>
   resolution: { title: 'paintings.image.size' },
   moderation: { title: 'paintings.moderation' },
   background: { title: 'paintings.background' },
-  styleType: { title: 'paintings.style_type', tooltip: 'paintings.style_type_tip' },
+  styleType: {
+    title: 'paintings.style_type',
+    tooltip: 'paintings.style_type_tip'
+  },
   style: { title: 'paintings.style_type', tooltip: 'paintings.style_type_tip' },
   renderingSpeed: { title: 'paintings.rendering_speed' },
-  personGeneration: { title: 'paintings.person_generation', tooltip: 'paintings.person_generation_tip' },
-  numInferenceSteps: { title: 'paintings.inference_steps', tooltip: 'paintings.inference_steps_tip' },
-  guidanceScale: { title: 'paintings.guidance_scale', tooltip: 'paintings.guidance_scale_tip' },
-  cfg: { title: 'paintings.guidance_scale', tooltip: 'paintings.guidance_scale_tip' },
-  safetyTolerance: { title: 'paintings.safety_tolerance', tooltip: 'paintings.safety_tolerance_tip' },
+  personGeneration: {
+    title: 'paintings.person_generation',
+    tooltip: 'paintings.person_generation_tip'
+  },
+  numInferenceSteps: {
+    title: 'paintings.inference_steps',
+    tooltip: 'paintings.inference_steps_tip'
+  },
+  guidanceScale: {
+    title: 'paintings.guidance_scale',
+    tooltip: 'paintings.guidance_scale_tip'
+  },
+  cfg: {
+    title: 'paintings.guidance_scale',
+    tooltip: 'paintings.guidance_scale_tip'
+  },
+  safetyTolerance: {
+    title: 'paintings.safety_tolerance',
+    tooltip: 'paintings.safety_tolerance_tip'
+  },
   imageWeight: { title: 'paintings.image_weight' },
   resemblance: { title: 'paintings.upscale.resemblance' },
   detail: { title: 'paintings.upscale.detail' },
@@ -61,7 +95,9 @@ const KEY_LABELS: Record<CanonicalParamKey, { title: string; tooltip?: string }>
   leftScale: { title: 'paintings.dashscope.left_scale' },
   rightScale: { title: 'paintings.dashscope.right_scale' },
   isSketch: { title: 'paintings.dashscope.is_sketch' },
-  sequentialImageGeneration: { title: 'paintings.dmxapi.sequential_image_generation' },
+  sequentialImageGeneration: {
+    title: 'paintings.dmxapi.sequential_image_generation'
+  },
   maxImages: { title: 'paintings.dmxapi.max_images' }
 }
 
@@ -170,7 +206,12 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
   const labels = (KEY_LABELS as Record<string, { title: string; tooltip?: string }>)[key] ?? { title: key }
   switch (spec.type) {
     case 'switch':
-      return { type: 'switch', key, ...labels, initialValue: spec.default ?? false }
+      return {
+        type: 'switch',
+        key,
+        ...labels,
+        initialValue: spec.default ?? false
+      }
     case 'text':
       return spec.multiline ? { type: 'textarea', key, ...labels } : { type: 'input', key, ...labels }
     case 'range': {
@@ -195,7 +236,10 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
       const pairedSize = customSizePairedKey === key
       const options: OptionItem[] = toOptions(key, spec.options)
       if (pairedSize) {
-        const customOption = { labelKey: 'paintings.custom_size', value: 'custom' }
+        const customOption = {
+          labelKey: 'paintings.custom_size',
+          value: 'custom'
+        }
         const customIndex = options.findIndex((option) => option.value === 'custom')
         if (customIndex >= 0) options[customIndex] = customOption
         else options.push(customOption)
@@ -210,7 +254,13 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
           columns: spec.columns ?? 3
         }
       }
-      return { type: 'select', key, ...labels, options, initialValue: spec.default }
+      return {
+        type: 'select',
+        key,
+        ...labels,
+        options,
+        initialValue: spec.default
+      }
     }
     case 'size': {
       const pairedKey = spec.pairedEnumKey
@@ -262,12 +312,56 @@ export function imageGenerationToFields(
   // falling back to the model's first declared mode is what the user expects
   // to see.
   const fallbackKey = Object.keys(allModes)[0] as ImageGenerationMode | undefined
-  const supports = allModes[requested]?.supports ?? (fallbackKey ? allModes[fallbackKey]?.supports : undefined)
+  const definition = allModes[requested] ?? (fallbackKey ? allModes[fallbackKey] : undefined)
+  const supports = definition?.supports
   if (!supports) return []
   const items: BaseConfigItem[] = []
   for (const [key, spec] of Object.entries(supports)) {
-    const item = specToField(key, spec, supports)
+    if (definition?.canvases?.length && key === 'size') continue
+    const formSpec =
+      key === 'aspectRatio' && spec.type === 'enum' && (!spec.options.includes('auto') || spec.default !== 'auto')
+        ? {
+            ...spec,
+            options: spec.options.includes('auto')
+              ? ['auto', ...spec.options.filter((option) => option !== 'auto')]
+              : ['auto', ...spec.options],
+            default: 'auto'
+          }
+        : spec
+    const item = specToField(key, formSpec, supports)
+    if (
+      item &&
+      key === 'aspectRatio' &&
+      definition?.canvases?.length &&
+      (item.type === 'select' || item.type === 'sizeChips')
+    ) {
+      const ratio = formSpec.type === 'enum' ? formSpec : supports.aspectRatio
+      item.options = (_item, params) =>
+        (ratio?.type === 'enum' ? ratio.options : []).map((value) => {
+          if (value === 'auto') return { labelKey: 'paintings.image_size_options.auto', value }
+          const preview = imageSizeSelection(support, requested, {
+            ...params,
+            aspectRatio: value
+          })
+          return {
+            value,
+            label: preview.pixels ? `${value} · ${preview.pixels}` : value
+          }
+        })
+    }
+    if (item && key === 'outputCompression') {
+      const format = supports.outputFormat
+      item.condition = (params) =>
+        ['jpeg', 'webp'].includes(String(params.outputFormat ?? (format?.type === 'enum' ? format.default : undefined)))
+    }
     if (item) items.push(item)
   }
-  return items
+  const order = ['imageResolution', 'resolution', 'aspectRatio', 'size']
+  const tail = new Set(['numImages', 'maxImages'])
+  const rank = (key: string | undefined) => {
+    if (tail.has(key ?? '')) return 20
+    const index = order.indexOf(key ?? '')
+    return index >= 0 ? index : 10
+  }
+  return items.sort((a, b) => rank(a.key) - rank(b.key))
 }

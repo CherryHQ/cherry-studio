@@ -1,13 +1,13 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
-import { isEditImageModel } from '@shared/utils/model'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { createDefaultPainting } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
+import { canEditPaintingModel } from '../model/utils/paintingModelOptions'
 import { computeModelFieldReset } from '../utils/computeModelFieldReset'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 
@@ -29,8 +29,17 @@ export function usePaintingModelSwitch({
   const currentProviderId = painting.providerId
   const { models } = useModels(currentProviderId ? { providerId: currentProviderId } : undefined)
 
+  const selectionVersion = useRef(0)
+  useEffect(
+    () => () => {
+      selectionVersion.current += 1
+    },
+    [painting.id, currentProviderId]
+  )
+
   return useCallback(
     async ({ providerId, modelId }: PaintingModelSelection) => {
+      const version = ++selectionVersion.current
       if (providerId === currentProviderId) {
         // Reset stale fields the old model wrote but the new one doesn't
         // accept — the form writes into `painting.params`, so the reset
@@ -45,13 +54,10 @@ export function usePaintingModelSwitch({
           mode: tabToImageGenerationMode(painting.mode),
           currentValues: painting.params ?? {}
         })
-        // Drop attached input images when the target model can't accept them:
-        // the prompt-bar upload UI is gated on `isEditImageModel`, so a hidden
-        // attachment left over from an edit model would otherwise still be
-        // sent to a generate-only model. `onPaintingChange` merges, so the
-        // clear must be explicit.
+        // Match the upload control's capability check so references survive compatible model switches.
         const nextModel = models.find((model) => model.apiModelId === modelId)
-        const keepInputFiles = nextModel ? isEditImageModel(nextModel) : false
+        const keepInputFiles = nextModel ? canEditPaintingModel(nextModel) : false
+        if (version !== selectionVersion.current) return
         onPaintingChange({
           params: { ...painting.params, ...resetPatch },
           model: modelId,
@@ -63,12 +69,14 @@ export function usePaintingModelSwitch({
       try {
         await ensureProviderCatalog(providerId)
       } catch (error) {
+        if (version !== selectionVersion.current) return
         // Cold-cache + DB/IPC failure must not silently revert the dropdown —
         // surface it like the generate path instead of swallowing the switch.
         logger.error('Failed to load provider catalog on model switch', error as Error)
         presentPaintingGenerateError(error)
         return
       }
+      if (version !== selectionVersion.current) return
       const targetPainting = createDefaultPainting({ providerId })
 
       onPaintingChange({

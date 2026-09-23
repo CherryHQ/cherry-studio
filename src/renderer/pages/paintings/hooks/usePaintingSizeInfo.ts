@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { imageSizeSelection } from '@shared/ai/imageCanvases'
+
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { resolveRatio, resolveSizeLabel } from '../form/paintingSize'
 import type { PaintingData } from '../model/types/paintingData'
@@ -12,6 +14,7 @@ export interface PaintingSizeInfo {
   ratio: number | null
   /** Human-readable size label (e.g. `1024×1024`, `auto`), or undefined. */
   sizeLabel: string | undefined
+  selectionLabel?: string
 }
 
 /**
@@ -30,5 +33,23 @@ export function usePaintingSizeInfo(painting: PaintingData): PaintingSizeInfo {
   )
   const ratio = useMemo(() => resolveRatio(painting.params, configItems), [painting.params, configItems])
   const sizeLabel = useMemo(() => resolveSizeLabel(painting.params, configItems, t), [painting.params, configItems, t])
-  return { ratio, sizeLabel }
+  const selection = imageSizeSelection(
+    registrySupport,
+    tabToImageGenerationMode(painting.mode) ?? 'generate',
+    painting.params ?? {}
+  )
+  const summary = [
+    selection.tier,
+    selection.ratio,
+    selection.pixels
+      ? t('paintings.model_parameters.expected_size', { size: selection.pixels.replace('x', '×') })
+      : undefined
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return {
+    ratio,
+    sizeLabel: summary || sizeLabel,
+    selectionLabel: [selection.tier, selection.ratio].filter(Boolean).join(' · ')
+  }
 }

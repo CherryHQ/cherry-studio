@@ -1,4 +1,14 @@
-import { ImageDown, ImageUp, Palette, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
+import {
+  ImageDown,
+  ImageUp,
+  Maximize,
+  Palette,
+  RefreshCcw,
+  RotateCcwSquare,
+  RotateCwSquare,
+  ZoomIn,
+  ZoomOut
+} from 'lucide-react'
 import {
   type FC,
   type PointerEvent,
@@ -12,7 +22,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { Button, ImagePreviewDialog, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import ImageViewer from '@renderer/components/ImageViewer'
@@ -54,6 +64,7 @@ type RevealState =
 export interface ArtboardProps {
   painting: PaintingData
   isLoading: boolean
+  onSelectImage?: (fileId: string) => void
   imageCover?: ReactNode
 }
 
@@ -211,8 +222,9 @@ const ArtboardToolButton: FC<{
   )
 }
 
-const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
+const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover, onSelectImage }) => {
   const { t } = useTranslation()
+  const [fullscreenPreview, setFullscreenPreview] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [imageScale, setImageScale] = useState(DEFAULT_IMAGE_SCALE)
   const [imageRotation, setImageRotation] = useState(0)
@@ -228,20 +240,30 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
   const paintingIdRef = useRef(painting.id)
   const viewerResizeObserverRef = useRef<ResizeObserver | null>(null)
   const promptBarResizeObserverRef = useRef<ResizeObserver | null>(null)
-  const displayedImageIndex = painting.files.length > 0 ? Math.min(currentImageIndex, painting.files.length - 1) : 0
+  const selectedIndex = painting.files.findIndex((file) => file.id === painting.selectedFileId)
+  const displayedImageIndex =
+    selectedIndex >= 0
+      ? selectedIndex
+      : painting.files.length > 0
+        ? Math.min(currentImageIndex, painting.files.length - 1)
+        : 0
   const currentFile = painting.files[displayedImageIndex]
-  const { sizeLabel } = usePaintingSizeInfo(painting)
+  const { sizeLabel, selectionLabel } = usePaintingSizeInfo(painting)
   // TODO(#15353): swap for `cherrystudio://file/internal/${id}.${ext}` once the
   // custom-protocol handler is registered and paintings consume `FileEntry` directly.
   const currentImageUrl = currentFile ? getPaintingFileUrl(currentFile) : undefined
 
   const onPrevImage = useCallback(() => {
-    setCurrentImageIndex((index) => (index > 0 ? index - 1 : Math.max(0, painting.files.length - 1)))
-  }, [painting.files.length])
+    const index = displayedImageIndex > 0 ? displayedImageIndex - 1 : Math.max(0, painting.files.length - 1)
+    setCurrentImageIndex(index)
+    if (painting.files[index]) onSelectImage?.(painting.files[index].id)
+  }, [displayedImageIndex, painting.files, onSelectImage])
 
   const onNextImage = useCallback(() => {
-    setCurrentImageIndex((index) => (painting.files.length > 0 ? (index + 1) % painting.files.length : 0))
-  }, [painting.files.length])
+    const index = painting.files.length > 0 ? (displayedImageIndex + 1) % painting.files.length : 0
+    setCurrentImageIndex(index)
+    if (painting.files[index]) onSelectImage?.(painting.files[index].id)
+  }, [displayedImageIndex, painting.files, onSelectImage])
 
   const zoomIn = useCallback(() => {
     setImageScale((scale) => Math.min(MAX_IMAGE_SCALE, scale + IMAGE_SCALE_STEP))
@@ -481,10 +503,48 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     setRevealState(null)
   }, [])
 
-  const promptBar = painting.prompt ? <ArtboardPromptBar prompt={painting.prompt} sizeLabel={sizeLabel} /> : undefined
+  const promptBar =
+    (painting.operationPrompt ?? painting.prompt) ? (
+      <ArtboardPromptBar
+        prompt={painting.operationPrompt ?? painting.prompt}
+        sizeLabel={
+          displayedNaturalSize
+            ? [
+                selectionLabel,
+                t('paintings.model_parameters.actual_size', {
+                  size: `${displayedNaturalSize.width}×${displayedNaturalSize.height}`
+                })
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : sizeLabel
+        }
+      />
+    ) : undefined
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col p-2">
+      {currentFile && currentImageUrl && (
+        <ImagePreviewDialog
+          open={fullscreenPreview}
+          onOpenChange={setFullscreenPreview}
+          items={[{ id: currentFile.id, src: currentImageUrl, alt: currentFile.origin_name || t('preview.label') }]}
+          className="bg-black"
+          labels={{
+            close: t('preview.close'),
+            dialogTitle: t('preview.fullscreen'),
+            flipHorizontal: t('preview.flip_horizontal'),
+            flipVertical: t('preview.flip_vertical'),
+            next: t('preview.next'),
+            previous: t('preview.previous'),
+            reset: t('preview.reset'),
+            rotateLeft: t('preview.rotate_left'),
+            rotateRight: t('preview.rotate_right'),
+            zoomIn: t('preview.zoom_in'),
+            zoomOut: t('preview.zoom_out')
+          }}
+        />
+      )}
       <div className="[container-type:size] relative flex min-h-0 flex-1 flex-col items-center justify-center">
         {isLoading || activeReveal ? (
           <PaintingImageSkeleton
@@ -557,6 +617,9 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
                   <span className="my-0.5 h-px w-4 bg-border-subtle" aria-hidden />
                 </>
               )}
+              <ArtboardToolButton label={t('preview.fullscreen')} onClick={() => setFullscreenPreview(true)}>
+                <Maximize className="size-4" />
+              </ArtboardToolButton>
               <ArtboardToolButton
                 label={t('preview.zoom_out')}
                 disabled={imageScale <= MIN_IMAGE_SCALE}

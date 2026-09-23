@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
+import { useDataChange } from '@data/hooks/useDataChange'
 import { loggerService } from '@logger'
 import type { Painting } from '@shared/data/types/painting'
 
@@ -31,11 +32,21 @@ function getPaintingHydrationFingerprint(record: Painting): string {
     record.createdAt,
     record.files.input,
     record.files.output,
-    record.fileDataFingerprint
+    record.fileDataFingerprint,
+    record.previewFileId,
+    record.projectId,
+    record.parentId,
+    record.sourceFileId,
+    record.operation,
+    record.params,
+    record.stepStatus,
+    record.stepError,
+    record.selectedStepId,
+    record.selectedFileId
   ])
 }
 
-export function usePaintingHistory(): {
+export function usePaintingHistory(projectId?: string): {
   items: PaintingStripEntry[]
   isLoading: boolean
   hasMore: boolean
@@ -46,8 +57,12 @@ export function usePaintingHistory(): {
     isLoading: isQueryLoading,
     isRefreshing,
     hasNext,
-    loadNext
-  } = useInfiniteQuery('/paintings', { limit: PAGE_SIZE })
+    loadNext,
+    refresh
+  } = useInfiniteQuery('/paintings', { limit: PAGE_SIZE, query: projectId ? { projectId } : { projectsOnly: true } })
+  useDataChange(projectId === '__draft' ? [] : '/paintings', () => {
+    void refresh().catch((error) => logger.warn('Failed to refresh changed painting history', { error }))
+  })
   const records = useInfiniteFlatItems(pages)
   const hydrationCacheRef = useRef<Map<string, PaintingHistoryCacheEntry>>(new Map())
 

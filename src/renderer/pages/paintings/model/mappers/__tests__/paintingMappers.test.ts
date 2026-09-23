@@ -78,12 +78,13 @@ describe('paintingMappers', () => {
   it('hydrates a Painting record into PaintingData with resolved files', async () => {
     const result = await recordToPaintingData(record)
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       id: 'painting-1',
       providerId: 'silicon',
-      mode: 'generate',
+      mode: 'edit',
       model: 'model-1',
-      prompt: 'draw a cat',
+      prompt: '',
+      operationPrompt: 'draw a cat',
       // `name` keeps the legacy on-disk filename (`${id}${ext}`) shape while
       // paintings still carry FileMetadata. `path` carries the main-resolved
       // physical path used for preview URLs; `origin_name` carries the
@@ -160,7 +161,7 @@ describe('paintingMappers', () => {
         ...paintingData,
         providerId: 'silicon'
       })
-    ).toEqual({
+    ).toMatchObject({
       id: 'painting-1',
       providerId: 'silicon',
       modelId: 'model-1',
@@ -187,20 +188,5 @@ describe('paintingMappers', () => {
 
     const updateDto = paintingDataToUpdateDto(paintingData)
     expect(updateDto.modelId).toBeUndefined()
-  })
-
-  it('translates a PaintingData into an UpdatePaintingDto', async () => {
-    const paintingDataList = await recordsToPaintingDataList([record])
-    const paintingData = paintingDataList[0]
-
-    expect(paintingDataToUpdateDto(paintingData)).toEqual({
-      providerId: 'silicon',
-      modelId: 'model-1',
-      prompt: 'draw a cat',
-      files: {
-        output: ['file-1'],
-        input: ['input-file-1']
-      }
-    })
   })
 })

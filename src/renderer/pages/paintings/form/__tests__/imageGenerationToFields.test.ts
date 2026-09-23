@@ -19,6 +19,23 @@ function staticOptions(item: BaseConfigItem | undefined): OptionItem[] {
  * regression in the dispatcher fails here before reaching the painting page.
  */
 describe('imageGenerationToFields', () => {
+  it('places generation count after the other image parameters', () => {
+    const items = imageGenerationToFields({
+      modes: {
+        generate: {
+          supports: {
+            aspectRatio: { type: 'enum', options: ['1:1'], default: '1:1' },
+            background: { type: 'enum', options: ['auto'], default: 'auto' },
+            quality: { type: 'enum', options: ['auto'], default: 'auto' },
+            numImages: { type: 'range', min: 1, max: 4, default: 1 }
+          }
+        }
+      }
+    })
+
+    expect(items.map((item) => item.key)).toEqual(['aspectRatio', 'background', 'quality', 'numImages'])
+  })
+
   it('emits nothing for undefined or empty descriptors', () => {
     expect(imageGenerationToFields(undefined)).toEqual([])
     expect(imageGenerationToFields({ modes: {} })).toEqual([])
@@ -36,9 +53,15 @@ describe('imageGenerationToFields', () => {
               render: 'chips'
             },
             numImages: { type: 'range', min: 1, max: 10, default: 1 },
-            quality: { type: 'enum', options: ['low', 'medium', 'high', 'auto'] },
+            quality: {
+              type: 'enum',
+              options: ['low', 'medium', 'high', 'auto']
+            },
             moderation: { type: 'enum', options: ['low', 'auto'] },
-            background: { type: 'enum', options: ['transparent', 'opaque', 'auto'] }
+            background: {
+              type: 'enum',
+              options: ['transparent', 'opaque', 'auto']
+            }
           }
         }
       }
@@ -77,20 +100,33 @@ describe('imageGenerationToFields', () => {
     ])
     expect(staticOptions(byKey.styleType)).toEqual([
       { labelKey: 'paintings.style_type_options.auto', value: 'AUTO' },
-      { labelKey: 'paintings.style_type_options.realistic', value: 'REALISTIC' }
+      {
+        labelKey: 'paintings.style_type_options.realistic',
+        value: 'REALISTIC'
+      }
     ])
     // style / function: label is localized, but the option value is preserved
     // verbatim (incl. the `<...>` form) — that raw value is what reaches the request body.
     expect(staticOptions(byKey.style)).toEqual([
       { labelKey: 'paintings.style_options.natural', value: 'natural' },
-      { labelKey: 'paintings.style_options.photography', value: '<photography>' }
+      {
+        labelKey: 'paintings.style_options.photography',
+        value: '<photography>'
+      }
     ])
     expect(staticOptions(byKey.function)).toEqual([
-      { labelKey: 'paintings.dashscope.function_options.expand', value: 'expand' },
-      { labelKey: 'paintings.dashscope.function_options.remove_watermark', value: 'remove_watermark' }
+      {
+        labelKey: 'paintings.dashscope.function_options.expand',
+        value: 'expand'
+      },
+      {
+        labelKey: 'paintings.dashscope.function_options.remove_watermark',
+        value: 'remove_watermark'
+      }
     ])
     // Literal enum (ratios) → raw value as label, no labelKey (nothing to translate).
     expect(staticOptions(byKey.aspectRatio)).toEqual([
+      { labelKey: 'paintings.image_size_options.auto', value: 'auto' },
       { label: '1:1', value: '1:1' },
       { label: '16:9', value: '16:9' }
     ])
@@ -101,17 +137,24 @@ describe('imageGenerationToFields', () => {
       modes: {
         generate: {
           supports: {
-            aspectRatio: { type: 'enum', options: ['1:1', '9:16', '16:9', '3:4', '4:3'], default: '1:1' },
+            aspectRatio: {
+              type: 'enum',
+              options: ['1:1', '9:16', '16:9', '3:4', '4:3'],
+              default: '1:1'
+            },
             numImages: { type: 'range', min: 1, max: 1, default: 1 },
             seed: { type: 'text' },
-            personGeneration: { type: 'enum', options: ['ALLOW_ADULT', 'ALLOW_ALL', 'DONT_ALLOW'] }
+            personGeneration: {
+              type: 'enum',
+              options: ['ALLOW_ADULT', 'ALLOW_ALL', 'DONT_ALLOW']
+            }
           }
         }
       }
     })
     const byKey = Object.fromEntries(items.map((i) => [i.key, i]))
     expect(byKey.aspectRatio?.type).toBe('select')
-    expect(staticOptions(byKey.aspectRatio).map((o) => o.value)).toEqual(['1:1', '9:16', '16:9', '3:4', '4:3'])
+    expect(staticOptions(byKey.aspectRatio).map((o) => o.value)).toEqual(['auto', '1:1', '9:16', '16:9', '3:4', '4:3'])
     expect(byKey.numImages?.max).toBe(1)
     expect(byKey.seed?.type).toBe('input')
     expect(byKey.personGeneration?.type).toBe('select')
@@ -152,8 +195,14 @@ describe('imageGenerationToFields', () => {
             negativePrompt: { type: 'text', multiline: true },
             seed: { type: 'text' },
             magicPromptOption: { type: 'switch' },
-            styleType: { type: 'enum', options: ['AUTO', 'REALISTIC', 'ANIME'] },
-            renderingSpeed: { type: 'enum', options: ['TURBO', 'DEFAULT', 'QUALITY'] }
+            styleType: {
+              type: 'enum',
+              options: ['AUTO', 'REALISTIC', 'ANIME']
+            },
+            renderingSpeed: {
+              type: 'enum',
+              options: ['TURBO', 'DEFAULT', 'QUALITY']
+            }
           }
         }
       }
@@ -175,7 +224,13 @@ describe('imageGenerationToFields', () => {
             seed: { type: 'text' },
             promptEnhancement: { type: 'switch' },
             numInferenceSteps: { type: 'range', min: 1, max: 50, default: 25 },
-            guidanceScale: { type: 'range', min: 0, max: 20, default: 4.5, step: 0.1 }
+            guidanceScale: {
+              type: 'range',
+              min: 0,
+              max: 20,
+              default: 4.5,
+              step: 0.1
+            }
           }
         }
       }
@@ -197,7 +252,12 @@ describe('imageGenerationToFields', () => {
     // model's actual mode (edit) instead of rendering nothing.
     const support: ImageGenerationSupport = {
       modes: {
-        edit: { supports: { seed: { type: 'text' }, addWatermark: { type: 'switch' } } }
+        edit: {
+          supports: {
+            seed: { type: 'text' },
+            addWatermark: { type: 'switch' }
+          }
+        }
       }
     }
     const items = imageGenerationToFields(support, { mode: 'generate' })
@@ -216,7 +276,12 @@ describe('imageGenerationToFields', () => {
               default: '1024x1024',
               render: 'chips'
             },
-            customSize: { type: 'size', minSide: 512, maxSide: 2048, pairedEnumKey: 'size' },
+            customSize: {
+              type: 'size',
+              minSide: 512,
+              maxSide: 2048,
+              pairedEnumKey: 'size'
+            },
             seed: { type: 'text' }
           }
         }
@@ -237,7 +302,12 @@ describe('imageGenerationToFields', () => {
         generate: {
           supports: {
             size: { type: 'enum', options: ['custom'] },
-            customSize: { type: 'size', minSide: 512, maxSide: 2048, pairedEnumKey: 'size' }
+            customSize: {
+              type: 'size',
+              minSide: 512,
+              maxSide: 2048,
+              pairedEnumKey: 'size'
+            }
           }
         }
       }
@@ -272,7 +342,11 @@ describe('imageGenerationToFields', () => {
       modes: {
         generate: {
           supports: {
-            aspectRatio: { type: 'enum', options: ['1:1', '16:9', '9:16'], default: '1:1' },
+            aspectRatio: {
+              type: 'enum',
+              options: ['1:1', '16:9', '9:16'],
+              default: '1:1'
+            },
             negativePrompt: { type: 'text', multiline: true },
             seed: { type: 'text' },
             styleType: { type: 'enum', options: ['AUTO', 'REALISTIC'] }
@@ -280,7 +354,11 @@ describe('imageGenerationToFields', () => {
         },
         remix: {
           supports: {
-            aspectRatio: { type: 'enum', options: ['1:1', '16:9', '9:16'], default: '1:1' },
+            aspectRatio: {
+              type: 'enum',
+              options: ['1:1', '16:9', '9:16'],
+              default: '1:1'
+            },
             negativePrompt: { type: 'text', multiline: true },
             seed: { type: 'text' },
             styleType: { type: 'enum', options: ['AUTO', 'REALISTIC'] },
@@ -296,7 +374,9 @@ describe('imageGenerationToFields', () => {
       }
     }
 
-    const generateKeys = imageGenerationToFields(support, { mode: 'generate' }).map((i) => i.key)
+    const generateKeys = imageGenerationToFields(support, {
+      mode: 'generate'
+    }).map((i) => i.key)
     expect(generateKeys).toContain('negativePrompt')
     expect(generateKeys).toContain('styleType')
     expect(generateKeys).not.toContain('imageWeight')
@@ -307,7 +387,9 @@ describe('imageGenerationToFields', () => {
     expect(remixKeys).toContain('styleType')
     expect(remixKeys).not.toContain('resemblance')
 
-    const upscaleKeys = imageGenerationToFields(support, { mode: 'upscale' }).map((i) => i.key)
+    const upscaleKeys = imageGenerationToFields(support, {
+      mode: 'upscale'
+    }).map((i) => i.key)
     expect(upscaleKeys).toContain('resemblance')
     expect(upscaleKeys).toContain('detail')
     expect(upscaleKeys).not.toContain('imageWeight')

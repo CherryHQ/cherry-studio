@@ -7,6 +7,7 @@ import { InfoTooltip } from '@cherrystudio/ui'
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
+import { reconcileDependentOptions } from '../form/resolveOptions'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import type { PaintingData } from '../model/types/paintingData'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
@@ -38,8 +39,8 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
   // The form's reads/writes target `painting.params` — the canonical-name bag
   // that `canonicalGenerate` partitions into AI SDK args vs provider bag at
   // request time. Top-level PaintingData fields are not visible to the wire.
-  const paintingParams = painting.params ?? {}
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
+  const paintingParams = painting.params ?? {}
   const configItems = useMemo(
     () =>
       imageGenerationToFields(registrySupport, {
@@ -68,7 +69,9 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
             <PaintingFieldRenderer
               item={item}
               painting={paintingParams}
-              onChange={(updates) => onConfigChange({ params: { ...paintingParams, ...updates } })}
+              onChange={(updates) =>
+                onConfigChange({ params: reconcileDependentOptions(configItems, { ...paintingParams, ...updates }) })
+              }
               onGenerateRandomSeed={onGenerateRandomSeed}
             />
           </div>

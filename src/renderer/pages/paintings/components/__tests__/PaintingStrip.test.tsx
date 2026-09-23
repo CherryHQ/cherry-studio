@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as CherryStudioUi from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
+import type { FileMetadata } from '@renderer/types/file'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
@@ -10,11 +11,27 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
-
-vi.mock('../PaintingSkeletonSurface', () => ({
-  default: () => <div data-testid="painting-skeleton-surface" />
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    size,
+    type = 'button',
+    variant,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & { children?: ReactNode; size?: string; variant?: string }) => {
+    void size
+    void variant
+    return (
+      <button type={type} {...props}>
+        {children}
+      </button>
+    )
+  },
+  ConfirmDialog: () => null,
+  Tooltip: ({ children }: { children: ReactNode }) => children
 }))
+
+vi.unmock('@data/hooks/useCache')
 
 const { default: PaintingStrip } = await import('../PaintingStrip')
 
@@ -28,11 +45,32 @@ const painting: PaintingData = {
 }
 
 describe('PaintingStrip', () => {
-  it('uses the skeleton surface for a running painting without a preview yet', () => {
+  beforeEach(() => {
+    cacheService.set(`painting.generation.${painting.id}`, null)
+    cacheService.set('painting.generation.painting-2', null)
+  })
+
+  it('shows the project preview when the original version has no output', () => {
+    const { container } = render(
+      <PaintingStrip
+        items={[{ ...painting, previewFile: { id: 'later', path: '/tmp/later.png', ext: 'png' } as FileMetadata }]}
+        hasMore={false}
+        loadMore={vi.fn()}
+        onDeletePainting={vi.fn()}
+        onSelectPainting={vi.fn()}
+        onAddPainting={vi.fn()}
+      />
+    )
+    expect(container.querySelector('img')).toHaveAttribute('src', expect.stringContaining('later.png'))
+  })
+
+  it('keeps both running tasks busy even when neither is selected', () => {
+    const state = { status: 'running' as const, taskId: null, error: null, progress: 0 }
+    cacheService.set(`painting.generation.${painting.id}`, state)
+    cacheService.set('painting.generation.painting-2', state)
     render(
       <PaintingStrip
-        runningPaintingId={painting.id}
-        items={[painting]}
+        items={[painting, { ...painting, id: 'painting-2' }, { ...painting, id: 'idle' }]}
         hasMore={false}
         loadMore={vi.fn()}
         onDeletePainting={vi.fn()}
@@ -41,26 +79,9 @@ describe('PaintingStrip', () => {
       />
     )
 
-    expect(screen.getByTestId('painting-skeleton-surface')).toBeInTheDocument()
-  })
-
-  it('moves a painting to the Recycle Bin without opening a confirmation', async () => {
-    const user = userEvent.setup()
-    const onDeletePainting = vi.fn().mockResolvedValue(undefined)
-
-    render(
-      <PaintingStrip
-        items={[painting]}
-        hasMore={false}
-        loadMore={vi.fn()}
-        onDeletePainting={onDeletePainting}
-        onSelectPainting={vi.fn()}
-        onAddPainting={vi.fn()}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: 'paintings.button.delete.image.label' }))
-    expect(onDeletePainting).toHaveBeenCalledWith(painting)
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    const tasks = screen.getAllByRole('button', { name: /paintings\.button\.select\.image/ })
+    expect(tasks[0]).toHaveAttribute('aria-busy', 'true')
+    expect(tasks[1]).toHaveAttribute('aria-busy', 'true')
+    expect(tasks[2]).toHaveAttribute('aria-busy', 'false')
   })
 })

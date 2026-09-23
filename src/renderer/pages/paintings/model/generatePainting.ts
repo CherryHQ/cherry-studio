@@ -12,7 +12,7 @@ import type { PaintingProviderRuntime } from './types/paintingProviderRuntime'
  * sends one canonical `paramValues` bag (+ encoded input images); main derives
  * the AI SDK request + per-vendor `providerOptions` from it (`splitParamValues`
  * + the WireProfile engine), runs any async submit/poll loop, and returns
- * base64 data URLs. Validation (model / prompt required, custom-size rules,
+ * persisted FileEntries. Validation (model / prompt required, custom-size rules,
  * param coercion) stays in the caller (`canonicalGenerate`).
  */
 export interface GeneratePaintingOptions {
@@ -22,6 +22,8 @@ export interface GeneratePaintingOptions {
   readonly signal: AbortSignal
   /** Model id chosen by the user; assumed non-empty (caller validates). */
   readonly modelId: string
+  /** Persisted painting step that owns an async job result. */
+  readonly paintingId?: string
   /** User-entered prompt; pass `''` when the model allows empty prompts. */
   readonly prompt: string
   /** Resolved image-generation mode — lets main derive per-model transport
@@ -33,8 +35,8 @@ export interface GeneratePaintingOptions {
    * and maps it onto each vendor's wire shape — no per-vendor logic here.
    */
   readonly paramValues: Record<string, unknown>
-  /** Attached input images, already encoded as `data:` URL strings. */
-  readonly inputImages?: string[]
+  /** Attached input images as persisted FileEntry ids. */
+  readonly inputFileIds?: string[]
 }
 
 export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMetadata[]> {
@@ -52,12 +54,13 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
         requestId,
         payload: {
           uniqueModelId: `${opts.provider.id}::${opts.modelId}`,
+          ...(opts.paintingId && { paintingId: opts.paintingId }),
           prompt: opts.prompt,
           ...(opts.mode && { mode: opts.mode }),
           paramValues: opts.paramValues,
           // Painting-owned images: reaped once no painting references them (file-entry-cleanup.md §4.1).
           cleanupPolicy: 'delete_when_unreferenced',
-          ...(opts.inputImages && opts.inputImages.length > 0 && { inputImages: opts.inputImages })
+          ...(opts.inputFileIds && opts.inputFileIds.length > 0 && { inputFileIds: opts.inputFileIds })
         }
       })
       // A failure now crosses IpcApi as an IpcError (name 'IpcError'), so an abort would

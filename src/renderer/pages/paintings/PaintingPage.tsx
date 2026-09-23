@@ -1,13 +1,16 @@
-import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useCache } from '@data/hooks/useCache'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { usePaintings } from '@renderer/hooks/usePaintings'
 
 import Artboard from './components/Artboard'
 import PaintingComposer from './components/PaintingComposer'
+import PaintingSteps from './components/PaintingSteps'
 import PaintingStrip from './components/PaintingStrip'
 import PaintingTemplateShowcase from './components/PaintingTemplateShowcase'
+import { presentPaintingGenerateError } from './errors/paintingGenerateError'
 import { usePaintingDraftDefaults } from './hooks/usePaintingDraftDefaults'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
 import { usePaintingHistory } from './hooks/usePaintingHistory'
@@ -36,6 +39,28 @@ const PaintingPage: FC = () => {
   }, [])
 
   const history = usePaintingHistory()
+  const projectId = currentPainting.projectId ?? currentPainting.id
+  const [locateSource, setLocateSource] = useState<{ projectId: string; stepId: string; sequence: number }>()
+  const steps = usePaintingHistory(currentPainting.persistedAt ? projectId : '__draft')
+  const { selectPainting } = usePaintings()
+  const selectStep = useCallback(
+    async (item: PaintingData, fileId?: string) => {
+      try {
+        await selectPainting(item.projectId ?? item.id, item.id, fileId)
+        setCurrentPainting({ ...item, selectedFileId: fileId ?? item.files[0]?.id })
+      } catch (error) {
+        presentPaintingGenerateError(error)
+      }
+    },
+    [selectPainting]
+  )
+  const selectImage = useCallback(
+    (fileId: string) => {
+      setCurrentPainting((current) => ({ ...current, selectedFileId: fileId }))
+      void selectPainting(projectId, currentPainting.id, fileId).catch(presentPaintingGenerateError)
+    },
+    [selectPainting, projectId, currentPainting.id]
+  )
 
   usePaintingInitialDraft({
     currentPainting,
@@ -46,7 +71,7 @@ const PaintingPage: FC = () => {
   // Backfill a background generation's output files when they only reached
   // refreshed history (its completion couldn't update the no-longer-visible
   // draft), so the Artboard reveal doesn't strand on a permanent skeleton.
-  usePaintingResultSync({ currentPainting, historyItems: history.items, setCurrentPainting })
+  usePaintingResultSync({ currentPainting, historyItems: steps.items, setCurrentPainting })
 
   // Rehydrate the running spinner after a page switch: the cache mirror of
   // generation state survives unmount, so re-mounting picks it back up.
@@ -62,7 +87,11 @@ const PaintingPage: FC = () => {
   // still need a usable view fallback. New drafts receive the configured model
   // as stored in-memory state before reaching this path.
   const composerPainting = useMemo<PaintingData>(() => {
-    if (currentPainting.model) return currentPainting
+    if (currentPainting.model)
+      return {
+        ...currentPainting,
+        mode: currentPainting.files.length || currentPainting.sourceFileId ? 'edit' : 'generate'
+      }
     const fallback = modelCatalog.currentModelOptions.find((option) => option.isEnabled !== false)?.value
     return fallback ? { ...currentPainting, model: String(fallback) } : currentPainting
   }, [currentPainting, modelCatalog.currentModelOptions])
@@ -111,15 +140,6 @@ const PaintingPage: FC = () => {
   const busy = list.saving || preparing
 
   const onCancel = useCallback(() => cancelGeneration(currentPainting.id), [cancelGeneration, currentPainting.id])
-  const saveCurrentRef = useRef(list.saveCurrent)
-  saveCurrentRef.current = list.saveCurrent
-
-  useEffect(() => {
-    return () => {
-      void saveCurrentRef.current()
-    }
-  }, [])
-
   return (
     <div data-ui="paintings.view" className={paintingClasses.page}>
       <div className={paintingClasses.content} inert={busy} aria-busy={busy}>
@@ -127,8 +147,7 @@ const PaintingPage: FC = () => {
           <div className={paintingClasses.frame}>
             <div className={paintingClasses.surface}>
               <PaintingStrip
-                selectedPaintingId={currentPainting.id}
-                runningPaintingId={generating ? currentPainting.id : undefined}
+                selectedPaintingId={projectId}
                 items={history.items}
                 hasMore={history.hasMore}
                 loadMore={history.loadMore}
@@ -140,7 +159,9 @@ const PaintingPage: FC = () => {
 
               <div className={paintingClasses.centerPane}>
                 <div className={paintingClasses.centerStage}>
-                  {!showTemplateShowcase && <Artboard painting={composerPainting} isLoading={generating} />}
+                  {!showTemplateShowcase && (
+                    <Artboard painting={composerPainting} isLoading={generating} onSelectImage={selectImage} />
+                  )}
                 </div>
                 {showTemplateShowcase && (
                   <section
@@ -171,10 +192,24 @@ const PaintingPage: FC = () => {
                   </section>
                 )}
                 <div className={paintingClasses.promptDock}>
-                  <div className="mx-auto w-full max-w-5xl">
+                  <div className="@container/painting-composer mx-auto w-full max-w-5xl">
                     <QuickPanelProvider>
                       <PaintingComposer
                         painting={composerPainting}
+                        sourcePainting={
+                          currentPainting.files.length
+                            ? currentPainting
+                            : steps.items.find((step) => step.id === currentPainting.parentId)
+                        }
+                        onLocateSource={() => {
+                          const stepId = currentPainting.files.length ? currentPainting.id : currentPainting.parentId
+                          if (stepId)
+                            setLocateSource((current) => ({
+                              projectId,
+                              stepId,
+                              sequence: (current?.sequence ?? 0) + 1
+                            }))
+                        }}
                         generating={generating}
                         submitting={submitting}
                         onPromptChange={(prompt) => patchPainting({ prompt })}
@@ -195,6 +230,17 @@ const PaintingPage: FC = () => {
                   </div>
                 </div>
               </div>
+              {currentPainting.persistedAt && (
+                <PaintingSteps
+                  items={steps.items}
+                  locateRequest={locateSource?.projectId === projectId ? locateSource : undefined}
+                  selected={currentPainting}
+                  hasMore={steps.hasMore}
+                  loadMore={steps.loadMore}
+                  onSelect={selectStep}
+                  onCancel={cancelGeneration}
+                />
+              )}
             </div>
           </div>
         </div>

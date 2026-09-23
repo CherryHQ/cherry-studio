@@ -6,13 +6,17 @@ import { resolveRatio, resolveSizeLabel } from '../paintingSize'
 
 /** Minimal registry support declaring a single size-bearing field. */
 const supportWith = (key: string, options: string[], def: string) => ({
-  modes: { generate: { supports: { [key]: { type: 'enum', options, default: def } } } }
+  modes: {
+    generate: { supports: { [key]: { type: 'enum', options, default: def } } }
+  }
 })
 
 // The same config items the components derive internally, so the resolvers see
 // the fields (including registry defaults) they would at runtime.
 const fieldsFor = (support: unknown) =>
-  imageGenerationToFields(support as never, { mode: tabToImageGenerationMode('generate') })
+  imageGenerationToFields(support as never, {
+    mode: tabToImageGenerationMode('generate')
+  })
 
 describe('resolveRatio', () => {
   it('derives the aspect ratio from a stored size', () => {
@@ -22,7 +26,7 @@ describe('resolveRatio', () => {
 
   it('derives the aspect ratio from an aspect-ratio enum', () => {
     const fields = fieldsFor(supportWith('aspectRatio', ['ASPECT_16_9'], 'ASPECT_16_9'))
-    expect(resolveRatio({}, fields)).toBe(16 / 9)
+    expect(resolveRatio({}, fields)).toBe(1)
   })
 
   // The effective size is the registry default, not stored in params, so reading

@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ImgHTMLAttributes, ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -56,7 +57,12 @@ vi.mock('@renderer/components/ImageViewer', async () => {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => (key === 'paintings.generating' ? '绘图进行中，请不要离开页面' : key)
+    t: (key: string, options?: { size?: string }) =>
+      key === 'paintings.model_parameters.actual_size'
+        ? `Actual ${options?.size}`
+        : key === 'paintings.generating'
+          ? '绘图进行中，请不要离开页面'
+          : key
   })
 }))
 
@@ -156,7 +162,25 @@ describe('Artboard', () => {
     mockSkeletonProps.mockClear()
     mockUsePaintingSizeInfo.mockReset()
     mockUsePaintingSizeInfo.mockReturnValue({ ratio: null, sizeLabel: undefined })
-    Object.assign(navigator, { clipboard: { writeText: mockWriteText } })
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: mockWriteText } })
+  })
+
+  it('opens the selected image from the toolbar and restores the artboard after Escape or close', async () => {
+    const user = userEvent.setup()
+    render(<Artboard painting={makePainting()} isLoading={false} />)
+    await user.click(screen.getByRole('button', { name: 'preview.next' }))
+    const trigger = screen.getByRole('button', { name: 'preview.fullscreen' })
+    await user.click(trigger)
+    const dialog = screen.getByRole('dialog', { name: 'preview.fullscreen' })
+    expect(within(dialog).getByRole('img', { hidden: true })).toHaveAttribute('src', 'file:///tmp/image-2.png')
+    await user.click(within(dialog).getByRole('button', { name: 'preview.zoom_in' }))
+    await user.click(within(dialog).getByRole('button', { name: 'preview.rotate_right' }))
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByTestId('artboard-image-transform')).toHaveAttribute('src', 'file:///tmp/image-2.png')
+    await user.click(trigger)
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'preview.close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('renders the shimmer skeleton while generating', () => {
@@ -533,6 +557,15 @@ describe('Artboard', () => {
         clientHeight.mockRestore()
         naturalWidth.mockRestore()
         naturalHeight.mockRestore()
+      })
+
+      it('replaces the requested-size preview with decoded dimensions after loading', () => {
+        mockUsePaintingSizeInfo.mockReturnValue({ ratio: null, sizeLabel: 'Expected 2048×1152' })
+        render(<Artboard painting={makePainting({ prompt: 'a red cat' })} isLoading={false} />)
+        expect(screen.getByText('Expected 2048×1152')).toBeInTheDocument()
+        fireEvent.load(document.querySelector('img') as HTMLImageElement)
+        expect(screen.getByText('Actual 1024×1024')).toBeInTheDocument()
+        expect(screen.queryByText('Expected 2048×1152')).not.toBeInTheDocument()
       })
 
       it('locks the bar+image wrapper to the contain-fit width instead of the full container', () => {

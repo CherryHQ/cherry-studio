@@ -13,9 +13,13 @@ import type { PaintingData } from '../../model/types/paintingData'
 // these assertions match the params button on its stable `common.settings` key.
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, options?: { number?: number }) =>
+      key === 'paintings.steps.based_on' ? `基于第 ${options?.number} 版` : key
+  })
 }))
 
+const openPromptPanel = vi.hoisted(() => vi.fn())
 const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
 const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
 const mockMaterializeInputs = vi.hoisted(() => vi.fn())
@@ -57,7 +61,8 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => ({
           onClick={() => props.onSendDraft({ text: props.text, tokens: [] })}>
           send
         </button>
-        {props.renderLeftControls?.(undefined, { available: true, open: () => undefined })}
+        {props.renderLeftControls?.(undefined, { available: true, open: openPromptPanel })}
+        {typeof props.sendAccessory === 'function' ? null : props.sendAccessory}
       </div>
     )
   }
@@ -82,14 +87,16 @@ vi.mock('@renderer/components/composer/variants/shared/ComposerControlScaffoldin
   COMPOSER_SELECTOR_BUTTON_CLASS: '',
   ComposerToolbarControls: ({
     renderContextControls,
-    unifiedPanelControl
+    unifiedPanelControl,
+    showToolMenu = true
   }: {
     renderContextControls: (a: { side: string; iconOnly: boolean }) => React.ReactNode
     unifiedPanelControl?: { available: boolean }
+    showToolMenu?: boolean
   }) => (
     <div>
       {renderContextControls({ side: 'bottom', iconOnly: false })}
-      {unifiedPanelControl?.available ? <div data-testid="painting-plus-control" /> : null}
+      {showToolMenu && unifiedPanelControl?.available ? <div data-testid="painting-plus-control" /> : null}
     </div>
   )
 }))
@@ -192,6 +199,19 @@ describe('PaintingComposer', () => {
     mockIsEditImageModel.mockReturnValue(false)
   })
 
+  it('labels an unfinished edit with its source version and locates it without changing the draft', () => {
+    const locate = vi.fn()
+    const { onPromptChange } = renderComposer({
+      painting: makePainting({ stepNumber: 3, sourceFileId: 'source-file', prompt: 'keep this instruction' }),
+      sourcePainting: makePainting({ stepNumber: 2 }),
+      onLocateSource: locate
+    })
+    fireEvent.click(screen.getByRole('button', { name: '基于第 2 版' }))
+    expect(locate).toHaveBeenCalledTimes(1)
+    expect(onPromptChange).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('prompt')).toHaveValue('keep this instruction')
+  })
+
   it('renders the top image strip + add button and drops file pills for edit-image models', () => {
     mockIsEditImageModel.mockReturnValue(true)
     renderComposer()
@@ -267,10 +287,12 @@ describe('PaintingComposer', () => {
     expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
-  it('renders the model selector and unified panel controls in the toolbar', () => {
+  it('opens saved prompts directly without a duplicate attachment menu', () => {
     renderComposer()
     expect(screen.getByTestId('painting-model-selector')).toBeInTheDocument()
-    expect(screen.getByTestId('painting-plus-control')).toBeInTheDocument()
+    expect(screen.queryByTestId('painting-plus-control')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.prompts.title' }))
+    expect(openPromptPanel).toHaveBeenCalledWith({ launcherId: 'quick-phrases' })
   })
 
   it('reports prompt edits to the page', () => {
@@ -294,7 +316,7 @@ describe('PaintingComposer', () => {
     const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
     fireEvent.click(screen.getByLabelText('send'))
     await waitFor(() => expect(onGenerate).toHaveBeenCalledTimes(1))
-    expect(onGenerate).toHaveBeenCalledWith(mockMaterializeInputs)
+    expect(onGenerate).toHaveBeenCalledWith(mockMaterializeInputs, 'a cat')
     // Nothing is materialized by the act of pressing send.
     expect(mockMaterializeInputs).not.toHaveBeenCalled()
   })
