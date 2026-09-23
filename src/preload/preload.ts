@@ -32,7 +32,6 @@ import type {
   LanTransferState
 } from '@shared/types/lanTransfer'
 import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
-import type { SkillFileNode, SkillResult } from '@shared/types/skill'
 import type { CommandId } from '@shared/utils/command'
 
 import { ipcApi } from './ipc'
@@ -267,12 +266,6 @@ const api = {
   // All `ai.*` / `translate.*` capability IPC moved to IpcApi (`ipcApi.request(...)` /
   // `ipcApi.on('ai.stream_*')`): model ops, streaming chat + translate, agent-session
   // warm-up, tool approval, agent run-task, and the topic/agent-session auto-rename events.
-  skill: {
-    readSkillFile: (skillId: string, filename: string): Promise<SkillResult<string | null>> =>
-      ipcRenderer.invoke(IpcChannel.Skill_ReadFile, skillId, filename),
-    listFiles: (skillId: string): Promise<SkillResult<SkillFileNode[]>> =>
-      ipcRenderer.invoke(IpcChannel.Skill_ListFiles, skillId)
-  },
   lanTransfer: {
     startScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StartScan),
     stopScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StopScan),

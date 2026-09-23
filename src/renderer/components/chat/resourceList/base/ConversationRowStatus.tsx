@@ -9,14 +9,14 @@ type ConversationRowStatusProps = {
 }
 
 export const CONVERSATION_ROW_STATUS_TITLE_CLASS =
-  'mr-7 transition-[margin] duration-150 group-hover:mr-0 group-has-[[data-resource-list-item-actions]:focus-within]:mr-0 group-has-[[data-resource-list-item-actions][data-active=true]]:mr-0'
+  'mr-7 transition-[margin] duration-150 group-hover:mr-0 group-has-[[data-resource-list-item-actions]:focus-within]:mr-0 group-has-[[data-resource-list-item-actions][data-active=true]]:mr-0 no-hover:mr-0'
 
 const CONVERSATION_ROW_APPROVAL_BADGE_CLASS =
-  'pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 font-medium text-[10px] text-warning-subtle-foreground leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0'
+  'pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 font-medium text-[10px] text-warning-subtle-foreground leading-4 transition-[max-width,padding,opacity] duration-150 no-hover:max-w-28! no-hover:px-1.5! group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0 no-hover:opacity-100!'
 
 const CONVERSATION_ROW_STREAM_INDICATOR_CLASS =
   // A pinned rail stays expanded at rest, so the overlay steps left into the title's yield instead of sitting under the pin.
-  '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-[opacity,right] duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0 group-has-[[data-resource-list-item-actions][data-pinned=true]]:right-7'
+  '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-[opacity,right] duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0 no-hover:opacity-100! group-has-[[data-resource-list-item-actions][data-pinned=true]]:right-7 no-hover:static no-hover:translate-y-0'
 
 export function ConversationRowStatus({ status, testId }: ConversationRowStatusProps) {
   const { t } = useTranslation()

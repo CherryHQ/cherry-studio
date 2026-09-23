@@ -105,6 +105,8 @@ vi.mock('../utils/customFetch', async (importOriginal) => ({
   installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor(),
   // The inline health-check probe resolves the real provider config, which
   // defaults providerSettings.fetch to customFetch — a stub keeps it inert.
+  // Model listing issues its HTTP through the same fetch, so tests that exercise the
+  // real listing path stub this mock with the response they expect.
   customFetch: vi.fn()
 }))
 
