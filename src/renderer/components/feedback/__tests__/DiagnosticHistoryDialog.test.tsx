@@ -83,6 +83,39 @@ describe('DiagnosticHistoryDialog', () => {
     expect(mocks.request).not.toHaveBeenCalled()
   })
 
+  it('revalidates an open history dialog when diagnostic reports change', async () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    MockUseDataApiUtils.mockQueryResult('/diagnostic-reports', {
+      data: { items: [], page: 1, total: 0 },
+      refetch
+    })
+
+    render(<DiagnosticHistoryDialog open onOpenChange={vi.fn()} />)
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/diagnostic-reports', kind: 'membership' }])
+
+    await waitFor(() => expect(refetch).toHaveBeenCalledExactlyOnceWith())
+  })
+
+  it('disables refresh and pagination controls while the query is revalidating', async () => {
+    MockUseDataApiUtils.mockQueryResult('/diagnostic-reports', {
+      data: {
+        items: [{ reportId: 'report-1', submittedAt: 1, processingStatus: 'pending', lastCheckedAt: null }],
+        page: 1,
+        total: 21
+      },
+      isRefreshing: true
+    })
+
+    render(<DiagnosticHistoryDialog open onOpenChange={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+    })
+  })
+
   it('refreshes only visible IDs once per page and supports manual refresh', async () => {
     const user = userEvent.setup()
     const refetch = vi.fn().mockResolvedValue(undefined)

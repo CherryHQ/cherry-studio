@@ -71,6 +71,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useDataChange: vi.fn(),
   useQuery: () => ({
     data: { items: [], page: 1, total: 0 },
     error: null,

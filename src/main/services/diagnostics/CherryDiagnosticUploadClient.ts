@@ -9,9 +9,12 @@ import { openReadableFileSnapshot, type ReadableFileSnapshot } from '@main/utils
 import { type DiagnosticProcessingStatus, DiagnosticProcessingStatusSchema } from '@shared/data/types/diagnosticReport'
 import type { DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { diagnosticReportUrl, normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
+import {
+  DIAGNOSTIC_REPORT_BASE_URL,
+  diagnosticReportUrl,
+  normalizeDiagnosticDescription
+} from '@shared/utils/diagnostics'
 
-const DIAGNOSTIC_UPLOAD_URL = 'https://api.cherry-ai.com/diagnostics'
 const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
 const MAX_RESPONSE_BYTES = 64 * 1024
 const REQUEST_TIMEOUT_MS = 15 * 60 * 1000
@@ -237,7 +240,7 @@ export class CherryDiagnosticUploadClient {
       try {
         let response: Response
         try {
-          response = await net.fetch(DIAGNOSTIC_UPLOAD_URL, {
+          response = await net.fetch(DIAGNOSTIC_REPORT_BASE_URL, {
             body: form,
             headers: { ...signatureHeaders },
             method: 'POST',

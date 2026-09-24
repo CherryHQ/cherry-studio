@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Scrollbar } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
@@ -25,12 +25,15 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
   const [page, setPage] = useState(1)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState(false)
-  const { data, error, isLoading, refetch } = useQuery('/diagnostic-reports', {
+  const { data, error, isLoading, isRefreshing, refetch } = useQuery('/diagnostic-reports', {
     query: { page, limit: PAGE_SIZE },
     enabled: open
   })
   const reportIdsKey = JSON.stringify(data?.items.map((item) => item.reportId) ?? [])
   const hasReports = (data?.items.length ?? 0) > 0
+  const queryBusy = isLoading || isRefreshing
+
+  useDataChange(open ? '/diagnostic-reports' : [], () => void refetch())
 
   const refreshPage = useCallback(async () => {
     const reportIds = JSON.parse(reportIdsKey) as string[]
@@ -84,7 +87,7 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
             size="icon"
             title={t('common.refresh')}
             aria-label={t('common.refresh')}
-            disabled={refreshing || !hasReports}
+            disabled={refreshing || queryBusy || !hasReports}
             onClick={() => void refreshPage()}>
             <RefreshCw className="size-4" />
           </Button>
@@ -136,7 +139,7 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
                 variant="ghost"
                 size="icon"
                 aria-label={t('settings.about.feedback.history.previous')}
-                disabled={refreshing || page === 1}
+                disabled={refreshing || queryBusy || page === 1}
                 onClick={() => setPage(page - 1)}>
                 <ChevronLeft className="size-4" />
               </Button>
@@ -144,7 +147,7 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
                 variant="ghost"
                 size="icon"
                 aria-label={t('settings.about.feedback.history.next')}
-                disabled={refreshing || page * PAGE_SIZE >= data.total}
+                disabled={refreshing || queryBusy || page * PAGE_SIZE >= data.total}
                 onClick={() => setPage(page + 1)}>
                 <ChevronRight className="size-4" />
               </Button>
