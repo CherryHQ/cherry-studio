@@ -15,7 +15,8 @@ export function UarIntegrationStatus({
   dirty,
   theme,
   text,
-  start
+  start,
+  id
 }: {
   snapshot: IntegrationSnapshot
   busy: boolean
@@ -23,14 +24,20 @@ export function UarIntegrationStatus({
   theme: ThemeMode
   text: (key: string) => string
   start: (action: IntegrationAction) => void
+  id?: string
 }) {
   const rows = [
     [text('uarProcess'), text(`states.${snapshot.uar.state}`)],
     [text('uarRuntimeVersion'), snapshot.uar.runtimeVersion ?? text('uarUnavailable')],
     [
-      text('uarBackend'),
+      text('uarRequestedBackend'),
+      snapshot.uar.requestedBackend === 'embedded' ? text('uarBackendLocal') : text('backends.remote')
+    ],
+    [
+      text('uarEffectiveBackend'),
       snapshot.uar.effectiveBackend === 'embedded' ? text('uarBackendLocal') : text('backends.remote')
     ],
+    [text('uarConfigurationState'), text(snapshot.uar.applyRequired ? 'uarApplyRequired' : 'uarApplied')],
     [text('uarSkills'), String(snapshot.inventory?.skills.length ?? 0)],
     [
       text('uarCapabilities'),
@@ -39,7 +46,7 @@ export function UarIntegrationStatus({
   ]
 
   return (
-    <SettingGroup theme={theme}>
+    <SettingGroup theme={theme} id={id} className="scroll-mt-6">
       <SettingSubtitle>{text('uar')}</SettingSubtitle>
       <SettingDescription>{text('uarDescription')}</SettingDescription>
       <SettingDivider />
@@ -62,11 +69,24 @@ export function UarIntegrationStatus({
         <Button variant="outline" size="sm" disabled={busy || dirty} onClick={() => start('uar-check')}>
           {text('actions.uar-check')}
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy || dirty || !snapshot.uar.applyRequired}
+          onClick={() => start('uar-apply')}>
+          {text('actions.uar-apply')}
+        </Button>
         <Button variant="outline" size="sm" disabled={busy || dirty} onClick={() => start('uar-restart')}>
           {text('actions.uar-restart')}
         </Button>
       </div>
-      <SettingHelpText className="mt-3">{text('uarPreview')}</SettingHelpText>
+      {snapshot.uar.lastApplyError ? (
+        <SettingHelpText className="mt-3 text-error" role="alert">
+          {text('uarLastApplyError')}: {snapshot.uar.lastApplyError}
+        </SettingHelpText>
+      ) : (
+        <SettingHelpText className="mt-3">{text('uarApplyHelp')}</SettingHelpText>
+      )}
     </SettingGroup>
   )
 }

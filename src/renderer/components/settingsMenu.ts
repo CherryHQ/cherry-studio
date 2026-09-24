@@ -2,9 +2,12 @@ import {
   Activity,
   Archive,
   Bell,
+  Bot,
   CalendarClock,
   Cloud,
   Command,
+  Compass,
+  Container,
   Crop,
   FileBox,
   FileCode,
@@ -13,6 +16,7 @@ import {
   HardDrive,
   Info,
   MonitorSmartphone,
+  Network,
   Package,
   Palette,
   PictureInPicture2,
@@ -197,6 +201,30 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/prometheus',
     titleKey: 'settings.prometheus.title',
     icon: createElement(Flame),
+    groupKey: 'settings.menuGroups.system'
+  },
+  {
+    route: '/settings/uar',
+    titleKey: 'settings.prometheus.integration.uar',
+    icon: createElement(Bot),
+    groupKey: 'settings.menuGroups.system'
+  },
+  {
+    route: '/settings/compass',
+    titleKey: 'settings.prometheus.integration.compassTitle',
+    icon: createElement(Compass),
+    groupKey: 'settings.menuGroups.system'
+  },
+  {
+    route: '/settings/liter-llm',
+    titleKey: 'settings.prometheus.integration.literTitle',
+    icon: createElement(Network),
+    groupKey: 'settings.menuGroups.system'
+  },
+  {
+    route: '/settings/services',
+    titleKey: 'settings.prometheus.integration.services',
+    icon: createElement(Container),
     groupKey: 'settings.menuGroups.system'
   },
   {
