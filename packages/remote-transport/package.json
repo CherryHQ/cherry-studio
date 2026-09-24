@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/remote-transport",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Cherry Studio encrypted remote access transport using Noise XX and JSON-RPC.",
   "repository": {
     "type": "git",
