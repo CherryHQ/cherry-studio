@@ -1,8 +1,12 @@
 import { application } from '@application'
 import {
   readUarAdministrationSnapshot,
+  deleteUarProvider,
   readUarModelSources,
   readUarSettings,
+  saveUarProvider,
+  setDefaultUarProvider,
+  testUarProvider,
   updateUarSettings
 } from '@main/ai/runtime/uar'
 import { StaleIntegrationRevisionError } from '@main/services/prometheus/integrationErrors'
@@ -35,6 +39,10 @@ export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas>
   'prometheus.uar.settings.read': async ({ namespace }) => readUarSettings(namespace),
   'prometheus.uar.settings.update': async ({ namespace, changes }) => updateUarSettings(namespace, changes),
   'prometheus.uar.models.sources': async () => readUarModelSources(),
+  'prometheus.uar.providers.save': async (input) => saveUarProvider(input),
+  'prometheus.uar.providers.delete': async ({ id }) => deleteUarProvider(id),
+  'prometheus.uar.providers.default': async ({ id }) => setDefaultUarProvider(id),
+  'prometheus.uar.providers.test': async ({ id, modelId }) => testUarProvider(id, modelId),
   'prometheus.doctor.run': async () => runPrometheusDoctor(),
   'prometheus.doctor.fix': async ({ fixId }) => applyPrometheusFix(fixId),
   'prometheus.skills.push': async () => application.get('PrometheusSkillPushService').push(),

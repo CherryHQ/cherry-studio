@@ -18,6 +18,9 @@ import { ipcApi } from '@renderer/ipc'
 import { getSettingDomId } from '@renderer/pages/settings/settingsSearch/types'
 import type { UarAdministrationSnapshot } from '@shared/types/prometheusIntegration'
 
+import { UarProvidersModelsPanel } from './UarProvidersModelsPanel'
+import { UarRuntimeSettingsPanel } from './UarRuntimeSettingsPanel'
+
 const GROUPS = ['runtime', 'agents', 'experience', 'administration'] as const
 
 type SurfaceProjection = UarAdministrationSnapshot['surfaces'][number]
@@ -219,6 +222,10 @@ export function UarAdministrationWorkspace({ overview }: { overview: ReactNode }
               {overview}
               {selected && <CapabilitySurface surface={selected} />}
             </>
+          ) : selectedId === 'runtime-settings' ? (
+            <UarRuntimeSettingsPanel />
+          ) : selectedId === 'providers-models' ? (
+            <UarProvidersModelsPanel />
           ) : selected ? (
             <CapabilitySurface surface={selected} />
           ) : (

@@ -288,7 +288,24 @@ export type UarModelSourceSnapshot = {
       id: string
       name: string
       credentialConfigured: boolean
-      models: Array<{ id: string; name: string; enabled: boolean; effectiveIdentity: string }>
+      enabled: boolean
+      baseUrl?: string
+      protocol?: 'auto' | 'chat' | 'responses'
+      defaultModel?: string
+      isDefault?: boolean
+      models: Array<{
+        id: string
+        name: string
+        enabled: boolean
+        effectiveIdentity: string
+        contextWindow?: number
+        supportsVision?: boolean
+        supportsTools?: boolean
+        supportsReasoning?: boolean
+        supportsStructuredOutput?: boolean
+        supportsStreaming?: boolean
+        maxOutputTokens?: number
+      }>
     }>
   }>
   consumers: Array<{
@@ -299,6 +316,42 @@ export type UarModelSourceSnapshot = {
     detail: string
   }>
 }
+export const uarProviderModelInputSchema = z
+  .object({
+    id: z.string().min(1).max(256),
+    displayName: z.string().max(256).optional(),
+    contextWindow: z.number().int().positive().optional(),
+    supportsVision: z.boolean().optional(),
+    supportsTools: z.boolean().optional(),
+    supportsReasoning: z.boolean().optional(),
+    supportsStructuredOutput: z.boolean().optional(),
+    supportsStreaming: z.boolean().optional(),
+    maxOutputTokens: z.number().int().positive().optional(),
+    enabled: z.boolean().default(true)
+  })
+  .strict()
+export const uarProviderSecretMutationSchema = z.discriminatedUnion('operation', [
+  z.object({ operation: z.literal('unchanged') }).strict(),
+  z.object({ operation: z.literal('set'), value: z.string().min(1).max(16384) }).strict(),
+  z.object({ operation: z.literal('clear') }).strict()
+])
+export const uarProviderMutationSchema = z
+  .object({
+    mode: z.enum(['create', 'update']),
+    id: z
+      .string()
+      .regex(/^[a-zA-Z0-9_.:-]+$/)
+      .max(128),
+    displayName: z.string().min(1).max(256),
+    baseUrl: z.union([z.literal(''), endpoint]),
+    protocol: z.enum(['auto', 'chat', 'responses']),
+    defaultModel: z.string().min(1).max(256).optional(),
+    models: z.array(uarProviderModelInputSchema).max(512),
+    enabled: z.boolean(),
+    credential: uarProviderSecretMutationSchema
+  })
+  .strict()
+export type UarProviderMutation = z.infer<typeof uarProviderMutationSchema>
 export const integrationActionSchema = z.enum([
   'pull',
   'start',

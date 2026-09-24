@@ -5,6 +5,7 @@ import {
   integrationActionSchema,
   integrationUpdateSchema,
   secretPatchSchema,
+  uarProviderMutationSchema,
   type IntegrationOperation,
   type IntegrationSnapshot
 } from '@shared/types/prometheusIntegration'
@@ -74,6 +75,22 @@ export const prometheusRequestSchemas = {
   'prometheus.uar.models.sources': defineRoute({
     input: z.object({}).strict(),
     output: z.custom<UarModelSourceSnapshot>()
+  }),
+  'prometheus.uar.providers.save': defineRoute({
+    input: uarProviderMutationSchema,
+    output: z.custom<UarModelSourceSnapshot>()
+  }),
+  'prometheus.uar.providers.delete': defineRoute({
+    input: z.object({ id: z.string().min(1).max(128) }).strict(),
+    output: z.custom<UarModelSourceSnapshot>()
+  }),
+  'prometheus.uar.providers.default': defineRoute({
+    input: z.object({ id: z.string().min(1).max(128) }).strict(),
+    output: z.custom<UarModelSourceSnapshot>()
+  }),
+  'prometheus.uar.providers.test': defineRoute({
+    input: z.object({ id: z.string().min(1).max(128), modelId: z.string().min(1).max(256) }).strict(),
+    output: z.object({ ok: z.boolean(), providerId: z.string(), modelId: z.string(), latencyMs: z.number() })
   }),
   'prometheus.doctor.run': defineRoute({
     input: z.object({}).strict(),

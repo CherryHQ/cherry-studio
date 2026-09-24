@@ -18,8 +18,8 @@ export const entries: SettingsSearchEntry[] = [
   },
   ...[
     ['overview', ['health', 'readiness', 'metrics', 'capabilities']],
-    ['providers-models', ['provider', 'model', 'routing', 'catalog']],
-    ['runtime-settings', ['configuration', 'namespace', 'drift', 'policy']],
+    ['providers-models', ['provider', 'model', 'routing', 'catalog', 'API key', 'default model', 'model source']],
+    ['runtime-settings', ['configuration', 'namespace', 'drift', 'policy', 'saved value', 'effective value']],
     ['agents', ['agent catalog', 'agent definition', 'registry']],
     ['compiler', ['UAR-AGENT-MD', 'compile', 'specification']],
     ['skills', ['skill pack', 'provenance', 'refresh']],
