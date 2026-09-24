@@ -13,7 +13,7 @@ const {
   listTasksMock,
   getTaskMock,
   listSkillsMock,
-  getSkillByIdMock,
+  getSkillByIdMock
 } = vi.hoisted(() => ({
   listAgentsMock: vi.fn(),
   getAgentMock: vi.fn(),
@@ -25,7 +25,7 @@ const {
   listTasksMock: vi.fn(),
   getTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
-  getSkillByIdMock: vi.fn(),
+  getSkillByIdMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -34,7 +34,7 @@ vi.mock('@data/services/AgentService', () => ({
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
     reorder: reorderMock,
-    reorderBatch: reorderBatchMock,
+    reorderBatch: reorderBatchMock
   }
 }))
 
@@ -55,7 +55,6 @@ vi.mock('@data/services/AgentGlobalSkillService', () => ({
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
-
 
 const { archiveAgentMock } = vi.hoisted(() => ({
   archiveAgentMock: vi.fn()
