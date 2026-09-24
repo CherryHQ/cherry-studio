@@ -5,9 +5,8 @@ const binaryMock = vi.hoisted(() => ({
   getBinaryPath: vi.fn<(name?: string) => Promise<string>>()
 }))
 const commandMock = vi.hoisted(() => ({
-  findExecutableInEnv: vi.fn<
-    (name: string, options?: { env?: Record<string, string>; signal?: AbortSignal }) => Promise<string | null>
-  >(),
+  findExecutableInEnv:
+    vi.fn<(name: string, options?: { env?: Record<string, string>; signal?: AbortSignal }) => Promise<string | null>>(),
   findCommandInShellEnv: vi.fn<(name: string, env: Record<string, string>) => Promise<string | null>>()
 }))
 
@@ -22,6 +21,14 @@ const resolve = (command: string, args: string[] = [], registryUrl?: string) =>
   resolveLaunchCommand({ command, args, registryUrl, loginShellEnv: { PATH: '/usr/bin' }, logger })
 
 describe('resolveLaunchCommand', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    binaryMock.isBinaryExists.mockResolvedValue(false)
+    binaryMock.getBinaryPath.mockImplementation(async (name) => `/bundled/${name}`)
+    commandMock.findExecutableInEnv.mockResolvedValue(null)
+    commandMock.findCommandInShellEnv.mockResolvedValue(null)
+  })
+
   it('shares resolution by command and effective environment without sharing arguments or registries', async () => {
     commandMock.findExecutableInEnv.mockResolvedValue(null)
     binaryMock.isBinaryExists.mockResolvedValue(true)
@@ -35,13 +42,6 @@ describe('resolveLaunchCommand', () => {
     expect(commandMock.findExecutableInEnv).toHaveBeenCalledTimes(1)
     await resolveLaunchCommand({ ...options, loginShellEnv: { PATH: '/b' }, args: [] })
     expect(commandMock.findExecutableInEnv).toHaveBeenCalledTimes(2)
-  })
-  beforeEach(() => {
-    vi.clearAllMocks()
-    binaryMock.isBinaryExists.mockResolvedValue(false)
-    binaryMock.getBinaryPath.mockImplementation(async (name) => `/bundled/${name}`)
-    commandMock.findExecutableInEnv.mockResolvedValue(null)
-    commandMock.findCommandInShellEnv.mockResolvedValue(null)
   })
 
   it('prefers the user’s own npx over the bundled runtime', async () => {
