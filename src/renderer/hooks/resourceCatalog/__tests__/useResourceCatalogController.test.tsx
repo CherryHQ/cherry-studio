@@ -396,6 +396,15 @@ describe('useResourceCatalogController', () => {
       expect(result.current.gridProps.activeGroupId).toBeNull()
     })
 
+    // A group id only means something in the library it was picked in: the agent library must
+    // never be asked for it, not even on the render the switch happens on.
+    expect(controllerMocks.resourceLibraryOptions).not.toContainEqual(
+      expect.objectContaining({
+        resourceType: 'agent',
+        activeGroupId: '11111111-1111-4111-8111-111111111111'
+      })
+    )
+
     rerender({ resourceType: 'assistant' })
 
     await waitFor(() => {
