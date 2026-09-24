@@ -287,9 +287,9 @@ export type AgentSchemas = {
     }
   }
 
-  /** Get or update a specific agent. Use `ai.agent.delete` on IpcApi for
-      the full agent + session + pin cascade; the data-API DELETE here
-      removes the agent only and is intended for the resource-list UI. */
+  /** Get, update, or archive a specific agent. Data API DELETE archives
+      the agent without deleting its sessions; IpcApi `ai.agent.delete`
+      owns the full agent + session + pin cascade. */
   '/agents/:agentId': {
     GET: {
       params: { agentId: string }
