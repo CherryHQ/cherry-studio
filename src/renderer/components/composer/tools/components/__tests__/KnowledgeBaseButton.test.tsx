@@ -213,7 +213,7 @@ describe('KnowledgeBaseToolRuntime', () => {
     rootSearchItem.action?.({
       context: { symbol: ComposerPanelSymbol.Root, close: vi.fn() },
       inputAdapter: { getText: () => '', subscribeInput },
-      item: { ...rootSearchItem, isSelected: true }
+      item: rootSearchItem
     } as never)
 
     expect(onSelect).toHaveBeenCalledWith([mocks.knowledgeBases[0]])

@@ -139,6 +139,15 @@ const useKnowledgeBaseToolController = ({
   }, [closeKnowledgeBasePanelOnNextInput, configuredBases, language, selectedBaseIds])
 
   const knowledgeBaseItems = useMemo(() => buildKnowledgeBaseItems(), [buildKnowledgeBaseItems])
+  const knowledgeBaseRootSearchItems = useMemo(
+    () =>
+      knowledgeBaseItems.map((item) => ({
+        ...item,
+        action: (options: QuickPanelCallBackOptions) =>
+          item.action?.({ ...options, item: { ...options.item, isSelected: true } })
+      })),
+    [knowledgeBaseItems]
+  )
   const manageKnowledgeBaseAction = useMemo<ComposerToolFooterAction>(() => {
     const label = t('chat.input.knowledge_base_manage')
     return {
@@ -208,7 +217,7 @@ const useKnowledgeBaseToolController = ({
           active: isEnabled,
           showInActiveControls: false,
           disabled: isDisabled,
-          rootSearchItems: knowledgeBaseItems,
+          rootSearchItems: knowledgeBaseRootSearchItems,
           // action opens the '#' knowledge-base panel, whose symbol differs from the launcher id.
           panelSymbol: ComposerPanelSymbol.KnowledgeBase,
           action: openKnowledgeBasePanel
@@ -223,7 +232,7 @@ const useKnowledgeBaseToolController = ({
   }, [
     isDisabled,
     isEnabled,
-    knowledgeBaseItems,
+    knowledgeBaseRootSearchItems,
     launcher,
     manageKnowledgeBaseAction,
     openKnowledgeBasePanel,
