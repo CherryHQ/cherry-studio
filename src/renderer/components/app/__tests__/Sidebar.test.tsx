@@ -61,7 +61,7 @@ vi.mock('../../layout/HelpMenu', () => ({
 }))
 vi.mock('../../Sidebar', () => ({
   getSidebarDisplayWidth: (width: number) => width,
-  getSidebarLayout: (width: number) => (width === 0 ? 'hidden' : 'full'),
+  getSidebarLayout: (width: number) => (width === 0 ? 'hidden' : width <= 50 ? 'icon' : 'full'),
   normalizeSidebarWidth: (width: number) => width,
   Sidebar: ({
     entries,
@@ -84,7 +84,7 @@ vi.mock('../../Sidebar', () => ({
     onHoverChange?: (visible: boolean) => void
     renderUserTrigger?: (trigger: ReactElement) => ReactElement
     user?: { name: string; onClick?: () => void }
-    userAction?: ReactNode | ((layout: 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
+    userAction?: ReactNode | ((layout: 'full' | 'icon', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
   }) => {
     const accountButton = user ? (
       <button type="button" aria-label={user.name} onClick={user.onClick}>
@@ -92,7 +92,8 @@ vi.mock('../../Sidebar', () => ({
       </button>
     ) : null
     const accountTrigger = accountButton ? (renderUserTrigger?.(accountButton) ?? accountButton) : null
-    const resolvedUserAction = typeof userAction === 'function' ? userAction('full', vi.fn()) : userAction
+    const resolvedUserAction =
+      typeof userAction === 'function' ? userAction(mocks.sidebarWidth <= 50 ? 'icon' : 'full', vi.fn()) : userAction
 
     return (
       <div data-testid={isFloating ? 'floating-sidebar' : 'docked-sidebar'} onMouseEnter={() => onHoverChange?.(true)}>
@@ -188,6 +189,17 @@ describe('app Sidebar', () => {
     expect(mocks.openSettingsTab).toHaveBeenCalledOnce()
     expect(mocks.showUpdatePopup).toHaveBeenCalledOnce()
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
+  it('places help above settings in the compact sidebar footer', () => {
+    mocks.sidebarWidth = 50
+    render(<Sidebar />)
+
+    const footer = screen.getByTestId('sidebar-footer-user')
+    const actions = within(footer)
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+    expect(actions.filter((label) => label === 'Help' || label === 'Settings')).toEqual(['Help', 'Settings'])
   })
 
   it('keeps a missing resource in place, disables activation, and allows removal', () => {

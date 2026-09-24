@@ -40,6 +40,7 @@ import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings/notifications'
 import { Route as SettingsOcrRouteImport } from './routes/settings/ocr'
+import { Route as SettingsProfileRouteImport } from './routes/settings/profile'
 import { Route as SettingsPromptsRouteImport } from './routes/settings/prompts'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quick-assistant'
@@ -49,6 +50,7 @@ import { Route as SettingsSearchRouteImport } from './routes/settings/search'
 import { Route as SettingsSelectionAssistantRouteImport } from './routes/settings/selection-assistant'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
+import { Route as SettingsSubscriptionRouteImport } from './routes/settings/subscription'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsUsageRouteImport } from './routes/settings/usage'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
@@ -225,6 +227,11 @@ const SettingsOcrRoute = SettingsOcrRouteImport.update({
   path: '/ocr',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsProfileRoute = SettingsProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
   id: '/prompts',
   path: '/prompts',
@@ -269,6 +276,11 @@ const SettingsShortcutRoute = SettingsShortcutRouteImport.update({
 const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsSubscriptionRoute = SettingsSubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsSystemRoute = SettingsSystemRouteImport.update({
@@ -401,6 +413,7 @@ export interface FileRoutesByFullPath {
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/ocr': typeof SettingsOcrRoute
+  '/settings/profile': typeof SettingsProfileRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
@@ -410,6 +423,7 @@ export interface FileRoutesByFullPath {
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRouteWithChildren
+  '/settings/subscription': typeof SettingsSubscriptionRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
@@ -460,6 +474,7 @@ export interface FileRoutesByTo {
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/ocr': typeof SettingsOcrRoute
+  '/settings/profile': typeof SettingsProfileRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
@@ -467,6 +482,7 @@ export interface FileRoutesByTo {
   '/settings/search': typeof SettingsSearchRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
+  '/settings/subscription': typeof SettingsSubscriptionRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
@@ -520,6 +536,7 @@ export interface FileRoutesById {
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/ocr': typeof SettingsOcrRoute
+  '/settings/profile': typeof SettingsProfileRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
@@ -529,6 +546,7 @@ export interface FileRoutesById {
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRouteWithChildren
+  '/settings/subscription': typeof SettingsSubscriptionRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
@@ -583,6 +601,7 @@ export interface FileRouteTypes {
     | '/settings/model'
     | '/settings/notifications'
     | '/settings/ocr'
+    | '/settings/profile'
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
@@ -592,6 +611,7 @@ export interface FileRouteTypes {
     | '/settings/selection-assistant'
     | '/settings/shortcut'
     | '/settings/skills'
+    | '/settings/subscription'
     | '/settings/system'
     | '/settings/usage'
     | '/settings/websearch'
@@ -642,6 +662,7 @@ export interface FileRouteTypes {
     | '/settings/model'
     | '/settings/notifications'
     | '/settings/ocr'
+    | '/settings/profile'
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
@@ -649,6 +670,7 @@ export interface FileRouteTypes {
     | '/settings/search'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
+    | '/settings/subscription'
     | '/settings/system'
     | '/settings/usage'
     | '/settings/websearch'
@@ -701,6 +723,7 @@ export interface FileRouteTypes {
     | '/settings/model'
     | '/settings/notifications'
     | '/settings/ocr'
+    | '/settings/profile'
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
@@ -710,6 +733,7 @@ export interface FileRouteTypes {
     | '/settings/selection-assistant'
     | '/settings/shortcut'
     | '/settings/skills'
+    | '/settings/subscription'
     | '/settings/system'
     | '/settings/usage'
     | '/settings/websearch'
@@ -956,6 +980,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsOcrRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/profile': {
+      id: '/settings/profile'
+      path: '/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof SettingsProfileRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/prompts': {
       id: '/settings/prompts'
       path: '/prompts'
@@ -1017,6 +1048,13 @@ declare module '@tanstack/react-router' {
       path: '/skills'
       fullPath: '/settings/skills'
       preLoaderRoute: typeof SettingsSkillsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/subscription': {
+      id: '/settings/subscription'
+      path: '/subscription'
+      fullPath: '/settings/subscription'
+      preLoaderRoute: typeof SettingsSubscriptionRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/system': {
@@ -1267,6 +1305,7 @@ interface SettingsRouteChildren {
   SettingsModelRoute: typeof SettingsModelRoute
   SettingsNotificationsRoute: typeof SettingsNotificationsRoute
   SettingsOcrRoute: typeof SettingsOcrRoute
+  SettingsProfileRoute: typeof SettingsProfileRoute
   SettingsPromptsRoute: typeof SettingsPromptsRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
@@ -1276,6 +1315,7 @@ interface SettingsRouteChildren {
   SettingsSelectionAssistantRoute: typeof SettingsSelectionAssistantRoute
   SettingsShortcutRoute: typeof SettingsShortcutRoute
   SettingsSkillsRoute: typeof SettingsSkillsRouteWithChildren
+  SettingsSubscriptionRoute: typeof SettingsSubscriptionRoute
   SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsUsageRoute: typeof SettingsUsageRoute
   SettingsWebsearchRoute: typeof SettingsWebsearchRoute
@@ -1300,6 +1340,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsModelRoute: SettingsModelRoute,
   SettingsNotificationsRoute: SettingsNotificationsRoute,
   SettingsOcrRoute: SettingsOcrRoute,
+  SettingsProfileRoute: SettingsProfileRoute,
   SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,
@@ -1309,6 +1350,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsSelectionAssistantRoute: SettingsSelectionAssistantRoute,
   SettingsShortcutRoute: SettingsShortcutRoute,
   SettingsSkillsRoute: SettingsSkillsRouteWithChildren,
+  SettingsSubscriptionRoute: SettingsSubscriptionRoute,
   SettingsSystemRoute: SettingsSystemRoute,
   SettingsUsageRoute: SettingsUsageRoute,
   SettingsWebsearchRoute: SettingsWebsearchRoute,

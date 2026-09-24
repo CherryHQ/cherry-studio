@@ -16,12 +16,17 @@ import {
   type ModelCapability,
   parseUniqueModelId
 } from '@shared/data/types/model'
-import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import type {
+  CherryCloudAccountPlans,
+  CherryCloudModelSyncResult,
+  CherryCloudStatus
+} from '@shared/ipc/schemas/cherryCloud'
 
 import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
 import { CherryCloudLoopbackCallback } from './CherryCloudLoopbackCallback'
 import {
   accountSnapshotSchema,
+  accountPlansSchema,
   cloudModelListSchema,
   createDesktopAuthorizationResponseSchema,
   exchangeDesktopAuthorizationResponseSchema,
@@ -599,6 +604,12 @@ export class CherryCloudService extends BaseService {
     return this.syncEntitledModels()
   }
 
+  public async getAccountPlans(): Promise<CherryCloudAccountPlans> {
+    return this.getAuthenticatedJson('/api/v1/account/plans', accountPlansSchema, {
+      signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
+    })
+  }
+
   private async syncEntitledModelsOnce(
     sessionGeneration: number,
     signal: AbortSignal
@@ -1053,20 +1064,21 @@ export class CherryCloudService extends BaseService {
     if (!stored) return
 
     const device = { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey }
+    const session = stored.session?.apiOrigin === resolveCherryCloudApiOrigin() ? stored.session : null
 
     this.cloudState = {
       device,
       pending: null,
-      session: stored.session
+      session: session
         ? {
             accessToken: '',
             accessExpiresAt: 0,
-            refreshToken: stored.session.refreshToken,
-            sessionId: stored.session.sessionId,
-            sessionExpiresAt: stored.session.sessionExpiresAt,
-            deviceId: stored.session.deviceId,
-            accountId: stored.session.accountId,
-            displayName: stored.session.displayName
+            refreshToken: session.refreshToken,
+            sessionId: session.sessionId,
+            sessionExpiresAt: session.sessionExpiresAt,
+            deviceId: session.deviceId,
+            accountId: session.accountId,
+            displayName: session.displayName
           }
         : null
     }
@@ -1081,6 +1093,7 @@ export class CherryCloudService extends BaseService {
       devicePublicKey: device.publicKey,
       devicePrivateKey: device.privateKey,
       session: {
+        apiOrigin: resolveCherryCloudApiOrigin(),
         refreshToken: session.refreshToken,
         sessionId: session.sessionId,
         sessionExpiresAt: session.sessionExpiresAt,
