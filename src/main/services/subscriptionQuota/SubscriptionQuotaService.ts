@@ -1,10 +1,8 @@
 import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import type { SubscriptionQuotaResult, SubscriptionQuotaWindow } from '@shared/ipc/schemas/provider'
@@ -18,6 +16,13 @@ export interface GetSubscriptionQuotaInput {
   cliCommand?: string
   httpUrl?: string
 }
+
+const KNOWN_CLI_COMMANDS: Readonly<Record<string, string>> = Object.freeze({
+  'claude-code': 'claude /usage',
+  [OPENAI_CODEX_PROVIDER_ID]: 'codex /usage',
+  minimax: 'mcode /usage',
+  'minimax-global': 'mcode /usage'
+})
 
 export function parseCliUsageOutput(output: string): {
   fiveHour?: SubscriptionQuotaWindow
@@ -93,16 +98,14 @@ export function parseCliUsageOutput(output: string): {
     }
   } else if (result.fiveHour) {
     result.resets = {
-      resetInterval: '5 小时重置周期'
+      resetInterval: '5h'
     }
   }
 
   return result
 }
 
-@Injectable('SubscriptionQuotaService')
-@ServicePhase(Phase.WhenReady)
-export class SubscriptionQuotaService extends BaseService {
+export class SubscriptionQuotaService {
   async getSubscriptionQuota(input: GetSubscriptionQuotaInput): Promise<SubscriptionQuotaResult> {
     const { providerId } = input
     const provider = providerService.getByProviderId(providerId)
@@ -119,21 +122,24 @@ export class SubscriptionQuotaService extends BaseService {
       hasHttp: !!customHttpUrl
     })
 
+    let cliResult: SubscriptionQuotaResult | undefined
+
     // Try CLI if requested or auto
     if (effectiveMethod === 'cli' || effectiveMethod === 'auto') {
-      const cliResult = await this.tryFetchViaCli(providerId, customCliCommand)
+      cliResult = await this.tryFetchViaCli(providerId, customCliCommand)
       if (cliResult.success) {
         return cliResult
       }
       if (effectiveMethod === 'cli') {
-        // If explicitly requested CLI, return failure or fallback with error
         return cliResult
       }
     }
 
+    let httpResult: SubscriptionQuotaResult | undefined
+
     // Try HTTP if requested or auto fallback
     if (effectiveMethod === 'http' || effectiveMethod === 'auto') {
-      const httpResult = await this.tryFetchViaHttp(providerId, customHttpUrl)
+      httpResult = await this.tryFetchViaHttp(providerId, customHttpUrl)
       if (httpResult.success) {
         return httpResult
       }
@@ -142,21 +148,26 @@ export class SubscriptionQuotaService extends BaseService {
       }
     }
 
-    // Default mock/simulated preview when neither CLI nor HTTP produced live data
-    return this.generateSimulatedQuota(providerId)
+    return {
+      providerId,
+      success: false,
+      source: 'auto',
+      error: cliResult?.error || httpResult?.error || 'Unable to retrieve quota for this provider',
+      updatedAt: new Date().toISOString()
+    }
   }
 
   private async tryFetchViaCli(providerId: string, customCommand?: string): Promise<SubscriptionQuotaResult> {
-    let command = customCommand
+    const trimmedCustom = customCommand?.trim()
+    const command = trimmedCustom || KNOWN_CLI_COMMANDS[providerId]
+
     if (!command) {
-      if (providerId === 'claude-code') {
-        command = 'claude /usage'
-      } else if (providerId === OPENAI_CODEX_PROVIDER_ID) {
-        command = 'codex /usage'
-      } else if (providerId === 'minimax' || providerId === 'minimax-global') {
-        command = 'mcode /usage'
-      } else {
-        command = `${providerId} /usage`
+      return {
+        providerId,
+        success: false,
+        source: 'cli',
+        error: 'No default CLI command configured for this provider',
+        updatedAt: new Date().toISOString()
       }
     }
 
@@ -169,23 +180,26 @@ export class SubscriptionQuotaService extends BaseService {
       const fullText = `${stdout}\n${stderr}`.trim()
       const parsed = parseCliUsageOutput(fullText)
 
+      const hasMetrics = parsed.fiveHour !== undefined || parsed.sevenDay !== undefined || parsed.resets !== undefined
+
+      if (!hasMetrics) {
+        return {
+          providerId,
+          success: false,
+          source: 'cli',
+          error: 'Failed to extract quota metrics from CLI output',
+          rawOutput: fullText.slice(0, 1000),
+          updatedAt: new Date().toISOString()
+        }
+      }
+
       return {
         providerId,
         success: true,
         source: 'cli',
-        fiveHour: parsed.fiveHour ?? {
-          usedPercentage: 35,
-          resetsInFormatted: '2小时15分后'
-        },
-        sevenDay: parsed.sevenDay ?? {
-          usedPercentage: 18,
-          resetsInFormatted: '周一 00:00'
-        },
-        resets: parsed.resets ?? {
-          remainingCount: 4,
-          totalCount: 5,
-          resetInterval: '每 5 小时'
-        },
+        fiveHour: parsed.fiveHour,
+        sevenDay: parsed.sevenDay,
+        resets: parsed.resets,
         rawOutput: fullText.slice(0, 1000),
         updatedAt: new Date().toISOString()
       }
@@ -196,20 +210,31 @@ export class SubscriptionQuotaService extends BaseService {
         providerId,
         success: false,
         source: 'cli',
-        error: `CLI 执行失败: ${message.slice(0, 150)}`,
+        error: `CLI execution failed: ${message.slice(0, 150)}`,
         updatedAt: new Date().toISOString()
       }
     }
   }
 
   private async tryFetchViaHttp(providerId: string, customUrl?: string): Promise<SubscriptionQuotaResult> {
+    const trimmedUrl = customUrl?.trim()
+    if (!trimmedUrl) {
+      return {
+        providerId,
+        success: false,
+        source: 'http',
+        error: 'No HTTP endpoint configured for quota retrieval',
+        updatedAt: new Date().toISOString()
+      }
+    }
+
     try {
-      if (customUrl) {
-        const response = await fetch(customUrl, { method: 'GET', signal: AbortSignal.timeout(5000) })
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-        }
-        const json = await response.json()
+      const response = await fetch(trimmedUrl, { method: 'GET', signal: AbortSignal.timeout(5000) })
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      const json = await response.json()
+      if (json && (json.fiveHour || json.sevenDay || json.resets)) {
         return {
           providerId,
           success: true,
@@ -221,73 +246,11 @@ export class SubscriptionQuotaService extends BaseService {
         }
       }
 
-      // Check if OpenAI Codex OAuth is active
-      if (providerId === OPENAI_CODEX_PROVIDER_ID) {
-        const oauthRuntime = application.get('OAuthRuntimeService')
-        const hasToken = await oauthRuntime.hasToken(OPENAI_CODEX_PROVIDER_ID)
-        if (hasToken) {
-          // Live authenticated Codex state
-          return {
-            providerId,
-            success: true,
-            source: 'http',
-            fiveHour: {
-              usedPercentage: 45,
-              usedAmount: 18,
-              totalAmount: 40,
-              unit: '次',
-              resetsInFormatted: '1小时40分后'
-            },
-            sevenDay: {
-              usedPercentage: 24,
-              usedAmount: 120,
-              totalAmount: 500,
-              unit: '次',
-              resetsInFormatted: '周一 00:00'
-            },
-            resets: {
-              remainingCount: 22,
-              totalCount: 40,
-              resetInterval: '5 小时滚动窗口'
-            },
-            updatedAt: new Date().toISOString()
-          }
-        }
-      }
-
-      // Check MiniMax API Key
-      if (providerId === 'minimax' || providerId === 'minimax-global') {
-        const key = providerService.resolveApiKey(providerId)
-        if (key?.value) {
-          return {
-            providerId,
-            success: true,
-            source: 'http',
-            fiveHour: {
-              usedPercentage: 30,
-              unit: '并发/请求',
-              resetsInFormatted: '3小时10分后'
-            },
-            sevenDay: {
-              usedPercentage: 15,
-              unit: '配额包',
-              resetsInFormatted: '本周可用'
-            },
-            resets: {
-              remainingCount: 5,
-              totalCount: 5,
-              resetInterval: '按需套餐'
-            },
-            updatedAt: new Date().toISOString()
-          }
-        }
-      }
-
       return {
         providerId,
         success: false,
         source: 'http',
-        error: '未配置可用的 HTTP 额度查询接口或凭据',
+        error: 'HTTP response did not contain quota information',
         updatedAt: new Date().toISOString()
       }
     } catch (error) {
@@ -297,37 +260,11 @@ export class SubscriptionQuotaService extends BaseService {
         providerId,
         success: false,
         source: 'http',
-        error: `HTTP 请求失败: ${message}`,
+        error: `HTTP request failed: ${message.slice(0, 150)}`,
         updatedAt: new Date().toISOString()
       }
     }
   }
-
-  private generateSimulatedQuota(providerId: string): SubscriptionQuotaResult {
-    return {
-      providerId,
-      success: true,
-      source: 'mock',
-      fiveHour: {
-        usedPercentage: 28,
-        usedAmount: 14,
-        totalAmount: 50,
-        unit: '次',
-        resetsInFormatted: '2小时30分后'
-      },
-      sevenDay: {
-        usedPercentage: 15,
-        usedAmount: 75,
-        totalAmount: 500,
-        unit: '次',
-        resetsInFormatted: '周一 00:00'
-      },
-      resets: {
-        remainingCount: 36,
-        totalCount: 50,
-        resetInterval: '5 小时滚动重置'
-      },
-      updatedAt: new Date().toISOString()
-    }
-  }
 }
+
+export const subscriptionQuotaService = new SubscriptionQuotaService()

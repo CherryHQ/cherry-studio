@@ -1,1 +1,1 @@
-export { SubscriptionQuotaService } from './SubscriptionQuotaService'
+export { SubscriptionQuotaService, subscriptionQuotaService } from './SubscriptionQuotaService'

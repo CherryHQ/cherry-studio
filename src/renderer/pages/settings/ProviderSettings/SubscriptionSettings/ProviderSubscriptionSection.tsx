@@ -151,7 +151,12 @@ export const ProviderSubscriptionSection: FC<ProviderSubscriptionSectionProps> =
             <p className="text-xs text-muted-foreground">{t('settings.provider.subscription.description')}</p>
           </div>
         </div>
-        <Switch checked={isEnabled} onCheckedChange={(checked) => void handleToggleEnabled(checked)} />
+        <Switch
+          id="provider-subscription-toggle"
+          aria-label={t('settings.provider.subscription.title')}
+          checked={isEnabled}
+          onCheckedChange={(checked) => void handleToggleEnabled(checked)}
+        />
       </div>
 
       {isEnabled && (
@@ -181,7 +186,13 @@ export const ProviderSubscriptionSection: FC<ProviderSubscriptionSectionProps> =
               </span>
               <Input
                 defaultValue={cliCommand}
-                placeholder={providerId === 'claude-code' ? 'claude /usage' : `${providerId} /usage`}
+                placeholder={
+                  providerId === 'claude-code'
+                    ? 'claude /usage'
+                    : providerId === 'codex'
+                      ? 'codex /usage'
+                      : 'command /usage'
+                }
                 className="h-8 text-xs font-mono"
                 onBlur={(e) => void handleCliCommandBlur(e.target.value)}
               />

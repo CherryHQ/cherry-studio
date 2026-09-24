@@ -70,7 +70,6 @@ import { SelectionService } from '@main/services/selection/SelectionService'
 import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
-import { SubscriptionQuotaService } from '@main/services/subscriptionQuota'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrashService } from '@main/services/trash'
@@ -181,8 +180,7 @@ export const services = {
   ProviderRegistryUpdaterService,
   SchedulerService,
   JobManager,
-  TrashService,
-  SubscriptionQuotaService
+  TrashService
 } as const
 
 /** Auto-derived service name to instance type mapping */

@@ -67,7 +67,16 @@ export const SubscriptionQuotaMonitor: FC = () => {
       const result = await ipcApi.request('provider.get_subscription_quota', { providerId })
       setQuotaData((prev) => ({ ...prev, [providerId]: result }))
     } catch (error) {
-      // Fallback or error handled gracefully
+      const message = error instanceof Error ? error.message : String(error)
+      setQuotaData((prev) => ({
+        ...prev,
+        [providerId]: {
+          providerId,
+          success: false,
+          error: message,
+          updatedAt: new Date().toISOString()
+        }
+      }))
     } finally {
       setLoading((prev) => ({ ...prev, [providerId]: false }))
     }

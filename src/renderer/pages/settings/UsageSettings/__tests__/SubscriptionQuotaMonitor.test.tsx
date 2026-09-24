@@ -104,6 +104,32 @@ describe('SubscriptionQuotaMonitor', () => {
     expect(screen.getByText('Claude Code')).toBeInTheDocument()
   })
 
+  it('handles rejected quota request gracefully without infinite retry loop', async () => {
+    mockProviders.list = [
+      {
+        id: 'failing-provider',
+        name: 'Failing Provider',
+        settings: {
+          subscription: {
+            enabled: true,
+            method: 'auto'
+          }
+        }
+      }
+    ]
+
+    ipcApiRequestMock.mockRejectedValue(new Error('Network connection timeout'))
+
+    render(<SubscriptionQuotaMonitor />)
+
+    await waitFor(() => {
+      expect(ipcApiRequestMock).toHaveBeenCalledTimes(1)
+    })
+
+    expect(await screen.findByText(/Network connection timeout/)).toBeInTheDocument()
+    expect(ipcApiRequestMock).toHaveBeenCalledTimes(1)
+  })
+
   it('triggers refresh when refresh button is clicked', async () => {
     mockProviders.list = [
       {
