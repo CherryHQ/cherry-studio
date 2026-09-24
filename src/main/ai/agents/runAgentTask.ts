@@ -98,6 +98,16 @@ function loadReusableSession(taskScheduleId: string, agentId: string) {
   return session
 }
 
+function createTaskSession(
+  taskId: string | null,
+  dto: Parameters<typeof agentSessionService.create>[0],
+  sessionType: AgentSessionType
+): ReturnType<typeof agentSessionService.create> {
+  return taskId
+    ? agentSessionService.create(dto, sessionType, { taskId })
+    : agentSessionService.create(dto, sessionType)
+}
+
 /**
  * Resolve the session this fire runs in. A reused session keeps its own
  * workspace, so the task's workspace source only applies when creating one.
@@ -109,11 +119,12 @@ function resolveTaskSession(params: {
   sessionType: AgentSessionType
   reuse: TaskSessionReuse
   reuseBinding: { scheduleId: string; reuseRevision: number } | null
+  taskId: string | null
   agentId: string
   name: string
   workspace: AgentSessionWorkspaceSource
 }): ReturnType<typeof agentSessionService.create> {
-  const { reuse, reuseBinding, agentId, name, workspace, sessionType } = params
+  const { reuse, reuseBinding, taskId, agentId, name, workspace, sessionType } = params
 
   if (reuse.enabled && reuseBinding) {
     const existing = loadReusableSession(reuseBinding.scheduleId, agentId)
@@ -125,7 +136,7 @@ function resolveTaskSession(params: {
     })
   }
 
-  const session = agentSessionService.create({ agentId, name, workspace }, sessionType)
+  const session = createTaskSession(taskId, { agentId, name, workspace }, sessionType)
   if (reuse.enabled && reuseBinding) {
     application.get('AgentJobsService').bindTaskSessionReuse({
       ...reuseBinding,
@@ -238,6 +249,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     sessionType,
     reuse: reuseIsCurrent ? currentReuse : { enabled: false, revision: expectedReuseRevision },
     reuseBinding,
+    taskId: scheduleId,
     agentId,
     name: taskName ?? 'Scheduled task',
     workspace
@@ -350,7 +362,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true
-      session = agentSessionService.create({ agentId, name: taskName ?? 'Scheduled task', workspace }, sessionType)
+      session = createTaskSession(scheduleId, { agentId, name: taskName ?? 'Scheduled task', workspace }, sessionType)
       topicId = buildAgentSessionTopicId(session.id)
       if (reuseBinding) {
         application.get('AgentJobsService').bindTaskSessionReuse({

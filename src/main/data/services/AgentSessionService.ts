@@ -6,19 +6,22 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
+import { agentChannelSessionTable, agentChannelTable } from '@data/db/schemas/agentChannel'
 import {
   type AgentSessionRow as SessionRow,
   type AgentSessionType,
-  agentSessionTable as sessionsTable
+  agentSessionTable as sessionsTable,
+  agentTaskSessionTable
 } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
-import { getDataService } from '@data/services/dataServiceRegistry'
+import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -28,6 +31,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   AgentSessionEntity,
+  AgentSessionSource,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
   LatestAgentSessionQuery,
@@ -116,6 +120,59 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   }
 }
 
+function attachSessionSources(tx: DbOrTx, sessions: AgentSessionEntity[]): AgentSessionEntity[] {
+  if (sessions.length === 0) return sessions
+
+  const sessionIds = sessions.map((session) => session.id)
+  const sourceBySessionId = new Map<string, AgentSessionSource>()
+  const taskSources = tx
+    .select({
+      sessionId: agentTaskSessionTable.sessionId,
+      taskId: jobScheduleTable.id,
+      taskName: jobScheduleTable.name
+    })
+    .from(agentTaskSessionTable)
+    .innerJoin(jobScheduleTable, eq(agentTaskSessionTable.taskId, jobScheduleTable.id))
+    .where(inArray(agentTaskSessionTable.sessionId, sessionIds))
+    .all()
+  for (const source of taskSources) {
+    sourceBySessionId.set(source.sessionId, {
+      kind: 'scheduled-task',
+      taskId: source.taskId,
+      taskName: source.taskName
+    })
+  }
+
+  const channelSources = tx
+    .select({
+      sessionId: agentChannelSessionTable.sessionId,
+      channelId: agentChannelTable.id,
+      channelName: agentChannelTable.name,
+      channelType: agentChannelTable.type,
+      conversationId: agentChannelSessionTable.conversationId
+    })
+    .from(agentChannelSessionTable)
+    .innerJoin(agentChannelTable, eq(agentChannelSessionTable.channelId, agentChannelTable.id))
+    .where(inArray(agentChannelSessionTable.sessionId, sessionIds))
+    .all()
+  for (const source of channelSources) {
+    // Task provenance is the primary display source; channel binding is the fallback.
+    if (sourceBySessionId.has(source.sessionId)) continue
+    sourceBySessionId.set(source.sessionId, {
+      kind: 'channel',
+      channelId: source.channelId,
+      channelName: source.channelName,
+      channelType: source.channelType,
+      conversationId: source.conversationId
+    })
+  }
+
+  return sessions.map((session) => {
+    const source = sourceBySessionId.get(session.id)
+    return source ? { ...session, source } : session
+  })
+}
+
 function buildSearchPredicate(search: string | undefined): SQL | undefined {
   const trimmed = search?.trim()
   if (!trimmed) return undefined
@@ -168,6 +225,18 @@ export class AgentSessionService {
       { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
       { endpoint: '/agent-sessions/:sessionId/messages/:messageId' }
     ])
+  }
+
+  notifySourceProjectionChange(): void {
+    notifyDataApiDataChange(this.getSourceProjectionEffects())
+  }
+
+  getSourceProjectionEffects(): DataApiDataChangeEffect[] {
+    return [
+      { endpoint: '/agent-sessions', kind: 'projection' },
+      { endpoint: '/agent-sessions/:sessionId' },
+      { endpoint: '/agent-sessions/latest' }
+    ]
   }
 
   listAddressableByCursor(query: {
@@ -264,12 +333,34 @@ export class AgentSessionService {
     })
   }
 
-  create(dto: CreateAgentSessionDto, type: AgentSessionType = 'conversation'): AgentSessionEntity {
+  create(
+    dto: CreateAgentSessionDto,
+    type: AgentSessionType = 'conversation',
+    options: { taskId?: string } = {}
+  ): AgentSessionEntity {
     const id = uuidv4()
-    withSqliteErrors(() => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto, type)), {
-      ...defaultHandlersFor('Session', id),
-      foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
-    })
+    const taskId = options.taskId
+    withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          if (taskId) {
+            const [task] = tx
+              .select({ id: jobScheduleTable.id })
+              .from(jobScheduleTable)
+              .where(and(eq(jobScheduleTable.id, taskId), eq(jobScheduleTable.type, 'agent.task')))
+              .limit(1)
+              .all()
+            if (!task) throw DataApiErrorFactory.notFound('Task', taskId)
+          }
+
+          this.createTx(tx, id, dto, type)
+          if (taskId) tx.insert(agentTaskSessionTable).values({ sessionId: id, taskId }).run()
+        }),
+      {
+        ...defaultHandlersFor('Session', id),
+        foreignKey: () => DataApiErrorFactory.notFound('Agent, Workspace, or Task')
+      }
+    )
     this.notifyReadModelChange([id], 'membership')
     return this.getById(id)
   }
@@ -372,7 +463,7 @@ export class AgentSessionService {
       .limit(1)
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
-    return rowToSession(row)
+    return attachSessionSources(db, [rowToSession(row)])[0]
   }
 
   /** Read the internal sticky-session relation without exposing it on session entities. */
@@ -389,7 +480,7 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.taskScheduleId, taskScheduleId), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
-    return row ? rowToSession(row) : null
+    return row ? attachSessionSources(tx, [rowToSession(row)])[0] : null
   }
 
   /** Batch relation read for task list projections. */
@@ -543,7 +634,7 @@ export class AgentSessionService {
       .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(1)
       .all()
-    return row ? rowToSession(row) : null
+    return row ? attachSessionSources(db, [rowToSession(row)])[0] : null
   }
 
   /** Reuse or create one exact empty placeholder under a serialized write transaction. */
@@ -702,6 +793,13 @@ export class AgentSessionService {
     const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
 
     const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
+    const buildResponse = (nextCursor?: string): CursorPaginationResponse<AgentSessionEntity> => ({
+      items: attachSessionSources(
+        db,
+        items.map((item) => item.session)
+      ),
+      nextCursor
+    })
 
     if (!inTrash && cursor.section === 'pin') {
       const pinAfter = cursor.orderKey
@@ -727,7 +825,7 @@ export class AgentSessionService {
       // a non-empty `cursor.orderKey`. Hand back an entity-section-start cursor so
       // the next call advances cleanly instead of restarting the pin section.
       if (pinRows.length === 0 && cursor.orderKey !== '') {
-        return { items: [], nextCursor: encodeEntitySectionStart() }
+        return buildResponse(encodeEntitySectionStart())
       }
 
       const hasMoreInPin = pinRows.length > limit
@@ -737,14 +835,11 @@ export class AgentSessionService {
 
       if (hasMoreInPin) {
         const last = items[items.length - 1]
-        return {
-          items: items.map((i) => i.session),
-          nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.session.id)
-        }
+        return buildResponse(encodePinCursor(last.pinOrderKey ?? '', last.session.id))
       }
 
       if (items.length >= limit) {
-        return { items: items.map((i) => i.session), nextCursor: encodeEntitySectionStart() }
+        return buildResponse(encodeEntitySectionStart())
       }
     }
 
@@ -792,7 +887,7 @@ export class AgentSessionService {
       nextCursor = encodeEntityCursor(last.session.orderKey, last.session.id)
     }
 
-    return { items: items.map((i) => i.session), nextCursor }
+    return buildResponse(nextCursor)
   }
 
   update(id: string, dto: UpdateAgentSessionDto): AgentSessionEntity {
@@ -1420,3 +1515,4 @@ export class AgentSessionService {
 }
 
 export const agentSessionService = new AgentSessionService()
+registerDataService('AgentSessionService', agentSessionService)

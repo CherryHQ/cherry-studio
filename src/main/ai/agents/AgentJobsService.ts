@@ -284,6 +284,7 @@ export class AgentJobsService extends BaseService {
   updateTask(agentId: string, taskId: string, patch: AgentTaskPatch): ScheduledTaskEntity | null {
     const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
+    const nameChanged = patch.name !== undefined && patch.name !== existing.name
     this.assertPromptNotReserved(patch.prompt)
     this.assertNameNotReserved(patch.name)
     if (patch.channelIds !== undefined) {
@@ -353,6 +354,7 @@ export class AgentJobsService extends BaseService {
         agentChannelService.replaceTaskSubscriptionsTx(tx, taskId, patch.channelIds)
       }
     })
+    if (nameChanged) agentSessionService.notifySourceProjectionChange()
     if (reuseConfigChanged || bindingCleared || patch.workspace !== undefined)
       agentTaskService.notifyReadModelChange([taskId])
     if (schedulePatch.trigger !== undefined) {
@@ -395,6 +397,7 @@ export class AgentJobsService extends BaseService {
     // jobs keep their rows with scheduleId set NULL (ON DELETE SET NULL).
     const deleted = await application.get('JobManager').unregisterJobScheduleById(taskId)
     if (deleted) {
+      agentSessionService.notifySourceProjectionChange()
       agentTaskService.notifyReadModelChange([taskId], 'membership')
       logger.info('Task deleted', { taskId, agentId })
     }
@@ -436,18 +439,22 @@ export class AgentJobsService extends BaseService {
 
     let deleted = 0
     let failed = 0
-    for (const schedule of schedules) {
-      this.heartbeatAbort.signal.throwIfAborted()
-      // Keep sweeping independent rows after a failure; pause survivors until startup repair.
-      try {
-        if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
-          deleted += 1
+    try {
+      for (const schedule of schedules) {
+        this.heartbeatAbort.signal.throwIfAborted()
+        // Keep sweeping independent rows after a failure; pause survivors until startup repair.
+        try {
+          if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
+            deleted += 1
+          }
+        } catch (error) {
+          failed += 1
+          logger.warn('Failed to unregister schedule for removed agent', { agentId, scheduleId: schedule.id, error })
+          pauseHeartbeatSchedule(agentId, schedule.id, 'Failed to pause a schedule that survived the deletion sweep')
         }
-      } catch (error) {
-        failed += 1
-        logger.warn('Failed to unregister schedule for removed agent', { agentId, scheduleId: schedule.id, error })
-        pauseHeartbeatSchedule(agentId, schedule.id, 'Failed to pause a schedule that survived the deletion sweep')
       }
+    } finally {
+      if (deleted > 0) agentSessionService.notifySourceProjectionChange()
     }
     if (failed > 0) {
       logger.warn('Some schedules survived the deletion sweep after transient failures', { agentId, failed })

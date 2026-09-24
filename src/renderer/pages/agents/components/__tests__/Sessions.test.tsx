@@ -301,7 +301,6 @@ const tabsContextMocks = vi.hoisted(() => ({
 const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'window' }))
 
 const dataApiMocks = vi.hoisted(() => ({
-  dataChangeSubscriptions: [] as Array<{ endpoints: string[]; listener: () => void }>,
   deleteAgent: vi.fn().mockResolvedValue(undefined),
   deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   deleteWorkspace: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
@@ -313,7 +312,6 @@ const dataApiMocks = vi.hoisted(() => ({
   }),
   refetchWorkspaces: vi.fn().mockResolvedValue(undefined),
   refetchAgents: vi.fn().mockResolvedValue(undefined),
-  refetchChannels: vi.fn().mockResolvedValue(undefined),
   reorderAgent: vi.fn().mockResolvedValue(undefined),
   reorderWorkspace: vi.fn().mockResolvedValue(undefined),
   restoreAgent: vi.fn().mockResolvedValue(undefined),
@@ -489,12 +487,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useDataChange: (endpoints: string | string[], listener: () => void) => {
-    dataApiMocks.dataChangeSubscriptions.push({
-      endpoints: Array.isArray(endpoints) ? endpoints : [endpoints],
-      listener
-    })
-  },
+  useDataChange: vi.fn(),
   useInvalidateCache: () => dataApiMocks.invalidate,
   useQuery: vi.fn((path: string, options?: { enabled?: boolean }) => {
     dataApiMocks.useQuery(path, options)
@@ -532,17 +525,6 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
         isRefreshing: dataApiMocks.workspacesRefreshing,
         error: dataApiMocks.workspacesError,
         refetch: dataApiMocks.refetchWorkspaces,
-        mutate: vi.fn()
-      }
-    }
-
-    if (path === '/agent-channels') {
-      return {
-        data: [],
-        isLoading: false,
-        isRefreshing: false,
-        error: undefined,
-        refetch: dataApiMocks.refetchChannels,
         mutate: vi.fn()
       }
     }
@@ -928,7 +910,6 @@ describe('Sessions', () => {
     dataApiMocks.workspacesError = undefined
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
-    dataApiMocks.dataChangeSubscriptions.length = 0
     dataApiMocks.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
     dataApiMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: [] })
     dataApiMocks.deleteWorkspace.mockResolvedValue({ deletedIds: [] })
@@ -1076,31 +1057,116 @@ describe('Sessions', () => {
     expect(expandedGroup.parentElement).not.toHaveClass('bg-resource-list-row-selected')
   })
 
-  it('keeps channel and agent-pin reads inactive while the navigation pane is closed', () => {
+  it('keeps agent-pin reads inactive and does not fetch channels for session decoration', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
 
     render(<SessionsForTest dataEnabled={false} />)
 
-    expect(dataApiMocks.useQuery).toHaveBeenCalledWith('/agent-channels', { enabled: false })
+    expect(dataApiMocks.useQuery).not.toHaveBeenCalledWith('/agent-channels', expect.anything())
     expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: false })
-    act(() => {
-      for (const subscription of dataApiMocks.dataChangeSubscriptions) {
-        if (subscription.endpoints.includes('/agent-channels')) subscription.listener()
-      }
-    })
-    expect(dataApiMocks.refetchChannels).not.toHaveBeenCalled()
   })
 
-  it('refreshes channel labels when another window publishes a channel projection change', () => {
-    render(<SessionsForTest />)
-
-    act(() => {
-      for (const subscription of dataApiMocks.dataChangeSubscriptions) {
-        if (subscription.endpoints.includes('/agent-channels')) subscription.listener()
-      }
+  it('keeps pinned source sessions in a single agent group with ordinary sessions', async () => {
+    const user = userEvent.setup()
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions({
+      sessions: [
+        createSession({ id: 'ordinary', name: 'Ordinary session', agentId: 'agent-a' }),
+        createSession({
+          id: 'task-pinned',
+          name: 'Pinned task run',
+          agentId: 'agent-a',
+          source: { kind: 'scheduled-task', taskId: 'task-daily', taskName: 'Daily summary' }
+        }),
+        createSession({
+          id: 'channel-pinned',
+          name: 'Pinned channel session',
+          agentId: 'agent-a',
+          source: { kind: 'channel', channelId: 'channel-ops', channelName: 'Ops bot', channelType: 'telegram' }
+        })
+      ],
+      pinIdBySessionId: new Map([
+        ['task-pinned', 'pin-task'],
+        ['channel-pinned', 'pin-channel']
+      ])
     })
 
-    expect(dataApiMocks.refetchChannels).toHaveBeenCalledTimes(1)
+    const view = render(<SessionsForTest />)
+    const group = screen.getByRole('button', { name: 'Alpha agent' })
+    expect(screen.getByText('Ordinary session')).toBeInTheDocument()
+    expect(screen.getByText('Pinned task run')).toBeInTheDocument()
+    expect(screen.getByText('Pinned channel session')).toBeInTheDocument()
+
+    await user.click(groupChevron(group))
+    view.rerender(<SessionsForTest key="collapsed-pinned-source-agent" />)
+    expect(screen.queryByText('Ordinary session')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pinned task run')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pinned channel session')).not.toBeInTheDocument()
+  })
+
+  it('aggregates scheduled-task and channel sessions into collapsible source groups', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'task-run-1',
+          name: 'Daily summary run 1',
+          source: { kind: 'scheduled-task', taskId: 'task-daily', taskName: 'Daily summary' }
+        }),
+        createSession({
+          id: 'task-run-2',
+          name: 'Daily summary run 2',
+          source: { kind: 'scheduled-task', taskId: 'task-daily', taskName: 'Daily summary' }
+        }),
+        createSession({
+          id: 'channel-chat-42-a',
+          name: 'Ops message A',
+          source: {
+            kind: 'channel',
+            channelId: 'channel-ops',
+            channelName: 'Ops bot',
+            channelType: 'telegram',
+            conversationId: 'chat-42'
+          }
+        }),
+        createSession({
+          id: 'channel-chat-42-b',
+          name: 'Ops message B',
+          source: {
+            kind: 'channel',
+            channelId: 'channel-ops',
+            channelName: 'Ops bot',
+            channelType: 'telegram',
+            conversationId: 'chat-42'
+          }
+        }),
+        createSession({
+          id: 'channel-chat-84',
+          name: 'Other chat message',
+          source: {
+            kind: 'channel',
+            channelId: 'channel-ops',
+            channelName: 'Ops bot',
+            channelType: 'telegram',
+            conversationId: 'chat-84'
+          }
+        })
+      ]
+    })
+
+    const view = render(<SessionsForTest />)
+
+    const taskGroup = screen.getByRole('button', { name: 'Daily summary' })
+    expect(taskGroup).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getAllByRole('button', { name: 'Ops bot · chat-42' })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Ops bot · chat-84' })).toBeInTheDocument()
+
+    fireEvent.click(taskGroup)
+    view.rerender(<SessionsForTest key="collapsed-source-group" />)
+
+    expect(screen.queryByText('Daily summary run 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('Daily summary run 2')).not.toBeInTheDocument()
+    expect(screen.getByText('Ops message A')).toBeInTheDocument()
   })
 
   it('keeps the sortable session list mounted and preserves scroll position during refresh', () => {

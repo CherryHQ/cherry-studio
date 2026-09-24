@@ -7,10 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vite
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelSessionTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
+import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
@@ -1686,6 +1688,108 @@ describe('AgentSessionService', () => {
     const page2 = agentSessionService.listByCursor({ limit: 2, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual([first.id])
     expect(page2.nextCursor).toBeUndefined()
+  })
+
+  it('projects stable scheduled-task and channel sources on session reads', async () => {
+    const task = createTaskSchedule()
+    expect(task.name).not.toBeNull()
+    const firstTaskSession = agentSessionService.create(
+      {
+        agentId: 'agent-session-test',
+        name: task.name!,
+        workspace: { type: 'system' }
+      },
+      'conversation',
+      { taskId: task.id }
+    )
+    const secondTaskSession = agentSessionService.create(
+      {
+        agentId: 'agent-session-test',
+        name: task.name!,
+        workspace: { type: 'system' }
+      },
+      'conversation',
+      { taskId: task.id }
+    )
+    const channel = agentChannelService.createChannel({
+      type: 'telegram',
+      name: 'Ops bot',
+      agentId: 'agent-session-test',
+      workspace: { type: 'system' },
+      config: { bot_token: 'token' },
+      isActive: true
+    })
+    const channelSession = agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'Channel session',
+      workspace: { type: 'system' }
+    })
+    await dbh.db.insert(agentChannelSessionTable).values({
+      sessionId: channelSession.id,
+      channelId: channel.id,
+      conversationId: 'chat-42',
+      isActive: true
+    })
+
+    expect(agentSessionService.getById(firstTaskSession.id).source).toEqual({
+      kind: 'scheduled-task',
+      taskId: task.id,
+      taskName: task.name
+    })
+    expect(agentSessionService.getById(channelSession.id).source).toEqual({
+      kind: 'channel',
+      channelId: channel.id,
+      channelName: channel.name,
+      channelType: 'telegram',
+      conversationId: 'chat-42'
+    })
+    expect(
+      agentSessionService
+        .listByCursor()
+        .items.filter((session) => session.source?.kind === 'scheduled-task')
+        .map((session) => session.id)
+    ).toEqual(expect.arrayContaining([firstTaskSession.id, secondTaskSession.id]))
+
+    notifyDataApiDataChangeMock.mockClear()
+    agentChannelService.updateChannel(channel.id, { name: 'Renamed bot' })
+    expect(agentSessionService.getById(channelSession.id).source).toMatchObject({ channelName: 'Renamed bot' })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { endpoint: '/agent-sessions', kind: 'projection' },
+        { endpoint: '/agent-sessions/:sessionId' },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+    )
+
+    notifyDataApiDataChangeMock.mockClear()
+    expect(() => agentChannelService.updateChannel(channel.id, { name: 'Rejected', config: {} })).toThrow()
+    expect(agentSessionService.getById(channelSession.id).source).toMatchObject({ channelName: 'Renamed bot' })
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+
+    agentChannelService.deleteChannel(channel.id)
+    expect(agentSessionService.getById(channelSession.id).source).toBeUndefined()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { endpoint: '/agent-sessions', kind: 'projection' },
+        { endpoint: '/agent-sessions/:sessionId' },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+    )
+  })
+
+  it('keeps task provenance on background sessions without exposing them in conversation lists', () => {
+    const task = createTaskSchedule()
+    const session = agentSessionService.create(
+      { agentId: 'agent-session-test', name: 'Heartbeat', workspace: { type: 'system' } },
+      'background',
+      { taskId: task.id }
+    )
+
+    expect(agentSessionService.getById(session.id).source).toMatchObject({ kind: 'scheduled-task', taskId: task.id })
+    expect(agentSessionService.listByCursor().items).toEqual([])
+    expect(captureError(() => agentSessionService.getConversationById(session.id))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
   })
 
   it('filters exact ids across pinned and unpinned sections', async () => {

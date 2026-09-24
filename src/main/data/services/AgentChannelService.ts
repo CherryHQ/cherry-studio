@@ -10,6 +10,7 @@ import {
   type InsertAgentChannelRow as InsertChannelRow
 } from '@data/db/schemas/agentChannel'
 import type { DbOrTx } from '@data/db/types'
+import { getDataService } from '@data/services/dataServiceRegistry'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
@@ -27,6 +28,7 @@ import {
   AgentSessionWorkspaceSourceSchema,
   type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { ChannelConfig, ChannelType } from '@shared/data/types/channel'
 
 const logger = loggerService.withContext('ChannelService')
@@ -233,9 +235,11 @@ export class AgentChannelService {
       }
     >
   ): AgentChannelEntity | null {
+    let nameChanged = false
     const result = application.get('DbService').withWriteTx((tx) => {
       const existing = tx.select().from(channelsTable).where(eq(channelsTable.id, id)).limit(1).all()[0]
       if (!existing) return null
+      nameChanged = updates.name !== undefined && updates.name !== existing.name
 
       const isActive = updates.isActive ?? existing.isActive
       const config = validateChannelConfig(
@@ -262,7 +266,7 @@ export class AgentChannelService {
     if (!result) return null
 
     logger.info('Channel updated', { channelId: id })
-    this.notifyReadModelChange(id, 'projection')
+    this.notifyReadModelChange(id, 'projection', nameChanged)
     return this.rowToEntity(result)
   }
 
@@ -271,17 +275,21 @@ export class AgentChannelService {
     const result = database.delete(channelsTable).where(eq(channelsTable.id, id)).returning().all()
     if (result.length > 0) {
       logger.info('Channel deleted', { channelId: id })
-      this.notifyReadModelChange(id, 'membership')
+      this.notifyReadModelChange(id, 'membership', true)
     }
     return result.length > 0
   }
 
-  private notifyReadModelChange(id: string, kind: 'membership' | 'projection'): void {
-    notifyDataApiDataChange([
+  private notifyReadModelChange(id: string, kind: 'membership' | 'projection', sessionSourcesChanged = false): void {
+    const effects: DataApiDataChangeEffect[] = [
       { endpoint: '/agent-workspaces', kind: 'membership' },
       { endpoint: '/agent-channels', kind, entityIds: [id] },
       { endpoint: '/agent-channels/:channelId', routeParams: { channelId: id }, entityIds: [id] }
-    ])
+    ]
+    if (sessionSourcesChanged) {
+      effects.push(...getDataService('AgentSessionService').getSourceProjectionEffects())
+    }
+    notifyDataApiDataChange(effects)
   }
 
   // ---- Task subscription methods ----

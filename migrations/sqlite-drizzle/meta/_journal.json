@@ -175,6 +175,13 @@
       "when": 1789636472109,
       "tag": "0024_lying_shatterstar",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1790188102911,
+      "tag": "0025_sudden_hiroim",
+      "breakpoints": true
     }
   ],
   "version": "7"
