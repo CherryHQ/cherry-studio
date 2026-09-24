@@ -4114,6 +4114,36 @@ describe('ComposerSurface', () => {
     expect(read).not.toHaveBeenCalled()
   })
 
+  it('inserts Excel clipboard text when HTML and plain text accompany a supported image', async () => {
+    const setFiles = vi.fn()
+    render(<ComposerSurface {...baseProps} supportedExts={['.png']} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const pastedText = 'Product\tUnits\tRevenue\t42'
+    const pastedHtml =
+      '<table><tbody><tr><td>Product</td><td>Units</td><td>Revenue</td><td>42</td></tr></tbody></table>'
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => {
+          if (type === 'text/plain') return pastedText
+          if (type === 'text/html') return pastedHtml
+          return ''
+        }),
+        files: [new File(['png'], 'excel.png', { type: 'image/png' })]
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: pastedText }])
+    expect(mocks.pasteHandler).not.toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+  })
+
   it('suppresses composer suggestions when pasting scoped shell command text', async () => {
     const pastedText = "-lc 'exec npx -y @agentclientprotocol/claude-agent-acp'"
     render(<ComposerSurface {...baseProps} />)
