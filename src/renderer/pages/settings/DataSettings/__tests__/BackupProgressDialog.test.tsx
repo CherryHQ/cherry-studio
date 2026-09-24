@@ -48,6 +48,18 @@ describe('BackupProgressDialog', () => {
     expect(screen.getByText('Data/Files/report.pdf')).toBeInTheDocument()
   })
 
+  it('exposes how far along it is to assistive technology', () => {
+    render(<BackupProgressDialog open operation="export" />)
+    emit({
+      operation: 'export',
+      stage: 'capturing-resources',
+      resources: { done: 3, total: 6, kind: 'file-blob', livePath: 'a' }
+    })
+
+    // Stage 4 of 6, half walked: (3 + 0.5) / 6.
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '58')
+  })
+
   // Two operations share one broadcast channel, so a restore's progress must not
   // drive an export's dialog.
   it('ignores progress belonging to a different operation', () => {

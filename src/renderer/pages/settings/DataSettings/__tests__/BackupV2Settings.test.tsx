@@ -787,6 +787,22 @@ describe('BackupV2Settings', () => {
       }
     )
 
+    it('holds the dialog stop button on "Stopping…" until the operation unwinds', async () => {
+      const stalled = stall('backup.export')
+      await renderSettings()
+      click(EXPORT_BUTTON)
+      await waitFor(() => expect(screen.getByText('settings.data.backup_v2.progress.stop')).toBeInTheDocument())
+
+      click('settings.data.backup_v2.progress.stop')
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'settings.data.backup_v2.progress.cancelling' })).toBeDisabled()
+      )
+      stalled.finish({ status: 'canceled' })
+      await waitFor(() => expect(screen.getByRole('button', { name: EXPORT_BUTTON })).toBeEnabled())
+      expect(screen.queryByText('settings.data.backup_v2.progress.cancelling')).not.toBeInTheDocument()
+    })
+
     it('reports a cancelled operation with silence, not a success or a failure', async () => {
       const stalled = stall('backup.export')
       await renderSettings()

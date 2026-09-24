@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, MotionConfig } from 'motion/react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -102,6 +102,7 @@ const BackupProgressDialog: FC<{
     <Dialog open={open}>
       <DialogContent
         className="max-w-md"
+        showCloseButton={false}
         // The operation owns its own lifetime — a stray click or Escape must not
         // leave it running with nothing reporting it.
         onEscapeKeyDown={(event) => event.preventDefault()}
@@ -116,52 +117,61 @@ const BackupProgressDialog: FC<{
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col items-center gap-5 py-2">
-          <CircularProgress value={percent} size={96} />
+        <MotionConfig reducedMotion="user">
+          <div className="flex flex-col items-center gap-5 py-2">
+            <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+              <CircularProgress value={percent} size={96} />
+            </div>
 
-          {/* Split and staggered: the stage label leads, the unit detail follows. */}
-          <div className="flex min-h-[3.25rem] w-full flex-col items-center gap-1.5 text-center">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.p
-                key={progress?.stage ?? 'idle'}
-                className="font-medium text-foreground text-sm"
-                initial={{ opacity: 0, filter: 'blur(4px)' }}
-                animate={{ opacity: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ type: 'spring', duration: 0.3, bounce: 0 }}>
-                {progress ? t(STAGE_LABEL_KEYS[progress.stage]) : t('settings.data.backup_v2.progress.starting')}
-              </motion.p>
-            </AnimatePresence>
+            {/* Split and staggered: the stage label leads, the unit detail follows. */}
+            <div className="flex min-h-[3.25rem] w-full flex-col items-center gap-1.5 text-center">
+              {/* Only the stage is announced; the unit counter changes too often to read out. */}
+              <div aria-live="polite">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.p
+                    key={progress?.stage ?? 'idle'}
+                    className="font-medium text-foreground text-sm"
+                    initial={{ opacity: 0, filter: 'blur(4px)' }}
+                    animate={{ opacity: 1, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ type: 'spring', duration: 0.3, bounce: 0 }}>
+                    {progress ? t(STAGE_LABEL_KEYS[progress.stage]) : t('settings.data.backup_v2.progress.starting')}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
 
-            <AnimatePresence initial={false}>
-              {resources ? (
-                <motion.p
-                  className="max-w-full truncate text-foreground-tertiary text-xs"
-                  initial={{ opacity: 0, filter: 'blur(4px)' }}
-                  animate={{ opacity: 1, filter: 'blur(0px)' }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ type: 'spring', duration: 0.3, bounce: 0, delay: 0.1 }}>
-                  {/* Tabular figures so the counter does not jitter as it climbs. */}
-                  <span className="tabular-nums">
-                    {resources.done} / {resources.total}
-                  </span>
-                  {' · '}
-                  <span dir="ltr">{resources.livePath}</span>
-                </motion.p>
-              ) : null}
-            </AnimatePresence>
+              <AnimatePresence initial={false}>
+                {resources ? (
+                  <motion.p
+                    className="max-w-full truncate text-foreground-tertiary text-xs"
+                    initial={{ opacity: 0, filter: 'blur(4px)' }}
+                    animate={{ opacity: 1, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ type: 'spring', duration: 0.3, bounce: 0, delay: 0.1 }}>
+                    {/* Tabular figures so the counter does not jitter as it climbs. */}
+                    <span className="tabular-nums">
+                      {resources.done} / {resources.total}
+                    </span>
+                    {' · '}
+                    <span dir="ltr">{resources.livePath}</span>
+                  </motion.p>
+                ) : null}
+              </AnimatePresence>
+            </div>
+
+            {onCancel ? (
+              <Button
+                variant="outline"
+                disabled={cancelling}
+                onClick={onCancel}
+                className="transition-transform active:scale-[0.96]">
+                {t(
+                  cancelling ? 'settings.data.backup_v2.progress.cancelling' : 'settings.data.backup_v2.progress.stop'
+                )}
+              </Button>
+            ) : null}
           </div>
-
-          {onCancel ? (
-            <Button
-              variant="outline"
-              disabled={cancelling}
-              onClick={onCancel}
-              className="transition-transform active:scale-[0.96]">
-              {t(cancelling ? 'settings.data.backup_v2.progress.cancelling' : 'settings.data.backup_v2.progress.stop')}
-            </Button>
-          ) : null}
-        </div>
+        </MotionConfig>
       </DialogContent>
     </Dialog>
   )
