@@ -70,6 +70,7 @@ vi.mock('../useResourceLibrary', () => ({
     return {
       allResources: controllerMocks.resourceLibraryState.allResources,
       error: controllerMocks.resourceLibraryState.error,
+      groups: controllerMocks.groups,
       isLoading: controllerMocks.resourceLibraryState.isLoading,
       isRefreshing: false,
       refetch: controllerMocks.refetch,

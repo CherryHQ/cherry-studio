@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
-import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
+import { useGroupMutations } from '@renderer/hooks/useGroups'
 import { ipcApi } from '@renderer/ipc'
 import { restoreRecycleBinItems, showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
@@ -105,6 +105,7 @@ export function useResourceCatalogController(
   const {
     resources,
     allResources,
+    groups,
     isLoading,
     error: resourceError,
     refetch
@@ -117,7 +118,6 @@ export function useResourceCatalogController(
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
   const { createAgent } = useAgentMutations()
-  const { groups } = useGroups(groupEntityType)
   const { createGroup } = useGroupMutations(groupEntityType)
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group] as const)), [groups])
 
