@@ -2152,7 +2152,6 @@
   "message.api.connection.success": "La connexion a réussi",
   "message.attachments.pasted_image": "Image Presse-papiers",
   "message.attachments.pasted_text": "Fichier Presse-papiers",
-  "message.backup.cleanup_failed": "La sauvegarde est terminée, mais les anciennes sauvegardes n'ont pas pu être nettoyées.",
   "message.backup.failed": "La sauvegarde a échoué",
   "message.backup.success": "La sauvegarde a réussi",
   "message.chat.completion.paused": "La conversation est en pause",

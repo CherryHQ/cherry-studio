@@ -2152,7 +2152,6 @@
   "message.api.connection.success": "Η σύνδεση ήταν επιτυχής",
   "message.attachments.pasted_image": "Εικόνα στο πινάκιδα",
   "message.attachments.pasted_text": "Κείμενο στο πινάκιδα",
-  "message.backup.cleanup_failed": "Η δημιουργία αντιγράφου ασφαλείας ολοκληρώθηκε, αλλά δεν ήταν δυνατή η εκκαθάριση των παλιών αντιγράφων ασφαλείας.",
   "message.backup.failed": "Η αντιγραφή ασφαλείας απέτυχε",
   "message.backup.success": "Η αντιγραφή ασφαλείας ήταν επιτυχής",
   "message.chat.completion.paused": "Η συζήτηση διακόπηκε",

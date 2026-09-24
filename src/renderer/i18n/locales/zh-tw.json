@@ -2152,7 +2152,6 @@
   "message.api.connection.success": "連線成功",
   "message.attachments.pasted_image": "剪貼簿圖片",
   "message.attachments.pasted_text": "貼上的文字",
-  "message.backup.cleanup_failed": "備份已完成，但無法清理舊備份。",
   "message.backup.failed": "備份失敗",
   "message.backup.success": "備份成功",
   "message.chat.completion.paused": "聊天完成已暫停",
