@@ -8,7 +8,12 @@ import {
   type IntegrationOperation,
   type IntegrationSnapshot
 } from '@shared/types/prometheusIntegration'
-import type { UarAdministrationSnapshot } from '@shared/types/prometheusIntegration'
+import {
+  uarSettingsNamespaceSchema,
+  type UarAdministrationSnapshot,
+  type UarSettingsSnapshot,
+  type UarSettingsUpdateResult
+} from '@shared/types/prometheusIntegration'
 
 import { defineRoute } from '../define'
 
@@ -37,6 +42,33 @@ export const prometheusRequestSchemas = {
   'prometheus.uar.admin.snapshot': defineRoute({
     input: z.object({}).strict(),
     output: z.custom<UarAdministrationSnapshot>()
+  }),
+  'prometheus.uar.settings.read': defineRoute({
+    input: z.object({ namespace: uarSettingsNamespaceSchema }).strict(),
+    output: z.custom<UarSettingsSnapshot>()
+  }),
+  'prometheus.uar.settings.update': defineRoute({
+    input: z
+      .object({
+        namespace: uarSettingsNamespaceSchema,
+        changes: z
+          .array(
+            z
+              .object({
+                field: z
+                  .string()
+                  .regex(/^[a-zA-Z0-9_.-]+$/)
+                  .max(128),
+                value: z.unknown(),
+                expectedRevision: z.string().min(1).max(128)
+              })
+              .strict()
+          )
+          .min(1)
+          .max(128)
+      })
+      .strict(),
+    output: z.custom<UarSettingsUpdateResult>()
   }),
   'prometheus.doctor.run': defineRoute({
     input: z.object({}).strict(),

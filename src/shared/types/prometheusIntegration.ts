@@ -162,7 +162,14 @@ export type IntegrationSecretPatch = z.infer<typeof secretPatchSchema>
 
 const uarAdministrationGroupSchema = z.enum(['runtime', 'agents', 'experience', 'administration'])
 const uarAdministrationScopeSchema = z.enum(['public', 'admin', 'owner', 'host'])
-const uarAdministrationApplySchema = z.enum(['read', 'live', 'next_turn', 'restart', 'host_controlled', 'unavailable'])
+export const uarAdministrationApplySchema = z.enum([
+  'read',
+  'live',
+  'next_turn',
+  'restart',
+  'host_controlled',
+  'unavailable'
+])
 const uarAdministrationAvailabilitySchema = z.enum(['available', 'host_controlled', 'feature_gated', 'retired'])
 const uarAdministrationMethodSchema = z.object({
   id: z.string().min(1),
@@ -201,6 +208,70 @@ export type UarAdministrationSnapshot = {
       methods: Array<UarAdministrationMethod & { adapter: 'available' | 'unavailable' }>
     }
   >
+}
+
+export const uarSettingsNamespaceSchema = z.enum([
+  'server',
+  'security',
+  'resilience',
+  'persistence',
+  'file-processing',
+  'vision',
+  'models',
+  'knowledge-bases',
+  'intent-classifier',
+  'providers',
+  'llm',
+  'unstructured',
+  'kreuzberg',
+  'context-management',
+  'context-strategy',
+  'prompt-caching',
+  'rag',
+  'governance',
+  'agent-config',
+  'skill-config',
+  'mistral-ocr',
+  'memory',
+  'llm-failover',
+  'sandbox',
+  'native-tools',
+  'skill-evolution',
+  'sycophancy',
+  'acp'
+])
+export type UarSettingsNamespace = z.infer<typeof uarSettingsNamespaceSchema>
+export type UarSettingApply = 'live' | 'next_turn' | 'restart'
+export type UarSettingState = {
+  key: string
+  field: string
+  saved: unknown
+  effective: unknown
+  revision: string
+  source: string
+  drift: boolean
+  apply: UarSettingApply
+  applicationStatus: 'effective' | 'pending' | 'restart_required'
+}
+export type UarSettingsSnapshot = {
+  schemaVersion: 1
+  namespace: UarSettingsNamespace
+  generation: number
+  settings: UarSettingState[]
+}
+export type UarSettingChange = { field: string; value: unknown; expectedRevision: string }
+export type UarSettingsUpdateResult = {
+  status: 'updated' | 'partial'
+  namespace: UarSettingsNamespace
+  generation: number
+  updated: UarSettingState[]
+  errors: Array<{
+    key: string
+    code: string
+    message?: string
+    expectedRevision?: string
+    currentRevision?: string
+  }>
 }
 export const integrationActionSchema = z.enum([
   'pull',

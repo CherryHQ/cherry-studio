@@ -1,5 +1,42 @@
+import * as z from 'zod'
+
 import { application } from '@application'
-import type { UarAdministrationMethod, UarAdministrationSnapshot } from '@shared/types/prometheusIntegration'
+import {
+  type UarAdministrationMethod,
+  type UarAdministrationSnapshot,
+  type UarSettingChange,
+  type UarSettingState,
+  type UarSettingsNamespace,
+  type UarSettingsSnapshot,
+  type UarSettingsUpdateResult
+} from '@shared/types/prometheusIntegration'
+
+const rawSettingSchema = z.object({
+  key: z.string().min(1),
+  saved: z.unknown(),
+  effective: z.unknown(),
+  revision: z.string().min(1),
+  source: z.string(),
+  is_drift: z.boolean(),
+  apply: z.enum(['live', 'next_turn', 'restart']),
+  application_status: z.enum(['effective', 'pending', 'restart_required'])
+})
+
+const rawUpdateSchema = z.object({
+  status: z.enum(['updated', 'partial']),
+  updated: z.array(rawSettingSchema).default([]),
+  errors: z
+    .array(
+      z.object({
+        key: z.string(),
+        code: z.string().default('write_failed'),
+        error: z.string().optional(),
+        expected_revision: z.string().optional(),
+        current_revision: z.string().optional()
+      })
+    )
+    .default([])
+})
 
 const UAR_ADMIN_METHOD_ALLOWLIST = new Set<string>([
   'settings.types.list\u0000GET\u0000/api/uar/settings/types\u0000admin\u0000read',
@@ -173,13 +210,13 @@ const UAR_ADMIN_METHOD_ALLOWLIST = new Set<string>([
   'legacy.chat\u0000ANY\u0000/api/chat\u0000public\u0000unavailable',
   'legacy.sessions\u0000ANY\u0000/api/sessions\u0000public\u0000unavailable',
   'settings.namespace.server.read\u0000GET\u0000/api/uar/settings/server\u0000admin\u0000read',
-  'settings.namespace.server.update\u0000PUT\u0000/api/uar/settings/server\u0000admin\u0000next_turn',
+  'settings.namespace.server.update\u0000PUT\u0000/api/uar/settings/server\u0000admin\u0000restart',
   'settings.namespace.security.read\u0000GET\u0000/api/uar/settings/security\u0000admin\u0000read',
-  'settings.namespace.security.update\u0000PUT\u0000/api/uar/settings/security\u0000admin\u0000next_turn',
+  'settings.namespace.security.update\u0000PUT\u0000/api/uar/settings/security\u0000admin\u0000restart',
   'settings.namespace.resilience.read\u0000GET\u0000/api/uar/settings/resilience\u0000admin\u0000read',
   'settings.namespace.resilience.update\u0000PUT\u0000/api/uar/settings/resilience\u0000admin\u0000next_turn',
   'settings.namespace.persistence.read\u0000GET\u0000/api/uar/settings/persistence\u0000admin\u0000read',
-  'settings.namespace.persistence.update\u0000PUT\u0000/api/uar/settings/persistence\u0000admin\u0000next_turn',
+  'settings.namespace.persistence.update\u0000PUT\u0000/api/uar/settings/persistence\u0000admin\u0000restart',
   'settings.namespace.file_processing.read\u0000GET\u0000/api/uar/settings/file-processing\u0000admin\u0000read',
   'settings.namespace.file_processing.update\u0000PUT\u0000/api/uar/settings/file-processing\u0000admin\u0000next_turn',
   'settings.namespace.vision.read\u0000GET\u0000/api/uar/settings/vision\u0000admin\u0000read',
@@ -207,7 +244,7 @@ const UAR_ADMIN_METHOD_ALLOWLIST = new Set<string>([
   'settings.namespace.rag.read\u0000GET\u0000/api/uar/settings/rag\u0000admin\u0000read',
   'settings.namespace.rag.update\u0000PUT\u0000/api/uar/settings/rag\u0000admin\u0000next_turn',
   'settings.namespace.governance.read\u0000GET\u0000/api/uar/settings/governance\u0000admin\u0000read',
-  'settings.namespace.governance.update\u0000PUT\u0000/api/uar/settings/governance\u0000admin\u0000next_turn',
+  'settings.namespace.governance.update\u0000PUT\u0000/api/uar/settings/governance\u0000admin\u0000live',
   'settings.namespace.agent_config.read\u0000GET\u0000/api/uar/settings/agent-config\u0000admin\u0000read',
   'settings.namespace.agent_config.update\u0000PUT\u0000/api/uar/settings/agent-config\u0000admin\u0000next_turn',
   'settings.namespace.skill_config.read\u0000GET\u0000/api/uar/settings/skill-config\u0000admin\u0000read',
@@ -252,6 +289,79 @@ export async function readUarAdministrationSnapshot(): Promise<UarAdministration
         ...method,
         adapter: isAllowed(method) ? 'available' : 'unavailable'
       }))
+    }))
+  }
+}
+
+function projectSetting(setting: z.infer<typeof rawSettingSchema>): UarSettingState {
+  return {
+    key: setting.key,
+    field: setting.key.split('.').slice(1).join('.'),
+    saved: setting.saved,
+    effective: setting.effective,
+    revision: setting.revision,
+    source: setting.source,
+    drift: setting.is_drift,
+    apply: setting.apply,
+    applicationStatus: setting.application_status
+  }
+}
+
+async function parseResponse(response: Response): Promise<unknown> {
+  const body: unknown = await response.json().catch(() => undefined)
+  if (!response.ok) {
+    const message =
+      typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string'
+        ? body.error
+        : `UAR administration request failed with HTTP ${response.status}`
+    throw new Error(message)
+  }
+  return body
+}
+
+export async function readUarSettings(namespace: UarSettingsNamespace): Promise<UarSettingsSnapshot> {
+  const sidecar = application.get('UarSidecarService')
+  const endpoint = await sidecar.ensureReady()
+  const response = await sidecar.adminRequest(`/api/uar/settings/${namespace}`, {}, endpoint.generation)
+  const settings = z
+    .array(rawSettingSchema)
+    .parse(await parseResponse(response))
+    .map(projectSetting)
+  return { schemaVersion: 1, namespace, generation: endpoint.generation, settings }
+}
+
+export async function updateUarSettings(
+  namespace: UarSettingsNamespace,
+  changes: UarSettingChange[]
+): Promise<UarSettingsUpdateResult> {
+  if (new Set(changes.map((change) => change.field)).size !== changes.length) {
+    throw new Error('A UAR setting field may only appear once per update')
+  }
+  const sidecar = application.get('UarSidecarService')
+  const endpoint = await sidecar.ensureReady()
+  const data = Object.fromEntries(changes.map((change) => [change.field, change.value]))
+  const expected_revisions = Object.fromEntries(changes.map((change) => [change.field, change.expectedRevision]))
+  const response = await sidecar.adminRequest(
+    `/api/uar/settings/${namespace}`,
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ data, expected_revisions })
+    },
+    endpoint.generation
+  )
+  const result = rawUpdateSchema.parse(await parseResponse(response))
+  return {
+    status: result.status,
+    namespace,
+    generation: endpoint.generation,
+    updated: result.updated.map(projectSetting),
+    errors: result.errors.map((error) => ({
+      key: error.key,
+      code: error.code,
+      ...(error.error ? { message: error.error } : {}),
+      ...(error.expected_revision ? { expectedRevision: error.expected_revision } : {}),
+      ...(error.current_revision ? { currentRevision: error.current_revision } : {})
     }))
   }
 }

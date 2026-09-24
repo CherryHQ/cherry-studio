@@ -16,6 +16,7 @@ import {
 } from '@shared/types/prometheusIntegration'
 
 const INTEGRATION_PREFERENCE = 'app.prometheus.integrations' as const
+type ManagedIntegrationSecret = IntegrationSecret | 'uarAdminKey' | 'uarCredentialEncryptionKey'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -105,7 +106,7 @@ export function integrationDirectory(): string {
   return application.getPath('feature.prometheus.state')
 }
 
-export async function readSecrets(): Promise<Partial<Record<IntegrationSecret, string>>> {
+export async function readSecrets(): Promise<Partial<Record<ManagedIntegrationSecret, string>>> {
   try {
     const data = await fs.readFile(path.join(integrationDirectory(), 'secrets.enc'))
     return JSON.parse(safeStorage.decryptString(data))
@@ -115,7 +116,7 @@ export async function readSecrets(): Promise<Partial<Record<IntegrationSecret, s
   }
 }
 
-async function replaceSecrets(secrets: Partial<Record<IntegrationSecret, string>>): Promise<void> {
+async function replaceSecrets(secrets: Partial<Record<ManagedIntegrationSecret, string>>): Promise<void> {
   if (
     !safeStorage.isEncryptionAvailable() ||
     (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
@@ -141,9 +142,17 @@ export async function writeSecrets(patch: IntegrationSecretPatch): Promise<void>
   await replaceSecrets(secrets)
 }
 
-export async function ensureManagedSecrets(): Promise<Partial<Record<IntegrationSecret, string>>> {
+export async function ensureManagedSecrets(): Promise<Partial<Record<ManagedIntegrationSecret, string>>> {
   const secrets = await readSecrets()
-  for (const key of ['rootPassword', 'memoryPassword', 'compassPassword', 'uarPassword', 'literKey'] as const) {
+  for (const key of [
+    'rootPassword',
+    'memoryPassword',
+    'compassPassword',
+    'uarPassword',
+    'literKey',
+    'uarAdminKey',
+    'uarCredentialEncryptionKey'
+  ] as const) {
     if (!secrets[key]) secrets[key] = randomBytes(32).toString('hex')
   }
   await replaceSecrets(secrets)

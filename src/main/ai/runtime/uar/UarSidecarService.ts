@@ -11,6 +11,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
+import { ensureManagedSecrets } from '@main/services/prometheus/integrationConfig'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import { uarCapabilitiesResponseSchema, type UarAdministrationCapabilities } from '@shared/types/prometheusIntegration'
@@ -43,6 +44,7 @@ export type UarSidecarStatus = UarSidecarEndpoint & { state: 'running' }
 type RunningSidecar = Omit<UarSidecarEndpoint, 'storage'> & {
   child: ChildProcess
   launchToken: string
+  adminKey: string
   storage: AppliedUarStorage
 }
 
@@ -164,6 +166,18 @@ export class UarSidecarService extends BaseService {
     return this.authenticatedFetch(running, pathname, principal, init)
   }
 
+  /** Main-process-only administration request. The protected authority never
+   * crosses IPC or appears in endpoint/status snapshots. */
+  async adminRequest(pathname: string, init: RequestInit = {}, expectedGeneration?: number): Promise<Response> {
+    const running = await this.ensureRunning()
+    if (expectedGeneration !== undefined && running.generation !== expectedGeneration) {
+      throw new Error('UAR sidecar restarted before the administration request was admitted')
+    }
+    const headers = new Headers(init.headers)
+    headers.set('x-uar-admin-key', running.adminKey)
+    return this.authenticatedFetch(running, pathname, 'boss.admin', { ...init, headers })
+  }
+
   private authenticatedFetch(
     running: RunningSidecar,
     pathname: string,
@@ -194,6 +208,10 @@ export class UarSidecarService extends BaseService {
   private async startOwnedProcess(storage: AppliedUarStorage): Promise<RunningSidecar> {
     const executable = await this.resolveExecutable()
     const launchToken = randomBytes(32).toString('hex')
+    const managedSecrets = await ensureManagedSecrets()
+    const adminKey = managedSecrets.uarAdminKey
+    const credentialEncryptionKey = managedSecrets.uarCredentialEncryptionKey
+    if (!adminKey || !credentialEncryptionKey) throw new Error('UAR protected authority could not be provisioned')
     const dataRoot = application.getPath('feature.agents.uar.data')
     await mkdir(dataRoot, { recursive: true })
     const persistence =
@@ -212,6 +230,9 @@ export class UarSidecarService extends BaseService {
     const env = {
       ...(await getRawShellEnv()),
       UAR_SIDECAR: '1',
+      UAR_SECURITY__SETTINGS_MUTATION_AUTH_REQUIRED: 'true',
+      UAR_SECURITY__SETTINGS_ADMIN_KEY: adminKey,
+      CREDENTIAL_ENCRYPTION_KEY: credentialEncryptionKey,
       UAR_PERSISTENCE__PROVIDER: 'surreal',
       ...persistence,
       UAR_BUILTIN_SKILLS_DIR: path.join(application.getPath('feature.prometheus.pack.runtime'), 'skills'),
@@ -238,6 +259,7 @@ export class UarSidecarService extends BaseService {
       const running: RunningSidecar = {
         child,
         launchToken,
+        adminKey,
         baseUrl,
         generation,
         uarVersion: capabilities.uarVersion,
