@@ -1,3 +1,4 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { describe, expect, it, vi } from 'vitest'
 
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
@@ -1719,6 +1720,7 @@ describe('ExternalKnowledgeRuntime', () => {
   })
 
   it('preserves the old credential and application metadata on a terminal reconnect failure', async () => {
+    mockMainLoggerService.warn.mockClear()
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
     const value = connection('one', 'ref-one', { authorizationStatus: 'reauthorization-required' })
@@ -1737,7 +1739,10 @@ describe('ExternalKnowledgeRuntime', () => {
           interval: 5
         })),
         exchangeDeviceAuthorization: vi.fn(async () => {
-          throw new FeishuProviderError('authorization-denied', true)
+          throw new FeishuProviderError('authorization-denied', true, undefined, {
+            httpStatus: 400,
+            oauthError: 'access_denied'
+          })
         })
       })
     })
@@ -1751,6 +1756,13 @@ describe('ExternalKnowledgeRuntime', () => {
     await expect(runtime.completeUserAuthorization(begun.authorizationSessionId)).rejects.toMatchObject({
       code: 'authorization-failed'
     })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Feishu authorization failed', {
+      stage: 'complete',
+      category: 'authorization-denied',
+      httpStatus: 400,
+      oauthError: 'access_denied'
+    })
+    expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain('candidate-secret')
     expect([...credentials.values.keys()]).toEqual(['ref-one'])
     await expect(credentials.read('ref-one')).resolves.toEqual({ status: 'ok', credential: originalCredential })
     expect(connections.values.get(value.id)).toEqual(value)

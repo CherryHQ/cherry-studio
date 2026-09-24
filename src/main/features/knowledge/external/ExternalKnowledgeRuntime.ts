@@ -6,6 +6,7 @@ import {
   type CommitExternalKnowledgeReauthorizationInput,
   externalKnowledgeConnectionService
 } from '@data/services/ExternalKnowledgeConnectionService'
+import { loggerService } from '@logger'
 import { registrationBegin, registrationPoll } from '@main/services/feishuAppRegistration'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { FeishuExternalKnowledgeScope } from '@shared/data/types/externalKnowledge'
@@ -59,6 +60,12 @@ import {
 
 const ACCESS_TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000
 const MAX_REQUEST_ATTEMPTS = 3
+const logger = loggerService.withContext('ExternalKnowledgeRuntime')
+
+function logAuthorizationFailure(stage: 'begin' | 'complete', error: unknown): void {
+  if (!(error instanceof FeishuProviderError)) return
+  logger.warn('Feishu authorization failed', { stage, category: error.code, ...error.diagnostics })
+}
 
 type ConnectionStore = Pick<
   typeof externalKnowledgeConnectionService,
@@ -864,6 +871,7 @@ export class ExternalKnowledgeRuntime {
         expiresAt: new Date(expiresAt).toISOString()
       }
     } catch (error) {
+      logAuthorizationFailure('begin', error)
       try {
         await this.credentials.remove(candidateCredentialReference)
       } catch {
@@ -902,6 +910,7 @@ export class ExternalKnowledgeRuntime {
             continue
           }
           if (error.terminal) {
+            logAuthorizationFailure('complete', error)
             this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
             throw this.authorizationError(error)
           }
@@ -962,6 +971,7 @@ export class ExternalKnowledgeRuntime {
       this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
       throw new ExternalKnowledgeRuntimeError('authorization-failed')
     } catch (error) {
+      logAuthorizationFailure('complete', error)
       if (error instanceof FeishuProviderError && error.terminal) {
         this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
         error = this.authorizationError(error)

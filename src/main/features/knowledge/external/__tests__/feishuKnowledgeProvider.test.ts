@@ -96,8 +96,12 @@ describe('feishuKnowledgeProvider', () => {
     )
 
     expect(error).toBeInstanceOf(FeishuProviderError)
-    expect(error).toMatchObject({ code: 'app-scope-missing', terminal: true })
-    expect((error as Error).message).not.toContain('secret-sentinel')
+    expect(error).toMatchObject({
+      code: 'app-scope-missing',
+      terminal: true,
+      diagnostics: { httpStatus: 400, oauthError: 'invalid_scope' }
+    })
+    expect(JSON.stringify(error)).not.toContain('secret-sentinel')
   })
 
   it('classifies invalid refresh grants as terminal reauthorization failures', async () => {
@@ -110,7 +114,11 @@ describe('feishuKnowledgeProvider', () => {
       'refresh-token-sentinel'
     ).catch((cause: unknown) => cause)
 
-    expect(error).toMatchObject({ code: 'reauthorization-required', terminal: true })
+    expect(error).toMatchObject({
+      code: 'reauthorization-required',
+      terminal: true,
+      diagnostics: { httpStatus: 400, providerCode: 20029, oauthError: 'invalid_grant' }
+    })
     expect(JSON.stringify(error)).not.toContain('refresh-token-sentinel')
   })
 

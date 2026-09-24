@@ -157,11 +157,20 @@ export type FeishuProviderErrorCode =
   | 'transient'
   | 'invalid-response'
 
+type FeishuOAuthError =
+  | 'authorization_pending'
+  | 'slow_down'
+  | 'access_denied'
+  | 'expired_token'
+  | 'invalid_scope'
+  | 'invalid_grant'
+
 export class FeishuProviderError extends Error {
   constructor(
     readonly code: FeishuProviderErrorCode,
     readonly terminal: boolean,
-    readonly retryAfterMs?: number
+    readonly retryAfterMs?: number,
+    readonly diagnostics?: { httpStatus: number; providerCode?: number; oauthError?: FeishuOAuthError }
   ) {
     super(`Feishu request failed: ${code}`)
     this.name = 'FeishuProviderError'
@@ -188,24 +197,40 @@ function classifyError(response: Response, body: Record<string, unknown>): Feish
   const oauthError = typeof body.error === 'string' ? body.error : undefined
   const providerCode = typeof body.code === 'number' ? body.code : undefined
   const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'))
-  if (oauthError === 'authorization_pending') return new FeishuProviderError('authorization-pending', false)
-  if (oauthError === 'slow_down') return new FeishuProviderError('authorization-slow-down', false, retryAfterMs)
-  if (oauthError === 'access_denied') return new FeishuProviderError('authorization-denied', true)
-  if (oauthError === 'expired_token') return new FeishuProviderError('authorization-expired', true)
-  if (oauthError === 'invalid_scope') return new FeishuProviderError('app-scope-missing', true)
-  if (providerCode === 131005) return new FeishuProviderError('scope-not-found', false)
-  if (providerCode === 131006) return new FeishuProviderError('resource-permission-denied', false)
-  if (providerCode === 2889902) return new FeishuProviderError('resource-permission-denied', false)
+  const safeOauthError: FeishuOAuthError | undefined =
+    oauthError === 'authorization_pending' ||
+    oauthError === 'slow_down' ||
+    oauthError === 'access_denied' ||
+    oauthError === 'expired_token' ||
+    oauthError === 'invalid_scope' ||
+    oauthError === 'invalid_grant'
+      ? oauthError
+      : undefined
+  const diagnostics = {
+    httpStatus: response.status,
+    ...(providerCode !== undefined ? { providerCode } : {}),
+    ...(safeOauthError ? { oauthError: safeOauthError } : {})
+  }
+  const failure = (code: FeishuProviderErrorCode, terminal: boolean) =>
+    new FeishuProviderError(code, terminal, retryAfterMs, diagnostics)
+  if (oauthError === 'authorization_pending') return failure('authorization-pending', false)
+  if (oauthError === 'slow_down') return failure('authorization-slow-down', false)
+  if (oauthError === 'access_denied') return failure('authorization-denied', true)
+  if (oauthError === 'expired_token') return failure('authorization-expired', true)
+  if (oauthError === 'invalid_scope') return failure('app-scope-missing', true)
+  if (providerCode === 131005) return failure('scope-not-found', false)
+  if (providerCode === 131006) return failure('resource-permission-denied', false)
+  if (providerCode === 2889902) return failure('resource-permission-denied', false)
   if (providerCode === 2889906 || providerCode === 2889914) {
-    return new FeishuProviderError('scope-not-found', false)
+    return failure('scope-not-found', false)
   }
   if (oauthError === 'invalid_grant' || response.status === 401) {
-    return new FeishuProviderError('reauthorization-required', true)
+    return failure('reauthorization-required', true)
   }
   if (providerCode === 99991663 || response.status === 429 || response.status >= 500) {
-    return new FeishuProviderError('transient', false, retryAfterMs)
+    return failure('transient', false)
   }
-  return new FeishuProviderError('invalid-response', false)
+  return failure('invalid-response', false)
 }
 
 async function request(
