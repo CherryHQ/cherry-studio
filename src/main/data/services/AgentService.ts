@@ -820,7 +820,16 @@ export class AgentService {
   }
 
   deleteAgent(id: string, options: { deleteSessions?: boolean; permanent?: boolean } = {}) {
-    const impact = application.get('DbService').withWriteTx((tx) => this.deleteAgentStateTx(tx, id, options))
+    const impact = application.get('DbService').withWriteTx((tx) => {
+      const deleted = this.deleteAgentStateTx(tx, id, options)
+      if (!deleted.deleted || options.permanent) return deleted
+
+      const taskScheduleIds = agentTaskService.setOwnerStateTx(tx, id, 'trashed', Date.now())
+      return {
+        ...deleted,
+        taskScheduleIds: [...new Set([...deleted.taskScheduleIds, ...taskScheduleIds])]
+      }
+    })
     this.notifyDeleted(id, impact)
     return {
       deleted: impact.deleted,
