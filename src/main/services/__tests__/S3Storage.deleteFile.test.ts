@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { S3Config } from '@shared/types/backup'
-
 const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }))
 
 vi.mock('@aws-sdk/client-s3', () => ({
