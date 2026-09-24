@@ -20,6 +20,8 @@ import {
 const nodeBin = `"${process.execPath}"`
 // Exercise the shell's own output so this test isolates the detached task log redirection.
 const okCommand = 'echo bg-ok'
+// Lives long enough that the persisted record is still "running" when read back on fast runners.
+const slowOkCommand = `${nodeBin} -e "console.log('bg-ok'); setTimeout(() => process.exit(0), 750)"`
 const failCommand = `${nodeBin} -e "process.exit(3)"`
 
 describe('backgroundTasks', () => {
@@ -64,7 +66,7 @@ describe('backgroundTasks', () => {
       const onExit = vi.fn()
       const record = await startDetachedBackgroundTask({
         storageDir,
-        command: okCommand,
+        command: slowOkCommand,
         cwd: storageDir,
         name: 'echo job',
         onExit
