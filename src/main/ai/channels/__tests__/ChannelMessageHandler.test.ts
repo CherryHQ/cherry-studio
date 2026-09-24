@@ -13,8 +13,9 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 
-import type { ChannelMessageEvent } from '../ChannelAdapter'
-import { channelMessageHandler } from '../ChannelMessageHandler'
+import type { ChannelCommandEvent, ChannelMessageEvent } from '../ChannelAdapter'
+import { ChannelMessageHandler, channelMessageHandler } from '../ChannelMessageHandler'
+import { isSlashCommand } from '../constants'
 import { sanitizeChannelOutput } from '../security/OutputSanitizer'
 
 const { mockPrepareAgentSessionWorkspaceDirectory, MockAgentSessionWorkspaceError } = vi.hoisted(() => {
@@ -42,9 +43,11 @@ vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
   prepareAgentSessionWorkspaceDirectory: mockPrepareAgentSessionWorkspaceDirectory
 }))
 
+const { mockLogError } = vi.hoisted(() => ({ mockLogError: vi.fn() }))
+
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
+    withContext: () => ({ info: vi.fn(), error: mockLogError, warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
   }
 }))
 
@@ -594,6 +597,7 @@ describe('ChannelMessageHandler', () => {
     expect(helpText).toContain('/compact')
     expect(helpText).toContain('/help')
     expect(helpText).toContain('/whoami')
+    expect(helpText).toContain('/stop')
   })
 
   it('handleCommand /help merges the bound session slash commands (control wins on collision)', async () => {
@@ -604,7 +608,8 @@ describe('ChannelMessageHandler', () => {
     MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-xyz'), [
       { name: 'deploy', description: 'Deploy the app', argumentHint: '' },
       // Collides with the control command — control description must win, session dup dropped.
-      { name: 'compact', description: 'session dup', argumentHint: '' }
+      { name: 'compact', description: 'session dup', argumentHint: '' },
+      { name: 'stop', description: 'session stop dup', argumentHint: '' }
     ])
 
     try {
@@ -619,6 +624,8 @@ describe('ChannelMessageHandler', () => {
       expect(helpText).toContain('/deploy - Deploy the app')
       expect(helpText).toContain('/compact - Compact conversation history')
       expect(helpText).not.toContain('session dup')
+      expect(helpText).toContain('/stop - Cancel the current turn')
+      expect(helpText).not.toContain('session stop dup')
     } finally {
       MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-xyz'), null)
     }
@@ -977,6 +984,293 @@ describe('ChannelMessageHandler', () => {
 
     await rejection
     expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+  })
+
+  describe('/stop', () => {
+    let handler: ChannelMessageHandler
+    let adapter: ReturnType<typeof createMockAdapter>
+    let holdRuns: boolean
+    const runs = new Map<string, { onPaused: () => void; onDone: () => void }>()
+    const incoming: ChannelMessageEvent = {
+      chatId: 'chat-stop',
+      conversationId: 'thread-stop',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Run'
+    }
+    const stop: ChannelCommandEvent = {
+      chatId: 'chat-stop',
+      conversationId: 'thread-stop',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'stop',
+      messageId: 'stop-message',
+      replyInThread: true
+    }
+
+    function bind(
+      conversationId = 'thread-stop',
+      sessionId = 'session-stop',
+      agentId = 'agent-1',
+      channelId = 'channel-1'
+    ) {
+      persistedChannelSessions.bindings.set(`${channelId}:${conversationId}`, sessionId)
+      persistedChannelSessions.sessions.set(sessionId, {
+        id: sessionId,
+        agentId,
+        workspace: { path: '/tmp/test-workspace' },
+        configuration: {}
+      })
+    }
+
+    async function start(message = incoming, source = adapter) {
+      const completion = handler.handleIncoming(source, message)
+      await vi.advanceTimersByTimeAsync(1000)
+      return { completion }
+    }
+
+    async function finish() {
+      holdRuns = false
+      for (const run of runs.values()) run.onDone()
+      await vi.advanceTimersByTimeAsync(1000)
+    }
+
+    beforeEach(() => {
+      handler = new ChannelMessageHandler()
+      adapter = createMockAdapter()
+      runs.clear()
+      holdRuns = true
+      mockStreamAbort.mockReset()
+      mockStartAgentSessionRun.mockReset().mockImplementation(async ({ sessionId, listeners }) => {
+        const sentinel = listeners.find((listener: { id: string }) => listener.id.startsWith('channel-completion:'))
+        runs.set(sessionId, sentinel)
+        if (!holdRuns) sentinel.onDone()
+        return { mode: 'started' }
+      })
+      mockStreamAbort.mockImplementation((topicId: string) => {
+        for (const [sessionId, run] of runs) {
+          if (topicId === buildAgentSessionTopicId(sessionId)) run.onPaused()
+        }
+      })
+    })
+
+    afterEach(() => {
+      mockStreamAbort.mockReset()
+      mockStartAgentSessionRun.mockReset()
+    })
+
+    it('recognizes /stop as control input instead of sending it to the model', () => {
+      expect(isSlashCommand('/stop')).toBe(true)
+      expect(isSlashCommand('/stop now')).toBe(true)
+      expect(isSlashCommand('/stopwatch')).toBe(false)
+    })
+
+    it('abortSession reports whether a channel turn is actually running', async () => {
+      bind()
+      expect(handler.abortSession('session-stop')).toBe(false)
+      expect(mockStreamAbort.mock.calls).toEqual([])
+      const { completion } = await start()
+      try {
+        expect(handler.abortSession('session-stop')).toBe(true)
+        await completion
+        expect(handler.abortSession('session-stop')).toBe(false)
+        expect(mockStreamAbort.mock.calls).toEqual([
+          [buildAgentSessionTopicId('session-stop'), 'channel-session-aborted']
+        ])
+      } finally {
+        await finish()
+      }
+    })
+
+    it('cancels the bound running turn immediately and keeps its binding and reply target', async () => {
+      bind()
+      const { completion } = await start()
+      mockStreamAbort.mockImplementation(() => {})
+      const stopped = handler.handleCommand(adapter, stop)
+      try {
+        await vi.advanceTimersByTimeAsync(0)
+        expect(adapter.sendMessage.mock.calls).toEqual([
+          ['chat-stop', 'Turn cancelled.', { replyToMessageId: 'stop-message', replyInThread: true }]
+        ])
+        expect(mockStreamAbort.mock.calls).toEqual([
+          [buildAgentSessionTopicId('session-stop'), 'channel-session-aborted']
+        ])
+        expect(agentSessionService.createTx).not.toHaveBeenCalled()
+        expect(persistedChannelSessions.bindings.get('channel-1:thread-stop')).toBe('session-stop')
+      } finally {
+        await finish()
+        await Promise.all([completion, stopped])
+      }
+    })
+
+    it.each(['bound', 'unbound', 'foreign-agent'] as const)(
+      'reports no active turn for %s without creating or aborting a session',
+      async (kind) => {
+        if (kind !== 'unbound')
+          bind('thread-stop', 'session-stop', kind === 'foreign-agent' ? 'other-agent' : 'agent-1')
+        await handler.handleCommand(adapter, stop)
+        expect(adapter.sendMessage.mock.calls).toEqual([
+          ['chat-stop', 'No active turn to cancel.', { replyToMessageId: 'stop-message', replyInThread: true }]
+        ])
+        expect(mockStreamAbort.mock.calls).toEqual([])
+        expect(agentSessionService.createTx).not.toHaveBeenCalled()
+      }
+    )
+
+    it('reports abort failure explicitly and settles the command without rejecting', async () => {
+      bind()
+      const { completion } = await start()
+      mockStreamAbort.mockImplementationOnce(() => {
+        throw new Error('abort failed')
+      })
+      let settled = false
+      const stopped = handler.handleCommand(adapter, stop).then(() => {
+        settled = true
+      })
+      try {
+        await vi.advanceTimersByTimeAsync(0)
+        expect(settled).toBe(true)
+        expect(mockLogError).toHaveBeenCalledWith('Failed to cancel channel turn', {
+          agentId: 'agent-1',
+          channelId: 'channel-1',
+          conversationId: 'thread-stop',
+          error: 'abort failed'
+        })
+        expect(adapter.sendMessage.mock.calls).toEqual([
+          [
+            'chat-stop',
+            'Failed to cancel the turn. Please try again.',
+            { replyToMessageId: 'stop-message', replyInThread: true }
+          ]
+        ])
+      } finally {
+        await finish()
+        await Promise.all([completion, stopped])
+      }
+    })
+
+    it('leaves another conversation running when stopping the target conversation', async () => {
+      bind()
+      bind('thread-other', 'session-other')
+      const first = await start()
+      const other = await start({ ...incoming, conversationId: 'thread-other' })
+      let otherSettled = false
+      void other.completion.then(() => {
+        otherSettled = true
+      })
+      const stopped = handler.handleCommand(adapter, stop)
+      try {
+        await vi.advanceTimersByTimeAsync(0)
+        expect(mockStreamAbort.mock.calls).toEqual([
+          [buildAgentSessionTopicId('session-stop'), 'channel-session-aborted']
+        ])
+        expect(otherSettled).toBe(false)
+        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+      } finally {
+        await finish()
+        await Promise.all([first.completion, other.completion, stopped])
+      }
+    })
+
+    it('answers before a buffered message is flushed even when no turn is active', async () => {
+      const buffered = handler.handleIncoming(adapter, incoming)
+      const stopped = handler.handleCommand(adapter, stop)
+      try {
+        await vi.advanceTimersByTimeAsync(0)
+        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['No active turn to cancel.'])
+        expect(mockStartAgentSessionRun.mock.calls).toEqual([])
+        expect(agentSessionService.createTx).not.toHaveBeenCalled()
+      } finally {
+        await finish()
+        await Promise.all([buffered, stopped])
+      }
+    })
+
+    it.each(['buffered', 'flushed'] as const)(
+      'discards %s messages from all senders without errors or stuck admissions, then accepts new messages',
+      async (state) => {
+        bind()
+        const active = await start()
+        const discarded = ['user-1', 'user-2'].map((userId) =>
+          handler.handleIncoming(adapter, { ...incoming, userId, text: 'Old work' })
+        )
+        if (state === 'flushed') await vi.advanceTimersByTimeAsync(1000)
+        holdRuns = false
+        const stopped = handler.handleCommand(adapter, stop)
+        try {
+          await vi.advanceTimersByTimeAsync(0)
+          expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+          holdRuns = false
+          await vi.advanceTimersByTimeAsync(1000)
+          await Promise.all([active.completion, stopped, ...discarded])
+          const pause = handler.pause('stop-test')
+          try {
+            await expect(handler.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
+          } finally {
+            pause.dispose()
+          }
+          holdRuns = false
+          const next = handler.handleIncoming(adapter, { ...incoming, text: 'New work' })
+          await vi.advanceTimersByTimeAsync(1000)
+          await next
+          expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts)).toEqual([
+            [{ type: 'text', text: 'Run' }],
+            [{ type: 'text', text: 'New work' }]
+          ])
+          expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+          expect(agentSessionService.createTx).not.toHaveBeenCalled()
+        } finally {
+          await finish()
+          await Promise.all([active.completion, stopped, ...discarded])
+        }
+      }
+    )
+
+    it('settles discarded callers and admissions before the aborted stream finishes', async () => {
+      bind()
+      const active = await start()
+      const buffered = handler.handleIncoming(adapter, { ...incoming, text: 'Discard me' })
+      mockStreamAbort.mockImplementation(() => {})
+      let discardedSettled = false
+      void buffered.then(() => {
+        discardedSettled = true
+      })
+      const stopped = handler.handleCommand(adapter, stop)
+      try {
+        await vi.advanceTimersByTimeAsync(0)
+        expect(discardedSettled).toBe(true)
+        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+        const pause = handler.pause('stop-test')
+        try {
+          await expect(handler.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
+        } finally {
+          pause.dispose()
+        }
+      } finally {
+        await finish()
+        await Promise.all([active.completion, buffered, stopped])
+      }
+    })
+
+    it('cancels a running /compact without claiming that it completed or that no turn is active', async () => {
+      bind()
+      const compact = handler.handleCommand(adapter, { ...stop, command: 'compact' })
+      await vi.advanceTimersByTimeAsync(0)
+      const stopped = handler.handleCommand(adapter, stop)
+      try {
+        await vi.advanceTimersByTimeAsync(0)
+        expect(mockStreamAbort.mock.calls).toEqual([
+          [buildAgentSessionTopicId('session-stop'), 'channel-session-aborted']
+        ])
+        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+        await Promise.all([compact, stopped])
+        expect(handler.abortSession('session-stop')).toBe(false)
+        expect(agentSessionService.createTx).not.toHaveBeenCalled()
+      } finally {
+        await finish()
+        await Promise.all([compact, stopped])
+      }
+    })
   })
 
   // channels-core-2: a local AbortController only flips a listener's isAlive() — clearing

@@ -410,7 +410,7 @@ class SlackAdapter extends ChannelAdapter {
         await this.sendWhoami(chatId)
         return
       }
-      const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
+      const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'stop' | 'help'
       this.emit('command', { chatId, userId, userName, command: cmd })
     } else {
       // Download images (with bot token auth for private files)
@@ -448,12 +448,12 @@ class SlackAdapter extends ChannelAdapter {
       return
     }
 
-    if (['new', 'compact', 'help'].includes(command)) {
+    if (['new', 'compact', 'stop', 'help'].includes(command)) {
       this.emit('command', {
         chatId,
         userId,
         userName,
-        command: command as 'new' | 'compact' | 'help'
+        command: command as 'new' | 'compact' | 'stop' | 'help'
       })
     }
   }
