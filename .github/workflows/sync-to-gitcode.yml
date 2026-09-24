@@ -64,6 +64,15 @@ jobs:
           echo "Checkout ref: $RELEASE_TAG"
           git log -1 --format='%H %s'
 
+      - name: Apply the v2.1.3 signing-only recovery
+        shell: bash
+        run: |
+          test "$RELEASE_TAG" = "v2.1.3"
+          test "$(git rev-parse HEAD)" = "3b397393b129558dcfadfaf4141e2a2395ac5eeb"
+          git show fd6532dcbe0f5c4b5e6309acffb75a5747e0058e:scripts/win-sign.js > "$RUNNER_TEMP/gitcode-win-sign.js"
+          cp "$RUNNER_TEMP/gitcode-win-sign.js" scripts/win-sign.js
+          git diff --stat -- scripts/win-sign.js
+
       - name: Set package.json version
         shell: bash
         run: |
@@ -511,121 +520,3 @@ jobs:
             Remove-Item -LiteralPath $artifactPath -Recurse -Force
           }
 
-  notify:
-    runs-on: ubuntu-latest
-    needs: [build-windows-signed, sync-to-gitcode]
-    if: >-
-      always() &&
-      (github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true') &&
-      (
-        needs.build-windows-signed.result == 'failure' ||
-        needs.build-windows-signed.result == 'cancelled' ||
-        needs.sync-to-gitcode.result == 'failure' ||
-        needs.sync-to-gitcode.result == 'cancelled'
-      )
-    steps:
-      - name: Send failure notification to Feishu
-        shell: bash
-        env:
-          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
-          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
-          TAG_NAME: ${{ env.RELEASE_TAG }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          BUILD_RESULT: ${{ needs.build-windows-signed.result }}
-          SYNC_RESULT: ${{ needs.sync-to-gitcode.result }}
-        run: |
-          if [ "$BUILD_RESULT" = "cancelled" ] || [ "$SYNC_RESULT" = "cancelled" ]; then
-            STATUS_TEXT="已取消"
-            COLOR="orange"
-          else
-            STATUS_TEXT="失败"
-            COLOR="red"
-          fi
-
-          if [ "$BUILD_RESULT" = "failure" ] || [ "$BUILD_RESULT" = "cancelled" ]; then
-            STAGE="Windows 签名打包"
-          else
-            STAGE="同步"
-          fi
-
-          TITLE="GitCode ${STAGE}${STATUS_TEXT}"
-          DESCRIPTION=$(printf "**标签:** %s\n\n**阶段:** %s\n\n**状态:** %s\n\n**工作流:** [查看详情](%s)" "${TAG_NAME:-unknown}" "$STAGE" "$STATUS_TEXT" "$RUN_URL")
-          export TITLE DESCRIPTION COLOR
-
-          node <<'NODE'
-          const crypto = require('node:crypto')
-          const https = require('node:https')
-
-          const webhookUrl = process.env.FEISHU_WEBHOOK_URL
-          const secret = process.env.FEISHU_WEBHOOK_SECRET
-          const title = process.env.TITLE
-          const description = process.env.DESCRIPTION
-          const color = process.env.COLOR
-
-          if (!webhookUrl) {
-            throw new Error('FEISHU_WEBHOOK_URL environment variable is required')
-          }
-          if (!secret) {
-            throw new Error('FEISHU_WEBHOOK_SECRET environment variable is required')
-          }
-
-          const timestamp = Math.floor(Date.now() / 1000)
-          const sign = crypto.createHmac('sha256', `${timestamp}\n${secret}`).digest('base64')
-          const payload = JSON.stringify({
-            timestamp: timestamp.toString(),
-            sign,
-            msg_type: 'interactive',
-            card: {
-              elements: [
-                {
-                  tag: 'div',
-                  text: {
-                    tag: 'lark_md',
-                    content: description
-                  }
-                }
-              ],
-              header: {
-                template: color,
-                title: {
-                  tag: 'plain_text',
-                  content: title
-                }
-              }
-            }
-          })
-
-          const url = new URL(webhookUrl)
-          const req = https.request(
-            {
-              hostname: url.hostname,
-              path: url.pathname + url.search,
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(payload)
-              }
-            },
-            (res) => {
-              let data = ''
-              res.on('data', (chunk) => {
-                data += chunk.toString()
-              })
-              res.on('end', () => {
-                if (res.statusCode >= 200 && res.statusCode < 300) {
-                  console.log('Notification sent successfully!')
-                } else {
-                  console.error(`Feishu API error: ${res.statusCode} - ${data}`)
-                  process.exit(1)
-                }
-              })
-            }
-          )
-
-          req.on('error', (error) => {
-            console.error(error)
-            process.exit(1)
-          })
-          req.write(payload)
-          req.end()
-          NODE
