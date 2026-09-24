@@ -1,5 +1,5 @@
 ---
-description: Agent lifecycle command ownership, atomic archive and restore, schedule recovery, purge, and backup quiescing
+description: Agent lifecycle command ownership, atomic archive and restore, schedule recovery, purge, and shutdown
 sources:
   - src/main/ai/agents/AgentLifecycleService.ts
   - src/main/data/services/AgentService.ts
@@ -7,20 +7,19 @@ sources:
   - src/main/data/services/AgentTaskService.ts
   - src/main/ai/agents/AgentJobsService.ts
   - src/main/ai/agents/agentOrphanSweep.ts
-  - src/main/services/LegacyBackupManager.ts
 ---
 
 # Agent Lifecycle
 
 `AgentLifecycleService` is the command owner for archiving, restoring, and purging
 Agents and Agent Sessions, deleting their workspaces, and reclaiming unreferenced
-Agent artifacts. It also coordinates Agent-side write quiescing for backup.
+Agent artifacts.
 Ordinary task execution and message delivery do not pass through this service.
 
 ## Ownership and dependencies
 
 ```text
-Lifecycle IPC / Trash purge / BackupManager
+Lifecycle IPC / Trash purge
                     ↓
           AgentLifecycleService
             ├─ AgentService / AgentSessionService / AgentTaskService
@@ -148,23 +147,11 @@ are never recursively deleted by this workflow.
 
 ## Backup and shutdown
 
-BackupManager owns the whole-app snapshot and restore protocol. AgentLifecycleService
-owns the Agent-specific participants, using two stages:
-
-1. `pauseIngress()` holds Channel intake and rejects new lifecycle commands.
-2. `drainIngress()` waits for already accepted Channel admissions and lifecycle work.
-3. BackupManager pauses global AiStreamManager and JobManager; `pauseExecution()`
-   holds Delivery and Runtime autonomous launches.
-4. All writers drain before snapshotting. A timeout aborts the backup attempt.
-
-Pausing execution before Channel admission drains could discard an already
-acknowledged incoming message. Keep that ordering explicit.
-
-Holds are independent and released only by their owner. Releasing a backup hold
-does not restore archived entities or enable user-paused tasks. Successful restore
-staging retains its holds until relaunch; failed attempts release their holds.
-Backup staging, the restore journal, and preboot promotion remain BackupManager's
-responsibility.
+Backup does not quiesce Agent writers. Backup v2 composes a database snapshot
+with owner-scoped resource snapshots instead — see
+[Backup & Restore Architecture §2.2](../backup/README.md#22-why-there-is-no-global-quiescence).
+`pauseIngress()`, `drainIngress()`, and `pauseExecution()` remain on this service
+but no longer have a backup caller.
 
 Shutdown closes lifecycle-command admission and joins tracked work while its
 dependencies are still alive. Runtime and Stream services retain ownership of
