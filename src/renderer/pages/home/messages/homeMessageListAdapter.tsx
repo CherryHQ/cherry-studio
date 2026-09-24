@@ -37,6 +37,7 @@ import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
+import { useCherryCloudModelFilter } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
@@ -109,6 +110,7 @@ export function useHomeMessageListProviderValue({
   })
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
+  const cloudChatModelFilter = useCherryCloudModelFilter('chat')
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const [translationLanguagesRequested, setTranslationLanguagesRequested] = useState(false)
   const {
@@ -746,7 +748,7 @@ export function useHomeMessageListProviderValue({
         : undefined
 
       const mentionModelFilter: ModelSelectorFilter = (model) => {
-        if (isNonChatModel(model)) return false
+        if (isNonChatModel(model) || !cloudChatModelFilter(model)) return false
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
         if (needsVision && !isVisionModel(model)) return false
         return true
@@ -773,7 +775,7 @@ export function useHomeMessageListProviderValue({
         />
       )
     },
-    [regenerateMessageUsingModel, t]
+    [cloudChatModelFilter, regenerateMessageUsingModel, t]
   )
 
   const state = useMemo<MessageListState>(

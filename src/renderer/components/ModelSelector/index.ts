@@ -5,6 +5,7 @@ export { MODEL_SELECTOR_ROW_CHECKBOX_CLASS, ModelSelectorRow, ModelSelectorRowAc
 export type {
   FlatListItem,
   ModelSelectorAlign,
+  ModelSelectorDetailDescriptionResolver,
   ModelSelectorFilter,
   ModelSelectorGroupItem,
   ModelSelectorModelItem,

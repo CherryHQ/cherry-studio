@@ -6,8 +6,10 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import type { RetryPolicy } from '../retryPolicy'
 
-const getByProviderId = vi.fn()
-const getByKey = vi.fn()
+const { getByProviderId, getByKey } = vi.hoisted(() => ({
+  getByProviderId: vi.fn(),
+  getByKey: vi.fn()
+}))
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: (...a: unknown[]) => getByProviderId(...a) }
 }))
@@ -26,6 +28,7 @@ vi.mock('../../params/buildAgentParams', () => ({
 }))
 
 const { buildFallbackModels } = await import('../buildFallbackModels')
+const { ModelUnavailableError } = await import('@main/ai/provider/ModelUnavailableError')
 
 const usagePlugin = { name: 'usage' }
 const createUsagePlugin = vi.fn().mockReturnValue(usagePlugin)
@@ -62,6 +65,7 @@ function stubBuildAgentParams(modelId: string) {
 
 const baseArgs = {
   request: { messages: [] } as never,
+  modelUsageFeature: 'chat' as const,
   assistant: undefined,
   signal: undefined,
   primaryHasTools: false,
@@ -124,6 +128,7 @@ describe('buildFallbackModels', () => {
     })
     expect(resolveLanguageModel).toHaveBeenCalledWith('anthropic', {}, 'claude-x', [...plugins, usagePlugin])
     const buildOptions = buildAgentParams.mock.calls[0][0]
+    expect(buildOptions.modelUsageFeature).toBe('chat')
     expect(buildOptions.getRepairUsagePlugins()).toEqual([usagePlugin])
     // The fallback's own params are lifted as the per-fallback option override.
     expect(fallback?.options).toEqual({ temperature: 0.2, maxOutputTokens: 128 })
@@ -219,6 +224,23 @@ describe('buildFallbackModels', () => {
     })
 
     expect(await resolveEnabled()).not.toBeNull()
+  })
+
+  it('skips a provider-declared unavailable fallback and keeps later resolvers usable', async () => {
+    getByKey.mockImplementation((providerId: string, modelId: string) =>
+      makeModel({ id: `${providerId}::${modelId}`, providerId })
+    )
+    stubBuildAgentParams('claude')
+    buildAgentParams.mockRejectedValueOnce(new ModelUnavailableError('model unavailable'))
+
+    const [resolveUnavailable, resolveOrdinary] = buildFallbackModels({
+      ...baseArgs,
+      primaryUniqueModelId: 'openai::gpt-4',
+      retryPolicy: policy(['managed::unavailable', 'anthropic::claude'])
+    })
+
+    await expect(resolveUnavailable()).resolves.toBeNull()
+    await expect(resolveOrdinary()).resolves.not.toBeNull()
   })
 
   it.each([

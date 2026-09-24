@@ -2,10 +2,12 @@ import { first } from 'es-toolkit/compat'
 import { CircleSlash, Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,
+  type ReactNode,
   startTransition,
   useCallback,
   useDeferredValue,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -53,6 +55,10 @@ const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_S
 
 const estimateModelSelectorItemSize = () => ITEM_HEIGHT
 type ModelSelectorScrollAlign = NonNullable<Parameters<DynamicVirtualListRef['scrollToIndex']>[1]>['align']
+
+function getModelSelectorOptionDomId(listboxId: string, itemKey: string) {
+  return `${listboxId}-option-${encodeURIComponent(itemKey)}`
+}
 
 type ModelSelectorValue = Model | UniqueModelId | Model[] | UniqueModelId[] | undefined
 type ModelSelectorSelectionSnapshot = {
@@ -157,6 +163,8 @@ function modelsFromSelectedIds(
 function ModelRow({
   item,
   disabled,
+  description,
+  optionId,
   isFocused,
   onPin,
   onSelect,
@@ -169,6 +177,8 @@ function ModelRow({
 }: {
   item: ModelSelectorModelItem
   disabled: boolean
+  description?: ReactNode
+  optionId: string
   isFocused: boolean
   onPin: (modelId: UniqueModelId) => void
   onSelect: (item: ModelSelectorModelItem) => void
@@ -189,6 +199,8 @@ function ModelRow({
     : item.groupKind === 'pinned'
       ? providerName
       : undefined
+  const hasDescription = description != null && description !== '' && typeof description !== 'boolean'
+  const descriptionId = hasDescription ? `${optionId}-description` : undefined
 
   const leading = icon ? (
     <icon.Avatar size={24} className="border border-border" />
@@ -236,9 +248,24 @@ function ModelRow({
       <Pin className="size-3" />
     </ModelSelectorRowActionButton>
   ) : null
+  const actions =
+    pinAction || hasDescription ? (
+      <>
+        {pinAction}
+        {hasDescription ? (
+          <span id={descriptionId} className="sr-only">
+            {description}
+          </span>
+        ) : null}
+      </>
+    ) : null
 
   return (
-    <ModelSelectorDetailCard item={item} provider={item.provider} portalContainer={detailPortalContainer}>
+    <ModelSelectorDetailCard
+      item={item}
+      provider={item.provider}
+      portalContainer={detailPortalContainer}
+      description={description}>
       <ModelSelectorRow
         disabled={disabled}
         selected={isSelected}
@@ -247,10 +274,14 @@ function ModelRow({
         checkbox={checkbox}
         leading={leading}
         trailing={trailing}
-        actions={pinAction}
+        actions={actions}
         onSelect={() => onSelect(item)}
         rootProps={{ className: 'pr-0.5' }}
-        optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
+        optionProps={{
+          id: optionId,
+          'aria-describedby': descriptionId,
+          'data-testid': `model-selector-item-${item.modelId}`
+        }}>
         <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
           {item.model.name}
         </span>
@@ -342,6 +373,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     showPinnedModels = true,
     showPinActions = true,
     isModelDisabled,
+    getModelDetailDescription,
     includeAgentOnlyModels = false,
     prioritizedProviderIds = DEFAULT_PRIORITIZED_PROVIDER_IDS,
     side = 'bottom',
@@ -357,6 +389,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     shortcut
   } = props
   const { t } = useTranslation()
+  const listboxId = useId()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
   // variant happens at the `onSelect` / `value` touchpoints below (see
@@ -516,6 +549,14 @@ export function ModelSelector(props: ModelSelectorProps) {
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
   const getListItemKey = useCallback((index: number) => listItems[index].key, [listItems])
   const isStickyListItem = useCallback((index: number) => listItems[index].type === 'group', [listItems])
+  const focusedListItemIndex = useMemo(
+    () => listItems.findIndex((item) => item.key === focusedItemKey),
+    [focusedItemKey, listItems]
+  )
+  const keepMountedIndexes = useMemo(
+    () => (focusedListItemIndex >= 0 ? [focusedListItemIndex] : []),
+    [focusedListItemIndex]
+  )
 
   const emitSelection = useCallback(
     (nextSelectedIds: UniqueModelId[]) => {
@@ -843,6 +884,8 @@ export function ModelSelector(props: ModelSelectorProps) {
           <ModelRow
             item={item}
             disabled={isSelectionDisabled(item.model, item.provider)}
+            description={getModelDetailDescription?.(item.model)}
+            optionId={getModelSelectorOptionDomId(listboxId, item.key)}
             isFocused={focusedItemKey === item.key}
             isPinActionDisabled={isPinActionDisabled}
             isSelected={visibleSelectedModelIdSet.has(item.modelId)}
@@ -861,8 +904,10 @@ export function ModelSelector(props: ModelSelectorProps) {
       handleNavigateToProviderSettings,
       handleSelectItem,
       handleTogglePin,
+      getModelDetailDescription,
       isPinActionDisabled,
       isSelectionDisabled,
+      listboxId,
       multiple,
       multiSelectMode,
       setFocusedItemKey,
@@ -884,10 +929,15 @@ export function ModelSelector(props: ModelSelectorProps) {
       value: searchText,
       onChange: setSearchText,
       placeholder: t('models.search.placeholder'),
+      ariaControls: modelItems.length > 0 ? listboxId : undefined,
+      activeDescendant:
+        open && modelItems.some((item) => item.key === focusedItemKey)
+          ? getModelSelectorOptionDomId(listboxId, focusedItemKey)
+          : undefined,
       dataTestId: 'model-selector-search',
       onKeyDown: handleSearchKeyDown
     }),
-    [handleSearchKeyDown, searchText, t]
+    [focusedItemKey, handleSearchKeyDown, listboxId, modelItems, open, searchText, t]
   )
 
   const filterContent = useMemo(() => {
@@ -966,6 +1016,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
           return listItems.length > 0 ? (
             <div
+              id={listboxId}
               className="py-1"
               role="listbox"
               aria-multiselectable={multiple && multiSelectMode}
@@ -977,6 +1028,7 @@ export function ModelSelector(props: ModelSelectorProps) {
                 estimateSize={estimateModelSelectorItemSize}
                 getItemKey={getListItemKey}
                 isSticky={isStickyListItem}
+                keepMountedIndexes={keepMountedIndexes}
                 scrollPaddingStart={ITEM_HEIGHT}
                 onScroll={handleListScroll}
                 overscan={6}>
