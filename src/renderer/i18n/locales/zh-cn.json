@@ -3549,6 +3549,7 @@
   "settings.about.diagnostics.success.title": "诊断包已导出",
   "settings.about.diagnostics.unknown": "未知",
   "settings.about.diagnostics.upload.actions.consent_upload": "提交问题报告",
+  "settings.about.diagnostics.upload.dialog.title": "上传诊断报告",
   "settings.about.diagnostics.upload.errors.discard_failed": "无法关闭问题报告，请重试。",
   "settings.about.diagnostics.upload.errors.open_form_failed": "无法打开反馈表单",
   "settings.about.diagnostics.upload.errors.save_failed": "无法保存问题报告",

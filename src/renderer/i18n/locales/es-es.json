@@ -3549,6 +3549,7 @@
   "settings.about.diagnostics.success.title": "Paquete de diagnóstico exportado",
   "settings.about.diagnostics.unknown": "Desconocido",
   "settings.about.diagnostics.upload.actions.consent_upload": "Informar de un problema",
+  "settings.about.diagnostics.upload.dialog.title": "Subir informe de diagnóstico",
   "settings.about.diagnostics.upload.errors.discard_failed": "No se pudo cerrar el informe del problema. Inténtalo de nuevo.",
   "settings.about.diagnostics.upload.errors.open_form_failed": "No se pudo abrir el formulario de comentarios",
   "settings.about.diagnostics.upload.errors.save_failed": "No se ha podido guardar la notificación del problema",

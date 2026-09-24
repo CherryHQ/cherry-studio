@@ -20,6 +20,7 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 
 const DiagnosticUploadDialog = lazy(() => import('./DiagnosticUploadDialog'))
 const DiagnosticHistoryDialog = lazy(() => import('./DiagnosticHistoryDialog'))

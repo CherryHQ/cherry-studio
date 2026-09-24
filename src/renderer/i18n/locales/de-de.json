@@ -3549,6 +3549,7 @@
   "settings.about.diagnostics.success.title": "Diagnosepaket exportiert",
   "settings.about.diagnostics.unknown": "Unbekannt",
   "settings.about.diagnostics.upload.actions.consent_upload": "Problem melden",
+  "settings.about.diagnostics.upload.dialog.title": "Diagnosebericht hochladen",
   "settings.about.diagnostics.upload.errors.discard_failed": "Der Problembericht konnte nicht geschlossen werden. Versuche es erneut.",
   "settings.about.diagnostics.upload.errors.open_form_failed": "Das Feedback-Formular konnte nicht geöffnet werden",
   "settings.about.diagnostics.upload.errors.save_failed": "Die Problemmeldung konnte nicht gespeichert werden",

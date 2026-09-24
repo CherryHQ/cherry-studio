@@ -51,6 +51,14 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('settings.about.diagnostics.sources.summary', { count: 2, size: '2 KB' })).toBe('2 files, about 2 KB')
   })
 
+  it('translates the diagnostic upload dialog title', async () => {
+    await i18n.changeLanguage('en-US')
+    expect(i18n.t('settings.about.diagnostics.upload.dialog.title')).toBe('Upload diagnostic report')
+
+    await i18n.changeLanguage('zh-CN')
+    expect(i18n.t('settings.about.diagnostics.upload.dialog.title')).toBe('上传诊断报告')
+  })
+
   it('defines English labels for every Doctor check and declared detail', async () => {
     await i18n.changeLanguage('en-US')
 

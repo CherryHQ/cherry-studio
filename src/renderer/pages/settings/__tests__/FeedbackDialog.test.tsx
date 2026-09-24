@@ -1,15 +1,12 @@
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { POPUP_EXIT_MS } from '@renderer/services/popup'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
   loggerError: vi.fn(),
   openRoute: vi.fn(),
-  showDoctor: vi.fn(),
   toastError: vi.fn()
 }))
 
@@ -37,8 +34,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/doctor', () => ({
-  DoctorPopup: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
+vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => ({
+  default: ({ open }: { open: boolean }) => (open ? <div role="dialog">diagnostic-upload-dialog</div> : null)
 }))
 
 import { FEEDBACK_GITHUB_URL, FeedbackDialog, getFeedbackAgentRoute } from '../FeedbackDialog'
@@ -54,21 +51,24 @@ describe('FeedbackDialog', () => {
     mocks.ipcRequest.mockResolvedValue({ sessionId: 'feedback-session' })
   })
 
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
   it('shows diagnostics, Cherry Support, and GitHub in the requested order', () => {
     render(<FeedbackDialog open onOpenChange={vi.fn()} />)
 
     const diagnostics = screen.getByRole('button', { name: /settings.about.feedback.diagnostics.title/ })
     const agent = screen.getByRole('button', { name: /settings.about.feedback.agent.title/ })
     const github = screen.getByRole('button', { name: /settings.about.feedback.github.title/ })
-    const recommended = within(diagnostics).getByText('settings.about.feedback.recommended')
+    const recommended = screen.getByText('settings.about.feedback.recommended')
 
     expect(diagnostics.compareDocumentPosition(agent)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(agent.compareDocumentPosition(github)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(recommended).toBeVisible()
+    expect(recommended).toHaveClass('bg-primary/10', 'text-primary')
+  })
+
+  it('uses the shared large dialog size with inset, spacious options', () => {
+    render(<FeedbackDialog open onOpenChange={vi.fn()} />)
+
+    expect(screen.getByTestId('dialog-content')).toHaveAttribute('data-size', 'lg')
+    expect(screen.getByRole('list')).toHaveClass('gap-3', 'px-2')
   })
 
   it('creates an isolated feedback session before opening the Agent route', async () => {
@@ -81,18 +81,13 @@ describe('FeedbackDialog', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('closes before opening the shared problem-report panel', async () => {
-    vi.useFakeTimers()
+  it('opens the one-step diagnostic upload dialog', async () => {
     render(<ControlledFeedbackDialog />)
 
     fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.diagnostics.title/ }))
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(mocks.showDoctor).not.toHaveBeenCalled()
-
-    await vi.advanceTimersByTimeAsync(POPUP_EXIT_MS)
-
-    expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'report' })
+    await waitFor(() => expect(screen.getByText('diagnostic-upload-dialog')).toBeInTheDocument())
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('diagnostics.bundle.upload', expect.anything())
   })
 
   it('reports feedback-session creation failures without opening an empty Agent route', async () => {

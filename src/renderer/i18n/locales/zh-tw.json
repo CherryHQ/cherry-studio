@@ -3549,6 +3549,7 @@
   "settings.about.diagnostics.success.title": "已匯出診斷包",
   "settings.about.diagnostics.unknown": "未知",
   "settings.about.diagnostics.upload.actions.consent_upload": "提交問題上報",
+  "settings.about.diagnostics.upload.dialog.title": "上傳診斷報告",
   "settings.about.diagnostics.upload.errors.discard_failed": "無法關閉問題報告，請再試一次。",
   "settings.about.diagnostics.upload.errors.open_form_failed": "無法開啟回饋表單",
   "settings.about.diagnostics.upload.errors.save_failed": "無法儲存問題上報",

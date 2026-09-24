@@ -3549,6 +3549,7 @@
   "settings.about.diagnostics.success.title": "Đã xuất gói chẩn đoán",
   "settings.about.diagnostics.unknown": "Không xác định",
   "settings.about.diagnostics.upload.actions.consent_upload": "Gửi báo cáo sự cố",
+  "settings.about.diagnostics.upload.dialog.title": "Tải báo cáo chẩn đoán lên",
   "settings.about.diagnostics.upload.errors.discard_failed": "Không thể đóng báo cáo sự cố. Hãy thử lại.",
   "settings.about.diagnostics.upload.errors.open_form_failed": "Không thể mở biểu mẫu phản hồi",
   "settings.about.diagnostics.upload.errors.save_failed": "Không thể lưu báo cáo sự cố",
