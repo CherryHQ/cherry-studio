@@ -761,8 +761,11 @@ describe('Full restore, same device with content already there', () => {
     seedSourceResources()
     const blob = join(sourceUserData, 'Data', 'Files', `${FILE_ID}.pdf`)
     const archive = join(workDir, 'out', 'full-newer-resource.cherrybackup')
+    // A different size on every attempt: rewriting identical bytes need not move
+    // mtime on Windows, and staging retries a drifted unit once.
+    let writes = 0
     driftHooks.afterStagePreVerify = async (sourcePath) => {
-      if (sourcePath === blob) writeFileSync(blob, 'NEWER-BLOB')
+      if (sourcePath === blob) writeFileSync(blob, 'NEWER-BLOB'.repeat(++writes))
     }
     activeUserData = sourceUserData
 
@@ -777,7 +780,7 @@ describe('Full restore, same device with content already there', () => {
       livePath: `Data/Files/${FILE_ID}.pdf`,
       reason: 'changed-during-capture'
     })
-    expect(readFileSync(blob, 'utf8')).toBe('NEWER-BLOB')
+    expect(readFileSync(blob, 'utf8')).toMatch(/^(NEWER-BLOB)+$/)
   })
 
   it('replaces a declared directory as a whole, and holds the old one until acknowledgement', async () => {

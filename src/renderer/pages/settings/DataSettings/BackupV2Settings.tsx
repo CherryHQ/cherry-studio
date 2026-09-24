@@ -466,7 +466,7 @@ const BackupV2Settings: FC = () => {
       <SettingTitle>{t('settings.data.title')}</SettingTitle>
       <SettingDivider />
 
-      <SettingRow>
+      <SettingRow id="setting-data-data-backup-restore" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <RowFlex className="shrink-0 justify-between gap-1.25">
           <AbortableAction
