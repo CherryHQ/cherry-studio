@@ -1,3 +1,4 @@
+import type * as childProcessModule from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
@@ -7,7 +8,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 
 // CJS captures execSync when loaded; stub it before requiring the signing hook.
 const require = createRequire(import.meta.url)
-const childProcess = require('child_process') as typeof import('node:child_process')
+const childProcess = require('child_process') as typeof childProcessModule
 const execSync = vi.spyOn(childProcess, 'execSync')
 const sign = require('../win-sign').default as (configuration: { path: string }) => Promise<void>
 const prebuilds = path.resolve(import.meta.dirname, '../../node_modules/selection-hook/prebuilds')
