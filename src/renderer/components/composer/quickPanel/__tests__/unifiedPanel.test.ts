@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { QuickPanelContextType, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
 
 import type { ComposerToolLauncher } from '../../toolLauncher'
-import { createUnifiedQuickPanelOpenOptions, hasUnifiedQuickPanelRootContent } from '../unifiedPanel'
+import {
+  createUnifiedQuickPanelOpenOptions,
+  hasUnifiedQuickPanelRootContent,
+  prepareComposerQuickPanelSearch
+} from '../unifiedPanel'
 
 const quickPanel = {
   open: vi.fn(),
@@ -57,6 +61,80 @@ beforeEach(() => {
 })
 
 describe('createUnifiedQuickPanelOpenOptions', () => {
+  it('flattens actionable leaves through nested submenus without looping on cycles', () => {
+    const leafAction = vi.fn()
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'outer',
+          kind: 'group',
+          label: 'Outer',
+          icon: 'outer',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'inner',
+              kind: 'group',
+              label: 'Inner',
+              icon: 'inner',
+              sources: ['popover'],
+              submenu: [
+                {
+                  id: 'leaf',
+                  kind: 'command',
+                  label: 'Nested leaf',
+                  icon: 'leaf',
+                  sources: ['popover'],
+                  action: leafAction
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      { quickPanel, onToolLauncherSelect }
+    )
+
+    expect(labels(getVisibleItems(options, 'nested'))).toEqual(['Nested leaf'])
+    getVisibleItems(options, 'nested')[0].action?.({
+      action: 'enter',
+      context: quickPanel,
+      item: getVisibleItems(options, 'nested')[0],
+      parentPanel: options,
+      searchText: 'nested'
+    })
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'leaf', action: leafAction }),
+      expect.objectContaining({ source: 'popover', parentPanel: options, searchText: 'nested' })
+    )
+  })
+
+  it('prepares a slash-triggered submenu search without tracking the consumed trigger', () => {
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 7,
+      getText: () => '/skills',
+      insertText: vi.fn()
+    }
+
+    expect(
+      prepareComposerQuickPanelSearch({
+        inputAdapter,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/skills' }
+      })
+    ).toEqual({
+      queryAnchor: undefined,
+      trackInputQuery: true,
+      consumeQueryOnDismiss: true,
+      triggerInfo: { type: 'button' }
+    })
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
+    expect(inputAdapter.focus).toHaveBeenCalledOnce()
+  })
+
   it('keeps system actions above resource results while preserving business order during search', () => {
     const options = createUnifiedQuickPanelOpenOptions(
       [
@@ -443,7 +521,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         source: 'popover',
         inputAdapter,
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'ask',
         triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
       })
@@ -455,7 +533,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         source: 'root-panel',
         inputAdapter,
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'ask',
         triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
       })
@@ -507,9 +585,10 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         title: 'Thinking',
         symbol: 'thinking',
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         triggerInfo: { type: 'button' },
         trackInputQuery: true,
+        consumeQueryOnDismiss: true,
         list: [expect.objectContaining({ label: 'Low' })]
       })
     )
@@ -530,7 +609,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
       expect.objectContaining({
         source: 'root-panel',
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'think',
         triggerInfo: { type: 'input', position: 0, originalText: '/think' }
       })

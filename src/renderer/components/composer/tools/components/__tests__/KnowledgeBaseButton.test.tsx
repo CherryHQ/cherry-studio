@@ -121,6 +121,10 @@ describe('KnowledgeBaseToolRuntime', () => {
       sources: ['popover', 'root-panel'],
       active: true
     })
+    expect(knowledgeLauncher.rootSearchItems).toEqual([
+      expect.objectContaining({ id: 'knowledge-base:kb-1', label: 'Knowledge One' }),
+      expect.objectContaining({ id: 'knowledge-base:kb-2', label: 'Knowledge Two' })
+    ])
     expect(knowledgeLauncher.suffix).toBeUndefined()
     expect(knowledgeLauncher.showInActiveControls).toBe(false)
 

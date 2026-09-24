@@ -137,6 +137,7 @@ function PanelHarness({
   title = 'Actions',
   triggerInfo,
   trackInputQuery,
+  consumeQueryOnDismiss,
   initialSearchText,
   queryAnchor,
   defaultIndex,
@@ -155,6 +156,7 @@ function PanelHarness({
   title?: string
   triggerInfo?: QuickPanelTriggerInfo
   trackInputQuery?: boolean
+  consumeQueryOnDismiss?: boolean
   initialSearchText?: string
   queryAnchor?: number
   defaultIndex?: number
@@ -192,10 +194,12 @@ function PanelHarness({
       queryAnchor,
       manageListExternally,
       trackInputQuery: trackInputQuery ?? Boolean(inputAdapter),
+      consumeQueryOnDismiss,
       initialSearchText,
       onClose
     })
   }, [
+    consumeQueryOnDismiss,
     footerActions,
     inputAdapter,
     initialSearchText,
@@ -670,6 +674,104 @@ describe('QuickPanelView', () => {
 
     expect(childAction).toHaveBeenCalledTimes(1)
     expect(deleteTriggerRange).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a multi-select filter through picks and consumes it when dismissed', async () => {
+    let text = 'card'
+    let cursorOffset = text.length
+    const action = vi.fn()
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+    const captureDispatch = vi.fn()
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    fireEvent.click(await screen.findByText('Card note'))
+    expect(action).toHaveBeenCalledOnce()
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+    expect(screen.queryByText('Other note')).not.toBeInTheDocument()
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Escape').event)
+    })
+
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(text).toBe('')
+  })
+
+  it('consumes the outgoing live filter when replacing a visible resource panel', async () => {
+    let text = 'card'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'card', label: 'Card note', icon: 'card' }]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    act(() => {
+      quickPanel?.close('panel_replaced')
+      quickPanel?.open({
+        list: [{ id: 'next', label: 'Next panel', icon: 'next' }],
+        symbol: '@',
+        triggerInfo: { type: 'button', position: 0 },
+        queryAnchor: 0,
+        trackInputQuery: true,
+        consumeQueryOnDismiss: true
+      })
+    })
+
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(text).toBe('')
+    expect(await screen.findByText('Next panel')).toBeInTheDocument()
   })
 
   // 集成测试验证 context 的 fill 标志 + DOM 几何测量把高度喂给了 getQuickPanelHeights；
