@@ -2821,6 +2821,69 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
     })
 
+    it('persists the last-good snapshot when a detached flow enqueue fails before flush', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-delta', id: 'flow-text', delta: 'Recovered output' }
+      })
+
+      await vi.waitFor(() => {
+        const latest = entry.backgroundFlowAccumulators?.get('assistant-1')?.latest
+        expect((latest?.parts ?? []).some((part: { text?: string }) => part.text?.includes('Recovered output'))).toBe(
+          true
+        )
+      })
+
+      const accumulator = entry.backgroundFlowAccumulators?.get('assistant-1')
+      expect(accumulator).toBeDefined()
+      vi.spyOn(accumulator!.controller, 'enqueue').mockImplementation(() => {
+        throw new Error('stream closed')
+      })
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-end', id: 'flow-text' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({ type: 'text', text: expect.stringContaining('Recovered output') })
+          ])
+        )
+      })
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Failed to enqueue detached subagent flow chunk',
+        expect.objectContaining({ messageId: 'assistant-1', chunkType: 'text-end' })
+      )
+    })
+
     it('publishes detached flow overlays under independent message keys', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)

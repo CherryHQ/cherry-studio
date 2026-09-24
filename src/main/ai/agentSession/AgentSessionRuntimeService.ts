@@ -2177,7 +2177,9 @@ export class AgentSessionRuntimeService extends BaseService {
     try {
       for (const item of queue) accumulator.controller.enqueue(item)
     } catch (error) {
-      this.evictBackgroundFlowAccumulator(entry, messageId)
+      // Retire instead of evicting so `finishBackgroundFlows` can still persist
+      // the last-good snapshot when no later chunk rebuilds the stream.
+      this.retireBackgroundFlowAccumulator(entry, accumulator)
       if (!accumulator.errorLogged) {
         accumulator.errorLogged = true
         logger.warn('Failed to enqueue detached subagent flow chunk', {
@@ -2190,20 +2192,29 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private evictBackgroundFlowAccumulator(entry: AgentSessionRuntimeEntry, messageId: string): void {
-    const accumulator = entry.backgroundFlowAccumulators?.get(messageId)
-    if (!accumulator) return
-    entry.backgroundFlowAccumulators?.delete(messageId)
-    accumulator.closed = true
+  private retireBackgroundFlowAccumulator(
+    entry: AgentSessionRuntimeEntry,
+    accumulator: BackgroundFlowAccumulator
+  ): void {
+    if (accumulator.closed) return
     if (accumulator.publishTimer) {
       clearTimeout(accumulator.publishTimer)
       accumulator.publishTimer = undefined
     }
+    this.publishBackgroundFlowParts(entry, accumulator)
+    accumulator.closed = true
     try {
       accumulator.controller.close()
     } catch {
       // Already closed by the accumulator reader.
     }
+  }
+
+  private evictBackgroundFlowAccumulator(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    const accumulator = entry.backgroundFlowAccumulators?.get(messageId)
+    if (!accumulator) return
+    entry.backgroundFlowAccumulators?.delete(messageId)
+    this.retireBackgroundFlowAccumulator(entry, accumulator)
   }
 
   private completeSeedStreamingPart(accumulator: BackgroundFlowAccumulator, kind: 'text' | 'reasoning'): boolean {
@@ -2355,6 +2366,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private publishBackgroundFlowParts(entry: AgentSessionRuntimeEntry, accumulator: BackgroundFlowAccumulator): void {
     const parts = accumulator.latest?.parts
     if (!parts || !this.isCurrentEntry(entry)) return
+    const current = entry.backgroundFlowAccumulators?.get(accumulator.messageId)
+    if (current && current !== accumulator) return
     accumulator.lastPublishedAt = Date.now()
     application
       .get('CacheService')
