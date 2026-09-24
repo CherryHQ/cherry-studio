@@ -6,32 +6,26 @@ const {
   listAgentsMock,
   getAgentMock,
   updateAgentMock,
-  deleteAgentMock,
   reorderMock,
   reorderBatchMock,
-  agentExistsMock,
   listAllTasksMock,
   getTaskByIdMock,
   listTasksMock,
   getTaskMock,
   listSkillsMock,
   getSkillByIdMock,
-  listSessionIdsByAgentMock
 } = vi.hoisted(() => ({
   listAgentsMock: vi.fn(),
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
-  deleteAgentMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
-  agentExistsMock: vi.fn(),
   listAllTasksMock: vi.fn(),
   getTaskByIdMock: vi.fn(),
   listTasksMock: vi.fn(),
   getTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
   getSkillByIdMock: vi.fn(),
-  listSessionIdsByAgentMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -39,15 +33,9 @@ vi.mock('@data/services/AgentService', () => ({
     listAgents: listAgentsMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
-    deleteAgent: deleteAgentMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
-    agentExists: agentExistsMock
   }
-}))
-
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { listIdsByAgent: listSessionIdsByAgentMock }
 }))
 
 vi.mock('@data/services/AgentTaskService', () => ({
@@ -68,35 +56,16 @@ vi.mock('@data/services/AgentGlobalSkillService', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
 
-const { pauseRuntimeTurnMock, closeSessionMock, warnMock } = vi.hoisted(() => ({
-  pauseRuntimeTurnMock: vi.fn(),
-  closeSessionMock: vi.fn(),
-  warnMock: vi.fn()
+
+const { archiveAgentMock } = vi.hoisted(() => ({
+  archiveAgentMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
-      if (name === 'AiStreamManager') return { pauseRuntimeTurn: pauseRuntimeTurnMock }
-      if (name === 'AgentSessionRuntimeService') return { closeSession: closeSessionMock }
+      if (name === 'AgentLifecycleService') return { archiveAgent: archiveAgentMock }
       return undefined
-    })
-  }
-}))
-
-vi.mock('@main/ai/agentSession/topic', () => ({
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`,
-  extractAgentSessionId: (topicId: string) => topicId.replace(/^agent-session:/, ''),
-  isAgentSessionTopic: (topicId: string) => topicId.startsWith('agent-session:')
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      warn: warnMock,
-      info: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
     })
   }
 }))
@@ -115,8 +84,6 @@ const mockSkill = { id: SKILL_ID, name: 'my-skill', isEnabled: true }
 describe('agentHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    agentExistsMock.mockReturnValue(true)
-    listSessionIdsByAgentMock.mockReturnValue([])
   })
 
   // ── /agents ──────────────────────────────────────────────────────────────
@@ -233,56 +200,21 @@ describe('agentHandlers', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('delegates DELETE and returns undefined on success', async () => {
-      deleteAgentMock.mockReturnValueOnce({ deleted: true })
+    it('delegates DELETE to AgentLifecycleService and returns undefined on success', async () => {
+      archiveAgentMock.mockResolvedValueOnce({ deleted: true })
 
       const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
 
-      expect(listSessionIdsByAgentMock).toHaveBeenCalledWith(AGENT_ID)
-      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
-      expect(listSessionIdsByAgentMock.mock.invocationCallOrder[0]).toBeLessThan(
-        deleteAgentMock.mock.invocationCallOrder[0]
-      )
+      expect(archiveAgentMock).toHaveBeenCalledWith(AGENT_ID, { archiveSessions: false })
       expect(result).toBeUndefined()
     })
 
-    it('pauses live session turns and closes runtimes for affected sessions', async () => {
-      deleteAgentMock.mockReturnValueOnce({ deleted: true })
-      listSessionIdsByAgentMock.mockReturnValueOnce(['session-1', 'session-2'])
-      closeSessionMock.mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined)
-
-      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
-
-      expect(pauseRuntimeTurnMock).toHaveBeenCalledTimes(2)
-      expect(pauseRuntimeTurnMock).toHaveBeenCalledWith('agent-session:session-1', 'target-agent-deleted')
-      expect(pauseRuntimeTurnMock).toHaveBeenCalledWith('agent-session:session-2', 'target-agent-deleted')
-      expect(closeSessionMock).toHaveBeenCalledTimes(2)
-      expect(result).toBeUndefined()
-    })
-
-    it('returns undefined and logs a warning when runtime cleanup throws after row deletion', async () => {
-      deleteAgentMock.mockReturnValueOnce({ deleted: true })
-      listSessionIdsByAgentMock.mockReturnValueOnce(['session-1'])
-      pauseRuntimeTurnMock.mockImplementationOnce(() => {
-        throw new Error('runtime unavailable')
-      })
-
-      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
-
-      expect(result).toBeUndefined()
-      expect(warnMock).toHaveBeenCalledWith('Agent runtime cleanup failed after row deletion', {
-        agentId: AGENT_ID,
-        error: 'runtime unavailable'
-      })
-    })
-
-    it('throws notFound when agent does not exist on DELETE', async () => {
-      agentExistsMock.mockReturnValueOnce(false)
+    it('throws notFound when AgentLifecycleService reports a missing agent', async () => {
+      archiveAgentMock.mockResolvedValueOnce({ deleted: false })
 
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-      expect(deleteAgentMock).not.toHaveBeenCalled()
     })
   })
 
