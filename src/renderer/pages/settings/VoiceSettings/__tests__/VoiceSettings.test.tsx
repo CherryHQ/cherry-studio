@@ -25,6 +25,7 @@ const voice = vi.hoisted(() => {
     dictationListeners: new Set<() => void>(),
     speechListeners: new Set<() => void>(),
     listModels: vi.fn(),
+    listTranscriptionLocales: vi.fn(),
     getModelStatus: vi.fn(),
     listVoices: vi.fn(),
     install: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock('@renderer/services/voice', () => ({
   voiceService: {
     initialize: vi.fn(async () => undefined),
     listModels: voice.listModels,
+    listTranscriptionLocales: voice.listTranscriptionLocales,
     getModelStatus: voice.getModelStatus,
     listVoices: voice.listVoices,
     installTranscriptionAsset: voice.install,
@@ -111,6 +113,7 @@ describe('VoiceSettings', () => {
     voice.microphone.mockReset()
     voice.openMicrophoneSettings.mockReset()
     voice.listModels.mockResolvedValue({ models })
+    voice.listTranscriptionLocales.mockResolvedValue({ supported: ['en-US', 'zh-CN', 'ja-JP'], installed: ['en-US'] })
     voice.listVoices.mockResolvedValue([{ id: 'voice.exact', name: 'Exact Voice', language: 'en-US' }])
     voice.getModelStatus.mockResolvedValue({ status: 'ready' })
     voice.install.mockReturnValue({ sessionId: 'install', requestId: 'request', result: Promise.resolve() })
@@ -155,6 +158,58 @@ describe('VoiceSettings', () => {
     await waitFor(() => expect(voice.install).toHaveBeenCalledWith({ language: 'en-US', source: 'settings' }))
   })
 
+  it('offers supported Apple recognition languages and saves the chosen locale', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    const { unmount } = render(<VoiceSettings />)
+
+    const language = await screen.findByRole('combobox', { name: /recognition language/i })
+    await screen.findByRole('option', { name: /Chinese.*zh-CN/i })
+    expect(screen.queryByRole('option', { name: /French/i })).not.toBeInTheDocument()
+
+    await userEvent.setup().selectOptions(language, 'zh-CN')
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('zh-CN')
+    )
+    unmount()
+    render(<VoiceSettings />)
+    await waitFor(() =>
+      expect(voice.getModelStatus).toHaveBeenCalledWith({ modelId: APPLE_ASR_MODEL_ID, language: 'zh-CN' })
+    )
+  })
+
+  it('does not reuse the previous language readiness while a newly selected language is checked', async () => {
+    const japaneseStatus = deferred<{ status: 'not_installed'; reason: 'asset_required' }>()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.recognition.model_id': APPLE_ASR_MODEL_ID,
+      'feature.voice.recognition.language': 'en-US'
+    })
+    voice.getModelStatus.mockImplementation(({ language }) =>
+      language === 'ja-JP' ? japaneseStatus.promise : Promise.resolve({ status: 'ready' })
+    )
+    const { rerender } = render(<VoiceSettings />)
+
+    const record = await screen.findByRole('button', { name: /record test/i })
+    await waitFor(() => expect(record).toBeEnabled())
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.language', 'ja-JP')
+    rerender(<VoiceSettings />)
+
+    expect(record).toBeDisabled()
+    await act(async () => japaneseStatus.resolve({ status: 'not_installed', reason: 'asset_required' }))
+    expect(await screen.findByRole('button', { name: /install/i })).toBeEnabled()
+  })
+
+  it('can install Apple assets for the existing English default without writing a locale preference', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.getModelStatus.mockResolvedValue({ status: 'not_installed', reason: 'asset_required' })
+    render(<VoiceSettings />)
+
+    const language = await screen.findByRole('combobox', { name: /recognition language/i })
+    expect(language).toHaveValue('en-US')
+    fireEvent.click(await screen.findByRole('button', { name: /install/i }))
+    await waitFor(() => expect(voice.install).toHaveBeenCalledWith({ language: 'en-US', source: 'settings' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBeNull()
+  })
+
   it('uses the Main recommended ASR model without persisting it or installing assets', async () => {
     voice.listModels.mockResolvedValue({ models, defaultAsrModelId: APPLE_ASR_MODEL_ID })
     render(<VoiceSettings />)
@@ -195,7 +250,7 @@ describe('VoiceSettings', () => {
     expect(screen.getByText(/about 1 gb/i)).toHaveTextContent(/funaudiollm.*modelscope/i)
     expect(screen.getByText(/about 1 gb/i)).toHaveTextContent(/apache-2\.0/i)
     expect(screen.getByLabelText(/recognition language/i)).toBeDisabled()
-    expect(screen.getByLabelText(/recognition language/i)).toHaveValue('Automatic detection')
+    expect(screen.getByLabelText(/recognition language/i)).toHaveValue('auto')
     expect(voice.funAsrDownload).not.toHaveBeenCalled()
     fireEvent.click(await screen.findByRole('button', { name: /download model/i }))
     await waitFor(() => expect(voice.funAsrDownload).toHaveBeenCalledOnce())
@@ -612,24 +667,6 @@ describe('VoiceSettings', () => {
 
     fireEvent.click(await screen.findByRole('switch', { name: /automatically read/i }))
     expect(await screen.findByRole('alert')).toHaveTextContent(/operation failed/i)
-  })
-
-  it('normalizes the automatic language sentinel to an empty preference and omits it from requests', async () => {
-    MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'feature.voice.recognition.model_id': APPLE_ASR_MODEL_ID,
-      'feature.voice.recognition.language': ''
-    })
-    render(<VoiceSettings />)
-
-    await waitFor(() => expect(voice.getModelStatus).toHaveBeenCalledWith({ modelId: APPLE_ASR_MODEL_ID }))
-    const language = screen.getByLabelText(/recognition language/i)
-    expect(language).toHaveValue('')
-    fireEvent.change(language, { target: { value: 'auto' } })
-    await waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('')
-    )
-    fireEvent.click(screen.getByRole('button', { name: /record test/i }))
-    expect(voice.dictationStartScoped).toHaveBeenCalledWith()
   })
 
   it('keeps the current scoped dictation run after its target unmounts', async () => {

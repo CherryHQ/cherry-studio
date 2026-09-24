@@ -12,6 +12,15 @@ const base = {
 }
 
 describe('Voice IPC contract', () => {
+  it('returns only supported and installed transcription locale tags', () => {
+    const locales = voiceRequestSchemas['ai.transcription.locales.list'].output
+    expect(locales.parse({ supported: ['en-US', 'zh-CN'], installed: ['en-US'] })).toEqual({
+      supported: ['en-US', 'zh-CN'],
+      installed: ['en-US']
+    })
+    expect(locales.safeParse({ supported: ['en-US'], installed: ['en-US'], transcript: 'private' }).success).toBe(false)
+    expect(locales.safeParse({ supported: ['auto'], installed: [] }).success).toBe(false)
+  })
   it('aggregates one metadata-only discriminated session event', () => {
     expectTypeOf<EventPayload<'ai.voice.session_event'>>().toEqualTypeOf<VoiceSessionEvent>()
     const event: VoiceSessionEvent = {

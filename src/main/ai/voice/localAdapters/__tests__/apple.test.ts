@@ -12,7 +12,8 @@ import {
   createLocalSpeechModel,
   createLocalTranscriptionModel,
   getLocalVoiceStatus,
-  installAppleAsrAsset
+  installAppleAsrAsset,
+  listAppleAsrLocales
 } from '../../localAdapters'
 
 const mocks = vi.hoisted(() => ({ nativeRequest: vi.fn(), decode: vi.fn() }))
@@ -86,6 +87,15 @@ afterEach(async () => {
 })
 
 describe('local Apple adapters', () => {
+  it('lists only system-supported Apple recognition locales', async () => {
+    mocks.nativeRequest.mockResolvedValueOnce({
+      operation: 'list_asr_locales',
+      result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] }
+    })
+
+    await expect(listAppleAsrLocales()).resolves.toEqual({ supported: ['en-US', 'zh-CN'], installed: ['en-US'] })
+    expect(mocks.nativeRequest).toHaveBeenCalledWith({ operation: 'list_asr_locales' }, { signal: undefined })
+  })
   it('returns WAV bytes and releases synthesis scratch before completion', async () => {
     const model = createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'voice.exact' })
     const result = await model.doGenerate({ text: 'private TTS text', voice: 'voice.exact', outputFormat: 'wav' })

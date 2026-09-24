@@ -8,6 +8,25 @@ struct AppleAsrCapability: Sendable {
 }
 
 enum AppleAsr {
+    static func listLocales() async -> AsrLocalesResult {
+        guard #available(macOS 26.0, *) else {
+            return AsrLocalesResult(supported: [], installed: [])
+        }
+
+        return localesResult(
+            supported: await SpeechTranscriber.supportedLocales,
+            installed: await SpeechTranscriber.installedLocales
+        )
+    }
+
+    static func localesResult(supported: [Locale], installed: [Locale]) -> AsrLocalesResult {
+        func identifiers(_ locales: [Locale]) -> [String] {
+            Array(Set(locales.map { $0.identifier.replacingOccurrences(of: "_", with: "-") })).sorted()
+        }
+
+        return AsrLocalesResult(supported: identifiers(supported), installed: identifiers(installed))
+    }
+
     static func capabilities(locale identifier: String) async -> AppleAsrCapability {
         guard #available(macOS 26.0, *) else {
             return AppleAsrCapability(supportedLocale: nil, assetStatus: .unsupported)

@@ -12,6 +12,7 @@ import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessErr
 import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
+  DEFAULT_APPLE_ASR_LOCALE,
   DEFAULT_SPEECH_SPEED,
   MAX_SPEECH_SPEED,
   MIN_SPEECH_SPEED
@@ -71,7 +72,7 @@ export async function getAppleVoiceStatus(
   if (!supportsApple(modelId === APPLE_ASR_MODEL_ID)) return { status: 'unsupported', reason: 'unsupported' }
   try {
     const { result } = await nativeClient().request(
-      { operation: 'capabilities', locale: options.language ?? 'en-US' },
+      { operation: 'capabilities', locale: options.language ?? DEFAULT_APPLE_ASR_LOCALE },
       { signal }
     )
     if (modelId === APPLE_TTS_MODEL_ID) {
@@ -100,7 +101,18 @@ export async function listLocalVoices(signal?: AbortSignal) {
   checkAbort(signal)
   if (!supportsApple(false)) return []
   try {
-    return (await nativeClient().request({ operation: 'capabilities', locale: 'en-US' }, { signal })).result.voices
+    return (await nativeClient().request({ operation: 'capabilities', locale: DEFAULT_APPLE_ASR_LOCALE }, { signal }))
+      .result.voices
+  } catch (error) {
+    throw normalizeFailure(error, signal)
+  }
+}
+
+export async function listAppleAsrLocales(signal?: AbortSignal) {
+  checkAbort(signal)
+  if (!supportsApple(true)) return { supported: [], installed: [] }
+  try {
+    return (await nativeClient().request({ operation: 'list_asr_locales' }, { signal })).result
   } catch (error) {
     throw normalizeFailure(error, signal)
   }
@@ -198,7 +210,7 @@ export function createAppleTranscriptionModel(options: TranscriptionOptions): Tr
         const inputPath = join(directory, 'input.wav')
         await writeFile(inputPath, decoded.wav, { mode: 0o600 })
         const { result } = await nativeClient().request(
-          { operation: 'transcribe', locale: options.language ?? 'en-US', inputPath },
+          { operation: 'transcribe', locale: options.language ?? DEFAULT_APPLE_ASR_LOCALE, inputPath },
           { signal: input.abortSignal }
         )
         checkAbort(input.abortSignal)

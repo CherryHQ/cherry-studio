@@ -13,6 +13,7 @@ const boundary = vi.hoisted(() => ({
   controlPlayback: vi.fn(),
   createRecording: vi.fn(),
   getMicrophoneStatus: vi.fn(),
+  listTranscriptionLocales: vi.fn(),
   getState: vi.fn(),
   openMicrophoneSettings: vi.fn(),
   readOutput: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock('@application', async () => {
         controlPlayback: boundary.controlPlayback,
         createRecording: boundary.createRecording,
         getMicrophoneStatus: boundary.getMicrophoneStatus,
+        listTranscriptionLocales: boundary.listTranscriptionLocales,
         getState: boundary.getState,
         openMicrophoneSettings: boundary.openMicrophoneSettings,
         readOutput: boundary.readOutput,
@@ -78,6 +80,19 @@ describe('Voice handlers through real IpcRouter', () => {
   const router = new IpcRouter(voiceRequestSchemas, voiceHandlers)
   beforeEach(() => {
     for (const mock of Object.values(boundary)) mock.mockReset()
+  })
+
+  it('lists Apple transcription locales for a managed window', async () => {
+    const webContents = { id: 10, isDestroyed: () => false }
+    const owner = { windowId: 'owner', webContents }
+    boundary.window.mockReturnValue({ webContents })
+    boundary.listTranscriptionLocales.mockResolvedValue({ supported: ['en-US', 'zh-CN'], installed: ['en-US'] })
+
+    await expect(router.dispatch('ai.transcription.locales.list', undefined, { senderId: 'owner' })).resolves.toEqual({
+      supported: ['en-US', 'zh-CN'],
+      installed: ['en-US']
+    })
+    expect(boundary.listTranscriptionLocales).toHaveBeenCalledWith(owner)
   })
 
   it('rebuilds the managed owner for every Voice coordination route', async () => {

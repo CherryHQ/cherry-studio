@@ -3,6 +3,7 @@ import { MODALITY, MODEL_CAPABILITY, type Model } from '@shared/data/types/model
 export const APPLE_ASR_MODEL_ID = 'local-voice::apple-system-asr' as const
 export const APPLE_TTS_MODEL_ID = 'local-voice::apple-system-tts' as const
 export const FUNASR_MODEL_ID = 'local-voice::funasr-nano' as const
+export const DEFAULT_APPLE_ASR_LOCALE = 'en-US'
 export const FUNASR_SUPPORTED_PLATFORM_KEYS = [
   'darwin-arm64',
   'darwin-x64',
