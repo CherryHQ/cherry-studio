@@ -65,6 +65,12 @@
 | [Shared Layer Architecture (`src/shared` / `@shared`)](./references/architecture/shared-layer.md) | Defines what belongs in the @shared cross-process primitive layer, its closed top-level set, and import rules |
 | [Utility Process Architecture](./references/architecture/utility-process.md) | Architecture of the utility-process subsystem — ownership, lifecycle boundaries, build isolation, design decisions, and historical experiment evidence |
 
+### Backup
+
+| Document | Description |
+|----------|-------------|
+| [Backup & Restore Architecture (v2)](./references/backup/README.md) | Decision authority for Backup v2 — archive format, export and restore transactions, portability policy, and the IPC surface |
+
 ### Binary Manager
 
 | Document | Description |
@@ -85,12 +91,6 @@
 |----------|-------------|
 | [Command System](./references/command/README.md) | Current command-backed action model across shared definitions, renderer and main handlers, keybindings, and menus |
 | [Command System — Usage](./references/command/command-usage.md) | How to consume command UI and hooks, register handlers and context keys, build menus, and add a command |
-
-### Backup & Restore
-
-| Document | Description |
-|----------|-------------|
-| [Backup & Restore Architecture](./references/backup/README.md) | Backup v2 contract: shared portable DB, resource overlay, manifest/journal v2, promotion & recovery |
 
 ### Components
 

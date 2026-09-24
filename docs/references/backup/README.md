@@ -1,3 +1,11 @@
+---
+description: Decision authority for Backup v2 — archive format, export and restore transactions, portability policy, and the IPC surface
+sources:
+  - src/main/services/backup
+  - src/main/ipc/handlers/backup.ts
+  - src/shared/ipc/schemas/backup.ts
+---
+
 # Backup & Restore Architecture (v2)
 
 This document is the decision authority for Backup v2. Backup is a portable
