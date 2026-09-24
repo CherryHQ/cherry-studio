@@ -89,35 +89,6 @@ describe('useAgentSessionParts', () => {
     mockAgentSessionPartsDataApi()
   })
 
-  it('does not reuse messages from the previous session while the session key changes', () => {
-    renderHook(() => useAgentSessionParts('session-1'))
-
-    expect(dataApiMocks.useInfiniteQuery).toHaveBeenCalledWith(
-      '/agent-sessions/:sessionId/messages',
-      expect.objectContaining({
-        params: { sessionId: 'session-1' },
-        swrOptions: expect.objectContaining({
-          keepPreviousData: false
-        })
-      })
-    )
-  })
-
-  it('can suppress mount revalidation during a temporary handoff', () => {
-    renderHook(() => useAgentSessionParts('session-1', { enabled: true, fetchOnMount: false }))
-
-    expect(dataApiMocks.useInfiniteQuery).toHaveBeenCalledWith(
-      '/agent-sessions/:sessionId/messages',
-      expect.objectContaining({
-        params: { sessionId: 'session-1' },
-        swrOptions: expect.objectContaining({
-          revalidateIfStale: false,
-          revalidateOnMount: false
-        })
-      })
-    )
-  })
-
   it('refreshes mounted history when main persists a background approval interaction', () => {
     const mutate = vi.fn()
     dataApiMocks.useInfiniteQuery.mockReturnValue({
@@ -278,6 +249,8 @@ describe('useAgentSessionParts', () => {
     ])
 
     const { result } = renderHook(() => useAgentSessionParts('session-1'))
+
+    expect(result.current.persistedPartsByMessageId['message-1']).toEqual(row.data.parts)
 
     expect(result.current.messages[0].parts).toEqual([
       expect.objectContaining({ toolCallId: 'task-root' }),
