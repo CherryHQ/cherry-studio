@@ -5559,7 +5559,10 @@ describe('ComposerSurface', () => {
       expect.objectContaining({
         title: 'Thinking',
         symbol: 'thinking',
-        queryAnchor: 0,
+        queryAnchor: undefined,
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
+        consumeQueryOnDismiss: true,
         parentPanel: expect.objectContaining({
           title: 'settings.quickPanel.title',
           symbol: '/',
