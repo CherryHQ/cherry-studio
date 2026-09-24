@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Team Handoff"
+  short_description: "Transfer task context with explicit acceptance"
+  default_prompt: "Use $agent-team-handoff to move this task to another harness with its context and evidence."

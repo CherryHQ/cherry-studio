@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Team Creator"
+  short_description: "Choose and create a useful coding agent team"
+  default_prompt: "Use $agent-team-creator to help me choose and create a team for my task."

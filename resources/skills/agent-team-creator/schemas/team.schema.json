@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prometheus-ags.github.io/schemas/agent-team/v1",
+  "title": "Prometheus portable agent team",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "outcome", "scope", "harness", "roles"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "#/$defs/id" },
+    "outcome": { "type": "string", "minLength": 1 },
+    "scope": { "enum": ["project", "uar", "bossfang"] },
+    "harness": { "enum": ["uar", "codex", "claude", "copilot", "kimi", "minimax", "opencode", "deepseek"] },
+    "roles": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/role" } },
+    "modelPolicy": { "$ref": "#/$defs/policy" },
+    "skillPolicies": { "type": "object", "additionalProperties": { "$ref": "#/$defs/policy" } },
+    "native": { "type": "object", "propertyNames": { "$ref": "#/$defs/target" }, "additionalProperties": { "$ref": "#/$defs/native" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+    "target": { "enum": ["uar", "codex", "claude", "copilot", "kimi", "minimax", "opencode", "deepseek", "bossfang"] },
+    "strings": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "model": { "type": "string", "minLength": 1 },
+        "tier": { "enum": ["low", "medium", "hard"] },
+        "capabilities": { "$ref": "#/$defs/strings" },
+        "maxInputPerMillion": { "type": "number", "minimum": 0 },
+        "maxOutputPerMillion": { "type": "number", "minimum": 0 }
+      }
+    },
+    "role": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "description", "prompt", "skills", "owns", "inputs", "outputs", "dependsOn"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "description": { "type": "string", "minLength": 1 }, "prompt": { "type": "string", "minLength": 1 },
+        "skills": { "$ref": "#/$defs/strings" }, "owns": { "$ref": "#/$defs/strings" }, "inputs": { "$ref": "#/$defs/strings" },
+        "outputs": { "$ref": "#/$defs/strings" }, "dependsOn": { "$ref": "#/$defs/strings" },
+        "modelPolicy": { "$ref": "#/$defs/policy" },
+        "native": { "type": "object", "propertyNames": { "$ref": "#/$defs/target" }, "additionalProperties": { "type": "object" } }
+      }
+    },
+    "native": {
+      "type": "object", "additionalProperties": false, "required": ["version", "source"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 }, "source": { "type": "string", "minLength": 1 },
+        "options": { "type": "object" }, "files": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    }
+  }
+}
