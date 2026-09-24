@@ -78,7 +78,7 @@ export function defaultArchiveName(now: Date): string {
 function requireManagedWindow({ senderId }: IpcContext): BrowserWindow {
   const window = senderId === null ? undefined : application.get('WindowManager').getWindow(senderId)
   if (!window) {
-    throw new IpcError(backupErrorCodes.SENDER_NOT_ALLOWED, 'backup commands require a managed application window')
+    throw ipcError(backupErrorCodes.SENDER_NOT_ALLOWED)
   }
   return window
 }
@@ -99,6 +99,8 @@ function migrationTipForIpc(tip: { readonly folderMillis: number; readonly hash:
   }
 }
 
+type BackupErrorCode = (typeof backupErrorCodes)[keyof typeof backupErrorCodes]
+
 /**
  * What the renderer is told, per code. FIXED strings, chosen once here.
  *
@@ -109,8 +111,9 @@ function migrationTipForIpc(tip: { readonly folderMillis: number; readonly hash:
  * across the IPC boundary. The original error keeps its detail in the main log,
  * where it is diagnostic rather than exposure.
  */
-const IPC_MESSAGE: Record<string, string> = {
+const IPC_MESSAGE: Record<BackupErrorCode, string> = {
   [backupErrorCodes.BUSY]: 'another backup operation is already running',
+  [backupErrorCodes.SENDER_NOT_ALLOWED]: 'backup commands require a managed application window',
   [backupErrorCodes.ARCHIVE_REJECTED]: 'backup archive was rejected',
   [backupErrorCodes.RESTORE_REQUIRES_NEWER_APP]: 'the backup needs a newer version of this app',
   [backupErrorCodes.RESTORE_LINEAGE_INCOMPATIBLE]: 'the backup came from an incompatible app lineage',
@@ -123,10 +126,11 @@ const IPC_MESSAGE: Record<string, string> = {
   [backupErrorCodes.STORAGE_UNAVAILABLE]: 'there is not enough usable space to finish this operation',
   [backupErrorCodes.EXPORT_SOURCE]: 'a file this backup needed could not be read safely',
   [backupErrorCodes.EXPORT_DESTINATION]: 'the chosen destination cannot be written',
-  [backupErrorCodes.RESTORE_RESOURCES]: 'the backup files cannot be installed on this device'
+  [backupErrorCodes.RESTORE_RESOURCES]: 'the backup files cannot be installed on this device',
+  [backupErrorCodes.DESTINATION_NOT_CONFIGURED]: 'this backup destination is not configured'
 }
 
-function ipcError(code: string, data?: unknown): IpcError {
+function ipcError(code: BackupErrorCode, data?: unknown): IpcError {
   return new IpcError(code, IPC_MESSAGE[code], data)
 }
 

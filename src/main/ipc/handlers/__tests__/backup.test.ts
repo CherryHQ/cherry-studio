@@ -41,6 +41,7 @@ import {
   BackupFormatCompatibilityError,
   BackupMigrationCompatibilityError,
   CeilingExceededError,
+  DestinationNotConfiguredError,
   HardLinkUnsupportedError,
   InsufficientDiskSpaceError,
   NonRegularSourceError,
@@ -277,6 +278,18 @@ describe('backupHandlers', () => {
       await expect(backupHandlers['backup.export'](undefined, ctx)).rejects.toMatchObject({
         code: backupErrorCodes.BUSY
       })
+    })
+
+    // The renderer branches on the code, but a missing table entry used to send
+    // this one across with an undefined message.
+    it('maps an unconfigured destination to its code with a fixed message', async () => {
+      showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
+      service.export.mockRejectedValue(new DestinationNotConfiguredError('s3', 'bucket'))
+
+      const error = await backupHandlers['backup.export'](undefined, ctx).catch((e: unknown) => e)
+
+      expect(error).toMatchObject({ code: backupErrorCodes.DESTINATION_NOT_CONFIGURED })
+      expect((error as IpcError).message).toBe('this backup destination is not configured')
     })
 
     it('maps insufficient working space separately from an invalid output path', async () => {
