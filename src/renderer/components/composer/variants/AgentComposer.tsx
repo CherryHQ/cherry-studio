@@ -66,6 +66,7 @@ import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
+import { copyAttachmentToWorkspace } from '@renderer/utils/file/copyAttachmentToWorkspace'
 import {
   getComposerShortcutLabel,
   resolveNewlineShortcut,
@@ -223,7 +224,9 @@ const buildAgentFilePartsForAttachments = async (
   attachments: ComposerAttachment[],
   accessiblePaths: readonly AbsoluteFilePath[]
 ): Promise<FileUIPart[]> => {
+  const workspacePath = accessiblePaths[0]
   const accessibleAttachments: AccessibleAttachment[] = []
+  const workspaceCopiedAttachments: Array<{ attachment: ComposerAttachment; index: number }> = []
   const internalizedAttachments: ComposerAttachment[] = []
   const internalizedIndexes: number[] = []
 
@@ -240,20 +243,37 @@ const buildAgentFilePartsForAttachments = async (
       return
     }
 
+    if (workspacePath && attachment.path) {
+      workspaceCopiedAttachments.push({ attachment, index })
+      return
+    }
+
     internalizedAttachments.push(attachment)
     internalizedIndexes.push(index)
   })
 
+  const workspaceCopyReservation = { reservedDestinations: new Set<string>() }
+  const copiedAttachments: AccessibleAttachment[] = []
+  for (const { attachment, index } of workspaceCopiedAttachments) {
+    const copiedPath = await copyAttachmentToWorkspace(
+      attachment.path!,
+      workspacePath,
+      attachment.origin_name || attachment.name,
+      workspaceCopyReservation
+    )
+    copiedAttachments.push({ attachment, filePath: copiedPath, index })
+  }
+
   const [metadataByPath, internalizedFileParts] = await Promise.all([
-    requestAccessiblePathMetadata(accessibleAttachments),
+    requestAccessiblePathMetadata([...accessibleAttachments, ...copiedAttachments]),
     buildFilePartsForAttachments(internalizedAttachments)
   ])
 
   const fileParts = new Array<FileUIPart>(attachments.length)
 
-  accessibleAttachments.forEach(({ attachment, filePath, index }) => {
+  for (const { attachment, filePath, index } of [...accessibleAttachments, ...copiedAttachments]) {
     fileParts[index] = buildAccessiblePathFilePart(attachment, filePath, metadataByPath)
-  })
+  }
 
   internalizedFileParts.forEach((filePart, offset) => {
     const originalIndex = internalizedIndexes[offset]
@@ -433,7 +453,7 @@ const AgentComposerRoot = ({
   const sessionSlashCommands = useAgentSessionSlashCommands(sessionId)
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
-    const accessiblePaths = toAccessiblePaths(session.workspace?.type === 'user' ? session.workspace.path : undefined)
+    const accessiblePaths = toAccessiblePaths(session.workspace?.path)
     return {
       agentId,
       sessionId,
