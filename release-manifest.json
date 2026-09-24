@@ -1,108 +1,24 @@
 {
-  "version": "2.1.3",
-  "source": "d75cef8b8e2d74f3bbe3a5f22ab5751bffd4c03b",
-  "publishedAt": "2026-09-23T16:05:39.892Z",
-  "pendingPlatforms": [],
+  "version": "2.2.0",
+  "source": "afd4deefd5aa802dc681d9860f9469359e9646ca",
+  "publishedAt": "2026-09-24T06:02:48.888Z",
+  "pendingPlatforms": [
+    "win32-arm64",
+    "darwin-x64",
+    "darwin-arm64",
+    "linux-x64",
+    "linux-arm64"
+  ],
   "artifacts": [
     {
-      "name": "The-Boss-2.1.3-win-x64-setup.exe",
-      "size": 374275294,
-      "sha256": "292bc05ff4480cf4ed49cf36f7460e562a0e11c3696f621a00d743c6600c8adc",
-      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-win-x64-setup.exe",
+      "name": "The-Boss-2.2.0-win-x64-setup.exe",
+      "size": 442519824,
+      "sha256": "92b4efc5b3ce9a3b19096bb19370ba9367f06bbd35b05936bf056ddc21e31c8e",
+      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.2.0/The-Boss-2.2.0-win-x64-setup.exe",
       "signing": "unsigned",
       "platform": "win32",
       "arch": "x64",
-      "source": "1dd346bfa42ddbe554215262cd5133e59ec75e66"
-    },
-    {
-      "name": "The-Boss-2.1.3-mac-arm64.dmg",
-      "size": 474060916,
-      "sha256": "604b720298dc64413460858c54777683a6927cd2d5aabfc76a6c1a07e0642964",
-      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-mac-arm64.dmg",
-      "signing": "unsigned (not notarized)",
-      "platform": "darwin",
-      "arch": "arm64",
-      "source": "61dab176d4e9bcd1ab78fb51c13ccb13e06e587c"
-    },
-    {
-      "name": "The-Boss-2.1.3-mac-x64.dmg",
-      "size": 494736002,
-      "sha256": "9e5a8a301b7798e2bf5f992908494dbae629877152c49109761d3c1dcf2e9be5",
-      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-mac-x64.dmg",
-      "signing": "unsigned (not notarized)",
-      "platform": "darwin",
-      "arch": "x64",
-      "source": "7eb418076277b48e61429e78e94e645254120fa8"
-    },
-    {
-      "name": "The-Boss-2.1.3-linux-arm64.AppImage",
-      "size": 521690008,
-      "sha256": "8b5e379d90f93f6db6ffdc92b4b283ef3b3c63f978734457cf4c7704457242f1",
-      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-linux-arm64.AppImage",
-      "signing": "unsigned",
-      "platform": "linux",
-      "arch": "arm64",
-      "source": "d75cef8b8e2d74f3bbe3a5f22ab5751bffd4c03b"
-    },
-    {
-      "name": "The-Boss-2.1.3-linux-arm64.deb",
-      "size": 381642288,
-      "sha256": "27beba5ec8b39e861b71a85564b29833d3f033ae2973bd9ddcd64222d82564e9",
-      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-linux-arm64.deb",
-      "signing": "unsigned",
-      "platform": "linux",
-      "arch": "arm64",
-      "source": "d75cef8b8e2d74f3bbe3a5f22ab5751bffd4c03b"
-    },
-    {
-      "name": "The-Boss-2.1.3-linux-arm64.rpm",
-      "size": 326470941,
-      "sha256": "eb635f81433e120bb520383e4daca640dacab06fafbe854492b7b6687afc1214",
-      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-linux-arm64.rpm",
-      "signing": "unsigned",
-      "platform": "linux",
-      "arch": "arm64",
-      "source": "d75cef8b8e2d74f3bbe3a5f22ab5751bffd4c03b"
-    },
-    {
-      "name": "The-Boss-2.1.3-linux-x64.AppImage",
-      "size": 524593654,
-      "sha256": "a81e1ae40942c5c04e4d260c30de2441907908851339b049c450478738e7aa39",
-      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-linux-x64.AppImage",
-      "signing": "unsigned",
-      "platform": "linux",
-      "arch": "x64",
-      "source": "d75cef8b8e2d74f3bbe3a5f22ab5751bffd4c03b"
-    },
-    {
-      "name": "The-Boss-2.1.3-linux-x64.deb",
-      "size": 401583516,
-      "sha256": "a5ab83ceb776879cce3333cc18a6c84f26e7329da0f75533fa9d323a683be82b",
-      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-linux-x64.deb",
-      "signing": "unsigned",
-      "platform": "linux",
-      "arch": "x64",
-      "source": "d75cef8b8e2d74f3bbe3a5f22ab5751bffd4c03b"
-    },
-    {
-      "name": "The-Boss-2.1.3-linux-x64.rpm",
-      "size": 345063637,
-      "sha256": "1bc2b073aee66d9603c18eb26c9a9625710cf3faf21bae7d42c32759829291c4",
-      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-linux-x64.rpm",
-      "signing": "unsigned",
-      "platform": "linux",
-      "arch": "x64",
-      "source": "d75cef8b8e2d74f3bbe3a5f22ab5751bffd4c03b"
-    },
-    {
-      "name": "The-Boss-2.1.3-win-arm64-setup.exe",
-      "size": 348502789,
-      "sha256": "56629abff586e36bb63f629c8d1fd78f83844fc1d15c7f07d3cedc89104f1df5",
-      "url": "https://github.com/Prometheus-AGS/the-boss/releases/download/v2.1.3/The-Boss-2.1.3-win-arm64-setup.exe",
-      "signing": "unsigned",
-      "platform": "win32",
-      "arch": "arm64",
-      "source": "d75cef8b8e2d74f3bbe3a5f22ab5751bffd4c03b"
+      "source": "afd4deefd5aa802dc681d9860f9469359e9646ca"
     }
   ]
 }
