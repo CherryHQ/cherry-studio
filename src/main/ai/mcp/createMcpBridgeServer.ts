@@ -19,6 +19,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
+import { normalizeMcpServedSchema } from '@main/ai/mcp/mcpServedSchema'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { redactToShape } from '@main/ai/utils/redactToShape'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
@@ -161,7 +162,14 @@ export function createMcpBridgeServer(
       logger.debug('MCP bridge: listing tools', { mcpId })
       const tools = application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
       return {
-        tools: tools.map(toSdkTool)
+        tools: tools.map((tool) => {
+          const sdkTool = toSdkTool(tool)
+          sdkTool.inputSchema = normalizeMcpServedSchema(sdkTool.inputSchema) as SdkTool['inputSchema']
+          if (sdkTool.outputSchema !== undefined) {
+            sdkTool.outputSchema = normalizeMcpServedSchema(sdkTool.outputSchema) as SdkTool['outputSchema']
+          }
+          return sdkTool
+        })
       }
     } catch (error) {
       logger.error('MCP bridge: failed to list tools', { mcpId, error })
