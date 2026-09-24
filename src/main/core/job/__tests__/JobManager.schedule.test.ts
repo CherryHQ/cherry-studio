@@ -32,6 +32,7 @@ import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
     'dummy.echo': Record<string, unknown>
+    'dummy.slow': Record<string, unknown>
   }
 }
 
@@ -331,6 +332,38 @@ describe('JobManager schedule control APIs', () => {
       // Bound against the fire cadence, not Date.now(): a stalled event loop
       // can let the interval fire again and leave the last write in the past.
       expect(Date.parse(advancedNextRun ?? '')).toBeGreaterThanOrEqual(Date.parse(initialNextRun ?? '') + 20)
+    })
+
+    // A run slower than its interval would otherwise add one job per fire for as
+    // long as it lasts.
+    it('skips fires while the previous run is unfinished when the handler opts in', async () => {
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      jobManager.registerHandler('dummy.slow', {
+        recovery: 'abandon',
+        cancelTimeoutMs: 1000,
+        skipFireWhileUnfinished: true,
+        async execute() {
+          await gate
+          return {}
+        }
+      })
+      const schedule = jobManager.registerJobSchedule({
+        type: 'dummy.slow',
+        name: 'slow-interval',
+        trigger: { kind: 'interval', ms: 20 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 150))
+
+      expect(jobService.list({ type: 'dummy.slow' })).toHaveLength(1)
+      expect(jobScheduleService.getById(schedule.id)?.lastRun).not.toBeNull()
+      await jobManager.unregisterJobScheduleById(schedule.id)
+      release()
     })
 
     it('unregisterJobSchedule(type, name) deletes the row', async () => {
