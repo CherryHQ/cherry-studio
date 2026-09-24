@@ -41,6 +41,13 @@ export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
+export const UarCatalogLinkSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  agentId: z.string().min(1),
+  sourceRevision: z.string().startsWith('sha256:'),
+  catalogRevision: z.string().startsWith('sha256:')
+})
+export type UarCatalogLink = z.infer<typeof UarCatalogLinkSchema>
 export const AGENT_TYPES = ['claude-code', 'pi', 'dsh', 'uar'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
@@ -64,7 +71,9 @@ export const AgentConfigurationSchema = z
     heartbeat_enabled: z.boolean().optional(),
     heartbeat_interval: z.number().optional(),
     builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional(),
-    language: AgentLanguageSchema.nullable().optional()
+    language: AgentLanguageSchema.nullable().optional(),
+    /** Revision link to the Boss-owned definition in UAR's agent catalog. */
+    uar_catalog_link: UarCatalogLinkSchema.optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must

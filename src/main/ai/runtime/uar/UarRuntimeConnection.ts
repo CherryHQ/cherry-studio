@@ -22,9 +22,10 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { UarCatalogLink } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import { getRawModelId } from '@shared/utils/model'
 
 import { AsyncEventQueue } from '../AsyncEventQueue'
@@ -38,7 +39,7 @@ import type {
 } from '../types'
 import { UarAguiAdapter } from './UarAguiAdapter'
 import { buildUarHostHistory, type UarHistoryMessage } from './uarHostHistory'
-import { createUarHostMcpBridge, type UarHostMcpBridge, type UarRunMcpServer } from './UarHostMcpBridge'
+import { createUarHostMcpBridge, type UarHostMcpBridge } from './UarHostMcpBridge'
 import { toUarToolName } from './uarToolNames'
 
 const HISTORY_PAGE_SIZE = 200
@@ -71,6 +72,17 @@ type UarAgentArtifact = {
   tools: { bundles: [] }
   ui: { forms: { enabled: boolean }; artifacts: { enabled: boolean; preferred_types: string[] } }
   extensions: Record<string, unknown>
+}
+
+type UarCatalogMetadata = {
+  schema_version: 1
+  revision: string
+  source: { kind: string; id: string; revision?: string }
+}
+
+type CatalogCandidate = {
+  artifact: UarAgentArtifact
+  sourceRevision: string
 }
 
 type CreateRunResponse = { run_id?: unknown; stream_url?: unknown }
@@ -165,12 +177,20 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`UAR agent ${this.input.agentId} has no model configured`)
     }
     const { agent } = await application.get('PrometheusIntegrationService').resolveSession(session, storedAgent)
-    const provider = this.resolveProvider(this.input.modelId)
     const coldSession = this.attachedGeneration !== sidecar.generation
     const [bridge, skillIds] = await Promise.all([this.createMcpBridge(session, agent), this.resolveSkillIds(agent.id)])
     try {
+      const desiredProvider = this.resolveProvider(this.input.modelId)
+      const catalog = await this.ensureCatalogAgent(
+        storedAgent,
+        this.input.modelId,
+        desiredProvider.credential,
+        skillIds
+      )
+      const provider = this.resolveCatalogProvider(catalog)
+      this._usageCapture = provider.usageCapture
       const body = {
-        artifact: this.buildArtifact(agent, this.input.modelId, provider.credential, bridge.servers, skillIds),
+        agent_id: catalog.id,
         input: this.buildInput(input),
         session_id: this.input.sessionId,
         run_credentials: [provider.credential],
@@ -333,7 +353,6 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
     agent: NonNullable<ReturnType<typeof agentService.getAgent>>,
     uniqueModelId: AgentRuntimeConnectInput['modelId'],
     credential: UarRunCredential,
-    mcpServers: readonly UarRunMcpServer[],
     skillIds: readonly string[]
   ): UarAgentArtifact {
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
@@ -373,19 +392,6 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
       tools: { bundles: [] },
       ui: { forms: { enabled: false }, artifacts: { enabled: false, preferred_types: [] } },
       extensions: {
-        ...(mcpServers.length > 0
-          ? {
-              mcp_servers: {
-                servers: mcpServers.map((server) => ({
-                  id: server.name,
-                  url: server.url,
-                  transport: 'streamable_http',
-                  tools: [],
-                  env: {}
-                }))
-              }
-            }
-          : {}),
         'uar.run_policy': {
           version: 1,
           tools: {
@@ -394,14 +400,186 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
             denied_ids: (agent.disabledTools ?? []).map(toUarToolName)
           },
           mcp_servers: {
-            mode: mcpServers.length > 0 ? 'selected' : 'none',
-            ids: mcpServers.map((server) => server.name),
+            mode: 'all',
+            ids: [],
             denied_ids: []
           },
           tool_approval: agent.configuration?.permission_mode === 'plan' ? 'deny' : 'ask'
         }
       }
     }
+  }
+
+  private async ensureCatalogAgent(
+    agent: NonNullable<ReturnType<typeof agentService.getAgent>>,
+    uniqueModelId: AgentRuntimeConnectInput['modelId'],
+    credential: UarRunCredential,
+    skillIds: readonly string[]
+  ): Promise<UarAgentArtifact> {
+    const linked = agent.configuration?.uar_catalog_link
+    const catalogId = linked?.agentId ?? `the-boss:${agent.id}`
+    const desired = this.catalogCandidate(agent, catalogId, uniqueModelId, credential, skillIds)
+    let current = await this.fetchCatalogAgent(catalogId)
+
+    if (!current) {
+      current = await this.createCatalogAgent(desired.artifact)
+      this.saveCatalogLink(agent.id, {
+        schemaVersion: 1,
+        agentId: catalogId,
+        sourceRevision: desired.sourceRevision,
+        catalogRevision: this.catalogMetadata(current).revision
+      })
+      return current
+    }
+
+    const currentMetadata = this.catalogMetadata(current)
+    if (!linked) {
+      const owned = currentMetadata.source.kind === 'the_boss' && currentMetadata.source.id === agent.id
+      if (!owned || this.definitionRevision(current) !== this.definitionRevision(desired.artifact)) {
+        throw new Error(
+          `UAR catalog agent "${catalogId}" already exists with a different definition; resolve the catalog link in UAR settings`
+        )
+      }
+      this.saveCatalogLink(agent.id, {
+        schemaVersion: 1,
+        agentId: catalogId,
+        sourceRevision: desired.sourceRevision,
+        catalogRevision: currentMetadata.revision
+      })
+      return current
+    }
+
+    const sourceChanged = linked.sourceRevision !== desired.sourceRevision
+    const catalogChanged = linked.catalogRevision !== currentMetadata.revision
+    if (sourceChanged && catalogChanged) {
+      throw new Error(
+        `The Boss agent and UAR catalog agent "${catalogId}" both changed; resolve the catalog conflict before running it`
+      )
+    }
+    if (sourceChanged) {
+      current = await this.replaceCatalogAgent(catalogId, desired.artifact, currentMetadata.revision)
+      this.saveCatalogLink(agent.id, {
+        schemaVersion: 1,
+        agentId: catalogId,
+        sourceRevision: desired.sourceRevision,
+        catalogRevision: this.catalogMetadata(current).revision
+      })
+      return current
+    }
+    if (catalogChanged) {
+      this.saveCatalogLink(agent.id, {
+        schemaVersion: 1,
+        agentId: catalogId,
+        sourceRevision: linked.sourceRevision,
+        catalogRevision: currentMetadata.revision
+      })
+    }
+    return current
+  }
+
+  private catalogCandidate(
+    agent: NonNullable<ReturnType<typeof agentService.getAgent>>,
+    catalogId: string,
+    uniqueModelId: AgentRuntimeConnectInput['modelId'],
+    credential: UarRunCredential,
+    skillIds: readonly string[]
+  ): CatalogCandidate {
+    const artifact = this.buildArtifact(agent, uniqueModelId, credential, skillIds)
+    artifact.id = catalogId
+    const sourceRevision = this.definitionRevision(artifact)
+    artifact.extensions['uar.catalog'] = {
+      schema_version: 1,
+      revision: '',
+      source: { kind: 'the_boss', id: agent.id, revision: sourceRevision }
+    } satisfies UarCatalogMetadata
+    return { artifact, sourceRevision }
+  }
+
+  private definitionRevision(artifact: UarAgentArtifact): string {
+    const value = structuredClone(artifact)
+    delete value.extensions['uar.catalog']
+    return `sha256:${createHash('sha256')
+      .update(JSON.stringify(this.canonicalize(value)))
+      .digest('hex')}`
+  }
+
+  private canonicalize(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map((item) => this.canonicalize(item))
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, item]) => [key, this.canonicalize(item)])
+      )
+    }
+    return value
+  }
+
+  private catalogMetadata(artifact: UarAgentArtifact): UarCatalogMetadata {
+    const value = artifact.extensions['uar.catalog'] as Partial<UarCatalogMetadata> | undefined
+    if (
+      value?.schema_version !== 1 ||
+      typeof value.revision !== 'string' ||
+      !value.revision.startsWith('sha256:') ||
+      !value.source ||
+      typeof value.source.kind !== 'string' ||
+      typeof value.source.id !== 'string'
+    ) {
+      throw new Error(`UAR catalog agent "${artifact.id}" has no valid revision metadata`)
+    }
+    return value as UarCatalogMetadata
+  }
+
+  private async fetchCatalogAgent(agentId: string): Promise<UarAgentArtifact | null> {
+    const response = await application
+      .get('UarSidecarService')
+      .request(`/api/agents/${encodeURIComponent(agentId)}`, this.principal)
+    if (response.status === 404) return null
+    if (!response.ok) throw await this.responseError(response, 'UAR catalog lookup failed')
+    return (await response.json()) as UarAgentArtifact
+  }
+
+  private async createCatalogAgent(artifact: UarAgentArtifact): Promise<UarAgentArtifact> {
+    const response = await application.get('UarSidecarService').request('/api/agents', this.principal, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(artifact)
+    })
+    if (!response.ok) throw await this.responseError(response, 'UAR catalog registration failed')
+    return (await response.json()) as UarAgentArtifact
+  }
+
+  private async replaceCatalogAgent(
+    agentId: string,
+    artifact: UarAgentArtifact,
+    expectedRevision: string
+  ): Promise<UarAgentArtifact> {
+    const response = await application
+      .get('UarSidecarService')
+      .request(`/api/agents/${encodeURIComponent(agentId)}`, this.principal, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', 'if-match': `"${expectedRevision}"` },
+        body: JSON.stringify(artifact)
+      })
+    if (response.status === 409) {
+      throw new Error(
+        `UAR catalog agent "${agentId}" changed while The Boss was updating it; reload and resolve the conflict`
+      )
+    }
+    if (!response.ok) throw await this.responseError(response, 'UAR catalog update failed')
+    return (await response.json()) as UarAgentArtifact
+  }
+
+  private saveCatalogLink(agentId: string, link: UarCatalogLink): void {
+    const updated = agentService.updateUarCatalogLink(agentId, link)
+    if (!updated) throw new Error(`The Boss agent "${agentId}" disappeared while linking its UAR catalog definition`)
+  }
+
+  private resolveCatalogProvider(artifact: UarAgentArtifact): ReturnType<UarRuntimeConnection['resolveProvider']> {
+    const selection = artifact.policy.provider.default
+    const provider = providerService.getByProviderId(selection.provider)
+    const model = modelService.getByKey(selection.provider, selection.model)
+    return this.resolveProvider(createUniqueModelId(provider.id, model.id))
   }
 
   private loadHistory(excludeMessageId: string): UarHistoryMessage[] {
@@ -459,12 +637,19 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
     const linkedChannel = resolveLinkedNotifyChannel(session.id, agent.id)
     const mcpServers = (agent.mcps ?? []).map((idOrName) => mcpServerService.findByIdOrName(idOrName) ?? idOrName)
     const skillIds = await this.resolveSkillIds(agent.id)
+    const runtimeConfiguration = { ...(agent.configuration ?? {}) }
+    delete runtimeConfiguration.uar_catalog_link
     return createHash('sha256')
       .update(
         JSON.stringify([
           agent.id,
-          agent.updatedAt,
-          agent.configuration?.permission_mode,
+          agent.name,
+          agent.description,
+          agent.instructions,
+          agent.model,
+          agent.planModel,
+          agent.smallModel,
+          runtimeConfiguration,
           [...(agent.disabledTools ?? [])].sort(),
           modelId,
           reasoningEffort ?? 'default',
