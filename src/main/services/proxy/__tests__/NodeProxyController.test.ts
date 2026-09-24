@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http'
 
+import { EnvHttpProxyAgent, fetch as undiciFetch } from 'undici'
 import { describe, expect, it } from 'vitest'
 
 import { NodeProxyController } from '../NodeProxyController'
@@ -18,7 +19,7 @@ async function close(server: Server): Promise<void> {
 }
 
 describe('NodeProxyController', () => {
-  it.each(['localhost', '127.0.0.1'])(
+  it.each(['localhost', '127.0.0.1', '[::1]'])(
     'keeps %s direct while routing remote requests through a configured proxy',
     async (hostname) => {
       const localServer = createServer((_request, response) => {
@@ -68,6 +69,18 @@ describe('NodeProxyController', () => {
         expect(proxyRequests.some((url) => url.includes('model-provider.invalid'))).toBe(true)
         expect(proxyRequests.every((url) => !url.includes(hostname))).toBe(true)
         expect(process.env.NO_PROXY?.split(',')).toContain(hostname)
+
+        const dispatcher = new EnvHttpProxyAgent()
+        try {
+          const response = await undiciFetch(`http://${hostname}:${localPort}/models`, {
+            dispatcher,
+            signal: AbortSignal.timeout(2000)
+          })
+          expect(await response.json()).toEqual({ source: 'local' })
+          expect(proxyRequests.every((url) => !url.includes(hostname))).toBe(true)
+        } finally {
+          await dispatcher.close()
+        }
       } finally {
         await controller.configure({})
         for (const key of proxyEnvKeys) {

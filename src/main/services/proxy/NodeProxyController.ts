@@ -36,7 +36,7 @@ export class NodeProxyController {
     const normalizedBypassRules = normalizeProxyBypassRules(config.proxyBypassRules)
     // Keep local services reachable independently of the configured proxy.
     if (proxyUrl) {
-      for (const hostname of ['localhost', '127.0.0.1']) {
+      for (const hostname of ['localhost', '127.0.0.1', '::1', '[::1]']) {
         if (!normalizedBypassRules.includes(hostname)) normalizedBypassRules.push(hostname)
       }
     }
