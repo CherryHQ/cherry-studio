@@ -14,6 +14,7 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
+import { UserProfileEditor } from '@renderer/components/UserProfileEditor'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
@@ -382,6 +383,9 @@ function UsageSettings() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <UsageResponsiveShell>
+        <div id="setting-usage-profile">
+          <UserProfileEditor />
+        </div>
         <div className="flex min-w-0 @[640px]/usage:flex-row flex-col @[640px]/usage:items-start @[640px]/usage:justify-between gap-3">
           <div className="min-w-0">
             <UsageSectionTitle>{t('settings.usage.overview.title')}</UsageSectionTitle>
