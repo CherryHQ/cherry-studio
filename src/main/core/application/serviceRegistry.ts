@@ -21,6 +21,7 @@ import {
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
+import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
@@ -126,6 +127,7 @@ export const services = {
   DirectoryTreeManager,
   FileProcessingService,
   PowerService,
+  RuntimeActivityService,
   SelectionService,
   ShortcutService,
   ThemeService,

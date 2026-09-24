@@ -1,3 +1,4 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -64,7 +65,12 @@ vi.mock('@main/ai/utils/usageCapture', () => ({
 vi.mock('@main/services/TopicNamingService', () => ({
   topicNamingService: { maybeRenameAgentSession: mocks.maybeRenameAgentSession }
 }))
-vi.mock('@application', () => ({ application: { get: mocks.applicationGet } }))
+vi.mock('@application', () => ({
+  application: {
+    get: (name: string) =>
+      name === 'RuntimeActivityService' ? defaultServiceInstances.RuntimeActivityService : mocks.applicationGet(name)
+  }
+}))
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
