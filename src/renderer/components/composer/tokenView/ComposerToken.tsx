@@ -103,6 +103,7 @@ interface ActiveComposerTokenProps extends ComposerTokenProps {
   /** Set when a richer hover surface (NormalTooltip) wraps the chip, so the native title would double up. */
   hideNativeTitle?: boolean
   interactionProps?: {
+    href?: string
     role: 'link'
     tabIndex: number
     'aria-label': string
@@ -223,9 +224,10 @@ function renderActiveComposerTokenElement({
 }: ActiveComposerTokenProps) {
   const title =
     hideNativeTitle || token.kind === 'quote' ? undefined : (token.description ?? token.promptText ?? token.label)
+  const Element = interactionProps?.href ? 'a' : 'span'
 
   return (
-    <span
+    <Element
       className={cn(
         'group/composer-token mx-0.5 inline-flex select-none items-baseline gap-1 align-baseline leading-[inherit]',
         maxWidthClassName,
@@ -247,7 +249,7 @@ function renderActiveComposerTokenElement({
         />
       </span>
       {children ?? <span className="min-w-0 truncate">{token.label}</span>}
-    </span>
+    </Element>
   )
 }
 
@@ -304,6 +306,7 @@ export function LinkComposerToken(props: ComposerTokenProps) {
     children: <span className="min-w-0 truncate">{link.label}</span>,
     hideNativeTitle: true,
     interactionProps: {
+      href: props.readOnly ? link.url : undefined,
       role: 'link',
       tabIndex: 0,
       'aria-label': link.url,

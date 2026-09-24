@@ -11,6 +11,7 @@ import { useRightPanelActions, useRightPanelState } from './Shell'
 interface PreviewReturnTarget {
   closePane: boolean
   panelId?: string
+  previous?: PreviewReturnTarget
   selection: ArtifactPaneFileSelection | null
 }
 
@@ -131,7 +132,7 @@ export function useArtifactPanePreviewNavigation({
   const closeFilePreview = useCallback(() => {
     requestRef.current += 1
     const returnTarget = returnRef.current
-    returnRef.current = null
+    returnRef.current = returnTarget?.previous ?? null
     requestFileSelection(returnTarget?.selection ?? null)
 
     if (!returnTarget) return
@@ -147,5 +148,15 @@ export function useArtifactPanePreviewNavigation({
     returnRef.current = null
   }, [])
 
-  return { clearReturnTarget, closeFilePreview, previewInputFile }
+  const captureInputPreviewReturnTarget = useCallback(() => {
+    if (previewFileSelection?.previewType !== 'file') return
+    returnRef.current = {
+      closePane: false,
+      panelId: paneId,
+      previous: returnRef.current ?? undefined,
+      selection: previewFileSelection
+    }
+  }, [paneId, previewFileSelection])
+
+  return { captureInputPreviewReturnTarget, clearReturnTarget, closeFilePreview, previewInputFile }
 }
