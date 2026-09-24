@@ -53,6 +53,7 @@ import {
 } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { listWorkflows } from './custom/comfyui/comfyuiTransport'
+import { partitionListableWorkflows } from './custom/comfyui/comfyuiWorkflows'
 import {
   createVertexModelListRequest,
   DEFAULT_VERTEX_MODEL_PUBLISHERS,
@@ -499,21 +500,6 @@ const ovmsFetcher: ModelFetcher = {
  * on the paintings page (`supportsImageGenerationEndpoint`) and routes generation to
  * the comfyui transport instead of an OpenAI adapter.
  */
-/**
- * A workflow handle becomes the model's `apiModelId`, so whether the workflow can be
- * listed is whether that id can be built at all: a handle carrying a reserved route
- * character is refused by the id contract, and listing it anyway would produce a row
- * no consumer can turn into an id.
- */
-function isListableWorkflow(providerId: string, workflow: string): boolean {
-  try {
-    createUniqueModelId(providerId, workflow)
-    return true
-  } catch {
-    return false
-  }
-}
-
 const comfyuiFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.comfyui),
   fetch: async (provider, signal) => {
@@ -524,14 +510,7 @@ const comfyuiFetcher: ModelFetcher = {
       headers: headersWithoutCredentials(provider),
       fetch: modelListFetch
     })
-    const listed = workflows.filter((workflow) => isListableWorkflow(provider.id, workflow))
-    const skipped = workflows.filter((workflow) => !isListableWorkflow(provider.id, workflow))
-    if (skipped.length > 0) {
-      logger.warn('Skipped ComfyUI workflows whose names contain a reserved route character', {
-        providerId: provider.id,
-        skipped
-      })
-    }
+    const { listed, skipped } = partitionListableWorkflows(provider.id, workflows)
     const models = dedup(listed, (workflow) => workflow).map((workflow) =>
       toModel(workflow, provider, {
         name: workflow.split('/').pop() ?? workflow,

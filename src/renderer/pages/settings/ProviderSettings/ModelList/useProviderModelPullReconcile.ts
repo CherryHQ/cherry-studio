@@ -230,6 +230,41 @@ export function useProviderModelPullReconcile(providerId: string) {
    * `modelListIsAuthoritative`). A model the user picked as their default is left
    * alone: it cannot be deleted, and the warning names it.
    */
+  /**
+   * Drop the given rows through the one API both callers use, and report what
+   * happened: a model that is in use as a default cannot be deleted, so the
+   * difference between what was asked for and what stayed is the skipped count.
+   * `onError` stays with the caller — the sweep below runs unasked and only logs,
+   * while the explicit Clean stale action also tells the user.
+   */
+  const removeReconciledModels = useCallback(
+    async (ids: UniqueModelId[], onError: (error: unknown, count: number) => void) => {
+      const uniqueIds = Array.from(new Set(ids))
+      if (uniqueIds.length === 0) {
+        return
+      }
+
+      try {
+        const reconciled = await reconcileModels({
+          params: { providerId },
+          body: { toAdd: [], toRemove: uniqueIds }
+        })
+        const survivors = new Set(reconciled.map((model) => model.id))
+        const removedCount = uniqueIds.filter((id) => !survivors.has(id)).length
+        const skippedCount = uniqueIds.length - removedCount
+        if (removedCount > 0) {
+          toast.success(t('settings.models.manage.clean_stale_success', { count: removedCount }))
+        }
+        if (skippedCount > 0) {
+          toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedCount }))
+        }
+      } catch (error) {
+        onError(error, uniqueIds.length)
+      }
+    },
+    [providerId, reconcileModels, t]
+  )
+
   const reconcileVanishedModels = useCallback(
     async (remoteModels: Model[], knownModelIds: Set<UniqueModelId>) => {
       if (!listIsAuthoritative) {
@@ -244,38 +279,12 @@ export function useProviderModelPullReconcile(providerId: string) {
       const vanishedIds = modelsRef.current
         .filter((model) => knownModelIds.has(model.id) && !remoteIds.has(model.id))
         .map((model) => model.id)
-      if (vanishedIds.length === 0) {
-        return
-      }
 
-      try {
-        // The same API the manual cleanup uses, so a model the reconciliation is
-        // not allowed to drop (a default) is skipped identically in both.
-        const reconciled = await reconcileModels({
-          params: { providerId },
-          body: { toAdd: [], toRemove: vanishedIds }
-        })
-        const survivors = new Set(reconciled.map((model) => model.id))
-        const removedCount = vanishedIds.filter((id) => !survivors.has(id)).length
-        if (removedCount > 0) {
-          toast.success(t('settings.models.manage.clean_stale_success', { count: removedCount }))
-        }
-        if (vanishedIds.length > removedCount) {
-          toast.warning(
-            t('settings.models.manage.remove_skipped_default_in_use', {
-              count: vanishedIds.length - removedCount
-            })
-          )
-        }
-      } catch (error) {
-        logger.error('Failed to reconcile models missing from the provider list', {
-          providerId,
-          count: vanishedIds.length,
-          error
-        })
-      }
+      await removeReconciledModels(vanishedIds, (error, count) => {
+        logger.error('Failed to reconcile models missing from the provider list', { providerId, count, error })
+      })
     },
-    [listIsAuthoritative, providerId, reconcileModels, t]
+    [listIsAuthoritative, providerId, removeReconciledModels]
   )
 
   const openPullReconcile = useCallback(() => {
@@ -362,36 +371,14 @@ export function useProviderModelPullReconcile(providerId: string) {
   )
 
   const cleanStaleModels = useCallback(async () => {
-    const staleIds = staleModels.map((model) => model.id)
-    if (staleIds.length === 0) {
-      return
-    }
-
-    try {
-      const reconciledModels = await reconcileModels({
-        params: { providerId },
-        body: {
-          toAdd: [],
-          toRemove: staleIds
-        }
-      })
-      const reconciledIds = new Set(reconciledModels.map((model) => model.id))
-      const skippedCount = staleIds.filter((id) => reconciledIds.has(id)).length
-
-      if (skippedCount > 0) {
-        toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedCount }))
-      } else {
-        toast.success(t('settings.models.manage.clean_stale_success', { count: staleIds.length }))
+    await removeReconciledModels(
+      staleModels.map((model) => model.id),
+      (error, count) => {
+        logger.error('Failed to clean stale provider models from manage drawer', { providerId, count, error })
+        toast.error(t('settings.models.manage.operation_failed'))
       }
-    } catch (error) {
-      logger.error('Failed to clean stale provider models from manage drawer', {
-        providerId,
-        count: staleIds.length,
-        error
-      })
-      toast.error(t('settings.models.manage.operation_failed'))
-    }
-  }, [providerId, reconcileModels, staleModels, t])
+    )
+  }, [providerId, removeReconciledModels, staleModels, t])
 
   return {
     allModels,
