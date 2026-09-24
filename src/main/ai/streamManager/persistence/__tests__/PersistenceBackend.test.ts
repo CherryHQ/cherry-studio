@@ -9,9 +9,27 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { mergeAgentSessionTaskEvent } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
 import { dropEmptyContentParts, finalizeInterruptedParts, stripTransientStatusParts } from '../PersistenceBackend'
+
+type AgentTaskEventPart = CherryMessagePart & { data: AgentTaskEventPartData }
+
+const taskEventPart = (data: AgentTaskEventPartData): AgentTaskEventPart =>
+  ({ type: 'data-agent-task-event', data }) as unknown as AgentTaskEventPart
+
+/** Folds a message's task events the way the status pane does: per task, in order, first terminal wins. */
+function mergeTaskEventParts(parts: CherryMessagePart[]): Map<string, AgentTaskEventPartData> {
+  const merged = new Map<string, AgentTaskEventPartData>()
+  for (const part of parts) {
+    if (part.type !== 'data-agent-task-event') continue
+    const { data } = part as AgentTaskEventPart
+    merged.set(data.taskId, mergeAgentSessionTaskEvent(merged.get(data.taskId), data))
+  }
+  return merged
+}
 
 // AI SDK tool-call UIMessagePart shapes. The non-terminal states the helper
 // targets are anything NOT in {output-available, output-error, output-denied}.
@@ -192,6 +210,8 @@ describe('finalizeInterruptedParts', () => {
         event: 'progress',
         taskId: 'task-7',
         status: 'error',
+        // Marked synthetic so a real terminal edge from the runtime can still supersede this guess.
+        synthetic: true,
         error: 'Stream errored before task completed'
       }
     })
@@ -212,6 +232,43 @@ describe('finalizeInterruptedParts', () => {
 
     expect(result[0]).toBe(completed)
     expect(result[1]).toBe(pending)
+  })
+
+  it('keeps a task that already reported its terminal edge while terminalizing the task the crash interrupted', () => {
+    const completedStart = taskEventPart({ event: 'started', taskId: 'task-done', status: 'in_progress' })
+    const completedEnd = taskEventPart({
+      event: 'notification',
+      taskId: 'task-done',
+      status: 'completed',
+      completedAt: '2026-06-16T10:00:03.400Z'
+    })
+    const interrupted = taskEventPart({ event: 'started', taskId: 'task-lost', status: 'in_progress' })
+
+    const result = finalizeInterruptedParts([completedStart, completedEnd, interrupted], 'error')
+
+    // Consumers fold a task's parts first-terminal-wins, so the merged row status is the contract:
+    // rewriting a finished task's stale `in_progress` part to `error` wins that fold and shows a
+    // task that completed normally as abnormally interrupted.
+    const merged = mergeTaskEventParts(result)
+    expect(merged.get('task-done')?.status).toBe('completed')
+    expect(merged.get('task-done')).toEqual(completedEnd.data)
+    expect(merged.get('task-lost')?.status).toBe('error')
+    // The finished task's parts survive untouched, including its stale in_progress edge.
+    expect(result[0]).toBe(completedStart)
+    expect(result[1]).toBe(completedEnd)
+    expect(result[2]).toMatchObject({ data: { status: 'error', error: 'Stream errored before task completed' } })
+  })
+
+  it('keeps an in-progress task a sibling row of the same Session already settled', () => {
+    const settledElsewhere = taskEventPart({ event: 'progress', taskId: 'task-done', status: 'in_progress' })
+    const interrupted = taskEventPart({ event: 'started', taskId: 'task-lost', status: 'in_progress' })
+
+    const result = finalizeInterruptedParts([settledElsewhere, interrupted], 'error', new Set(['task-done']))
+
+    // Async notifications land in their own assistant row, so the terminal edge of `task-done` is
+    // invisible here; without the Session-wide set it would be rewritten and win the merge.
+    expect(result[0]).toBe(settledElsewhere)
+    expect(result[1]).toMatchObject({ data: { status: 'error', error: 'Stream errored before task completed' } })
   })
 
   it('rewrites a streaming reasoning part to done and calculates thinkingMs if startedAt is provided', () => {

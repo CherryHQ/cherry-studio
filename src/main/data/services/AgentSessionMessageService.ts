@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { isToolUIPart } from 'ai'
+import { isDataUIPart, isToolUIPart } from 'ai'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -31,6 +31,7 @@ import {
   toFtsLikePattern,
   toFtsMatchQuery
 } from '@main/utils/trigramFtsQuery'
+import { isTerminalAgentSessionTaskStatus, mergeAgentSessionTaskEvent } from '@shared/ai/agentSessionBackgroundTasks'
 import {
   AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES,
   type AgentSessionDeliveryEnvelope,
@@ -61,7 +62,7 @@ import {
   coerceSearchRole,
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
+import { type AgentTaskEventPartData, readCherryMeta } from '@shared/data/types/uiParts'
 
 import { AgentSessionEditError } from './AgentSessionEditError'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -292,6 +293,95 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
   delete result.runtimeAnchor
   delete result.nativeSessionId
   return result
+}
+
+/**
+ * Folds one task event into the part that carries its workflow statistics: the task's newest
+ * statistics live in one part, so a terminal revision wins over a progress one when both exist.
+ */
+function mergeWorkflowTaskEventPart(parts: CherryMessagePart[], event: AgentTaskEventPartData): CherryMessagePart[] {
+  let fallbackIndex = -1
+  let index = -1
+  for (let candidateIndex = parts.length - 1; candidateIndex >= 0; candidateIndex -= 1) {
+    const part = parts[candidateIndex]
+    if (
+      !isDataUIPart(part) ||
+      part.type !== 'data-agent-task-event' ||
+      part.data.taskId !== event.taskId ||
+      part.data.workflow === undefined
+    ) {
+      continue
+    }
+    if (fallbackIndex < 0) fallbackIndex = candidateIndex
+    if (isTerminalAgentSessionTaskStatus(part.data.status)) {
+      index = candidateIndex
+      break
+    }
+  }
+  if (index < 0) index = fallbackIndex
+  const existingCheckpoint = index < 0 ? undefined : parts[index]
+  const checkpoint = {
+    type: 'data-agent-task-event',
+    id:
+      existingCheckpoint?.type === 'data-agent-task-event'
+        ? existingCheckpoint.id
+        : `task-${event.taskId}-workflow-checkpoint`,
+    data: event
+  } as CherryMessagePart
+  return index < 0 ? [...parts, checkpoint] : parts.with(index, checkpoint)
+}
+
+const INTERRUPTED_RUN_TASK_ERROR = 'Interrupted by app restart before task completed'
+
+/**
+ * Settles the run tasks a restart killed, returning `undefined` when every task already reached a
+ * terminal state. Tasks are settled by their merged status: a task that reported its terminal edge
+ * keeps it, so its stale progress events are left alone.
+ *
+ * `settledAt` — the row's last write before the restart — becomes the completion time. The status
+ * pane orders finished work newest first and derives each row's duration from that pair, so an
+ * interrupted task has to carry the last moment it was known to be alive rather than no time at all.
+ *
+ * `sessionSettledTaskIds` covers terminal edges that landed in a sibling row of the same Session.
+ */
+function settleInterruptedRunTaskParts(
+  parts: CherryMessagePart[],
+  settledAt: string,
+  sessionSettledTaskIds?: ReadonlySet<string>
+): CherryMessagePart[] | undefined {
+  const mergedByTaskId = new Map<string, AgentTaskEventPartData>()
+  for (const part of parts) {
+    if (!isDataUIPart(part) || part.type !== 'data-agent-task-event') continue
+    const { data } = part
+    mergedByTaskId.set(data.taskId, mergeAgentSessionTaskEvent(mergedByTaskId.get(data.taskId), data))
+  }
+
+  const interruptedTaskIds = new Set(
+    [...mergedByTaskId].flatMap(([taskId, data]) =>
+      isTerminalAgentSessionTaskStatus(data.status) || sessionSettledTaskIds?.has(taskId) ? [] : [taskId]
+    )
+  )
+  if (interruptedTaskIds.size === 0) return undefined
+
+  let settled = false
+  const nextParts = parts.map((part) => {
+    if (!isDataUIPart(part) || part.type !== 'data-agent-task-event') return part
+    const { data } = part
+    if (!interruptedTaskIds.has(data.taskId) || isTerminalAgentSessionTaskStatus(data.status)) return part
+    settled = true
+    const interruptedPart: CherryMessagePart = {
+      ...part,
+      data: {
+        ...data,
+        status: 'error',
+        synthetic: true,
+        completedAt: data.completedAt ?? settledAt,
+        error: data.error ?? INTERRUPTED_RUN_TASK_ERROR
+      }
+    }
+    return interruptedPart
+  })
+  return settled ? nextParts : undefined
 }
 
 export class AgentSessionMessageService {
@@ -887,6 +977,111 @@ export class AgentSessionMessageService {
           .run()
       }
     })
+  }
+
+  /**
+   * Task ids that already reached a terminal edge anywhere in the given Sessions. The status pane
+   * folds a task's events across its whole Session first-terminal-wins, so such a task can never
+   * render as unfinished and reconcile must not fabricate an interruption on its stale parts.
+   */
+  findSettledRunTaskIds(sessionIds: string[]): Map<string, Set<string>> {
+    const settledBySession = new Map<string, Set<string>>()
+    if (sessionIds.length === 0) return settledBySession
+    const database = application.get('DbService').getDb()
+    for (let index = 0; index < sessionIds.length; index += SQLITE_INARRAY_CHUNK) {
+      const rows = database
+        .select({
+          sessionId: sessionMessagesTable.sessionId,
+          taskId: sql<string | null>`json_extract(part.value, '$.data.taskId')`
+        })
+        .from(sessionMessagesTable)
+        .innerJoin(
+          sql`json_each(${sessionMessagesTable.data}, '$.parts') as part`,
+          sql`json_extract(part.value, '$.type') = 'data-agent-task-event'
+            and coalesce(json_extract(part.value, '$.data.status'), '') in ('completed', 'stopped', 'error')`
+        )
+        .where(inArray(sessionMessagesTable.sessionId, sessionIds.slice(index, index + SQLITE_INARRAY_CHUNK)))
+        .all()
+      for (const row of rows) {
+        if (!row.taskId) continue
+        const taskIds = settledBySession.get(row.sessionId) ?? new Set<string>()
+        taskIds.add(row.taskId)
+        settledBySession.set(row.sessionId, taskIds)
+      }
+    }
+    return settledBySession
+  }
+
+  /**
+   * Assistant rows whose transcript still claims run-task work a previous main process owned. It is
+   * gone here, so those rows are returned with their dead task events already settled — without
+   * which an interrupted background command would read as running for the rest of the Session's life.
+   */
+  findStaleRunTaskMessages(): Array<{
+    id: string
+    sessionId: string
+    data: AgentSessionMessageEntity['data']
+  }> {
+    const database = application.get('DbService').getDb()
+    const rows = database
+      .select({
+        id: sessionMessagesTable.id,
+        sessionId: sessionMessagesTable.sessionId,
+        data: sessionMessagesTable.data,
+        updatedAt: sessionMessagesTable.updatedAt
+      })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.role, 'assistant'),
+          sql<boolean>`exists (
+            select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+            where json_extract(part.value, '$.type') = 'data-agent-task-event'
+              and coalesce(json_extract(part.value, '$.data.status'), '') not in ('completed', 'stopped', 'error')
+          )`,
+          sql`NOT EXISTS (
+            SELECT 1 FROM agent_session_message AS delivery_message
+            WHERE delivery_message.delivery_status = 'delivering'
+              AND delivery_message.delivery_turn_ref = ${sessionMessagesTable.id}
+          )`
+        )
+      )
+      .all()
+    // A task's terminal edge is often persisted in a sibling row (async notifications are their own
+    // assistant rows), so the row-local merge alone would mark a finished task as interrupted.
+    const settledBySession = this.findSettledRunTaskIds([...new Set(rows.map((row) => row.sessionId))])
+    return rows.flatMap((row) => {
+      const settledParts = settleInterruptedRunTaskParts(
+        row.data.parts ?? [],
+        new Date(row.updatedAt).toISOString(),
+        settledBySession.get(row.sessionId)
+      )
+      return settledParts ? [{ id: row.id, sessionId: row.sessionId, data: { ...row.data, parts: settledParts } }] : []
+    })
+  }
+
+  /**
+   * Persists {@link findStaleRunTaskMessages} results. Data only: the interrupted turn itself
+   * completed normally, so the row's status, resume token and delivery ownership all stay as they are.
+   */
+  settleStaleRunTaskMessages(
+    messages: Array<{ id: string; sessionId: string; data: AgentSessionMessageEntity['data'] }>
+  ): void {
+    if (messages.length === 0) return
+    const updatedAt = Date.now()
+    application.get('DbService').withWriteTx((tx) => {
+      for (const message of messages) {
+        tx.update(sessionMessagesTable)
+          .set({ data: message.data, updatedAt })
+          .where(eq(sessionMessagesTable.id, message.id))
+          .run()
+      }
+    })
+    for (const sessionId of new Set(messages.map((message) => message.sessionId))) {
+      notifyDataApiDataChange([
+        { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+      ])
+    }
   }
 
   /** Best-effort terminalization after a live assistant persistence failure. */
@@ -1990,25 +2185,46 @@ export class AgentSessionMessageService {
     }
   }
 
+  /**
+   * `touchSession: false` is for workflow checkpoints — a progress tick rewrites no user-visible
+   * content, so it skips the explicit `updatedAt` in the SET, the message file-ref resync and
+   * `agentSessionService.touchUpdatedAtTx`. The row's own `updatedAt` still moves either way: the
+   * schema stamps it through `$onUpdateFn` on every UPDATE.
+   */
+  private replaceMessagePartsTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    resolveParts: (existingRow: SessionMessageRow) => SessionMessageRow['data']['parts'],
+    options: { touchSession: boolean }
+  ): SessionMessageRow | null {
+    const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (!existingRow) return null
+
+    const updatedAt = options.touchSession ? Date.now() : null
+    const data = { ...existingRow.data, parts: resolveParts(existingRow) }
+    const [updated] = tx
+      .update(sessionMessagesTable)
+      .set(updatedAt === null ? { data } : { data, updatedAt })
+      .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+      .returning()
+      .all()
+    if (updatedAt !== null) {
+      replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+    }
+    return updated
+  }
+
   replaceMessageParts(
     sessionId: string,
     messageId: string,
     parts: AgentSessionMessageEntity['data']['parts']
   ): AgentSessionMessageEntity {
     const saved = application.get('DbService').withWriteTx((tx) => {
-      const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
-      if (!existingRow) throw DataApiErrorFactory.notFound('Message', messageId)
+      const updated = this.replaceMessagePartsTx(tx, sessionId, messageId, () => parts, { touchSession: true })
+      if (!updated) throw DataApiErrorFactory.notFound('Message', messageId)
 
-      const updatedAt = Date.now()
-      const data = { ...existingRow.data, parts }
-      const [updated] = tx
-        .update(sessionMessagesTable)
-        .set({ data, updatedAt })
-        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
-        .returning()
-        .all()
-      replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
-      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })
 
@@ -2020,6 +2236,79 @@ export class AgentSessionMessageService {
         entityIds: [messageId]
       }
     ])
+    return saved
+  }
+
+  /**
+   * Persists the latest workflow statistics carried by a task event.
+   *
+   * @returns `true` when the checkpoint reached the message row, `false` when that row no longer
+   * exists — callers must not treat a missing row as a persisted checkpoint.
+   */
+  checkpointWorkflowTaskEvent(sessionId: string, messageId: string, event: AgentTaskEventPartData): boolean {
+    const saved = application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        this.replaceMessagePartsTx(
+          tx,
+          sessionId,
+          messageId,
+          (existingRow) => mergeWorkflowTaskEventPart(existingRow.data.parts ?? [], event),
+          { touchSession: false }
+        )
+      )
+
+    if (saved && isTerminalAgentSessionTaskStatus(event.status)) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId },
+          entityIds: [messageId]
+        }
+      ])
+    }
+    return saved !== null
+  }
+
+  /**
+   * Replaces a message row's parts and merges the workflow statistics that ride with them in one
+   * transaction: a landed write never leaves statistics the merge has not applied yet, and a failed
+   * one leaves neither behind.
+   *
+   * @returns the saved entity, or `null` when the row is gone — nothing left to persist or retry.
+   */
+  replaceMessagePartsWithWorkflowCheckpoints(
+    sessionId: string,
+    messageId: string,
+    parts: AgentSessionMessageEntity['data']['parts'],
+    events: readonly AgentTaskEventPartData[]
+  ): AgentSessionMessageEntity | null {
+    const saved = application.get('DbService').withWriteTx((tx) => {
+      const updated = this.replaceMessagePartsTx(
+        tx,
+        sessionId,
+        messageId,
+        () =>
+          events.reduce<CherryMessagePart[]>(
+            (merged, event) => mergeWorkflowTaskEventPart(merged, event),
+            [...(parts ?? [])]
+          ),
+        { touchSession: true }
+      )
+      return updated ? this.rowToEntity(updated) : null
+    })
+
+    if (saved) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId },
+          entityIds: [messageId]
+        }
+      ])
+    }
     return saved
   }
 

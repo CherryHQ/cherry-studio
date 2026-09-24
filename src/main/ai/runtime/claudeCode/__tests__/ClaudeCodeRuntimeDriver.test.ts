@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-import { fileURLToPath } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import { Worker } from 'node:worker_threads'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -148,8 +148,6 @@ describe('Claude native forks', () => {
   })
 })
 
-const externalFileUrl = (name: string) => `file:///${process.platform === 'win32' ? 'C:/' : ''}tmp/${name}`
-
 const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
   deriveConfig: vi.fn(),
@@ -171,7 +169,10 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet, getPath: vi.fn(() => '/mock-claude-config') }
+  application: {
+    get: mocks.applicationGet,
+    getPath: vi.fn((_key: string, filename?: string) => (filename ? `C:\\mock\\${filename}` : 'C:\\mock'))
+  }
 }))
 
 vi.mock('../forkWorker?nodeWorker', () => ({
@@ -253,6 +254,7 @@ vi.mock('../streamAdapter', async (importActual) => {
       outputTokens: { total: usage?.output_tokens ?? 0, text: undefined, reasoning: undefined }
     }),
     ClaudeCodeStreamAdapter: class {
+      readonly dispose = vi.fn()
       readonly finalizeOpenTextParts = vi.fn()
       // Mirrors the real adapter: session-scoped, content only flows inside a turn.
       private turnActive = false
@@ -698,6 +700,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       false,
       undefined
     )
+    expect(mocks.adapterInstances[0].options.claudeConfigDir).toBe('C:\\mock\\.claude')
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
@@ -727,7 +730,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
         live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
       },
       key: 'warm-key',
-      options: { model: 'sonnet', spawnClaudeCodeProcess: ignoredSpawn },
+      options: {
+        model: 'sonnet',
+        env: { CLAUDE_CONFIG_DIR: 'D:\\claude-profile' },
+        spawnClaudeCodeProcess: ignoredSpawn
+      },
       settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100
@@ -741,10 +748,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).toEqual(expect.any(Function))
     expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(ignoredSpawn)
+    expect(mocks.adapterInstances[0].options.claudeConfigDir).toBe('D:\\claude-profile')
     void connection.close()
   })
 
-  it('waits for the SDK query cleanup promise when closing a connection', async () => {
+  it('waits for SDK query cleanup and disposes the adapter once across repeated close calls', async () => {
     const queryQueue = createAsyncQueue<any>()
     const cleanup = createDeferred<IteratorResult<void>>()
     const query = {
@@ -771,10 +779,32 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     expect(query.close).toHaveBeenCalledOnce()
     expect(query.return).toHaveBeenCalledExactlyOnceWith(undefined)
+    expect(mocks.adapterInstances[0].dispose).toHaveBeenCalledOnce()
     expect(settled).toBe(false)
 
     cleanup.resolve({ value: undefined, done: true })
     await expect(Promise.all([closing, repeatedClosing])).resolves.toEqual([undefined, undefined])
+    expect(mocks.adapterInstances[0].dispose).toHaveBeenCalledOnce()
+  })
+
+  it('disposes session-scoped resources when the SDK query ends normally', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.close()
+
+    await expect(events.next()).resolves.toMatchObject({ done: true })
+    expect(mocks.adapterInstances[0].dispose).toHaveBeenCalledOnce()
+
+    await connection.close()
+    expect(mocks.adapterInstances[0].dispose).toHaveBeenCalledOnce()
   })
 
   it('keeps teardown completion observable after a slow cleanup and waits for actual process exit', async () => {
@@ -861,6 +891,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
   })
 
   it('sends supported image attachments as native Claude SDK image blocks', async () => {
+    const pixelPath = path.join(tmpdir(), 'pixel.png')
+    const specPath = path.join(tmpdir(), 'spec.pdf')
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -883,8 +915,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
         data: {
           parts: [
             { type: 'text', text: 'describe this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' },
-            { type: 'file', url: externalFileUrl('spec.pdf'), mediaType: 'application/pdf', filename: 'spec.pdf' }
+            { type: 'file', url: pathToFileURL(pixelPath).href, mediaType: 'image/png', filename: 'pixel.png' },
+            { type: 'file', url: pathToFileURL(specPath).href, mediaType: 'application/pdf', filename: 'spec.pdf' }
           ]
         }
       }
@@ -898,7 +930,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": ${fileURLToPath(externalFileUrl('spec.pdf'))}`
+              text: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": ${specPath}`
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -1464,6 +1496,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
   })
 
   it('falls back external image attachments to tool-readable paths when the model lacks vision support', async () => {
+    const pixelPath = path.join(tmpdir(), 'pixel.png')
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -1482,7 +1515,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         data: {
           parts: [
             { type: 'text', text: 'describe this' },
-            { type: 'file', url: externalFileUrl('pixel.png'), mediaType: 'image/png', filename: 'pixel.png' }
+            { type: 'file', url: pathToFileURL(pixelPath).href, mediaType: 'image/png', filename: 'pixel.png' }
           ]
         }
       }
@@ -1492,7 +1525,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": ${fileURLToPath(externalFileUrl('pixel.png'))}`
+          content: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": ${pixelPath}`
         }
       },
       done: false
@@ -3842,6 +3875,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     let evt = await events.next()
     while (evt.value?.type !== 'error' && !evt.done) evt = await events.next()
     expect(approvalEmitter.dispose).toHaveBeenCalledTimes(1)
+    expect(mocks.adapterInstances[0].dispose).toHaveBeenCalledTimes(1)
 
     // Regression: by the time the host's close() lands, a successor connection for the same session
     // (e.g. a model-edit reconnect) may have registered fresh session-keyed state — a second by-id
@@ -3849,6 +3883,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
     expect(approvalEmitter.dispose).toHaveBeenCalledTimes(1)
     expect(steerHolder.dispose).toHaveBeenCalledTimes(1)
+    expect(mocks.adapterInstances[0].dispose).toHaveBeenCalledTimes(1)
   })
 
   describe('reconcile', () => {

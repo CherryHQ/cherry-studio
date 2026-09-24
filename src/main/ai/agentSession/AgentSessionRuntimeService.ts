@@ -1,3 +1,5 @@
+import { readdir, readFile, rm } from 'node:fs/promises'
+
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
@@ -27,11 +29,15 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { atomicWriteFile } from '@main/utils/file'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
   AGENT_SESSION_TASK_EVENTS_CACHE_KEY,
-  type AgentSessionBackgroundTasks
+  type AgentSessionBackgroundTasks,
+  type AgentSessionTaskEvents,
+  isTerminalAgentSessionTaskStatus,
+  mergeAgentSessionTaskEvent
 } from '@shared/ai/agentSessionBackgroundTasks'
 import {
   AGENT_SESSION_COMPACTION_CACHE_KEY,
@@ -49,6 +55,7 @@ import {
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -60,6 +67,7 @@ import {
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
@@ -122,6 +130,15 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
+const TASK_EVENTS_PUBLISH_THROTTLE_MS = 100
+const WORKFLOW_CHECKPOINT_THROTTLE_MS = 1_000
+const WORKFLOW_CHECKPOINT_MAX_ATTEMPTS = 3
+const MESSAGE_PARTS_WRITE_RETRY_MS = 1_000
+const MESSAGE_PARTS_WRITE_MAX_ATTEMPTS = 3
+/** The streamed parts are the only copy of their output, so a stuck write falls back to this cadence. */
+const MESSAGE_PARTS_WRITE_SLOW_RETRY_MS = 30_000
+const ORPHANED_MESSAGE_PARTS_SWEEP_MS = 30_000
+const MAX_PENDING_TASK_EVENT_HANDOFFS = 256
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -243,9 +260,42 @@ type BackgroundFlowAccumulator = {
   latest?: CherryUIMessage
   done: Promise<void>
   closed: boolean
+  finalizing?: Promise<void>
   /** Broadcast throttle for the live overlay — see {@link AgentSessionRuntimeService.publishBackgroundFlowSnapshot}. */
   lastPublishedAt?: number
   publishTimer?: ReturnType<typeof setTimeout>
+}
+
+type WorkflowCheckpoint = {
+  messageId: string
+  event: AgentTaskEventPartData
+  lastWrittenAt?: number
+  failedAttempts?: number
+  timer?: ReturnType<typeof setTimeout>
+}
+
+type PendingMessagePartsWrite = {
+  parts: CherryMessagePart[]
+  /** Row content of the last landed write, with the workflow statistics merged into it. */
+  persistedParts?: CherryMessagePart[]
+  /** The write was released because the row is gone; there is nothing left to publish or retry. */
+  rowMissing?: boolean
+  failedAttempts?: number
+  timer?: ReturnType<typeof setTimeout>
+}
+
+/** A write a closing entry could not land; it waits on disk, across restarts, until the database takes it. */
+type OrphanedMessagePartsWrite = {
+  sessionId: string
+  messageId: string
+  parts: CherryMessagePart[]
+  events: AgentTaskEventPartData[]
+}
+
+type TaskEventsPublishState = {
+  events: AgentSessionTaskEvents
+  lastPublishedAt?: number
+  timer?: ReturnType<typeof setTimeout>
 }
 
 type SteerContinuationReservation = {
@@ -290,6 +340,18 @@ type AgentSessionRuntimeEntry = {
   contextUsageRefresh?: { connection: AgentRuntimeConnection; pending: boolean }
   /** Root/nested tool call → persisted assistant row that owns its FlowTab projection. */
   flowMessageIdsByToolCallId?: Map<string, string>
+  /** Background task → its native launch tool call, retained after the turn stream closes. */
+  taskToolCallIdsByTaskId?: Map<string, string>
+  /** Background task → assistant row that owns its complete lifecycle history. */
+  taskMessageIdsByTaskId?: Map<string, string>
+  /** Latest task lifecycle edge waiting for its launch tool call to acquire a message anchor. */
+  pendingTaskEventChunksByTaskId?: Map<string, UIMessageChunk>
+  /** Tasks whose first workflow snapshot is already scheduled for transcript persistence. */
+  workflowSnapshotPersistedTaskIds?: Set<string>
+  /** Tasks whose terminal workflow snapshot is already scheduled for transcript persistence. */
+  terminalWorkflowSnapshotPersistedTaskIds?: Set<string>
+  /** Tasks whose status has reached a terminal state and can finalize detached output. */
+  terminalTaskIds?: Set<string>
   /** Assistant rows already committed by PersistenceListener and safe to use as accumulator seeds. */
   persistedFlowMessageIds?: Set<string>
   /** Detached chunks that raced PersistenceListener at the turn boundary. */
@@ -298,6 +360,14 @@ type AgentSessionRuntimeEntry = {
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
+  /** Latest crash-recovery checkpoint per workflow task. */
+  workflowCheckpoints?: Map<string, WorkflowCheckpoint>
+  /** Streamed detached-flow parts whose message write failed, awaiting a bounded retry. */
+  pendingMessagePartsWrites?: Map<string, PendingMessagePartsWrite>
+  /** Mutable latest task events plus a trailing shared-cache publish. */
+  taskEventsPublish?: TaskEventsPublishState
+  /** Allows final detached-flow persistence to finish after this entry leaves the live map. */
+  closing?: boolean
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -475,12 +545,20 @@ export class AgentSessionRuntimeService extends BaseService {
     registerRuntimeDrivers()
     await this.forks.recover()
 
+    // Parts held by a previous process are newer than their rows, so they land before the rows are settled.
+    await this.flushOrphanedMessagePartsWrites()
+
     // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
     // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
     // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"
     // bubble). Crashed sessions additionally discard their resume tokens: the interrupted external
     // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
     this.reconcileStalePendingMessages()
+    this.reconcileInterruptedRunTasks()
+
+    // Closing is the last chance an entry has to land its streamed parts; anything it could not write
+    // waits on disk for the database to accept it, so neither the entry nor a restart drops it.
+    this.registerInterval(() => this.flushOrphanedMessagePartsWrites(), ORPHANED_MESSAGE_PARTS_SWEEP_MS)
 
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
@@ -496,6 +574,9 @@ export class AgentSessionRuntimeService extends BaseService {
       const stale = agentSessionMessageService.findCrashOrphanedAssistantMessages()
       if (stale.length === 0) return
       const sessionIds = [...new Set(stale.map((message) => message.sessionId))]
+      // Async notifications are their own assistant rows, so a task's terminal edge can sit in a
+      // sibling row of the Session rather than in the row being settled here.
+      const settledBySession = agentSessionMessageService.findSettledRunTaskIds(sessionIds)
       logger.info('Reconciling crash-orphaned pending agent-session messages', {
         count: stale.length,
         sessionCount: sessionIds.length
@@ -504,14 +585,38 @@ export class AgentSessionRuntimeService extends BaseService {
       // tasks, unanswerable approval requests) so history renders settled, and discard the
       // affected sessions' resume tokens so prewarm/next turn opens a fresh runtime connection.
       agentSessionMessageService.resolveCrashOrphanedMessages(
-        stale.map(({ id, data }) => ({
+        stale.map(({ id, sessionId, data }) => ({
           id,
-          data: { ...data, parts: finalizeInterruptedParts(data.parts ?? [], 'error') }
+          data: {
+            ...data,
+            parts: finalizeInterruptedParts(data.parts ?? [], 'error', settledBySession.get(sessionId))
+          }
         })),
         sessionIds
       )
     } catch (error) {
       logger.error('Failed to reconcile stale pending agent-session messages', { error })
+    }
+  }
+
+  /**
+   * Settle the run tasks a previous process left behind. A detached shell, agent or workflow dies
+   * with the process that spawned it, but its terminal edge lived in memory only, so history keeps
+   * its last `in_progress` event forever unless boot rewrites it — and the status pane would keep
+   * listing the row as unfinished. Rows whose owner Session is already live here are left alone.
+   */
+  private reconcileInterruptedRunTasks(): void {
+    try {
+      const stale = agentSessionMessageService.findStaleRunTaskMessages()
+      const settleable = stale.filter((message) => !this.entries.has(message.sessionId))
+      if (settleable.length === 0) return
+      logger.info('Reconciling run tasks a previous process left running', {
+        count: settleable.length,
+        sessionCount: new Set(settleable.map((message) => message.sessionId)).size
+      })
+      agentSessionMessageService.settleStaleRunTaskMessages(settleable)
+    } catch (error) {
+      logger.error('Failed to reconcile stale run tasks', { error })
     }
   }
 
@@ -1780,16 +1885,22 @@ export class AgentSessionRuntimeService extends BaseService {
       return false
     }
     entry.usageCapture = connection.usageCapture
-    this.resetConnectionRuntimeState(entry, connection)
+    await this.resetConnectionRuntimeState(entry, connection)
+    if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) {
+      void this.closeRuntimeConnection(connection, entry.sessionId)
+      return false
+    }
     // Priming opens an idle connection only to populate connection-local metadata such as slash
     // commands. Context usage is expensive (the SDK issues multiple token-count probes), so defer it
     // until a real turn, a runtime event, or an explicit UI refresh needs a reading.
     if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
-    const connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
+    const connectionLoop = this.runConnectionLoop(entry, connection).finally(async () => {
       void this.closeRuntimeConnection(connection, entry.sessionId)
       if (this.currentConnection(entry) === connection) {
-        this.resetConnectionRuntimeState(entry, connection)
+        await this.resetConnectionRuntimeState(entry, connection)
+      }
+      if (this.currentConnection(entry) === connection) {
         this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
         if (entry.runtimeState.queue.length > 0 && !this.liveTurn(entry)) {
           this.requestRuntimeLaunch(entry, 'queued-turn')
@@ -2164,6 +2275,9 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
+    for (const task of tasks) {
+      if (task.toolCallId) this.rememberBackgroundTaskToolCall(entry, task.id, task.toolCallId)
+    }
   }
 
   private handleBackgroundWorkState(
@@ -2186,7 +2300,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (active) {
       this.clearIdleTimer(entry)
     } else {
-      void this.finishBackgroundFlows(entry)
+      void this.finishBackgroundFlows(entry).then(() => {
+        if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
+        if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) return
+        this.pruneSettledBackgroundFlowState(entry)
+      })
       if (!this.isSessionBusy(entry.sessionId)) this.refreshIdleTimer(entry)
     }
   }
@@ -2211,6 +2329,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
       ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, messageId)
+      this.resolveBackgroundTasksForToolCall(entry, chunk.toolCallId, messageId)
     }
 
     const turn = this.liveTurn(entry)
@@ -2219,6 +2338,14 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
 
+    this.routeBackgroundFlowChunkToMessage(entry, messageId, chunk)
+  }
+
+  private routeBackgroundFlowChunkToMessage(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    chunk: UIMessageChunk
+  ): void {
     if (!entry.persistedFlowMessageIds?.has(messageId)) {
       const pending = entry.pendingBackgroundFlowChunks ?? new Map<string, UIMessageChunk[]>()
       entry.pendingBackgroundFlowChunks = pending
@@ -2234,11 +2361,16 @@ export class AgentSessionRuntimeService extends BaseService {
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
     ;(entry.persistedFlowMessageIds ??= new Set()).add(messageId)
     const pending = entry.pendingBackgroundFlowChunks?.get(messageId)
-    if (!pending?.length) return
-
-    entry.pendingBackgroundFlowChunks?.delete(messageId)
-    for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
-    if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) void this.finishBackgroundFlows(entry)
+    if (pending?.length) {
+      entry.pendingBackgroundFlowChunks?.delete(messageId)
+      for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
+    }
+    this.pruneSettledBackgroundFlowState(entry, messageId)
+    this.finishSettledBackgroundFlowMessage(entry, messageId)
+    if (pending?.length && !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) {
+      void this.finishBackgroundFlows(entry)
+    }
+    this.writeWorkflowCheckpointsForMessage(entry, messageId)
   }
 
   private enqueueBackgroundFlowChunk(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
@@ -2325,11 +2457,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  /**
-   * `readUIMessageStream` yields a full snapshot per chunk; broadcasting each one re-sends the whole
-   * parts array to every window. Publish immediately when the window has elapsed, otherwise arm one
-   * trailing timer so the overlay still converges without a chunk-rate broadcast storm.
-   */
+  // Each chunk is a full snapshot; throttle broadcasts and keep one trailing publish for convergence.
   private publishBackgroundFlowSnapshot(entry: AgentSessionRuntimeEntry, accumulator: BackgroundFlowAccumulator): void {
     if (accumulator.publishTimer) return
     const elapsed = Date.now() - (accumulator.lastPublishedAt ?? 0)
@@ -2357,8 +2485,25 @@ export class AgentSessionRuntimeService extends BaseService {
     const accumulators = [...(entry.backgroundFlowAccumulators?.values() ?? [])]
     if (accumulators.length === 0) return Promise.resolve()
 
-    for (const accumulator of accumulators) {
-      if (accumulator.closed) continue
+    const flush = Promise.all(
+      accumulators.map((accumulator) => this.finishBackgroundFlowAccumulator(entry, accumulator))
+    )
+      .then(() => undefined)
+      .finally(() => {
+        if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
+      })
+    entry.backgroundFlowFlush = flush
+    this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)
+    void flush.finally(() => this.inFlightBackgroundFlowFlushes.delete(flush))
+    return flush
+  }
+
+  private finishBackgroundFlowAccumulator(
+    entry: AgentSessionRuntimeEntry,
+    accumulator: BackgroundFlowAccumulator
+  ): Promise<void> {
+    if (accumulator.finalizing) return accumulator.finalizing
+    if (!accumulator.closed) {
       accumulator.closed = true
       try {
         accumulator.controller.close()
@@ -2367,43 +2512,167 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
 
-    const flush = Promise.all(accumulators.map((accumulator) => accumulator.done))
+    const finalizing = accumulator.done
       .then(() => {
-        const completedMessageIds = new Set<string>()
-        const completedFlows: Array<{ messageId: string; parts: CherryMessagePart[] }> = []
-        for (const accumulator of accumulators) {
-          const parts = accumulator.latest?.parts
-          if (!parts) continue
-          completedMessageIds.add(accumulator.messageId)
-          agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
-          completedFlows.push({ messageId: accumulator.messageId, parts })
-        }
-
-        entry.backgroundFlowAccumulators?.clear()
-        for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
-          if (completedMessageIds.has(messageId)) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
-        }
-        if (this.isCurrentEntry(entry)) {
-          const cacheService = application.get('CacheService')
-          for (const { messageId, parts } of completedFlows) {
-            cacheService.setShared(
-              AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, messageId),
-              parts,
-              BACKGROUND_FLOW_HANDOFF_TTL_MS
-            )
+        const parts = accumulator.latest?.parts
+        if (parts) {
+          // A failed write must not drop the streamed output: hold the parts (and the statistics that
+          // ride with them) on the entry for a bounded retry — closing makes it the last write chance.
+          const pendingParts: PendingMessagePartsWrite = { parts }
+          this.persistMessageParts(entry, accumulator.messageId, pendingParts)
+          // A failed write leaves the row stale, so its parts are not the newest content.
+          const finalParts = pendingParts.persistedParts ?? parts
+          this.releaseBackgroundFlowMessageState(entry, accumulator.messageId)
+          if (this.isCurrentEntry(entry) || entry.closing === true) {
+            const cache = application.get('CacheService')
+            const cacheKey = AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, accumulator.messageId)
+            if (pendingParts.rowMissing) {
+              // The row is gone, so an overlay for it would only serve parts of a deleted message.
+              cache.deleteShared(cacheKey)
+            } else {
+              cache.setShared(cacheKey, finalParts ?? parts, BACKGROUND_FLOW_HANDOFF_TTL_MS)
+            }
           }
+        }
+        if (entry.backgroundFlowAccumulators?.get(accumulator.messageId) === accumulator) {
+          entry.backgroundFlowAccumulators.delete(accumulator.messageId)
         }
       })
       .catch((error) => {
-        logger.warn('Failed to finalize detached subagent flow parts', { sessionId: entry.sessionId, error })
+        logger.warn('Failed to finalize detached subagent flow parts', {
+          sessionId: entry.sessionId,
+          messageId: accumulator.messageId,
+          error
+        })
+        // A rejected reader still leaves the last snapshot as the only copy of the output.
+        const parts = accumulator.latest?.parts
+        if (parts) {
+          const pendingParts: PendingMessagePartsWrite = { parts }
+          if (this.persistMessageParts(entry, accumulator.messageId, pendingParts)) {
+            this.refreshFlowPartsOverlay(entry, accumulator.messageId)
+          }
+        }
       })
       .finally(() => {
-        if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
+        if (entry.backgroundFlowAccumulators?.get(accumulator.messageId) === accumulator) {
+          accumulator.finalizing = undefined
+        }
       })
-    entry.backgroundFlowFlush = flush
-    this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)
-    void flush.finally(() => this.inFlightBackgroundFlowFlushes.delete(flush))
-    return flush
+    accumulator.finalizing = finalizing
+    return finalizing
+  }
+
+  private finishSettledBackgroundFlowMessage(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    if (entry.pendingBackgroundFlowChunks?.get(messageId)?.length) return
+    const accumulator = entry.backgroundFlowAccumulators?.get(messageId)
+    if (!accumulator) return
+
+    const taskIds = [...(entry.taskMessageIdsByTaskId ?? [])]
+      .filter(([, ownerMessageId]) => ownerMessageId === messageId)
+      .map(([taskId]) => taskId)
+    if (taskIds.length === 0) return
+
+    const events = this.getBackgroundTaskEvents(entry)
+    if (
+      taskIds.some(
+        (taskId) => !isTerminalAgentSessionTaskStatus(events[taskId]?.status) || !entry.terminalTaskIds?.has(taskId)
+      )
+    ) {
+      return
+    }
+    if (
+      hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) &&
+      taskIds.some((taskId) => this.taskWaitsForTerminalReconciliation(events[taskId]))
+    ) {
+      return
+    }
+    void this.finishBackgroundFlowAccumulator(entry, accumulator)
+  }
+
+  private taskWaitsForTerminalReconciliation(event: AgentTaskEventPartData | undefined): boolean {
+    return (
+      event?.workflow !== undefined ||
+      event?.taskType === 'local_workflow' ||
+      event?.taskType === 'local_agent' ||
+      event?.taskType === 'subagent' ||
+      event?.subagentType !== undefined
+    )
+  }
+
+  private releaseBackgroundFlowMessageState(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    // A pending parts retry rewrites the whole row, so this message's checkpoints must stay behind
+    // for it to re-merge the statistics it would otherwise overwrite.
+    const retainCheckpoints = entry.pendingMessagePartsWrites?.has(messageId) === true
+    for (const [toolCallId, ownerMessageId] of entry.flowMessageIdsByToolCallId ?? []) {
+      if (ownerMessageId === messageId) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
+    }
+    for (const [taskId, ownerMessageId] of entry.taskMessageIdsByTaskId ?? []) {
+      if (ownerMessageId !== messageId) continue
+      entry.taskMessageIdsByTaskId?.delete(taskId)
+      entry.taskToolCallIdsByTaskId?.delete(taskId)
+      entry.pendingTaskEventChunksByTaskId?.delete(taskId)
+      entry.workflowSnapshotPersistedTaskIds?.delete(taskId)
+      entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
+      entry.terminalTaskIds?.delete(taskId)
+      const checkpoint = entry.workflowCheckpoints?.get(taskId)
+      if (checkpoint) {
+        this.flushPendingWorkflowCheckpoint(entry, taskId, checkpoint, entry.closing === true)
+        if (!retainCheckpoints && (checkpoint.failedAttempts ?? 0) === 0) entry.workflowCheckpoints?.delete(taskId)
+      }
+    }
+    entry.persistedFlowMessageIds?.delete(messageId)
+    entry.pendingBackgroundFlowChunks?.delete(messageId)
+  }
+
+  private pruneSettledBackgroundFlowState(entry: AgentSessionRuntimeEntry, latestPersistedMessageId?: string): void {
+    const retainedMessageIds = new Set<string>()
+    if (latestPersistedMessageId) retainedMessageIds.add(latestPersistedMessageId)
+    for (const [messageId, chunks] of entry.pendingBackgroundFlowChunks ?? []) {
+      if (chunks.length > 0) retainedMessageIds.add(messageId)
+    }
+    for (const messageId of entry.backgroundFlowAccumulators?.keys() ?? []) retainedMessageIds.add(messageId)
+
+    const retainedTaskIds = new Set(entry.pendingTaskEventChunksByTaskId?.keys() ?? [])
+    const retainLiveTaskAnchors = hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+    for (const [taskId, messageId] of entry.taskMessageIdsByTaskId ?? []) {
+      if (retainLiveTaskAnchors || retainedTaskIds.has(taskId) || retainedMessageIds.has(messageId)) {
+        retainedTaskIds.add(taskId)
+        retainedMessageIds.add(messageId)
+      } else {
+        entry.taskMessageIdsByTaskId?.delete(taskId)
+      }
+    }
+    for (const taskId of entry.taskToolCallIdsByTaskId?.keys() ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.taskToolCallIdsByTaskId?.delete(taskId)
+    }
+
+    const retainedToolCallIds = new Set(entry.taskToolCallIdsByTaskId?.values() ?? [])
+    for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
+      if (!retainedMessageIds.has(messageId) && !retainedToolCallIds.has(toolCallId)) {
+        entry.flowMessageIdsByToolCallId?.delete(toolCallId)
+      }
+    }
+    for (const taskId of entry.workflowSnapshotPersistedTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.workflowSnapshotPersistedTaskIds?.delete(taskId)
+    }
+    for (const taskId of entry.terminalWorkflowSnapshotPersistedTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
+    }
+    for (const taskId of entry.terminalTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalTaskIds?.delete(taskId)
+    }
+    for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
+      // A pending whole-row write re-merges this message's checkpoints when it lands, so a checkpoint
+      // that write still depends on has to outlive the task anchors the prune is about to drop.
+      if (retainedTaskIds.has(taskId) || entry.pendingMessagePartsWrites?.has(checkpoint.messageId) === true) {
+        continue
+      }
+      this.flushPendingWorkflowCheckpoint(entry, taskId, checkpoint)
+      if ((checkpoint.failedAttempts ?? 0) === 0) entry.workflowCheckpoints?.delete(taskId)
+    }
+    for (const messageId of entry.persistedFlowMessageIds ?? []) {
+      if (!retainedMessageIds.has(messageId)) entry.persistedFlowMessageIds?.delete(messageId)
+    }
   }
 
   private waitForBackgroundWorkRelease(
@@ -2450,30 +2719,577 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  /** Keep the latest lifecycle edge per task for the current connection. */
+  private getBackgroundTaskEvents(entry: AgentSessionRuntimeEntry): AgentSessionTaskEvents {
+    const existing = entry.taskEventsPublish
+    if (existing) return existing.events
+
+    const cached: AgentSessionTaskEvents =
+      application.get('CacheService').getShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)) ?? {}
+    const state: TaskEventsPublishState = { events: { ...cached } }
+    entry.taskEventsPublish = state
+    return state.events
+  }
+
+  private scheduleTaskEventsPublish(entry: AgentSessionRuntimeEntry, immediate: boolean): void {
+    const state = entry.taskEventsPublish
+    if (!state) return
+    const elapsed = Date.now() - (state.lastPublishedAt ?? 0)
+    if (immediate || elapsed >= TASK_EVENTS_PUBLISH_THROTTLE_MS) {
+      this.publishTaskEvents(entry, state)
+      return
+    }
+    state.timer ??= setTimeout(() => this.publishTaskEvents(entry, state), TASK_EVENTS_PUBLISH_THROTTLE_MS - elapsed)
+    state.timer.unref?.()
+  }
+
+  private publishTaskEvents(entry: AgentSessionRuntimeEntry, state: TaskEventsPublishState): void {
+    if (entry.taskEventsPublish !== state || !this.isCurrentEntry(entry)) return
+    if (state.timer) clearTimeout(state.timer)
+    state.timer = undefined
+    state.lastPublishedAt = Date.now()
+    application.get('CacheService').setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), { ...state.events })
+  }
+
+  private clearTaskEventsPublish(entry: AgentSessionRuntimeEntry): void {
+    const state = entry.taskEventsPublish
+    if (state?.timer) clearTimeout(state.timer)
+    entry.taskEventsPublish = undefined
+  }
+
+  /** Keep the latest lifecycle edge per task and append turn-out edges to the spawning message. */
   private publishBackgroundTaskEvent(
     entry: AgentSessionRuntimeEntry,
     data: AgentTaskEventPartData,
     connection = this.currentConnection(entry)
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
-    const cache = application.get('CacheService')
-    const key = AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)
-    const events = cache.getShared(key) ?? {}
-    // Merge instead of replace: identity fields and the row title may exist only on the start edge.
-    // A completion overwriting it wholesale would strip the task of its type and display name.
-    const merged: Record<string, unknown> = { ...events[data.taskId] }
-    for (const [field, value] of Object.entries(data)) {
-      if (value !== undefined) merged[field] = value
+    const events = this.getBackgroundTaskEvents(entry)
+    const merged = mergeAgentSessionTaskEvent(events[data.taskId], data)
+    events[data.taskId] = merged
+    const terminal = isTerminalAgentSessionTaskStatus(data.status)
+    this.scheduleTaskEventsPublish(entry, terminal)
+    if (terminal) {
+      ;(entry.terminalTaskIds ??= new Set()).add(data.taskId)
     }
-    cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
+
+    if (merged.toolUseId) this.rememberBackgroundTaskToolCall(entry, merged.taskId, merged.toolUseId)
+    const persistedData = this.prepareTaskEventForTranscript(entry, data, merged)
+    if (persistedData) {
+      this.routeBackgroundTaskEventChunk(entry, merged.taskId, {
+        type: 'data-agent-task-event',
+        id: `task-${merged.taskId}-${merged.event}`,
+        data: persistedData
+      })
+    }
+    const messageId = entry.taskMessageIdsByTaskId?.get(merged.taskId)
+    if (messageId && data.workflow) this.scheduleWorkflowCheckpoint(entry, messageId, merged)
+    if (messageId && entry.terminalTaskIds?.has(merged.taskId)) {
+      this.finishSettledBackgroundFlowMessage(entry, messageId)
+    }
+    // The throttled cache publish is too slow for a renderer stream that is waiting on this task.
     if (isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
       this.deliverRuntimeChunk(entry, {
         type: 'data-agent-task-event',
         id: uuidv7(),
-        data: merged as unknown as AgentTaskEventPartData
+        data: merged
       })
     }
+  }
+
+  private scheduleWorkflowCheckpoint(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    event: AgentTaskEventPartData
+  ): void {
+    const checkpoints = entry.workflowCheckpoints ?? new Map<string, WorkflowCheckpoint>()
+    entry.workflowCheckpoints = checkpoints
+    const terminal = isTerminalAgentSessionTaskStatus(event.status)
+    const existing = checkpoints.get(event.taskId)
+    if (existing?.event === event) return
+    const checkpoint = existing ?? { messageId, event }
+    if (isTerminalAgentSessionTaskStatus(checkpoint.event.status) && !terminal) {
+      return
+    }
+    checkpoint.messageId = messageId
+    checkpoint.event = event
+    checkpoints.set(event.taskId, checkpoint)
+
+    const elapsed = Date.now() - (checkpoint.lastWrittenAt ?? 0)
+    if (terminal || elapsed >= WORKFLOW_CHECKPOINT_THROTTLE_MS) {
+      this.persistWorkflowCheckpoint(entry, event.taskId, checkpoint)
+      return
+    }
+    checkpoint.timer ??= setTimeout(
+      () => this.writeWorkflowCheckpoint(entry, event.taskId, checkpoint),
+      WORKFLOW_CHECKPOINT_THROTTLE_MS - elapsed
+    )
+    checkpoint.timer.unref?.()
+  }
+
+  private writeWorkflowCheckpoint(
+    entry: AgentSessionRuntimeEntry,
+    taskId: string,
+    checkpoint: WorkflowCheckpoint,
+    allowDetached = false
+  ): boolean {
+    if (entry.workflowCheckpoints?.get(taskId) !== checkpoint || (!allowDetached && !this.isCurrentEntry(entry))) {
+      return true
+    }
+    if (checkpoint.timer) clearTimeout(checkpoint.timer)
+    checkpoint.timer = undefined
+    try {
+      const persisted = agentSessionMessageService.checkpointWorkflowTaskEvent(
+        entry.sessionId,
+        checkpoint.messageId,
+        checkpoint.event
+      )
+      if (!persisted) {
+        // The parent message row is gone, so this state has nowhere to land: release it with a log
+        // instead of retrying against a target that cannot come back.
+        logger.warn('Dropped workflow statistics for a missing agent session message', {
+          sessionId: entry.sessionId,
+          messageId: checkpoint.messageId,
+          taskId
+        })
+        if (entry.workflowCheckpoints?.get(taskId) === checkpoint) entry.workflowCheckpoints.delete(taskId)
+        return true
+      }
+      checkpoint.lastWrittenAt = Date.now()
+      checkpoint.failedAttempts = 0
+      return true
+    } catch (error) {
+      checkpoint.failedAttempts = (checkpoint.failedAttempts ?? 0) + 1
+      logger.warn('Failed to checkpoint workflow statistics', {
+        sessionId: entry.sessionId,
+        messageId: checkpoint.messageId,
+        taskId,
+        attempts: checkpoint.failedAttempts,
+        error
+      })
+      return false
+    }
+  }
+
+  /**
+   * A terminal checkpoint is the last write of a task's statistics, so a failed attempt keeps the
+   * checkpoint pending on a bounded retry instead of dropping the data with the released message state.
+   */
+  private persistWorkflowCheckpoint(
+    entry: AgentSessionRuntimeEntry,
+    taskId: string,
+    checkpoint: WorkflowCheckpoint,
+    allowDetached = false
+  ): boolean {
+    if (this.writeWorkflowCheckpoint(entry, taskId, checkpoint, allowDetached)) return true
+    this.retryWorkflowCheckpoint(entry, taskId, checkpoint)
+    return false
+  }
+
+  /** Writes a checkpoint whose throttle timer is still pending; a settled checkpoint needs no flush. */
+  private flushPendingWorkflowCheckpoint(
+    entry: AgentSessionRuntimeEntry,
+    taskId: string,
+    checkpoint: WorkflowCheckpoint,
+    allowDetached = false
+  ): boolean {
+    return checkpoint.timer ? this.persistWorkflowCheckpoint(entry, taskId, checkpoint, allowDetached) : true
+  }
+
+  private retryWorkflowCheckpoint(
+    entry: AgentSessionRuntimeEntry,
+    taskId: string,
+    checkpoint: WorkflowCheckpoint
+  ): void {
+    const attempts = checkpoint.failedAttempts ?? 0
+    if (attempts >= WORKFLOW_CHECKPOINT_MAX_ATTEMPTS) {
+      logger.error('Gave up persisting workflow statistics', {
+        sessionId: entry.sessionId,
+        messageId: checkpoint.messageId,
+        taskId,
+        attempts
+      })
+      if (entry.workflowCheckpoints?.get(taskId) === checkpoint) entry.workflowCheckpoints.delete(taskId)
+      return
+    }
+    if (checkpoint.timer) return
+    checkpoint.timer = setTimeout(() => {
+      checkpoint.timer = undefined
+      if (!this.writeWorkflowCheckpoint(entry, taskId, checkpoint, true)) {
+        this.retryWorkflowCheckpoint(entry, taskId, checkpoint)
+        return
+      }
+      // A message that can still be whole-row replaced needs this checkpoint kept as the source of the
+      // statistics that write overwrites; otherwise this landed merge is the last word on them.
+      const stillReplaceable =
+        entry.backgroundFlowAccumulators?.has(checkpoint.messageId) === true ||
+        entry.pendingMessagePartsWrites?.has(checkpoint.messageId) === true
+      if (!stillReplaceable && entry.workflowCheckpoints?.get(taskId) === checkpoint) {
+        entry.workflowCheckpoints.delete(taskId)
+      }
+      // The retried merge rewrote the row, so the overlay has to follow it.
+      this.refreshFlowPartsOverlay(entry, checkpoint.messageId)
+    }, WORKFLOW_CHECKPOINT_THROTTLE_MS)
+    checkpoint.timer.unref?.()
+  }
+
+  private writeWorkflowCheckpointsForMessage(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    allowDetached = false
+  ): boolean {
+    let checkpointed = false
+    for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
+      if (checkpoint.messageId !== messageId) continue
+      // Report only what reached the row: callers republish the row to the renderer, so a failed
+      // merge must not be advertised as persisted statistics.
+      if (this.persistWorkflowCheckpoint(entry, taskId, checkpoint, allowDetached)) checkpointed = true
+    }
+    return checkpointed
+  }
+
+  private writeMessageParts(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    pending: PendingMessagePartsWrite
+  ): boolean {
+    const registered = entry.pendingMessagePartsWrites?.get(messageId)
+    if (registered !== undefined && registered !== pending) return true
+    if (pending.timer) clearTimeout(pending.timer)
+    pending.timer = undefined
+    try {
+      const events = this.messageWorkflowCheckpointEvents(entry, messageId)
+      if (events.length === 0) {
+        agentSessionMessageService.replaceMessageParts(entry.sessionId, messageId, pending.parts)
+        pending.failedAttempts = 0
+        pending.persistedParts = pending.parts
+        pending.rowMissing = false
+        return true
+      }
+      // Statistics to carry, so one transaction writes the streamed parts and merges them: a landed write
+      // can never leave statistics the merge has not applied yet.
+      const saved = agentSessionMessageService.replaceMessagePartsWithWorkflowCheckpoints(
+        entry.sessionId,
+        messageId,
+        pending.parts,
+        events
+      )
+      if (!saved) {
+        this.releaseMissingMessageParts(entry, messageId, pending)
+        return true
+      }
+      pending.persistedParts = saved.data.parts ?? pending.parts
+      pending.rowMissing = false
+      pending.failedAttempts = 0
+      // The write carried this message's statistics into the row, so their throttle has nothing to flush.
+      this.markMessageWorkflowCheckpointsWritten(entry, messageId)
+      return true
+    } catch (error) {
+      if (isDataApiNotFoundError(error)) {
+        this.releaseMissingMessageParts(entry, messageId, pending)
+        return true
+      }
+      pending.failedAttempts = (pending.failedAttempts ?? 0) + 1
+      logger.warn('Failed to replace a detached background flow message', {
+        sessionId: entry.sessionId,
+        messageId,
+        attempts: pending.failedAttempts,
+        error
+      })
+      return false
+    }
+  }
+
+  /** The row is gone, so no retry can bring it back: release what this write was carrying. */
+  private releaseMissingMessageParts(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    pending: PendingMessagePartsWrite
+  ): void {
+    logger.warn('Dropped detached background flow parts for a missing agent session message', {
+      sessionId: entry.sessionId,
+      messageId
+    })
+    pending.failedAttempts = 0
+    pending.persistedParts = undefined
+    pending.rowMissing = true
+    this.releaseMessageWorkflowCheckpoints(entry, messageId)
+  }
+
+  /** The workflow statistics this message still owns; the next whole-row write merges them in. */
+  private messageWorkflowCheckpointEvents(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string
+  ): AgentTaskEventPartData[] {
+    const events: AgentTaskEventPartData[] = []
+    for (const checkpoint of entry.workflowCheckpoints?.values() ?? []) {
+      if (checkpoint.messageId === messageId) events.push(checkpoint.event)
+    }
+    return events
+  }
+
+  private markMessageWorkflowCheckpointsWritten(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    for (const checkpoint of entry.workflowCheckpoints?.values() ?? []) {
+      if (checkpoint.messageId !== messageId) continue
+      if (checkpoint.timer) clearTimeout(checkpoint.timer)
+      checkpoint.timer = undefined
+      checkpoint.lastWrittenAt = Date.now()
+      checkpoint.failedAttempts = 0
+    }
+  }
+
+  private releaseMessageWorkflowCheckpoints(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
+      if (checkpoint.messageId !== messageId) continue
+      if (checkpoint.timer) clearTimeout(checkpoint.timer)
+      entry.workflowCheckpoints?.delete(taskId)
+    }
+  }
+
+  /**
+   * Streamed parts are the only copy of the final output, so a failed row write stays pending on a
+   * bounded retry instead of being discarded with the finalized accumulator.
+   */
+  private persistMessageParts(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    pending: PendingMessagePartsWrite
+  ): boolean {
+    if (this.writeMessageParts(entry, messageId, pending)) return true
+    ;(entry.pendingMessagePartsWrites ??= new Map()).set(messageId, pending)
+    this.retryMessageParts(entry, messageId, pending)
+    return false
+  }
+
+  private retryMessageParts(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    pending: PendingMessagePartsWrite
+  ): void {
+    const attempts = pending.failedAttempts ?? 0
+    if (attempts === MESSAGE_PARTS_WRITE_MAX_ATTEMPTS) {
+      // The streamed parts are the only copy of this output, so a write that keeps failing is retried
+      // slowly instead of dropped with the finalized accumulator; nothing waits on this retry.
+      logger.warn('Delaying a detached flow message parts write that keeps failing', {
+        sessionId: entry.sessionId,
+        messageId,
+        attempts
+      })
+    }
+    if (pending.timer) return
+    const delay =
+      attempts >= MESSAGE_PARTS_WRITE_MAX_ATTEMPTS ? MESSAGE_PARTS_WRITE_SLOW_RETRY_MS : MESSAGE_PARTS_WRITE_RETRY_MS
+    pending.timer = setTimeout(() => {
+      pending.timer = undefined
+      if (!this.writeMessageParts(entry, messageId, pending)) {
+        this.retryMessageParts(entry, messageId, pending)
+        return
+      }
+      if (entry.pendingMessagePartsWrites?.get(messageId) === pending) entry.pendingMessagePartsWrites.delete(messageId)
+      // The landed write already carried this message's statistics, so only the overlay has to follow.
+      this.refreshFlowPartsOverlay(entry, messageId)
+    }, delay)
+    pending.timer.unref?.()
+  }
+
+  /** Keeps a write no row accepted on disk until a sweep lands it; a later hold for the message replaces it. */
+  private async holdOrphanedMessagePartsWrite(write: OrphanedMessagePartsWrite): Promise<void> {
+    const file = application.getPath('feature.agents.orphaned_message_parts', `${write.messageId}.json`)
+    try {
+      await atomicWriteFile(AbsoluteFilePathSchema.parse(file), JSON.stringify(write))
+    } catch (error) {
+      logger.error('Dropped detached flow message parts that neither the database nor the disk accepted', {
+        sessionId: write.sessionId,
+        messageId: write.messageId,
+        error
+      })
+    }
+  }
+
+  /** Retries the writes closing entries could not land: the service-level fallback for output that has
+   * no other copy. A row that is gone is released, since nothing can be written back into it. */
+  private async flushOrphanedMessagePartsWrites(): Promise<void> {
+    let names: string[]
+    try {
+      names = await readdir(application.getPath('feature.agents.orphaned_message_parts'))
+    } catch (error) {
+      logger.warn('Failed to list held detached flow message parts', { error })
+      return
+    }
+    for (const name of names) {
+      if (!name.endsWith('.json')) continue
+      const file = application.getPath('feature.agents.orphaned_message_parts', name)
+      try {
+        const write = JSON.parse(await readFile(file, 'utf8')) as OrphanedMessagePartsWrite
+        const saved = agentSessionMessageService.replaceMessagePartsWithWorkflowCheckpoints(
+          write.sessionId,
+          write.messageId,
+          write.parts,
+          write.events
+        )
+        // Closing seeded the overlay with the unwritten parts, so a live one has to follow the row or go with it.
+        const cache = application.get('CacheService')
+        const cacheKey = AGENT_SESSION_FLOW_PARTS_CACHE_KEY(write.sessionId, write.messageId)
+        if (!saved) {
+          cache.deleteShared(cacheKey)
+        } else if (cache.hasShared(cacheKey)) {
+          cache.setShared(cacheKey, saved.data.parts ?? write.parts, BACKGROUND_FLOW_HANDOFF_TTL_MS)
+        }
+        await rm(file, { force: true })
+      } catch (error) {
+        logger.warn('Failed to land held detached flow message parts', { file, error })
+      }
+    }
+  }
+
+  /**
+   * The renderer reads a message's live parts from the shared handoff cache, so a landed write has to
+   * refresh it — otherwise the overlay keeps serving the parts (and statistics) that write replaced.
+   * Both callers run this from a retry timer, so a row that is gone must be a silent, non-throwing skip.
+   */
+  private refreshFlowPartsOverlay(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    if (!this.isCurrentEntry(entry) && entry.closing !== true) return
+    try {
+      const parts = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId).data.parts
+      if (!parts) return
+      application
+        .get('CacheService')
+        .setShared(
+          AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, messageId),
+          parts,
+          BACKGROUND_FLOW_HANDOFF_TTL_MS
+        )
+    } catch (error) {
+      // A deleted row has no overlay to publish; anything else is a real failure worth reporting.
+      if (isDataApiNotFoundError(error)) return
+      logger.warn('Failed to refresh the flow parts overlay', { sessionId: entry.sessionId, messageId, error })
+    }
+  }
+
+  private prepareTaskEventForTranscript(
+    entry: AgentSessionRuntimeEntry,
+    incoming: AgentTaskEventPartData,
+    merged: AgentTaskEventPartData
+  ): AgentTaskEventPartData | undefined {
+    if (incoming.workflow) {
+      const isTerminal = isTerminalAgentSessionTaskStatus(incoming.status)
+      const terminalPersisted = entry.terminalWorkflowSnapshotPersistedTaskIds?.has(merged.taskId) ?? false
+      if (isTerminal && terminalPersisted) return undefined
+      const persisted = isTerminal
+        ? (entry.terminalWorkflowSnapshotPersistedTaskIds ??= new Set<string>())
+        : (entry.workflowSnapshotPersistedTaskIds ??= new Set<string>())
+      if ((!isTerminal && terminalPersisted) || persisted.has(merged.taskId)) {
+        const withoutWorkflow = { ...merged }
+        delete withoutWorkflow.workflow
+        return withoutWorkflow
+      }
+      persisted.add(merged.taskId)
+      return merged
+    }
+
+    const withoutWorkflow = { ...merged }
+    delete withoutWorkflow.workflow
+    return withoutWorkflow
+  }
+
+  private rememberBackgroundTaskToolCall(entry: AgentSessionRuntimeEntry, taskId: string, toolCallId: string): void {
+    ;(entry.taskToolCallIdsByTaskId ??= new Map()).set(taskId, toolCallId)
+    const messageId = entry.taskMessageIdsByTaskId?.get(taskId) ?? entry.flowMessageIdsByToolCallId?.get(toolCallId)
+    if (messageId) this.attachBackgroundTaskToMessage(entry, taskId, messageId)
+  }
+
+  private resolveBackgroundTasksForToolCall(
+    entry: AgentSessionRuntimeEntry,
+    toolCallId: string,
+    messageId: string
+  ): void {
+    for (const [taskId, taskToolCallId] of entry.taskToolCallIdsByTaskId ?? []) {
+      if (taskToolCallId === toolCallId) this.attachBackgroundTaskToMessage(entry, taskId, messageId)
+    }
+  }
+
+  private attachBackgroundTaskToMessage(entry: AgentSessionRuntimeEntry, taskId: string, messageId: string): void {
+    const taskMessageIds = entry.taskMessageIdsByTaskId ?? new Map<string, string>()
+    entry.taskMessageIdsByTaskId = taskMessageIds
+    const existingMessageId = taskMessageIds.get(taskId)
+    if (existingMessageId && existingMessageId !== messageId) {
+      logger.warn('Ignoring background task message re-parenting', {
+        sessionId: entry.sessionId,
+        taskId,
+        existingMessageId,
+        messageId
+      })
+      return
+    }
+    taskMessageIds.set(taskId, messageId)
+
+    const events = this.getBackgroundTaskEvents(entry)
+    if (events[taskId]?.workflow) this.scheduleWorkflowCheckpoint(entry, messageId, events[taskId])
+
+    const pending = entry.pendingTaskEventChunksByTaskId?.get(taskId)
+    if (!pending) return
+    entry.pendingTaskEventChunksByTaskId?.delete(taskId)
+    this.routeBackgroundTaskEventChunkToMessage(entry, messageId, pending)
+    this.finishSettledBackgroundFlowMessage(entry, messageId)
+  }
+
+  private routeBackgroundTaskEventChunk(entry: AgentSessionRuntimeEntry, taskId: string, chunk: UIMessageChunk): void {
+    const knownMessageId = entry.taskMessageIdsByTaskId?.get(taskId)
+    if (knownMessageId) {
+      this.routeBackgroundTaskEventChunkToMessage(entry, knownMessageId, chunk)
+      return
+    }
+
+    const toolCallId = entry.taskToolCallIdsByTaskId?.get(taskId)
+    const messageId = toolCallId ? entry.flowMessageIdsByToolCallId?.get(toolCallId) : undefined
+    if (messageId) {
+      this.attachBackgroundTaskToMessage(entry, taskId, messageId)
+      this.routeBackgroundTaskEventChunkToMessage(entry, messageId, chunk)
+      return
+    }
+
+    const pending = entry.pendingTaskEventChunksByTaskId ?? new Map<string, UIMessageChunk>()
+    entry.pendingTaskEventChunksByTaskId = pending
+    const previous = pending.get(taskId)
+    if (previous?.type === 'data-agent-task-event' && chunk.type === 'data-agent-task-event') {
+      pending.set(taskId, {
+        ...chunk,
+        data: mergeAgentSessionTaskEvent(previous.data as AgentTaskEventPartData, chunk.data as AgentTaskEventPartData)
+      })
+    } else {
+      pending.set(taskId, chunk)
+    }
+    while (pending.size > MAX_PENDING_TASK_EVENT_HANDOFFS) {
+      const oldestTaskId = pending.keys().next().value
+      if (oldestTaskId === undefined) break
+      pending.delete(oldestTaskId)
+    }
+  }
+
+  private routeBackgroundTaskEventChunkToMessage(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    chunk: UIMessageChunk
+  ): void {
+    const turn = this.currentTurn(entry)
+    const execution = entry.runtimeState.execution
+    const runtimeTerminalLatched = execution.kind !== 'idle' && execution.terminal !== undefined
+    // While the spawning turn is live the driver also emits this lifecycle edge through that turn's
+    // stream. Only turn-out edges need the detached accumulator, otherwise history would duplicate it.
+    if (turn?.assistantMessageId === messageId && this.isTurnLive(entry, turn) && !runtimeTerminalLatched) return
+    this.routeBackgroundFlowChunkToMessage(entry, messageId, chunk)
+  }
+
+  private isTaskEventOwnedByDifferentMessage(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionTurn,
+    chunk: UIMessageChunk
+  ): boolean {
+    if (chunk.type !== 'data-agent-task-event') return false
+    const data = chunk.data as AgentTaskEventPartData
+    const taskMessageId = entry.taskMessageIdsByTaskId?.get(data.taskId)
+    const toolCallId = entry.taskToolCallIdsByTaskId?.get(data.taskId) ?? data.toolUseId
+    const ownerMessageId = taskMessageId ?? (toolCallId ? entry.flowMessageIdsByToolCallId?.get(toolCallId) : undefined)
+    return ownerMessageId !== undefined && ownerMessageId !== turn.assistantMessageId
   }
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
@@ -2544,17 +3360,53 @@ export class AgentSessionRuntimeService extends BaseService {
    * Connection-scoped status is reset at every attach/detach boundary. Keep the mutation guarded by
    * the captured connection so a late old loop cannot clear its successor.
    */
-  private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
+  private async resetConnectionRuntimeState(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection
+  ): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
-    void this.finishBackgroundFlows(entry)
-    entry.flowMessageIdsByToolCallId?.clear()
+    await this.finishBackgroundFlows(entry)
+    if (!this.isCurrentEntry(entry)) return
+    const currentConnection = this.currentConnection(entry)
+    if (currentConnection && currentConnection !== connection) return
+    const pendingMessageIds = new Set(
+      [...(entry.pendingBackgroundFlowChunks ?? [])]
+        .filter(([, chunks]) => chunks.length > 0)
+        .map(([messageId]) => messageId)
+    )
+    const retainedTaskIds = new Set<string>()
+    for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
+      if (!pendingMessageIds.has(messageId)) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
+    }
+    for (const [taskId, messageId] of entry.taskMessageIdsByTaskId ?? []) {
+      if (pendingMessageIds.has(messageId)) retainedTaskIds.add(taskId)
+      else entry.taskMessageIdsByTaskId?.delete(taskId)
+    }
+    for (const taskId of entry.taskToolCallIdsByTaskId?.keys() ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.taskToolCallIdsByTaskId?.delete(taskId)
+    }
+    for (const taskId of entry.workflowSnapshotPersistedTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.workflowSnapshotPersistedTaskIds?.delete(taskId)
+    }
+    for (const taskId of entry.terminalWorkflowSnapshotPersistedTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
+    }
+    for (const taskId of entry.terminalTaskIds ?? []) {
+      if (!retainedTaskIds.has(taskId)) entry.terminalTaskIds?.delete(taskId)
+    }
+    for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
+      if (retainedTaskIds.has(taskId)) continue
+      this.flushPendingWorkflowCheckpoint(entry, taskId, checkpoint, true)
+      if ((checkpoint.failedAttempts ?? 0) === 0) entry.workflowCheckpoints?.delete(taskId)
+    }
+    entry.pendingTaskEventChunksByTaskId?.clear()
     entry.persistedFlowMessageIds?.clear()
-    entry.pendingBackgroundFlowChunks?.clear()
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
     }
     const cache = application.get('CacheService')
+    this.clearTaskEventsPublish(entry)
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }
@@ -2605,6 +3457,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {
     const execution = entry.runtimeState.execution
     const turn = this.currentTurn(entry)
+    if (turn && this.isTaskEventOwnedByDifferentMessage(entry, turn, chunk)) return true
     // Approval cards and content share the same handoff while a successor stream is opening.
     if (
       execution.kind === 'steer-transition' ||
@@ -2623,6 +3476,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
       turn.activeToolIds.add(chunk.toolCallId)
       ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, turn.assistantMessageId)
+      this.resolveBackgroundTasksForToolCall(entry, chunk.toolCallId, turn.assistantMessageId)
     } else if (
       (chunk.type === 'tool-output-available' ||
         chunk.type === 'tool-output-error' ||
@@ -3323,7 +4177,16 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {
+    entry.closing = true
     this.clearIdleTimer(entry)
+    this.clearTaskEventsPublish(entry)
+    for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
+      if (checkpoint.timer) {
+        this.writeWorkflowCheckpoint(entry, taskId, checkpoint)
+      } else if ((checkpoint.failedAttempts ?? 0) > 0) {
+        this.writeWorkflowCheckpoint(entry, taskId, checkpoint, true)
+      }
+    }
     for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
       const parts = accumulator.latest?.parts
       if (!parts) continue
@@ -3335,7 +4198,50 @@ export class AgentSessionRuntimeService extends BaseService {
           BACKGROUND_FLOW_HANDOFF_TTL_MS
         )
     }
-    const backgroundFlowFlush = this.finishBackgroundFlows(entry)
+    const backgroundClose = this.finishBackgroundFlows(entry).finally(() => {
+      // Closing is the last chance for streamed output no retry has landed yet, and a landed write
+      // replaces the row before the checkpoint clear below drops what it would have to re-merge.
+      const unpersistedParts: string[] = []
+      const heldParts: Promise<void>[] = []
+      for (const [messageId, pending] of entry.pendingMessagePartsWrites ?? []) {
+        if (pending.timer) clearTimeout(pending.timer)
+        pending.timer = undefined
+        if (!this.writeMessageParts(entry, messageId, pending)) {
+          unpersistedParts.push(messageId)
+          // The entry is going away, so the service keeps this output until the database takes it.
+          heldParts.push(
+            this.holdOrphanedMessagePartsWrite({
+              sessionId: entry.sessionId,
+              messageId,
+              parts: pending.parts,
+              events: this.messageWorkflowCheckpointEvents(entry, messageId)
+            })
+          )
+        }
+      }
+      if (unpersistedParts.length > 0) {
+        logger.warn('Holding unpersisted detached flow message parts after closing the session', {
+          sessionId: entry.sessionId,
+          messageIds: unpersistedParts
+        })
+      }
+      entry.pendingMessagePartsWrites?.clear()
+
+      const unpersisted: string[] = []
+      for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
+        if (checkpoint.timer) clearTimeout(checkpoint.timer)
+        if ((checkpoint.failedAttempts ?? 0) > 0) unpersisted.push(taskId)
+      }
+      if (unpersisted.length > 0) {
+        logger.error('Dropped unpersisted workflow statistics while closing the session', {
+          sessionId: entry.sessionId,
+          taskIds: unpersisted
+        })
+      }
+      entry.workflowCheckpoints?.clear()
+      // Shutdown awaits this close, so the held parts reach the disk before the process exits.
+      return Promise.all(heldParts)
+    })
     const currentTurn = this.currentTurn(entry)
     if (currentTurn) this.closeTurn(currentTurn)
     const deferredTurn =
@@ -3356,7 +4262,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.applyRuntimeStateEvent(entry, { type: 'reset' })
     this.inFlightTurnStarts.delete(entry.sessionId)
 
-    const closings: Promise<unknown>[] = [backgroundFlowFlush, this.closeRuntimeConnection(connection, entry.sessionId)]
+    const closings: Promise<unknown>[] = [backgroundClose, this.closeRuntimeConnection(connection, entry.sessionId)]
     if (connectionAttempt) closings.push(connectionAttempt)
     return Promise.allSettled(closings).then(() => undefined)
   }
@@ -3376,7 +4282,7 @@ export class AgentSessionRuntimeService extends BaseService {
     resetRuntimeState = true
   ): AgentRuntimeConnection | undefined {
     const connection = this.currentConnection(entry)
-    if (connection && resetRuntimeState) this.resetConnectionRuntimeState(entry, connection)
+    if (connection && resetRuntimeState) void this.resetConnectionRuntimeState(entry, connection)
     if (connection) this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
     entry.connectionLoop = undefined
     return connection

@@ -198,6 +198,9 @@ export async function buildEnvironment(
     // The stream adapter's background-work release waits for `session_state_changed: idle`
     // (streamAdapter.ts), which the CLI only emits when this flag is set.
     CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
+    // Makes the CLI flush its queued transcript writes before every result, which the stream adapter's
+    // terminal Agent reconciliation relies on to know a subagent transcript is complete.
+    CLAUDE_CODE_EAGER_FLUSH: '1',
     CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
     CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),

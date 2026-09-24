@@ -104,6 +104,7 @@ describe('AgentSessionMessages', () => {
         agentId="agent-1"
         sessionId="session-1"
         messages={[settledAssistant, { id: 'user-follow-up', role: 'user', parts: [] }, pendingAssistant] as any}
+        activeAgent={{ id: 'agent-1', type: 'claude-code' } as any}
         partsByMessageId={{
           'assistant-settled': [{ type: 'text', text: 'Main answer' }] as any
         }}
@@ -117,6 +118,29 @@ describe('AgentSessionMessages', () => {
           messageId: 'assistant-settled'
         })
       })
+    )
+  })
+
+  it('does not attach Claude-only background task UI to a pi session', () => {
+    const assistant = {
+      id: 'assistant-1',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Main answer' }]
+    }
+
+    render(
+      <AgentSessionMessages
+        agentId="agent-1"
+        sessionId="session-1"
+        messages={[assistant] as any}
+        activeAgent={{ id: 'agent-1', type: 'pi' } as any}
+        partsByMessageId={{ 'assistant-1': assistant.parts as any }}
+        isLoading={false}
+      />
+    )
+
+    expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ messageTail: undefined })
     )
   })
 })
