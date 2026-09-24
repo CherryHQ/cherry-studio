@@ -421,6 +421,7 @@ export type UarAgentCatalogItem = {
   model: string
   fallbackModels: Array<{ provider: string; model: string }>
   skillIds: string[]
+  bossAgent?: { id: string; name: string; modelId?: string }
   definition: Record<string, unknown>
 }
 export type UarFederatedAgent = {
@@ -452,6 +453,26 @@ export type UarCatalogSnapshot = {
     revision?: string
     drift?: string
   }
+}
+export const uarAgentRunTargetSchema = z
+  .object({
+    agentId: z.string().min(1).max(256),
+    bossModelId: z.string().min(1).max(512).optional()
+  })
+  .strict()
+export type UarAgentRunTargetInput = z.infer<typeof uarAgentRunTargetSchema>
+export type UarAgentRunTarget = {
+  bossAgentId: string
+  catalogAgentId: string
+  catalogRevision: string
+  created: boolean
+  effectiveModel: {
+    source: 'uar'
+    providerId: string
+    modelId: string
+    identity: string
+  }
+  presentation: UarPresentationSelection
 }
 export const uarAgentSaveSchema = z
   .object({

@@ -1,11 +1,14 @@
+import { useBlocker, useNavigate, useSearch } from '@tanstack/react-router'
 import { Download, FileJson, Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, Input, Textarea } from '@cherrystudio/ui'
+import { Badge, Button, ConfirmDialog, Input, Textarea } from '@cherrystudio/ui'
 import { SettingDescription, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
 import type { UarAgentCatalogItem, UarCatalogSnapshot } from '@shared/types/prometheusIntegration'
+
+import { UarAgentExecutionPanel } from './UarAgentExecutionPanel'
 
 function downloadJson(name: string, value: unknown) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }))
@@ -24,12 +27,16 @@ function cloneDefinition(agent: UarAgentCatalogItem): Record<string, unknown> {
 
 export function UarAgentsPanel() {
   const { t } = useTranslation()
+  const navigate = useNavigate({ from: '/settings/uar' })
+  const search = useSearch({ from: '/settings/uar' })
   const tr = (key: string, options?: Record<string, unknown>) =>
     t(`settings.prometheus.integration.uarAdmin.catalog.${key}`, options)
   const importRef = useRef<HTMLInputElement>(null)
+  const allowNavigationRef = useRef(false)
   const [snapshot, setSnapshot] = useState<UarCatalogSnapshot>()
-  const [selectedId, setSelectedId] = useState<string>()
+  const [selectedId, setSelectedId] = useState<string | undefined>(search.agentId)
   const [draft, setDraft] = useState('')
+  const [draftSkillIds, setDraftSkillIds] = useState<string[]>([])
   const [busy, setBusy] = useState<string>()
   const [error, setError] = useState<string>()
   const [status, setStatus] = useState<string>()
@@ -38,6 +45,7 @@ export function UarAgentsPanel() {
   const [federatedUrl, setFederatedUrl] = useState('')
   const [federatedDescription, setFederatedDescription] = useState('')
   const [federatedCapabilities, setFederatedCapabilities] = useState('')
+  const [pendingAgentId, setPendingAgentId] = useState<string>()
 
   const load = useCallback(async () => {
     setBusy('load')
@@ -47,7 +55,10 @@ export function UarAgentsPanel() {
       setSnapshot(next)
       if (selectedId) {
         const selected = next.agents.find((agent) => agent.id === selectedId)
-        if (selected) setDraft(JSON.stringify(selected.definition, null, 2))
+        if (selected) {
+          setDraft(JSON.stringify(selected.definition, null, 2))
+          setDraftSkillIds(selected.skillIds)
+        }
       }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError))
@@ -60,11 +71,24 @@ export function UarAgentsPanel() {
     void load()
   }, [load])
 
-  const selectAgent = (agent?: UarAgentCatalogItem) => {
+  const applyAgentSelection = (agent?: UarAgentCatalogItem) => {
     setSelectedId(agent?.id)
     setDraft(agent ? JSON.stringify(agent.definition, null, 2) : '')
+    setDraftSkillIds(agent?.skillIds ?? [])
     setError(undefined)
     setStatus(undefined)
+    allowNavigationRef.current = true
+    void navigate({ search: (previous) => ({ ...previous, agentId: agent?.id }), replace: true }).finally(() => {
+      allowNavigationRef.current = false
+    })
+  }
+
+  const selectAgent = (agent?: UarAgentCatalogItem) => {
+    if (isDirty && agent?.id !== selectedId) {
+      setPendingAgentId(agent?.id ?? '__new__')
+      return
+    }
+    applyAgentSelection(agent)
   }
 
   const saveAgent = async () => {
@@ -76,19 +100,34 @@ export function UarAgentsPanel() {
       const id = typeof definition.id === 'string' ? definition.id : ''
       if (!id) throw new Error(tr('idRequired'))
       const existing = snapshot?.agents.find((agent) => agent.id === selectedId)
-      const next = await ipcApi.request('prometheus.uar.catalog.save_agent', {
+      let next = await ipcApi.request('prometheus.uar.catalog.save_agent', {
         mode: existing ? 'replace' : 'create',
         id,
         ...(existing ? { expectedRevision: existing.revision } : {}),
         definition
       })
+      if (JSON.stringify([...(existing?.skillIds ?? [])].sort()) !== JSON.stringify([...draftSkillIds].sort())) {
+        next = await ipcApi.request('prometheus.uar.catalog.save_agent_skills', {
+          agentId: id,
+          skillIds: draftSkillIds
+        })
+      }
       setSnapshot(next)
       const saved = next.agents.find((agent) => agent.id === id)
       setSelectedId(id)
-      if (saved) setDraft(JSON.stringify(saved.definition, null, 2))
+      if (saved) {
+        setDraft(JSON.stringify(saved.definition, null, 2))
+        setDraftSkillIds(saved.skillIds)
+      }
+      allowNavigationRef.current = true
+      void navigate({ search: (previous) => ({ ...previous, agentId: id }), replace: true }).finally(() => {
+        allowNavigationRef.current = false
+      })
       setStatus(tr('saved'))
+      return true
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError))
+      return false
     } finally {
       setBusy(undefined)
     }
@@ -101,6 +140,11 @@ export function UarAgentsPanel() {
     definition.id = `${selected.id}-copy`
     setSelectedId(undefined)
     setDraft(JSON.stringify(definition, null, 2))
+    setDraftSkillIds(selected.skillIds)
+    allowNavigationRef.current = true
+    void navigate({ search: (previous) => ({ ...previous, agentId: undefined }), replace: true }).finally(() => {
+      allowNavigationRef.current = false
+    })
     setStatus(tr('duplicateReady'))
   }
 
@@ -125,6 +169,11 @@ export function UarAgentsPanel() {
       const definition = JSON.parse(await file.text()) as Record<string, unknown>
       setSelectedId(undefined)
       setDraft(JSON.stringify(definition, null, 2))
+      setDraftSkillIds([])
+      allowNavigationRef.current = true
+      void navigate({ search: (previous) => ({ ...previous, agentId: undefined }), replace: true }).finally(() => {
+        allowNavigationRef.current = false
+      })
       setStatus(tr('importReady'))
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : String(importError))
@@ -158,6 +207,16 @@ export function UarAgentsPanel() {
   }
 
   const selected = snapshot?.agents.find((agent) => agent.id === selectedId)
+  const isDirty = selected
+    ? draft !== JSON.stringify(selected.definition, null, 2) ||
+      JSON.stringify([...draftSkillIds].sort()) !== JSON.stringify([...selected.skillIds].sort())
+    : Boolean(draft.trim())
+  const blocker = useBlocker({
+    shouldBlockFn: () => !allowNavigationRef.current,
+    enableBeforeUnload: () => isDirty,
+    disabled: !isDirty,
+    withResolver: true
+  })
   return (
     <div className="space-y-5">
       <SettingGroup>
@@ -246,6 +305,18 @@ export function UarAgentsPanel() {
               disabled={Boolean(busy)}
               className="font-mono text-xs"
             />
+            {selected && snapshot && (
+              <UarAgentExecutionPanel
+                agent={selected}
+                catalog={snapshot}
+                draft={draft}
+                skillIds={draftSkillIds}
+                busy={Boolean(busy)}
+                onDraftChange={setDraft}
+                onSkillIdsChange={setDraftSkillIds}
+                onSave={saveAgent}
+              />
+            )}
             {selected && (
               <div className="break-all text-xs text-muted-foreground">
                 {tr('revision')}: {selected.revision} · {tr('origin')}: {selected.origin.kind}/{selected.origin.id}
@@ -318,6 +389,67 @@ export function UarAgentsPanel() {
           ))}
         </div>
       </SettingGroup>
+
+      <ConfirmDialog
+        open={blocker.status === 'blocked'}
+        onOpenChange={(open) => {
+          if (!open && blocker.status === 'blocked') blocker.reset()
+        }}
+        title={tr('dirtyTitle')}
+        description={tr('dirtyDescription')}
+        confirmText={tr('saveAndContinue')}
+        cancelText={tr('continueEditing')}
+        onConfirm={async () => {
+          if (blocker.status !== 'blocked') return
+          if (await saveAgent()) blocker.proceed()
+        }}
+        content={
+          <Button
+            variant="destructive"
+            onClick={() => {
+              if (blocker.status !== 'blocked') return
+              if (selected) {
+                setDraft(JSON.stringify(selected.definition, null, 2))
+                setDraftSkillIds(selected.skillIds)
+              } else {
+                setDraft('')
+                setDraftSkillIds([])
+              }
+              blocker.proceed()
+            }}>
+            {tr('discardAndContinue')}
+          </Button>
+        }
+      />
+      <ConfirmDialog
+        open={pendingAgentId !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setPendingAgentId(undefined)
+        }}
+        title={tr('dirtyTitle')}
+        description={tr('dirtyDescription')}
+        confirmText={tr('saveAndContinue')}
+        cancelText={tr('continueEditing')}
+        onConfirm={async () => {
+          const nextId = pendingAgentId
+          if (nextId === undefined || !(await saveAgent())) return
+          setPendingAgentId(undefined)
+          applyAgentSelection(nextId === '__new__' ? undefined : snapshot?.agents.find((agent) => agent.id === nextId))
+        }}
+        content={
+          <Button
+            variant="destructive"
+            onClick={() => {
+              const nextId = pendingAgentId
+              setPendingAgentId(undefined)
+              applyAgentSelection(
+                nextId === '__new__' ? undefined : snapshot?.agents.find((agent) => agent.id === nextId)
+              )
+            }}>
+            {tr('discardAndContinue')}
+          </Button>
+        }
+      />
     </div>
   )
 }

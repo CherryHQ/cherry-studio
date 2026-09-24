@@ -7,6 +7,7 @@ import {
   secretPatchSchema,
   uarA2uiComponentSaveSchema,
   uarAgentSaveSchema,
+  uarAgentRunTargetSchema,
   uarAgentSkillsSchema,
   uarArtifactSchemaSaveSchema,
   uarCompilerRequestSchema,
@@ -24,6 +25,7 @@ import {
 import {
   uarSettingsNamespaceSchema,
   type UarAdministrationSnapshot,
+  type UarAgentRunTarget,
   type UarCatalogSnapshot,
   type UarCompilerResult,
   type UarAuthorityDiagnosticResult,
@@ -126,6 +128,10 @@ export const prometheusRequestSchemas = {
   'prometheus.uar.catalog.save_agent': defineRoute({
     input: uarAgentSaveSchema,
     output: z.custom<UarCatalogSnapshot>()
+  }),
+  'prometheus.uar.catalog.prepare_run': defineRoute({
+    input: uarAgentRunTargetSchema,
+    output: z.custom<UarAgentRunTarget>()
   }),
   'prometheus.uar.catalog.delete_agent': defineRoute({
     input: z.object({ id: z.string().min(1).max(256) }).strict(),

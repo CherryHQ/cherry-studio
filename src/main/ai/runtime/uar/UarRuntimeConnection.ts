@@ -370,6 +370,18 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
     const desired = this.catalogCandidate(agent, catalogId, assignment, skillIds)
     let current = await this.fetchCatalogAgent(catalogId)
 
+    if (linked?.authority === 'catalog') {
+      if (!current) throw new Error(`UAR catalog agent "${catalogId}" is no longer available`)
+      const currentMetadata = this.catalogMetadata(current)
+      if (linked.catalogRevision !== currentMetadata.revision) {
+        this.saveCatalogLink(agent.id, {
+          ...linked,
+          catalogRevision: currentMetadata.revision
+        })
+      }
+      return current
+    }
+
     if (!current) {
       current = await this.createCatalogAgent(desired.artifact)
       this.saveCatalogLink(agent.id, {

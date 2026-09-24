@@ -45,7 +45,10 @@ export const UarCatalogLinkSchema = z.strictObject({
   schemaVersion: z.literal(1),
   agentId: z.string().min(1),
   sourceRevision: z.string().startsWith('sha256:'),
-  catalogRevision: z.string().startsWith('sha256:')
+  catalogRevision: z.string().startsWith('sha256:'),
+  /** Existing links are Boss-authored. Catalog authority is set only by the
+   * trusted UAR administration bridge when adopting a native UAR definition. */
+  authority: z.enum(['boss', 'catalog']).optional()
 })
 export type UarCatalogLink = z.infer<typeof UarCatalogLinkSchema>
 export const UarModelAssignmentSchema = z.discriminatedUnion('source', [

@@ -36,6 +36,7 @@ export {
   compileUarAgent,
   deleteUarAgent,
   readUarCatalog,
+  prepareUarAgentRun,
   refreshUarSkills,
   saveUarAgent,
   saveUarAgentSkills,

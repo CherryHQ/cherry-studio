@@ -1,14 +1,20 @@
 import * as z from 'zod'
 
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
+import { createAgent } from '@main/ai/agents/createAgent'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import type {
   UarAgentCatalogItem,
+  UarAgentRunTarget,
+  UarAgentRunTargetInput,
   UarAgentSave,
   UarCatalogSnapshot,
   UarCompilerRequest,
   UarCompilerResult,
   UarFederatedAgentSave
 } from '@shared/types/prometheusIntegration'
+import { uarPresentationSelectionSchema } from '@shared/types/prometheusIntegration'
 
 const rawArtifactSchema = z
   .object({
@@ -161,10 +167,24 @@ export async function readUarCatalog(): Promise<UarCatalogSnapshot> {
     })
   )
   const bindingsByAgent = new Map(bindings)
+  const bossAgents = agentService.listAgents({ limit: 500 }).agents
   return {
     schemaVersion: 1,
     generation,
-    agents: agents.map((agent) => ({ ...agent, skillIds: bindingsByAgent.get(agent.id) ?? [] })),
+    agents: agents.map((agent) => {
+      const linked = bossAgents.find(
+        (candidate) =>
+          (agent.origin.kind === 'the_boss' && candidate.id === agent.origin.id) ||
+          candidate.configuration?.uar_catalog_link?.agentId === agent.id
+      )
+      return {
+        ...agent,
+        skillIds: bindingsByAgent.get(agent.id) ?? [],
+        ...(linked
+          ? { bossAgent: { id: linked.id, name: linked.name, ...(linked.model ? { modelId: linked.model } : {}) } }
+          : {})
+      }
+    }),
     federatedAgents: parsedCatalog.federated_agents.map((agent) => ({
       id: agent.id,
       name: agent.name,
@@ -205,6 +225,112 @@ export async function saveUarAgent(input: UarAgentSave): Promise<UarCatalogSnaps
     body: JSON.stringify(input.definition)
   })
   return readUarCatalog()
+}
+
+function presentationSelection(definition: Record<string, unknown>) {
+  const extensions = definition.extensions
+  const runPolicy =
+    extensions && typeof extensions === 'object' && !Array.isArray(extensions)
+      ? (extensions as Record<string, unknown>)['uar.run_policy']
+      : undefined
+  const presentations =
+    runPolicy && typeof runPolicy === 'object' && !Array.isArray(runPolicy)
+      ? (runPolicy as Record<string, unknown>).presentations
+      : undefined
+  return (
+    uarPresentationSelectionSchema.safeParse(presentations).data ?? {
+      mode: 'inherit' as const,
+      ids: [],
+      denied_ids: []
+    }
+  )
+}
+
+function promptSystem(definition: Record<string, unknown>): string {
+  const prompt = definition.prompt
+  if (!prompt || typeof prompt !== 'object' || Array.isArray(prompt)) return 'You are a helpful, accurate assistant.'
+  const system = (prompt as Record<string, unknown>).system
+  return typeof system === 'string' && system.trim() ? system.trim() : 'You are a helpful, accurate assistant.'
+}
+
+/** Bind a registered catalog definition to a normal Boss Agent conversation.
+ * Native UAR definitions remain catalog-authoritative; Boss-authored definitions
+ * retain their existing conflict-aware synchronization contract. */
+export async function prepareUarAgentRun(input: UarAgentRunTargetInput): Promise<UarAgentRunTarget> {
+  const catalog = await readUarCatalog()
+  const selected = catalog.agents.find((agent) => agent.id === input.agentId)
+  if (!selected) throw new Error(`UAR catalog agent "${input.agentId}" is no longer available`)
+  if (!selected.revision.startsWith('sha256:')) {
+    throw new Error(`UAR catalog agent "${input.agentId}" has no executable revision`)
+  }
+
+  const assignment = {
+    source: 'uar' as const,
+    providerId: selected.provider,
+    modelId: selected.model
+  }
+  const configuration = { uar_model_assignment: assignment }
+  let bossAgent = selected.origin.kind === 'the_boss' ? agentService.getAgent(selected.origin.id) : undefined
+  bossAgent ??= agentService
+    .listAgents({ limit: 500 })
+    .agents.find((agent) => agent.configuration?.uar_catalog_link?.agentId === selected.id)
+
+  let created = false
+  if (bossAgent) {
+    if (bossAgent.type !== 'uar') {
+      throw new Error(`The linked Boss agent "${bossAgent.name}" does not use the UAR runtime`)
+    }
+    const rawBossModelId = input.bossModelId ?? bossAgent.model
+    if (!rawBossModelId) throw new Error(`Choose a Boss fallback model before running "${selected.title}"`)
+    const bossModelId = UniqueModelIdSchema.parse(rawBossModelId)
+    bossAgent =
+      agentService.updateAgent(bossAgent.id, {
+        name: selected.title,
+        description: selected.description,
+        instructions: promptSystem(selected.definition),
+        model: bossModelId,
+        configuration
+      }) ?? undefined
+    if (!bossAgent) throw new Error(`The linked Boss agent for "${selected.id}" is no longer available`)
+  } else {
+    if (!input.bossModelId) throw new Error(`Choose a Boss fallback model before running "${selected.title}"`)
+    const bossModelId = UniqueModelIdSchema.parse(input.bossModelId)
+    bossAgent = await createAgent({
+      type: 'uar',
+      name: selected.title,
+      description: selected.description,
+      instructions: promptSystem(selected.definition),
+      model: bossModelId,
+      configuration
+    })
+    created = true
+  }
+
+  if (selected.origin.kind !== 'the_boss' || selected.origin.id !== bossAgent.id) {
+    bossAgent =
+      agentService.updateUarCatalogLink(bossAgent.id, {
+        schemaVersion: 1,
+        agentId: selected.id,
+        sourceRevision: selected.revision,
+        catalogRevision: selected.revision,
+        authority: 'catalog'
+      }) ?? undefined
+    if (!bossAgent) throw new Error(`The Boss agent for "${selected.id}" could not be linked to its catalog revision`)
+  }
+
+  return {
+    bossAgentId: bossAgent.id,
+    catalogAgentId: selected.id,
+    catalogRevision: selected.revision,
+    created,
+    effectiveModel: {
+      source: 'uar',
+      providerId: selected.provider,
+      modelId: selected.model,
+      identity: `${selected.provider}/${selected.model}`
+    },
+    presentation: presentationSelection(selected.definition)
+  }
 }
 
 export async function deleteUarAgent(id: string): Promise<UarCatalogSnapshot> {
