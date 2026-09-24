@@ -235,6 +235,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'sonar-deep-research' },
   // stepfun
   { pattern: 'step-3' },
+  { pattern: 'step-5' },
   { pattern: 'step-r1-v-mini' },
   // tencent
   { pattern: '^hunyuan-a13b', toggle: true },
@@ -248,6 +249,8 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^muse-spark' },
   { pattern: '^interfaze' },
   { pattern: '^laguna-s' },
+  { pattern: '^fugu' },
+  { pattern: '^arrow-2' },
   // xai
   { pattern: '^grok-4\\.3(?!.*non-reasoning)', effort: ['none', 'low', 'medium', 'high'] },
   { pattern: '^grok-4[.-][67](?!.*non-reasoning)', effort: ['low', 'medium', 'high', 'xhigh'] },

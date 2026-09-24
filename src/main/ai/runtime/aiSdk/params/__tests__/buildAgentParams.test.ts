@@ -56,8 +56,10 @@ const {
   applyResponsesInstructions,
   buildAgentParams,
   composeStopWhen,
+  extractCallOverridesBodyParams,
   resolveToolCallLimit,
-  resolveTools
+  resolveTools,
+  stripRequestBodyFromCallOverrides
 } = await import('../buildAgentParams')
 
 beforeEach(() => {
@@ -2134,5 +2136,149 @@ describe('assistant browser tool selection', () => {
       ...Object.keys(temporary.tools ?? {}),
       ...temporary.deferredEntries.map((entry) => entry.name)
     ]).not.toContain('browser_open')
+  })
+})
+
+describe('call override request-body routing', () => {
+  const SELF_HOSTED_KEYS = new Set(['chat_template_kwargs'])
+
+  it('extracts wire-declared body keys and preserves sibling fields', () => {
+    const body = extractCallOverridesBodyParams(
+      {
+        providerOptions: {
+          'openai-compatible': {
+            'chat_template_kwargs.enable_thinking': false,
+            chat_template_kwargs: { foo: 'bar' }
+          }
+        }
+      },
+      'openai-compatible',
+      SELF_HOSTED_KEYS
+    )
+    expect(body).toEqual({ chat_template_kwargs: { enable_thinking: false, foo: 'bar' } })
+  })
+
+  it('leaves provider-option wires such as NVIDIA NIM in providerOptions', () => {
+    const callOverrides = {
+      providerOptions: { nvidia: { 'chat_template_kwargs.enable_thinking': false, reasoning_effort: 'high' } }
+    } as CallOverrides
+    expect(extractCallOverridesBodyParams(callOverrides, 'nvidia', new Set())).toEqual({})
+    expect(stripRequestBodyFromCallOverrides(callOverrides, {}, 'nvidia', new Set())).toBe(callOverrides)
+  })
+
+  it('extracts catalog-declared body targets beyond the template prefixes', () => {
+    const body = extractCallOverridesBodyParams(
+      { providerOptions: { poe: { 'extra_body.thinking_budget': 4096 } } },
+      'poe',
+      new Set(['extra_body'])
+    )
+    expect(body).toEqual({ extra_body: { thinking_budget: 4096 } })
+  })
+
+  it('strips only the keys extraction moved to the body', () => {
+    const callOverrides = {
+      providerOptions: {
+        'openai-compatible': { 'chat_template_kwargs.enable_thinking': false, reasoningEffort: 'high' }
+      }
+    } as CallOverrides
+    const body = extractCallOverridesBodyParams(callOverrides, 'openai-compatible', SELF_HOSTED_KEYS)
+    const stripped = stripRequestBodyFromCallOverrides(callOverrides, body, 'openai-compatible', SELF_HOSTED_KEYS)
+    expect(stripped?.providerOptions?.['openai-compatible']).toEqual({ reasoningEffort: 'high' })
+  })
+
+  it('keeps extraction and stripping in agreement across every declared body key', () => {
+    const keys = new Set(['chat_template_kwargs', 'extra_body'])
+    const callOverrides = {
+      providerOptions: {
+        'openai-compatible': {
+          'chat_template_kwargs.enable_thinking': false,
+          chat_template_kwargs: { foo: 'bar' },
+          'extra_body.thinking_budget': 4096,
+          extra_body: { other: 1 },
+          reasoningEffort: 'high'
+        }
+      }
+    } as CallOverrides
+    const body = extractCallOverridesBodyParams(callOverrides, 'openai-compatible', keys)
+    expect(body).toEqual({
+      chat_template_kwargs: { enable_thinking: false, foo: 'bar' },
+      extra_body: { thinking_budget: 4096, other: 1 }
+    })
+    const stripped = stripRequestBodyFromCallOverrides(callOverrides, body, 'openai-compatible', keys)
+    expect(stripped?.providerOptions?.['openai-compatible']).toEqual({ reasoningEffort: 'high' })
+  })
+
+  it('expands multi-segment dotted keys to nested objects', () => {
+    const body = extractCallOverridesBodyParams(
+      { providerOptions: { 'openai-compatible': { 'extra_body.a.b': 1 } } },
+      'openai-compatible',
+      new Set(['extra_body'])
+    )
+    expect(body).toEqual({ extra_body: { a: { b: 1 } } })
+  })
+
+  it('keeps call-level body overrides ahead of assistant custom parameters in the final body', async () => {
+    let sentBody: Record<string, unknown> | undefined
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      sentBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return new Response('{}')
+    })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: { fetch: innerFetch } },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'custom-relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://relay.example/v1',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'custom-relay::qwen3',
+      providerId: 'custom-relay',
+      apiModelId: 'qwen3',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        customParameters: [
+          { name: 'chat_template_kwargs', type: 'json' as const, value: JSON.stringify({ enable_thinking: true }) }
+        ]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        reasoningEffort: 'auto',
+        callOverrides: { providerOptions: { 'custom-relay': { chat_template_kwargs: { enable_thinking: false } } } }
+      },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.sdkConfig.providerOptionsKey).toBe('custom-relay')
+    // Body-routed custom keys must not also ride providerOptions: a Chat adapter
+    // would echo them into the SDK body, where SDK fields win and the stale
+    // custom value would overwrite the call-level override.
+    expect(result.options.providerOptions?.['custom-relay']?.chat_template_kwargs).toBeUndefined()
+
+    // Simulate a Chat adapter echoing providerOptions into its request body, then
+    // run the injected fetch wrapper over it: the call override still wins.
+    const passthrough = result.options.providerOptions?.['custom-relay'] ?? {}
+    await (result.sdkConfig.providerSettings.fetch as typeof globalThis.fetch)(
+      'https://relay.example/v1/chat/completions',
+      { method: 'POST', body: JSON.stringify({ model: 'qwen3', ...passthrough }) }
+    )
+    expect(sentBody).toMatchObject({ chat_template_kwargs: { enable_thinking: false } })
   })
 })

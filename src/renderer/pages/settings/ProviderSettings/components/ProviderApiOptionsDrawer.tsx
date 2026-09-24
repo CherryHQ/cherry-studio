@@ -30,6 +30,11 @@ import {
 } from '@shared/data/types/provider'
 import { isAnthropicSupportedProvider, resolveEndpointDialect } from '@shared/utils/provider'
 
+import {
+  getLastWrittenEndpointConfigs,
+  serializeEndpointConfigsWrite,
+  setLastWrittenEndpointConfigs
+} from '../hooks/providerSetting/endpointConfigsWriteCoordinator'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 import { getProviderApiOptionsVisibility } from '../utils/providerApiOptions'
@@ -85,7 +90,7 @@ function OptionTitle({ id, label, help }: { id: string; label: string; help: str
 
 export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: ProviderApiOptionsDrawerProps) {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, updateProvider, refetch } = useProvider(providerId)
 
   const endpointType = provider?.defaultChatEndpoint ?? undefined
   const dialect = provider
@@ -166,18 +171,31 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       if (!provider || !endpointType) {
         return
       }
-      const endpointConfig = provider.endpointConfigs?.[endpointType] ?? {}
-      updateProvider({
-        endpointConfigs: {
-          ...provider.endpointConfigs,
+      const providerIdForWrite = provider.id
+      const staleConfigs = provider.endpointConfigs
+      void serializeEndpointConfigsWrite(providerIdForWrite, async () => {
+        let baseConfigs = staleConfigs
+        try {
+          const fresh = (await refetch()) as { endpointConfigs?: typeof baseConfigs } | undefined
+          // The coordinated snapshot is newer than a stale truthy refetch
+          // that hasn't observed the last committed write yet.
+          baseConfigs = getLastWrittenEndpointConfigs(providerIdForWrite) ?? fresh?.endpointConfigs ?? staleConfigs
+        } catch {
+          baseConfigs = getLastWrittenEndpointConfigs(providerIdForWrite) ?? staleConfigs
+        }
+        const endpointConfig = baseConfigs?.[endpointType] ?? {}
+        const merged = {
+          ...baseConfigs,
           [endpointType]: {
             ...endpointConfig,
             dialect: { ...endpointConfig.dialect, [key]: checked }
           }
         }
+        await updateProvider({ endpointConfigs: merged })
+        setLastWrittenEndpointConfigs(providerIdForWrite, merged)
       }).catch(handleSaveError)
     },
-    [endpointType, handleSaveError, provider, updateProvider]
+    [endpointType, handleSaveError, provider, refetch, updateProvider]
   )
 
   const updateCacheSettings = useCallback(

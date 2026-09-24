@@ -4,6 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
+import {
+  clearLastWrittenEndpointConfigs,
+  getLastWrittenEndpointConfigs,
+  setLastWrittenEndpointConfigs
+} from '../providerSetting/endpointConfigsWriteCoordinator'
 import { useProviderDeepLinkImport } from '../useProviderDeepLinkImport'
 
 const createProviderMock = vi.fn()
@@ -11,10 +16,14 @@ const updateProviderByIdMock = vi.fn()
 const addApiKeyTriggerMock = vi.fn()
 const navigateMock = vi.fn()
 const popupShowMock = vi.fn()
+const refetchProvidersMock = vi.fn()
+let providersFixture: Array<{ id: string; endpointConfigs?: Record<string, unknown> }> = []
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({
-    createProvider: createProviderMock
+    createProvider: createProviderMock,
+    providers: providersFixture,
+    refetch: refetchProvidersMock
   }),
   useProviderActions: () => ({
     updateProviderById: updateProviderByIdMock
@@ -40,6 +49,11 @@ vi.mock('../../UrlSchemaInfoPopup', () => ({
 describe('useProviderDeepLinkImport', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    providersFixture = []
+    refetchProvidersMock.mockResolvedValue(undefined)
+    clearLastWrittenEndpointConfigs('openai')
+    clearLastWrittenEndpointConfigs('anthropic')
+    clearLastWrittenEndpointConfigs('custom-vllm')
     createProviderMock.mockResolvedValue({ id: 'openai' })
     updateProviderByIdMock.mockResolvedValue(undefined)
     addApiKeyTriggerMock.mockResolvedValue(undefined)
@@ -213,5 +227,163 @@ describe('useProviderDeepLinkImport', () => {
     expect(addApiKeyTriggerMock).not.toHaveBeenCalled()
     expect(onSelectProvider).not.toHaveBeenCalled()
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider' })
+  })
+
+  it('merges the imported host onto persisted endpoint configs for an existing provider', async () => {
+    const onSelectProvider = vi.fn()
+    const CHAT = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const RESPONSES = ENDPOINT_TYPE.OPENAI_RESPONSES
+    providersFixture = [
+      {
+        id: 'custom-vllm',
+        endpointConfigs: {
+          [CHAT]: { baseUrl: 'https://old-host/v1', reasoningFormat: { type: 'self-hosted' } },
+          [RESPONSES]: { baseUrl: 'https://old-host/v1', reasoningFormat: { type: 'openai-responses' } }
+        }
+      }
+    ]
+    refetchProvidersMock.mockResolvedValue(providersFixture)
+
+    popupShowMock.mockResolvedValue({
+      updatedProvider: {
+        id: 'custom-vllm',
+        name: 'Custom vLLM',
+        type: 'openai',
+        apiKey: 'sk-custom',
+        apiHost: 'https://new-host/v1'
+      },
+      isNew: false,
+      displayName: 'Custom vLLM'
+    })
+
+    renderHook(() =>
+      useProviderDeepLinkImport(
+        JSON.stringify({
+          id: 'custom-vllm',
+          apiKey: 'sk-custom',
+          baseUrl: 'https://new-host/v1',
+          type: 'openai',
+          name: 'Custom vLLM'
+        }),
+        onSelectProvider
+      )
+    )
+
+    const expectedEndpointConfigs = {
+      [CHAT]: { baseUrl: 'https://new-host/v1', reasoningFormat: { type: 'self-hosted' } },
+      [RESPONSES]: { baseUrl: 'https://old-host/v1', reasoningFormat: { type: 'openai-responses' } }
+    }
+
+    await waitFor(() => expect(updateProviderByIdMock).toHaveBeenCalledTimes(1))
+
+    expect(updateProviderByIdMock).toHaveBeenCalledWith('custom-vllm', {
+      name: 'Custom vLLM',
+      defaultChatEndpoint: CHAT,
+      endpointConfigs: expectedEndpointConfigs
+    })
+    expect(getLastWrittenEndpointConfigs('custom-vllm')).toEqual(expectedEndpointConfigs)
+  })
+
+  it('builds on the shared snapshot when refetch misses an in-flight drawer save', async () => {
+    const onSelectProvider = vi.fn()
+    const CHAT = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    providersFixture = [
+      {
+        id: 'custom-vllm',
+        endpointConfigs: { [CHAT]: { baseUrl: 'https://old-host/v1' } }
+      }
+    ]
+    // The refetch misses the in-flight drawer result, forcing the shared-snapshot fallback.
+    refetchProvidersMock.mockResolvedValue(undefined)
+    setLastWrittenEndpointConfigs('custom-vllm', {
+      [CHAT]: { baseUrl: 'https://old-host/v1', reasoningFormat: { type: 'self-hosted' } }
+    } as never)
+
+    popupShowMock.mockResolvedValue({
+      updatedProvider: {
+        id: 'custom-vllm',
+        name: 'Custom vLLM',
+        type: 'openai',
+        apiKey: 'sk-custom',
+        apiHost: 'https://new-host/v1'
+      },
+      isNew: false,
+      displayName: 'Custom vLLM'
+    })
+
+    renderHook(() =>
+      useProviderDeepLinkImport(
+        JSON.stringify({
+          id: 'custom-vllm',
+          apiKey: 'sk-custom',
+          baseUrl: 'https://new-host/v1',
+          type: 'openai',
+          name: 'Custom vLLM'
+        }),
+        onSelectProvider
+      )
+    )
+
+    await waitFor(() => expect(updateProviderByIdMock).toHaveBeenCalledTimes(1))
+
+    // The refetch misses the in-flight drawer write, so the shared snapshot wins.
+    expect(updateProviderByIdMock).toHaveBeenCalledWith('custom-vllm', {
+      name: 'Custom vLLM',
+      defaultChatEndpoint: CHAT,
+      endpointConfigs: {
+        [CHAT]: { baseUrl: 'https://new-host/v1', reasoningFormat: { type: 'self-hosted' } }
+      }
+    })
+  })
+
+  it('prefers the shared snapshot over a stale truthy refetch', async () => {
+    const onSelectProvider = vi.fn()
+    const CHAT = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    providersFixture = [
+      {
+        id: 'custom-vllm',
+        endpointConfigs: { [CHAT]: { baseUrl: 'https://old-host/v1' } }
+      }
+    ]
+    // The refetch resolves but hasn't observed the coordinated write yet.
+    refetchProvidersMock.mockResolvedValue(providersFixture)
+    setLastWrittenEndpointConfigs('custom-vllm', {
+      [CHAT]: { baseUrl: 'https://old-host/v1', reasoningFormat: { type: 'self-hosted' } }
+    } as never)
+
+    popupShowMock.mockResolvedValue({
+      updatedProvider: {
+        id: 'custom-vllm',
+        name: 'Custom vLLM',
+        type: 'openai',
+        apiKey: 'sk-custom',
+        apiHost: 'https://new-host/v1'
+      },
+      isNew: false,
+      displayName: 'Custom vLLM'
+    })
+
+    renderHook(() =>
+      useProviderDeepLinkImport(
+        JSON.stringify({
+          id: 'custom-vllm',
+          apiKey: 'sk-custom',
+          baseUrl: 'https://new-host/v1',
+          type: 'openai',
+          name: 'Custom vLLM'
+        }),
+        onSelectProvider
+      )
+    )
+
+    await waitFor(() => expect(updateProviderByIdMock).toHaveBeenCalledTimes(1))
+
+    expect(updateProviderByIdMock).toHaveBeenCalledWith('custom-vllm', {
+      name: 'Custom vLLM',
+      defaultChatEndpoint: CHAT,
+      endpointConfigs: {
+        [CHAT]: { baseUrl: 'https://new-host/v1', reasoningFormat: { type: 'self-hosted' } }
+      }
+    })
   })
 })

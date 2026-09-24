@@ -5,6 +5,7 @@ import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
+import { clearLastWrittenEndpointConfigs } from '../endpointConfigsWriteCoordinator'
 import { useProviderEndpointActions } from '../useProviderEndpointActions'
 
 const patchProviderMock = vi.fn().mockResolvedValue(undefined)
@@ -42,6 +43,9 @@ describe('useProviderEndpointActions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
+    // The write coordinator is module-global: reset it so overlapping-save
+    // coverage in one test cannot leak a base snapshot into the next.
+    clearLastWrittenEndpointConfigs(provider.id)
   })
 
   afterEach(() => {
@@ -275,5 +279,33 @@ describe('useProviderEndpointActions', () => {
     })
 
     expect(toast.error).toHaveBeenCalledWith('Unsupported API version')
+  })
+
+  it('surfaces queued host-save failures instead of resolving true', async () => {
+    patchProviderMock.mockRejectedValueOnce(new Error('network down'))
+
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://proxy.example.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://api.openai.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    let saved: boolean | undefined
+    await act(async () => {
+      saved = await result.current.commitApiHost()
+      await flushEndpointAction()
+    })
+
+    expect(saved).toBe(false)
+    expect(toast.error).toHaveBeenCalledWith('settings.provider.save_failed: network down')
   })
 })

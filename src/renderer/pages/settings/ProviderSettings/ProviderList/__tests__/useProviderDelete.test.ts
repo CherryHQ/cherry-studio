@@ -1,6 +1,11 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  clearLastWrittenEndpointConfigs,
+  getLastWrittenEndpointConfigs,
+  setLastWrittenEndpointConfigs
+} from '../../hooks/providerSetting/endpointConfigsWriteCoordinator'
 import { useProviderDelete } from '../useProviderDelete'
 
 const useProviderActionsMock = vi.fn()
@@ -19,6 +24,7 @@ describe('useProviderDelete', () => {
     useProviderActionsMock.mockReturnValue({
       deleteProviderById: deleteProviderByIdMock
     })
+    clearLastWrittenEndpointConfigs(providerId)
   })
 
   it('calls deleteProviderById (the logo lives on the row and is deleted with it)', async () => {
@@ -29,5 +35,18 @@ describe('useProviderDelete', () => {
     })
 
     expect(deleteProviderByIdMock).toHaveBeenCalledWith('openai')
+  })
+
+  it('clears the coordinated endpoint snapshot so a recreated provider starts clean', async () => {
+    setLastWrittenEndpointConfigs(providerId, {
+      'openai-chat-completions': { baseUrl: 'https://old-host/v1' }
+    })
+    const { result } = renderHook(() => useProviderDelete())
+
+    await act(async () => {
+      await result.current.deleteProvider(providerId)
+    })
+
+    expect(getLastWrittenEndpointConfigs(providerId)).toBeUndefined()
   })
 })

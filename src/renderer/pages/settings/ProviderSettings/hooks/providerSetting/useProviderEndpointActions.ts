@@ -1,4 +1,4 @@
-import { debounce, trim } from 'es-toolkit/compat'
+import { debounce, isEqual, trim } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,10 +6,17 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
 import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
+import type { UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isVertexProvider } from '@shared/utils/provider'
 
+import {
+  clearLastWrittenEndpointConfigs,
+  getLastWrittenEndpointConfigs,
+  serializeEndpointConfigsWrite,
+  setLastWrittenEndpointConfigs
+} from './endpointConfigsWriteCoordinator'
 import type { PatchProvider } from './types'
 
 const logger = loggerService.withContext('ProviderSettings:EndpointActions')
@@ -67,28 +74,65 @@ export function useProviderEndpointActions({
 }: UseProviderEndpointActionsParams) {
   const { t } = useTranslation()
   const lastPersistedApiHostRef = useRef(trim(providerApiHost))
+  const providerRef = useRef(provider)
+  // Latest endpointConfigs this hook persisted. Whole-snapshot writers build on
+  // it because the provider prop may not have re-rendered yet when saves overlap.
+  const lastSentEndpointConfigsRef = useRef<NonNullable<UpdateProviderDto['endpointConfigs']> | null>(null)
+  const providerIdentityRef = useRef(provider?.id)
 
   useEffect(() => {
     lastPersistedApiHostRef.current = trim(providerApiHost)
   }, [providerApiHost])
 
+  useEffect(() => {
+    providerRef.current = provider
+    if (provider?.id !== providerIdentityRef.current) {
+      providerIdentityRef.current = provider?.id
+      lastSentEndpointConfigsRef.current = null
+      return
+    }
+    if (
+      lastSentEndpointConfigsRef.current &&
+      provider &&
+      !isEqual(provider.endpointConfigs, lastSentEndpointConfigsRef.current)
+    ) {
+      // Configs changed out from under us (our own echo would equal lastSent) —
+      // adopt them so the next snapshot doesn't resurrect stale keys. A shared
+      // snapshot from another coordinated writer goes stale the same way.
+      lastSentEndpointConfigsRef.current = null
+      if (provider.id) clearLastWrittenEndpointConfigs(provider.id)
+    }
+  }, [provider])
+
+  // Freshest endpointConfigs known to any coordinated writer (this hook or the
+  // request-configuration drawer), so overlapping saves build on each other's
+  // result instead of on a stale prop that hasn't re-rendered with the echo.
+  const getBaseEndpointConfigs = useCallback(() => {
+    const currentProvider = providerRef.current ?? provider
+    const shared = currentProvider?.id ? getLastWrittenEndpointConfigs(currentProvider.id) : undefined
+    return shared ?? lastSentEndpointConfigsRef.current ?? currentProvider?.endpointConfigs
+  }, [provider])
+
   const buildNextApiEndpointConfigs = useCallback(
     (baseUrl: string) => {
-      if (!provider) {
+      const currentProvider = providerRef.current
+      if (!currentProvider) {
         return undefined
       }
 
+      const baseConfigs = getBaseEndpointConfigs()
       return {
-        ...provider.endpointConfigs,
-        [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], baseUrl }
+        ...baseConfigs,
+        [primaryEndpoint]: { ...baseConfigs?.[primaryEndpoint], baseUrl }
       }
     },
-    [primaryEndpoint, provider]
+    [getBaseEndpointConfigs, primaryEndpoint]
   )
 
   const persistApiHostDraft = useCallback(
     async (nextApiHost: string) => {
-      if (!provider) {
+      const currentProvider = providerRef.current
+      if (!currentProvider) {
         return false
       }
 
@@ -97,20 +141,26 @@ export function useProviderEndpointActions({
         return false
       }
 
-      if (!isVertexProvider(provider) && !trimmedApiHost) {
+      if (!isVertexProvider(currentProvider) && !trimmedApiHost) {
         return false
       }
 
-      const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
-      if (!nextEndpointConfigs) {
-        return false
-      }
+      // Serialize with the drawer's save (and other hook instances) so this
+      // whole-snapshot write builds on their completed result, not a stale read.
+      return serializeEndpointConfigsWrite(currentProvider.id, async () => {
+        const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
+        if (!nextEndpointConfigs) {
+          return false
+        }
 
-      await patchProvider({ endpointConfigs: nextEndpointConfigs })
-      lastPersistedApiHostRef.current = trimmedApiHost
-      return true
+        await patchProvider({ endpointConfigs: nextEndpointConfigs })
+        lastSentEndpointConfigsRef.current = nextEndpointConfigs
+        setLastWrittenEndpointConfigs(currentProvider.id, nextEndpointConfigs)
+        lastPersistedApiHostRef.current = trimmedApiHost
+        return true
+      })
     },
-    [buildNextApiEndpointConfigs, patchProvider, provider]
+    [buildNextApiEndpointConfigs, patchProvider]
   )
 
   const debouncedPersistApiHost = useMemo(
@@ -168,21 +218,29 @@ export function useProviderEndpointActions({
           return false
         }
 
-        const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
-        if (!nextEndpointConfigs) {
-          return false
-        }
+        // Serialize with the drawer's save: it holds a snapshot that may predate
+        // this host value, so writing first would let it clobber the host. Await
+        // inside the try so a queued write failure reaches the catch below.
+        const saved = await serializeEndpointConfigsWrite(provider.id, async () => {
+          const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
+          if (!nextEndpointConfigs) {
+            return false
+          }
 
-        if (trimmedApiHost !== trim(apiHost)) {
-          setApiHost(trimmedApiHost)
-        }
+          if (trimmedApiHost !== trim(apiHost)) {
+            setApiHost(trimmedApiHost)
+          }
 
-        if (trimmedApiHost !== lastPersistedApiHostRef.current) {
-          await patchProvider({ endpointConfigs: nextEndpointConfigs })
-          lastPersistedApiHostRef.current = trimmedApiHost
-        }
+          if (trimmedApiHost !== lastPersistedApiHostRef.current) {
+            await patchProvider({ endpointConfigs: nextEndpointConfigs })
+            lastSentEndpointConfigsRef.current = nextEndpointConfigs
+            setLastWrittenEndpointConfigs(provider.id, nextEndpointConfigs)
+            lastPersistedApiHostRef.current = trimmedApiHost
+          }
 
-        return true
+          return true
+        })
+        return saved
       } catch (error) {
         logger.error('Failed to commit provider API host', { providerId: provider?.id, error })
         toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
@@ -210,31 +268,42 @@ export function useProviderEndpointActions({
       const rawHost = explicitNext !== undefined ? explicitNext : anthropicApiHost
       const trimmedHost = trim(rawHost)
       try {
-        if (trimmedHost) {
-          const nextEndpointConfigs = {
-            ...provider.endpointConfigs,
-            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
-              ...provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-              baseUrl: trimmedHost
+        // Serialize with the drawer's save so this whole-snapshot write doesn't
+        // drop its values before re-render. Await inside the try so a queued
+        // write failure reaches the catch below.
+        const saved = await serializeEndpointConfigsWrite(provider.id, async () => {
+          const baseConfigs = getBaseEndpointConfigs()
+          if (trimmedHost) {
+            const nextEndpointConfigs = {
+              ...baseConfigs,
+              [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+                ...baseConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+                baseUrl: trimmedHost
+              }
             }
+            await patchProvider({ endpointConfigs: nextEndpointConfigs })
+            lastSentEndpointConfigsRef.current = nextEndpointConfigs
+            setLastWrittenEndpointConfigs(provider.id, nextEndpointConfigs)
+            setAnthropicApiHost(trimmedHost)
+            return true
           }
-          await patchProvider({ endpointConfigs: nextEndpointConfigs })
-          setAnthropicApiHost(trimmedHost)
-          return true
-        }
 
-        const nextConfigs = { ...provider.endpointConfigs }
-        delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-        await patchProvider({ endpointConfigs: nextConfigs })
-        setAnthropicApiHost('')
-        return true
+          const nextConfigs = { ...baseConfigs }
+          delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+          await patchProvider({ endpointConfigs: nextConfigs })
+          lastSentEndpointConfigsRef.current = nextConfigs
+          setLastWrittenEndpointConfigs(provider.id, nextConfigs)
+          setAnthropicApiHost('')
+          return true
+        })
+        return saved
       } catch (error) {
         logger.error('Failed to commit Anthropic API host', { providerId: provider?.id, error })
         toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
         return false
       }
     },
-    [anthropicApiHost, patchProvider, provider, setAnthropicApiHost, t]
+    [anthropicApiHost, getBaseEndpointConfigs, patchProvider, provider, setAnthropicApiHost, t]
   )
 
   const commitApiVersion = useCallback(async (): Promise<boolean> => {
@@ -258,29 +327,39 @@ export function useProviderEndpointActions({
   }, [apiVersion, patchProvider, provider, t])
 
   const resetApiHost = useCallback(async (): Promise<boolean> => {
-    if (!provider) {
+    const currentProvider = providerRef.current
+    if (!currentProvider) {
       return false
     }
 
-    const nextBaseUrl = defaultApiHost
-    const nextEndpointConfigs = {
-      ...provider.endpointConfigs,
-      [primaryEndpoint]: {
-        ...provider.endpointConfigs?.[primaryEndpoint],
+    // Coordinate with the drawer's save to avoid overwriting its snapshot.
+    return serializeEndpointConfigsWrite(currentProvider.id, async () => {
+      const baseConfigs = getBaseEndpointConfigs()
+      const nextBaseUrl = defaultApiHost
+      const nextEndpoint: Record<string, unknown> = {
+        ...baseConfigs?.[primaryEndpoint],
         baseUrl: nextBaseUrl
       }
-    }
 
-    setApiHost(nextBaseUrl)
-    try {
-      await patchProvider({ endpointConfigs: nextEndpointConfigs })
-      return true
-    } catch (error) {
-      logger.error('Failed to reset provider API host', { providerId: provider.id, error })
-      toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
-      return false
-    }
-  }, [defaultApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t])
+      const nextEndpointConfigs = {
+        ...baseConfigs,
+        [primaryEndpoint]: nextEndpoint
+      }
+
+      setApiHost(nextBaseUrl)
+      try {
+        await patchProvider({ endpointConfigs: nextEndpointConfigs })
+        lastSentEndpointConfigsRef.current = nextEndpointConfigs
+        setLastWrittenEndpointConfigs(currentProvider.id, nextEndpointConfigs)
+        lastPersistedApiHostRef.current = nextBaseUrl
+        return true
+      } catch (error) {
+        logger.error('Failed to reset provider API host', { providerId: currentProvider.id, error })
+        toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        return false
+      }
+    })
+  }, [defaultApiHost, getBaseEndpointConfigs, patchProvider, primaryEndpoint, setApiHost, t])
 
   return {
     commitApiHost,

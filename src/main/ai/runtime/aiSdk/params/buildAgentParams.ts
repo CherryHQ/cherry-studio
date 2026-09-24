@@ -1,5 +1,6 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+import { merge } from 'es-toolkit/compat'
 
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
@@ -64,7 +65,13 @@ import {
   resolveServiceTierWireValue
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
-import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
+import {
+  collectRequestBodyKeys,
+  extractReasoningBodyParams,
+  filterReasoningForProviderOptions,
+  normalizeRequestedSelection,
+  resolveReasoningInvocation
+} from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
@@ -562,12 +569,19 @@ function buildAgentOptions(
     aiSdkProviderId,
     endpointType,
     reasoning,
+    reasoningProfile,
     serviceTierControl
   } = scope
 
   // One path for both callers, so protocol/model defaults (store, safetySettings, num_ctx…)
   // can't diverge. Assistant-less callers (translate, prompt streams) carry no capabilities;
   // they opt into reasoning by setting `request.reasoningEffort` explicitly.
+  // Body-routed wire fields (e.g. `chat_template_kwargs` for self-hosted) bypass the
+  // closed Responses providerOptions schema — their `request-body` delivery is declared
+  // on the wire operation and extracted here so providerOptions stays request-body-free.
+  const reasoningBodyParams = extractReasoningBodyParams(reasoning)
+  const hasReasoningBody = Object.keys(reasoningBodyParams).length > 0
+  const reasoningForProviderOptions = hasReasoningBody ? filterReasoningForProviderOptions(reasoning) : reasoning
   let providerOptions = buildCapabilityProviderOptions(
     model,
     provider,
@@ -581,10 +595,19 @@ function buildAgentOptions(
       runtimeProviderId: sdkConfig.providerId,
       providerOptionsKey: sdkConfig.providerOptionsKey,
       endpointType,
-      reasoning
+      reasoning: reasoningForProviderOptions
     }
   )
   let standardParams: Partial<Record<string, unknown>> = {}
+  // Collect raw-body layers by explicit delivery, merged once with
+  // `profile < assistant customParameters < serviceTier < callOverrides`.
+  const rawBodyLayers: Record<string, unknown>[] = []
+  if (hasReasoningBody) rawBodyLayers.push(reasoningBodyParams)
+  // Top-level keys the wire routes to the raw HTTP body (e.g.
+  // `chat_template_kwargs` for self-hosted). Declared once so extraction,
+  // stripping, and the custom-parameter split below cannot drift apart.
+  const requestBodyKeys = collectRequestBodyKeys(reasoningProfile.wire)
+  let customBodyParams: Record<string, unknown> = {}
   if (assistant) {
     const temperature = getTemperature(assistant.settings, model, reasoning)
     const topP = getTopP(assistant.settings, model, reasoning)
@@ -595,22 +618,27 @@ function buildAgentOptions(
     }
 
     if (Object.keys(customParameters.providerParams).length > 0) {
-      const customBodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
+      customBodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
+      // Wire-declared body keys travel only through the raw-body layer: a Chat
+      // adapter would echo them from providerOptions into the SDK body, where
+      // the fetch merge lets SDK fields win and a stale custom value would
+      // overwrite a call-level override.
+      const providerParamsForOptions = Object.fromEntries(
+        Object.entries(customParameters.providerParams).filter(
+          ([key]) => resolveBodyRoutedTopLevelKey(key, requestBodyKeys) === null
+        )
+      )
       providerOptions = mergeCustomProviderParameters(
         providerOptions,
-        customParameters.providerParams,
+        providerParamsForOptions,
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
-      if (Object.keys(customBodyParams).length > 0) {
-        sdkConfig.providerSettings.fetch = createCustomParamsFetch(
-          sdkConfig.providerSettings.fetch ?? globalThis.fetch,
-          customBodyParams
-        )
-      }
+      if (Object.keys(customBodyParams).length > 0) rawBodyLayers.push(customBodyParams)
     }
   }
 
+  let serviceTierBodyParams: Record<string, unknown> | undefined
   if (serviceTierControl) {
     providerOptions = applyServiceTierToProviderOptions(
       providerOptions,
@@ -619,17 +647,51 @@ function buildAgentOptions(
       request.serviceTier ?? assistant?.settings.service_tier
     )
     if (serviceTierControl.wire.delivery.type === 'request-body') {
-      sdkConfig.providerSettings.fetch = createCustomParamsFetch(sdkConfig.providerSettings.fetch ?? globalThis.fetch, {
+      serviceTierBodyParams = {
         [serviceTierControl.wire.delivery.key]: resolveServiceTierWireValue(
           serviceTierControl,
           request.serviceTier ?? assistant?.settings.service_tier
         )
-      })
+      }
+      rawBodyLayers.push(serviceTierBodyParams)
+    }
+  }
+
+  // Extract any request-body-routed keys from callOverrides.providerOptions so
+  // they participate in the raw-body priority chain rather than being dropped
+  // by the closed Responses providerOptions schema. Chat Completions would
+  // otherwise透传 them via providerOptions, but Responses would not — unifying
+  // here keeps `profile < custom < callOverrides` consistent across endpoints.
+  // Only the effective provider namespace contributes to the HTTP body; other
+  // providers' overrides must not leak across endpoints. Only wire-declared
+  // body keys move — a provider-option wire (e.g. NVIDIA NIM) keeps its
+  // overrides in providerOptions.
+  const callOverridesBodyParams = extractCallOverridesBodyParams(
+    request.callOverrides,
+    sdkConfig.providerOptionsKey,
+    requestBodyKeys
+  )
+  if (Object.keys(callOverridesBodyParams).length > 0) rawBodyLayers.push(callOverridesBodyParams)
+
+  if (rawBodyLayers.length > 0) {
+    const mergedRawBody = rawBodyLayers.reduce<Record<string, unknown>>((acc, layer) => merge({}, acc, layer), {})
+    if (Object.keys(mergedRawBody).length > 0) {
+      sdkConfig.providerSettings.fetch = createCustomParamsFetch(
+        sdkConfig.providerSettings.fetch ?? globalThis.fetch,
+        mergedRawBody
+      )
     }
   }
 
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
-  const callOverrides = request.callOverrides
+  // Body-routed keys already injected via the unified fetch wrapper, so strip them from
+  // the providerOptions path to avoid double-send on Chat and silent drop on Responses.
+  const callOverrides = stripRequestBodyFromCallOverrides(
+    request.callOverrides,
+    callOverridesBodyParams,
+    sdkConfig.providerOptionsKey,
+    requestBodyKeys
+  )
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
   const effectiveProviderOptions = applyFastModeToProviderOptions(
@@ -698,6 +760,115 @@ function resolveEffectiveThinkingBudget(
   return thinkingOptions.type === 'enabled' && typeof thinkingOptions.budgetTokens === 'number'
     ? thinkingOptions.budgetTokens
     : undefined
+}
+
+/**
+ * Top-level raw-body key a providerOptions key routes to when the wire
+ * declares it with `request-body` delivery (`chat_template_kwargs.foo` →
+ * `chat_template_kwargs`), or null when it stays in providerOptions. The
+ * single classification behind extraction, stripping, and the custom
+ * parameter split above.
+ */
+function resolveBodyRoutedTopLevelKey(key: string, requestBodyKeys: Set<string>): string | null {
+  const topLevel = key.split('.')[0]
+  return requestBodyKeys.has(topLevel) ? topLevel : null
+}
+
+/**
+ * Split per-request providerOptions overrides into raw-body params. Only
+ * wire-declared body keys move — everything else stays for the SDK to
+ * forward. Exported for unit testing.
+ */
+export function extractCallOverridesBodyParams(
+  callOverrides: CallOverrides | undefined,
+  providerOptionsKey?: string,
+  requestBodyKeys: Set<string> = new Set()
+): Record<string, unknown> {
+  if (!callOverrides?.providerOptions) return {}
+  const body: Record<string, unknown> = {}
+  const entries = providerOptionsKey
+    ? ([[providerOptionsKey, callOverrides.providerOptions[providerOptionsKey]]] as const).filter(
+        ([, v]) => v !== undefined
+      )
+    : (Object.entries(callOverrides.providerOptions) as [string, unknown][])
+  for (const [, opts] of entries) {
+    if (!opts || typeof opts !== 'object') continue
+    for (const [key, value] of Object.entries(opts as Record<string, unknown>)) {
+      if (value === undefined) continue
+      // Dotted body-routed keys (e.g. `chat_template_kwargs.enable_thinking`) must
+      // expand to a nested object, not a flat key, so the later deep-merge preserves
+      // sibling fields like `foo`. Only wire-declared body keys move — anything
+      // else stays in providerOptions for the SDK to forward.
+      const topLevel = resolveBodyRoutedTopLevelKey(key, requestBodyKeys)
+      if (topLevel === null) continue
+      if (key === topLevel) {
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          body[key] = merge(
+            {},
+            (body[key] as Record<string, unknown> | undefined) ?? {},
+            value as Record<string, unknown>
+          )
+        } else {
+          body[key] = value
+        }
+        continue
+      }
+      // Expand dotted segments to nested objects, mirroring the emission
+      // encoding, so sibling fields merge by path instead of colliding.
+      const segments = key.split('.')
+      let cursor = (body[topLevel] ??= {}) as Record<string, unknown>
+      for (let index = 1; index < segments.length - 1; index += 1) {
+        cursor = (cursor[segments[index]] ??= {}) as Record<string, unknown>
+      }
+      cursor[segments[segments.length - 1]] = value
+    }
+  }
+  return body
+}
+
+/**
+ * Remove from callOverrides the keys extraction moved to the raw body, so a
+ * Chat request does not double-send them and a Responses request does not
+ * silently drop them from providerOptions. Exported for unit testing.
+ */
+export function stripRequestBodyFromCallOverrides(
+  callOverrides: CallOverrides | undefined,
+  bodyParams: Record<string, unknown>,
+  providerOptionsKey?: string,
+  requestBodyKeys: Set<string> = new Set()
+): CallOverrides | undefined {
+  if (!callOverrides?.providerOptions || Object.keys(bodyParams).length === 0) return callOverrides
+  const bodyKeys = new Set(Object.keys(bodyParams))
+  let mutated = false
+  const nextProviderOptions: ProviderOptions = {}
+  for (const [pid, opts] of Object.entries(callOverrides.providerOptions)) {
+    const isTargetNamespace = providerOptionsKey ? pid === providerOptionsKey : true
+    if (!isTargetNamespace) {
+      nextProviderOptions[pid] = opts
+      continue
+    }
+    if (!opts || typeof opts !== 'object') {
+      nextProviderOptions[pid] = opts
+      continue
+    }
+    // Only strip what extraction moved to the body — a provider-option wire
+    // keeps its overrides here for the SDK to forward.
+    const isBodyRouted = (key: string): boolean => {
+      if (bodyKeys.has(key)) return true
+      return resolveBodyRoutedTopLevelKey(key, requestBodyKeys) !== null
+    }
+    const filtered = Object.fromEntries(
+      Object.entries(opts as Record<string, unknown>).filter(([k]) => !isBodyRouted(k))
+    )
+    if (Object.keys(filtered).length !== Object.keys(opts).length) mutated = true
+    if (Object.keys(filtered).length > 0) nextProviderOptions[pid] = filtered as NonNullable<ProviderOptions[string]>
+    else mutated = true
+  }
+  if (!mutated) return callOverrides
+  const next: CallOverrides = { ...callOverrides }
+  if (Object.keys(nextProviderOptions).length > 0) next.providerOptions = nextProviderOptions
+  else delete (next as Record<string, unknown>).providerOptions
+  return next
 }
 
 /**

@@ -3,6 +3,8 @@ import { useCallback } from 'react'
 import { useProviderActions } from '@renderer/hooks/useProvider'
 import type { Provider } from '@shared/data/types/provider'
 
+import { clearLastWrittenEndpointConfigs } from '../hooks/providerSetting/endpointConfigsWriteCoordinator'
+
 export function useProviderDelete() {
   const { deleteProviderById } = useProviderActions()
 
@@ -11,6 +13,8 @@ export function useProviderDelete() {
   const deleteProvider = useCallback(
     async (providerId: Provider['id']) => {
       await deleteProviderById(providerId)
+      // A recreated provider under the same ID must not inherit this snapshot.
+      clearLastWrittenEndpointConfigs(providerId)
     },
     [deleteProviderById]
   )

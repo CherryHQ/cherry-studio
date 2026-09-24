@@ -23,6 +23,7 @@ import type {
   ProtoReasoningSupport,
   ProviderModelReasoningContract,
   ProviderReasoningFormat,
+  ProviderReasoningFormatSelector,
   ReasoningEffort as ReasoningEffortType,
   ReasoningFormatType,
   ReasoningWireDialect,
@@ -150,6 +151,7 @@ export interface ReasoningProviderContext {
   id: Provider['id']
   presetProviderId?: Provider['presetProviderId'] | null
   defaultChatEndpoint?: Provider['defaultChatEndpoint']
+  /** Merged runtime endpoint configs — carries the user's per-endpoint `reasoningFormat` override and dialect deviations. */
   endpointConfigs?: Provider['endpointConfigs']
 }
 
@@ -232,6 +234,22 @@ export function resolveReasoningProfileFromRegistry(input: {
       : baseWire
 
   return { format: formatType, support: input.contract?.support, wire }
+}
+
+/**
+ * Prefer the registry endpoint's full reasoning format when the persisted value
+ * selects the same type. Persisted selectors never carry the wire, so resolving
+ * them directly would discard the endpoint's catalog wire (e.g. Moonshot's
+ * `thinking.type`) in favor of the generic profile default. A selector for a
+ * different type is a genuine user override (e.g. `self-hosted`) and passes
+ * through untouched, as does a persisted value carrying its own wire.
+ */
+function selectEndpointReasoningFormat(
+  persisted: ProviderReasoningFormat | ProviderReasoningFormatSelector | undefined,
+  registry: ProviderReasoningFormat | undefined
+): ProviderReasoningFormat | ProviderReasoningFormatSelector | undefined {
+  if (!persisted || !registry || persisted.type !== registry.type) return persisted ?? registry
+  return 'wire' in persisted && persisted.wire ? persisted : registry
 }
 
 /**
@@ -853,6 +871,11 @@ class ProviderRegistryService {
         // Dialect merges per key: the row states only the deviations the user found.
         const dialect = { ...presetConfig?.dialect, ...rowConfig?.dialect }
         if (Object.keys(dialect).length > 0) config.dialect = dialect
+        // `reasoningFormat` is user-owned when set; otherwise the registry's
+        // protocol default (if any) carries through so custom providers can
+        // override it (e.g. `self-hosted` for vLLM/SGLang relays).
+        const reasoningFormat = rowConfig?.reasoningFormat ?? presetConfig?.reasoningFormat
+        if (reasoningFormat !== undefined) config.reasoningFormat = reasoningFormat
         merged[ep] = config
       }
       return Object.keys(merged).length > 0 ? merged : null
@@ -940,7 +963,12 @@ class ProviderRegistryService {
       (inferredControls ? { controls: inferredControls } : undefined)
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType,
-      format: endpointType ? profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat : undefined,
+      format: endpointType
+        ? selectEndpointReasoningFormat(
+            context.endpointConfigs?.[endpointType]?.reasoningFormat,
+            profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat
+          )
+        : undefined,
       contract,
       wireDialect: reasoning?.wireDialect,
       reasoningSummary: endpointType ? context.endpointConfigs?.[endpointType]?.dialect?.reasoningSummary : undefined
@@ -1009,7 +1037,12 @@ class ProviderRegistryService {
 
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
-      format: effectiveEndpoint ? profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat : undefined,
+      format: effectiveEndpoint
+        ? selectEndpointReasoningFormat(
+            provider.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat,
+            profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat
+          )
+        : undefined,
       contract,
       wireDialect,
       reasoningSummary: effectiveEndpoint

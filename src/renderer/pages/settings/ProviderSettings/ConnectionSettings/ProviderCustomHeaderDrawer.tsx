@@ -15,6 +15,11 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -27,6 +32,11 @@ import type { EndpointConfig } from '@shared/data/types/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 
 import { ProviderImageEndpointFields } from '../components/ProviderImageEndpointFields'
+import {
+  getLastWrittenEndpointConfigs,
+  serializeEndpointConfigsWrite,
+  setLastWrittenEndpointConfigs
+} from '../hooks/providerSetting/endpointConfigsWriteCoordinator'
 import { useProviderModelSync } from '../hooks/useProviderModelSync'
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -155,17 +165,30 @@ export function resolveEndpointTypes(
 
 export interface EndpointDraft {
   baseUrl: string
+  reasoningFormat?: { type: 'self-hosted' }
 }
+
+const REASONING_FORMAT_ENDPOINT_TYPES = new Set<EndpointType>([
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.OPENAI_RESPONSES
+])
 
 /**
  * Merge per-endpoint drafts back into a full endpointConfigs object.
  *
- * Each drafted endpoint's `baseUrl` is written or stripped from the draft;
- * other configured fields on the entry are kept. An empty entry is dropped.
+ * Each drafted endpoint's `baseUrl` and `reasoningFormat` are written or
+ * stripped from the draft; other configured fields on the entry are kept.
+ * An empty entry is dropped.
+ *
+ * `snapshot` is the endpointConfigs the drafts were taken from (the drawer
+ * opening). A draft that still matches the snapshot is untouched, so a
+ * reasoning format committed elsewhere after the snapshot (the ApiHost
+ * selector) is kept instead of being wiped by this stale save.
  */
 export function mergeEndpointConfigs(
   existing: Partial<Record<EndpointType, EndpointConfig>> | undefined,
-  drafts: Record<string, EndpointDraft>
+  drafts: Record<string, EndpointDraft>,
+  snapshot: Partial<Record<EndpointType, EndpointConfig>> | undefined = existing
 ): Partial<Record<EndpointType, EndpointConfig>> {
   const out: Partial<Record<EndpointType, EndpointConfig>> = { ...existing }
   for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
@@ -175,6 +198,73 @@ export function mergeEndpointConfigs(
       next.baseUrl = value
     } else {
       delete next.baseUrl
+    }
+    if (REASONING_FORMAT_ENDPOINT_TYPES.has(type)) {
+      // The drawer only models the self-hosted override; anything else reads
+      // as `default`. A draft still showing the snapshot option is untouched.
+      const snapshotOption = snapshot?.[type]?.reasoningFormat?.type === 'self-hosted' ? 'self-hosted' : undefined
+      if (draft.reasoningFormat?.type !== snapshotOption) {
+        if (draft.reasoningFormat) {
+          next.reasoningFormat = draft.reasoningFormat
+        } else {
+          delete next.reasoningFormat
+        }
+      }
+    }
+    if (!isEmpty(next)) {
+      out[type] = next
+    } else {
+      delete out[type]
+    }
+  }
+  return out
+}
+
+/**
+ * Reconcile reasoning formats from the coordinated shared snapshot onto a
+ * refetched base before merging drafts.
+ *
+ * A refetch that still matches the drawer-open snapshot has not observed the
+ * coordinated write recorded in `shared` yet (stale SWR cache, or a payload
+ * without endpointConfigs that fell back to the open-time provider). Merging
+ * onto it would erase the landed format, so the shared value wins for drafts
+ * the user never touched. When the base already differs from the snapshot it
+ * observed something newer — an out-of-band set or clear — and stays
+ * authoritative, so a stale snapshot cannot resurrect it. Drafts the user
+ * explicitly changed always win in `mergeEndpointConfigs` and are left alone.
+ */
+export function overlaySharedReasoningFormats(
+  base: Partial<Record<EndpointType, EndpointConfig>> | undefined,
+  shared: Partial<Record<EndpointType, { reasoningFormat?: { type: string } }>> | undefined,
+  drafts: Record<string, EndpointDraft>,
+  snapshot: Partial<Record<EndpointType, EndpointConfig>> | undefined
+): Partial<Record<EndpointType, EndpointConfig>> | undefined {
+  if (!shared) {
+    return base
+  }
+  const out: Partial<Record<EndpointType, EndpointConfig>> = { ...base }
+  for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
+    if (!REASONING_FORMAT_ENDPOINT_TYPES.has(type)) {
+      continue
+    }
+    // The drawer only models the self-hosted override; anything else reads as
+    // `default` — the same lens `mergeEndpointConfigs` reconciles with.
+    const optionOf = (config?: { reasoningFormat?: { type: string } }) =>
+      config?.reasoningFormat?.type === 'self-hosted' ? 'self-hosted' : undefined
+    if (draft.reasoningFormat?.type !== optionOf(snapshot?.[type])) {
+      continue
+    }
+    if (
+      optionOf(base?.[type]) !== optionOf(snapshot?.[type]) ||
+      optionOf(shared[type]) === optionOf(snapshot?.[type])
+    ) {
+      continue
+    }
+    const next: EndpointConfig = { ...out[type] }
+    if (optionOf(shared[type]) === 'self-hosted') {
+      next.reasoningFormat = { type: 'self-hosted' }
+    } else {
+      delete next.reasoningFormat
     }
     if (!isEmpty(next)) {
       out[type] = next
@@ -206,7 +296,7 @@ export function findInvalidSecondaryEndpointUrl(
 
 export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }: ProviderCustomHeaderDrawerProps) {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider, updateProvider, refetch } = useProvider(providerId)
   const { syncProviderModels } = useProviderModelSync(providerId)
 
   const topology = getProviderHostTopology(provider)
@@ -232,6 +322,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const [headersUiMode, setHeadersUiMode] = useState<HeadersUiMode>('list')
   const [jsonDraft, setJsonDraft] = useState('')
   const wasOpenRef = useRef(false)
+  // endpointConfigs the open drafts were taken from — handleSave reconciles
+  // reasoning formats committed elsewhere after this point.
+  const openEndpointConfigsRef = useRef(provider?.endpointConfigs)
 
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
@@ -243,11 +336,16 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
     const drafts: Record<string, EndpointDraft> = {}
     for (const type of endpointTypes) {
+      const reasoningFormat = provider?.endpointConfigs?.[type]?.reasoningFormat
       drafts[type] = {
-        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? '')
+        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? ''),
+        ...(REASONING_FORMAT_ENDPOINT_TYPES.has(type) && reasoningFormat?.type === 'self-hosted'
+          ? { reasoningFormat: { type: 'self-hosted' as const } }
+          : {})
       }
     }
     setEndpointDrafts(drafts)
+    openEndpointConfigsRef.current = provider?.endpointConfigs
     setDefaultChatEndpoint(primaryEndpoint)
     setImageEndpointDraft(readProviderImageEndpointDraft(provider?.endpointConfigs))
     setInvalidImageEndpointField(null)
@@ -310,11 +408,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    const textEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts)
-    const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
-    const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
-    const defaultEndpointChanged = defaultChatEndpoint !== primaryEndpoint
-
     let parsedHeaders: Record<string, string>
     if (headersUiMode === 'json') {
       const parsed = parseHeadersJsonDraft(jsonDraft)
@@ -327,22 +420,51 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       parsedHeaders = rowsToHeadersObject(rows)
     }
 
-    try {
-      await updateProvider({
-        endpointConfigs: nextEndpointConfigs,
-        defaultChatEndpoint,
-        providerSettings: {
-          ...provider.settings,
-          extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
+    // A reasoning format committed elsewhere may still be in flight: wait for
+    // coordinated writes to finish, then refetch so untouched drafts preserve
+    // the landed value instead of writing a stale snapshot over it.
+    const nextEndpointConfigs = await serializeEndpointConfigsWrite(provider.id, async () => {
+      let existingConfigs = provider?.endpointConfigs
+      try {
+        const fresh = (await refetch()) as { endpointConfigs?: typeof existingConfigs } | undefined
+        if (fresh?.endpointConfigs) {
+          existingConfigs = fresh.endpointConfigs
         }
-      })
-    } catch (error) {
-      // Surface the failure and keep the drawer open so the user can retry
-      // instead of silently losing their edits.
-      logger.error('Failed to save provider request config', error as Error, { providerId })
-      toast.error(t('settings.provider.save_failed'))
-      return
-    }
+      } catch {
+        // Fall back to the cached provider on refetch failure.
+      }
+      // The refetch above can still resolve pre-commit (or incomplete) data;
+      // reconcile landed coordinated formats before merging drafts.
+      const liveConfigs = overlaySharedReasoningFormats(
+        existingConfigs,
+        getLastWrittenEndpointConfigs(provider.id),
+        endpointDrafts,
+        openEndpointConfigsRef.current
+      )
+      const textEndpointConfigs = mergeEndpointConfigs(liveConfigs, endpointDrafts, openEndpointConfigsRef.current)
+      const merged = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
+      try {
+        await updateProvider({
+          endpointConfigs: merged,
+          defaultChatEndpoint,
+          providerSettings: {
+            ...provider.settings,
+            extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
+          }
+        })
+      } catch (error) {
+        // Surface the failure and keep the drawer open so the user can retry
+        // instead of silently losing their edits.
+        logger.error('Failed to save provider request config', error as Error, { providerId })
+        toast.error(t('settings.provider.save_failed'))
+        return undefined
+      }
+      setLastWrittenEndpointConfigs(provider.id, merged)
+      return merged
+    })
+    if (!nextEndpointConfigs) return
+    const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
+    const defaultEndpointChanged = defaultChatEndpoint !== primaryEndpoint
 
     if (defaultEndpointChanged || defaultEndpointDraft !== previousDefaultBaseUrl) {
       syncProviderModels({
@@ -366,6 +488,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     primaryEndpoint,
     provider,
     providerId,
+    refetch,
     rows,
     sourceHeaders,
     syncProviderModels,
@@ -455,6 +578,42 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                   autoComplete="off"
                 />
               </InputGroup>
+              {REASONING_FORMAT_ENDPOINT_TYPES.has(type) && (
+                <div className="flex items-center gap-2">
+                  <Label
+                    className="shrink-0 text-muted-foreground text-xs"
+                    htmlFor={`provider-reasoning-format-${type}`}>
+                    {t('settings.provider.reasoning_format')}
+                  </Label>
+                  <Select
+                    value={endpointDrafts[type]?.reasoningFormat?.type ?? 'default'}
+                    onValueChange={(next) =>
+                      setEndpointDrafts((prev) => ({
+                        ...prev,
+                        [type]: {
+                          ...(prev[type] ?? { baseUrl: '' }),
+                          reasoningFormat: next === 'self-hosted' ? { type: 'self-hosted' } : undefined
+                        }
+                      }))
+                    }>
+                    <SelectTrigger
+                      size="sm"
+                      className="w-48"
+                      id={`provider-reasoning-format-${type}`}
+                      aria-label={t('settings.provider.reasoning_format')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start" className="w-56">
+                      <SelectItem value="default" className="text-sm">
+                        {t('settings.provider.reasoning_format_default')}
+                      </SelectItem>
+                      <SelectItem value="self-hosted" className="text-sm">
+                        {t('settings.provider.reasoning_format_self_hosted')}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {isDefault && (
                 <p className="text-xs leading-relaxed wrap-break-word text-muted-foreground">
                   {t('settings.provider.api_host_drawer_hint')}

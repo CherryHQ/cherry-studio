@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMutation } from '@data/hooks/useDataApi'
@@ -9,8 +9,15 @@ import { toast } from '@renderer/services/toast'
 import type { ProviderType } from '@renderer/types/provider'
 import { validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import UrlSchemaInfoPopup from '../UrlSchemaInfoPopup'
+import {
+  clearLastWrittenEndpointConfigs,
+  getLastWrittenEndpointConfigs,
+  serializeEndpointConfigsWrite,
+  setLastWrittenEndpointConfigs
+} from './providerSetting/endpointConfigsWriteCoordinator'
 
 const logger = loggerService.withContext('useProviderDeepLinkImport')
 
@@ -46,8 +53,14 @@ export function useProviderDeepLinkImport(
 ) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { createProvider } = useProviders()
+  const { createProvider, providers, refetch: refetchProviders } = useProviders()
   const { updateProviderById } = useProviderActions()
+  // Cached list mirror (kept out of the import effect's deps so a list
+  // refresh can't re-trigger the one-shot import below).
+  const providersRef = useRef(providers)
+  useEffect(() => {
+    providersRef.current = providers
+  }, [providers])
   const { trigger: addApiKeyTrigger } = useMutation('POST', '/providers/:providerId/api-keys', {
     refresh: ({ args }) => [
       '/providers',
@@ -88,17 +101,51 @@ export function useProviderDeepLinkImport(
           : undefined
 
         if (isNew) {
+          // A deleted provider recreated under the same ID must not inherit
+          // its coordinator snapshot.
+          clearLastWrittenEndpointConfigs(providerId)
           await createProvider({
             providerId,
             name: updatedProvider.name || providerData.id,
             defaultChatEndpoint,
             endpointConfigs
           })
-        } else {
+        } else if (!updatedProvider.apiHost) {
           await updateProviderById(providerId, {
             name: updatedProvider.name,
             defaultChatEndpoint,
             endpointConfigs
+          })
+        } else {
+          const apiHost = updatedProvider.apiHost
+          // The endpointConfigs PATCH replaces the object wholesale: merge the
+          // imported host onto the latest committed snapshot so a persisted
+          // reasoningFormat (or another endpoint) the link doesn't mention
+          // survives the import. Serialized with the settings writers so
+          // overlapping saves can't clobber each other.
+          await serializeEndpointConfigsWrite(providerId, async () => {
+            let baseConfigs = providersRef.current.find((p) => p.id === providerId)?.endpointConfigs
+            try {
+              const fresh = (await refetchProviders()) as Provider[] | undefined
+              // The coordinated snapshot is newer than a stale truthy refetch
+              // that hasn't observed the last committed write yet.
+              baseConfigs =
+                getLastWrittenEndpointConfigs(providerId) ??
+                fresh?.find((p) => p.id === providerId)?.endpointConfigs ??
+                baseConfigs
+            } catch {
+              baseConfigs = getLastWrittenEndpointConfigs(providerId) ?? baseConfigs
+            }
+            const nextEndpointConfigs = {
+              ...baseConfigs,
+              [defaultChatEndpoint]: { ...baseConfigs?.[defaultChatEndpoint], baseUrl: apiHost }
+            }
+            await updateProviderById(providerId, {
+              name: updatedProvider.name,
+              defaultChatEndpoint,
+              endpointConfigs: nextEndpointConfigs
+            })
+            setLastWrittenEndpointConfigs(providerId, nextEndpointConfigs)
           })
         }
 
@@ -134,5 +181,14 @@ export function useProviderDeepLinkImport(
       toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       void navigate({ to: '/settings/provider' })
     }
-  }, [addApiKeyTrigger, createProvider, navigate, onSelectProvider, searchAddProviderData, t, updateProviderById])
+  }, [
+    addApiKeyTrigger,
+    createProvider,
+    navigate,
+    onSelectProvider,
+    refetchProviders,
+    searchAddProviderData,
+    t,
+    updateProviderById
+  ])
 }
