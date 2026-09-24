@@ -93,11 +93,57 @@ describe('FileStorage', () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: fixture.redirectedFile })
 
       try {
-        await expect(fileStorage.save(event, 'screenshot.png', 'content')).resolves.toBe(fixture.redirectedFile)
+        const savedPath = await fileStorage.save(event, 'screenshot.png', 'content')
+        expect(savedPath).toBe(fixture.physicalFile)
+        expect(fs.readFileSync(savedPath!, 'utf-8')).toBe('content')
         expect(fs.readFileSync(fixture.physicalFile, 'utf-8')).toBe('content')
         expect(fs.existsSync(fixture.replacementFile)).toBe(false)
       } finally {
         fixture.cleanup()
+      }
+    })
+
+    it.skipIf(process.platform === 'win32')('preserves metadata when overwriting an existing file', async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-save-metadata-'))
+      const filePath = path.join(dir, 'existing.md')
+      fs.writeFileSync(filePath, 'old content')
+      fs.chmodSync(filePath, 0o640)
+      const before = fs.statSync(filePath)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath })
+
+      try {
+        await expect(fileStorage.save(event, 'existing.md', 'new content')).resolves.toBe(filePath)
+        const after = fs.statSync(filePath)
+
+        expect(fs.readFileSync(filePath, 'utf-8')).toBe('new content')
+        expect({ dev: after.dev, ino: after.ino, mode: after.mode, uid: after.uid, gid: after.gid }).toEqual({
+          dev: before.dev,
+          ino: before.ino,
+          mode: before.mode,
+          uid: before.uid,
+          gid: before.gid
+        })
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
+    it.skipIf(process.platform === 'win32')('refuses to overwrite a hard-linked file', async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-save-hardlink-'))
+      const filePath = path.join(dir, 'existing.png')
+      const aliasPath = path.join(dir, 'alias.png')
+      fs.writeFileSync(filePath, 'original content')
+      fs.linkSync(filePath, aliasPath)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath })
+
+      try {
+        await expect(fileStorage.saveImage(event, 'existing', 'data:image/png;base64,bmV3IGNvbnRlbnQ=')).resolves.toBe(
+          false
+        )
+        expect(fs.readFileSync(filePath, 'utf-8')).toBe('original content')
+        expect(fs.readFileSync(aliasPath, 'utf-8')).toBe('original content')
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
       }
     })
   })
@@ -157,18 +203,23 @@ describe('FileStorage', () => {
       }
     })
 
-    it.skipIf(process.platform === 'win32')(
-      'preserves restrictive permissions when replacing an existing file',
-      async () => {
-        fs.writeFileSync(tmpFile, 'private', { mode: 0o600 })
-        fs.chmodSync(tmpFile, 0o600)
+    it.skipIf(process.platform === 'win32')('preserves metadata when overwriting an existing file', async () => {
+      fs.writeFileSync(tmpFile, 'private', { mode: 0o600 })
+      fs.chmodSync(tmpFile, 0o600)
+      const before = fs.statSync(tmpFile)
 
-        await fileStorage.writeFile(event, tmpFile, 'updated')
+      await fileStorage.writeFile(event, tmpFile, 'updated')
 
-        expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('updated')
-        expect(fs.statSync(tmpFile).mode & 0o777).toBe(0o600)
-      }
-    )
+      const after = fs.statSync(tmpFile)
+      expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('updated')
+      expect({ dev: after.dev, ino: after.ino, mode: after.mode, uid: after.uid, gid: after.gid }).toEqual({
+        dev: before.dev,
+        ino: before.ino,
+        mode: before.mode,
+        uid: before.uid,
+        gid: before.gid
+      })
+    })
   })
 
   describe('deleteExternalFile', () => {
@@ -291,6 +342,31 @@ describe('FileStorage', () => {
         expect(fs.existsSync(fixture.replacementFile)).toBe(false)
       } finally {
         fixture.cleanup()
+      }
+    })
+
+    it.skipIf(process.platform === 'win32')('preserves metadata when overwriting an existing image', async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-image-metadata-'))
+      const filePath = path.join(dir, 'existing.png')
+      fs.writeFileSync(filePath, 'old image')
+      fs.chmodSync(filePath, 0o640)
+      const before = fs.statSync(filePath)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath })
+
+      try {
+        await expect(fileStorage.saveImage(event, 'existing', 'data:image/png;base64,bmV3IGltYWdl')).resolves.toBe(true)
+        const after = fs.statSync(filePath)
+
+        expect(fs.readFileSync(filePath, 'utf-8')).toBe('new image')
+        expect({ dev: after.dev, ino: after.ino, mode: after.mode, uid: after.uid, gid: after.gid }).toEqual({
+          dev: before.dev,
+          ino: before.ino,
+          mode: before.mode,
+          uid: before.uid,
+          gid: before.gid
+        })
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
       }
     })
   })

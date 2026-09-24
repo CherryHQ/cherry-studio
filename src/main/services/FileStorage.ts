@@ -32,7 +32,7 @@ import {
   resolveOutsideManagedStorageMutation,
   safeOpen
 } from '@main/services/file'
-import { atomicWriteFile, getFileType } from '@main/utils/file'
+import { getFileType } from '@main/utils/file'
 import {
   checkName,
   getFileType as getFileTypeByExt,
@@ -56,17 +56,48 @@ function normalizeTrashPath(filePath: string): string {
   return process.platform === 'win32' ? path.win32.normalize(filePath) : path.posix.normalize(filePath)
 }
 
-async function writeOutsideManagedStorage(filePath: string, data: string | Uint8Array): Promise<void> {
+async function writeOutsideManagedStorage(filePath: string, data: string | Uint8Array): Promise<AbsoluteFilePath> {
   const safePath = await resolveOutsideManagedStorageMutation(filePath)
-  let mode: number | undefined
+  let pathStat: fs.Stats
 
   try {
-    mode = (await fs.promises.stat(safePath)).mode & 0o777
+    pathStat = await fs.promises.lstat(safePath)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+
+    const handle = await fs.promises.open(safePath, 'wx')
+    try {
+      await handle.writeFile(data)
+    } finally {
+      await handle.close()
+    }
+    return safePath
   }
 
-  await atomicWriteFile(safePath, data, mode === undefined ? undefined : { mode: 0o600, finalMode: mode })
+  // A hard link can alias a FileManager-owned entry outside its managed path.
+  if (!pathStat.isFile() || pathStat.nlink !== 1) {
+    throw new Error('Cannot overwrite a non-regular file or a hard-linked file')
+  }
+
+  const handle = await fs.promises.open(safePath, fs.constants.O_WRONLY)
+  try {
+    const handleStat = await handle.stat()
+    if (
+      !handleStat.isFile() ||
+      handleStat.dev !== pathStat.dev ||
+      handleStat.ino !== pathStat.ino ||
+      handleStat.nlink !== 1
+    ) {
+      throw new Error('File changed before it could be overwritten')
+    }
+
+    await handle.truncate(0)
+    await handle.writeFile(data)
+  } finally {
+    await handle.close()
+  }
+
+  return safePath
 }
 
 class FileStorage {
@@ -802,9 +833,7 @@ class FileStorage {
         return null
       }
 
-      await writeOutsideManagedStorage(result.filePath, content)
-
-      return result.filePath
+      return await writeOutsideManagedStorage(result.filePath, content)
     } catch (err: any) {
       logger.error('[IPC - Error] An error occurred saving the file:', err as Error)
       return Promise.reject('An error occurred saving the file: ' + err?.message)
