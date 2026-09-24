@@ -1,9 +1,10 @@
 /**
- * pause() / drainInFlight() write-quiesce contract tests (backup restore, issue #16849).
+ * pause() / drainInFlight() write-quiesce contract tests (backup capture / restore, issue #16849).
  *
- * Contract: `pause(reason?): Disposable` gates new-turn ADMISSION — `dispatch()`
- * resolves `{mode:'blocked', reason:'paused'}` (re-checked under the per-topic
- * lock), `startAgentSessionRun` throws before `prepareDispatch` writes rows, and
+ * Contract: `pause(operation: WriteQuiesceOperation, reason?): Disposable` gates
+ * new-turn ADMISSION — `dispatch()` resolves `{mode:'blocked', reason:'paused', operation}`
+ * with the oldest live hold's operation (`'backup' | 'restore'`) (re-checked under
+ * the per-topic lock), `startAgentSessionRun` throws before `prepareDispatch` writes rows, and
  * queued steer continuations are suppressed (not consumed). `steer-continuation`
  * dispatches are exempt (grandfathered launches are drain-visible instead).
  * `drainInFlight({timeoutMs})` awaits gate-admitted dispatches through stream
