@@ -78,6 +78,7 @@ export interface ComposerTokenProps {
   maxWidthClassName?: string
   onMouseDown?: MouseEventHandler<HTMLSpanElement>
   onRemove?: () => void
+  onOpenLink?: (url: string) => void | Promise<void>
   removeLabel?: string
 }
 
@@ -268,18 +269,19 @@ export function LinkComposerToken(props: ComposerTokenProps) {
     })
   }
 
-  const openLink = () => {
-    void ipcApi.request('system.shell.open_website', link.url)
+  const openLink = (modified: boolean) => {
+    if (!modified && props.onOpenLink) void props.onOpenLink(link.url)
+    else void ipcApi.request('system.shell.open_website', link.url)
   }
   const handleClick: MouseEventHandler<HTMLSpanElement> = (event) => {
     stopTokenActionEvent(event)
-    openLink()
+    openLink(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
   }
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
     event.stopPropagation()
-    openLink()
+    openLink(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
   }
 
   // The chip only shows the truncated label; hover must surface the full url the label stands for.
