@@ -4739,6 +4739,7 @@
   "settings.models.check.enable_concurrent": "并发检测",
   "settings.models.check.failed": "失败",
   "settings.models.check.failed_to_start": "模型检测启动失败",
+  "settings.models.check.filter_failed": "检测失败",
   "settings.models.check.generation_output_audio": "音频",
   "settings.models.check.generation_output_image": "图片",
   "settings.models.check.generation_output_video": "视频",

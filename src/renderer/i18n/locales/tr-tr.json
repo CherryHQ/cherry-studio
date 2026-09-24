@@ -4739,6 +4739,7 @@
   "settings.models.check.enable_concurrent": "Eşzamanlı",
   "settings.models.check.failed": "Başarısız",
   "settings.models.check.failed_to_start": "Model denetimi başlatılamadı",
+  "settings.models.check.filter_failed": "Başarısız",
   "settings.models.check.generation_output_audio": "ses",
   "settings.models.check.generation_output_image": "bir görüntü",
   "settings.models.check.generation_output_video": "bir video",

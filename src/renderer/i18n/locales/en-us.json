@@ -4739,6 +4739,7 @@
   "settings.models.check.enable_concurrent": "Concurrent",
   "settings.models.check.failed": "Failed",
   "settings.models.check.failed_to_start": "Failed to start model check",
+  "settings.models.check.filter_failed": "Failed",
   "settings.models.check.generation_output_audio": "audio",
   "settings.models.check.generation_output_image": "an image",
   "settings.models.check.generation_output_video": "a video",

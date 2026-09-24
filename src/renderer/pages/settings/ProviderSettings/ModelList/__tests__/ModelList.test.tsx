@@ -8,6 +8,7 @@ const useModelsMock = vi.fn()
 const deleteModelMock = vi.fn()
 const deleteModelsMock = vi.fn()
 const refetchModelsMock = vi.fn()
+const completedModelStatusesMock = vi.fn<() => any[]>(() => [])
 
 const models = [
   {
@@ -26,6 +27,10 @@ const models = [
   }
 ] as any
 
+vi.mock('../modelListHealthContext', () => ({
+  useModelListHealthRun: () => ({ completedModelStatuses: completedModelStatusesMock() })
+}))
+
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
@@ -37,6 +42,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 describe('useProviderModelList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    completedModelStatusesMock.mockReturnValue([])
     MockUsePreferenceUtils.resetMocks()
 
     refetchModelsMock.mockResolvedValue(models)
@@ -59,6 +65,71 @@ describe('useProviderModelList', () => {
 
     expect(result.current.editDrawer.open).toBe(true)
     expect(result.current.editDrawer.model?.name).toBe('Alpha')
+  })
+
+  it('exposes only completely inaccessible models in the failed filter', () => {
+    const failedStatus = {
+      kind: 'failed',
+      model: models[0],
+      status: 'failed',
+      checking: false,
+      keyResults: [
+        {
+          kind: 'failed',
+          credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+          status: 'failed',
+          checking: false
+        }
+      ]
+    }
+    const partialStatus = {
+      ...failedStatus,
+      model: models[1],
+      keyResults: [
+        ...failedStatus.keyResults,
+        {
+          kind: 'ok',
+          credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+          status: 'success',
+          checking: false,
+          latency: 10
+        }
+      ]
+    }
+    completedModelStatusesMock.mockReturnValue([failedStatus, partialStatus])
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    expect(result.current.header.failedModelCount).toBe(1)
+    act(() => result.current.header.setSelectedFilter('failed'))
+    expect(result.current.sections.enabledSections.flatMap((section) => section.items)).toEqual([{ model: models[0] }])
+  })
+
+  it('returns to all models when a rerun invalidates the failed filter', async () => {
+    const failedStatus = {
+      kind: 'failed',
+      model: models[0],
+      status: 'failed',
+      checking: false,
+      keyResults: [
+        {
+          kind: 'failed',
+          credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+          status: 'failed',
+          checking: false
+        }
+      ]
+    }
+    completedModelStatusesMock.mockReturnValue([failedStatus])
+
+    const { result, rerender } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+    act(() => result.current.header.setSelectedFilter('failed'))
+    expect(result.current.header.selectedFilter).toBe('failed')
+
+    completedModelStatusesMock.mockReturnValue([])
+    rerender()
+
+    await waitFor(() => expect(result.current.header.selectedFilter).toBe('all'))
   })
 
   it('guards edit and delete commands while model checks are running', async () => {

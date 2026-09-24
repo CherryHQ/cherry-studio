@@ -4739,6 +4739,7 @@
   "settings.models.check.enable_concurrent": "Verificación concurrente",
   "settings.models.check.failed": "Fallido",
   "settings.models.check.failed_to_start": "Error al iniciar la verificación de estado",
+  "settings.models.check.filter_failed": "Falló",
   "settings.models.check.generation_output_audio": "audio",
   "settings.models.check.generation_output_image": "una imagen",
   "settings.models.check.generation_output_video": "un vídeo",

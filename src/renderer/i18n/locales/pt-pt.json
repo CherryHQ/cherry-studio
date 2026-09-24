@@ -4739,6 +4739,7 @@
   "settings.models.check.enable_concurrent": "Verificação concorrente",
   "settings.models.check.failed": "Falhou",
   "settings.models.check.failed_to_start": "Falha ao iniciar a verificação de saúde",
+  "settings.models.check.filter_failed": "Falhou",
   "settings.models.check.generation_output_audio": "áudio",
   "settings.models.check.generation_output_image": "uma imagem",
   "settings.models.check.generation_output_video": "um vídeo",

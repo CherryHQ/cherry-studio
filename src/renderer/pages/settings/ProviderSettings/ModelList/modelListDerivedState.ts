@@ -1,6 +1,5 @@
 import { sortBy, toPairs } from 'es-toolkit/compat'
 
-import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import {
@@ -37,17 +36,18 @@ export const MODEL_LIST_CAPABILITY_FILTERS = [
 ] as const
 
 export type ModelListCapabilityFilter = (typeof MODEL_LIST_CAPABILITY_FILTERS)[number]
+export type ModelListFilter = ModelListCapabilityFilter | 'failed'
 export type ModelListCapabilityCounts = Record<ModelListCapabilityFilter, number>
 
 export type ModelListDerivedState = {
   filteredModels: Model[]
   capabilityOptions: readonly ModelListCapabilityFilter[]
   capabilityModelCounts: ModelListCapabilityCounts
+  failedModelCount: number
   duplicateModelNames: Set<string>
   modelCount: number
   hasVisibleModels: boolean
   hasNoModels: boolean
-  modelStatusMap: Map<string, ModelWithStatus>
 }
 
 export const MODEL_COUNT_THRESHOLD = 10
@@ -55,8 +55,8 @@ export const MODEL_COUNT_THRESHOLD = 10
 type CalculateModelListDerivedStateInput = {
   models: Model[]
   searchText: string
-  selectedCapabilityFilter: ModelListCapabilityFilter
-  modelStatuses: ModelWithStatus[]
+  selectedFilter: ModelListFilter
+  failedModelIds: ReadonlySet<string>
 }
 
 function getModelIdGroupName(model: Model): string | undefined {
@@ -160,19 +160,25 @@ export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCo
 export const calculateModelListDerivedState = ({
   models,
   searchText,
-  selectedCapabilityFilter,
-  modelStatuses
+  selectedFilter,
+  failedModelIds
 }: CalculateModelListDerivedStateInput): ModelListDerivedState => {
-  const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
+  const searchedModels = applyModelFilters(models, searchText, 'all')
+  const capabilityFilteredModels =
+    selectedFilter === 'failed' ? searchedModels : applyModelFilters(searchedModels, '', selectedFilter)
+  const filteredModels =
+    selectedFilter === 'failed'
+      ? capabilityFilteredModels.filter((model) => failedModelIds.has(model.id))
+      : capabilityFilteredModels
 
   return {
     filteredModels,
     capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
-    capabilityModelCounts: getCapabilityModelCounts(applyModelFilters(models, searchText, 'all')),
+    capabilityModelCounts: getCapabilityModelCounts(searchedModels),
+    failedModelCount: searchedModels.filter((model) => failedModelIds.has(model.id)).length,
     duplicateModelNames: getDuplicateProviderSettingModelNames(models),
     modelCount: filteredModels.length,
     hasVisibleModels: filteredModels.length > 0,
-    hasNoModels: models.length === 0,
-    modelStatusMap: new Map(modelStatuses.map((status) => [status.model.id, status]))
+    hasNoModels: models.length === 0
   }
 }
