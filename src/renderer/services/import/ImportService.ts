@@ -285,10 +285,10 @@ class ImportService {
     onProgress?: ImportProgressCallback
   ): Promise<number> {
     const { conversations } = result
-    const totalSteps = conversations.reduce((count, conversation) => {
-      const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
-      return count + 1 + conversation.messages.length + (activeSourceId ? 1 : 0)
-    }, 0)
+    const totalSteps = conversations.reduce(
+      (count, conversation) => count + 1 + conversation.messages.length + (conversation.activeSourceId ? 1 : 0),
+      0
+    )
     let completedSteps = 0
     const completeStep = () => {
       completedSteps++
@@ -376,12 +376,11 @@ class ImportService {
       }
     }
 
-    const activeSourceId = conversation.activeSourceId ?? conversation.messages.at(-1)?.sourceId
-    const activeNodeId = activeSourceId ? createdIds.get(activeSourceId) : undefined
+    const activeNodeId = conversation.activeSourceId ? createdIds.get(conversation.activeSourceId) : undefined
     if (activeNodeId) {
       await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
+      completeStep()
     }
-    if (activeSourceId) completeStep()
   }
 }
 

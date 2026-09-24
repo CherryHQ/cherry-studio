@@ -229,7 +229,7 @@ describe('topicFileExport', () => {
         const file = await collectTopicFileData('topic-1')
 
         expect(ipcRequest).toHaveBeenCalledWith('file.read', {
-          handle: { kind: 'path', path: '/tmp/photo.png' },
+          handle: { kind: 'entry', entryId: 'entry-1' },
           options: { mode: 'full', encoding: 'binary' }
         })
         const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
@@ -244,6 +244,43 @@ describe('topicFileExport', () => {
           }
         ])
         expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
+        expect(toast.warning).not.toHaveBeenCalled()
+      } finally {
+        restore()
+      }
+    })
+
+    it('resolves managed attachments through fileEntryId when the stored url is stale', async () => {
+      ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.get_metadata') return { kind: 'file', size: 3 }
+        return { content: new Uint8Array([1, 2, 3]), mime: 'image/png' }
+      })
+      const restore = withU1Parts([
+        {
+          type: 'file',
+          url: 'file:///stale/wrong.png',
+          filename: 'photo.png',
+          mediaType: 'image/png',
+          providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+        }
+      ])
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        expect(ipcRequest).toHaveBeenCalledWith('file.read', {
+          handle: { kind: 'entry', entryId: 'entry-1' },
+          options: { mode: 'full', encoding: 'binary' }
+        })
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts as unknown[]
+        expect(parts).toEqual([
+          {
+            type: 'file',
+            url: 'data:image/png;base64,AQID',
+            filename: 'photo.png',
+            mediaType: 'image/png',
+            providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+          }
+        ])
         expect(toast.warning).not.toHaveBeenCalled()
       } finally {
         restore()

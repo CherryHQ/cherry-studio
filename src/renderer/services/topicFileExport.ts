@@ -9,12 +9,13 @@ import { MAX_EMBED_IMAGE_BYTES } from '@renderer/services/markdownImageExport'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { isPersistedToolOutput } from '@shared/ai/transport'
-import type { TreeResponse } from '@shared/data/types/message'
-import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
-import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
+import type { CherryMessagePart, TreeResponse } from '@shared/data/types/message'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 
 const logger = loggerService.withContext('TopicFileExport')
 
@@ -93,14 +94,18 @@ async function inlineLocalAttachments(parts: unknown[]): Promise<InlineResult> {
       continue
     }
     try {
-      const path = AbsoluteFilePathSchema.parse(fileUrlToPath(filePart.url as FileUrlString))
-      const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(path))
+      const handle = fileHandleFromPart(part as CherryMessagePart)
+      if (!handle) {
+        skipped += 1
+        continue
+      }
+      const metadata = await ipcApi.request('file.get_metadata', handle)
       if (metadata?.kind === 'file' && metadata.size > MAX_EMBED_IMAGE_BYTES) {
         skipped += 1
         continue
       }
       const { content, mime } = await ipcApi.request('file.read', {
-        handle: createFilePathHandle(path),
+        handle,
         options: { mode: 'full', encoding: 'binary' }
       })
       if (content.length > MAX_EMBED_IMAGE_BYTES) {

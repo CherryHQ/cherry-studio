@@ -133,6 +133,41 @@ describe('importService.importNativeTopic', () => {
     expect(puts).toEqual([{ path: '/topics/new-topic/active-node', body: { nodeId: 'msg_5' } }])
   })
 
+  it('does not set active node when the export omitted activeSourceId', async () => {
+    const puts: { path: string; body: any }[] = []
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string) => ({
+      id: path === '/topics' ? 'new-topic' : `msg_${path}`
+    }))
+    vi.mocked(dataApiService.put).mockImplementation(async (path: string, options: any) => {
+      puts.push({ path, body: options?.body })
+      return { activeNodeId: options?.body?.nodeId }
+    })
+    vi.mocked(dataApiService.patch).mockResolvedValue({})
+
+    const content = JSON.stringify(
+      buildCherryTopicFile({
+        topic: { name: 'No active' },
+        messages: [
+          makeMessage({ id: 'u1', role: 'user', parentId: 'root-1', createdAt: '2026-01-01T00:00:01.000Z' }),
+          makeMessage({
+            id: 'a1',
+            role: 'assistant',
+            parentId: 'u1',
+            messageSnapshot: snapshot('Ast'),
+            createdAt: '2026-01-01T00:00:02.000Z'
+          })
+        ],
+        rootId: 'root-1',
+        exportedAt: '2026-02-01T00:00:00.000Z'
+      })
+    )
+
+    const response = await importService.importNativeTopic(content)
+
+    expect(response).toMatchObject({ success: true, topicsCount: 1, messagesCount: 2 })
+    expect(puts).toEqual([])
+  })
+
   it('lands mid-generation pending rows as error so they stay terminal and retryable', async () => {
     const posts: { path: string; body: any }[] = []
     vi.mocked(dataApiService.post).mockImplementation(async (path: string, options: any) => {
