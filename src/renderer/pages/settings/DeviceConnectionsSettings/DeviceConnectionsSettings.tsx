@@ -6,7 +6,8 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, IndicatorLight, Tooltip } from '@cherrystudio/ui'
+import type { RemoteCapability } from '@cherrystudio/remote-protocol'
+import { Alert, Badge, Button, Checkbox, IndicatorLight, Tooltip } from '@cherrystudio/ui'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import {
@@ -23,12 +24,20 @@ import { cn } from '@renderer/utils/style'
 import type { OutputFor } from '@shared/ipc/types'
 
 const LAN_HOST = '0.0.0.0'
+const CAPABILITY_LABEL = {
+  configuration: 'deviceConnections.capabilities.configuration',
+  agent: 'deviceConnections.capabilities.agent'
+} as const
+
+type Invitation = OutputFor<'api_gateway.remote.create_invitation'>
+type PairingClaim = OutputFor<'api_gateway.remote.list_claims'>[number]
 
 const DeviceConnectionsSettings: FC = () => {
   const { theme } = useTheme()
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { apiGatewayConfig, apiGatewayRunning, apiGatewayLoading } = useApiGateway()
+  const discoveryStatus = useSharedCacheValue('feature.remote_access.discovery_status')
   const lanRunning = useSharedCacheValue('feature.api_gateway.lan_running') ?? false
   const {
     data: devices = [],
@@ -44,11 +53,15 @@ const DeviceConnectionsSettings: FC = () => {
   const lanEnabled = apiGatewayConfig.host === LAN_HOST
   const gatewayAvailable = apiGatewayConfig.enabled && apiGatewayRunning
   const connectionReady = lanEnabled && lanRunning && gatewayAvailable
-  const [pairingOffer, setPairingOffer] = useState<OutputFor<'api_gateway.create_pairing_offer'>>()
-  const [isCreatingOffer, setIsCreatingOffer] = useState(false)
+  const [invitation, setInvitation] = useState<Invitation>()
+  const [claims, setClaims] = useState<PairingClaim[]>([])
+  const [selectedCapabilities, setSelectedCapabilities] = useState<Record<string, RemoteCapability[]>>({})
+  const [decidingClaimId, setDecidingClaimId] = useState<string>()
+  const [isCreatingInvitation, setIsCreatingInvitation] = useState(false)
   const [isUpdatingLan, setIsUpdatingLan] = useState(false)
   const [revokingId, setRevokingId] = useState<string>()
-  const pairingRequestId = useRef(0)
+  const invitationRequestId = useRef(0)
+  const claimRequestId = useRef(0)
 
   const openMobileDownload = () => {
     const language = i18n.resolvedLanguage ?? i18n.language
@@ -56,41 +69,70 @@ const DeviceConnectionsSettings: FC = () => {
     void ipcApi.request('system.shell.open_external_website', url)
   }
 
-  const clearPairingOffer = useCallback(() => {
-    pairingRequestId.current += 1
-    setPairingOffer(undefined)
-    setIsCreatingOffer(false)
+  const clearInvitation = useCallback(() => {
+    invitationRequestId.current += 1
+    claimRequestId.current += 1
+    setInvitation(undefined)
+    setClaims([])
+    setIsCreatingInvitation(false)
   }, [])
 
-  useDataChange('/api-gateway/paired-devices', () => void refetchDevices())
-  useIpcOn('api_gateway.pairing_completed', clearPairingOffer)
-
-  useEffect(() => {
-    clearPairingOffer()
-    return () => {
-      pairingRequestId.current += 1
+  const refreshClaims = useCallback(async () => {
+    if (!connectionReady) return
+    const requestId = ++claimRequestId.current
+    try {
+      const pending = await ipcApi.request('api_gateway.remote.list_claims')
+      if (requestId === claimRequestId.current) setClaims(pending)
+    } catch {
+      if (requestId === claimRequestId.current) setClaims([])
     }
-  }, [connectionReady, clearPairingOffer])
+  }, [connectionReady])
+
+  useDataChange('/api-gateway/paired-devices', () => void refetchDevices())
+  useIpcOn('api_gateway.remote.pairing_changed', () => void refreshClaims())
 
   useEffect(() => {
-    if (!pairingOffer) return
-    const timer = setTimeout(() => setPairingOffer(undefined), Math.max(0, pairingOffer.expiresAt - Date.now()))
+    clearInvitation()
+    void refreshClaims()
+    return () => {
+      invitationRequestId.current += 1
+      claimRequestId.current += 1
+    }
+  }, [refreshClaims, clearInvitation])
+
+  useEffect(() => {
+    if (!invitation) return
+    const timer = setTimeout(clearInvitation, Math.max(0, Date.parse(invitation.expiresAt) - Date.now()))
     return () => clearTimeout(timer)
-  }, [pairingOffer])
+  }, [invitation, clearInvitation])
 
   const showPairingQr = async () => {
-    if (!connectionReady || isCreatingOffer) return
-    const requestId = ++pairingRequestId.current
-    setIsCreatingOffer(true)
+    if (!connectionReady || isCreatingInvitation) return
+    const requestId = ++invitationRequestId.current
+    setIsCreatingInvitation(true)
     try {
-      const result = await ipcApi.request('api_gateway.create_pairing_offer')
-      if (requestId === pairingRequestId.current && result.expiresAt > Date.now()) setPairingOffer(result)
+      const result = await ipcApi.request('api_gateway.remote.create_invitation')
+      if (requestId === invitationRequestId.current && Date.parse(result.expiresAt) > Date.now()) setInvitation(result)
     } catch (error) {
-      if (requestId === pairingRequestId.current) {
+      if (requestId === invitationRequestId.current) {
         toast.error(t('deviceConnections.pairing.error') + ((error as Error).message || error))
       }
     } finally {
-      if (requestId === pairingRequestId.current) setIsCreatingOffer(false)
+      if (requestId === invitationRequestId.current) setIsCreatingInvitation(false)
+    }
+  }
+
+  const decideClaim = async (claim: PairingClaim, capabilities: RemoteCapability[] | null) => {
+    if (decidingClaimId) return
+    setDecidingClaimId(claim.claimId)
+    try {
+      await ipcApi.request('api_gateway.remote.decide_pairing', { claimId: claim.claimId, capabilities })
+      if (capabilities) toast.success(t('deviceConnections.claims.approved'))
+      clearInvitation()
+    } catch (error) {
+      toast.error(t('deviceConnections.claims.error') + ((error as Error).message || error))
+    } finally {
+      setDecidingClaimId(undefined)
     }
   }
 
@@ -112,7 +154,7 @@ const DeviceConnectionsSettings: FC = () => {
 
   const setLanAccess = async (enabled: boolean) => {
     if (apiGatewayLoading || isUpdatingLan) return
-    clearPairingOffer()
+    clearInvitation()
     setIsUpdatingLan(true)
     try {
       await ipcApi.request('api_gateway.lan.set_enabled', { enabled })
@@ -123,14 +165,17 @@ const DeviceConnectionsSettings: FC = () => {
     }
   }
 
-  const qrPayload = pairingOffer
+  const qrPayload = invitation
     ? JSON.stringify({
-        v: 1,
+        v: 2,
         t: 'cherry-studio-pair',
-        name: pairingOffer.hostname,
-        port: pairingOffer.port,
-        ips: pairingOffer.addresses,
-        code: pairingOffer.code
+        name: invitation.hostname,
+        port: invitation.port,
+        ips: invitation.addresses,
+        invitationId: invitation.invitationId,
+        invitationSecret: invitation.invitationSecret,
+        desktopIdentity: invitation.desktopIdentity,
+        protocolVersions: invitation.protocolVersions
       })
     : null
   const statusKey = connectionReady
@@ -194,6 +239,9 @@ const DeviceConnectionsSettings: FC = () => {
               <div className="font-medium text-sm">{t(statusKey)}</div>
             </div>
             <div className="text-muted-foreground text-xs">{t(statusDescriptionKey)}</div>
+            {connectionReady && discoveryStatus === 'unavailable' && (
+              <div className="text-warning text-xs">{t('deviceConnections.discovery.unavailable')}</div>
+            )}
           </div>
         </div>
         {!gatewayAvailable ? (
@@ -247,19 +295,75 @@ const DeviceConnectionsSettings: FC = () => {
                   gatewayAvailable ? 'deviceConnections.pairing.requiresRunning' : 'deviceConnections.gateway.required'
                 )}
               </div>
-            ) : pairingOffer && qrPayload ? (
+            ) : claims.length > 0 ? (
+              claims.map((claim) => {
+                const selected = selectedCapabilities[claim.claimId] ?? claim.capabilities
+                return (
+                  <div
+                    key={claim.claimId}
+                    role="group"
+                    aria-label={t('deviceConnections.claims.title')}
+                    className="flex flex-col gap-3 rounded-lg border border-border p-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-sm">{claim.deviceName}</div>
+                      <div className="text-muted-foreground text-xs">{claim.platform}</div>
+                    </div>
+                    <div className="font-mono text-2xl tracking-[0.3em]">{claim.verificationCode}</div>
+                    <div className="text-foreground-tertiary text-xs leading-5">
+                      {t('deviceConnections.claims.codeHint')}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {claim.capabilities.map((capability) => (
+                        <label key={capability} className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={selected.includes(capability)}
+                            onCheckedChange={(checked) =>
+                              setSelectedCapabilities((current) => ({
+                                ...current,
+                                [claim.claimId]: claim.capabilities.filter((value) =>
+                                  value === capability ? checked === true : selected.includes(value)
+                                )
+                              }))
+                            }
+                          />
+                          {t(CAPABILITY_LABEL[capability])}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        loading={decidingClaimId === claim.claimId}
+                        disabled={selected.length === 0}
+                        onClick={() => void decideClaim(claim, selected)}>
+                        {t('deviceConnections.claims.approve')}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={decidingClaimId !== undefined}
+                        onClick={() => void decideClaim(claim, null)}>
+                        {t('deviceConnections.claims.reject')}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })
+            ) : invitation && qrPayload ? (
               <div className="flex flex-col items-start gap-2">
                 <div className="rounded-lg border border-border bg-white p-3">
                   <QRCodeSVG value={qrPayload} size={180} level="M" title={t('deviceConnections.pairing.title')} />
                 </div>
                 <div className="font-mono text-muted-foreground text-xs">
-                  {pairingOffer.addresses.map((address) => `http://${address}:${pairingOffer.port}`).join('  ')}
+                  {invitation.addresses.map((address) => `${address}:${invitation.port}`).join('  ')}
                 </div>
               </div>
             ) : (
               <div>
-                <Button variant="outline" loading={isCreatingOffer} disabled={isUpdatingLan} onClick={showPairingQr}>
-                  {!isCreatingOffer && <QrCode size={14} />}
+                <Button
+                  variant="outline"
+                  loading={isCreatingInvitation}
+                  disabled={isUpdatingLan}
+                  onClick={showPairingQr}>
+                  {!isCreatingInvitation && <QrCode size={14} />}
                   {t('deviceConnections.pairing.show')}
                 </Button>
               </div>
@@ -300,6 +404,15 @@ const DeviceConnectionsSettings: FC = () => {
                       <div className="text-muted-foreground text-xs">
                         {device.platform} · {new Date(device.createdAt).toLocaleDateString()}
                       </div>
+                      {device.remoteAccess && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {device.remoteAccess.capabilities.map((capability) => (
+                            <Badge key={capability} variant="outline">
+                              {t(CAPABILITY_LABEL[capability])}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <Tooltip content={t('deviceConnections.devices.revoke')}>
                       <Button

@@ -7,12 +7,16 @@ import { createHash } from 'node:crypto'
 
 import { application } from '@application'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { API_GATEWAY_REQUIRED_I18N_KEY } from '@shared/types/apiGateway'
+import { API_GATEWAY_REQUIRED_I18N_KEY, type ApiGatewayConfig } from '@shared/types/apiGateway'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 
 /** Whether Agent traffic for this provider must pass through Cherry's local API Gateway. */
 export function requiresAgentGateway(providerId: string): boolean {
   return providerId === CHERRY_CLOUD_PROVIDER_ID
+}
+
+export function getApiGatewayClientOrigin(config: Pick<ApiGatewayConfig, 'host' | 'port'>): string {
+  return gatewayClientOrigin(config.host || '127.0.0.1', config.port || 23333)
 }
 
 /**
@@ -22,7 +26,7 @@ export function requiresAgentGateway(providerId: string): boolean {
 export function gatewayCredentialsFingerprint(): string {
   const apiGatewayService = application.get('ApiGatewayService')
   const config = apiGatewayService.getCurrentConfig()
-  const baseUrl = `http://${config.host || '127.0.0.1'}:${config.port || 23333}`
+  const baseUrl = getApiGatewayClientOrigin(config)
   return createHash('sha256')
     .update(
       JSON.stringify(
@@ -71,10 +75,8 @@ export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   // Only after the checks above: this persists a freshly generated key on first use, and a failing
   // route must not leave that side effect behind.
   const apiKey = await apiGatewayService.ensureValidApiKey()
-  const host = config.host || '127.0.0.1'
-  const port = config.port || 23333
   return {
-    baseUrl: gatewayClientOrigin(host, port),
+    baseUrl: getApiGatewayClientOrigin(config),
     apiKey,
     usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId),
     internalRequestToken: apiGatewayService.getInternalRequestToken()

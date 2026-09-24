@@ -179,8 +179,15 @@
     {
       "idx": 25,
       "version": "6",
-      "when": 1789640000000,
-      "tag": "0025_bouncy_mandarin",
+      "when": 1790186132435,
+      "tag": "0025_remote-access",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1790253371284,
+      "tag": "0026_jittery_maestro",
       "breakpoints": true
     }
   ],

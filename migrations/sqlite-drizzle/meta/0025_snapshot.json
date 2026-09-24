@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "efc098ca-fa0d-4e30-acd0-4276c72b195d",
+  "id": "92e82a74-fbe1-4767-96a0-a57f01cff2f7",
   "prevId": "60663efc-b716-444a-afbb-50fd77ebb24f",
   "tables": {
     "agent": {
@@ -79,13 +79,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'{}'"
-        },
-        "group_id": {
-          "name": "group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         },
         "order_key": {
           "name": "order_key",
@@ -172,19 +165,6 @@
           "tableTo": "user_model",
           "columnsFrom": [
             "small_model"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_group_id_group_id_fk": {
-          "name": "agent_group_id_group_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "group",
-          "columnsFrom": [
-            "group_id"
           ],
           "columnsTo": [
             "id"
@@ -1665,11 +1645,25 @@
           "notNull": true,
           "autoincrement": false
         },
-        "token_hash": {
-          "name": "token_hash",
+        "peer_identity": {
+          "name": "peer_identity",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "configuration_grant_id": {
+          "name": "configuration_grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "agent_grant_id": {
+          "name": "agent_grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "created_at": {
@@ -1688,10 +1682,10 @@
         }
       },
       "indexes": {
-        "api_gateway_paired_device_token_hash_unique_idx": {
-          "name": "api_gateway_paired_device_token_hash_unique_idx",
+        "api_gateway_paired_device_peer_identity_unique_idx": {
+          "name": "api_gateway_paired_device_peer_identity_unique_idx",
           "columns": [
-            "token_hash"
+            "peer_identity"
           ],
           "isUnique": true
         }
@@ -5276,6 +5270,130 @@
           "value": "\"prompt\".\"visibility\" IN ('global', 'restricted')"
         }
       }
+    },
+    "remote_command": {
+      "name": "remote_command",
+      "columns": {
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "grant_id": {
+          "name": "grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "command_id": {
+          "name": "command_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "identity_digest": {
+          "name": "identity_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "execution_id": {
+          "name": "execution_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "result": {
+          "name": "result",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "admitted_at": {
+          "name": "admitted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "remote_command_device_id_api_gateway_paired_device_id_fk": {
+          "name": "remote_command_device_id_api_gateway_paired_device_id_fk",
+          "tableFrom": "remote_command",
+          "tableTo": "api_gateway_paired_device",
+          "columnsFrom": [
+            "device_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "remote_command_device_id_grant_id_command_id_pk": {
+          "columns": [
+            "device_id",
+            "grant_id",
+            "command_id"
+          ],
+          "name": "remote_command_device_id_grant_id_command_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "entity_tag": {
       "name": "entity_tag",
