@@ -1,5 +1,5 @@
 import { ArrowRight, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox, Textarea } from '@cherrystudio/ui'
@@ -10,6 +10,7 @@ import { cn } from '@renderer/utils/style'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { AskUserQuestionComposerRequest } from './askUserQuestionComposerRequest'
+import { readAskUserQuestionDraftCache, writeAskUserQuestionDraftCache } from './askUserQuestionDraftCache'
 
 export type { AskUserQuestionComposerRequest } from './askUserQuestionComposerRequest'
 
@@ -42,10 +43,19 @@ export function createAskUserQuestionComposerOverride({
 export default function AskUserQuestionComposer({ request, onRespond, className }: AskUserQuestionComposerProps) {
   const { t } = useTranslation()
   const questions = request.input.questions
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [selectedAnswers, setSelectedAnswers] = useState<AnswersByIndex>({})
-  const [customAnswers, setCustomAnswers] = useState<Record<number, string>>({})
+  // Answers are restored from the cache so a remount (switching conversations and
+  // coming back) does not discard what the user already answered but not submitted.
+  const [restoredDraft] = useState(() => readAskUserQuestionDraftCache(request.approvalId))
+  const [currentIndex, setCurrentIndex] = useState(() =>
+    Math.min(Math.max(restoredDraft.currentIndex, 0), Math.max(questions.length - 1, 0))
+  )
+  const [selectedAnswers, setSelectedAnswers] = useState<AnswersByIndex>(restoredDraft.selectedAnswers)
+  const [customAnswers, setCustomAnswers] = useState<Record<number, string>>(restoredDraft.customAnswers)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    writeAskUserQuestionDraftCache(request.approvalId, { selectedAnswers, customAnswers, currentIndex })
+  }, [currentIndex, customAnswers, request.approvalId, selectedAnswers])
 
   const currentQuestion = questions[currentIndex]
   const totalQuestions = questions.length

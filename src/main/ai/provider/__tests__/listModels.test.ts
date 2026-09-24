@@ -1,4 +1,5 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
+import type * as CustomFetchModule from '@main/ai/utils/customFetch'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -55,6 +56,17 @@ vi.mock('@main/services/CopilotService', () => ({
     getToken: getCopilotTokenMock
   }
 }))
+
+// Listing issues its HTTP through `customFetch` (Electron `net.fetch`, the Chromium stack),
+// which has no Chromium behind it under Vitest: delegate to Node's fetch so a test that
+// stubs the fetch global still sees the request.
+vi.mock('@main/ai/utils/customFetch', async () => {
+  const actual = await vi.importActual<typeof CustomFetchModule>('@main/ai/utils/customFetch')
+  return {
+    ...actual,
+    customFetch: (input: string | URL | Request, init?: RequestInit) => globalThis.fetch(input, init)
+  }
+})
 
 vi.mock('@ai-sdk/provider-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof AiSdkProviderUtils>()
