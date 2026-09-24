@@ -70,6 +70,7 @@ describe('CherryInOauth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     oauthWithCherryInMock.mockReset()
+    syncProviderModelsMock.mockReset()
     syncProviderModelsMock.mockResolvedValue([{ id: 'cherryin::gpt-4o-mini', providerId: 'cherryin', isEnabled: true }])
     initializeOfficialAssistantsMock.mockResolvedValue(undefined)
     ipcApiRequestMock.mockImplementation((route: string) => {
@@ -320,7 +321,8 @@ describe('CherryInOauth', () => {
     expect(toast.success).toHaveBeenCalled()
   })
 
-  it('does not initialize official assistants for a preset-derived CherryIN provider', async () => {
+  it('preserves a preset-derived CherryIN provider login when model sync is unavailable', async () => {
+    syncProviderModelsMock.mockRejectedValueOnce(new Error('model sync unavailable'))
     useProviderMock.mockReturnValue({
       provider: { id: 'custom-cherryin', presetProviderId: 'cherryin', name: 'CherryIN', apiKeys: [], isEnabled: true },
       updateProvider: vi.fn().mockResolvedValue(undefined),
@@ -342,7 +344,8 @@ describe('CherryInOauth', () => {
     await user.click(screen.getByRole('button', { name: /CherryIN|授权/i }))
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled())
-    expect(syncProviderModelsMock).toHaveBeenCalledOnce()
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(syncProviderModelsMock).not.toHaveBeenCalled()
     expect(initializeOfficialAssistantsMock).not.toHaveBeenCalled()
   })
 

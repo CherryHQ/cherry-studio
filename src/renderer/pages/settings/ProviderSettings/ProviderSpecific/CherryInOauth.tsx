@@ -139,14 +139,14 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
         }
       )
 
-      try {
-        await syncProviderModels()
-      } catch (error) {
-        logger.error('Failed to sync CherryIN models after login', error as Error)
-        toast.warning(t('settings.provider.oauth.cherryIn.model_sync_failed'))
-        return
-      }
       if (providerId === SystemProviderIds.cherryin) {
+        try {
+          await syncProviderModels()
+        } catch (error) {
+          logger.error('Failed to sync CherryIN models after login', error as Error)
+          toast.warning(t('settings.provider.oauth.cherryIn.model_sync_failed'))
+          return
+        }
         try {
           await dataApiService.post('/assistants:initialize-cherryin-official', { body: {} })
         } catch (error) {
