@@ -142,12 +142,21 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
 
   useEffect(() => {
     if (!rootPanelVisible) return
+    let cancelled = false
     setDataRequested(true)
-    if (resolvedNotesPath || pathError) return
+    setResolvedNotesPath(undefined)
+    setPathError(null)
     void resolveNotesPath(notesPath)
-      .then(({ path }) => setResolvedNotesPath(path))
-      .catch((nextError) => setPathError(nextError instanceof Error ? nextError : new Error(String(nextError))))
-  }, [notesPath, pathError, resolvedNotesPath, rootPanelVisible])
+      .then(({ path }) => {
+        if (!cancelled) setResolvedNotesPath(path)
+      })
+      .catch((nextError) => {
+        if (!cancelled) setPathError(nextError instanceof Error ? nextError : new Error(String(nextError)))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [notesPath, rootPanelVisible])
 
   const openNoteReferencePanel = useCallback<NonNullable<ComposerToolLauncher['action']>>(
     ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
