@@ -8,8 +8,8 @@ import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
-import { toUarToolName } from './UarAguiAdapter'
 import { UarRuntimeConnection } from './UarRuntimeConnection'
+import { toUarToolName } from './uarToolNames'
 
 export class UarRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'uar'

@@ -19,6 +19,7 @@ import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { warmMcpToolCatalogs } from '@main/ai/runtime/pi/piMcpToolAdapter'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -31,15 +32,16 @@ import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
-  AgentRuntimeUserInput
+  AgentRuntimeUserInput,
+  AgentSessionUsageCapture
 } from '../types'
-import { toUarToolName, UarAguiAdapter } from './UarAguiAdapter'
+import { UarAguiAdapter } from './UarAguiAdapter'
+import { buildUarHostHistory, type UarHistoryMessage } from './uarHostHistory'
 import { createUarHostMcpBridge, type UarHostMcpBridge, type UarRunMcpServer } from './UarHostMcpBridge'
+import { toUarToolName } from './uarToolNames'
 
 const HISTORY_PAGE_SIZE = 200
 const HISTORY_LIMIT = 1_000
-
-type UarHistoryMessage = { role: 'user' | 'assistant'; content: string }
 
 type UarRunCredential = {
   provider_id: string
@@ -81,8 +83,13 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
   private attachedGeneration?: number
   private resumeTokenEmitted = false
   private initialSignature = ''
+  private _usageCapture?: AgentSessionUsageCapture
 
   readonly events = this.eventQueue
+
+  get usageCapture(): AgentSessionUsageCapture | undefined {
+    return this._usageCapture
+  }
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.principal = `boss.${createHash('sha256')
@@ -92,6 +99,7 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
 
   async start(): Promise<this> {
     await application.get('UarSidecarService').ensureReady()
+    this._usageCapture = this.resolveProvider(this.input.modelId).usageCapture
     this.initialSignature = await this.signature()
     return this
   }
@@ -197,16 +205,7 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
       this.runningTurn = { runId: created.run_id, generation: sidecar.generation, abort }
       admitted()
       try {
-        const stream = await application
-          .get('UarSidecarService')
-          .request(
-            `${created.stream_url}?stream_mode=agui_spec`,
-            this.principal,
-            { signal: abort.signal },
-            sidecar.generation
-          )
-        if (!stream.ok) throw await this.responseError(stream, 'UAR stream failed', secrets)
-        await new UarAguiAdapter({
+        const adapter = new UarAguiAdapter({
           sessionId: this.input.sessionId,
           agentId: this.input.agentId,
           runId: created.run_id,
@@ -216,7 +215,34 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
           bridge,
           emit: (event) => this.eventQueue.push(event),
           isClosed: () => this.closed
-        }).consume(stream)
+        })
+        let streamError: unknown = new Error('UAR stream ended before a terminal event')
+        for (let attempt = 0; attempt < 2 && !adapter.isTerminal(); attempt += 1) {
+          const replayCursor = adapter.replayCursor()
+          if (attempt > 0) adapter.prepareReconnect()
+          try {
+            const stream = await application.get('UarSidecarService').request(
+              `${created.stream_url}?stream_mode=agui_spec`,
+              this.principal,
+              {
+                signal: abort.signal,
+                headers: { 'last-event-id': attempt > 0 ? replayCursor : '0' }
+              },
+              sidecar.generation
+            )
+            if (!stream.ok) throw await this.responseError(stream, 'UAR stream failed', secrets)
+            await adapter.consume(stream)
+            streamError = new Error('UAR stream ended before a terminal event')
+          } catch (error) {
+            streamError = error
+          }
+          if (adapter.isTerminal()) break
+          if (this.closed || abort.signal.aborted) throw streamError
+        }
+        if (!adapter.isTerminal()) {
+          adapter.interrupt(streamError)
+          throw streamError
+        }
       } finally {
         if (this.runningTurn?.runId === created.run_id) this.runningTurn = undefined
       }
@@ -254,7 +280,10 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
     return input.systemReminder ? wrapSteerReminder(content) : content
   }
 
-  private resolveProvider(uniqueModelId: AgentRuntimeConnectInput['modelId']): { credential: UarRunCredential } {
+  private resolveProvider(uniqueModelId: AgentRuntimeConnectInput['modelId']): {
+    credential: UarRunCredential
+    usageCapture: AgentSessionUsageCapture
+  } {
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
     const provider = providerService.getByProviderId(providerId)
     const model = modelService.getByKey(providerId, modelId)
@@ -279,6 +308,22 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
         provider_kind: providerKind,
         base_url: endpoint.baseUrl,
         api_key: apiKey
+      },
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: resolved.apiKeySelection,
+        providerId: provider.id,
+        providerName: provider.name ?? null,
+        source: null,
+        frozenModels: [
+          {
+            modelId: model.id,
+            apiModelId: getRawModelId(model),
+            modelName: model.name ?? model.id,
+            aliases: [...new Set([model.id, getRawModelId(model)])],
+            pricingSnapshot: createAiUsagePricingSnapshot(model.pricing)
+          }
+        ]
       }
     }
   }
@@ -369,25 +414,8 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
       cursor = page.nextCursor
     } while (cursor && newestFirst.length < HISTORY_LIMIT)
 
-    return newestFirst
-      .slice(0, HISTORY_LIMIT)
-      .reverse()
-      .filter((item) => item.id !== excludeMessageId && item.role !== 'system' && item.status !== 'pending')
-      .map(
-        (item): UarHistoryMessage => ({
-          role: item.role === 'assistant' ? 'assistant' : 'user',
-          content: this.messageText(item)
-        })
-      )
-      .filter((item) => item.content.length > 0)
-  }
-
-  private messageText(message: AgentSessionMessageEntity): string {
-    const text: string[] = []
-    for (const part of message.data.parts ?? []) {
-      if (part.type === 'text') text.push(part.text)
-    }
-    return text.join('\n').trim()
+    const chronological = newestFirst.slice(0, HISTORY_LIMIT).reverse()
+    return buildUarHostHistory(chronological, excludeMessageId)
   }
 
   private mapReasoningEffort(): 'none' | 'low' | 'medium' | 'high' | 'max' | undefined {
