@@ -6,6 +6,7 @@ import type { AgentDetail, ResourceItem, ResourceType, SortKey } from '@renderer
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { Group } from '@shared/data/types/group'
 import type { Prompt } from '@shared/data/types/prompt'
 
 import { agentAdapter } from './agentAdapter'
@@ -30,6 +31,8 @@ export interface UseResourceLibraryOptions {
 export interface UseResourceLibraryResult {
   resources: ResourceItem[]
   allResources: ResourceItem[]
+  /** The library's group rows, so callers share this read instead of subscribing again. */
+  groups: Group[]
   isLoading: boolean
   isRefreshing: boolean
   error?: Error
@@ -252,6 +255,7 @@ export function useResourceLibrary({
   return {
     resources,
     allResources,
+    groups: libraryGroups.groups,
     isLoading,
     isRefreshing,
     error,
