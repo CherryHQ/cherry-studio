@@ -33,7 +33,7 @@ sources:
 
 以下设计建议以这些需求为依据；平台机制和现有模块的扩展方案仍需原型验证及决策。
 
-[后端候选方案](./backend-options.md)记录各平台原生隔离机制，并比较 Windows 原生与 WSL2 路线；WSL2 尚未被确定为原生 Windows 的替代方案。
+[后端候选方案](./backend-options.md)记录各平台原生隔离机制。已决定不实现 WSL2 后端，避免硬件虚拟化前置条件；Windows 仅推进原生路线，具体机制仍待验证。原型采用独立的 `packages/sandbox` 包，边界与实施顺序见[第 11 节](#11-独立包结构与-demo-实施顺序)。
 
 ## 2. 最小分层
 
@@ -142,7 +142,7 @@ Windows 初始化与日常执行分开：初始化可以建立专用账户和系
 
 私有管道或继承式通道保留为备选；平台启动器是否正确传递专用句柄、Windows 跨账户启动是否可用，需要原型验证后再决定。普通日志不能与协议帧混在同一未经分帧的流中。
 
-Linux 后端需验证 socket 访问约束与所选隔离机制是否兼容，必要时验证预先建立的专用连接或继承管道；WSL2 候选则优先验证 `wsl.exe` 标准流桥接。这些变化不改变双向 RPC over 本地 IPC 的决策，不能为接通通道而放开全部本地 socket。验收要求见[后端候选方案](./backend-options.md)。
+Linux 后端需验证 socket 访问约束与所选隔离机制是否兼容，必要时验证预先建立的专用连接或继承管道。这些变化不改变双向 RPC over 本地 IPC 的决策，不能为接通通道而放开全部本地 socket。验收要求见[后端候选方案](./backend-options.md)。
 
 [Electron utilityProcess](https://www.electronjs.org/docs/latest/api/utility-process) 使用 MessagePort，标准流接口不支持可写 stdin；[Node child_process](https://nodejs.org/api/child_process.html) 提供另一套标准流和 IPC 机制。不能假设两者可以原样替换，或默认外层 OS launcher 可以保留 Electron 的引导通道。
 
@@ -233,7 +233,8 @@ sequenceDiagram
 | 扩展 Utility Process 与 IpcApi 的具体方式 | 已识别上游缺口，未定案 | 先验证受限 launcher 与通道兼容性，再决定模块改动；不先创建平行基础设施 |
 | 后端、运行时和 RPC 库 | 候选验证阶段 | 不能把开发机单平台成功当作可发布结论 |
 | 宿主 API 与跨语言协议 | 已有可供原型使用的 API 草案，尚未冻结 | 原型验证启动、清理和 Node/Python 互通后再定稿；不展开插件设计或集成 |
-| Windows 原生与 WSL2 路线 | 已记录两个候选路线，尚未选定 | 如 WSL2 替代首版原生支持，需显式调整平台要求；验证门槛见后端候选方案 |
+| 平台范围 | 已确认原生 macOS、Windows、Linux；不实现 WSL2 | 排除硬件虚拟化前置条件；Windows 原生机制仍待选型，不能回退普通进程 |
+| 独立包与 demo | 已确认 `packages/sandbox`，按宿主控制、平台后端、RPC 和目标接入分层 | 先实现 macOS 进程闭环，再验证跨语言 RPC；仅创建实际实现的文件，见第 11 节 |
 | Windows 特权组件 | 允许一次 UAC 不等于已批准常驻服务或开机任务 | 是否采用、最小职责、认证和维护边界需单独决策；日常不反复弹出 UAC 的要求保持不变 |
 | 消息上限、停止预算与资源配额 | 待原型测量 | 固定配置后补充边界测试，不在本轮猜测数值 |
 
@@ -250,3 +251,77 @@ sequenceDiagram
 7. 按后端矩阵逐项验证系统服务访问与必要例外；宿主代办文件操作时执行路径替换对抗测试，消费返回值时验证不会隐式授予执行、网络或 renderer 权限。
 
 以 [API 草案](./api.md)开展上述验证，通过后再冻结生产类型并收敛实现任务。当前未运行任何 sandbox 原型或三平台验收。
+
+## 11. 独立包结构与 demo 实施顺序
+
+原型放在 `packages/sandbox`，包名为 `@cherrystudio/sandbox`，初期设为 private。包围绕“宿主控制 API → 平台后端 → 受限进程树”组织；RPC 使用后端交付的受控通道。demo 通过包的公开 API 运行，不另写绕过策略或生命周期的启动路径。
+
+以下是目标组织形式，不要求首个切片创建全部目录或空实现。文件可随实现规模合并，职责边界保持不变：
+
+```text
+packages/sandbox/
+  package.json
+  README.md
+  src/
+    types.ts                       # Spec、Probe、EffectivePolicy、Completion
+    host/
+      SandboxManager.ts            # 探测、实例归属、启动与停止调度
+      instance.ts                  # 实例状态、ready/completion、标准流
+      validateSpec.ts              # 平台无关的输入校验
+    backends/
+      types.ts                     # SandboxBackend、BackendLease
+      resolveBackend.ts            # 显式环境选择，不静默降级
+      macos/
+        MacosBackend.ts
+        probe.ts
+        policy.ts                  # Seatbelt 策略转换
+        launch.ts                  # 可信受限启动
+        lease.ts                   # 进程树、通道与资源清理
+        runtimeProfiles.ts         # 运行时必要访问与系统服务例外
+      linux/
+        LinuxBackend.ts
+        probe.ts
+        policy.ts                  # namespace、挂载、seccomp 等配置
+        launch.ts
+        lease.ts
+        runtimeProfiles.ts
+      windows/
+        WindowsBackend.ts
+        probe.ts
+        policy.ts                  # 选定原生机制对应的权限配置
+        launch.ts
+        lease.ts
+        runtimeProfiles.ts
+    rpc/
+      types.ts                     # RpcPeer、绑定、授权上下文、错误
+      connection.ts                # 双向调用、取消、断连与并发预算
+      framing.ts                   # 有界分帧与协议校验
+      handshake.ts                 # 实例认证、版本与就绪协商
+    guest/
+      node.ts                      # Node 目标的薄接入层
+  examples/
+    host.ts
+    nodeGuest.ts
+    python_guest.py
+  tests/
+    contracts/                     # 各后端共用的行为契约
+    backends/                      # 平台真实隔离、越权与清理测试
+    rpc/                           # 协议与跨语言互通测试
+```
+
+职责与依赖约束：
+
+- `host` 持有实例与 lease，组织生命周期和宿主 RPC 授权，不包含 Seatbelt、ACL 等平台细节。`launch()` 在创建 OS 资源前交付 lease；启动中失败、停止及清理失败均不能丢失管理责任。
+- `backends` 完整承担隔离建立、可信启动、进程树终止与资源回收，不能只包装 `spawn()`。`started`、`targetExit`、`terminate` 和 `cleanup` 分别表达隔离建立、根退出、树退出与资源回收的事实。每个平台的运行时例外由该后端维护并计入有效策略。
+- 端点创建、访问限制、继承句柄和底层通道关闭属于 backend/lease；`rpc` 只使用所交付的字节通道，负责协议、认证与消息预算，不自行创建进程或扩大 OS 权限。RPC ready 不能替代可信启动证据。
+- `guest` 只提供协议接入便利，不承担安全边界。包通过明确的 exports 分开宿主与 Node 目标入口，目标入口不引入宿主后端依赖；Python 先提供互通样例，不承诺所有语言 SDK。
+- 包不依赖 Electron、`@application`、数据库或 Agent 业务。宿主传入所需路径、日志接口与 RPC 绑定；未来 Cherry 适配仍使用既有路径、日志和 lifecycle 设施。现有 Utility Process 的复用或上游扩展按第 3 节单独验证，不在包内另建通用 ProcessHost 框架。
+- 仅在原型证明需要时增加 `native/<platform>/` 存放自有原生 helper 源码；不预定实现语言或 Windows 常驻特权服务。安装与管理员初始化独立于日常 `launch()`，不创建 WSL2 后端或桥接。
+
+实施与验证顺序：
+
+1. **macOS 进程闭环**：实现 spec 校验、管理者、macOS backend 与 lease，让普通命令通过公开 API 启停。验证允许文件访问成功，越界读写、直接网络/DNS 及非授权本地通道被拒绝；启动中取消、根退出后的子进程回收及清理失败均有明确结果。尚未实现的后端或必需能力返回不可用，不提供普通进程回退。
+2. **跨语言通信**：在真实受限进程中接入 Node/Python，验证嵌套双向请求、授权拒绝、帧与并发预算、超时及断连结算。通道按第 6 节验证专用端点或私有管道，不为接通 RPC 放开整类本地入口。
+3. **其余原生后端与打包验证**：实现 Linux 和选定的 Windows 原生机制，运行共同契约及各平台对抗测试。Windows 可行性探针提前开展，尽早验证运行时、named pipe 和日常免提权条件；生产支持结论必须来自三平台实际打包运行证据。
+
+每个切片补齐第 10 节及后端矩阵中相关的失败、多实例、宿主异常退出和系统服务测试。mock 仅用于管理和协议契约，不能作为平台隔离证明。当前仅确定包边界和实施顺序，尚未创建包或实现 demo。

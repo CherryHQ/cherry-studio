@@ -22,7 +22,7 @@ sources:
 
 ## 1. 目标与范围
 
-为 Cherry Studio 引入可供 Agent 和未来 Extension Host 共用的进程沙盒抽象，支持 macOS、原生 Windows 和 Linux。WSL2、容器或远程 Linux 环境不能替代原生 Windows 的支持要求。
+为 Cherry Studio 引入可供 Agent 和未来 Extension Host 共用的进程沙盒抽象，支持 macOS、原生 Windows 和 Linux。已决定不实现 WSL2 后端，避免引入硬件虚拟化前置条件；容器或远程 Linux 环境也不能替代原生 Windows 的支持要求。
 
 两个消费者共用隔离能力，但拥有不同的权限与生命周期：
 
@@ -168,7 +168,7 @@ flowchart TB
 
 Cherry 定义自己的沙盒契约，按平台评估原生隔离机制与可复用的基础组件；DSH 的 policy / backend 拆分和 Codex 的平台实现仅作为设计参考。尚未选择生产依赖或冻结后端实现。
 
-[后端候选方案](./backend-options.md)记录 macOS Seatbelt、Linux bubblewrap / namespaces / seccomp 候选机制，以及 Windows 原生后端与 WSL2 两条路线。Windows 原生方向继续比较专用身份与受限进程、AppContainer；WSL2 尚未决定替代原生 Windows 要求。具体机制、RPC 接入、多实例隔离与验收门槛见该文档。
+[后端候选方案](./backend-options.md)记录 macOS Seatbelt、Linux bubblewrap / namespaces / seccomp 候选机制，以及 Windows 原生后端的专用身份与受限进程、AppContainer 两个方向。WSL2 已排除，仅保留决策原因。具体机制、RPC 接入、多实例隔离与验收门槛见该文档。原型采用独立的 `packages/sandbox` 包，组织边界与实施顺序见[包结构与 demo](./design.md#11-独立包结构与-demo-实施顺序)。
 
 需要通过设计决策或实验收敛的问题：
 

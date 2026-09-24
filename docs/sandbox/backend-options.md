@@ -1,5 +1,5 @@
 ---
-description: 沙盒后端候选方案，比较原生三平台、Windows 独立后端和 WSL2 路线及其验证门槛
+description: 沙盒原生三平台后端候选机制、Windows 选型与验证门槛，以及排除 WSL2 的决策
 status: draft
 date: 2026-09-24
 sources:
@@ -14,18 +14,19 @@ sources:
 
 各路线需要兑现相同的 [API 草案](./api.md#6-平台后端契约)；API 中声明的限制是后端验收要求，不表示这些机制已经在所有平台实现。
 
-原生 macOS、Windows、Linux 仍是已记录的目标。WSL2 已纳入比较，但尚未决定用它替代首版原生 Windows 支持；若选择替代，需明确调整平台要求。Windows 首次初始化允许管理员授权，日常运行不反复提权。
+已确认实现原生 macOS、Windows、Linux 后端。2026-09-25 决定不实现 WSL2，避免硬件虚拟化前置条件，原因见第 4 节。Windows 首次初始化允许管理员授权，日常运行不反复提权；原生机制仍待选型。
 
 ## 1. 候选路线
 
 Cherry 统一管理策略、授权、生命周期与业务 RPC，各平台后端落实操作系统限制。需同时验证用户资源保护和不同信任组之间的隔离。
 
-| 路线 | macOS / Linux | Windows | 收益 | 成本与决定性门槛 |
-| --- | --- | --- | --- | --- |
-| A：三平台原生后端 | 评估 Seatbelt / bubblewrap + namespaces + seccomp | 评估按信任组隔离身份或 AppContainer | 保持各平台原生运行时和工具兼容 | 原生辅助程序、安装与安全维护成本；需证明权限、RPC 与清理符合要求 |
-| B：Windows 使用 WSL2 | 同路线 A | Cherry 专用 WSL2 发行版内运行 Linux 沙盒 | Windows 与 Linux 复用更多实现 | 首次安装、可能重启、发行版维护、Linux 原生依赖和跨系统文件访问；不等于原生 Windows 后端 |
+| 平台 | 候选机制 | 决定性门槛 |
+| --- | --- | --- |
+| macOS | Seatbelt | 运行时与系统服务的必要例外、进程树收敛、签名打包后的权限边界 |
+| Linux | bubblewrap + namespaces + seccomp | 发行版安全策略、组件分发、命名空间与配额权限、父进程死亡后的清理 |
+| Windows | 按信任组隔离身份与受限进程，或 AppContainer | 原生运行时兼容、多实例隔离、首次初始化后普通用户完成日常生命周期 |
 
-Cherry 定义自己的后端契约，按平台验证隔离机制与可复用的基础组件；其他 Agent / Harness 的实现仅作为设计参考，不直接确定为通用沙盒底座。Windows 保留原生与 WSL2 两条路线比较；不自动降级到更弱后端或普通进程。
+Cherry 定义自己的后端契约，按平台验证隔离机制与可复用的基础组件；其他 Agent / Harness 的实现仅作为设计参考，不直接确定为通用沙盒底座。不自动降级到更弱后端或普通进程。
 
 ## 2. 原生后端的共同要求
 
@@ -60,7 +61,7 @@ macOS 以 Seatbelt 为候选；Linux 以 bubblewrap、namespaces 和 seccomp 的
 
 进程分离只提供有条件的故障隔离；未落实资源配额时，独立进程仍可争用并耗尽主机资源。按用户计数的限额不能直接当作按实例配额；也不能因某平台缺少一种机制就预先断言所有后端均不可限制。
 
-## 3. 路线 A 的 Windows 原生后端
+## 3. Windows 原生后端
 
 以下是原生后端的两个候选方向，尚未决定具体组合或基础组件：
 
@@ -88,44 +89,17 @@ Microsoft MXC 的 host-prep 文档记录了其 AppContainer 运行方案的系�
 
 账户数量、账户池或 AppContainer SID 均不能直接作为跨信任组隔离证明；系统目录的必要读取例外也需列明。必须测试真实的文件、凭据、通道及网络访问，再确定原生路线是否满足要求，不能从单个方案的限制推断整个 Windows 目标不可行。
 
-## 4. 路线 B：WSL2 内运行 Linux 沙盒
+## 4. 已排除：WSL2
 
-建议结构如下，具体桥接尚未验证：
+2026-09-25 决策：不实现 WSL2 后端。WSL2 依赖硬件虚拟化和 Windows 的 Virtual Machine Platform 组件；本项目不接受将其作为启用沙盒的前置条件。[微软 WSL 文档](https://learn.microsoft.com/en-us/windows/wsl/faq#does-wsl-2-use-hyper-v)
 
-```text
-Cherry 主进程（Windows）
-    ⇅ 双向 RPC，经 wsl.exe 标准流桥接
-可信启动与通信组件（Cherry 专用 WSL2 发行版）
-    ↓ Linux 沙盒后端
-受限 Linux Node / Python 进程
-```
-
-WSL2 提供执行环境，发行版内部仍按实例建立文件、网络和进程限制。专用发行版不是插件之间的隔离边界。微软支持通过 `wsl.exe` 管道传输数据；长驻双向协议、背压、取消和异常退出需另行验证。协议流与日志分开，业务协议保持 RPC over 本地 IPC。[跨系统管道](https://learn.microsoft.com/en-us/windows/wsl/filesystems)
-
-环境设计建议：
-
-- 使用 Cherry 管理的专用发行版，不修改用户已有发行版或全局 `.wslconfig`。
-- 关闭 Windows 磁盘自动挂载、Windows 程序互操作和 Windows PATH 注入；同时检查其他挂载入口。仅关闭自动挂载不能阻止手动挂载。
-- 插件使用非 root 身份，不能修改隔离配置、访问可信管理组件或自行挂载宿主资源；Linux 沙盒仅开放获准路径和通信通道。
-- 插件代码和运行时优先放在 Linux 文件系统；Windows 工作区通过显式授权映射或宿主 API 提供。映射路径、链接、大小写及文件监听语义需要验收。
-- Windows 原生能力经授权 RPC 调用宿主；插件使用 Linux 版 Node/Python 及原生依赖，不承诺 Windows 二进制兼容。
-
-WSL 默认自动挂载固定磁盘并启用 Windows 程序互操作，以上设置需要显式管理。标准安装流程要求管理员权限并可能重启；日常免提权仍是 Cherry 的验收要求。[WSL 配置](https://learn.microsoft.com/en-us/windows/wsl/wsl-config)、[安装要求](https://learn.microsoft.com/en-us/windows/wsl/install)
-
-额外成本包括发行版下载与更新、磁盘占用、启动与内存开销，以及跨系统文件访问。微软建议 Linux 工具将文件存放在 Linux 文件系统以改善性能；Cherry 尚无实测数据。[文件存放建议](https://learn.microsoft.com/en-us/windows/wsl/filesystems#file-storage-and-performance-across-file-systems)
-
-生命周期须同时覆盖 Windows 启动进程和 Linux 目标进程树，不能认为 `wsl.exe` 退出就代表清理完成；不能通过全局 `wsl --shutdown` 清理单个插件并影响用户其他发行版。
+不实现发行版安装维护、跨系统路径映射或 `wsl.exe` 桥接，也不将 WSL2 保留为原生 Windows 失败后的备用路线。包结构与 API 只包含原生三平台；Windows 原生机制不能满足策略时明确报告不可用，不能以普通进程代替。
 
 ## 5. 选型验证门槛
 
 所有路线均需验证：允许访问成功、越界读写与网络访问被拒绝、不同信任组不串权、双向 RPC 正常、断连结束等待、退出无残留执行；同一信任组共享进程的边界保持不变。
 
-| 路线 | 额外证据 |
-| --- | --- |
-| A | 各平台两实例分别授权不同目录及网络目标后互相不可借用；指定 RPC 通道可用且其他宿主通道不可达；Windows 初始化后新建、停止和清理实例不反复提权 |
-| B | 满足 Linux 后端隔离要求；禁止 Windows 程序互操作及未授权磁盘访问；Windows 工作区授权有效；桥接或宿主异常退出后 Linux 进程树被清理；不影响其他发行版 |
-
-选型前需决定 WSL2 是可选后端还是首版 Windows 主路径。如果选择后者，应同步修改原生 Windows 要求，明确最低系统与 WSL 版本、安装与重启体验、发行版交付维护方式及运行时兼容范围。
+各平台需以两个实例分别授权不同目录及网络目标，验证互相不可借用；指定 RPC 通道可用且其他宿主通道不可达。Windows 还需验证一次初始化后，普通用户跨应用及系统重启创建、停止和清理实例不反复提权。
 
 ### 5.1 Linux 部署与支持矩阵
 

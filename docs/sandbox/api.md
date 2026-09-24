@@ -98,10 +98,10 @@ interface SandboxLimits {
 
 ### 3.1 环境、路径与运行时
 
-- `environmentId` 是宿主预先选择的执行环境标识，探测结果说明它对应原生 OS 还是指定 WSL2 发行版；不能在启动失败时从原生环境切换到 WSL2。创建、安装、升级环境另走维护流程，不是目标可调用的 API。
+- `environmentId` 是宿主预先选择的原生执行环境标识，探测结果说明对应的 OS；不接受 WSL2 环境，也不能在启动失败时切换环境或降级。安装、升级后端组件另走维护流程，不是目标可调用的 API。
 - `runtimeProfileId` 引用宿主维护且带版本的运行时基础策略：解释器、系统库、必要设备及临时目录规则。它不是目标自报的配置；执行文件必须符合所选 profile。必要读取范围在探测和实际启动结果中列明，不能隐式开放整个用户目录。Node/Python 基础策略尚待逐平台验证。
 - `executable`、`cwd` 和文件策略路径均为执行环境内的绝对路径。`args` 按原样传递，不做 shell 拼接、通配符展开或 PATH 搜索；确需 shell 时显式指定可执行文件和参数，并由 profile 决定是否允许。
-- `mounts` 仅用于后端支持的显式路径映射：`source` 是宿主绝对路径，`target` 是执行环境绝对路径。原生后端若不支持重映射，应拒绝该请求。WSL2 中不能将 `C:\\...` 直接当成 Linux 路径，也不能默认暴露 `/mnt/c`。
+- `mounts` 仅用于后端支持的显式路径映射：`source` 是宿主绝对路径，`target` 是执行环境绝对路径。原生后端若不支持重映射，应拒绝该请求。
 - 映射本身不额外授权：宿主先核准 source，target 必须落入相应 read/write 范围，挂载模式不得比策略宽。执行文件、cwd、所有规则必须属于本次环境。调用方从既有路径设施取得应用路径，不另造路径根。
 - 配置快照在启动时复制并冻结；执行期间修改调用方对象不改变策略。应用级敏感路径拒绝规则与请求合并后始终优先，不向目标提供覆盖入口。
 
@@ -153,7 +153,7 @@ interface SandboxManager {
 }
 
 interface SandboxProbeDetails {
-  environment: { id: string; kind: 'native' | 'wsl2'; os: 'macos' | 'linux' | 'windows' }
+  environment: { id: string; kind: 'native'; os: 'macos' | 'linux' | 'windows' }
   checks: readonly {
     feature: string
     status: 'supported' | 'unsupported' | 'unknown'
@@ -346,7 +346,7 @@ request/notify 的失败以 RpcError 拒绝，调用方在 catch 中用 isRpcErr
 
 ## 6. 平台后端契约
 
-内部后端接收去除 RPC 回调后的冻结 spec 与实例身份，提供以下最小接口；具体文件位置和与现有 ProcessAdapter 的关系在原型验证后决定。
+内部后端接收去除 RPC 回调后的冻结 spec 与实例身份，提供以下最小接口；包内边界见[独立包结构](./design.md#11-独立包结构与-demo-实施顺序)，与现有 ProcessAdapter 的关系在原型验证后决定。
 
 ```typescript
 interface SandboxBackend {
@@ -373,7 +373,7 @@ lease 必须在创建 OS 资源之前返回并由管理者持有，后续启动�
 
 dedicated 通道不占业务标准流；stdio 通道使用独占协议标准流；none 的 channel=null。后端必须关闭其拥有的通道和标准流，不能假设 RPC 库 dispose 已关闭底层描述符。所有 inherited handle 默认关闭，仅显式传入的通道存活；业务层不能注入任意 FD、pipe 名或端口例外。
 
-首次安装或管理员初始化不属于 launch。需要初始化、需要重启、发行版不存在或策略无法落实时通过 probe 报告，start 必须拒绝并清理。原生与 WSL2 不自动互换；两者使用同一外部契约，但分别验证路径、身份、网络和父进程死亡语义。
+首次安装或管理员初始化不属于 launch。需要初始化、需要重启、后端组件缺失或策略无法落实时通过 probe 报告，start 必须拒绝并清理。仅实现三平台原生后端，分别验证路径、身份、网络和父进程死亡语义；不提供 WSL2 后端或普通进程回退。
 
 ## 7. Node / Python 互通示例
 
@@ -456,10 +456,10 @@ await serve_sandbox_rpc_from_bootstrap(configure)
 | 启动中失败/停止 | 句柄可观察，可取消，没有启动后失去 owner 的进程；ready 拒绝后 completion 仍结算 |
 | 退出与清理失败 | 根退出后仍清理子进程；预算耗尽报告 unknown/incomplete；再次 stop 可重试清理且不重启 |
 | 多实例与宿主崩溃 | 文件、代理和通道不串权；主进程异常退出后进程树按后端承诺收敛 |
-| Windows 初始化 | 一次初始化后普通用户重复启动/停止不再 UAC；原生与 WSL2 分别留证，不能互相替代验收 |
+| Windows 初始化 | 原生后端一次初始化后普通用户重复启动/停止不再 UAC，跨系统重启仍满足要求 |
 
 原型必须显式填写所有限额，不留无限缓冲或无限握手等待。数值由有界的小规模实验确定，记录慢消费者、碎片消息、突发输出与长驻运行证据后才设生产默认值；硬配额未实现时拒绝相应请求。
 
-建议实施切片：先完成 spec 校验与一个原生后端的进程闭环，再完成 Node/Python RPC 互通，最后验证剩余平台和选定 Windows 路线。每个切片都需要真实 OS 行为证据；mock 不能替代安全边界验收。
+实施切片：在独立的 `packages/sandbox` 包内，先完成 spec 校验与 macOS 原生后端的进程闭环，再完成 Node/Python RPC 互通，随后实现 Linux 与选定的 Windows 原生路线。Windows 选型的可行性探针应提前开展。具体步骤见[demo 实施顺序](./design.md#11-独立包结构与-demo-实施顺序)；每个切片都需要真实 OS 行为证据，mock 不能替代安全边界验收。
 
 当前仍待原型确定：平台辅助程序与分发方式、运行时基础策略、RPC 库和有界 reader 接入、引导凭证传递、生产限额、Windows 路线。API 草案允许开始针对性验证，不代表已满足生产发布条件。
