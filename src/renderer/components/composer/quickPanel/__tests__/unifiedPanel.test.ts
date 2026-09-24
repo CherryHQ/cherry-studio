@@ -291,6 +291,35 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(insertSkill).toHaveBeenCalledOnce()
   })
 
+  it('does not expose search items owned by a disabled launcher', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'disabled-owner',
+          kind: 'panel',
+          label: 'Disabled owner',
+          icon: 'disabled',
+          sources: ['root-panel'],
+          disabled: true,
+          rootSearchItems: [{ id: 'owned-resource', label: 'Owned resource', icon: 'resource', action: vi.fn() }],
+          submenu: [
+            {
+              id: 'owned-command',
+              kind: 'command',
+              label: 'Owned command',
+              icon: 'command',
+              sources: ['root-panel'],
+              action: vi.fn()
+            }
+          ]
+        }
+      ],
+      { quickPanel }
+    )
+
+    expect(labels(getVisibleItems(options, 'owned'))).toEqual([])
+  })
+
   it('matches flattened submenu items by searchAliases when label and description are React nodes', () => {
     const onToolLauncherSelect = vi.fn()
     const options = createUnifiedQuickPanelOpenOptions(

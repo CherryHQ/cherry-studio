@@ -341,7 +341,7 @@ function createUnifiedPanelRootSearchItems(
   }
 ): QuickPanelListItem[] {
   const ancestorLauncherIds = new Set(options.ancestorLauncherIds)
-  if (ancestorLauncherIds.has(launcher.id)) return []
+  if (launcher.disabled || ancestorLauncherIds.has(launcher.id)) return []
   ancestorLauncherIds.add(launcher.id)
 
   const customPanelItems = (launcher.rootSearchItems ?? [])
