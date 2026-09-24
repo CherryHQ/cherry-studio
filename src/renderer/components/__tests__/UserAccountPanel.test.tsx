@@ -45,13 +45,15 @@ describe('UserAccountPanel', () => {
     expect(screen.queryByText('输入您的姓名')).not.toBeInTheDocument()
   })
 
-  it('keeps the local name prompt and hides the subscription row in the CN account menu', async () => {
+  it('shows the signed-in account without a name prompt or subscription row in the CN account menu', async () => {
     vi.stubGlobal('__APP_EDITION__', 'cn')
 
     render(<UserAccountPanel />)
 
     expect(await screen.findByText('c***@cherry-ai.com')).toBeInTheDocument()
-    expect(screen.getByText('输入您的姓名')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '用户名' })).toHaveTextContent('c***@cherry-ai.com')
+    expect(screen.getAllByText('c***@cherry-ai.com')).toHaveLength(1)
+    expect(screen.queryByText('输入您的姓名')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /去订阅|查看用量/ })).not.toBeInTheDocument()
   })
 
