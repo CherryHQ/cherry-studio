@@ -3459,6 +3459,93 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('re-materializes the replayed turn when the fallback model resolves a different image capability', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    // Text-only primary: its own materialization degrades the image. The fallback reads images
+    // natively, so replaying the primary's OCR form would withhold the picture from it.
+    mocks.getModelByKey.mockImplementation((providerId: string) =>
+      providerId === 'claude-code' ? { capabilities: [] } : { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }
+    )
+    mocks.prepareChatMessages.mockImplementation(async (_messages: any, options: any) => [
+      {
+        id: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', text: options.nativeSupport.image ? 'VISION-FORM' : 'OCR-FORM' }]
+      }
+    ])
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    const primaryInput = mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/pixel.png',
+              mediaType: 'image/png',
+              filename: 'pixel.png',
+              providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+            }
+          ]
+        }
+      }
+    })
+    await expect(primaryInput).resolves.toMatchObject({ value: { message: { content: 'OCR-FORM' } } })
+
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    const replayed = await mocks.createClaudeQuery.mock.calls[1][0].prompt[Symbol.asyncIterator]().next()
+    expect(replayed.value).toMatchObject({ message: { role: 'user', content: 'VISION-FORM' } })
+    void connection.close()
+  })
+
   it('keeps the primary model and surfaces the error when the failed turn already produced content', async () => {
     mocks.getPreference.mockImplementation((key: string) => {
       if (key === 'chat.retry.enabled') return true

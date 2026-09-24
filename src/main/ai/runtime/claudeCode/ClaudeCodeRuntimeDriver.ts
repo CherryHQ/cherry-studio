@@ -331,6 +331,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private spawnOptions?: Options
   private processDiagnostics?: ClaudeCodeProcessDiagnostics
   private lastSdkUserMessage?: SDKUserMessage
+  /** Source input of {@link lastSdkUserMessage}, retained so a fallback can re-materialize it. */
+  private lastUserInput?: AgentRuntimeUserInput
+  /** Image capability {@link lastSdkUserMessage} was materialized for, i.e. the primary model's. */
+  private lastSdkUserMessageSupportsImages = true
   /** One model-fallback restart per turn: reset by every `send()`, consumed by the first attempt. */
   private fallbackAttempted = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
@@ -492,12 +496,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.adapter?.beginTurn()
     this.fallbackAttempted = false
 
+    const supportsImages = resolveModelImageSupport(this.input.modelId)
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
+      supportsImages
     })
     this.sdkInputQueue.push(sdkMessage)
     this.lastSdkUserMessage = sdkMessage
+    this.lastUserInput = input
+    this.lastSdkUserMessageSupportsImages = supportsImages
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -848,6 +855,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         return undefined
       })
       if (!request) return false
+      // Rebuild the replay while nothing has been announced yet: if it fails, the fallback is
+      // abandoned with no trace in the transcript and the original error surfaces.
+      const replayedMessage = await this.buildReplayUserMessage(decision.fallbackModelId)
       logger.warn('Agent session turn fell back to the next configured model', {
         sessionId: this.input.sessionId,
         from: this.input.modelId,
@@ -869,8 +879,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       })
       this.sdkInputQueue.close()
       this.sdkInputQueue = new SdkInputQueue()
-      if (this.lastSdkUserMessage) {
-        this.sdkInputQueue.push({ ...this.lastSdkUserMessage, session_id: this.resumeToken ?? '' })
+      if (replayedMessage) {
+        this.sdkInputQueue.push({ ...replayedMessage, session_id: this.resumeToken ?? '' })
       }
       await this.installQuery(request)
       // installQuery swapped the adapter; the replayed message must land inside an open turn.
@@ -884,6 +894,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       })
       return false
     }
+  }
+
+  /**
+   * The message the fallback re-opens the turn with. Image parts were routed for the primary
+   * model's capability, so a fallback that reads images differently must rebuild them.
+   */
+  private async buildReplayUserMessage(fallbackModelId: UniqueModelId): Promise<SDKUserMessage | undefined> {
+    const input = this.lastUserInput
+    if (!input || !this.lastSdkUserMessage) return this.lastSdkUserMessage
+    const supportsImages = resolveModelImageSupport(fallbackModelId)
+    if (supportsImages === this.lastSdkUserMessageSupportsImages) return this.lastSdkUserMessage
+    return toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+      supportsAttachmentReads: this.assistantFileToolsEnabled,
+      supportsImages
+    })
   }
 
   private readFallbackPolicy() {
