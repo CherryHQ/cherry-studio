@@ -25,6 +25,36 @@ const proxyConfigKey = (c: Pick<ProxyConfig, 'mode' | 'proxyRules' | 'proxyBypas
   `${c.mode}|${c.proxyRules ?? ''}|${c.proxyBypassRules ?? ''}`
 
 /**
+ * Loopback targets that must never travel through the configured proxy: a proxy is an egress
+ * route, and routing same-host services (local MCP servers, dev gateways) through it breaks
+ * them — with a user proxy set, WSL-facing `127.0.0.1` MCP endpoints were unreachable (#20920).
+ * Same rule set the agent runtime injects into subprocess environments.
+ */
+const LOOPBACK_BYPASS_RULES = ['localhost', '127.0.0.1', '::1', '[::1]']
+
+/**
+ * Merge the loopback bypass rules into the user's `app.proxy.bypass_rules`, keeping their
+ * entries verbatim and deduping case-insensitively. A bare `*` already covers loopback, and
+ * `<-loopback>` is the explicit Chromium opt-in to proxy loopback — both are honored as-is.
+ */
+function withLoopbackBypass(bypassRules: string): string {
+  const entries = bypassRules
+    .split(/[,;]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  if (entries.length === 0) return LOOPBACK_BYPASS_RULES.join(',')
+  if (entries.some((entry) => entry === '*' || entry === '<-loopback>')) return entries.join(',')
+  const seen = new Set(entries.map((entry) => entry.toLowerCase()))
+  for (const rule of LOOPBACK_BYPASS_RULES) {
+    if (!seen.has(rule)) {
+      seen.add(rule)
+      entries.push(rule)
+    }
+  }
+  return entries.join(',')
+}
+
+/**
  * Map the user-facing proxy mode to an Electron {@link ProxyConfig}. `system` returns the bare
  * `system` mode; the concrete system proxy URL is resolved from the OS later. A `custom` mode
  * without a URL can't form a fixed-servers config, so it falls back to direct.
@@ -43,7 +73,7 @@ export function resolveProxyConfig({
       return { mode: 'direct' }
     case 'custom':
       return url
-        ? { mode: 'fixed_servers', proxyRules: url, proxyBypassRules: bypassRules || undefined }
+        ? { mode: 'fixed_servers', proxyRules: url, proxyBypassRules: withLoopbackBypass(bypassRules) }
         : { mode: 'direct' }
     case 'system':
     default:
