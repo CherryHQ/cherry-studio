@@ -49,18 +49,33 @@ const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
  * The knob only ever lowers the threshold — the CLI ignores values above its own
  * default (https://code.claude.com/docs/en/env-vars). So this is a ceiling, not a
  * setting: compaction starts at 80% of the window *or earlier*, never later. That
- * one-way behavior is what makes a flat default safe to ship for every model.
+ * one-way behavior makes this a safe default ceiling for models with SDK-compatible
+ * context windows. Smaller models use a lower ceiling below.
  *
  * Left at the CLI's default, compaction starts late enough that a turn whose tool
  * results land in one burst can jump the remaining headroom and fail outright —
  * and a failed turn cannot compact its way out, because compaction replays the
  * same oversized history. 80 keeps roughly a fifth of the window as landing room.
  *
- * Deliberate ceiling: one flat percentage for every model. Make it per-model if
- * agents on small windows start compacting too eagerly to make progress.
+ * Deliberate ceiling: one percentage for SDK-compatible windows; sub-100K models
+ * need an earlier trigger because the SDK cannot accept their `autoCompactWindow`.
  */
 export const AUTO_COMPACT_TRIGGER_PCT = 80
+// A sub-100K model cannot use the SDK's autoCompactWindow override (minimum 100K).
+// Lower the CLI's percentage instead, so a 49,152-token model starts compacting
+// around 29K rather than waiting for its unknown-model 200K default.
+const SMALL_CONTEXT_AUTO_COMPACT_TRIGGER_PCT = 60
 const require_ = createRequire(import.meta.url)
+
+export function hasDeclaredContextWindow(contextWindow: number | undefined): contextWindow is number {
+  return typeof contextWindow === 'number' && Number.isInteger(contextWindow) && contextWindow > 0
+}
+
+export function resolveAutoCompactTriggerPct(contextWindow: number | undefined): number {
+  return hasDeclaredContextWindow(contextWindow) && contextWindow < MIN_AUTO_COMPACT_WINDOW
+    ? SMALL_CONTEXT_AUTO_COMPACT_TRIGGER_PCT
+    : AUTO_COMPACT_TRIGGER_PCT
+}
 
 // Providers bill `input + max_tokens` against the context limit, so history can only occupy
 // `contextWindow - requestedOutput`; the floor over-promises models whose real budget is smaller.
@@ -88,8 +103,14 @@ export function resolveRequestedOutputTokens(
   override: string | undefined
 ): number {
   const parsedOverride = Number(override)
+  // The CLI defaults to 32K output on unknown models. That would reserve most of a small
+  // context window, leaving too little room for the system prompt, tools and user history.
+  const smallContextOutputCap =
+    hasDeclaredContextWindow(contextWindow) && contextWindow < MIN_AUTO_COMPACT_WINDOW
+      ? Math.max(1, Math.floor(contextWindow / 4))
+      : Number.POSITIVE_INFINITY
   if (Number.isInteger(parsedOverride) && parsedOverride > 0) {
-    return Math.min(parsedOverride, MAX_REQUESTED_OUTPUT_TOKENS)
+    return Math.min(parsedOverride, MAX_REQUESTED_OUTPUT_TOKENS, smallContextOutputCap)
   }
   const declared =
     typeof maxOutputTokens === 'number' && Number.isInteger(maxOutputTokens) && maxOutputTokens > 0
@@ -101,7 +122,7 @@ export function resolveRequestedOutputTokens(
     typeof contextWindow === 'number' && Number.isInteger(contextWindow)
       ? Math.max(contextWindow - MIN_AUTO_COMPACT_WINDOW, DEFAULT_REQUESTED_OUTPUT_TOKENS)
       : Number.POSITIVE_INFINITY
-  return Math.min(declared, MAX_REQUESTED_OUTPUT_TOKENS, inputRoom)
+  return Math.min(declared, MAX_REQUESTED_OUTPUT_TOKENS, inputRoom, smallContextOutputCap)
 }
 
 export function resolveClaudeExecutablePath(): string {
