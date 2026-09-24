@@ -1,4 +1,3 @@
-import { PrometheusIntegrationService } from '@main/services/prometheus/PrometheusIntegrationService'
 import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
@@ -21,6 +20,7 @@ import {
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
+import { UarSidecarService } from '@main/ai/runtime/uar'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
@@ -60,6 +60,7 @@ import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeSe
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PdfTranslationService } from '@main/services/PdfTranslationService'
+import { PrometheusIntegrationService } from '@main/services/prometheus/PrometheusIntegrationService'
 import { PrometheusSkillPushService } from '@main/services/prometheus/PrometheusSkillPushService'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
 import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryUpdaterService'
@@ -161,6 +162,7 @@ export const services = {
   OpenClawService,
   PdfTranslationService,
   ClaudeCodeProcessManager,
+  UarSidecarService,
   AgentSessionRuntimeService,
   AgentSessionDeliveryService,
   AgentJobsService,

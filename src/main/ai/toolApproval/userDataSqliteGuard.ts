@@ -34,6 +34,10 @@ const TOOL_BINDINGS = {
   dsh: {
     pathFields: { write: 'file_path', edit: 'file_path' },
     shellFields: { bash: 'command', pwsh: 'command' }
+  },
+  uar: {
+    pathFields: {},
+    shellFields: {}
   }
 } satisfies Record<AgentType, ToolBinding>
 

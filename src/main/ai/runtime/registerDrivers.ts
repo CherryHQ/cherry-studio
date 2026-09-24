@@ -16,6 +16,7 @@ import type {
   AgentSessionRuntimeDriver,
   OrphanSessionReclaimOptions
 } from './types'
+import { UarRuntimeDriver } from './uar'
 
 class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'claude-code'
@@ -101,4 +102,5 @@ export function registerRuntimeDrivers(): void {
   runtimeDriverRegistry.register(new LazyClaudeCodeRuntimeDriver())
   runtimeDriverRegistry.register(new PiRuntimeDriver())
   runtimeDriverRegistry.register(new DshRuntimeDriver())
+  runtimeDriverRegistry.register(new UarRuntimeDriver())
 }

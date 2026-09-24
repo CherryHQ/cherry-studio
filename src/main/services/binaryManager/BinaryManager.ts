@@ -212,8 +212,10 @@ const BUNDLED_TOOLS: Array<{
   { name: 'bun', binaries: ['bun'], versionFile: '.bun-version' },
   { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
   { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' },
-  ...['compass', 'rust-mcp-filesystem', 'prometheus', 'pk', 'node'].map((name) => ({
-    name, binaries: [name], versionFile: `.${name}-version`
+  ...['compass', 'rust-mcp-filesystem', 'prometheus', 'pk', 'node', 'uar-sidecar'].map((name) => ({
+    name,
+    binaries: [name],
+    versionFile: `.${name}-version`
   }))
 ]
 

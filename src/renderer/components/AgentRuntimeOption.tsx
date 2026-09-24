@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { Check } from 'lucide-react'
+import { Bot, Check } from 'lucide-react'
 import { useId } from 'react'
 
 import {
@@ -30,13 +30,15 @@ import type { AgentType } from '@shared/data/types/agent'
 const RUNTIME_ICONS = {
   'claude-code': ClaudeCode,
   pi: PiCli,
-  dsh: Deepseek
+  dsh: Deepseek,
+  uar: Bot
 } satisfies Record<AgentType, IconComponent>
 
 const COMPACT_RUNTIME_ICON_CLASS: Record<AgentType, string> = {
   'claude-code': 'size-6',
   pi: 'size-4',
-  dsh: 'size-7'
+  dsh: 'size-7',
+  uar: 'size-5'
 }
 
 const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
@@ -45,7 +47,9 @@ const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
   // t('library.config.agent.field.runtime.option_description.pi')
   pi: 'library.config.agent.field.runtime.option_description.pi',
   // t('library.config.agent.field.runtime.option_description.dsh')
-  dsh: 'library.config.agent.field.runtime.option_description.dsh'
+  dsh: 'library.config.agent.field.runtime.option_description.dsh',
+  // t('library.config.agent.field.runtime.option_description.uar')
+  uar: 'library.config.agent.field.runtime.option_description.uar'
 }
 
 const RUNTIMES = Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]

@@ -339,7 +339,7 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // The dependency is runtime, not lexical: this service's connections spawn CLI children through
 // ClaudeCodeProcessManager. Declaring it keeps that owner stopping LAST, so its sweep runs after
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
-@DependsOn(['ClaudeCodeProcessManager'])
+@DependsOn(['ClaudeCodeProcessManager', 'UarSidecarService'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
   private readonly failedClosures = new Map<string, AgentRuntimeConnection>()
