@@ -37,28 +37,21 @@ const screenshotResultSchema: z.ZodType<ScreenshotResultData> = z.object({
   )
 })
 
-/** One recognized text run with its box in the capture's physical pixel space. */
-const ocrWord = z.object({
+/** One text line with glyph bounds in physical pixels relative to the OCR crop. */
+const ocrTextLine = z.object({
   text: z.string(),
-  box: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }),
-  confidence: z.number()
+  box: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
 })
 
-/**
- * One recognized text run, as the OCR route reports it.
- *
- * Crosses the IPC boundary, so it lives here rather than in the main-only
- * inference protocol — the renderer has no `@main/*` path to import from.
- */
-export type OcrWord = z.infer<typeof ocrWord>
+export type OcrTextLine = z.infer<typeof ocrTextLine>
 
 // Discriminated on purpose: a bare `lines: []` cannot tell "this region has no text"
 // apart from "the model was deleted" or "this request no longer applies".
 const ocrRecognitionResult = z.discriminatedUnion('status', [
   z.object({
     status: z.literal('ok'),
-    /** Grouped by line, in reading order; the inner array is words on that line. */
-    lines: z.array(z.array(ocrWord))
+    /** Lines in reading order, with engine-specific padding already removed. */
+    lines: z.array(ocrTextLine)
   }),
   /** Local OCR model not ready — never downloaded, or removed just now. */
   z.object({ status: z.literal('unavailable') }),
