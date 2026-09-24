@@ -1633,6 +1633,58 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByTestId('mock-placeholder')).toBeNull()
       expect(screen.getByText('report.md')).toBeInTheDocument()
     })
+
+    it.each([false, true])(
+      'shows a converted footer file card after settling, including a failed parent: %s',
+      (failedParent) => {
+        activateTurn('streaming')
+        const parts = [
+          ...(failedParent
+            ? [
+                {
+                  type: 'dynamic-tool',
+                  toolCallId: 'exec-parent',
+                  toolName: 'tool_exec',
+                  state: 'output-error',
+                  input: { code: 'throw new Error("failed later")' },
+                  errorText: 'failed later'
+                },
+                {
+                  type: 'dynamic-tool',
+                  toolCallId: 'nested-report',
+                  toolName: 'report_artifacts',
+                  state: 'output-available',
+                  input: { artifacts: [{ path: 'nested-report.md' }] },
+                  callProviderMetadata: { cherry: { parentToolCallId: 'exec-parent' } }
+                }
+              ]
+            : []),
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'convert-document',
+            toolName: 'mcp__cherry-tools__convert_to_document',
+            state: 'output-available',
+            input: { markdown: '# Report', format: 'pdf' },
+            callProviderMetadata: failedParent ? { cherry: { parentToolCallId: 'exec-parent' } } : undefined,
+            output: {
+              content: [
+                { type: 'text', text: JSON.stringify({ path: 'report.pdf', format: 'pdf', mime: 'application/pdf' }) }
+              ],
+              metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+            }
+          }
+        ] as unknown as CherryMessagePart[]
+        const { rerender } = renderParts(parts, msg({ status: 'pending' }))
+        expect(screen.queryByText('report.pdf')).toBeNull()
+
+        finishTurn('done')
+        rerender(renderPartsTree(parts, msg({ status: 'success' })))
+
+        expect(screen.getByText('report.pdf')).toBeInTheDocument()
+        expect(screen.queryByText('nested-report.md')).toBeNull()
+        expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+      }
+    )
   })
 
   describe('active layout', () => {

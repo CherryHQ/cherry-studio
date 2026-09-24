@@ -91,4 +91,14 @@ describe('builtinToolPolicy', () => {
         .includes('mcp__cherry-tools__future_mutator')
     ).toBe(false)
   })
+
+  it('requires approval to write a converted document while document reads remain automatic', () => {
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__convert_to_document', WITHOUT_HOST_TOOLS)?.approval).toBe(
+      'required'
+    )
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__to_markdown', WITHOUT_HOST_TOOLS)?.approval).toBe('auto')
+    expect(listBuiltinToolPolicies({ approval: 'auto' }).map(toMcpRuntimeName)).not.toContain(
+      'mcp__cherry-tools__convert_to_document'
+    )
+  })
 })

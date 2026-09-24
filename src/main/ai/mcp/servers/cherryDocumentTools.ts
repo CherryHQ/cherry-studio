@@ -10,6 +10,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveLocalFile, resolveWorkspaceFile } from '@main/ai/channels'
 import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
+import { convertToDocumentToWorkspace } from '@main/ai/tools/convertToDocument'
 import type { FileAttachment } from '@main/utils/downloadAsBase64'
 import { isAbortError } from '@main/utils/error'
 import { isSameOrInside, realpath } from '@main/utils/file'
@@ -19,6 +20,11 @@ import {
   toMarkdownInputSchema,
   toMarkdownOutputSchema
 } from '@shared/ai/builtinTools'
+import {
+  CONVERT_TO_DOCUMENT_DESCRIPTION,
+  CONVERT_TO_DOCUMENT_TOOL_NAME,
+  convertToDocumentInputSchema
+} from '@shared/ai/documentConversionTool'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 export interface CherryDocumentContext {
@@ -117,16 +123,29 @@ export class CherryDocumentTools {
         name: TO_MARKDOWN_TOOL_NAME,
         description: TO_MARKDOWN_DESCRIPTION,
         inputSchema: toMcpInputSchema(toMarkdownInputSchema)
+      },
+      {
+        name: CONVERT_TO_DOCUMENT_TOOL_NAME,
+        description: CONVERT_TO_DOCUMENT_DESCRIPTION,
+        inputSchema: toMcpInputSchema(convertToDocumentInputSchema)
       }
     ]
   }
 
   handles(toolName: string): boolean {
-    return toolName === TO_MARKDOWN_TOOL_NAME
+    return toolName === TO_MARKDOWN_TOOL_NAME || toolName === CONVERT_TO_DOCUMENT_TOOL_NAME
   }
 
-  async call(args: unknown, signal: AbortSignal): Promise<CallToolResult> {
+  async call(args: unknown, signal: AbortSignal, toolName = TO_MARKDOWN_TOOL_NAME): Promise<CallToolResult> {
     try {
+      if (toolName === CONVERT_TO_DOCUMENT_TOOL_NAME) {
+        const output = await convertToDocumentToWorkspace(
+          this.context.workspacePath,
+          convertToDocumentInputSchema.parse(args),
+          signal
+        )
+        return { content: [{ type: 'text', text: JSON.stringify(output) }] }
+      }
       const { path: sourcePath } = toMarkdownInputSchema.parse(args)
       const source = await resolveDocumentSource(this.context, sourcePath)
       throwIfAborted(signal)

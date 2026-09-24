@@ -130,6 +130,21 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
+  [WindowType.DocumentPrint]: {
+    type: WindowType.DocumentPrint,
+    lifecycle: 'default',
+    htmlPath: 'windows/documentPrint/index.html',
+    showMode: 'manual',
+    windowOptions: {
+      width: 794,
+      height: 1123,
+      skipTaskbar: true,
+      frame: false,
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false }
+    },
+    behavior: { macShowInDock: false }
+  },
+
   // Hidden CDP browser surface for the built-in @cherry/browser MCP server.
   // CdpBrowserController owns content (tab BrowserViews + tab bar), show timing,
   // and close; the per-mode session partition (persist:default / private) is
