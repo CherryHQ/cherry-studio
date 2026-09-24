@@ -1,12 +1,52 @@
+import { randomBytes } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { randomBytes } from 'node:crypto'
+
 import { safeStorage } from 'electron'
+
 import { application } from '@application'
-import { integrationConfigSchema, type IntegrationConfig, type IntegrationSecret } from '@shared/types/prometheusIntegration'
+import {
+  integrationConfigSchema,
+  integrationDocumentSchema,
+  type IntegrationConfig,
+  type IntegrationDocument,
+  type IntegrationSecret,
+  type IntegrationSecretPatch
+} from '@shared/types/prometheusIntegration'
+
+const INTEGRATION_PREFERENCE = 'app.prometheus.integrations' as const
+
+function decodeIntegrationDocument(raw: string): { document: IntegrationDocument; legacy: boolean } {
+  const value: unknown = JSON.parse(raw)
+  const current = integrationDocumentSchema.safeParse(value)
+  if (current.success) return { document: current.data, legacy: false }
+  return {
+    document: {
+      schemaVersion: 2,
+      revisions: { compass: 0, filesystem: 0, services: 0 },
+      config: integrationConfigSchema.parse(value)
+    },
+    legacy: true
+  }
+}
+
+export function readIntegrationDocument(): IntegrationDocument {
+  return decodeIntegrationDocument(application.get('PreferenceService').get(INTEGRATION_PREFERENCE)).document
+}
+
+export async function migrateIntegrationDocument(): Promise<IntegrationDocument> {
+  const decoded = decodeIntegrationDocument(application.get('PreferenceService').get(INTEGRATION_PREFERENCE))
+  if (decoded.legacy) await writeIntegrationDocument(decoded.document)
+  return decoded.document
+}
+
+export async function writeIntegrationDocument(document: IntegrationDocument): Promise<void> {
+  const canonical = integrationDocumentSchema.parse(document)
+  await application.get('PreferenceService').set(INTEGRATION_PREFERENCE, JSON.stringify(canonical))
+}
 
 export function readIntegrationConfig(): IntegrationConfig {
-  return integrationConfigSchema.parse(JSON.parse(application.get('PreferenceService').get('app.prometheus.integrations')))
+  return readIntegrationDocument().config
 }
 
 export function integrationDirectory(): string {
@@ -23,17 +63,30 @@ export async function readSecrets(): Promise<Partial<Record<IntegrationSecret, s
   }
 }
 
-// Credentials cross the renderer/main boundary once. Ordinary preferences and responses
-// contain only presence flags; disk storage uses the OS credential protection facility.
-export async function writeSecrets(patch: Partial<Record<IntegrationSecret, string>>): Promise<void> {
-  if (!safeStorage.isEncryptionAvailable() || (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')) {
+async function replaceSecrets(secrets: Partial<Record<IntegrationSecret, string>>): Promise<void> {
+  if (
+    !safeStorage.isEncryptionAvailable() ||
+    (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
+  ) {
     throw new Error('prometheus.error.secretStorage')
   }
-  const secrets = { ...await readSecrets(), ...patch }
   await fs.mkdir(integrationDirectory(), { recursive: true, mode: 0o700 })
   const filename = path.join(integrationDirectory(), 'secrets.enc')
   await fs.writeFile(`${filename}.tmp`, safeStorage.encryptString(JSON.stringify(secrets)), { mode: 0o600 })
   await fs.rename(`${filename}.tmp`, filename)
+}
+
+// Credentials cross the renderer/main boundary once. Ordinary preferences and responses
+// contain only presence flags; disk storage uses the OS credential protection facility.
+export async function writeSecrets(patch: IntegrationSecretPatch): Promise<void> {
+  const secrets = await readSecrets()
+  for (const [name, mutation] of Object.entries(patch) as Array<
+    [IntegrationSecret, NonNullable<IntegrationSecretPatch[IntegrationSecret]>]
+  >) {
+    if (mutation.operation === 'set') secrets[name] = mutation.value
+    if (mutation.operation === 'clear') delete secrets[name]
+  }
+  await replaceSecrets(secrets)
 }
 
 export async function ensureManagedSecrets(): Promise<Partial<Record<IntegrationSecret, string>>> {
@@ -41,6 +94,6 @@ export async function ensureManagedSecrets(): Promise<Partial<Record<Integration
   for (const key of ['rootPassword', 'memoryPassword', 'compassPassword', 'literKey'] as const) {
     if (!secrets[key]) secrets[key] = randomBytes(32).toString('hex')
   }
-  await writeSecrets(secrets)
+  await replaceSecrets(secrets)
   return secrets
 }

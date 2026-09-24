@@ -14,13 +14,22 @@ import {
   type IntegrationAction,
   type IntegrationConfig,
   type IntegrationOperation,
-  type IntegrationSecret,
+  type IntegrationSecretPatch,
   type IntegrationSnapshot,
+  type IntegrationUpdate,
   type WorkspaceIntegration
 } from '@shared/types/prometheusIntegration'
 
 import { commandPathInstalled, installCommandPath } from './commandPath'
-import { readIntegrationConfig, readSecrets, writeSecrets } from './integrationConfig'
+import {
+  migrateIntegrationDocument,
+  readIntegrationConfig,
+  readIntegrationDocument,
+  readSecrets,
+  writeIntegrationDocument,
+  writeSecrets
+} from './integrationConfig'
+import { StaleIntegrationRevisionError } from './integrationErrors'
 import { runManagedServiceAction, serviceDirectory } from './managedServices'
 import { writeMiniConfiguration } from './miniCommands'
 import {
@@ -42,6 +51,7 @@ export class PrometheusIntegrationService extends BaseService {
   private workspaceJobs = new Map<string, Promise<void>>()
   private workspaces = new Map<string, WorkspaceIntegration>()
   private initialization?: Promise<void>
+  private configurationMutation: Promise<void> = Promise.resolve()
 
   protected onAllReady(): void {
     this.initialization = this.initialize().catch((error) => {
@@ -58,6 +68,7 @@ export class PrometheusIntegrationService extends BaseService {
   }
 
   private async initialize(): Promise<void> {
+    await migrateIntegrationDocument()
     await installCommandPath()
     const config = readIntegrationConfig()
     for (const workspace of agentWorkspaceService.list()) {
@@ -73,6 +84,7 @@ export class PrometheusIntegrationService extends BaseService {
 
   async snapshot(): Promise<IntegrationSnapshot> {
     await this.initialization
+    const document = readIntegrationDocument()
     const secrets = await readSecrets()
     let inventory: IntegrationSnapshot['inventory'] = null
     try {
@@ -92,7 +104,9 @@ export class PrometheusIntegrationService extends BaseService {
     const uarBinary = (await application.get('BinaryManager').getToolSnapshots(['uar-sidecar']))['uar-sidecar']
     const runningUar = application.get('UarSidecarService').status()
     return {
-      config: readIntegrationConfig(),
+      config: document.config,
+      schemaVersion: document.schemaVersion,
+      revisions: document.revisions,
       secrets: Object.fromEntries(Object.entries(secrets).map(([key, value]) => [key, Boolean(value)])),
       operations: [...this.operations.values()].slice(-20).reverse(),
       workspaces: [...this.workspaces.values()],
@@ -128,12 +142,36 @@ export class PrometheusIntegrationService extends BaseService {
     }
   }
 
-  async configure(
-    rawConfig: IntegrationConfig,
-    secretPatch: Partial<Record<IntegrationSecret, string>>
+  async configure(updates: IntegrationUpdate[], secretPatch: IntegrationSecretPatch): Promise<IntegrationSnapshot> {
+    const result = this.configurationMutation.then(() => this.applyConfiguration(updates, secretPatch))
+    this.configurationMutation = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
+
+  private async applyConfiguration(
+    updates: IntegrationUpdate[],
+    secretPatch: IntegrationSecretPatch
   ): Promise<IntegrationSnapshot> {
     if (this.controllers.size) throw new Error('prometheus.error.operationRunning')
-    const config = integrationConfigSchema.parse(rawConfig)
+    const document = readIntegrationDocument()
+    const features = new Set(updates.map((update) => update.feature))
+    if (features.size !== updates.length) throw new Error('prometheus.error.duplicateIntegrationUpdate')
+    for (const update of updates) {
+      const current = document.revisions[update.feature]
+      if (current !== update.expectedRevision) {
+        throw new StaleIntegrationRevisionError(update.feature, update.expectedRevision, current)
+      }
+    }
+    const candidate = { ...document.config }
+    for (const update of updates) {
+      if (update.feature === 'compass') candidate.compass = update.value
+      if (update.feature === 'filesystem') candidate.filesystem = update.value
+      if (update.feature === 'services') candidate.services = update.value
+    }
+    const config = integrationConfigSchema.parse(candidate)
     for (const root of config.filesystem.additionalRoots) {
       if (!path.isAbsolute(root) || !(await fs.stat(root)).isDirectory())
         throw new Error('prometheus.error.workspaceDirectory')
@@ -146,8 +184,17 @@ export class PrometheusIntegrationService extends BaseService {
       config.services.memoryEndpoint = `http://127.0.0.1:${config.services.memoryPort}/mcp/sse`
       config.services.literEndpoint = `http://127.0.0.1:${config.services.literPort}`
     }
-    if (Object.keys(secretPatch).length) await writeSecrets(secretPatch)
-    await application.get('PreferenceService').set('app.prometheus.integrations', JSON.stringify(config))
+    const changedFeatures = (['compass', 'filesystem', 'services'] as const).filter(
+      (feature) => JSON.stringify(document.config[feature]) !== JSON.stringify(config[feature])
+    )
+    const secretChanged = Object.values(secretPatch).some((mutation) => mutation.operation !== 'unchanged')
+    if (changedFeatures.length) {
+      const revisions = { ...document.revisions }
+      for (const feature of changedFeatures) revisions[feature] += 1
+      await writeIntegrationDocument({ schemaVersion: 2, revisions, config })
+    }
+    if (secretChanged) await writeSecrets(secretPatch)
+    if (!changedFeatures.length && !secretChanged) return this.snapshot()
     await writeMiniConfiguration()
     const runtime = application.get('McpRuntimeService')
     for (const server of mcpServerService.list({}).items.filter((value) => value.tags?.includes(MANAGED_TAG))) {

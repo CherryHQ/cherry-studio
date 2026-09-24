@@ -10,48 +10,86 @@ const endpoint = z
     return /^https?:$/.test(url.protocol) && !url.username && !url.password
   }, 'HTTP or HTTPS endpoint without embedded credentials required')
 const model = z.object({ name: z.string().default(''), baseUrl: z.string().default('') })
+const compassConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  storage: z.enum(['automatic', 'remote', 'sqlite', 'json']).default('automatic'),
+  endpoint: endpoint.default('http://127.0.0.1:28000'),
+  namespace: z
+    .string()
+    .regex(/^[a-zA-Z][a-zA-Z0-9_]*$/)
+    .default('compass'),
+  username: z
+    .string()
+    .regex(/^[a-zA-Z][a-zA-Z0-9_]*$/)
+    .default('compass'),
+  authLevel: z.enum(['root', 'namespace', 'database']).default('namespace')
+})
+const filesystemConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  allowWrite: z.boolean().default(false),
+  additionalRoots: z
+    .array(z.string())
+    .transform((roots) => roots.map((root) => root.trim()).filter(Boolean))
+    .default([])
+})
+const servicesConfigSchema = z.object({
+  mode: z.enum(['managed', 'external']).default('managed'),
+  surrealPort: z.number().int().min(1).max(65535).default(28000),
+  memoryPort: z.number().int().min(1).max(65535).default(23001),
+  literPort: z.number().int().min(1).max(65535).default(4000),
+  memoryEnabled: z.boolean().default(false),
+  memoryEndpoint: endpoint.default('http://127.0.0.1:23001/mcp/sse'),
+  literEndpoint: endpoint.default('http://127.0.0.1:4000'),
+  judge: model.prefault({}),
+  critic: model.prefault({})
+})
+
 export const integrationConfigSchema = z.object({
-  compass: z
-    .object({
-      enabled: z.boolean().default(true),
-      storage: z.enum(['automatic', 'remote', 'sqlite', 'json']).default('automatic'),
-      endpoint: endpoint.default('http://127.0.0.1:28000'),
-      namespace: z
-        .string()
-        .regex(/^[a-zA-Z][a-zA-Z0-9_]*$/)
-        .default('compass'),
-      username: z
-        .string()
-        .regex(/^[a-zA-Z][a-zA-Z0-9_]*$/)
-        .default('compass'),
-      authLevel: z.enum(['root', 'namespace', 'database']).default('namespace')
-    })
-    .prefault({}),
-  filesystem: z
-    .object({
-      enabled: z.boolean().default(true),
-      allowWrite: z.boolean().default(false),
-      additionalRoots: z
-        .array(z.string())
-        .transform((roots) => roots.map((root) => root.trim()).filter(Boolean))
-        .default([])
-    })
-    .prefault({}),
-  services: z
-    .object({
-      mode: z.enum(['managed', 'external']).default('managed'),
-      surrealPort: z.number().int().min(1).max(65535).default(28000),
-      memoryPort: z.number().int().min(1).max(65535).default(23001),
-      literPort: z.number().int().min(1).max(65535).default(4000),
-      memoryEnabled: z.boolean().default(false),
-      memoryEndpoint: endpoint.default('http://127.0.0.1:23001/mcp/sse'),
-      literEndpoint: endpoint.default('http://127.0.0.1:4000'),
-      judge: model.prefault({}),
-      critic: model.prefault({})
-    })
-    .prefault({})
+  compass: compassConfigSchema.prefault({}),
+  filesystem: filesystemConfigSchema.prefault({}),
+  services: servicesConfigSchema.prefault({})
 })
 export type IntegrationConfig = z.infer<typeof integrationConfigSchema>
+
+export const integrationFeatureSchema = z.enum(['compass', 'filesystem', 'services'])
+export type IntegrationFeature = z.infer<typeof integrationFeatureSchema>
+export const integrationRevisionsSchema = z.object({
+  compass: z.number().int().nonnegative().default(0),
+  filesystem: z.number().int().nonnegative().default(0),
+  services: z.number().int().nonnegative().default(0)
+})
+export type IntegrationRevisions = z.infer<typeof integrationRevisionsSchema>
+export const integrationDocumentSchema = z.object({
+  schemaVersion: z.literal(2),
+  revisions: integrationRevisionsSchema,
+  config: integrationConfigSchema
+})
+export type IntegrationDocument = z.infer<typeof integrationDocumentSchema>
+
+export const integrationUpdateSchema = z.discriminatedUnion('feature', [
+  z
+    .object({
+      feature: z.literal('compass'),
+      expectedRevision: z.number().int().nonnegative(),
+      value: compassConfigSchema
+    })
+    .strict(),
+  z
+    .object({
+      feature: z.literal('filesystem'),
+      expectedRevision: z.number().int().nonnegative(),
+      value: filesystemConfigSchema
+    })
+    .strict(),
+  z
+    .object({
+      feature: z.literal('services'),
+      expectedRevision: z.number().int().nonnegative(),
+      value: servicesConfigSchema
+    })
+    .strict()
+])
+export type IntegrationUpdate = z.infer<typeof integrationUpdateSchema>
 export const secretNames = [
   'rootPassword',
   'memoryPassword',
@@ -62,7 +100,13 @@ export const secretNames = [
   'criticKey'
 ] as const
 export type IntegrationSecret = (typeof secretNames)[number]
-export const secretPatchSchema = z.partialRecord(z.enum(secretNames), z.string().max(16384))
+const secretMutationSchema = z.discriminatedUnion('operation', [
+  z.object({ operation: z.literal('unchanged') }).strict(),
+  z.object({ operation: z.literal('set'), value: z.string().min(1).max(16384) }).strict(),
+  z.object({ operation: z.literal('clear') }).strict()
+])
+export const secretPatchSchema = z.partialRecord(z.enum(secretNames), secretMutationSchema)
+export type IntegrationSecretPatch = z.infer<typeof secretPatchSchema>
 export const integrationActionSchema = z.enum([
   'pull',
   'start',
@@ -105,6 +149,8 @@ export type WorkspaceIntegration = {
 }
 export type IntegrationSnapshot = {
   config: IntegrationConfig
+  schemaVersion: 2
+  revisions: IntegrationRevisions
   secrets: Partial<Record<IntegrationSecret, boolean>>
   operations: IntegrationOperation[]
   workspaces: WorkspaceIntegration[]

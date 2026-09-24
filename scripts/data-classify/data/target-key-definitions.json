@@ -926,7 +926,7 @@
     {
       "targetKey": "app.prometheus.integrations",
       "type": "string",
-      "defaultValue": "{}",
+      "defaultValue": "{\"schemaVersion\":2,\"revisions\":{\"compass\":0,\"filesystem\":0,\"services\":0},\"config\":{}}",
       "status": "classified",
       "description": "Non-secret Compass, workspace filesystem and Docker service configuration. Validated by integrationConfigSchema; credentials remain in OS-protected main-process storage."
     }

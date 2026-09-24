@@ -1,7 +1,13 @@
 import * as z from 'zod'
 
 import type { PrometheusDoctorReport, PrometheusFixOutcome, PrometheusPushState } from '@shared/types/prometheus'
-import { integrationConfigSchema, integrationActionSchema, secretPatchSchema, type IntegrationSnapshot, type IntegrationOperation } from '@shared/types/prometheusIntegration'
+import {
+  integrationActionSchema,
+  integrationUpdateSchema,
+  secretPatchSchema,
+  type IntegrationOperation,
+  type IntegrationSnapshot
+} from '@shared/types/prometheusIntegration'
 
 import { defineRoute } from '../define'
 
@@ -14,9 +20,18 @@ import { defineRoute } from '../define'
  * process cannot report.
  */
 export const prometheusRequestSchemas = {
-  'prometheus.integration.snapshot': defineRoute({ input: z.object({}).strict(), output: z.custom<IntegrationSnapshot>() }),
-  'prometheus.integration.configure': defineRoute({ input: z.object({ config: integrationConfigSchema, secrets: secretPatchSchema }).strict(), output: z.custom<IntegrationSnapshot>() }),
-  'prometheus.integration.start': defineRoute({ input: z.object({ action: integrationActionSchema, workspacePath: z.string().optional() }).strict(), output: z.custom<IntegrationOperation>() }),
+  'prometheus.integration.snapshot': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<IntegrationSnapshot>()
+  }),
+  'prometheus.integration.configure': defineRoute({
+    input: z.object({ updates: z.array(integrationUpdateSchema).max(3), secrets: secretPatchSchema }).strict(),
+    output: z.custom<IntegrationSnapshot>()
+  }),
+  'prometheus.integration.start': defineRoute({
+    input: z.object({ action: integrationActionSchema, workspacePath: z.string().optional() }).strict(),
+    output: z.custom<IntegrationOperation>()
+  }),
   'prometheus.integration.cancel': defineRoute({ input: z.object({ id: z.uuid() }).strict(), output: z.void() }),
   'prometheus.doctor.run': defineRoute({
     input: z.object({}).strict(),

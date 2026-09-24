@@ -17,7 +17,9 @@ import {
   type IntegrationAction,
   type IntegrationConfig,
   type IntegrationSecret,
-  type IntegrationSnapshot
+  type IntegrationSecretPatch,
+  type IntegrationSnapshot,
+  type IntegrationUpdate
 } from '@shared/types/prometheusIntegration'
 
 import { IntegrationChoice, IntegrationField, IntegrationToggle } from './IntegrationFields'
@@ -76,7 +78,25 @@ export function IntegrationSettings() {
     setSaving(true)
     setError(null)
     try {
-      const next = await ipcApi.request('prometheus.integration.configure', { config: draft, secrets })
+      if (!snapshot) return
+      const updates: IntegrationUpdate[] = []
+      if (JSON.stringify(draft.compass) !== JSON.stringify(snapshot.config.compass)) {
+        updates.push({ feature: 'compass', expectedRevision: snapshot.revisions.compass, value: draft.compass })
+      }
+      if (JSON.stringify(draft.filesystem) !== JSON.stringify(snapshot.config.filesystem)) {
+        updates.push({
+          feature: 'filesystem',
+          expectedRevision: snapshot.revisions.filesystem,
+          value: draft.filesystem
+        })
+      }
+      if (JSON.stringify(draft.services) !== JSON.stringify(snapshot.config.services)) {
+        updates.push({ feature: 'services', expectedRevision: snapshot.revisions.services, value: draft.services })
+      }
+      const secretPatch = Object.fromEntries(
+        Object.entries(secrets).map(([name, value]) => [name, { operation: 'set', value }])
+      ) as IntegrationSecretPatch
+      const next = await ipcApi.request('prometheus.integration.configure', { updates, secrets: secretPatch })
       setSnapshot(next)
       setDraft(next.config)
       setSecrets({})
