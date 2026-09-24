@@ -43,6 +43,7 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
 
 const logger = loggerService.withContext('FileStorage')
+const FILE_METADATA_CONCURRENCY = 4
 
 function resolveHomeRelativeFilePath(filePath: string): string {
   if (!filePath.startsWith('~/') && !filePath.startsWith('~\\')) return filePath
@@ -154,25 +155,38 @@ class FileStorage {
       return null
     }
 
-    const fileMetadataPromises = result.filePaths.map(async (filePath) => {
-      const stats = fs.statSync(filePath)
-      const ext = path.extname(filePath)
-      const fileType = await getFileType(filePath as AbsoluteFilePath)
+    const metadata = new Array<FileMetadata | undefined>(result.filePaths.length)
+    let nextIndex = 0
+    const worker = async () => {
+      while (nextIndex < result.filePaths.length) {
+        const index = nextIndex++
+        const filePath = result.filePaths[index]
+        try {
+          const stats = fs.statSync(filePath)
+          const ext = path.extname(filePath)
+          const fileType = await getFileType(filePath as AbsoluteFilePath)
 
-      return {
-        id: uuidv4(),
-        origin_name: path.basename(filePath),
-        name: path.basename(filePath),
-        path: filePath,
-        created_at: stats.birthtime.toISOString(),
-        size: stats.size,
-        ext: ext,
-        type: fileType,
-        count: 1
+          metadata[index] = {
+            id: uuidv4(),
+            origin_name: path.basename(filePath),
+            name: path.basename(filePath),
+            path: filePath,
+            created_at: stats.birthtime.toISOString(),
+            size: stats.size,
+            ext,
+            type: fileType,
+            count: 1
+          }
+        } catch (error) {
+          logger.warn('Skipping selected file with unavailable metadata', { filePath, error })
+        }
       }
-    })
+    }
 
-    return Promise.all(fileMetadataPromises)
+    await Promise.all(
+      Array.from({ length: Math.min(FILE_METADATA_CONCURRENCY, result.filePaths.length) }, () => worker())
+    )
+    return metadata.filter((file): file is FileMetadata => file !== undefined)
   }
 
   private async compressImage(sourcePath: string, destPath: string): Promise<void> {

@@ -13,6 +13,7 @@ import {
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
+import type * as KnowledgeItemsModule from '../items'
 import type * as PathStorage from '../pathStorage'
 
 const {
@@ -56,6 +57,7 @@ const {
   storeSearchMock,
   getMaterialByRelativePathMock,
   readMaterialContentMock,
+  isSupportedKnowledgeFilePathMock,
   probeKnowledgeFileMock,
   probeKnowledgeSourcePathMock
 } = vi.hoisted(() => ({
@@ -99,6 +101,7 @@ const {
   storeSearchMock: vi.fn(),
   getMaterialByRelativePathMock: vi.fn(),
   readMaterialContentMock: vi.fn(),
+  isSupportedKnowledgeFilePathMock: vi.fn(),
   probeKnowledgeFileMock: vi.fn(),
   probeKnowledgeSourcePathMock: vi.fn()
 }))
@@ -194,6 +197,14 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
 vi.mock('../pipeline/indexing/rerank', () => ({
   rerankKnowledgeSearchResults: rerankKnowledgeSearchResultsMock
 }))
+
+vi.mock('../items', async (importOriginal) => {
+  const actual = await importOriginal<typeof KnowledgeItemsModule>()
+  return {
+    ...actual,
+    isSupportedKnowledgeFilePath: isSupportedKnowledgeFilePathMock
+  }
+})
 
 vi.mock('../pathStorage', async () => {
   const actual = await vi.importActual<typeof PathStorage>('../pathStorage')
@@ -404,6 +415,7 @@ describe('KnowledgeService', () => {
     storeSearchMock.mockResolvedValue([])
     getMaterialByRelativePathMock.mockResolvedValue(null)
     readMaterialContentMock.mockResolvedValue(null)
+    isSupportedKnowledgeFilePathMock.mockImplementation(async (filePath: string) => !filePath.endsWith('.exe'))
     knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([])
     aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
@@ -1476,6 +1488,96 @@ describe('KnowledgeService', () => {
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
   })
+
+  it('does not cancel a replaced item job when the incoming file fails admission', async () => {
+    const service = new KnowledgeService()
+    const existing = createFileItem('existing-readme', 'kb-1', '/old/README', 'processing')
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([existing])
+    isSupportedKnowledgeFilePathMock.mockResolvedValueOnce(false)
+
+    await expect(
+      service.addItems(
+        'kb-1',
+        [{ type: 'file', data: { source: '/new/README', path: '/new/README' as AbsoluteFilePath } }],
+        'replace'
+      )
+    ).rejects.toThrow('Unsupported knowledge file type: /new/README')
+
+    expect(knowledgeItemGetSubtreeItemsMock).not.toHaveBeenCalled()
+    expect(listMock).not.toHaveBeenCalled()
+    expect(cancelMock).not.toHaveBeenCalled()
+    expect(knowledgeItemDeleteMock).not.toHaveBeenCalled()
+  })
+
+  it('does not hold the base mutation lock while classifying file content', async () => {
+    const service = new KnowledgeService()
+    const classification = createDeferred<boolean>()
+    isSupportedKnowledgeFilePathMock.mockReturnValueOnce(classification.promise)
+
+    const fileAdd = service.addItems('kb-1', [
+      { type: 'file', data: { source: '/Users/me/README', path: '/Users/me/README' as AbsoluteFilePath } }
+    ])
+    await vi.waitFor(() => expect(isSupportedKnowledgeFilePathMock).toHaveBeenCalledWith('/Users/me/README'))
+
+    let noteAddSettled = false
+    const noteAdd = service
+      .addItems('kb-1', [{ type: 'note', data: { source: 'note-while-classifying', content: 'ready' } }])
+      .then(() => {
+        noteAddSettled = true
+      })
+
+    try {
+      await flushMicrotasks()
+      expect(noteAddSettled).toBe(true)
+      expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
+    } finally {
+      classification.resolve(true)
+    }
+
+    await Promise.all([fileAdd, noteAdd])
+  })
+
+  it('rechecks detect conflicts inside the base lock after content classification', async () => {
+    const service = new KnowledgeService()
+    const classification = createDeferred<boolean>()
+    const roots: ReturnType<typeof createFileItem>[] = []
+    isSupportedKnowledgeFilePathMock.mockReturnValue(classification.promise)
+    knowledgeItemGetRootItemsByBaseIdMock.mockImplementation(() => roots)
+    knowledgeItemCreateActiveMock.mockImplementation((baseId: string, input: { data: { source: string } }) => {
+      const item = createFileItem(`file-${roots.length + 1}`, baseId, input.data.source, 'processing')
+      roots.push(item)
+      return item
+    })
+
+    const input = {
+      type: 'file' as const,
+      data: { source: '/Users/me/README', path: '/Users/me/README' as AbsoluteFilePath }
+    }
+    const firstAdd = service.addItems('kb-1', [input], 'detect')
+    const secondAdd = service.addItems('kb-1', [input], 'detect')
+    await vi.waitFor(() => expect(isSupportedKnowledgeFilePathMock).toHaveBeenCalledTimes(2))
+
+    classification.resolve(true)
+
+    await expect(Promise.all([firstAdd, secondAdd])).resolves.toEqual([
+      { status: 'added' },
+      { status: 'conflicts', conflicts: [{ type: 'file', title: 'README' }] }
+    ])
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['/Users/me/analysis.R', '/Users/me/.bashrc'])(
+    'accepts app-classified text files with normalized or dotfile extensions: %s',
+    async (filePath) => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+
+      await service.addItems('kb-1', [{ type: 'file', data: { source: filePath, path: filePath as AbsoluteFilePath } }])
+
+      expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith('kb-1', filePath, filePath.split('/').at(-1))
+    }
+  )
 
   it('drops the stale processed artifact when a reindexed file will not be reprocessed', async () => {
     const service = new KnowledgeService()

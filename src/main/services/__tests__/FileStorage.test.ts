@@ -5,6 +5,15 @@ import * as path from 'path'
 import { dialog, shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as MainFileUtils from '@main/utils/file'
+
+const { getFileTypeMock } = vi.hoisted(() => ({ getFileTypeMock: vi.fn() }))
+
+vi.mock('@main/utils/file', async (importOriginal) => {
+  const actual = await importOriginal<typeof MainFileUtils>()
+  return { ...actual, getFileType: getFileTypeMock }
+})
+
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
 // dialog title it produces is irrelevant to these contracts, so stub it to the key.
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
@@ -16,6 +25,7 @@ const event = {} as Electron.IpcMainInvokeEvent
 describe('FileStorage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getFileTypeMock.mockResolvedValue('text')
   })
 
   afterEach(() => {
@@ -31,6 +41,60 @@ describe('FileStorage', () => {
     it('returns null when the dialog resolves without a file path', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' })
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
+    })
+  })
+
+  describe('selectFile', () => {
+    it.each(['stat', 'classification'])('keeps valid selections in order when one file fails %s', async (failure) => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-select-failure-'))
+      const filePaths = Array.from({ length: 6 }, (_, index) => path.join(tmpDir, `unknown-${index}`))
+      filePaths.forEach((filePath) => fs.writeFileSync(filePath, 'content'))
+      vi.mocked(dialog.showOpenDialog).mockResolvedValue({ canceled: false, filePaths })
+      const unavailablePath = filePaths[1]
+
+      if (failure === 'stat') {
+        fs.rmSync(unavailablePath)
+      } else {
+        getFileTypeMock.mockImplementation(async (filePath) => {
+          if (filePath === unavailablePath) throw new Error('File is no longer readable')
+          return 'text'
+        })
+      }
+
+      try {
+        await expect(fileStorage.selectFile(event, { properties: ['openFile', 'multiSelections'] })).resolves.toEqual(
+          filePaths
+            .filter((filePath) => filePath !== unavailablePath)
+            .map((filePath) => expect.objectContaining({ path: filePath }))
+        )
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('bounds concurrent metadata classification and preserves selection order', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-select-test-'))
+      const filePaths = Array.from({ length: 12 }, (_, index) => path.join(tmpDir, `unknown-${index}`))
+      filePaths.forEach((filePath) => fs.writeFileSync(filePath, 'content'))
+      vi.mocked(dialog.showOpenDialog).mockResolvedValue({ canceled: false, filePaths })
+
+      const pendingClassifications: Array<(type: string) => void> = []
+      getFileTypeMock.mockImplementation(() => new Promise<string>((resolve) => pendingClassifications.push(resolve)))
+
+      try {
+        const selection = fileStorage.selectFile(event, { properties: ['openFile', 'multiSelections'] })
+        await vi.waitFor(() => expect(getFileTypeMock).toHaveBeenCalledTimes(4))
+
+        getFileTypeMock.mockResolvedValue('text')
+        pendingClassifications.forEach((resolve) => resolve('text'))
+
+        await expect(selection).resolves.toEqual(
+          filePaths.map((filePath) => expect.objectContaining({ path: filePath }))
+        )
+        expect(getFileTypeMock).toHaveBeenCalledTimes(12)
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+      }
     })
   })
 
