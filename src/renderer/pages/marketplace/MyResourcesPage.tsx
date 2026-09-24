@@ -12,12 +12,15 @@ import {
   EmptyState,
   Spinner
 } from '@cherrystudio/ui'
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { InstalledSkill } from '@shared/types/skill'
 import { localizeMarketplaceText, marketplaceSkillSource } from '@shared/utils/cherrySkillMarketplace'
 
+import type { LibraryResourceKind } from './LibraryCreateDialog'
+import { LibraryLoadError, LibraryResourceList } from './LibraryResourceList'
 import { LocalSkillDetailDialog } from './LocalSkillDetailDialog'
 import { DEFAULT_LIBRARY_FILTERS, MyResourcesFilter } from './MyResourcesFilter'
 import { MySkillMenu } from './MySkillMenu'
@@ -29,6 +32,8 @@ const ImportSkillDialog = lazy(() =>
     default: module.ImportSkillDialog
   }))
 )
+const LibraryCreateDialog = lazy(() => import('./LibraryCreateDialog'))
+type LibraryKind = 'skill' | LibraryResourceKind
 export default function MyResourcesPage({ onBrowseTemplates }: { onBrowseTemplates: () => void }) {
   const { t, i18n } = useTranslation()
   const { data: catalog } = useSWR('skill.marketplace.list', loadMarketplaceSkills, {
@@ -37,8 +42,36 @@ export default function MyResourcesPage({ onBrowseTemplates }: { onBrowseTemplat
   })
   const { skills, loading, error, refresh } = useInstalledSkills()
   useReconcileSkillsOnOpen(true)
-  const [query, setQuery] = useState('')
-  const [storedFilters, setFilters] = useState(DEFAULT_LIBRARY_FILTERS)
+  const [kind, setKind] = useState<LibraryKind>('skill')
+  const [queries, setQueries] = useState({ skill: '', prompt: '', assistant: '', agent: '' })
+  const query = queries[kind]
+  const setQuery = (value: string) => setQueries((current) => ({ ...current, [kind]: value }))
+  const [filterStates, setFilterStates] = useState({
+    skill: DEFAULT_LIBRARY_FILTERS,
+    prompt: DEFAULT_LIBRARY_FILTERS,
+    assistant: DEFAULT_LIBRARY_FILTERS,
+    agent: DEFAULT_LIBRARY_FILTERS
+  })
+  const storedFilters = filterStates[kind]
+  const setFilters = (value: typeof DEFAULT_LIBRARY_FILTERS) =>
+    setFilterStates((current) => ({ ...current, [kind]: value }))
+  const prompts = useQuery('/prompts')
+  const assistants = useQuery('/assistants', { query: { page: 1, limit: 1, inTrash: false } })
+  const agents = useQuery('/agents', { query: { page: 1, limit: 1, inTrash: false } })
+  useDataChange('/prompts', () => void prompts.refetch())
+  useDataChange('/assistants', () => void assistants.refetch())
+  useDataChange('/agents', () => void agents.refetch())
+  const [createKind, setCreateKind] = useState<LibraryResourceKind | null>(null)
+  const [createdRevision, setCreatedRevision] = useState(0)
+  const scroll = useRef<HTMLDivElement | null>(null)
+  const onCreated = (type: LibraryResourceKind) => {
+    setCreateKind(null)
+    setQueries((current) => ({ ...current, [type]: '' }))
+    setFilterStates((current) => ({ ...current, [type]: DEFAULT_LIBRARY_FILTERS }))
+    setCreatedRevision((value) => value + 1)
+    setKind(type)
+    scroll.current?.scrollTo({ top: 0 })
+  }
   const tags = useSkillLibraryTags()
   const filters = useMemo(
     () => ({ ...storedFilters, tags: storedFilters.tags.filter((id) => tags.tags.some((tag) => tag.id === id)) }),
@@ -94,22 +127,43 @@ export default function MyResourcesPage({ onBrowseTemplates }: { onBrowseTemplat
         <p className="mt-6 mb-2 px-2 text-xs text-foreground-tertiary">{t('marketplace.mine')}</p>
         <nav className="space-y-1" aria-label={t('marketplace.resource_types')}>
           {[
-            { label: 'marketplace.type.skill', icon: Sparkles, enabled: true },
-            { label: 'marketplace.type.prompt', icon: FileText },
-            { label: 'library.type.assistant', icon: MessageSquare },
-            { label: 'marketplace.type.agent', icon: Bot }
-          ].map(({ label, icon: Icon, enabled }) => (
+            {
+              type: 'skill' as const,
+              label: 'marketplace.type.skill',
+              icon: Sparkles,
+              count: loading || error ? '—' : owned.length
+            },
+            {
+              type: 'prompt' as const,
+              label: 'marketplace.type.prompt',
+              icon: FileText,
+              count: prompts.error ? '—' : (prompts.data?.length ?? '—')
+            },
+            {
+              type: 'assistant' as const,
+              label: 'library.type.assistant',
+              icon: MessageSquare,
+              count: assistants.error ? '—' : (assistants.data?.total ?? '—')
+            },
+            {
+              type: 'agent' as const,
+              label: 'marketplace.type.agent',
+              icon: Bot,
+              count: agents.error ? '—' : (agents.data?.total ?? '—')
+            }
+          ].map(({ type, label, icon: Icon, count }) => (
             <Button
               key={label}
               variant="ghost"
-              disabled={!enabled}
-              aria-pressed={Boolean(enabled)}
-              className={`h-9 w-full justify-start rounded-xl px-2 ${enabled ? 'bg-accent' : ''}`}>
+              onClick={() => {
+                setKind(type)
+                scroll.current?.scrollTo({ top: 0 })
+              }}
+              aria-pressed={kind === type}
+              className={`h-9 w-full justify-start rounded-xl px-2 ${kind === type ? 'bg-accent' : ''}`}>
               <Icon className="size-4" strokeWidth={1.5} />
               {t(label)}
-              <span className="ml-auto text-xs text-foreground-tertiary">
-                {enabled ? (loading ? '—' : owned.length) : '—'}
-              </span>
+              <span className="ml-auto text-xs text-foreground-tertiary">{count}</span>
             </Button>
           ))}
         </nav>
@@ -123,7 +177,13 @@ export default function MyResourcesPage({ onBrowseTemplates }: { onBrowseTemplat
             aria-label={t('library.toolbar.search_placeholder')}
             className="min-w-40 flex-1 sm:max-w-72"
           />
-          <MyResourcesFilter value={filters} onChange={setFilters} manager={tags} counts={tagCounts} />
+          <MyResourcesFilter
+            value={filters}
+            onChange={setFilters}
+            manager={tags}
+            counts={kind === 'skill' ? tagCounts : undefined}
+            skillFilters={kind === 'skill'}
+          />
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={onBrowseTemplates}>
               <Store className="size-3.5" />
@@ -139,11 +199,11 @@ export default function MyResourcesPage({ onBrowseTemplates }: { onBrowseTemplat
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {[
-                  { type: 'Prompt', icon: FileText },
-                  { type: t('library.type.assistant'), icon: MessageSquare },
-                  { type: t('library.type.agent'), icon: Bot }
-                ].map(({ type, icon: Icon }) => (
-                  <DropdownMenuItem key={type} disabled>
+                  { type: 'Prompt', icon: FileText, create: 'prompt' as const },
+                  { type: t('library.type.assistant'), icon: MessageSquare, create: 'assistant' as const },
+                  { type: t('library.type.agent'), icon: Bot, create: 'agent' as const }
+                ].map(({ type, icon: Icon, create }) => (
+                  <DropdownMenuItem key={type} onSelect={() => setCreateKind(create)}>
                     <Icon className="size-4" />
                     {t('library.create_menu.create', { type })}
                   </DropdownMenuItem>
@@ -156,8 +216,27 @@ export default function MyResourcesPage({ onBrowseTemplates }: { onBrowseTemplat
             </DropdownMenu>
           </div>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-5" aria-busy={loading}>
-          {loading ? (
+        <div
+          ref={scroll}
+          className="min-h-0 flex-1 overflow-y-auto p-5"
+          aria-busy={kind === 'skill' ? loading : kind === 'prompt' && prompts.isLoading}>
+          {kind !== 'skill' ? (
+            kind === 'prompt' && prompts.error ? (
+              <LibraryLoadError retry={prompts.refetch} />
+            ) : kind === 'prompt' && prompts.isLoading ? (
+              <Spinner text={t('common.loading')} />
+            ) : (
+              <LibraryResourceList
+                key={`${kind}:${query}:${filters.sort}:${JSON.stringify(filters.tags)}:${createdRevision}`}
+                kind={kind}
+                query={query}
+                sort={filters.sort}
+                tagIds={filters.tags}
+                prompts={prompts.data ?? []}
+                manager={tags}
+              />
+            )
+          ) : loading ? (
             <Spinner text={t('common.loading')} />
           ) : error ? (
             <div role="alert" className="flex items-center justify-center gap-3 text-sm text-error">
@@ -182,7 +261,7 @@ export default function MyResourcesPage({ onBrowseTemplates }: { onBrowseTemplat
               {visible.map((skill) => (
                 <div
                   key={skill.id}
-                  className="group flex min-w-0 items-center rounded-2xl border border-border-subtle hover:bg-accent/50">
+                  className="group flex min-w-0 items-center rounded-2xl border border-border-subtle transition-[box-shadow,translate] duration-200 ease-out hover:shadow-md motion-safe:hover:-translate-y-0.5 motion-reduce:transition-none">
                   <Button
                     variant="ghost"
                     className="h-auto min-w-0 flex-1 justify-start gap-3 rounded-2xl p-3 text-left hover:bg-transparent"
@@ -218,6 +297,11 @@ export default function MyResourcesPage({ onBrowseTemplates }: { onBrowseTemplat
       {importOpen ? (
         <Suspense fallback={null}>
           <ImportSkillDialog open onOpenChange={setImportOpen} requireConfirmation />
+        </Suspense>
+      ) : null}
+      {createKind ? (
+        <Suspense fallback={null}>
+          <LibraryCreateDialog kind={createKind} onClose={() => setCreateKind(null)} onCreated={onCreated} />
         </Suspense>
       ) : null}
     </div>

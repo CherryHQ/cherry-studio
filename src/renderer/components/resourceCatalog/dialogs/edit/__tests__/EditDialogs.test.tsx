@@ -9,6 +9,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { Prompt } from '@shared/data/types/prompt'
 
 const {
   bindPromptMock,
@@ -68,17 +69,15 @@ const {
   openSettingsTabMock: vi.fn(),
   promptCatalogState: {
     current: {
-      all: [
-        {
-          id: '00000000-0000-4000-8000-000000000001',
-          title: 'Reusable prompt',
-          content: 'Reusable prompt content',
-          visibility: 'restricted' as const,
-          orderKey: 'a0',
-          createdAt: '2024-01-01T00:00:00.000Z',
-          updatedAt: '2024-01-01T00:00:00.000Z'
-        }
-      ],
+      all: Array.of<Prompt>({
+        id: '00000000-0000-4000-8000-000000000001',
+        title: 'Reusable prompt',
+        content: 'Reusable prompt content',
+        visibility: 'restricted',
+        orderKey: 'a0',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      }),
       bound: [] as Array<{
         id: string
         title: string
@@ -451,6 +450,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.vars.time': 'Time',
           'library.config.prompt.vars.username': 'Username',
           'library.config.dialogs.create.avatar_aria': 'Pick avatar',
+          'library.config.dialogs.create.assistant_title': 'New Assistant',
+          'library.config.dialogs.create.submit': 'Create',
           'library.config.dialogs.create.avatar_name_label': 'Avatar and name',
           'library.config.dialogs.edit.agent_description': 'Edit the essentials for this agent.',
           'library.config.dialogs.edit.agent_title': 'Edit Agent',
@@ -791,12 +792,98 @@ function createDeferred<T>() {
 }
 
 describe('edit dialogs', () => {
+  it('discards confirmed-mode form edits on cancel without saving on unmount', async () => {
+    const onOpenChange = vi.fn()
+    const { unmount } = render(
+      <AssistantEditDialog open resource={ASSISTANT} requireConfirmation onOpenChange={onOpenChange} />
+    )
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Discard this edit' } })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 650))
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    unmount()
+    expect(updateAssistantMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps confirmed-mode changes after a failed save and closes only after retry succeeds', async () => {
+    updateAssistantMock.mockRejectedValueOnce(new Error('Unavailable'))
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} requireConfirmation onOpenChange={onOpenChange} />)
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved name' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue('Saved name'))
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    expect(onOpenChange).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { name: 'Saved name' } })
+  })
+
+  it('keeps a new Assistant draft local and discards it on cancel without auto-saving', async () => {
+    const onCreate = vi.fn()
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onCreate={onCreate} onOpenChange={onOpenChange} />)
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Unsaved draft' } })
+    selectTab('System Prompt')
+    fireEvent.change(screen.getByLabelText('Prompt editor'), { target: { value: 'Draft instructions' } })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 650))
+    })
+    expect(updateAssistantMock).not.toHaveBeenCalled()
+    expect(onCreate).not.toHaveBeenCalled()
+    expect(screen.queryByRole('tab', { name: 'Prompts' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('creates once from the edit form, blocks closing while pending, and preserves a failed draft for retry', async () => {
+    let rejectCreate!: (error: Error) => void
+    const onCreate = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_, reject) => {
+            rejectCreate = reject
+          })
+      )
+      .mockResolvedValue(undefined)
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onCreate={onCreate} onOpenChange={onOpenChange} />)
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: ' New Assistant ' } })
+    selectTab('System Prompt')
+    fireEvent.change(screen.getByLabelText('Prompt editor'), { target: { value: 'Keep {{date}} literal' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onOpenChange).not.toHaveBeenCalled()
+    await act(async () => rejectCreate(new Error('Create unavailable')))
+    expect(await screen.findByText('Create unavailable')).toBeVisible()
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Keep {{date}} literal')
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2))
+    expect(onCreate).toHaveBeenLastCalledWith({
+      name: 'New Assistant',
+      emoji: ASSISTANT.emoji,
+      description: ASSISTANT.description,
+      prompt: 'Keep {{date}} literal',
+      modelId: ASSISTANT.modelId,
+      groupId: ASSISTANT.groupId,
+      knowledgeBaseIds: [],
+      mcpServerIds: [],
+      settings: ASSISTANT.settings
+    })
+    expect(updateAssistantMock).not.toHaveBeenCalled()
+  })
+
   it('binds a prompt to the assistant being edited', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     selectTab('Prompts')
     expect(within(screen.getByRole('tabpanel', { name: 'Prompts' })).getByText('Prompts')).toBeInTheDocument()
-    expect(useQueryMock).toHaveBeenCalledWith('/prompts', { enabled: true, query: { visibility: 'restricted' } })
     expect(useQueryMock).toHaveBeenCalledWith('/prompt-bindings/:targetType/:targetId', {
       enabled: true,
       params: { targetType: 'assistant', targetId: ASSISTANT.id }
@@ -814,6 +901,28 @@ describe('edit dialogs', () => {
       })
     )
     expect(unbindPromptMock).not.toHaveBeenCalled()
+  })
+
+  it('shows global prompts in the binding picker without allowing redundant bindings', async () => {
+    promptCatalogState.current.all.push({
+      ...promptCatalogState.current.all[0],
+      id: '00000000-0000-4000-8000-000000000002',
+      title: 'Global prompt',
+      visibility: 'global'
+    })
+    try {
+      render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+      selectTab('Prompts')
+      fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
+      const globalOption = (await screen.findByText('Global prompt')).closest('[role="option"]')
+      expect(globalOption).toHaveAttribute('aria-disabled', 'true')
+      fireEvent.click(globalOption!)
+      expect(bindPromptMock).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByText('Reusable prompt'))
+      await waitFor(() => expect(bindPromptMock).toHaveBeenCalledTimes(1))
+    } finally {
+      promptCatalogState.current.all.pop()
+    }
   })
 
   it('unbinds a prompt from the agent being edited', async () => {

@@ -48,7 +48,7 @@ export function LocalSkillDetailDialog({
         if (!open) onClose()
       }}>
       <DialogContent
-        className="flex h-[85vh] max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-3xl p-8 sm:max-w-4xl sm:p-10"
+        className="flex h-[85vh] max-h-[calc(100vh-3rem)] flex-col gap-6 overflow-hidden rounded-3xl p-8 sm:max-w-4xl sm:p-10"
         overlayClassName="backdrop-blur-sm"
         closeLabel={t('common.close')}
         onCloseAutoFocus={(event) => {
@@ -65,12 +65,14 @@ export function LocalSkillDetailDialog({
           <DialogDescription className="whitespace-pre-wrap">
             {skill?.description || t('library.skill_detail.no_description')}
           </DialogDescription>
-          <div className="space-y-1">
+          <div className="space-y-5">
             <h3 className="text-xs text-muted-foreground">{t('library.skill_marketplace.source_label')}</h3>
-            <p>{t(skill?.source === 'marketplace' ? 'marketplace.online_source' : 'marketplace.local_source')}</p>
-            {skill?.sourceUrl ? <p className="break-all text-xs text-muted-foreground">{skill.sourceUrl}</p> : null}
+            <div className="space-y-1">
+              <p>{t(skill?.source === 'marketplace' ? 'marketplace.online_source' : 'marketplace.local_source')}</p>
+              {skill?.sourceUrl ? <p className="break-all text-xs text-muted-foreground">{skill.sourceUrl}</p> : null}
+            </div>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-5">
             <h3 className="text-xs text-muted-foreground">{t('library.skill_detail.body_label')}</h3>
             {isLoading ? (
               <Spinner text={t('common.loading')} />

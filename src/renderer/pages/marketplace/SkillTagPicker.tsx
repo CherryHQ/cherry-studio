@@ -10,29 +10,29 @@ export function SkillTagPicker({
   manager,
   selected,
   onToggle,
-  skillId,
+  resourceKey,
   counts
 }: {
   manager: SkillLibraryTagManager
   selected: readonly string[]
   onToggle: (id: string) => void
-  skillId?: string
+  resourceKey?: string
   counts?: Record<string, number>
 }) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
-  const [creating, setCreating] = useState(!counts)
+  const [creating, setCreating] = useState(Boolean(resourceKey))
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   return (
     <div className="flex flex-col gap-2">
       {creating ? (
         <form
-          className={counts ? 'order-last' : undefined}
+          className={!resourceKey ? 'order-last' : undefined}
           onSubmit={async (event) => {
             event.preventDefault()
-            if (await manager.create(name, skillId)) {
+            if (await manager.create(name, resourceKey)) {
               setName('')
-              if (counts) setCreating(false)
+              if (!resourceKey) setCreating(false)
             }
           }}>
           <Input
@@ -46,7 +46,7 @@ export function SkillTagPicker({
             maxLength={40}
             disabled={manager.saving}
             className="h-9 rounded-xl text-xs"
-            autoFocus={Boolean(counts)}
+            autoFocus={!resourceKey}
           />
         </form>
       ) : null}
@@ -93,7 +93,7 @@ export function SkillTagPicker({
           </div>
         ))}
       </div>
-      {counts && !creating ? (
+      {!resourceKey && !creating ? (
         <Button
           variant="ghost"
           size="sm"

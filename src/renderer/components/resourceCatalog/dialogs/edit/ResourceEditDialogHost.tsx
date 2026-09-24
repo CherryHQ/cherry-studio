@@ -17,10 +17,17 @@ import { AssistantEditDialog } from './AssistantEditDialog'
 type ResourceEditDialogHostProps = {
   target: ResourceEditDialogTarget | null
   onOpenChange: (open: boolean) => void
+  requireConfirmation?: boolean
+  preventOutsideClose?: boolean
 }
 
 const logger = loggerService.withContext('ResourceEditDialogHost')
-export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDialogHostProps) {
+export function ResourceEditDialogHost({
+  target,
+  onOpenChange,
+  requireConfirmation,
+  preventOutsideClose
+}: ResourceEditDialogHostProps) {
   const [open, setOpen] = useState(target !== null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -59,11 +66,25 @@ export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDia
   )
 
   if (target?.kind === 'assistant') {
-    return <AssistantEditDialogHost target={target} open={open} onOpenChange={handleOpenChange} />
+    return (
+      <AssistantEditDialogHost
+        target={target}
+        open={open}
+        onOpenChange={handleOpenChange}
+        requireConfirmation={requireConfirmation}
+      />
+    )
   }
 
   if (target?.kind === 'agent') {
-    return <AgentEditDialogHost target={target} open={open} onOpenChange={handleOpenChange} />
+    return (
+      <AgentEditDialogHost
+        target={target}
+        open={open}
+        onOpenChange={handleOpenChange}
+        preventOutsideClose={preventOutsideClose}
+      />
+    )
   }
 
   return null
@@ -72,7 +93,8 @@ export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDia
 function AssistantEditDialogHost({
   target,
   open,
-  onOpenChange
+  onOpenChange,
+  requireConfirmation
 }: ResourceEditDialogHostProps & {
   target: Extract<ResourceEditDialogTarget, { kind: 'assistant' }>
   open: boolean
@@ -95,6 +117,7 @@ function AssistantEditDialogHost({
       onOpenChange={onOpenChange}
       modelFilter={assistantModelFilter}
       initialTab={target.initialTab}
+      requireConfirmation={requireConfirmation}
     />
   )
 }
@@ -102,7 +125,8 @@ function AssistantEditDialogHost({
 function AgentEditDialogHost({
   target,
   open,
-  onOpenChange
+  onOpenChange,
+  preventOutsideClose
 }: ResourceEditDialogHostProps & {
   target: Extract<ResourceEditDialogTarget, { kind: 'agent' }>
   open: boolean
@@ -127,6 +151,7 @@ function AgentEditDialogHost({
       modelFilter={modelFilter}
       isModelDisabled={isModelDisabled}
       initialTab={target.initialTab}
+      preventOutsideClose={preventOutsideClose}
     />
   )
 }

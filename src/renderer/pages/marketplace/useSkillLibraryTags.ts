@@ -29,6 +29,8 @@ export const TAG_COLORS = [
 export function useSkillLibraryTags() {
   const { t } = useTranslation()
   const [value, setValue] = usePreference('ui.marketplace.skill_tags', { optimistic: false })
+  const latest = useRef(value)
+  latest.current = value
   const busy = useRef(false)
   const [saving, setSaving] = useState(false)
   const tags = useMemo(
@@ -55,30 +57,30 @@ export function useSkillLibraryTags() {
       setSaving(false)
     }
   }
-  const toggle = (skillId: string, tagId: string) => {
-    const current = value.assignments[skillId] ?? []
+  const toggle = (resourceKey: string, tagId: string) => {
+    const current = value.assignments[resourceKey] ?? []
     return save({
       ...value,
       assignments: {
         ...value.assignments,
-        [skillId]: current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId]
+        [resourceKey]: current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId]
       }
     })
   }
-  const create = async (name: string, skillId?: string) => {
+  const create = async (name: string, resourceKey?: string) => {
     const trimmed = name.trim()
     if (!trimmed) return false
     const existing = tags.find((tag) => tag.name.toLocaleLowerCase() === trimmed.toLocaleLowerCase())
     if (existing) {
-      if (skillId && !value.assignments[skillId]?.includes(existing.id)) return toggle(skillId, existing.id)
+      if (resourceKey && !value.assignments[resourceKey]?.includes(existing.id)) return toggle(resourceKey, existing.id)
       return true
     }
     const id = crypto.randomUUID()
     return save({
       ...value,
       custom: [...value.custom, { id, name: trimmed, color: tags.length % TAG_COLORS.length }],
-      assignments: skillId
-        ? { ...value.assignments, [skillId]: [...(value.assignments[skillId] ?? []), id] }
+      assignments: resourceKey
+        ? { ...value.assignments, [resourceKey]: [...(value.assignments[resourceKey] ?? []), id] }
         : value.assignments
     })
   }
@@ -91,11 +93,17 @@ export function useSkillLibraryTags() {
         : value.removedDefaults,
       assignments: Object.fromEntries(
         Object.entries(value.assignments)
-          .map(([skillId, ids]) => [skillId, ids.filter((id) => id !== tagId)] as const)
+          .map(([resourceKey, ids]) => [resourceKey, ids.filter((id) => id !== tagId)] as const)
           .filter(([, ids]) => ids.length > 0)
       )
     })
-  return { tags, assignments: value.assignments, saving, toggle, create, remove }
+  const copy = (sourceKey: string, targetKey: string) => {
+    const current = latest.current
+    const ids = current.assignments[sourceKey]
+    if (!ids?.length) return Promise.resolve(true)
+    return save({ ...current, assignments: { ...current.assignments, [targetKey]: [...ids] } })
+  }
+  return { tags, assignments: value.assignments, saving, toggle, create, remove, copy }
 }
 
 export type SkillLibraryTagManager = ReturnType<typeof useSkillLibraryTags>

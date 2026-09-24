@@ -33,6 +33,7 @@ import { modelService } from './ModelService'
 import { pinService } from './PinService'
 import { promptService } from './PromptService'
 import { topicService } from './TopicService'
+import { getLibraryTagResourceIds } from './utils/libraryTags'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -291,6 +292,9 @@ export class AssistantDataService {
       query.inTrash === true ? isNotNull(assistantTable.deletedAt) : isNull(assistantTable.deletedAt)
     ]
     if (query.ids) conditions.push(inArray(assistantTable.id, query.ids))
+    if (query.libraryTagIds?.length) {
+      conditions.push(inArray(assistantTable.id, getLibraryTagResourceIds('assistant', query.libraryTagIds)))
+    }
     if (query.id !== undefined) {
       conditions.push(eq(assistantTable.id, query.id))
     }
