@@ -21,7 +21,7 @@ import {
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
 
-import { useAutoSyncStatus } from './useAutoSyncStatus'
+import { AUTO_SYNC_PROBLEM_KEYS, useAutoSyncStatus } from './useAutoSyncStatus'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -68,21 +68,25 @@ const S3Settings: FC = () => {
   const renderSyncStatus = () => {
     if (!s3Endpoint) return null
 
-    if (!autoSync?.lastRun && !autoSync?.lastError) {
+    if (!autoSync) return null
+
+    if (!autoSync.lastSuccessAt && !autoSync.problem) {
       return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.s3.syncStatus.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {autoSync?.lastError && (
+        {autoSync.problem && (
           <WarnTooltip
-            content={t('settings.data.s3.syncStatus.error', { message: autoSync.lastError })}
+            content={t('settings.data.s3.syncStatus.error', { message: t(AUTO_SYNC_PROBLEM_KEYS[autoSync.problem]) })}
             iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
-        {autoSync?.lastRun && (
+        {autoSync.lastSuccessAt && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
-            {t('settings.data.s3.syncStatus.lastSync', { time: dayjs(autoSync.lastRun).format('HH:mm:ss') })}
+            {t('settings.data.s3.syncStatus.lastSync', {
+              time: dayjs(autoSync.lastSuccessAt).format('YYYY-MM-DD HH:mm')
+            })}
           </span>
         )}
       </RowFlex>

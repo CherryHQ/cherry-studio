@@ -22,7 +22,7 @@ import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 
 const logger = loggerService.withContext('LocalBackupSettings')
-import { useAutoSyncStatus } from './useAutoSyncStatus'
+import { AUTO_SYNC_PROBLEM_KEYS, useAutoSyncStatus } from './useAutoSyncStatus'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -157,21 +157,23 @@ const LocalBackupSettings: React.FC = () => {
   const renderSyncStatus = () => {
     if (!localBackupDir) return null
 
-    if (!autoSync?.lastRun && !autoSync?.lastError) {
+    if (!autoSync) return null
+
+    if (!autoSync.lastSuccessAt && !autoSync.problem) {
       return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.local.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {autoSync?.lastError && (
+        {autoSync.problem && (
           <WarnTooltip
-            content={`${t('settings.data.local.syncError')}: ${autoSync.lastError}`}
+            content={`${t('settings.data.local.syncError')}: ${t(AUTO_SYNC_PROBLEM_KEYS[autoSync.problem])}`}
             iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
-        {autoSync?.lastRun && (
+        {autoSync.lastSuccessAt && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
-            {t('settings.data.local.lastSync')}: {dayjs(autoSync.lastRun).format('HH:mm:ss')}
+            {t('settings.data.local.lastSync')}: {dayjs(autoSync.lastSuccessAt).format('YYYY-MM-DD HH:mm')}
           </span>
         )}
       </RowFlex>
@@ -199,7 +201,7 @@ const LocalBackupSettings: React.FC = () => {
           <Input
             value={localBackupDirDraft}
             onChange={(e) => setLocalBackupDirDraft(e.target.value)}
-            onBlur={(e) => handleLocalBackupDirChange(e.target.value)}
+            onBlur={(e) => void handleLocalBackupDirChange(e.target.value)}
             placeholder={t('settings.data.local.directory.placeholder')}
             style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
           />

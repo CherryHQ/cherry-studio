@@ -2,10 +2,10 @@ import { application } from '@application'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
-import { triggersEqual } from '@shared/data/api/schemas/jobs'
+import { type JobSnapshot, triggersEqual } from '@shared/data/api/schemas/jobs'
 import { BACKUP_DESTINATION_IDS, type BackupDestinationId } from '@shared/ipc/schemas/backup'
 
-import { DestinationNotConfiguredError } from './errors'
+import { BackupBusyError, DestinationNotConfiguredError } from './errors'
 
 const logger = loggerService.withContext('BackupAutoSync')
 
@@ -18,12 +18,15 @@ declare module '@main/core/job/jobRegistry' {
   }
 }
 
+/** Why a scheduled run finished without writing an archive. */
+type AutoSyncSkip = 'not-configured' | 'busy'
+
 /**
  * Scheduled backup to one destination.
  *
- * `abandon`, not `retry`: a backup missed because the app was closed is not
- * worth replaying on the next launch — the schedule is about to produce a
- * fresher one anyway, and the user did not ask for a backup at startup.
+ * `abandon` covers a run interrupted by quitting: a half-made export is not
+ * resumed. A turn missed while the app was closed is the schedule's
+ * `after-startup` catch-up, not this.
  *
  * One queue for every destination. Export holds the service exclusively
  * (`runExclusive`), so two destinations firing on the same minute would make one
@@ -40,16 +43,20 @@ export const autoSyncJobHandler: JobHandler<{ destination: BackupDestinationId }
   async execute(ctx) {
     const { destination } = ctx.input
     try {
-      const { name } = await application.get('BackupService').exportToDestination(destination)
+      const { name } = await application.get('BackupService').exportToDestination(destination, undefined, ctx.signal)
       logger.info('Scheduled backup completed', { destination, name })
       return { name }
     } catch (error) {
-      // Settings can be cleared while a schedule is still armed. That is not a
-      // failure worth retrying or reporting — the reconciler is about to
-      // disable this schedule anyway.
+      // Settings can be cleared while the schedule stays on. Retrying cannot
+      // help; the status page reports it instead.
       if (error instanceof DestinationNotConfiguredError) {
         logger.info('Skipping scheduled backup for an unconfigured destination', { destination })
-        return { skipped: true }
+        return { skipped: 'not-configured' satisfies AutoSyncSkip }
+      }
+      // A manual export or restore holds the service; the next turn covers this one.
+      if (error instanceof BackupBusyError) {
+        logger.info('Skipping scheduled backup while another backup operation runs', { destination })
+        return { skipped: 'busy' satisfies AutoSyncSkip }
       }
       throw error
     }
@@ -79,39 +86,49 @@ function desiredFor(destination: BackupDestinationId): DesiredSchedule {
 /** What the settings pages show about a destination's scheduled backup. */
 export interface AutoSyncStatus {
   readonly destination: BackupDestinationId
-  readonly enabled: boolean
-  /** Epoch millis, or null when this destination has never run one. */
-  readonly lastRun: number | null
-  readonly nextRun: number | null
-  /** The last attempt failed. Absent once a later attempt succeeds. */
-  readonly lastError?: string
+  /** When a scheduled run last wrote an archive, in epoch millis; null when none is on record. */
+  readonly lastSuccessAt: number | null
+  /** Why the latest run wrote nothing. A run deferred by a busy service is not a problem. */
+  readonly problem?: 'failed' | 'not-configured'
+}
+
+/** JobManager keeps this many terminal runs per schedule, so reading more finds nothing. */
+const RUN_HISTORY_LIMIT = 100
+
+function skipOf(run: JobSnapshot): AutoSyncSkip | undefined {
+  const output = run.output as { skipped?: AutoSyncSkip } | null
+  return output?.skipped
 }
 
 /**
- * Scheduled-backup status per destination, read from the durable schedule rows.
+ * Scheduled-backup status per destination, read from the schedule's own runs.
  *
- * This is why the status survives a restart at all: the renderer used to keep it
- * in a module variable, so every reload reported "never synced" no matter how
- * many backups had run.
+ * From the runs, not the schedule row: `lastRun` there is when the timer fired,
+ * which a failed, skipped, or still-retrying run writes just the same.
  */
 export function readAutoSyncStatus(): AutoSyncStatus[] {
   const jobManager = application.get('JobManager')
 
   return BACKUP_DESTINATION_IDS.map((destination) => {
     const schedule = jobManager.getJobSchedule(AUTO_SYNC_JOB_TYPE, destination)
-    if (!schedule) {
-      return { destination, enabled: false, lastRun: null, nextRun: null }
-    }
+    if (!schedule) return { destination, lastSuccessAt: null }
 
-    const [latest] = jobService.listRecentTerminalByScheduleId(schedule.id, 1)
+    const runs = jobService
+      .listRecentTerminalByScheduleId(schedule.id, RUN_HISTORY_LIMIT)
+      .filter((run) => run.status !== 'cancelled' && skipOf(run) !== 'busy')
+    const success = runs.find((run) => run.status === 'completed' && skipOf(run) === undefined)
+    const latest = runs[0]
+    const problem =
+      latest?.status === 'failed'
+        ? 'failed'
+        : latest && skipOf(latest) === 'not-configured'
+          ? 'not-configured'
+          : undefined
+
     return {
       destination,
-      enabled: schedule.enabled,
-      lastRun: schedule.lastRun ? Date.parse(schedule.lastRun) : null,
-      nextRun: schedule.nextRun ? Date.parse(schedule.nextRun) : null,
-      // A code, not the message: the underlying text is written for a main log
-      // and can carry a host name or a bucket path.
-      ...(latest?.status === 'failed' && latest.error ? { lastError: latest.error.code } : {})
+      lastSuccessAt: success?.finishedAt ? Date.parse(success.finishedAt) : null,
+      ...(problem ? { problem } : {})
     }
   })
 }
@@ -120,10 +137,10 @@ export function readAutoSyncStatus(): AutoSyncStatus[] {
  * Make the schedules match the settings, for every destination.
  *
  * Preference is the single source of truth and the schedule row is its
- * projection, which is what makes this safe to run at any time: a restore comes
- * back with every schedule forced to `enabled: false`
- * (`portability/tablePolicy.ts`), and the next reconcile turns the ones the
- * user still wants back on.
+ * projection, which is what makes this safe to run at any time. A restore
+ * resets every `auto_sync` preference (`portability/preferenceResetPolicy.ts`),
+ * so the reconcile after one leaves every schedule off until the user turns it
+ * back on.
  */
 export function reconcileAutoSyncSchedules(): void {
   const jobManager = application.get('JobManager')

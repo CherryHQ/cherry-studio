@@ -118,6 +118,7 @@ describe('LocalBackupSettings', () => {
       expect(toast.error).toHaveBeenCalledOnce()
     })
     expect(MockUsePreferenceUtils.getPreferenceValue('data.backup.local.dir')).toBe('/saved-backups')
+    expect(input).toHaveValue('/saved-backups')
 
     releaseMountFetch()
   })

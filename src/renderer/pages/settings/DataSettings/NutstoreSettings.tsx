@@ -26,7 +26,7 @@ import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 
 import NutstorePathPopup from './NutstorePathPopup'
-import { useAutoSyncStatus } from './useAutoSyncStatus'
+import { AUTO_SYNC_PROBLEM_KEYS, useAutoSyncStatus } from './useAutoSyncStatus'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -147,21 +147,23 @@ const NutstoreSettings: FC = () => {
   const renderSyncStatus = () => {
     if (!nutstoreToken) return null
 
-    if (!autoSync?.lastRun && !autoSync?.lastError) {
+    if (!autoSync) return null
+
+    if (!autoSync.lastSuccessAt && !autoSync.problem) {
       return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {autoSync?.lastError && (
+        {autoSync.problem && (
           <WarnTooltip
-            content={`${t('settings.data.webdav.syncError')}: ${autoSync.lastError}`}
+            content={`${t('settings.data.webdav.syncError')}: ${t(AUTO_SYNC_PROBLEM_KEYS[autoSync.problem])}`}
             iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
-        {autoSync?.lastRun && (
+        {autoSync.lastSuccessAt && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
-            {t('settings.data.webdav.lastSync')}: {dayjs(autoSync.lastRun).format('HH:mm:ss')}
+            {t('settings.data.webdav.lastSync')}: {dayjs(autoSync.lastSuccessAt).format('YYYY-MM-DD HH:mm')}
           </span>
         )}
       </RowFlex>

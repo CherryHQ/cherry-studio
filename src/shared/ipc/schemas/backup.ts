@@ -340,21 +340,19 @@ export const backupRequestSchemas = {
     output: z.strictObject({ reachable: z.boolean() })
   }),
   /**
-   * Scheduled-backup status per destination, read from the durable schedule
-   * rows — so it survives a reload, which the session-local status it replaces
-   * did not.
+   * Scheduled-backup status per destination, read from the schedule's durable
+   * run history — so it survives a reload, which the session-local status it
+   * replaces did not.
    */
   'backup.get_auto_sync_status': defineRoute({
     input: z.void(),
     output: z.array(
       z.strictObject({
         destination: z.enum(BACKUP_DESTINATION_IDS),
-        enabled: z.boolean(),
-        /** Epoch millis; null when this destination has never run one. */
-        lastRun: z.number().int().nonnegative().nullable(),
-        nextRun: z.number().int().nonnegative().nullable(),
-        /** A stable code, never the underlying message — that one is written for a main log. */
-        lastError: z.string().optional()
+        /** Epoch millis of the last scheduled run that wrote an archive; null when none is on record. */
+        lastSuccessAt: z.number().int().nonnegative().nullable(),
+        /** Why the latest scheduled run wrote nothing. */
+        problem: z.enum(['failed', 'not-configured']).optional()
       })
     )
   })

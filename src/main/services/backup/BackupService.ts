@@ -158,7 +158,9 @@ export class BackupService extends BaseService {
     // HERE, not in a later hook: JobManager's startup recovery cancels
     // non-terminal jobs whose type has no registered handler, and it wakes on
     // its own timer rather than waiting for us.
-    application.get('JobManager').registerHandler(AUTO_SYNC_JOB_TYPE, autoSyncJobHandler)
+    const jobManager = application.get('JobManager')
+    // A restart re-runs onInit; JobManager has no unregister and throws on a duplicate.
+    if (!jobManager.hasHandler(AUTO_SYNC_JOB_TYPE)) jobManager.registerHandler(AUTO_SYNC_JOB_TYPE, autoSyncJobHandler)
 
     // Preference is the source of truth; the schedule row is its projection.
     this.registerDisposable(
@@ -183,8 +185,8 @@ export class BackupService extends BaseService {
    * expired) any promotion, so acting on the journal here could only fight it.
    */
   protected onReady(): void {
-    // A restore comes back with every schedule forced off; this turns the ones
-    // the user still wants back on.
+    // Settings are the source of truth; after a restore they say "off" until
+    // the user turns each destination back on.
     this.reconcileAutoSync()
 
     const status = this.getRestoreStatus()
@@ -302,14 +304,17 @@ export class BackupService extends BaseService {
    */
   public async exportToDestination(
     id: BackupDestinationId,
-    customName?: string
+    customName?: string,
+    /** The caller's own cancellation, on top of {@link cancelOperation}'s. */
+    callerSignal?: AbortSignal
   ): Promise<{ name: string; degradations: ExportArchiveResult['manifest']['degradations'] }> {
     // Resolved before the claim: an unconfigured destination is not an operation,
     // and must not make a concurrent export look busy.
     const destination = await resolveDestination(id)
     const transport = createTransport(destination)
 
-    return this.runExclusive('export', async (signal, reportStage, reportUnit) => {
+    return this.runExclusive('export', async (operationSignal, reportStage, reportUnit) => {
+      const signal = callerSignal ? AbortSignal.any([operationSignal, callerSignal]) : operationSignal
       await this.startExportCleanup()
       // A name the user typed is kept, but it opts out of rotation: only the
       // generated convention identifies an archive as this device's.

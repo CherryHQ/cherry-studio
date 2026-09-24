@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { exportToDestinationMock, jobManager, preferences } = vi.hoisted(() => ({
+const { exportToDestinationMock, jobManager, listRunsMock, preferences } = vi.hoisted(() => ({
   exportToDestinationMock: vi.fn(),
+  listRunsMock: vi.fn(),
   jobManager: {
     getJobSchedule: vi.fn(),
     registerJobSchedule: vi.fn(() => ({ id: 'schedule-1' })),
@@ -20,12 +21,13 @@ vi.mock('@application', () => ({
     }
   }
 }))
+vi.mock('@data/services/JobService', () => ({ jobService: { listRecentTerminalByScheduleId: listRunsMock } }))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
 
-const { autoSyncJobHandler, reconcileAutoSyncSchedules } = await import('../autoSync')
-const { DestinationNotConfiguredError } = await import('../errors')
+const { autoSyncJobHandler, readAutoSyncStatus, reconcileAutoSyncSchedules } = await import('../autoSync')
+const { BackupBusyError, DestinationNotConfiguredError } = await import('../errors')
 
 /** Every destination off unless the test says otherwise. */
 function settings(overrides: Record<string, unknown> = {}) {
@@ -108,8 +110,8 @@ describe('reconcileAutoSyncSchedules', () => {
     })
   })
 
-  // A restore forces every schedule row to `enabled: false`; nothing else turns
-  // them back on.
+  // A restore leaves the row disabled; turning the destination back on must
+  // enable that row rather than register a second one.
   it('re-enables a schedule a restore switched off', () => {
     settings(WEBDAV_ON)
     onlyWebdavScheduled({
@@ -147,28 +149,93 @@ describe('reconcileAutoSyncSchedules', () => {
 })
 
 describe('autoSyncJobHandler', () => {
-  it('exports to the destination its payload names', async () => {
-    exportToDestinationMock.mockResolvedValue({ name: 'cherry-studio.zip' })
+  const run = (signal = new AbortController().signal) =>
+    autoSyncJobHandler.execute({ input: { destination: 's3' }, signal } as never)
 
-    await expect(autoSyncJobHandler.execute({ input: { destination: 's3' } } as never)).resolves.toEqual({
-      name: 'cherry-studio.zip'
-    })
-    expect(exportToDestinationMock).toHaveBeenCalledExactlyOnceWith('s3')
+  // The job's signal is how JobManager cancels a run; dropping it would let a
+  // cancelled job keep exporting after its row went terminal.
+  it("exports to the payload's destination under the job's signal", async () => {
+    exportToDestinationMock.mockResolvedValue({ name: 'cherry-studio.zip' })
+    const { signal } = new AbortController()
+
+    await expect(run(signal)).resolves.toEqual({ name: 'cherry-studio.zip' })
+    expect(exportToDestinationMock).toHaveBeenCalledExactlyOnceWith('s3', undefined, signal)
   })
 
-  // Settings can be cleared while the schedule is still armed. Retrying that,
-  // or surfacing it as a failed backup, would only be noise.
+  // Retrying cannot configure the destination; the status page reports it.
   it('skips an unconfigured destination instead of failing', async () => {
     exportToDestinationMock.mockRejectedValue(new DestinationNotConfiguredError('s3', 'bucket'))
 
-    await expect(autoSyncJobHandler.execute({ input: { destination: 's3' } } as never)).resolves.toEqual({
-      skipped: true
-    })
+    await expect(run()).resolves.toEqual({ skipped: 'not-configured' })
+  })
+
+  // A manual export can outlast every retry; that is not a failed backup.
+  it('skips a turn that meets a manual backup operation', async () => {
+    exportToDestinationMock.mockRejectedValue(new BackupBusyError('export', 'export'))
+
+    await expect(run()).resolves.toEqual({ skipped: 'busy' })
   })
 
   it('lets a real transport failure reach the job runner', async () => {
     exportToDestinationMock.mockRejectedValue(new Error('network down'))
 
-    await expect(autoSyncJobHandler.execute({ input: { destination: 's3' } } as never)).rejects.toThrow('network down')
+    await expect(run()).rejects.toThrow('network down')
+  })
+})
+
+describe('readAutoSyncStatus', () => {
+  type Run = { status: string; finishedAt: string; output?: unknown }
+  /** Newest first, as JobService returns them. */
+  function webdavRuns(...runs: Run[]) {
+    onlyWebdavScheduled({ id: 'schedule-1', enabled: true })
+    listRunsMock.mockReturnValue(runs.map((run) => ({ output: null, ...run })))
+  }
+  const webdav = () => readAutoSyncStatus().find((entry) => entry.destination === 'webdav')
+
+  const OK = { status: 'completed', finishedAt: '2026-09-20T08:00:00.000Z', output: { name: 'a.zip' } }
+
+  it('reports when the last archive was written', () => {
+    webdavRuns(OK)
+
+    expect(webdav()).toEqual({ destination: 'webdav', lastSuccessAt: Date.parse(OK.finishedAt) })
+  })
+
+  // A skipped run completes normally; it must not pass for a backup.
+  it('reports an unconfigured destination without counting it as a backup', () => {
+    webdavRuns(
+      { status: 'completed', finishedAt: '2026-09-21T08:00:00.000Z', output: { skipped: 'not-configured' } },
+      OK
+    )
+
+    expect(webdav()).toEqual({
+      destination: 'webdav',
+      lastSuccessAt: Date.parse(OK.finishedAt),
+      problem: 'not-configured'
+    })
+  })
+
+  it('reports a failed latest run beside the last good one', () => {
+    webdavRuns({ status: 'failed', finishedAt: '2026-09-21T08:00:00.000Z' }, OK)
+
+    expect(webdav()).toMatchObject({ lastSuccessAt: Date.parse(OK.finishedAt), problem: 'failed' })
+  })
+
+  // Neither a turn deferred by a manual backup nor a cancelled run says anything
+  // about the destination, so neither may hide the failure before it.
+  it('looks past busy skips and cancellations to the run that decided', () => {
+    webdavRuns(
+      { status: 'completed', finishedAt: '2026-09-22T09:00:00.000Z', output: { skipped: 'busy' } },
+      { status: 'cancelled', finishedAt: '2026-09-22T08:00:00.000Z' },
+      { status: 'failed', finishedAt: '2026-09-21T08:00:00.000Z' },
+      OK
+    )
+
+    expect(webdav()).toMatchObject({ lastSuccessAt: Date.parse(OK.finishedAt), problem: 'failed' })
+  })
+
+  it('has no backup on record for a destination whose runs never wrote one', () => {
+    webdavRuns({ status: 'failed', finishedAt: '2026-09-21T08:00:00.000Z' })
+
+    expect(webdav()).toEqual({ destination: 'webdav', lastSuccessAt: null, problem: 'failed' })
   })
 })
