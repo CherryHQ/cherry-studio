@@ -1,2 +1,3 @@
 export { UarRuntimeDriver } from './UarRuntimeDriver'
-export { UarSidecarService } from './UarSidecarService'
+export { UarSidecarService, type UarSidecarEndpoint } from './UarSidecarService'
+export { readAppliedUarStorage } from './uarStorageProfile'

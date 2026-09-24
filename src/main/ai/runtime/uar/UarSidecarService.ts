@@ -14,6 +14,8 @@ import { isWin } from '@main/core/platform'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 
+import { type AppliedUarStorage, readAppliedUarStorage, writeAppliedUarStorage } from './uarStorageProfile'
+
 const logger = loggerService.withContext('UarSidecarService')
 const START_TIMEOUT_MS = 30_000
 const STOP_TIMEOUT_MS = 5_000
@@ -31,13 +33,15 @@ export interface UarSidecarEndpoint {
   generation: number
   uarVersion: string
   capabilities: readonly string[]
+  storage: Omit<AppliedUarStorage, 'password'>
 }
 
 export type UarSidecarStatus = UarSidecarEndpoint & { state: 'running' }
 
-type RunningSidecar = UarSidecarEndpoint & {
+type RunningSidecar = Omit<UarSidecarEndpoint, 'storage'> & {
   child: ChildProcess
   launchToken: string
+  storage: AppliedUarStorage
 }
 
 type CapabilitiesResponse = {
@@ -71,7 +75,8 @@ export class UarSidecarService extends BaseService {
       baseUrl: running.baseUrl,
       generation: running.generation,
       uarVersion: running.uarVersion,
-      capabilities: running.capabilities
+      capabilities: running.capabilities,
+      storage: this.storageStatus(running.storage)
     }
   }
 
@@ -83,14 +88,15 @@ export class UarSidecarService extends BaseService {
       baseUrl: running.baseUrl,
       generation: running.generation,
       uarVersion: running.uarVersion,
-      capabilities: running.capabilities
+      capabilities: running.capabilities,
+      storage: this.storageStatus(running.storage)
     }
   }
 
   async restart(): Promise<UarSidecarEndpoint> {
     const running = await this.operation.runExclusive(async () => {
       await this.stopOwnedProcess()
-      const next = await this.startOwnedProcess()
+      const next = await this.startOwnedProcess(await readAppliedUarStorage())
       this.running = next
       return next
     })
@@ -98,7 +104,38 @@ export class UarSidecarService extends BaseService {
       baseUrl: running.baseUrl,
       generation: running.generation,
       uarVersion: running.uarVersion,
-      capabilities: running.capabilities
+      capabilities: running.capabilities,
+      storage: this.storageStatus(running.storage)
+    }
+  }
+
+  async applyStorage(candidate: AppliedUarStorage): Promise<UarSidecarEndpoint> {
+    const running = await this.operation.runExclusive(async () => {
+      const previous = this.running?.storage ?? (await readAppliedUarStorage())
+      await this.stopOwnedProcess()
+      let next: RunningSidecar | undefined
+      try {
+        next = await this.startOwnedProcess(candidate)
+        await writeAppliedUarStorage(candidate)
+        this.running = next
+        return next
+      } catch (error) {
+        if (next) await this.terminate(next.child)
+        try {
+          const restored = await this.startOwnedProcess(previous)
+          this.running = restored
+        } catch (rollbackError) {
+          throw new AggregateError([error, rollbackError], 'UAR storage apply and rollback both failed')
+        }
+        throw error
+      }
+    })
+    return {
+      baseUrl: running.baseUrl,
+      generation: running.generation,
+      uarVersion: running.uarVersion,
+      capabilities: running.capabilities,
+      storage: this.storageStatus(running.storage)
     }
   }
 
@@ -145,7 +182,7 @@ export class UarSidecarService extends BaseService {
     this.startPromise ??= this.operation.runExclusive(async () => {
       if (this.running && this.isAlive(this.running.child)) return this.running
       await this.stopOwnedProcess()
-      const running = await this.startOwnedProcess()
+      const running = await this.startOwnedProcess(await readAppliedUarStorage())
       this.running = running
       return running
     })
@@ -154,16 +191,29 @@ export class UarSidecarService extends BaseService {
     })
   }
 
-  private async startOwnedProcess(): Promise<RunningSidecar> {
+  private async startOwnedProcess(storage: AppliedUarStorage): Promise<RunningSidecar> {
     const executable = await this.resolveExecutable()
     const launchToken = randomBytes(32).toString('hex')
     const dataRoot = application.getPath('feature.agents.uar.data')
     await mkdir(dataRoot, { recursive: true })
+    const persistence =
+      storage.profile.backend === 'remote'
+        ? {
+            UAR_PERSISTENCE__DATABASE_URL: storage.profile.endpoint,
+            UAR_PERSISTENCE__SURREAL_USER: storage.profile.username,
+            UAR_PERSISTENCE__SURREAL_PASS: storage.password ?? '',
+            UAR_PERSISTENCE__SURREAL_AUTH_LEVEL: storage.profile.authLevel,
+            UAR_PERSISTENCE__SURREAL_NS: storage.profile.namespace,
+            UAR_PERSISTENCE__SURREAL_DB: storage.profile.database
+          }
+        : {
+            UAR_PERSISTENCE__DATABASE_URL: `surrealkv://${path.resolve(dataRoot, 'runtime.db').replaceAll('\\', '/')}`
+          }
     const env = {
       ...(await getRawShellEnv()),
       UAR_SIDECAR: '1',
       UAR_PERSISTENCE__PROVIDER: 'surreal',
-      UAR_PERSISTENCE__DATABASE_URL: `surrealkv://${path.resolve(dataRoot, 'runtime.db').replaceAll('\\', '/')}`,
+      ...persistence,
       UAR_BUILTIN_SKILLS_DIR: path.join(application.getPath('feature.prometheus.pack.runtime'), 'skills'),
       UAR_MODELS_DIR: path.join(path.dirname(executable), 'uar-models'),
       UAR_LOAD_IMPORTED_SKILLS: 'true',
@@ -191,7 +241,8 @@ export class UarSidecarService extends BaseService {
         baseUrl,
         generation,
         uarVersion: capabilities.uarVersion,
-        capabilities: capabilities.capabilities
+        capabilities: capabilities.capabilities,
+        storage
       }
       child.once('exit', (code, signal) => {
         if (this.running?.child === child) this.running = undefined
@@ -201,6 +252,7 @@ export class UarSidecarService extends BaseService {
       logger.info('UAR sidecar ready', {
         generation,
         version: running.uarVersion,
+        storageBackend: storage.profile.backend,
         capabilities: running.capabilities
       })
       return running
@@ -303,5 +355,9 @@ export class UarSidecarService extends BaseService {
 
   private isAlive(child: ChildProcess): boolean {
     return child.exitCode === null && child.signalCode === null
+  }
+
+  private storageStatus(storage: AppliedUarStorage): UarSidecarEndpoint['storage'] {
+    return { revision: storage.revision, profile: storage.profile }
   }
 }

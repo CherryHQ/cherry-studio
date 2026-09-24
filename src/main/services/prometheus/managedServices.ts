@@ -147,10 +147,14 @@ export async function runManagedServiceAction(
     const managedSecrets = await readSecrets()
     await surrealSql(
       `http://127.0.0.1:${config.services.surrealPort}`,
-      `DEFINE NAMESPACE IF NOT EXISTS memory; USE NS memory; DEFINE USER OVERWRITE memory ON NAMESPACE PASSWORD $memoryPassword ROLES OWNER; DEFINE DATABASE IF NOT EXISTS main_local_384; DEFINE NAMESPACE IF NOT EXISTS ${config.compass.namespace}; USE NS ${config.compass.namespace}; DEFINE USER OVERWRITE ${config.compass.username} ON NAMESPACE PASSWORD $compassPassword ROLES OWNER;`,
+      `DEFINE NAMESPACE IF NOT EXISTS memory; USE NS memory; DEFINE USER OVERWRITE memory ON NAMESPACE PASSWORD $memoryPassword ROLES OWNER; DEFINE DATABASE IF NOT EXISTS main_local_384; DEFINE NAMESPACE IF NOT EXISTS ${config.compass.namespace}; USE NS ${config.compass.namespace}; DEFINE USER OVERWRITE ${config.compass.username} ON NAMESPACE PASSWORD $compassPassword ROLES OWNER; DEFINE NAMESPACE IF NOT EXISTS ${config.uar.namespace}; USE NS ${config.uar.namespace}; DEFINE USER OVERWRITE ${config.uar.username} ON NAMESPACE PASSWORD $uarPassword ROLES OWNER; DEFINE DATABASE IF NOT EXISTS ${config.uar.database};`,
       { username: 'root', password: managedSecrets.rootPassword!, authLevel: 'root' },
       signal,
-      { memoryPassword: managedSecrets.memoryPassword!, compassPassword: managedSecrets.compassPassword! }
+      {
+        memoryPassword: managedSecrets.memoryPassword!,
+        compassPassword: managedSecrets.compassPassword!,
+        uarPassword: managedSecrets.uarPassword!
+      }
     )
   }
   const results = []

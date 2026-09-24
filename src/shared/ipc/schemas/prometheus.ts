@@ -25,7 +25,7 @@ export const prometheusRequestSchemas = {
     output: z.custom<IntegrationSnapshot>()
   }),
   'prometheus.integration.configure': defineRoute({
-    input: z.object({ updates: z.array(integrationUpdateSchema).max(3), secrets: secretPatchSchema }).strict(),
+    input: z.object({ updates: z.array(integrationUpdateSchema).max(4), secrets: secretPatchSchema }).strict(),
     output: z.custom<IntegrationSnapshot>()
   }),
   'prometheus.integration.start': defineRoute({

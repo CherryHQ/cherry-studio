@@ -90,6 +90,9 @@ export function IntegrationSettings() {
           value: draft.filesystem
         })
       }
+      if (JSON.stringify(draft.uar) !== JSON.stringify(snapshot.config.uar)) {
+        updates.push({ feature: 'uar', expectedRevision: snapshot.revisions.uar, value: draft.uar })
+      }
       if (JSON.stringify(draft.services) !== JSON.stringify(snapshot.config.services)) {
         updates.push({ feature: 'services', expectedRevision: snapshot.revisions.services, value: draft.services })
       }

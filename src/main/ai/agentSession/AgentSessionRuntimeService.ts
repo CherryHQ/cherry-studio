@@ -1244,6 +1244,13 @@ export class AgentSessionRuntimeService extends BaseService {
     return false
   }
 
+  hasBusySessionsForRuntime(agentType: string): boolean {
+    for (const entry of this.entries.values()) {
+      if (entry.agentType === agentType && this.isSessionBusy(entry.sessionId)) return true
+    }
+    return false
+  }
+
   listClaimedResumeTokens(): ReadonlySet<string> {
     const claimedResumeTokens = new Set<string>()
     for (const entry of this.entries.values()) {

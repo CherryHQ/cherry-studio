@@ -9,6 +9,13 @@ const endpoint = z
     const url = new URL(value)
     return /^https?:$/.test(url.protocol) && !url.username && !url.password
   }, 'HTTP or HTTPS endpoint without embedded credentials required')
+const uarEndpoint = z
+  .string()
+  .url()
+  .refine((value) => {
+    const url = new URL(value)
+    return /^(https?|wss?):$/.test(url.protocol) && !url.username && !url.password
+  }, 'HTTP(S) or WS(S) endpoint without embedded credentials required')
 const model = z.object({ name: z.string().default(''), baseUrl: z.string().default('') })
 const serviceOwnershipSchema = z.enum(['managed', 'external'])
 const serviceSourceSchema = z.enum(['application', 'full-pack', 'manual'])
@@ -49,6 +56,24 @@ const filesystemConfigSchema = z.object({
     .transform((roots) => roots.map((root) => root.trim()).filter(Boolean))
     .default([])
 })
+export const uarStorageConfigSchema = z.object({
+  backend: z.enum(['embedded', 'remote']).default('embedded'),
+  endpoint: uarEndpoint.default('http://127.0.0.1:28000'),
+  namespace: z
+    .string()
+    .regex(/^[a-zA-Z][a-zA-Z0-9_]*$/)
+    .default('uar'),
+  database: z
+    .string()
+    .regex(/^[a-zA-Z][a-zA-Z0-9_]*$/)
+    .default('main'),
+  username: z
+    .string()
+    .regex(/^[a-zA-Z][a-zA-Z0-9_]*$/)
+    .default('uar'),
+  authLevel: z.enum(['root', 'namespace', 'database']).default('namespace')
+})
+export type UarStorageConfig = z.infer<typeof uarStorageConfigSchema>
 const servicesConfigSchema = z.object({
   surrealdb: serviceProfileSchema('http://127.0.0.1:28000').prefault({}),
   memory: serviceProfileSchema('http://127.0.0.1:23001/mcp/sse').prefault({}),
@@ -64,20 +89,22 @@ const servicesConfigSchema = z.object({
 export const integrationConfigSchema = z.object({
   compass: compassConfigSchema.prefault({}),
   filesystem: filesystemConfigSchema.prefault({}),
+  uar: uarStorageConfigSchema.prefault({}),
   services: servicesConfigSchema.prefault({})
 })
 export type IntegrationConfig = z.infer<typeof integrationConfigSchema>
 
-export const integrationFeatureSchema = z.enum(['compass', 'filesystem', 'services'])
+export const integrationFeatureSchema = z.enum(['compass', 'filesystem', 'uar', 'services'])
 export type IntegrationFeature = z.infer<typeof integrationFeatureSchema>
 export const integrationRevisionsSchema = z.object({
   compass: z.number().int().nonnegative().default(0),
   filesystem: z.number().int().nonnegative().default(0),
+  uar: z.number().int().nonnegative().default(0),
   services: z.number().int().nonnegative().default(0)
 })
 export type IntegrationRevisions = z.infer<typeof integrationRevisionsSchema>
 export const integrationDocumentSchema = z.object({
-  schemaVersion: z.literal(3),
+  schemaVersion: z.literal(4),
   revisions: integrationRevisionsSchema,
   config: integrationConfigSchema
 })
@@ -104,6 +131,13 @@ export const integrationUpdateSchema = z.discriminatedUnion('feature', [
       expectedRevision: z.number().int().nonnegative(),
       value: servicesConfigSchema
     })
+    .strict(),
+  z
+    .object({
+      feature: z.literal('uar'),
+      expectedRevision: z.number().int().nonnegative(),
+      value: uarStorageConfigSchema
+    })
     .strict()
 ])
 export type IntegrationUpdate = z.infer<typeof integrationUpdateSchema>
@@ -111,6 +145,7 @@ export const secretNames = [
   'rootPassword',
   'memoryPassword',
   'compassPassword',
+  'uarPassword',
   'memoryToken',
   'literKey',
   'judgeKey',
@@ -137,6 +172,7 @@ export const integrationActionSchema = z.enum([
   'repair-path',
   'diagnose',
   'uar-check',
+  'uar-apply',
   'uar-restart',
   'discover-services'
 ])
@@ -183,7 +219,7 @@ export type ServiceCandidate = {
 export type ServiceDiscovery = { candidates: ServiceCandidate[]; errors: string[] }
 export type IntegrationSnapshot = {
   config: IntegrationConfig
-  schemaVersion: 3
+  schemaVersion: 4
   revisions: IntegrationRevisions
   secrets: Partial<Record<IntegrationSecret, boolean>>
   operations: IntegrationOperation[]
@@ -200,6 +236,15 @@ export type IntegrationSnapshot = {
     binaryVersion?: string
     runtimeVersion?: string
     capabilities: string[]
-    backend: 'local'
+    requestedBackend: 'embedded' | 'remote'
+    effectiveBackend: 'embedded' | 'remote'
+    requestedRevision: number
+    effectiveRevision: number
+    applyRequired: boolean
+    endpoint?: string
+    namespace?: string
+    database?: string
+    authLevel?: 'root' | 'namespace' | 'database'
+    lastApplyError?: string
   }
 }

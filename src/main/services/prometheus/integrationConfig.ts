@@ -71,10 +71,10 @@ function decodeIntegrationDocument(raw: string): { document: IntegrationDocument
   const config = integrationConfigSchema.parse(upgradeIntegrationConfig(wrapped ? value.config : value))
   const revisions = wrapped
     ? integrationRevisionsSchema.parse(value.revisions ?? {})
-    : { compass: 0, filesystem: 0, services: 0 }
+    : { compass: 0, filesystem: 0, uar: 0, services: 0 }
   return {
     document: {
-      schemaVersion: 3,
+      schemaVersion: 4,
       revisions,
       config
     },
@@ -143,7 +143,7 @@ export async function writeSecrets(patch: IntegrationSecretPatch): Promise<void>
 
 export async function ensureManagedSecrets(): Promise<Partial<Record<IntegrationSecret, string>>> {
   const secrets = await readSecrets()
-  for (const key of ['rootPassword', 'memoryPassword', 'compassPassword', 'literKey'] as const) {
+  for (const key of ['rootPassword', 'memoryPassword', 'compassPassword', 'uarPassword', 'literKey'] as const) {
     if (!secrets[key]) secrets[key] = randomBytes(32).toString('hex')
   }
   await replaceSecrets(secrets)

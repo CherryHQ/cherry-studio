@@ -27,7 +27,10 @@ export function UarIntegrationStatus({
   const rows = [
     [text('uarProcess'), text(`states.${snapshot.uar.state}`)],
     [text('uarRuntimeVersion'), snapshot.uar.runtimeVersion ?? text('uarUnavailable')],
-    [text('uarBackend'), text('uarBackendLocal')],
+    [
+      text('uarBackend'),
+      snapshot.uar.effectiveBackend === 'embedded' ? text('uarBackendLocal') : text('backends.remote')
+    ],
     [text('uarSkills'), String(snapshot.inventory?.skills.length ?? 0)],
     [
       text('uarCapabilities'),
