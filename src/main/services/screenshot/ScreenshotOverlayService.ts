@@ -22,6 +22,7 @@ import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
 
+import { isScreenshotOcrAvailable, recognizeScreenshotText } from './recognizeText'
 import { captureAllMonitors, listMonitors } from './screenCapture'
 import { type CaptureResult, type MonitorInfo, type RawWindowInfo, ScreenCapturePermissionError } from './types'
 import { listWindowsOffThread } from './windowEnumerator'
@@ -259,7 +260,7 @@ export class ScreenshotOverlayService extends BaseService {
         const primaryScaleFactor = screen.getPrimaryDisplay().scaleFactor
 
         const autoOcr = preferenceService.get('feature.screenshot.auto_ocr')
-        const ocrAvailable = application.get('LocalModelService').isCapabilityReady('ocr')
+        const ocrAvailable = isScreenshotOcrAvailable()
 
         // Which overlay covers which display, for the snap-target push below.
         const snapOverlays: { windowId: WindowId; display: Display }[] = []
@@ -436,10 +437,8 @@ export class ScreenshotOverlayService extends BaseService {
   /**
    * Recognize text inside one region of an overlay's frozen capture.
    *
-   * Serialization is `OcrInferenceService`'s own `PQueue({ concurrency: 1 })`; this only
-   * has to make sure a superseded request produces nothing. The token is re-checked right
-   * before the recognition and again after it, so a request overtaken while it waited for
-   * its queue slot is dropped rather than painted over the newer result.
+   * Native OCR runs asynchronously; Paddle uses its inference worker. Only the latest
+   * request may publish lines, including across pooled-window sessions.
    */
   public async recognizeText(windowId: WindowId, mediaId: string, region: OcrRegion): Promise<OcrRecognitionResult> {
     const token = Symbol('ocr-request')
@@ -450,8 +449,8 @@ export class ScreenshotOverlayService extends BaseService {
     if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
     // Re-checked per request, never cached from initData: the user can delete the
-    // model in settings while the overlay is open.
-    if (!application.get('LocalModelService').isCapabilityReady('ocr')) return { status: 'unavailable' }
+    // Paddle model in settings while the overlay is open.
+    if (!isScreenshotOcrAvailable()) return { status: 'unavailable' }
 
     const capture = this.sessionCaptures.get(mediaId)
     if (!capture) return { status: 'rejected' }
@@ -476,14 +475,14 @@ export class ScreenshotOverlayService extends BaseService {
       // Superseded while the crop ran: skip a recognition whose result nobody will use.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
 
-      const result = await application.get('OcrInferenceService').recognize({ kind: 'bytes', imageBytes })
+      const result = await recognizeScreenshotText(imageBytes, clamped)
 
       // A pooled overlay's React tree survives into the next session, so a late
       // success would paint the previous capture's text onto the new one.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
       if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
-      return { status: 'ok', lines: result.lines }
+      return result
     } catch (error) {
       // Rethrown so the overlay shows its error state; logged here because the IPC
       // transport only serializes the error to the renderer, it never records it.

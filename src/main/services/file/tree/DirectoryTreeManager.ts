@@ -429,7 +429,8 @@ export class DirectoryTreeManager extends BaseService {
     options: DirectoryTreeOptions | undefined
   ): Promise<SharedBuilder> {
     const existing = this.sharedBuilders.get(key)
-    if (existing) return existing
+    if (existing && !existing.builder.isDisposed) return existing
+    if (existing) this.evictDisposedBuilder(existing)
     const pending = this.inflight.get(key)
     if (pending) return pending
 
@@ -449,10 +450,11 @@ export class DirectoryTreeManager extends BaseService {
         // ahead of us — fold into theirs and discard the duplicate
         // builder so we don't leak a watcher.
         const winner = this.sharedBuilders.get(key)
-        if (winner) {
+        if (winner && !winner.builder.isDisposed) {
           builder.dispose()
           return winner
         }
+        if (winner) this.evictDisposedBuilder(winner)
         const shared: SharedBuilder = {
           key,
           builder,
@@ -468,6 +470,25 @@ export class DirectoryTreeManager extends BaseService {
 
     this.inflight.set(key, promise)
     return promise
+  }
+
+  /**
+   * Remove a builder that terminated itself after a watcher failure, including
+   * the consumers whose streams can no longer deliver mutations. The next
+   * create receives a fresh snapshot and watcher instead of reusing the
+   * disposed cache entry.
+   */
+  private evictDisposedBuilder(shared: SharedBuilder): void {
+    if (shared.state === 'draining') clearTimeout(shared.disposeTimer)
+    for (const consumer of shared.consumers.values()) {
+      consumer.forwardSubscription?.dispose()
+      this.consumers.delete(consumer.treeId)
+      const bucket = this.byWindow.get(consumer.windowId)
+      bucket?.delete(consumer.treeId)
+      if (bucket && bucket.size === 0) this.byWindow.delete(consumer.windowId)
+    }
+    shared.consumers.clear()
+    this.sharedBuilders.delete(shared.key)
   }
 
   /**

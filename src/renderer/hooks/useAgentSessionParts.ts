@@ -127,6 +127,11 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   // MessageVirtualList expects chronological-asc (oldest first), so reverse both
   // axes: oldest page first, and within each page reverse to ASC.
   const rows = useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true })
+  // The display projection below includes live flow parts; settlement must read the database rows.
+  const persistedPartsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(
+    () => Object.fromEntries(rows.map((row) => [row.id, row.data.parts ?? []])),
+    [rows]
+  )
   const loadedMessageIds = useMemo(() => (enabled ? rows.map((row) => row.id) : []), [enabled, rows])
   const flowPartsKeys = useMemo(
     () => loadedMessageIds.map((messageId) => AGENT_SESSION_FLOW_PARTS_CACHE_KEY(sessionId, messageId)),
@@ -304,6 +309,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
 
   return {
     messages,
+    persistedPartsByMessageId,
     isLoading: enabled && isLoading,
     hasOlder: hasNext,
     loadOlder: loadNext,

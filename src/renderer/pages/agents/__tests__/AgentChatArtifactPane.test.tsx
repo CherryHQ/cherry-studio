@@ -383,7 +383,7 @@ vi.mock('@renderer/components/composer/ComposerCore', () => ({
 }))
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
-  useToolApprovalComposerOverrides: () => ({})
+  useToolApprovalComposerOverrides: () => []
 }))
 
 vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
