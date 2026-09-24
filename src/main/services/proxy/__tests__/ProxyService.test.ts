@@ -96,7 +96,8 @@ describe('resolveProxyConfig', () => {
     expect(resolveProxyConfig({ mode: 'custom', url: 'http://127.0.0.1:7890', bypassRules: '*.local' })).toEqual({
       mode: 'fixed_servers',
       proxyRules: 'http://127.0.0.1:7890',
-      proxyBypassRules: '*.local,localhost,*.localhost,127.0.0.0/8,0.0.0.0,[::1],169.254/16,fe80::/10'
+      proxyBypassRules:
+        '*.local,localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],169.254.0.0/16,fe80::/10'
     })
   })
 
@@ -104,7 +105,8 @@ describe('resolveProxyConfig', () => {
     expect(resolveProxyConfig({ mode: 'custom', url: 'http://127.0.0.1:7890', bypassRules: '' })).toEqual({
       mode: 'fixed_servers',
       proxyRules: 'http://127.0.0.1:7890',
-      proxyBypassRules: 'localhost,*.localhost,127.0.0.0/8,0.0.0.0,[::1],169.254/16,fe80::/10'
+      proxyBypassRules:
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],169.254.0.0/16,fe80::/10'
     })
   })
 
@@ -115,7 +117,9 @@ describe('resolveProxyConfig', () => {
         url: 'http://proxy.lan:7890',
         bypassRules: 'LOCALHOST, corp.local ; 127.0.0.1, [::1]'
       })?.proxyBypassRules
-    ).toBe('LOCALHOST,corp.local,127.0.0.1,[::1],*.localhost,127.0.0.0/8,0.0.0.0,169.254/16,fe80::/10')
+    ).toBe(
+      'LOCALHOST,corp.local,127.0.0.1,[::1],*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,169.254.0.0/16,fe80::/10'
+    )
   })
 
   it('honors a bare * as already covering loopback', () => {
@@ -170,12 +174,14 @@ describe('ProxyService — preference wiring', () => {
 
     expect(nodeProxyConfigureMock).toHaveBeenCalledWith({
       proxyRules: 'http://127.0.0.1:7890',
-      proxyBypassRules: 'localhost,*.localhost,127.0.0.0/8,0.0.0.0,[::1],169.254/16,fe80::/10'
+      proxyBypassRules:
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],169.254.0.0/16,fe80::/10'
     })
     const expected = {
       mode: 'fixed_servers',
       proxyRules: 'http://127.0.0.1:7890',
-      proxyBypassRules: 'localhost,*.localhost,127.0.0.0/8,0.0.0.0,[::1],169.254/16,fe80::/10'
+      proxyBypassRules:
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],169.254.0.0/16,fe80::/10'
     }
     expect(sessionSetProxyMock).toHaveBeenCalledWith(expected)
     expect(webviewSetProxyMock).toHaveBeenCalledWith(expected)
@@ -184,7 +190,7 @@ describe('ProxyService — preference wiring', () => {
     expect(appSetProxyMock).toHaveBeenCalledWith(expected)
   })
 
-  it('keeps the <-loopback> escape hatch off the Node matcher while the session honors it', async () => {
+  it('passes <-loopback> verbatim to both stacks (the Node controller consumes the directive)', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://proxy.lan:7890')
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.bypass_rules', '*.local,<-loopback>')
@@ -200,7 +206,7 @@ describe('ProxyService — preference wiring', () => {
     })
     expect(nodeProxyConfigureMock).toHaveBeenCalledWith({
       proxyRules: 'http://proxy.lan:7890',
-      proxyBypassRules: '*.local'
+      proxyBypassRules: '*.local,<-loopback>'
     })
   })
 
@@ -216,13 +222,15 @@ describe('ProxyService — preference wiring', () => {
     const expected = {
       mode: 'fixed_servers',
       proxyRules: 'http://proxy.lan:7890',
-      proxyBypassRules: 'localhost,*.localhost,127.0.0.0/8,0.0.0.0,[::1],169.254/16,fe80::/10'
+      proxyBypassRules:
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],169.254.0.0/16,fe80::/10'
     }
     expect(sessionSetProxyMock).toHaveBeenCalledWith(expected)
     expect(appSetProxyMock).toHaveBeenCalledWith(expected)
     expect(nodeProxyConfigureMock).toHaveBeenCalledWith({
       proxyRules: 'http://proxy.lan:7890',
-      proxyBypassRules: 'localhost,*.localhost,127.0.0.0/8,0.0.0.0,[::1],169.254/16,fe80::/10'
+      proxyBypassRules:
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],169.254.0.0/16,fe80::/10'
     })
   })
 

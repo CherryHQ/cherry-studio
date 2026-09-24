@@ -92,4 +92,55 @@ describe('NodeProxyController', () => {
       }
     }
   )
+
+  it('lets <-loopback> send local traffic through the configured proxy', async () => {
+    const localServer = createServer((_request, response) => {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ source: 'local' }))
+    })
+    const proxyRequests: string[] = []
+    const proxyServer = createServer((request, response) => {
+      proxyRequests.push(request.url ?? '')
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ source: 'proxy' }))
+    })
+    const [localPort, proxyPort] = await Promise.all([listen(localServer), listen(proxyServer)])
+    const controller = new NodeProxyController()
+    const proxyEnvKeys = [
+      CHERRY_NODE_PROXY_RULES_ENV,
+      CHERRY_NODE_PROXY_BYPASS_RULES_ENV,
+      'HTTP_PROXY',
+      'HTTPS_PROXY',
+      'grpc_proxy',
+      'http_proxy',
+      'https_proxy',
+      'NO_PROXY',
+      'no_proxy',
+      'SOCKS_PROXY',
+      'socks_proxy',
+      'ALL_PROXY',
+      'all_proxy'
+    ] as const
+    const originalEnv = Object.fromEntries(proxyEnvKeys.map((key) => [key, process.env[key]]))
+
+    try {
+      await controller.configure({
+        proxyRules: `http://127.0.0.1:${proxyPort}`,
+        proxyBypassRules: '<-loopback>'
+      })
+      expect(process.env.NO_PROXY ?? '').not.toContain('localhost')
+
+      const response = await fetch(`http://127.0.0.1:${localPort}/models`, { signal: AbortSignal.timeout(2000) })
+      expect(await response.json()).toEqual({ source: 'proxy' })
+      expect(proxyRequests.some((url) => url.includes('/models'))).toBe(true)
+    } finally {
+      await controller.configure({})
+      for (const key of proxyEnvKeys) {
+        const value = originalEnv[key]
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+      await Promise.all([close(localServer), close(proxyServer)])
+    }
+  })
 })

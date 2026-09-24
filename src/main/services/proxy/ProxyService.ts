@@ -30,8 +30,22 @@ const proxyConfigKey = (c: Pick<ProxyConfig, 'mode' | 'proxyRules' | 'proxyBypas
  * it breaks them — with a user proxy set, WSL-facing `127.0.0.1` MCP endpoints were unreachable
  * (#20920). Chromium enforces this scope implicitly (net/docs/proxy.md, "Implicit bypass
  * rules"); restating it explicitly keeps the guarantee even where the implicit pass doesn't.
+ * The list covers the documented hostname forms (the Windows-only `loopback` and the legacy
+ * `localhost6` aliases included) and full-form CIDRs — `169.254/16` shorthand parses to a
+ * different range in ipaddr.js, which the Node stack uses.
  */
-const LOOPBACK_BYPASS_RULES = ['localhost', '*.localhost', '127.0.0.0/8', '0.0.0.0', '[::1]', '169.254/16', 'fe80::/10']
+const LOOPBACK_BYPASS_RULES = [
+  'localhost',
+  '*.localhost',
+  'localhost6',
+  'localhost6.localdomain6',
+  'loopback',
+  '127.0.0.0/8',
+  '0.0.0.0',
+  '[::1]',
+  '169.254.0.0/16',
+  'fe80::/10'
+]
 
 /**
  * Merge the loopback bypass rules into the user's `app.proxy.bypass_rules`, keeping their
@@ -210,15 +224,11 @@ export class ProxyService extends BaseService {
   }
 
   private async setGlobalProxy(config: ProxyConfig): Promise<void> {
-    // `<-loopback>` only cancels the Electron session's implicit loopback bypass; the Node
-    // matcher has no implicit scope of its own, so the directive would be a dead rule there.
-    const nodeBypassRules = config.proxyBypassRules
-      ?.split(',')
-      .filter((entry) => entry.trim() !== '<-loopback>')
-      .join(',')
     await this.getNodeProxyController().configure({
       proxyRules: config.mode === 'direct' ? undefined : config.proxyRules,
-      proxyBypassRules: nodeBypassRules || undefined
+      // Verbatim: the Node controller implements the `<-loopback>` escape hatch itself, so the
+      // session and Node stacks derive their loopback policy from this one rule string.
+      proxyBypassRules: config.proxyBypassRules
     })
     await this.setSessionsProxy(config)
   }
