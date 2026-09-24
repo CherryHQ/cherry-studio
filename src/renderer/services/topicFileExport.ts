@@ -13,11 +13,13 @@ import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { isPersistedToolOutput } from '@shared/ai/transport'
-import type { CherryMessagePart, TreeResponse } from '@shared/data/types/message'
+import type { CherryMessagePart, Message, TreeResponse } from '@shared/data/types/message'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
 const logger = loggerService.withContext('TopicFileExport')
+
+export const TOPIC_CHANGED_DURING_EXPORT = 'Topic changed during export'
 
 // The concrete tree path reverse-matches several schema routes, so the client
 // types the response as a union; narrow it before use.
@@ -25,6 +27,63 @@ function isTreeResponse(value: unknown): value is TreeResponse {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as { nodes?: unknown; siblingsGroups?: unknown }
   return Array.isArray(candidate.nodes) && Array.isArray(candidate.siblingsGroups)
+}
+
+function collectTreeNodeIds(tree: TreeResponse): string[] {
+  const ids = tree.nodes.map((node) => node.id)
+  for (const group of tree.siblingsGroups) {
+    ids.push(...group.nodes.map((node) => node.id))
+  }
+  return [...new Set(ids)]
+}
+
+function assertSameTreeSnapshot(before: TreeResponse, after: TreeResponse): void {
+  const beforeIds = new Set(collectTreeNodeIds(before))
+  const afterIds = new Set(collectTreeNodeIds(after))
+  if (beforeIds.size !== afterIds.size || [...beforeIds].some((id) => !afterIds.has(id))) {
+    throw new Error(TOPIC_CHANGED_DURING_EXPORT)
+  }
+  if (before.activeNodeId !== after.activeNodeId || before.rootId !== after.rootId) {
+    throw new Error(TOPIC_CHANGED_DURING_EXPORT)
+  }
+}
+
+async function fetchTopicTree(topicId: string): Promise<TreeResponse> {
+  const treeResponse = await dataApiService.get(`/topics/${topicId}/tree`, {
+    query: { depth: -1 }
+  })
+  if (!isTreeResponse(treeResponse)) {
+    throw new Error('Unexpected topic tree response')
+  }
+  return treeResponse
+}
+
+async function fetchTopicMessages(
+  topicId: string,
+  nodeIds: string[],
+  rootId: string | null | undefined
+): Promise<Message[]> {
+  const messages = await Promise.all(
+    nodeIds.map(async (id) => {
+      try {
+        const message = await dataApiService.get(`/messages/${id}`)
+        if (message.topicId !== topicId) {
+          throw new Error(TOPIC_CHANGED_DURING_EXPORT)
+        }
+        return message
+      } catch (error) {
+        if (error instanceof Error && error.message === TOPIC_CHANGED_DURING_EXPORT) throw error
+        throw new Error(TOPIC_CHANGED_DURING_EXPORT, { cause: error })
+      }
+    })
+  )
+  const ids = new Set(messages.map((message) => message.id))
+  for (const message of messages) {
+    if (message.parentId && message.parentId !== rootId && !ids.has(message.parentId)) {
+      throw new Error(TOPIC_CHANGED_DURING_EXPORT)
+    }
+  }
+  return messages
 }
 
 async function fetchAssistantSnapshot(
@@ -53,15 +112,15 @@ interface InlineResult {
   skipped: number
 }
 
-// Base64 payload decodes to ~3 bytes per 4 chars; other data urls are measured
-// by payload length. Both over-estimate slightly, which is fine for a cap check.
+// Base64 payload decodes to ~3 bytes per 4 chars; percent-encoded and plain
+// text payloads are measured in UTF-8 bytes so multibyte text cannot slip past.
 function estimatedDataUrlBytes(url: string): number {
   const comma = url.indexOf(',')
   const payload = comma >= 0 ? url.slice(comma + 1) : ''
   if (comma >= 0 && url.slice(0, comma).endsWith(';base64')) {
     return Math.floor((payload.length * 3) / 4)
   }
-  return payload.length
+  return new TextEncoder().encode(payload).length
 }
 
 // Rewrite `file://` attachment urls as `data:` urls so the topic file stays
@@ -234,18 +293,10 @@ async function inlineGeneratedImages(messages: CherryTopicFile['messages']): Pro
 
 export async function collectTopicFileData(topicId: string): Promise<CherryTopicFile> {
   const topic = await dataApiService.get(`/topics/${topicId}`)
-  const treeResponse = await dataApiService.get(`/topics/${topicId}/tree`, {
-    query: { depth: -1 }
-  })
-  if (!isTreeResponse(treeResponse)) {
-    throw new Error('Unexpected topic tree response')
-  }
-  const tree = treeResponse
-  const nodeIds = [...tree.nodes.map((node) => node.id)]
-  for (const group of tree.siblingsGroups) {
-    nodeIds.push(...group.nodes.map((node) => node.id))
-  }
-  const messages = await Promise.all(nodeIds.map((id) => dataApiService.get(`/messages/${id}`)))
+  const tree = await fetchTopicTree(topicId)
+  const nodeIds = collectTreeNodeIds(tree)
+  const messages = await fetchTopicMessages(topicId, nodeIds, tree.rootId)
+  assertSameTreeSnapshot(tree, await fetchTopicTree(topicId))
   const file = buildCherryTopicFile({
     topic,
     assistant: await fetchAssistantSnapshot(topic.assistantId),

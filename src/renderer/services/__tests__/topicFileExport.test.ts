@@ -16,7 +16,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 const ipcRequest = vi.hoisted(() => vi.fn())
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest } }))
 
-const { collectTopicFileData, exportTopicAsFile } = await import('../topicFileExport')
+const { collectTopicFileData, exportTopicAsFile, TOPIC_CHANGED_DURING_EXPORT } = await import('../topicFileExport')
 
 function makeMessage(overrides: Partial<Message> & Pick<Message, 'id' | 'role'>): Message {
   const { id, role, ...rest } = overrides
@@ -188,6 +188,87 @@ describe('topicFileExport', () => {
     expect(toast.error).toHaveBeenCalledOnce()
   })
 
+  it('aborts when a message disappears between tree reads', async () => {
+    let treeReads = 0
+    vi.mocked(dataApiService.get).mockImplementation(async (path: string) => {
+      if (path === '/topics/topic-1/tree') {
+        treeReads += 1
+        if (treeReads === 1) {
+          return {
+            nodes: [treeNode('u1'), treeNode('a1'), treeNode('u2')],
+            siblingsGroups: [{ parentId: 'u2', siblingsGroupId: 7, nodes: [treeNode('a2a'), treeNode('a2b')] }],
+            activeNodeId: 'a2b',
+            rootId: 'root-1'
+          }
+        }
+        return {
+          nodes: [treeNode('u1'), treeNode('a1')],
+          siblingsGroups: [],
+          activeNodeId: 'a1',
+          rootId: 'root-1'
+        }
+      }
+      if (path.startsWith('/messages/')) {
+        const message = messagesById[path.slice('/messages/'.length)]
+        if (!message) throw new Error('gone')
+        return message
+      }
+      if (path === '/topics/topic-1') {
+        return {
+          id: 'topic-1',
+          name: 'My Topic',
+          assistantId: 'assistant-1',
+          orderKey: 'a0',
+          lastActivityAt: '2026-01-01T00:00:00.000Z',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z'
+        }
+      }
+      if (path === '/assistants/assistant-1') {
+        return { id: 'assistant-1', name: 'Ast', emoji: '🤖' }
+      }
+      throw new Error(`unexpected GET ${path}`)
+    })
+
+    await expect(collectTopicFileData('topic-1')).rejects.toThrow(TOPIC_CHANGED_DURING_EXPORT)
+  })
+
+  it('aborts when a message fetch fails during export', async () => {
+    vi.mocked(dataApiService.get).mockImplementation(async (path: string) => {
+      if (path === '/topics/topic-1/tree') {
+        return {
+          nodes: [treeNode('u1'), treeNode('a1'), treeNode('u2')],
+          siblingsGroups: [{ parentId: 'u2', siblingsGroupId: 7, nodes: [treeNode('a2a'), treeNode('a2b')] }],
+          activeNodeId: 'a2b',
+          rootId: 'root-1'
+        }
+      }
+      if (path === '/messages/u2') throw new Error('deleted')
+      if (path.startsWith('/messages/')) {
+        const message = messagesById[path.slice('/messages/'.length)]
+        if (!message) throw new Error(`unknown message ${path}`)
+        return message
+      }
+      if (path === '/topics/topic-1') {
+        return {
+          id: 'topic-1',
+          name: 'My Topic',
+          assistantId: 'assistant-1',
+          orderKey: 'a0',
+          lastActivityAt: '2026-01-01T00:00:00.000Z',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z'
+        }
+      }
+      if (path === '/assistants/assistant-1') {
+        return { id: 'assistant-1', name: 'Ast', emoji: '🤖' }
+      }
+      throw new Error(`unexpected GET ${path}`)
+    })
+
+    await expect(collectTopicFileData('topic-1')).rejects.toThrow(TOPIC_CHANGED_DURING_EXPORT)
+  })
+
   describe('managed attachments', () => {
     const fileMessage = (parts: NonNullable<Message['data']['parts']>) =>
       makeMessage({
@@ -335,6 +416,27 @@ describe('topicFileExport', () => {
           url: `data:image/png;base64,${'B'.repeat(15 * 1024 * 1024)}`,
           filename: 'big.png',
           mediaType: 'image/png'
+        }
+      ])
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        expect(ipcRequest).not.toHaveBeenCalled()
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts
+        expect(parts).toEqual([])
+        expect(toast.warning).toHaveBeenCalledWith('chat.topics.export.topic_file_skipped_attachments')
+      } finally {
+        restore()
+      }
+    })
+
+    it('measures non-base64 data url caps in bytes so multibyte text cannot slip past', async () => {
+      const restore = withU1Parts([
+        {
+          type: 'file',
+          url: `data:text/plain;charset=utf-8,${'中'.repeat(4 * 1024 * 1024)}`,
+          filename: 'big.txt',
+          mediaType: 'text/plain'
         }
       ])
       try {
