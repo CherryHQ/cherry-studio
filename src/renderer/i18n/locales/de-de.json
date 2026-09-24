@@ -5303,6 +5303,7 @@
   "settings.shortcuts.close_window": "Fenster schließen",
   "settings.shortcuts.conflict_with": "Bereits von \"{{name}}\" verwendet",
   "settings.shortcuts.copy_last_message": "Letzte Nachricht kopieren",
+  "settings.shortcuts.cycle_reasoning_effort": "Denkaufwand wechseln",
   "settings.shortcuts.edit_last_user_message": "Letzte Benutzernachricht bearbeiten",
   "settings.shortcuts.empty": "In dieser Gruppe sind keine Verknüpfungen verfügbar.",
   "settings.shortcuts.exit_fullscreen": "Vollbildmodus beenden",
