@@ -1,10 +1,12 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ErrorInfo, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Tooltip } from '@cherrystudio/ui'
+
 import { getRightPaneWidthPolicy } from '../../../shell/paneLayout'
-import { createResourcePaneCapability, type ResourcePaneConfig } from '../resourcePane'
 import {
   RightPanel,
   type RightPanelCapability,
@@ -25,16 +27,28 @@ const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
 
 const commandMock = vi.hoisted(() => ({ handler: undefined as (() => void) | undefined }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children, content, isDisabled }: PropsWithChildren<{ content?: unknown; isDisabled?: boolean }>) => (
-    <div
-      data-testid="tooltip-trigger"
-      data-content={typeof content === 'string' ? content : undefined}
-      data-disabled={isDisabled ? 'true' : undefined}>
-      {children}
-    </div>
-  )
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  const { createContext, use } = await import('react')
+
+  const TooltipSurfaceContext = createContext(true)
+
+  return {
+    Tooltip: ({ children, content, isDisabled }: PropsWithChildren<{ content?: unknown; isDisabled?: boolean }>) => {
+      const surfaceActive = use(TooltipSurfaceContext)
+      return (
+        <div
+          data-testid="tooltip-trigger"
+          data-content={typeof content === 'string' ? content : undefined}
+          data-disabled={isDisabled || !surfaceActive ? 'true' : undefined}>
+          {children}
+        </div>
+      )
+    },
+    TooltipSurface: ({ active = true, children }: PropsWithChildren<{ active?: boolean }>) => (
+      <TooltipSurfaceContext value={active}>{children}</TooltipSurfaceContext>
+    )
+  }
+})
 
 vi.mock('@renderer/components/ErrorBoundary', async () => {
   const { Component } = await import('react')
@@ -148,12 +162,17 @@ function StatefulPanel({ panelId, scope }: RightPanelComponentProps<TestScope>) 
   const [count, setCount] = useState(0)
   if (panelId === 'first' && scope.firstShouldThrow) throw new Error('render failed')
 
+  const counter = (
+    <button type="button" onClick={() => setCount((current) => current + 1)}>
+      {panelId}:{count}
+    </button>
+  )
+
   return (
     <>
       {panelId === 'first' && scope.firstHeaderMode === 'content' ? <RightPanelHeaderControls canMaximize /> : null}
-      <button type="button" onClick={() => setCount((current) => current + 1)}>
-        {panelId}:{count}
-      </button>
+      {/* Stands in for content like ClickableFilePath whose tooltip outlives the panel. */}
+      {panelId === 'second' ? <Tooltip content="second-tip">{counter}</Tooltip> : counter}
     </>
   )
 }
@@ -451,6 +470,26 @@ describe('RightPanel', () => {
     expect(findCloseTooltip()).toHaveAttribute('data-disabled', 'true')
   })
 
+  it('drops tooltips anchored in a panel hidden by switching to another panel', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanel />
+      </Harness>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open second' }))
+    const findSecondTip = () =>
+      screen.getAllByTestId('tooltip-trigger').find((node) => node.getAttribute('data-content') === 'second-tip')
+    expect(findSecondTip()).not.toHaveAttribute('data-disabled')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open first' }))
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('first')
+    // The second panel's subtree stays mounted but Activity-hidden (display:none). A tooltip
+    // open over it never sees the leave events that would close it and Radix parks its content
+    // at the viewport origin, so the deactivated surface must disable it at once.
+    expect(findSecondTip()).toHaveAttribute('data-disabled', 'true')
+  })
+
   it('keeps shell controls available when a content-composed panel fails to render', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const scope = { ...readyScope, firstHeaderMode: 'content' as const }
@@ -484,7 +523,8 @@ describe('RightPanel', () => {
     consoleError.mockRestore()
   })
 
-  it('sizes the pane from the presented panel, so a list and an artifact never share a width', () => {
+  it('keeps inspector sizing uncapped when switching to a width-limited list and back', async () => {
+    const user = userEvent.setup()
     render(
       <Harness defaultOpen>
         <RightPanelViewport>
@@ -495,13 +535,18 @@ describe('RightPanel', () => {
 
     const host = screen.getByTestId('right-pane-host')
     expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
-    expect(host).toHaveAttribute('data-max-width', String(INSPECTOR_POLICY.maxWidth))
+    expect(host).not.toHaveAttribute('data-max-width')
 
-    fireEvent.click(screen.getByRole('button', { name: 'open second' }))
+    await user.click(screen.getByRole('button', { name: 'open second' }))
 
     expect(host).toHaveAttribute('data-cache-key', LIST_POLICY.cacheKey)
     expect(host).toHaveAttribute('data-max-width', String(LIST_POLICY.maxWidth))
     expect(host).toHaveAttribute('data-min-width', String(LIST_POLICY.minWidth))
+
+    await user.click(screen.getByRole('button', { name: 'open first' }))
+
+    expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
+    expect(host).not.toHaveAttribute('data-max-width')
   })
 
   it('rejects duplicate panel ids', () => {
@@ -515,13 +560,5 @@ describe('RightPanel', () => {
         </RightPanelProvider>
       )
     ).toThrow('Duplicate right-panel id: first')
-  })
-})
-
-describe('createResourcePaneCapability', () => {
-  it('sizes by the navigation-list preset, so the list never inherits the inspector envelope', () => {
-    const capability = createResourcePaneCapability<{ resourcePane: ResourcePaneConfig | null }>()
-
-    expect(capability.widthPreset).toBe('navigation-list')
   })
 })

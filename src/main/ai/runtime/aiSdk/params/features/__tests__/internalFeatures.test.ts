@@ -84,6 +84,7 @@ async function qwenUserText(scope: RequestScope): Promise<string> {
 describe('INTERNAL_FEATURES — decision matrix', () => {
   it('bare anthropic scope (no assistant): only the always-on features activate (pdf-compatibility was removed)', () => {
     expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
+      'gateway-usage-normalize',
       'context-build',
       'tool-schema-compatibility'
     ])
@@ -239,7 +240,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     // Client-side routing adds no provider tool; only the always-on features remain.
     expect(
       activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'client', webFetch: 'client' } }))
-    ).toEqual(['context-build', 'tool-schema-compatibility'])
+    ).toEqual(['gateway-usage-normalize', 'context-build', 'tool-schema-compatibility'])
   })
 
   it('drives the Qwen suffix from the resolved request snapshot instead of persisted assistant settings', async () => {

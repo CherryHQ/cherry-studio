@@ -6,7 +6,6 @@ import {
   Badge,
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   Item,
@@ -81,13 +80,13 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
   const [diagnosticUploadOpen, setDiagnosticUploadOpen] = useState(false)
   const [diagnosticHistoryOpen, setDiagnosticHistoryOpen] = useState(false)
 
-  const selectOption = (action: () => void | Promise<void>) => {
+  const selectOption = (action: () => void | Promise<void>, delay = 0) => {
     onOpenChange(false)
     window.setTimeout(() => {
       void Promise.resolve()
         .then(action)
         .catch((error) => logger.error('Failed to run deferred feedback action', error as Error))
-    }, 0)
+    }, delay)
   }
 
   const openAgentFeedback = async () => {
@@ -102,7 +101,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
   const openGitHubIssue = async () => {
     try {
-      await ipcApi.request('system.shell.open_website', FEEDBACK_GITHUB_URL)
+      await openExternalWebsite(FEEDBACK_GITHUB_URL)
     } catch (error) {
       logger.error('Failed to open GitHub issue chooser', error as Error)
       toast.error(t('settings.about.feedback.github.error'))
@@ -112,10 +111,9 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent size="lg">
+        <DialogContent size="lg" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>{t('settings.about.feedback.dialog.title')}</DialogTitle>
-            <DialogDescription>{t('settings.about.feedback.dialog.description')}</DialogDescription>
           </DialogHeader>
 
           <ItemGroup className="gap-3 px-2">

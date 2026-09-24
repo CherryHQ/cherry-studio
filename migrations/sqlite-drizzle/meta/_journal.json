@@ -151,8 +151,36 @@
     {
       "idx": 21,
       "version": "6",
-      "when": 1789382140972,
-      "tag": "0021_aromatic_tana_nile",
+      "when": 1788332276777,
+      "tag": "0021_majestic_molly_hayes",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1789544579690,
+      "tag": "0022_little_gamma_corps",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1789565251208,
+      "tag": "0023_warm_slayback",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1789636472109,
+      "tag": "0024_lying_shatterstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1790224654280,
+      "tag": "0025_rapid_tigra",
       "breakpoints": true
     }
   ],

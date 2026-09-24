@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { BinaryInstallFailureRow, BinaryInstallingHint } from '@renderer/components/BinaryInstallErrorDialog'
+import { CliIcon } from '@renderer/components/icons/CliIcon'
 
 import type { VersionStatus } from '../types'
-import { CliIcon } from './CliIcon'
 
 interface VersionStatusCardProps {
   toolId: string

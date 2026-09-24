@@ -35,12 +35,6 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     }
   },
 
-  '/providers/edition-hidden': {
-    GET: async () => {
-      return providerService.listEditionHiddenProviderIds()
-    }
-  },
-
   '/providers/:providerId': {
     GET: async ({ params }) => {
       return providerService.getByProviderId(params.providerId)

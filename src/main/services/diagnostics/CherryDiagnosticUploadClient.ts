@@ -15,6 +15,8 @@ import {
   normalizeDiagnosticDescription
 } from '@shared/utils/diagnostics'
 
+export const DIAGNOSTIC_UPLOAD_URL = DIAGNOSTIC_REPORT_BASE_URL
+
 const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
 const MAX_RESPONSE_BYTES = 64 * 1024
 const REQUEST_TIMEOUT_MS = 15 * 60 * 1000

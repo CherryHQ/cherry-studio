@@ -29,7 +29,7 @@ const logger = loggerService.withContext('AppUpdaterService')
 
 type ReleaseRegion = 'cn' | 'global'
 
-const RELEASE_HISTORY_URL = 'https://releases.cherry-ai.com/release-history.json'
+export const RELEASE_HISTORY_URL = 'https://releases.cherry-ai.com/release-history.json'
 const RELEASE_HISTORY_TIMEOUT_MS = 10_000
 const RELEASE_HISTORY_MAX_BYTES = 1024 * 1024
 
@@ -244,6 +244,28 @@ export class AppUpdaterService extends BaseService {
       logger.warn('Failed to fetch release history', error as Error)
       return null
     }
+  }
+
+  public async queryUpdateAvailability(): Promise<
+    | { status: 'unsupported' }
+    | { status: 'current'; currentVersion: string }
+    | { status: 'available'; currentVersion: string; version: string }
+  > {
+    if (this.isPortable()) return { status: 'unsupported' }
+    const { currentVersion, updateChannel, updateHeaders } = await this.getUpdateRequest()
+    const updater = new ReleaseNotesUpdater()
+    updater.logger = logger as Logger
+    updater.forceDevUpdateConfig = !app.isPackaged
+    updater.autoDownload = false
+    updater.autoInstallOnAppQuit = false
+    updater.requestHeaders = updateHeaders
+    updater.channel = updateChannel
+    updater.allowDowngrade = false
+    const result = await updater.checkForUpdates()
+    if (!result) throw new Error('Update query did not produce a result')
+    return result.isUpdateAvailable
+      ? { status: 'available', currentVersion, version: result.updateInfo.version }
+      : { status: 'current', currentVersion }
   }
 
   public async getLatestReleaseNotes(): Promise<ReleaseNotesEntry | null> {

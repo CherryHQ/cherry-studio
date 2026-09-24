@@ -1,3 +1,4 @@
+import type { Element as HastElement } from 'hast'
 import type * as HtmlToImage from 'html-to-image'
 import { Base64 } from 'js-base64'
 
@@ -46,28 +47,118 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
+/** Per-source cap on a remote-image fetch, and the shared budget for the whole inline stage. */
+const REMOTE_INLINE_SOURCE_TIMEOUT_MS = 10_000
+const REMOTE_INLINE_STAGE_BUDGET_MS = 20_000
+/** In-flight remote fetches; kept under Chromium's per-host limit so this pass never bursts harder than the page load did. */
+const REMOTE_INLINE_CONCURRENCY = 4
+/** Cap on waiting for a swapped-in data URL to settle — data URLs decode locally, so this is generous. */
+const INLINE_SWAP_SETTLE_TIMEOUT_MS = 2_000
+
 /**
- * Terminal-failure images (favicon services answering an HTML error page with
- * 200, dead links) are fatal to the clone raster: html-to-image inlines
- * whatever a URL serves, so a text/html body becomes a data:text/html src,
- * and the outer SVG image then fails to decode as a whole — the capture
- * rejects. Swap settled-but-broken images for the transparent placeholder
- * (layout preserved, export proceeds) and restore afterwards.
+ * A subtree the capture filter will omit must not cost a remote fetch; mirrors
+ * filterHiddenElements on the live subtree (the clone re-derives the same result).
  */
-function replaceBrokenImagesForCapture(root: HTMLElement): () => void {
-  const broken = [
+const isVisibleInCapture = (image: HTMLImageElement, root: HTMLElement): boolean => {
+  for (let node: Element | null = image; node; node = node.parentElement) {
+    if (node === root) return true
+    if (node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE)) return false
+    if (
+      node instanceof HTMLElement &&
+      (node.style.display === 'none' || window.getComputedStyle(node).display === 'none')
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+/**
+ * Resolves once the swapped-in src settles (load/error), so the clone rasterizes the
+ * new intrinsic size — not the 0×0 of a still-loading swap. Bounded for silent decodes.
+ */
+const waitForSwapSettle = (image: HTMLImageElement): Promise<void> =>
+  new Promise((resolve) => {
+    if (image.complete && image.naturalWidth > 0) return resolve()
+    const done = () => {
+      clearTimeout(timer)
+      image.removeEventListener('load', done)
+      image.removeEventListener('error', done)
+      resolve()
+    }
+    const timer = setTimeout(done, INLINE_SWAP_SETTLE_TIMEOUT_MS)
+    image.addEventListener('load', done, { once: true })
+    image.addEventListener('error', done, { once: true })
+  })
+
+/**
+ * Pre-inline every remote image with verification — the library's own inline pass
+ * trusts whatever a URL serves, so a rate-limit HTML answer becomes a data:text/html
+ * src that sinks the whole SVG decode. Sources are the browser-selected candidates
+ * (`currentSrc`), each fetch is abort-bounded, and anything unverified becomes the
+ * transparent placeholder; see the PR description for the failure narrative.
+ */
+async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void> {
+  const images = [
     ...(root instanceof HTMLImageElement ? [root] : []),
     ...root.querySelectorAll<HTMLImageElement>('img')
-  ]
-    .filter((image) => image.complete && image.naturalWidth === 0 && image.getAttribute('src'))
-    .map((image) => ({ image, src: image.getAttribute('src') as string }))
+  ].filter(
+    (image) => /^https?:/i.test(image.currentSrc || image.getAttribute('src') || '') && isVisibleInCapture(image, root)
+  )
 
-  for (const { image } of broken) {
-    image.src = TRANSPARENT_IMAGE_PLACEHOLDER
+  const originalSources = images.map((image) => ({
+    image,
+    // currentSrc is the candidate the browser actually picked from srcset/sizes;
+    // inlining that candidate (not the src attribute) preserves responsive semantics.
+    source: image.currentSrc || image.src,
+    src: image.getAttribute('src'),
+    srcset: image.getAttribute('srcset')
+  }))
+  const stageDeadline = Date.now() + REMOTE_INLINE_STAGE_BUDGET_MS
+  const dataUrlBySource = new Map<string, string>()
+  const queue = [...new Set(originalSources.map(({ source }) => source))]
+
+  const drainQueue = async () => {
+    for (let source = queue.shift(); source !== undefined; source = queue.shift()) {
+      const budget = Math.min(REMOTE_INLINE_SOURCE_TIMEOUT_MS, stageDeadline - Date.now())
+      if (budget <= 0) {
+        logger.warn('Remote-image inline budget exhausted, using placeholder', { source })
+        continue
+      }
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), budget)
+      try {
+        const blob = await getImageBlobFromSource(source, { signal: controller.signal })
+        dataUrlBySource.set(source, await blobToDataUrl(blob))
+      } catch (error) {
+        logger.warn('Failed to inline remote image for capture, using placeholder', error as Error, { source })
+      } finally {
+        clearTimeout(timer)
+      }
+    }
   }
+  await Promise.all(Array.from({ length: Math.min(REMOTE_INLINE_CONCURRENCY, queue.length) }, drainQueue))
+
+  await Promise.all(
+    originalSources.map(({ image, source }) => {
+      image.removeAttribute('srcset')
+      image.src = dataUrlBySource.get(source) ?? TRANSPARENT_IMAGE_PLACEHOLDER
+      return waitForSwapSettle(image)
+    })
+  )
+
   return () => {
-    for (const { image, src } of broken) {
-      image.src = src
+    for (const { image, src, srcset } of originalSources) {
+      if (src === null) {
+        image.removeAttribute('src')
+      } else {
+        image.setAttribute('src', src)
+      }
+      if (srcset === null) {
+        image.removeAttribute('srcset')
+      } else {
+        image.setAttribute('srcset', srcset)
+      }
     }
   }
 }
@@ -97,6 +188,7 @@ async function inlineLocalImageSources(root: HTMLElement): Promise<() => void> {
       try {
         image.removeAttribute('srcset')
         image.src = await dataUrlPromise
+        await waitForSwapSettle(image)
       } catch (error) {
         logger.warn('Failed to inline local image for capture', error as Error, { source })
       }
@@ -209,7 +301,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
   if (el) {
     const htmlToImage = await loadHtmlToImage()
     let restoreLocalImageSources: (() => void) | undefined
-    let restoreBrokenImages: (() => void) | undefined
+    let restoreRemoteImages: (() => void) | undefined
     const captureMarker = el.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
 
     try {
@@ -226,6 +318,9 @@ async function captureScrollableElement(el: HTMLElement | null) {
         document.fonts?.ready ?? Promise.resolve(),
         new Promise((resolve) => setTimeout(resolve, 1000))
       ])
+
+      restoreLocalImageSources = await inlineLocalImageSources(el)
+      restoreRemoteImages = await inlineVerifiedRemoteImages(el)
 
       // calculate the size of the element
       const totalWidth = el.scrollWidth
@@ -254,9 +349,6 @@ async function captureScrollableElement(el: HTMLElement | null) {
         }
         return true
       }
-
-      restoreLocalImageSources = await inlineLocalImageSources(el)
-      restoreBrokenImages = replaceBrokenImagesForCapture(el)
 
       const fontEmbedCSS = await buildFontEmbedCSS()
       const captureOptions = {
@@ -297,7 +389,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
         el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, captureMarker)
       }
       restoreLocalImageSources?.()
-      restoreBrokenImages?.()
+      restoreRemoteImages?.()
     }
   }
 
@@ -756,18 +848,6 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
   // 序列化 SVG 内容
   const svgData = new XMLSerializer().serializeToString(svgElement)
 
-  let svgBase64: string
-  try {
-    // 使用 TextEncoder 处理 Unicode 字符
-    const encoder = new TextEncoder()
-    const encodedData = encoder.encode(svgData)
-    const binaryString = Array.from(encodedData, (byte) => String.fromCodePoint(byte)).join('')
-    svgBase64 = `data:image/svg+xml;base64,${btoa(binaryString)}`
-  } catch (error) {
-    logger.warn('TextEncoder method failed, falling back to legacy method', error as Error)
-    svgBase64 = `data:image/svg+xml;base64,${btoa(decodeURIComponent(encodeURIComponent(svgData)))}`
-  }
-
   // 创建 Canvas
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
@@ -782,6 +862,7 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
   return new Promise<HTMLCanvasElement>((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
+    const svgUrl = URL.createObjectURL(new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' }))
 
     img.onload = () => {
       try {
@@ -790,14 +871,17 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
         resolve(canvas)
       } catch (error) {
         reject(new Error(`Failed to draw image on canvas: ${error}`))
+      } finally {
+        URL.revokeObjectURL(svgUrl)
       }
     }
 
     img.onerror = () => {
+      URL.revokeObjectURL(svgUrl)
       reject(new Error('Failed to load SVG image'))
     }
 
-    img.src = svgBase64
+    img.src = svgUrl
   })
 }
 
@@ -987,6 +1071,28 @@ export const makeSvgSizeAdaptive = (element: Element): Element => {
 }
 
 /**
+ * Whether an SVG node is a KaTeX stretchy glyph (square roots, extensible
+ * arrows). KaTeX emits these with a `400em` width, a `0 0 400000 <h>`
+ * viewBox, and a `* slice` preserveAspectRatio. They must render exactly
+ * where KaTeX placed them: wrapping them in extra boxes (e.g. a
+ * `display: contents` context-menu trigger) stops Chromium from painting
+ * the SVG, dropping the root sign from formulas.
+ */
+export function isKatexGeneratedSvg(node: HastElement | undefined): boolean {
+  if (!node || node.tagName !== 'svg') return false
+  const properties = node.properties ?? {}
+  if (properties.id !== undefined || properties.className !== undefined) return false
+  if (properties.width !== '400em') return false
+  const preserveAspectRatio = properties.preserveAspectRatio
+  if (typeof preserveAspectRatio !== 'string' || !preserveAspectRatio.endsWith(' slice')) return false
+  const viewBox = properties.viewBox
+  if (typeof viewBox !== 'string' || !/^\s*0\s+0\s+400000\s+\d+\s*$/.test(viewBox)) return false
+  return !node.children.some(
+    (child) => child.type === 'element' && (child.tagName === 'text' || child.tagName === 'tspan')
+  )
+}
+
+/**
  * 将图片 Blob 转换为 PNG 格式的 Blob
  * @param blob 原始图片 Blob
  * @returns Promise<Blob> 转换后的 PNG Blob
@@ -1116,7 +1222,7 @@ function decodeDataUrlBytes(data: string): Uint8Array {
  * paintings skeleton reveal pipeline can consume it without importing across the
  * renderer's downward-only layering.
  */
-export async function getImageBlobFromSource(src: string): Promise<Blob> {
+export async function getImageBlobFromSource(src: string, options?: { signal?: AbortSignal }): Promise<Blob> {
   if (src.startsWith('data:')) {
     const parseResult = parseDataUrl(src)
     if (!parseResult || !parseResult.mediaType) {
@@ -1137,7 +1243,7 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
     return assertImageBlob(new Blob([content.slice()], { type: mime }), src)
   }
 
-  const response = await fetch(src)
+  const response = await fetch(src, { signal: options?.signal })
   // An error page (404/500 HTML) is not an image — fail so callers can skip/report it.
   if (!response.ok) {
     throw new Error(`Failed to fetch image: ${response.status} ${src}`)
@@ -1146,14 +1252,11 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
   return assertImageBlob(blob, src)
 }
 
-/** A 200 response is still not an image when its content type says otherwise (proxy/login pages). */
+/** Reject explicit non-image responses such as proxy/login pages. */
 function assertImageBlob(blob: Blob, src: string): Blob {
-  // octet-stream is a mislabel, not a non-image verdict: extension-less local entries and
-  // remote servers that skip MIME land here, and the bytes still decode like <img> does.
-  // Trim first — header params ('text/html; charset=utf-8') and stray OWS must not bypass the check.
   const type = blob.type.trim()
-  const unknown = type === 'application/octet-stream'
-  if (type && !unknown && !type.startsWith('image/')) {
+  // Missing or generic MIME leaves image recognition to the browser decoder.
+  if (type && type !== 'application/octet-stream' && !type.startsWith('image/')) {
     throw new Error(`Source is not an image (content type ${type}): ${src}`)
   }
   return blob

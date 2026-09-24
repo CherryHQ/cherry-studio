@@ -1,5 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
+import { hostname, networkInterfaces } from 'node:os'
 
+import { Mutex } from 'async-mutex'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -7,9 +9,12 @@ import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { ApiGatewayPairedDeviceMetadata } from '@shared/data/types/apiGatewayPairedDevice'
+import type { OutputFor } from '@shared/ipc/types'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
+import { ApiGatewayPairing, type ApiGatewayPairingResult } from './ApiGatewayPairing'
 import type { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
@@ -20,6 +25,9 @@ const INTERNAL_USAGE_TOKEN_HEADER = 'x-cherry-internal-usage-token'
 @ServicePhase(Phase.WhenReady)
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
+  private lanGateway: ApiGateway | null = null
+  private readonly lanMutex = new Mutex()
+  private readonly pairing = new ApiGatewayPairing()
   /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
   private readonly internalUsageToken = uuidv4()
   /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
@@ -83,8 +91,19 @@ export class ApiGatewayService extends BaseService implements Activatable {
     try {
       await this.ensureValidApiKey()
       const { ApiGateway } = await import('./server')
-      this.apiGateway = new ApiGateway()
+      const { host, port } = this.getCurrentConfig()
+      this.apiGateway = new ApiGateway({ host: host === '0.0.0.0' ? '127.0.0.1' : host, port })
       await this.apiGateway.start()
+      if (this.getCurrentConfig().enabled && this.getCurrentConfig().host === '0.0.0.0') {
+        try {
+          await this.lanMutex.runExclusive(async () => {
+            const config = this.getCurrentConfig()
+            if (config.enabled && config.host === '0.0.0.0') await this.startLanGateway()
+          })
+        } catch (error) {
+          logger.warn('Failed to restore LAN access; the local gateway remains available', error as Error)
+        }
+      }
       this.publishRunningState(true)
       logger.info('API Gateway activated')
     } catch (error) {
@@ -99,6 +118,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async onDeactivate(): Promise<void> {
+    await this.lanMutex.runExclusive(() => this.stopLanGateway())
     if (this.apiGateway) {
       await this.apiGateway.stop()
       this.apiGateway = null
@@ -120,6 +140,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private publishRunningState(running: boolean): void {
     try {
       application.get('CacheService').setShared('feature.api_gateway.running', running)
+      application
+        .get('CacheService')
+        .setShared('feature.api_gateway.lan_running', this.lanGateway?.isRunning() ?? false)
     } catch (error) {
       logger.warn('Failed to publish API gateway running state', error as Error)
     }
@@ -142,7 +165,16 @@ export class ApiGatewayService extends BaseService implements Activatable {
    * on failure, so the caller learns the intent did not stick.
    */
   private async applyIntent(enabled: boolean): Promise<void> {
-    await application.get('PreferenceService').set('feature.api_gateway.enabled', enabled)
+    const preferenceService = application.get('PreferenceService')
+    if (!enabled && this.getCurrentConfig().host === '0.0.0.0') {
+      await preferenceService.setMultiple({
+        'feature.api_gateway.host': '127.0.0.1',
+        'feature.api_gateway.enabled': false
+      })
+    } else {
+      await preferenceService.set('feature.api_gateway.enabled', enabled)
+    }
+    if (!enabled) await this.lanMutex.runExclusive(() => this.stopLanGateway())
     // `subscribeChange` fires only on an actual change, so drive the reconciler here as well.
     await this.converge(enabled)
   }
@@ -257,6 +289,80 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   isRunning(): boolean {
     return this.apiGateway?.isRunning() ?? false
+  }
+
+  async setLanEnabled(enabled: boolean): Promise<void> {
+    await this.lanMutex.runExclusive(async () => {
+      const preferences = application.get('PreferenceService')
+      if (!enabled) {
+        await preferences.set('feature.api_gateway.host', '127.0.0.1')
+        await this.stopLanGateway()
+        return
+      }
+      if (!this.getCurrentConfig().enabled || !this.isRunning()) {
+        throw new Error('Start the API Gateway in its settings before enabling LAN access')
+      }
+      try {
+        await this.startLanGateway()
+        // A gateway stop can land while the LAN socket is binding.
+        if (!this.getCurrentConfig().enabled || !this.isRunning()) throw new Error('API Gateway was stopped')
+        await preferences.set('feature.api_gateway.host', '0.0.0.0')
+        this.publishRunningState(this.isRunning())
+      } catch (error) {
+        await this.stopLanGateway()
+        throw error
+      }
+    })
+  }
+
+  private async startLanGateway(): Promise<void> {
+    if (this.lanGateway?.isRunning()) return
+    const { ApiGateway } = await import('./server')
+    this.lanGateway = new ApiGateway({ host: '0.0.0.0', port: 0 })
+    try {
+      await this.lanGateway.start()
+    } catch (error) {
+      await this.stopLanGateway()
+      throw error
+    }
+  }
+
+  private async stopLanGateway(): Promise<void> {
+    this.pairing.clearCode()
+    try {
+      await this.lanGateway?.stop()
+    } finally {
+      this.lanGateway = null
+      this.publishRunningState(this.isRunning())
+    }
+  }
+
+  createPairingOffer(): OutputFor<'api_gateway.create_pairing_offer'> {
+    const lanGateway = this.lanGateway
+    if (!this.isRunning()) throw new Error('API Gateway is not running')
+    if (!lanGateway?.isRunning() || this.getCurrentConfig().host !== '0.0.0.0') {
+      throw new Error('LAN access is disabled')
+    }
+
+    const addresses = Object.values(networkInterfaces()).flatMap((infos) =>
+      (infos ?? []).filter((info) => info.family === 'IPv4' && !info.internal).map((info) => info.address)
+    )
+    if (addresses.length === 0) throw new Error('No reachable LAN address is available')
+
+    return {
+      hostname: hostname(),
+      port: lanGateway.getPort(),
+      addresses,
+      ...this.pairing.createCode()
+    }
+  }
+
+  pairDevice(code: string, device: ApiGatewayPairedDeviceMetadata): ApiGatewayPairingResult | null {
+    const result = this.pairing.consumeCode(code, device)
+    if (result) {
+      application.get('IpcApiService').broadcast('api_gateway.pairing_completed', undefined)
+    }
+    return result
   }
 
   getInternalRequestToken(): string {

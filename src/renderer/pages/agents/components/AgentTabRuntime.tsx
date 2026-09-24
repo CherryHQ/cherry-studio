@@ -27,7 +27,7 @@ export function AgentTabRuntime({
   useTabSelfVisuals({
     title,
     emoji,
-    appId: 'agents',
+    routePrefix: '/app/agents',
     preserveVisuals
   })
 

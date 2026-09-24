@@ -12,14 +12,13 @@ import { DefaultLogo } from './primitives'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarList } from './SidebarList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser } from './types'
+import type { ResolvedSidebarEntry, SidebarUser } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
 export interface SidebarProps {
   width: number
   setWidth: (width: number) => void
   entries: ResolvedSidebarEntry[]
-  active: SidebarActiveState
   title?: string
   logo?: React.ReactNode
   user?: SidebarUser
@@ -41,7 +40,6 @@ export function Sidebar({
   width,
   setWidth,
   entries,
-  active,
   title = '',
   logo,
   user,
@@ -167,7 +165,6 @@ export function Sidebar({
 
   const listProps = {
     entries,
-    active,
     onReorder: onEntriesReorder,
     onContextMenuOpenChange: handleContextMenuOpenChange
   }
