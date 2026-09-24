@@ -61,7 +61,14 @@ vi.mock('../restore/prepareRestore', async (importOriginal) => ({
 vi.mock('../restore/rollbackRestore', () => ({ armRestoreRollback: armRollbackMock }))
 
 const { exportArchiveMock, transportMock } = vi.hoisted(() => ({
-  exportArchiveMock: vi.fn<(input: { outPath: string; reportStage?: (stage: string) => void }) => Promise<unknown>>(),
+  exportArchiveMock:
+    vi.fn<
+      (input: {
+        outPath: string
+        reportStage?: (stage: string) => void
+        reportUnit?: (unit: { kind: string; livePath: string; done: number; total: number }) => void
+      }) => Promise<unknown>
+    >(),
   transportMock: {
     upload: vi.fn<(localPath: string, name: string) => Promise<void>>(async () => undefined),
     download: vi.fn<(name: string, destPath: string) => Promise<void>>(async () => undefined),
@@ -431,6 +438,21 @@ describe('BackupService', () => {
         })
       ).resolves.toBe('finished')
     })
+
+    it('thins a burst of unit reports but always delivers the last one', async () => {
+      broadcastMock.mockClear()
+
+      await service.runExclusive('export', async (_signal, reportStage, reportUnit) => {
+        reportStage('capturing-resources')
+        for (let done = 1; done <= 1000; done++) reportUnit({ kind: 'file', livePath: `/f${done}`, done, total: 1000 })
+      })
+
+      const units = broadcastMock.mock.calls
+        .map(([, payload]) => (payload as { resources?: { done: number } }).resources)
+        .filter((resources) => resources !== undefined)
+      expect(units.length).toBeLessThan(10)
+      expect(units.at(-1)?.done).toBe(1000)
+    })
   })
 
   describe('operation exclusion', () => {
@@ -745,18 +767,20 @@ describe('BackupService.exportToDestination', () => {
 
   it('reports the export stages and then the upload for a destination export', async () => {
     broadcastMock.mockClear()
-    exportArchiveMock.mockImplementationOnce(async ({ outPath, reportStage }) => {
-      reportStage?.('snapshotting-db')
+    exportArchiveMock.mockImplementationOnce(async ({ outPath, reportStage, reportUnit }) => {
+      reportStage?.('capturing-resources')
+      reportUnit?.({ kind: 'file', livePath: '/a', done: 1, total: 1 })
       writeFileSync(outPath, 'archive')
       return { outPath, manifest: { degradations: [] } }
     })
 
     await service.exportToDestination('webdav')
 
-    const stages = broadcastMock.mock.calls
+    const payloads = broadcastMock.mock.calls
       .filter(([event]) => event === 'backup.progress')
-      .map(([, payload]) => (payload as { stage: string }).stage)
-    expect(stages).toEqual(['snapshotting-db', 'uploading'])
+      .map(([, payload]) => payload as { stage: string; resources?: { done: number } })
+    expect(payloads.map((p) => p.stage)).toEqual(['capturing-resources', 'capturing-resources', 'uploading'])
+    expect(payloads[1].resources?.done).toBe(1)
   })
 
   it('reports the admission stage for a restore prepared from a destination', async () => {

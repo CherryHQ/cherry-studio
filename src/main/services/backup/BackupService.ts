@@ -39,6 +39,7 @@ const POST_PROMOTION_POLL_MS = 10_000
  * on JobManager's own 60s startup window regardless — so it yields the boot.
  */
 const POST_PROMOTION_START_DELAY_MS = 5_000
+const UNIT_EMIT_INTERVAL_MS = 100
 
 /**
  * The IPC schema already refuses these; this is the service's own guard so no
@@ -139,6 +140,8 @@ export class BackupService extends BaseService {
   private postPromotionSuppressed = false
   /** Last stage reported per operation, so a unit report can name its phase. */
   private readonly stageOf = new Map<BackupOperation, BackupProgressStage>()
+  /** When a unit report last reached the windows; see {@link reportResource}. */
+  private lastUnitEmitAt = 0
 
   protected onInit(): void {
     // Lifecycle services may be restarted on the same instance.
@@ -275,7 +278,7 @@ export class BackupService extends BaseService {
     const destination = await resolveDestination(id)
     const transport = createTransport(destination)
 
-    return this.runExclusive('export', async (signal, reportStage) => {
+    return this.runExclusive('export', async (signal, reportStage, reportUnit) => {
       await this.startExportCleanup()
       // A name the user typed is kept, but it opts out of rotation: only the
       // generated convention identifies an archive as this device's.
@@ -287,7 +290,7 @@ export class BackupService extends BaseService {
       await ensureDir(tempRoot)
       const scratch = await createOwnedScratch(tempRoot, name)
       try {
-        const result = await exportArchive({ outPath: scratch.filePath, signal, reportStage })
+        const result = await exportArchive({ outPath: scratch.filePath, signal, reportStage, reportUnit })
         reportStage('uploading')
         await transport.upload(result.outPath, name, signal)
         // Only now. Pruning first is how a limit of 1 turned a failed upload into
@@ -519,6 +522,11 @@ export class BackupService extends BaseService {
   private reportResource(operation: BackupOperation, unit: Parameters<BackupResourceReporter>[0]): void {
     const stage = this.stageOf.get(operation)
     if (!stage) return
+    // A walk can enter tens of thousands of units; the windows only need a few
+    // updates a second, plus the last unit so the count visibly completes.
+    const now = Date.now()
+    if (unit.done !== unit.total && now - this.lastUnitEmitAt < UNIT_EMIT_INTERVAL_MS) return
+    this.lastUnitEmitAt = now
     this.emitProgress({
       operation,
       stage,
