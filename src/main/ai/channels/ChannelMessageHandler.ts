@@ -95,7 +95,7 @@ export class ChannelMessageHandler {
   private readonly pendingResolutions = new Map<string, Promise<AgentSessionEntity | null>>()
   /** Per-chat debounce buffer — accumulates rapid messages before flushing */
   private readonly pendingBatches = new Map<string, PendingBatch>()
-  /** Includes flushed batches until they start processing, so /stop can discard them too. */
+  /** Includes flushed batches until turn admission, so /stop can discard them too. */
   private readonly queuedBatches = new Set<PendingBatch>()
   /** Per-sender serial queue; shared-session admission rejects cross-sender overlap visibly. */
   private readonly chatQueues = new Map<string, Promise<void>>()
@@ -295,20 +295,20 @@ export class ChannelMessageHandler {
     const current = prev
       .then(async () => {
         await ready
-        this.queuedBatches.delete(batch)
         if (batch.cancelled) return
 
         const merged = this.mergeMessages(batch.messages)
         if (batch.messages.length > 1) {
           logger.info('Flushing merged message batch', { batchKey, messageCount: batch.messages.length })
         }
-        await this.processIncoming(batch.adapter, merged, batch.admit)
+        await this.processIncoming(batch.adapter, merged, batch.admit, batch)
       })
       .then(
         () => batch.resolvers.forEach((r) => r.resolve()),
         (err) => batch.resolvers.forEach((r) => r.reject(err))
       )
       .finally(() => {
+        this.queuedBatches.delete(batch)
         // Clean up queue entry when no newer work has been enqueued
         if (this.chatQueues.get(queueKey) === settled) {
           this.chatQueues.delete(queueKey)
@@ -343,7 +343,8 @@ export class ChannelMessageHandler {
     this.chatQueues.set(queueKey, settled)
   }
 
-  private discardConversationBatches(adapter: ChannelAdapter, conversationId: string): void {
+  private discardConversationBatches(adapter: ChannelAdapter, conversationId: string): boolean {
+    let discarded = false
     for (const batch of this.queuedBatches) {
       if (
         batch.adapter.agentId !== adapter.agentId ||
@@ -353,6 +354,7 @@ export class ChannelMessageHandler {
         continue
 
       batch.cancelled = true
+      discarded = true
       clearTimeout(batch.timer)
       this.queuedBatches.delete(batch)
       const batchKey = `${conversationKey(adapter.agentId, adapter.channelId, conversationId)}:${batch.messages[0].userId}`
@@ -361,6 +363,7 @@ export class ChannelMessageHandler {
       batch.release()
       batch.resolvers.forEach((resolver) => resolver.resolve())
     }
+    return discarded
   }
 
   private mergeMessages(messages: ChannelMessageEvent[]): ChannelMessageEvent {
@@ -393,12 +396,14 @@ export class ChannelMessageHandler {
   private async processIncoming(
     adapter: ChannelAdapter,
     message: ChannelMessageEvent,
-    onAdmitted?: () => void
+    onAdmitted?: () => void,
+    batch?: PendingBatch
   ): Promise<void> {
     const { agentId } = adapter
 
     try {
       const session = await this.resolveSession(agentId, adapter.channelId, conversationIdOf(message))
+      if (batch?.cancelled) return
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
         await this.notifySessionResolutionError(adapter, message)
@@ -430,11 +435,13 @@ export class ChannelMessageHandler {
         try {
           await prepareAgentSessionWorkspaceDirectory(session)
         } catch (error) {
+          if (batch?.cancelled) return
           if (isAgentSessionWorkspaceError(error)) {
             await adapter.sendMessage(message.chatId, error.message, responseOptionsFor(message)).catch(() => {})
           }
           throw error
         }
+        if (batch?.cancelled) return
       }
 
       // Save images to agent workspace so the agent can read them via the Read tool
@@ -455,6 +462,7 @@ export class ChannelMessageHandler {
         }
       }
 
+      if (batch?.cancelled) return
       // Save files to agent workspace so the agent can read them via the Read tool
       let filePaths: string[] = []
       if (message.files && message.files.length > 0 && workDir) {
@@ -482,6 +490,7 @@ export class ChannelMessageHandler {
         textWithAttachments += `\n\n[Attached files saved to workspace]\n${filePaths.map((p) => `- ${p}`).join('\n')}`
       }
 
+      if (batch?.cancelled) return
       const abortController = new AbortController()
       this.activeAbortControllers.set(session.id, abortController)
 
@@ -505,9 +514,11 @@ export class ChannelMessageHandler {
           adapter,
           message.chatId,
           responseOptions,
-          onAdmitted
+          onAdmitted,
+          batch
         )
       } catch (streamError) {
+        if (batch?.cancelled) return
         const streamErrorMessage = streamError instanceof Error ? streamError.message : String(streamError)
         if (isAgentSessionWorkspaceError(streamError) || streamError instanceof AgentSessionRunNotStartedError) {
           // Thrown before streaming starts (validateSession), so no controller exists yet and
@@ -615,9 +626,10 @@ export class ChannelMessageHandler {
         case 'stop': {
           let receipt = t('common.channel_stop_no_active_turn')
           try {
+            const discarded = this.discardConversationBatches(adapter, conversationIdOf(command))
             const sessionId = this.peekSessionId(agentId, adapter.channelId, conversationIdOf(command))
-            if (sessionId && this.abortSession(sessionId)) {
-              this.discardConversationBatches(adapter, conversationIdOf(command))
+            const aborted = sessionId ? this.abortSession(sessionId) : false
+            if (aborted || discarded) {
               receipt = t('common.channel_stop_cancelled')
             }
           } catch (error) {
@@ -949,7 +961,8 @@ export class ChannelMessageHandler {
     adapter: ChannelAdapter,
     chatId: string,
     responseOptions?: SendMessageOptions,
-    onAdmitted?: () => void
+    onAdmitted?: () => void,
+    batch?: PendingBatch
   ): Promise<string | null> {
     if (!session.agentId) {
       throw new Error(`Cannot stream on orphan session ${session.id} — its agent was deleted`)
@@ -986,7 +999,13 @@ export class ChannelMessageHandler {
         userParts: [{ type: 'text', text: content }],
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
-        requireIdle: { expectedAgentId: session.agentId }
+        requireIdle: { expectedAgentId: session.agentId },
+        beforePersist: batch
+          ? () => {
+              if (batch.cancelled) throw new Error('Channel batch discarded')
+              this.queuedBatches.delete(batch)
+            }
+          : undefined
       })
       // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.
       // Add durable admission only if channels require guaranteed busy-session delivery.
@@ -994,6 +1013,7 @@ export class ChannelMessageHandler {
     } finally {
       // The write-quiesce admission point: the turn's rows are written and it entered the AI
       // in-flight set (or the run threw) — either way the drain stops waiting on this batch.
+      if (batch) this.queuedBatches.delete(batch)
       onAdmitted?.()
     }
 

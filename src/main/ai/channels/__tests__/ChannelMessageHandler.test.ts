@@ -1041,7 +1041,8 @@ describe('ChannelMessageHandler', () => {
       runs.clear()
       holdRuns = true
       mockStreamAbort.mockReset()
-      mockStartAgentSessionRun.mockReset().mockImplementation(async ({ sessionId, listeners }) => {
+      mockStartAgentSessionRun.mockReset().mockImplementation(async ({ sessionId, listeners, beforePersist }) => {
+        beforePersist?.()
         const sentinel = listeners.find((listener: { id: string }) => listener.id.startsWith('channel-completion:'))
         runs.set(sessionId, sentinel)
         if (!holdRuns) sentinel.onDone()
@@ -1120,6 +1121,11 @@ describe('ChannelMessageHandler', () => {
     it('reports abort failure explicitly and settles the command without rejecting', async () => {
       bind()
       const { completion } = await start()
+      const discarded = handler.handleIncoming(adapter, { ...incoming, text: 'Discard despite abort failure' })
+      let discardedSettled = false
+      void discarded.then(() => {
+        discardedSettled = true
+      })
       mockStreamAbort.mockImplementationOnce(() => {
         throw new Error('abort failed')
       })
@@ -1130,6 +1136,7 @@ describe('ChannelMessageHandler', () => {
       try {
         await vi.advanceTimersByTimeAsync(0)
         expect(settled).toBe(true)
+        expect(discardedSettled).toBe(true)
         expect(mockLogError).toHaveBeenCalledWith('Failed to cancel channel turn', {
           agentId: 'agent-1',
           channelId: 'channel-1',
@@ -1145,7 +1152,10 @@ describe('ChannelMessageHandler', () => {
         ])
       } finally {
         await finish()
-        await Promise.all([completion, stopped])
+        await Promise.all([completion, discarded, stopped])
+        expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts)).toEqual([
+          [{ type: 'text', text: 'Run' }]
+        ])
       }
     })
 
@@ -1172,18 +1182,233 @@ describe('ChannelMessageHandler', () => {
       }
     })
 
-    it('answers before a buffered message is flushed even when no turn is active', async () => {
-      const buffered = handler.handleIncoming(adapter, incoming)
+    it.each([
+      ['buffered', false],
+      ['buffered', true],
+      ['flushed', false],
+      ['flushed', true]
+    ] as const)('prevents %s work from starting without an active turn (bound: %s)', async (state, bound) => {
+      if (bound) bind()
+      const bindingsBeforeStop = [...persistedChannelSessions.bindings]
+      const processIncoming = vi.spyOn(handler as any, 'processIncoming')
+      const discarded = ['user-1', 'user-2'].map((userId) =>
+        handler.handleIncoming(adapter, { ...incoming, userId, text: 'Old work' })
+      )
+      let settled = 0
+      for (const completion of discarded) void completion.then(() => settled++)
+      // Flush timers without running queue microtasks, leaving released batches waiting to start.
+      if (state === 'flushed') vi.advanceTimersByTime(1000)
       const stopped = handler.handleCommand(adapter, stop)
       try {
         await vi.advanceTimersByTimeAsync(0)
-        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['No active turn to cancel.'])
-        expect(mockStartAgentSessionRun.mock.calls).toEqual([])
+        expect(settled).toBe(2)
+        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+        expect([...persistedChannelSessions.bindings]).toEqual(bindingsBeforeStop)
         expect(agentSessionService.createTx).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(processIncoming.mock.calls).toEqual([])
+        expect(mockStartAgentSessionRun.mock.calls).toEqual([])
+        expect(mockStreamAbort.mock.calls).toEqual([])
+        const pause = handler.pause('stop-test')
+        try {
+          await expect(handler.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
+        } finally {
+          pause.dispose()
+        }
+        holdRuns = false
+        const next = await start({ ...incoming, text: 'New work' })
+        await next.completion
+        expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts)).toEqual([
+          [{ type: 'text', text: 'New work' }]
+        ])
+        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
       } finally {
         await finish()
-        await Promise.all([buffered, stopped])
+        await Promise.all([...discarded, stopped])
+        processIncoming.mockRestore()
       }
+    })
+
+    it.each(['resolveSession', 'prepareWorkspace', 'rejectWorkspace', 'persistImages', 'persistFiles'] as const)(
+      'prevents a batch paused in %s from starting after /stop',
+      async (stage) => {
+        bind()
+        let release!: () => void
+        const ready = new Promise<void>((resolve) => {
+          release = resolve
+        })
+        let reached = false
+        const workspaceStage = stage === 'prepareWorkspace' || stage === 'rejectWorkspace'
+        const preparation = workspaceStage ? mockPrepareAgentSessionWorkspaceDirectory : vi.spyOn(handler as any, stage)
+        preparation.mockImplementationOnce(async () => {
+          reached = true
+          await ready
+          if (stage === 'rejectWorkspace') throw new AgentSessionWorkspaceError('workspace is missing')
+          return stage === 'resolveSession' ? persistedChannelSessions.sessions.get('session-stop') : []
+        })
+        const completion = handler.handleIncoming(adapter, {
+          ...incoming,
+          ...(stage === 'persistImages' || workspaceStage
+            ? { images: [{ media_type: 'image/png', data: 'AA==' }] }
+            : {}),
+          ...(stage === 'persistFiles'
+            ? { files: [{ filename: 'test.txt', data: 'AA==', media_type: 'text/plain', size: 1 }] }
+            : {})
+        })
+        let settled = false
+        void completion.then(() => {
+          settled = true
+        })
+        try {
+          await vi.advanceTimersByTimeAsync(1000)
+          expect(reached).toBe(true)
+          expect(mockStartAgentSessionRun.mock.calls).toEqual([])
+          await handler.handleCommand(adapter, stop)
+          await vi.advanceTimersByTimeAsync(0)
+          expect(settled).toBe(true)
+          expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+          const pause = handler.pause('stop-test')
+          try {
+            await expect(handler.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
+          } finally {
+            pause.dispose()
+          }
+          release()
+          await vi.advanceTimersByTimeAsync(0)
+          expect(mockStartAgentSessionRun.mock.calls).toEqual([])
+          expect(mockStreamAbort.mock.calls).toEqual([])
+          expect(persistedChannelSessions.bindings.get('channel-1:thread-stop')).toBe('session-stop')
+          holdRuns = false
+          const next = await start({ ...incoming, text: 'New work' })
+          await next.completion
+          expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts)).toEqual([
+            [{ type: 'text', text: 'New work' }]
+          ])
+          expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+        } finally {
+          release()
+          await finish()
+          await completion
+          preparation.mockRestore()
+        }
+      }
+    )
+
+    it('prevents a turn awaiting runtime admission from starting after /stop', async () => {
+      bind()
+      let release!: () => void
+      const ready = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let preparing = false
+      const admitted: string[] = []
+      mockStartAgentSessionRun.mockImplementationOnce(async ({ beforePersist, userParts, listeners }) => {
+        preparing = true
+        await ready
+        beforePersist?.()
+        admitted.push(userParts[0].text)
+        listeners[0].onDone()
+        return { mode: 'started' }
+      })
+      const completion = handler.handleIncoming(adapter, incoming)
+      let settled = false
+      void completion.then(() => {
+        settled = true
+      })
+      try {
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(preparing).toBe(true)
+        await handler.handleCommand(adapter, stop)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(settled).toBe(true)
+        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
+        expect(adapter.onStreamError.mock.calls).toEqual([])
+        const pause = handler.pause('stop-test')
+        try {
+          await expect(handler.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
+        } finally {
+          pause.dispose()
+        }
+        release()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(admitted).toEqual([])
+        expect(adapter.onStreamError.mock.calls).toEqual([])
+        holdRuns = false
+        const next = await start({ ...incoming, text: 'New work' })
+        await next.completion
+        expect(runs.has('session-stop')).toBe(true)
+        expect(mockStartAgentSessionRun.mock.calls.at(-1)?.[0].userParts).toEqual([{ type: 'text', text: 'New work' }])
+      } finally {
+        release()
+        await finish()
+        await completion
+      }
+    })
+
+    it('discards flushed work blocked by a command receipt without waiting for that command', async () => {
+      let release!: () => void
+      const receipt = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      adapter.sendMessage.mockReturnValueOnce(receipt)
+      const command = handler.handleCommand(adapter, { ...stop, command: 'new' })
+      await vi.advanceTimersByTimeAsync(0)
+      const binding = persistedChannelSessions.bindings.get('channel-1:thread-stop')
+      const discarded = handler.handleIncoming(adapter, incoming)
+      let settled = false
+      void discarded.then(() => {
+        settled = true
+      })
+      try {
+        await vi.advanceTimersByTimeAsync(1000)
+        await handler.handleCommand(adapter, stop)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(settled).toBe(true)
+        expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual([
+          'New session created.',
+          'Turn cancelled.'
+        ])
+        const pause = handler.pause('stop-test')
+        try {
+          await expect(handler.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
+        } finally {
+          pause.dispose()
+        }
+        release()
+        await command
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(mockStartAgentSessionRun.mock.calls).toEqual([])
+        expect(persistedChannelSessions.bindings.get('channel-1:thread-stop')).toBe(binding)
+        holdRuns = false
+        const next = await start({ ...incoming, text: 'New work' })
+        await next.completion
+        expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts)).toEqual([
+          [{ type: 'text', text: 'New work' }]
+        ])
+      } finally {
+        release()
+        await finish()
+        await Promise.all([command, discarded])
+      }
+    })
+
+    it('keeps pending work in other conversations, channels and agents when discarding the target batch', async () => {
+      holdRuns = false
+      const discarded = handler.handleIncoming(adapter, incoming)
+      const others = [
+        handler.handleIncoming(adapter, { ...incoming, conversationId: 'thread-other', text: 'Other conversation' }),
+        handler.handleIncoming(createMockAdapter({ channelId: 'channel-2' }), { ...incoming, text: 'Other channel' }),
+        handler.handleIncoming(createMockAdapter({ agentId: 'agent-2' }), { ...incoming, text: 'Other agent' })
+      ]
+      await handler.handleCommand(adapter, stop)
+      await vi.advanceTimersByTimeAsync(1000)
+      await Promise.all([discarded, ...others])
+      expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts)).toEqual([
+        [{ type: 'text', text: 'Other conversation' }],
+        [{ type: 'text', text: 'Other channel' }],
+        [{ type: 'text', text: 'Other agent' }]
+      ])
+      expect(adapter.sendMessage.mock.calls.map((call: unknown[]) => call[1])).toEqual(['Turn cancelled.'])
     })
 
     it.each(['buffered', 'flushed'] as const)(
