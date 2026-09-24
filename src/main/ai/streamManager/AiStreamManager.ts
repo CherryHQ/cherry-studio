@@ -347,7 +347,7 @@ export class AiStreamManager extends BaseService {
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
    *  agent runtime's explicit launch state. */
   private readonly startingNextChatTopicIds = new Set<string>()
-  /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
+  /** Write-quiesce holds (backup capture / restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Map<symbol, WriteQuiesceOperation>()
   /** Gate-admitted dispatches still inside `prepareDispatch → send`. Registered before the

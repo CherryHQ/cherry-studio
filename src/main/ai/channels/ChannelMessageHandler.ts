@@ -219,7 +219,7 @@ export class ChannelMessageHandler {
     // Write-quiesce intake gate. Resolve (don't reject) — a rejection would trigger the
     // adapters' misleading "an error occurred" reply for a deliberate drop.
     if (this.isWriteQuiesced) {
-      logger.warn('Channel message dropped: intake is write-quiesced (backup restore in progress)', {
+      logger.warn('Channel message dropped: intake is write-quiesced (a backup or restore is in progress)', {
         agentId: adapter.agentId,
         channelId: adapter.channelId,
         chatId: message.chatId
@@ -522,7 +522,7 @@ export class ChannelMessageHandler {
     // Write-quiesce intake gate — commands write too (`/new` creates session+channel rows,
     // `/compact` runs a full turn). Resolve, don't reject (see `handleIncoming`).
     if (this.isWriteQuiesced) {
-      logger.warn('Channel command dropped: intake is write-quiesced (backup restore in progress)', {
+      logger.warn('Channel command dropped: intake is write-quiesced (a backup or restore is in progress)', {
         agentId: adapter.agentId,
         channelId: adapter.channelId,
         chatId: command.chatId,

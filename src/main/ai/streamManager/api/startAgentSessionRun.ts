@@ -44,7 +44,7 @@ export async function startAgentSessionRun(input: {
 
     if (manager.isWriteQuiesced) {
       throw new Error(
-        'AiStreamManager is write-quiesced (backup restore in progress); refusing a new agent-session turn'
+        'AiStreamManager is write-quiesced (a backup or restore is in progress); refusing a new agent-session turn'
       )
     }
 
