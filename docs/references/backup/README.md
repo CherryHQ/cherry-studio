@@ -527,10 +527,10 @@ non-terminal jobs whose type has no handler and it wakes on its own timer.
 
 **Preference is the source of truth; the schedule row is its projection.** The
 reconciler runs on any change to `data.backup.*.{auto_sync,sync_interval}` and
-at `onReady`, and it is written to be safe at any time — which is what makes a
-restore recoverable, since a restore forces every schedule row to
-`enabled: false` (§7.1's table policy) and only a later reconcile turns back on
-the ones the user still wants.
+at `onReady`, and it is written to be safe at any time. A restore forces every
+schedule row to `enabled: false` (§7.1's table policy) and also resets every
+`auto_sync` preference, so the reconcile after it leaves each destination off
+until the user turns it back on.
 
 Three rules the reconciler exists to keep:
 
@@ -543,11 +543,17 @@ Three rules the reconciler exists to keep:
 - **`after-startup`, not `skip-missed`.** A daily backup would otherwise never
   run for anyone who does not leave the app open across the interval boundary.
 
-The handler is `abandon`: a backup missed because the app was closed is not
-worth replaying at the next launch, since the schedule is about to produce a
-fresher one. All destinations share one queue, because an export holds the
+The handler is `abandon`: a run interrupted by quitting is not resumed. A turn
+missed while the app was closed is the `after-startup` catch-up above, not a
+recovered job. All destinations share one queue, because an export holds the
 service exclusively — concurrent destinations would fail each other with
-`BackupBusyError` instead of waiting.
+`BackupBusyError` instead of waiting. A run that still meets a busy service (a
+manual export or restore) is skipped, not failed; the next turn covers it.
+
+The status the settings pages show is read from each schedule's terminal runs,
+not from the schedule row: `lastRun` there is when the timer fired, which a
+failed, skipped, or retrying run writes too. "Last backup" is the last run that
+wrote an archive; a failed or not-configured latest run is reported beside it.
 
 ## 8. Restore transaction
 
