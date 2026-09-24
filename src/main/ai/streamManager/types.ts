@@ -1,6 +1,7 @@
 import type { Span } from '@opentelemetry/api'
 import type { UIMessageChunk } from 'ai'
 
+import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
@@ -9,6 +10,7 @@ import type { SerializedError } from '@shared/types/error'
 
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import type { PersistedAssistant } from './persistence/PersistenceBackend'
 
 // ── Re-export shared types for consumers ────────────────────────────
 
@@ -39,7 +41,11 @@ export interface TransportTimings {
 
 // ── Stream terminal results ─────────────────────────────────────────
 
-export interface StreamDoneResult {
+interface TerminalOutcome {
+  persistence?: { status: 'saved'; message: PersistedAssistant } | { status: 'failed'; failure: ExecutionFailure }
+}
+
+export interface StreamDoneResult extends TerminalOutcome {
   finalMessage?: CherryUIMessage
   status: 'success'
   modelId?: UniqueModelId
@@ -52,7 +58,7 @@ export interface StreamDoneResult {
   runtimeTiming?: MessageRuntimeTiming
 }
 
-export interface StreamPausedResult {
+export interface StreamPausedResult extends TerminalOutcome {
   finalMessage?: CherryUIMessage
   status: 'paused'
   modelId?: UniqueModelId
@@ -64,7 +70,8 @@ export interface StreamPausedResult {
   runtimeTiming?: MessageRuntimeTiming
 }
 
-export interface StreamErrorResult {
+export interface StreamErrorResult extends TerminalOutcome {
+  failure?: ExecutionFailure
   error: SerializedError
   /** Whatever accumulated before the error — same shape as the success case. */
   finalMessage?: CherryUIMessage

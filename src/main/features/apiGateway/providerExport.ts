@@ -1,12 +1,7 @@
-import { bearer } from '@elysia/bearer'
-import { Elysia } from 'elysia'
-
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
-
-import { authorizePairedDeviceRequest } from '../middleware/auth'
 
 type ProviderExportSettings = Pick<
   Provider['settings'],
@@ -116,7 +111,7 @@ function projectModel(model: Model): ProviderExportModel {
 }
 
 /** Build the versioned credential-bearing payload a paired mobile device can import. */
-function getProviderExportPayload(): ProviderExportPayload {
+export function getProviderExportPayload(): ProviderExportPayload {
   const providers = providerService.list({ enabled: true }).map<ProviderExportEntry>((provider) => ({
     id: provider.id,
     presetProviderId: provider.presetProviderId,
@@ -141,25 +136,3 @@ function getProviderExportPayload(): ProviderExportPayload {
 
   return { version: 1, providers }
 }
-
-/** Device-only, read-only provider export. Hidden from the public OpenAPI surface. */
-export const providerExportRoutes = new Elysia({ prefix: '/v1/export' })
-  .use(bearer())
-  .guard({
-    as: 'local',
-    beforeHandle: ({ bearer: bearerToken, headers, set }) => {
-      const token = headers.authorization?.startsWith('Bearer ') ? bearerToken : undefined
-      const failure = authorizePairedDeviceRequest(token)
-      if (!failure) return undefined
-      set.status = failure.status
-      return { error: failure.error }
-    }
-  })
-  .get(
-    '/providers',
-    ({ set }) => {
-      set.headers['cache-control'] = 'no-store'
-      return getProviderExportPayload()
-    },
-    { detail: { hide: true } }
-  )
