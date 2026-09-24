@@ -2884,6 +2884,81 @@ describe('AgentSessionRuntimeService', () => {
       )
     })
 
+    it('tears down a retired detached flow on session close without further enqueue warnings', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-delta', id: 'flow-text', delta: 'Before retire' }
+      })
+
+      await vi.waitFor(() => {
+        expect(entry.backgroundFlowAccumulators?.get('assistant-1')).toBeDefined()
+      })
+
+      const accumulator = entry.backgroundFlowAccumulators!.get('assistant-1')!
+      const enqueue = vi.spyOn(accumulator.controller, 'enqueue').mockImplementation(() => {
+        throw new Error('stream closed')
+      })
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-end', id: 'flow-text' }
+      })
+      expect(accumulator.closed).toBe(true)
+
+      const warnCountBeforeClose = mockMainLoggerService.warn.mock.calls.length
+      await service.closeSession('session-1')
+      expect(service.inspect('session-1')).toBeUndefined()
+
+      for (let index = 0; index < 50; index++) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk: { type: 'text-delta', id: `late-${index}`, delta: `late-${index}` }
+        })
+      }
+
+      const warnCallsAfterClose = mockMainLoggerService.warn.mock.calls.slice(warnCountBeforeClose)
+      expect(
+        warnCallsAfterClose.filter((call) => call[0] === 'Failed to enqueue detached subagent flow chunk')
+      ).toHaveLength(0)
+      expect(
+        warnCallsAfterClose.filter((call) => call[0] === 'Dropping detached subagent flow chunk during finalization')
+      ).toHaveLength(0)
+      expect(enqueue.mock.calls.length).toBe(1)
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({ type: 'text', text: expect.stringContaining('Before retire') })
+          ])
+        )
+      })
+    })
+
     it('publishes detached flow overlays under independent message keys', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
