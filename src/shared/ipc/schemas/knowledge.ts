@@ -85,6 +85,10 @@ export const knowledgeRequestSchemas = {
     input: z.strictObject({ sourceId: z.uuidv7() }),
     output: ExternalKnowledgeSourceSchema
   }),
+  'knowledge.external_source.rename': defineRoute({
+    input: z.strictObject({ sourceId: z.uuidv7(), name: z.string().trim().min(1).max(256) }),
+    output: ExternalKnowledgeSourceSchema
+  }),
   'knowledge.external_source.schedule.update': defineRoute({
     input: z.strictObject({ sourceId: z.uuidv7(), policy: ExternalKnowledgeSchedulePolicySchema }),
     output: ExternalKnowledgeSourceSchema

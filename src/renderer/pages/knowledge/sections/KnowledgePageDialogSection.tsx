@@ -4,6 +4,7 @@ import { useKnowledgePage } from '../KnowledgePageProvider'
 
 // Management dialogs are loaded on first open instead of with the page.
 const AddKnowledgeItemDialog = lazy(() => import('../components/AddKnowledgeItemDialog'))
+const FeishuWikiWizard = lazy(() => import('../components/FeishuWikiWizard'))
 const CreateKnowledgeBaseDialog = lazy(() => import('../components/CreateKnowledgeBaseDialog'))
 const CreateKnowledgeGroupDialog = lazy(() => import('../components/CreateKnowledgeGroupDialog'))
 const KnowledgeBaseNameDialog = lazy(() => import('../components/KnowledgeBaseNameDialog'))
@@ -18,6 +19,8 @@ const KnowledgePageDialogSection = () => {
     restoringBase,
     restoreBaseInitialValues,
     isAddSourceDialogOpen,
+    isFeishuWizardOpen,
+    selectedBaseId,
     isCreateBaseDialogOpen,
     isCreateGroupDialogOpen,
     createBaseInitialGroupId,
@@ -29,6 +32,7 @@ const KnowledgePageDialogSection = () => {
     createBase,
     restoreBase,
     handleAddSourceDialogOpenChange,
+    handleFeishuWizardOpenChange,
     handleCreateBaseCreated,
     handleCreateBaseDialogOpenChange,
     handleCreateGroupDialogOpenChange,
@@ -45,6 +49,10 @@ const KnowledgePageDialogSection = () => {
     <Suspense fallback={null}>
       {isAddSourceDialogOpen ? (
         <AddKnowledgeItemDialog open={isAddSourceDialogOpen} onOpenChange={handleAddSourceDialogOpenChange} />
+      ) : null}
+
+      {isFeishuWizardOpen ? (
+        <FeishuWikiWizard open baseId={selectedBaseId} onOpenChange={handleFeishuWizardOpenChange} />
       ) : null}
 
       {isCreateGroupDialogOpen ? (

@@ -217,6 +217,9 @@ describe('ExternalKnowledgeSyncAdmission', () => {
       },
       { endpoint: '/external-knowledge-sources/:id', routeParams: { id: source.id }, entityIds: [source.id] }
     ])
+    expect(notifyDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/external-knowledge-connections', kind: 'projection' }
+    ])
   })
 
   it('rolls back both the source and enqueued job when binding activeJobId fails', async () => {

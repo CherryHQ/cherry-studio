@@ -5,7 +5,7 @@ import type { HandlersFor } from '@shared/data/api/types'
 
 export const externalKnowledgeConnectionHandlers: HandlersFor<ExternalKnowledgeConnectionSchemas> = {
   '/external-knowledge-connections': {
-    GET: async () => externalKnowledgeConnectionService.list()
+    GET: async () => externalKnowledgeConnectionService.listWithSourceCount()
   },
 
   '/external-knowledge-connections/:id': {

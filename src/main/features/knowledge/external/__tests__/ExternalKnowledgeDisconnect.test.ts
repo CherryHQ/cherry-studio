@@ -222,6 +222,9 @@ describe('ExternalKnowledgeDisconnect', () => {
     })
     expect(dbh.db.select().from(externalKnowledgeConnectionTable).all()).toHaveLength(1)
     expect(enqueueTxMock).not.toHaveBeenCalled()
+    expect(notifyDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/external-knowledge-connections', kind: 'projection' }
+    ])
   })
 
   it('durably marks owned content deleting and enqueues subtree cleanup before removing ownership', async () => {
@@ -340,7 +343,9 @@ describe('ExternalKnowledgeDisconnect', () => {
     expect(sourceIds).toEqual([SOURCE_ID])
 
     service.notifyExternalSourcesDeleted(BASE_ID, sourceIds)
-    expect(notifyDataChangeMock).toHaveBeenCalled()
+    expect(notifyDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/external-knowledge-connections', kind: 'projection' }
+    ])
   })
 
   it('keeps base sources and documents when schedule cleanup fails', async () => {

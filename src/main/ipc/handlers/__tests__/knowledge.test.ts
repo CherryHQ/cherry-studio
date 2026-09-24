@@ -28,6 +28,7 @@ const knowledgeService = {
   createExternalKnowledgeSource: vi.fn(),
   requestExternalKnowledgeSourceSync: vi.fn(),
   updateExternalKnowledgeSourceSchedule: vi.fn(),
+  renameExternalKnowledgeSource: vi.fn(),
   disconnectExternalKnowledgeSource: vi.fn(),
   createBase: vi.fn(),
   restoreBase: vi.fn(),
@@ -140,6 +141,26 @@ describe('knowledgeHandlers', () => {
     expect(knowledgeService.disconnectExternalKnowledgeSource).toHaveBeenNthCalledWith(2, {
       sourceId: externalSource.id,
       mode: 'remove-local'
+    })
+  })
+
+  it('accepts a trimmed display name and rejects remote scope edits', async () => {
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+    knowledgeService.renameExternalKnowledgeSource.mockResolvedValue({ ...externalSource, name: 'Product Wiki' })
+
+    await expect(
+      router.dispatch('knowledge.external_source.rename', { sourceId: externalSource.id, name: ' Product Wiki ' }, ctx)
+    ).resolves.toMatchObject({ name: 'Product Wiki' })
+    await expect(
+      router.dispatch(
+        'knowledge.external_source.rename',
+        { sourceId: externalSource.id, name: 'Other', connectionId: externalSource.connectionId },
+        ctx
+      )
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+    expect(knowledgeService.renameExternalKnowledgeSource).toHaveBeenCalledWith({
+      sourceId: externalSource.id,
+      name: 'Product Wiki'
     })
   })
 

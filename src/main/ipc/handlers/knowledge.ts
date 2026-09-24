@@ -130,6 +130,8 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
     externalKnowledgeAdmissionCommand(() =>
       application.get('KnowledgeService').requestExternalKnowledgeSourceSync(input)
     ),
+  'knowledge.external_source.rename': async (input) =>
+    application.get('KnowledgeService').renameExternalKnowledgeSource(input),
   'knowledge.external_source.schedule.update': async (input) =>
     application.get('KnowledgeService').updateExternalKnowledgeSourceSchedule(input),
   'knowledge.external_source.disconnect': async (input) => {

@@ -35,6 +35,7 @@ const KnowledgePageDetailSection = () => {
     openFilePreview,
     closeFilePreview,
     openAddSourceDialog,
+    openFeishuWizard,
     openRagConfigDrawer,
     openRecallTestDrawer,
     handleRagConfigDrawerOpenChange,
@@ -118,6 +119,7 @@ const KnowledgePageDetailSection = () => {
           </section>
         ) : (
           <DataSourcePanel
+            baseId={selectedBaseId}
             embeddingModelId={selectedBase.embeddingModelId}
             items={selectedBaseItems}
             total={selectedBaseItemsTotal}
@@ -127,6 +129,7 @@ const KnowledgePageDetailSection = () => {
             onLoadMore={loadMoreItems}
             updatedAt={selectedBase.updatedAt}
             onAdd={openAddSourceDialog}
+            onAddFeishuWiki={openFeishuWizard}
             onPreviewFile={openFilePreview}
             onItemClick={openItemChunks}
             onViewNoteContent={openItemContent}
