@@ -59,19 +59,6 @@ vi.mock('@data/services/AgentGlobalSkillService', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
 
-const { archiveAgentMock } = vi.hoisted(() => ({
-  archiveAgentMock: vi.fn()
-}))
-
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn((name: string) => {
-      if (name === 'AgentLifecycleService') return { archiveAgent: archiveAgentMock }
-      return undefined
-    })
-  }
-}))
-
 import { agentHandlers } from '../agents'
 import { skillHandlers } from '../skills'
 
