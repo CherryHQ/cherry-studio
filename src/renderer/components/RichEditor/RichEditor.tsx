@@ -175,7 +175,7 @@ const RichEditor = ({
   enableImageInsertion = true,
   disabledCommands
   // toolbarItems: _toolbarItems // TODO: Implement custom toolbar items
-}: RichEditorProps & { ref?: React.RefObject<RichEditorRef | null> }) => {
+}: RichEditorProps & { ref?: React.Ref<RichEditorRef> }) => {
   // Use the rich editor hook for complete editor management
   const { editor, markdown, formattingState, tableOfContentsItems, linkEditor, setMarkdown, clear } = useRichEditor({
     initialContent,
@@ -562,7 +562,25 @@ const RichEditor = ({
     ref,
     () => ({
       getContent: () => editor?.getText() || '',
-      getMarkdown: () => markdown,
+      getMarkdown: () => editor?.getMarkdown() ?? markdown,
+      getSelection: () => {
+        if (!editor) return null
+        const { from, to } = editor.state.selection
+        return { from, to, text: editor.state.doc.textBetween(from, to, '\n') }
+      },
+      replaceRange: ({ from, to }, text: string) => {
+        if (
+          !editor?.isEditable ||
+          !Number.isInteger(from) ||
+          !Number.isInteger(to) ||
+          from < 0 ||
+          to < from ||
+          to > editor.state.doc.content.size
+        ) {
+          return false
+        }
+        return editor.chain().focus().insertContentAt({ from, to }, text, { updateSelection: true }).run()
+      },
       setMarkdown: (markdownContent: string) => {
         setMarkdown(markdownContent)
       },

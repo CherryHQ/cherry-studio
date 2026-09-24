@@ -99,6 +99,10 @@ export interface RichEditorRef {
   getContent: () => string
   /** Get current editor content as Markdown */
   getMarkdown: () => string
+  /** Get the current document selection and its plain text */
+  getSelection: () => { from: number; to: number; text: string } | null
+  /** Replace a valid document range and place the caret after the inserted text */
+  replaceRange: (range: { from: number; to: number }, text: string) => boolean
   /** Set editor Markdown content */
   setMarkdown: (markdown: string) => void
   /** Focus the editor */
