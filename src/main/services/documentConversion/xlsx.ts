@@ -1,3 +1,5 @@
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
+
 import type { DocumentBlock } from './parseMarkdown'
 
 export async function convertXlsx(blocks: DocumentBlock[], signal?: AbortSignal): Promise<Buffer> {
@@ -43,4 +45,3 @@ export async function convertXlsx(blocks: DocumentBlock[], signal?: AbortSignal)
   signal?.throwIfAborted()
   return Buffer.from(buffer)
 }
-import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
