@@ -214,10 +214,9 @@ export function classifyErrorCategory({ text, status, finishReason, source }: Er
     msg.includes('claude code process exited') ||
     msg.includes('claude code process terminated')
   const hasUpstreamUnavailableContext = /\b(?:api|gateway|http|provider|response|upstream)\b/.test(msg)
-  const isExplicitTemporaryUnavailable =
-    /\b(?:service|server|upstream)(?:\s+is)?\s+temporarily unavailable\b/.test(msg) &&
-    !isClaudeCodeSpawnFailure &&
-    (source !== 'claude-code' || hasUpstreamUnavailableContext)
+  const canClassifyMessageOnlyServerError =
+    !isClaudeCodeSpawnFailure && (source !== 'claude-code' || hasUpstreamUnavailableContext)
+  const isExplicitTemporaryUnavailable = /\b(?:service|server|upstream)(?:\s+is)?\s+temporarily unavailable\b/.test(msg)
 
   // A structured HTTP status outranks all message-only feature and transport signals.
   if (isHttpServerError) {
@@ -235,11 +234,12 @@ export function classifyErrorCategory({ text, status, finishReason, source }: Er
 
   // Server errors (overloaded / unavailable text without a structured status).
   if (
-    msg.includes('overloaded') ||
-    msg.includes('overload') ||
-    msg.includes('service unavailable') ||
-    msg.includes('internal server error') ||
-    isExplicitTemporaryUnavailable
+    canClassifyMessageOnlyServerError &&
+    (msg.includes('overloaded') ||
+      msg.includes('overload') ||
+      msg.includes('service unavailable') ||
+      msg.includes('internal server error') ||
+      isExplicitTemporaryUnavailable)
   ) {
     return 'server'
   }

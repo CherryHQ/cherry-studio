@@ -398,6 +398,11 @@ describe('classifyError', () => {
     expect(result.category).toBe('server')
   })
 
+  it('keeps a provider 503 server classification ahead of feature text', () => {
+    const result = classifyError(makeError({ statusCode: 503, message: 'MCP error: service unavailable' }))
+    expect(result.category).toBe('server')
+  })
+
   it('classifies an explicit service temporarily unavailable response as server', () => {
     const result = classifyError(makeError({ message: 'Service temporarily unavailable' }))
     expect(result.category).toBe('server')
