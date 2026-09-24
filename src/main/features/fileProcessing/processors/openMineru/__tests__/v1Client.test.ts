@@ -41,9 +41,11 @@ beforeAll(async () => {
 })
 afterAll(async () => {
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
   await fs.rm(dir, { recursive: true, force: true })
 })
 beforeEach(() => {
+  vi.stubEnv('CHERRY_STUDIO_NODE_PROXY_RULES', undefined)
   vi.stubGlobal('fetch', fetchMock)
   fetchMock.mockReset()
   lookupMock.mockReset().mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
@@ -187,6 +189,30 @@ describe('MinerU V1 result download', () => {
 })
 
 describe('MinerU V1 transfer safety', () => {
+  it('uploads to and downloads from same-port loopback aliases', async () => {
+    const localConnection = { apiHost: 'http://localhost:18000' }
+    lookupMock.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        id: 'upload-1',
+        status: 'pending',
+        upload_url: 'http://127.0.0.1:18000/upload',
+        upload_method: 'PUT'
+      })
+    )
+    fetchMock.mockResolvedValueOnce(new Response(null))
+    fetchMock.mockResolvedValueOnce(Response.json(completedUpload))
+    fetchMock.mockResolvedValueOnce(Response.json(queued))
+    expect(await startV1Parse(localConnection, file)).toBe('job-1')
+    expect(await fetchMock.mock.calls[1][1].body.text()).toBe('pdf-data')
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, { status: 302, headers: { location: 'http://127.0.0.1:18000/md' } })
+    )
+    fetchMock.mockResolvedValueOnce(new Response('# local result'))
+    expect(await downloadV1Markdown(localConnection, 'output-1')).toBe('# local result')
+  })
+
   it('blocks an upload hostname resolving to a private address before sending document bytes', async () => {
     lookupMock.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
     fetchMock.mockResolvedValueOnce(

@@ -1,10 +1,10 @@
 import { openAsBlob } from 'node:fs'
 
 import { net } from 'electron'
-import { Agent } from 'undici'
 import type * as z from 'zod'
 
 import { t } from '@main/i18n'
+import { createPinnedDispatcher } from '@main/services/proxy/pinnedDispatcher'
 import { resolveRemoteFetchUrl, sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { FileInfo } from '@shared/types/file'
 
@@ -157,16 +157,9 @@ async function withTransferResponse<T>(
 ): Promise<T> {
   const target = await resolveRemoteFetchUrl(url, {
     signal: init.signal,
-    allowPrivateNetwork: new URL(url).origin === new URL(connection.apiHost).origin
+    configuredApiHost: connection.apiHost
   })
-  const dispatcher = new Agent({
-    connect: {
-      lookup(_hostname, options, callback) {
-        if (options.all) callback(null, [target.address])
-        else callback(null, target.address.address, target.address.family)
-      }
-    }
-  })
+  const dispatcher = createPinnedDispatcher(target)
   let response: Response | undefined
   try {
     response = await fetch(target.url, { ...init, redirect: 'manual', ...{ dispatcher } })
