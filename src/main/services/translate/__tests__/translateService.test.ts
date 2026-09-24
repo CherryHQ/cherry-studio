@@ -235,7 +235,14 @@ describe('translateService.open', () => {
     ])
   })
 
-  it('asks the vision model to infer and translate image text when no source text is supplied', () => {
+  it('asks the vision model to judge an image-only request and translate only into the configured target', () => {
+    // Catches image-only falling through to the text template, which can name
+    // the other side of a bidirectional pair instead of the configured target.
+    MockMainPreferenceServiceUtils.setPreferenceValue(
+      'feature.translate.model_prompt',
+      'If the image is already {{target_language}}, translate it into Chinese instead: {{text}}'
+    )
+
     translateService.open(fakeSender, {
       streamId: 'translate:image-only',
       text: '',
@@ -243,17 +250,41 @@ describe('translateService.open', () => {
       imagePath: '/tmp/screenshot.png' as any
     })
 
+    expect(getByLangCodeMock).toHaveBeenCalledWith('en-us')
+    expect(streamPromptMock).toHaveBeenCalledTimes(1)
     const request = (
       streamPromptMock.mock.calls as unknown as Array<
         [
           {
-            messages: Array<{ parts: Array<{ type: string; text?: string }> }>
+            prompt?: string
+            messages?: Array<{
+              id: string
+              role: string
+              parts: Array<{ type: string; text?: string; mediaType?: string; url?: string; filename?: string }>
+            }>
           }
         ]
       >
     )[0][0]
-    expect(request.messages[0].parts[0].text).toMatch(/identify.*language.*image/i)
-    expect(request.messages[0].parts[0].text).toMatch(/translate.*English/i)
+    expect(request.prompt).toBeUndefined()
+    expect(request.messages).toEqual([
+      {
+        id: 'translate-user',
+        role: 'user',
+        parts: [
+          {
+            type: 'text',
+            text: 'Identify the language of the text in the attached image and translate it into English. Provide only the translation and preserve the original formatting.'
+          },
+          {
+            type: 'file',
+            mediaType: 'image/png',
+            url: 'file:///tmp/screenshot.png',
+            filename: 'screenshot.png'
+          }
+        ]
+      }
+    ])
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {
