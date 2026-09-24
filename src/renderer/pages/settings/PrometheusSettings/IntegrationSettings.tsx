@@ -208,9 +208,13 @@ export function IntegrationSettings() {
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <IntegrationField
                 label={text('endpoint')}
-                value={draft.compass.endpoint}
-                disabled={draft.services.mode === 'managed'}
-                onChange={(endpoint) => update('compass', { endpoint })}
+                value={draft.services.surrealdb.endpoint}
+                disabled={draft.services.surrealdb.ownership === 'managed'}
+                onChange={(endpoint) =>
+                  update('services', {
+                    surrealdb: { ...draft.services.surrealdb, endpoint, source: 'manual' }
+                  })
+                }
               />
               <IntegrationField
                 label={text('namespace')}
@@ -226,7 +230,7 @@ export function IntegrationSettings() {
               <IntegrationChoice
                 label={text('authLevel')}
                 value={draft.compass.authLevel}
-                disabled={draft.services.mode === 'managed'}
+                disabled={draft.services.surrealdb.ownership === 'managed'}
                 onChange={(authLevel) => update('compass', { authLevel })}
                 options={(['root', 'namespace', 'database'] as const).map((value) => ({
                   value,
@@ -273,49 +277,59 @@ export function IntegrationSettings() {
         <SettingDescription>{text('servicesHelp')}</SettingDescription>
         <SettingDivider />
         <div className="space-y-5">
-          <IntegrationChoice
-            label={text('serviceMode')}
-            value={draft.services.mode}
-            onChange={(mode) => update('services', { mode })}
-            options={(['managed', 'external'] as const).map((value) => ({ value, label: text(value) }))}
-          />
-          {draft.services.mode === 'managed' ? (
-            <>
-              <div className="grid gap-4 sm:grid-cols-3">
-                {(['surrealPort', 'memoryPort', 'literPort'] as const).map((key) => (
+          {(['surrealdb', 'memory', 'liter'] as const).map((service) => {
+            const profile = draft.services[service]
+            const endpointLabel =
+              service === 'memory' ? 'memoryEndpoint' : service === 'liter' ? 'literEndpoint' : 'endpoint'
+            return (
+              <div key={service} className="grid gap-4 sm:grid-cols-2">
+                <IntegrationChoice
+                  label={`${service} · ${text('serviceMode')}`}
+                  value={profile.ownership}
+                  onChange={(ownership) =>
+                    update('services', {
+                      [service]: {
+                        ...profile,
+                        ownership,
+                        source: ownership === 'managed' ? 'application' : 'manual'
+                      }
+                    })
+                  }
+                  options={(['managed', 'external'] as const).map((value) => ({ value, label: text(value) }))}
+                />
+                {profile.ownership === 'external' && (
                   <IntegrationField
-                    key={key}
-                    label={text(key)}
-                    type="number"
-                    value={String(draft.services[key])}
-                    onChange={(value) => update('services', { [key]: Number(value) })}
+                    label={text(endpointLabel)}
+                    value={profile.endpoint}
+                    onChange={(endpoint) =>
+                      update('services', { [service]: { ...profile, endpoint, source: 'manual' } })
+                    }
                   />
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(['pull', 'start', 'stop', 'restart', 'status', 'logs'] as const).map((action) =>
-                  actionButton(action)
                 )}
               </div>
-              <SettingHelpText className="break-all">
-                {text('persistentStorage')}: {snapshot.serviceDirectory}
-              </SettingHelpText>
-            </>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
+            )
+          })}
+          <div className="grid gap-4 sm:grid-cols-3">
+            {(['surrealPort', 'memoryPort', 'literPort'] as const).map((key) => (
               <IntegrationField
-                label={text('memoryEndpoint')}
-                value={draft.services.memoryEndpoint}
-                onChange={(memoryEndpoint) => update('services', { memoryEndpoint })}
+                key={key}
+                label={text(key)}
+                type="number"
+                value={String(draft.services[key])}
+                disabled={
+                  draft.services[key === 'surrealPort' ? 'surrealdb' : key === 'memoryPort' ? 'memory' : 'liter']
+                    .ownership === 'external'
+                }
+                onChange={(value) => update('services', { [key]: Number(value) })}
               />
-              <IntegrationField
-                label={text('literEndpoint')}
-                value={draft.services.literEndpoint}
-                onChange={(literEndpoint) => update('services', { literEndpoint })}
-              />
-              <div>{actionButton('status')}</div>
-            </div>
-          )}
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(['pull', 'start', 'stop', 'restart', 'status', 'logs'] as const).map((action) => actionButton(action))}
+          </div>
+          <SettingHelpText className="break-all">
+            {text('persistentStorage')}: {snapshot.serviceDirectory}
+          </SettingHelpText>
           <IntegrationToggle
             label={text('memoryEnabled')}
             checked={draft.services.memoryEnabled}

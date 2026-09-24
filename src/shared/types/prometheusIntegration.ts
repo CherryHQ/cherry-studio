@@ -10,6 +10,23 @@ const endpoint = z
     return /^https?:$/.test(url.protocol) && !url.username && !url.password
   }, 'HTTP or HTTPS endpoint without embedded credentials required')
 const model = z.object({ name: z.string().default(''), baseUrl: z.string().default('') })
+const serviceOwnershipSchema = z.enum(['managed', 'external'])
+const serviceSourceSchema = z.enum(['application', 'full-pack', 'manual'])
+const serviceProfileSchema = (defaultEndpoint: string) =>
+  z
+    .object({
+      ownership: serviceOwnershipSchema.default('managed'),
+      source: serviceSourceSchema.default('application'),
+      endpoint: endpoint.default(defaultEndpoint)
+    })
+    .superRefine((profile, context) => {
+      if (profile.ownership === 'managed' && profile.source !== 'application') {
+        context.addIssue({ code: 'custom', path: ['source'], message: 'Managed services must be application-owned' })
+      }
+      if (profile.ownership === 'external' && profile.source === 'application') {
+        context.addIssue({ code: 'custom', path: ['source'], message: 'External services need external provenance' })
+      }
+    })
 const compassConfigSchema = z.object({
   enabled: z.boolean().default(true),
   storage: z.enum(['automatic', 'remote', 'sqlite', 'json']).default('automatic'),
@@ -33,13 +50,13 @@ const filesystemConfigSchema = z.object({
     .default([])
 })
 const servicesConfigSchema = z.object({
-  mode: z.enum(['managed', 'external']).default('managed'),
+  surrealdb: serviceProfileSchema('http://127.0.0.1:28000').prefault({}),
+  memory: serviceProfileSchema('http://127.0.0.1:23001/mcp/sse').prefault({}),
+  liter: serviceProfileSchema('http://127.0.0.1:4000').prefault({}),
   surrealPort: z.number().int().min(1).max(65535).default(28000),
   memoryPort: z.number().int().min(1).max(65535).default(23001),
   literPort: z.number().int().min(1).max(65535).default(4000),
   memoryEnabled: z.boolean().default(false),
-  memoryEndpoint: endpoint.default('http://127.0.0.1:23001/mcp/sse'),
-  literEndpoint: endpoint.default('http://127.0.0.1:4000'),
   judge: model.prefault({}),
   critic: model.prefault({})
 })
@@ -60,7 +77,7 @@ export const integrationRevisionsSchema = z.object({
 })
 export type IntegrationRevisions = z.infer<typeof integrationRevisionsSchema>
 export const integrationDocumentSchema = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   revisions: integrationRevisionsSchema,
   config: integrationConfigSchema
 })
@@ -120,7 +137,8 @@ export const integrationActionSchema = z.enum([
   'repair-path',
   'diagnose',
   'uar-check',
-  'uar-restart'
+  'uar-restart',
+  'discover-services'
 ])
 export type IntegrationAction = z.infer<typeof integrationActionSchema>
 export type IntegrationDiagnostic = {
@@ -147,9 +165,25 @@ export type WorkspaceIntegration = {
   indexed: boolean
   error?: string
 }
+export type IntegrationService = 'surrealdb' | 'memory' | 'liter'
+export type ServiceProvenance = {
+  source: z.infer<typeof serviceSourceSchema>
+  ownership: z.infer<typeof serviceOwnershipSchema>
+  label: string
+  markers: string[]
+  sourceVersion?: string
+  configPath?: string
+}
+export type ServiceCandidate = {
+  id: string
+  service: IntegrationService
+  endpoint: string
+  provenance: ServiceProvenance[]
+}
+export type ServiceDiscovery = { candidates: ServiceCandidate[]; errors: string[] }
 export type IntegrationSnapshot = {
   config: IntegrationConfig
-  schemaVersion: 2
+  schemaVersion: 3
   revisions: IntegrationRevisions
   secrets: Partial<Record<IntegrationSecret, boolean>>
   operations: IntegrationOperation[]
@@ -159,6 +193,7 @@ export type IntegrationSnapshot = {
   pathInstalled: boolean
   servers: { id: string; name: string; workspace?: string; binary?: string; status: McpRuntimeStatus['state'] }[]
   inventory: { revision: string; skills: string[]; tools: Record<string, string> } | null
+  serviceDiscovery: ServiceDiscovery
   uar: {
     state: 'running' | 'stopped' | 'unavailable'
     binary?: string

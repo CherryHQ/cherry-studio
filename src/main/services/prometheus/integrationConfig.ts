@@ -8,6 +8,7 @@ import { application } from '@application'
 import {
   integrationConfigSchema,
   integrationDocumentSchema,
+  integrationRevisionsSchema,
   type IntegrationConfig,
   type IntegrationDocument,
   type IntegrationSecret,
@@ -16,15 +17,66 @@ import {
 
 const INTEGRATION_PREFERENCE = 'app.prometheus.integrations' as const
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function upgradeIntegrationConfig(value: unknown): unknown {
+  if (!isRecord(value) || !isRecord(value.services)) return value
+  const services = value.services
+  if (services.surrealdb || services.memory || services.liter) return value
+  const ownership = services.mode === 'external' ? 'external' : 'managed'
+  const source = ownership === 'managed' ? 'application' : 'manual'
+  const surrealPort = typeof services.surrealPort === 'number' ? services.surrealPort : 28000
+  const memoryPort = typeof services.memoryPort === 'number' ? services.memoryPort : 23001
+  const literPort = typeof services.literPort === 'number' ? services.literPort : 4000
+  const compass = isRecord(value.compass) ? value.compass : {}
+  return {
+    ...value,
+    services: {
+      ...services,
+      surrealdb: {
+        ownership,
+        source,
+        endpoint:
+          ownership === 'external' && typeof compass.endpoint === 'string'
+            ? compass.endpoint
+            : `http://127.0.0.1:${surrealPort}`
+      },
+      memory: {
+        ownership,
+        source,
+        endpoint:
+          ownership === 'external' && typeof services.memoryEndpoint === 'string'
+            ? services.memoryEndpoint
+            : `http://127.0.0.1:${memoryPort}/mcp/sse`
+      },
+      liter: {
+        ownership,
+        source,
+        endpoint:
+          ownership === 'external' && typeof services.literEndpoint === 'string'
+            ? services.literEndpoint
+            : `http://127.0.0.1:${literPort}`
+      }
+    }
+  }
+}
+
 function decodeIntegrationDocument(raw: string): { document: IntegrationDocument; legacy: boolean } {
   const value: unknown = JSON.parse(raw)
   const current = integrationDocumentSchema.safeParse(value)
   if (current.success) return { document: current.data, legacy: false }
+  const wrapped = isRecord(value) && 'config' in value
+  const config = integrationConfigSchema.parse(upgradeIntegrationConfig(wrapped ? value.config : value))
+  const revisions = wrapped
+    ? integrationRevisionsSchema.parse(value.revisions ?? {})
+    : { compass: 0, filesystem: 0, services: 0 }
   return {
     document: {
-      schemaVersion: 2,
-      revisions: { compass: 0, filesystem: 0, services: 0 },
-      config: integrationConfigSchema.parse(value)
+      schemaVersion: 3,
+      revisions,
+      config
     },
     legacy: true
   }

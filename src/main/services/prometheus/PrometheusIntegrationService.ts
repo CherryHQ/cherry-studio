@@ -15,6 +15,7 @@ import {
   type IntegrationConfig,
   type IntegrationOperation,
   type IntegrationSecretPatch,
+  type ServiceDiscovery,
   type IntegrationSnapshot,
   type IntegrationUpdate,
   type WorkspaceIntegration
@@ -32,6 +33,7 @@ import {
 import { StaleIntegrationRevisionError } from './integrationErrors'
 import { runManagedServiceAction, serviceDirectory } from './managedServices'
 import { writeMiniConfiguration } from './miniCommands'
+import { discoverServiceCandidates } from './serviceDiscovery'
 import {
   describeWorkspace,
   indexWorkspace,
@@ -52,6 +54,7 @@ export class PrometheusIntegrationService extends BaseService {
   private workspaces = new Map<string, WorkspaceIntegration>()
   private initialization?: Promise<void>
   private configurationMutation: Promise<void> = Promise.resolve()
+  private serviceDiscovery: ServiceDiscovery = { candidates: [], errors: [] }
 
   protected onAllReady(): void {
     this.initialization = this.initialize().catch((error) => {
@@ -71,6 +74,7 @@ export class PrometheusIntegrationService extends BaseService {
     await migrateIntegrationDocument()
     await installCommandPath()
     const config = readIntegrationConfig()
+    this.serviceDiscovery = await discoverServiceCandidates(config)
     for (const workspace of agentWorkspaceService.list()) {
       const state = await loadWorkspaceState(workspace.path)
       await registerWorkspaceServers(state, config)
@@ -124,6 +128,7 @@ export class PrometheusIntegrationService extends BaseService {
         })),
       pathInstalled: await commandPathInstalled(),
       inventory,
+      serviceDiscovery: this.serviceDiscovery,
       uar: {
         state: uarBinary.availability.source === 'none' ? 'unavailable' : runningUar ? 'running' : 'stopped',
         ...(uarBinary.availability.source === 'none'
@@ -178,12 +183,15 @@ export class PrometheusIntegrationService extends BaseService {
     }
     if (new Set([config.services.surrealPort, config.services.memoryPort, config.services.literPort]).size !== 3)
       throw new Error('prometheus.error.portsDistinct')
-    if (config.services.mode === 'managed') {
-      config.compass.endpoint = `http://127.0.0.1:${config.services.surrealPort}`
+    if (config.services.surrealdb.ownership === 'managed') {
+      config.services.surrealdb.endpoint = `http://127.0.0.1:${config.services.surrealPort}`
       config.compass.authLevel = 'namespace'
-      config.services.memoryEndpoint = `http://127.0.0.1:${config.services.memoryPort}/mcp/sse`
-      config.services.literEndpoint = `http://127.0.0.1:${config.services.literPort}`
     }
+    if (config.services.memory.ownership === 'managed')
+      config.services.memory.endpoint = `http://127.0.0.1:${config.services.memoryPort}/mcp/sse`
+    if (config.services.liter.ownership === 'managed')
+      config.services.liter.endpoint = `http://127.0.0.1:${config.services.literPort}`
+    config.compass.endpoint = config.services.surrealdb.endpoint
     const changedFeatures = (['compass', 'filesystem', 'services'] as const).filter(
       (feature) => JSON.stringify(document.config[feature]) !== JSON.stringify(config[feature])
     )
@@ -191,7 +199,7 @@ export class PrometheusIntegrationService extends BaseService {
     if (changedFeatures.length) {
       const revisions = { ...document.revisions }
       for (const feature of changedFeatures) revisions[feature] += 1
-      await writeIntegrationDocument({ schemaVersion: 2, revisions, config })
+      await writeIntegrationDocument({ schemaVersion: 3, revisions, config })
     }
     if (secretChanged) await writeSecrets(secretPatch)
     if (!changedFeatures.length && !secretChanged) return this.snapshot()
@@ -202,6 +210,7 @@ export class PrometheusIntegrationService extends BaseService {
       mcpServerService.update(server.id, { isActive: false })
     }
     this.workspaces.clear()
+    this.serviceDiscovery = await discoverServiceCandidates(config)
     return this.snapshot()
   }
 
@@ -249,6 +258,13 @@ export class PrometheusIntegrationService extends BaseService {
       const config = readIntegrationConfig()
       if (action === 'repair-path') {
         await installCommandPath()
+        return
+      }
+      if (action === 'discover-services') {
+        this.serviceDiscovery = await discoverServiceCandidates(config, signal)
+        output(
+          JSON.stringify({ candidates: this.serviceDiscovery.candidates.length, errors: this.serviceDiscovery.errors })
+        )
         return
       }
       if (action === 'uar-check' || action === 'uar-restart') {

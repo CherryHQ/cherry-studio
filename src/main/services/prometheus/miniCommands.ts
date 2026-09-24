@@ -15,10 +15,12 @@ export async function writeMiniConfiguration(): Promise<void> {
       PROMETHEUS_PACK_ROOT: application.getPath('feature.prometheus.pack.runtime'),
       PROMETHEUS_COMMAND_DIRECTORY: application.getPath('feature.prometheus.commands'),
       PROMETHEUS_SERVICE_DIRECTORY: path.join(integrationDirectory(), 'services'),
-      PROMETHEUS_SERVICE_MODE: config.services.mode,
-      SURREAL_MEMORY_URL: new URL('/', config.services.memoryEndpoint).href.replace(/\/$/, ''),
+      PROMETHEUS_SERVICE_MODE: (['surrealdb', 'memory', 'liter'] as const)
+        .map((service) => `${service}:${config.services[service].ownership}`)
+        .join(','),
+      SURREAL_MEMORY_URL: new URL('/', config.services.memory.endpoint).href.replace(/\/$/, ''),
       SURREAL_MEMORY_TOKEN: secrets.memoryToken ?? '',
-      LITER_LLM_BASE_URL: `${config.services.literEndpoint.replace(/\/$/, '')}/v1`,
+      LITER_LLM_BASE_URL: `${config.services.liter.endpoint.replace(/\/$/, '')}/v1`,
       LITER_LLM_MASTER_KEY: secrets.literKey ?? '',
       LITER_LLM_CONFIG: path.join(integrationDirectory(), 'services', 'liter-llm-proxy.toml'),
       PROMETHEUS_KBD_JUDGE_MODEL: 'kbd-judge',
