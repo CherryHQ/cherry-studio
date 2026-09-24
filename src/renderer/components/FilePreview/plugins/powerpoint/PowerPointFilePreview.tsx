@@ -1,7 +1,7 @@
 import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
-import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
+import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -70,7 +70,9 @@ function isPptxPreviewTooLargeError(error: Error): boolean {
 function PowerPointPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
   const { t } = useTranslation()
   const handleOpenWithDefaultApp = () => {
-    void safeOpen(createFilePathHandle(filePath)).catch(() => toast.error(t('file_preview.powerpoint.too_large.open_error')))
+    void safeOpen(createFilePathHandle(filePath)).catch(() =>
+      toast.error(t('file_preview.powerpoint.too_large.open_error'))
+    )
   }
 
   return (

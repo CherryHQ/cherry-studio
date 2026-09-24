@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentType, HTMLAttributes } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import VideoFilePreview from '../VideoFilePreview'
 
@@ -27,7 +27,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const filePath = '/tmp/video-preview.mp4' as AbsoluteFilePath
-const metadata = { size: 1024 }
+const metadata = { size: 1024, modifiedAt: 0 }
 
 describe('VideoFilePreview', () => {
   it('uses the native media controls and clears loading when metadata arrives', () => {

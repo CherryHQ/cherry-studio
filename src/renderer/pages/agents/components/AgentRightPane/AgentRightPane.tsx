@@ -328,6 +328,10 @@ export function useAgentRightPaneActions(): AgentRightPaneActions {
   return value
 }
 
+export function useOptionalAgentRightPaneActions(): AgentRightPaneActions | undefined {
+  return use(AgentRightPaneActionsContext) ?? undefined
+}
+
 export function useOptionalAgentFileNavigation(): AgentFileNavigationRequest | null {
   return use(AgentFileNavigationContext)
 }

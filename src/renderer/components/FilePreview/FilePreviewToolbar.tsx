@@ -1,7 +1,8 @@
-import { SegmentedControl } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { createContext, type ReactNode, use, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+
+import { SegmentedControl } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 interface FilePreviewToolbarPortalContextValue {
   setTarget: (target: HTMLDivElement | null) => void

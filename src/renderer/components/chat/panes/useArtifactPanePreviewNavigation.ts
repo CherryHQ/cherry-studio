@@ -1,7 +1,8 @@
+import { useCallback, useEffect, useRef } from 'react'
+
 import { ipcApi } from '@renderer/ipc'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import { createFilePathHandle } from '@shared/utils/file'
-import { useCallback, useEffect, useRef } from 'react'
 
 import type { ArtifactPaneFileSelection } from './artifactPanePath'
 import { getArtifactPaneSelectionPath, isUncPath, resolveArtifactPaneFileSelection } from './artifactPanePath'

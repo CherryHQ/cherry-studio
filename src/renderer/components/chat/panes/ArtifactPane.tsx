@@ -663,13 +663,22 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         }
       ]
     },
-    [handleClosePreview, handleCopyPreviewContent, handleCopyPreviewPath, handleEditorModeChange, handleRefresh, overlaySelection, t]
+    [
+      handleClosePreview,
+      handleCopyPreviewContent,
+      handleCopyPreviewPath,
+      handleEditorModeChange,
+      handleRefresh,
+      overlaySelection,
+      t
+    ]
   )
 
   // Pending baseline rendered synchronously while open targets resolve; the
   // menus are disabled without a selection, so skip building items entirely.
   const tabActionItems = useMemo(
-    () => (overlaySelection ? buildTabActionItems({ canCopyPreviewContent, canEditSelection, editMode, editorLoading }) : []),
+    () =>
+      overlaySelection ? buildTabActionItems({ canCopyPreviewContent, canEditSelection, editMode, editorLoading }) : [],
     [buildTabActionItems, canCopyPreviewContent, canEditSelection, editMode, editorLoading, overlaySelection]
   )
 

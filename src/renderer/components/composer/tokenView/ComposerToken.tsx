@@ -1,3 +1,20 @@
+import { Blocks, Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import { MousePointer2 } from 'lucide-react'
+import {
+  type ComponentPropsWithoutRef,
+  type ComponentType,
+  type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type MouseEventHandler,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
@@ -15,21 +32,6 @@ import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
-import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
-import {
-  type ComponentPropsWithoutRef,
-  type ComponentType,
-  type FocusEvent as ReactFocusEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
-  type MouseEventHandler,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState
-} from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'
 import type { ComposerInputFilePreviewAction } from '../filePreview'
@@ -54,7 +56,9 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   knowledge: <Boxes className={tokenIconClassName} />,
   reference: <MessagesSquare className={tokenIconClassName} />,
   quote: <TextQuote className={tokenIconClassName} />,
-  promptVariable: <BracesVariableIcon className={tokenIconClassName} />
+  webviewAnnotation: <MousePointer2 className={tokenIconClassName} />,
+  promptVariable: <BracesVariableIcon className={tokenIconClassName} />,
+  messagePart: <Blocks className={tokenIconClassName} />
 }
 
 function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
@@ -78,6 +82,7 @@ export interface ComposerTokenProps {
   maxWidthClassName?: string
   onMouseDown?: MouseEventHandler<HTMLSpanElement>
   onRemove?: () => void
+  onOpenLink?: (url: string) => void | Promise<void>
   removeLabel?: string
 }
 

@@ -240,7 +240,7 @@ function isHoistableFilePart(part: CherryMessagePart): boolean {
 }
 
 /** Attachments a hoisting container renders in place of the inline file blocks. */
-export function getHoistedAttachments(parts: readonly CherryMessagePart[], _message?: MessageListItem) {
+export function getHoistedAttachments(parts: readonly CherryMessagePart[]) {
   const images: MessageImageSource[] = []
 
   parts.forEach((part) => {
