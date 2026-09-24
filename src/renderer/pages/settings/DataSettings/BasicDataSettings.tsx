@@ -1,4 +1,4 @@
-import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import { FolderOutput } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,7 +34,7 @@ import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { LOG_RETENTION_DAYS } from '@shared/types/logger'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
 
-import BackupPopup from './BackupPopup'
+import BackupV2Settings from './BackupV2Settings'
 import ClearCachePopup, { formatCacheCleanupSize } from './ClearCachePopup'
 import {
   beginLegacyV1Cleanup,
@@ -42,7 +42,6 @@ import {
   finalizeLegacyV1Cleanup,
   mergeLegacyV1CleanupResults
 } from './legacyV1BrowserData'
-import RestorePopup from './RestorePopup'
 import V1RemigrationPopup from './V1RemigrationPopup'
 
 const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
@@ -56,7 +55,6 @@ const BasicDataSettings: React.FC = () => {
   const [cacheSize, setCacheSize] = useState<CacheCleanupSizeSnapshot | null>()
   const [clearingCache, setClearingCache] = useState(false)
   const { theme } = useTheme()
-  const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
   const [logRetentionDays, setLogRetentionDays] = usePreference('app.logs.retention_days')
   const [hasV1MigrationSource, setHasV1MigrationSource] = useState(
@@ -304,31 +302,7 @@ const BasicDataSettings: React.FC = () => {
 
   return (
     <>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.data.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow id="setting-data-data-backup-restore" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={() => BackupPopup.show()} variant="outline">
-              <SaveIcon size={14} />
-              {t('settings.general.backup.button')}
-            </Button>
-            <Button onClick={() => RestorePopup.show()} variant="outline">
-              <FolderOpen size={14} />
-              {t('settings.general.restore.button')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-data-data-skip-file-data" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-          <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
-        </SettingRow>
-        <SettingRow>
-          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-        </SettingRow>
-      </SettingGroup>
+      <BackupV2Settings />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
         <SettingDivider />

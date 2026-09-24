@@ -82,6 +82,7 @@
   "dialog.architecture_mismatch.download": "İndirme sayfasına git",
   "dialog.architecture_mismatch.later": "Daha sonra",
   "dialog.architecture_mismatch.title": "Apple Silicon sürümünü yükleyin",
+  "dialog.cherry_backup_files": "Cherry Studio Yedeği",
   "dialog.data_reset.cancel": "İptal",
   "dialog.data_reset.confirm": "Sıfırla ve Yeniden Başlat",
   "dialog.data_reset.message": "Bu işlem sohbetleri, asistanları, bilgi tabanlarını, dosyaları ve ayarları silip uygulamayı yeniden başlatacaktır. Bu işlem geri alınamaz. Devam edilsin mi?",

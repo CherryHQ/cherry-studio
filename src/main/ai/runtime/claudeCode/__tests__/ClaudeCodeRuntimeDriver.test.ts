@@ -8,6 +8,7 @@ import { Worker } from 'node:worker_threads'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { encodePortableAgentResumePoint } from '@main/ai/agents/portableProfilePolicy'
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
@@ -169,6 +170,9 @@ const mocks = vi.hoisted(() => ({
   registerMcpSessionCatalogSync: vi.fn(),
   adapterInstances: [] as any[]
 }))
+
+const SDK_RESULT_SESSION_ID = '11111111-1111-4111-8111-111111111111'
+const SDK_ASSISTANT_BOUNDARY_ID = '22222222-2222-4222-8222-222222222222'
 
 vi.mock('@application', () => ({
   application: { get: mocks.applicationGet, getPath: vi.fn(() => '/mock-claude-config') }
@@ -712,6 +716,33 @@ describe('ClaudeCodeRuntimeDriver', () => {
         message: { role: 'user', content: 'hello' }
       },
       done: false
+    })
+    void connection.close()
+  })
+
+  it('hands the builder the whole portable resume point but resumes the SDK by session id', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const resumeToken = encodePortableAgentResumePoint({
+      sessionId: '374c8467-e787-4c67-b890-a3d91b50dba6',
+      resumeSessionAt: '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03'
+    })
+
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      resumeToken
+    })
+
+    // Only the builder knows how to turn `resumeSessionAt` into a warm-signature-matching option;
+    // decoding here would silently resume past the boundary the export cut at.
+    expect(mocks.buildRequest.mock.calls[0][1]).toBe(resumeToken)
+    const nextInput = mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
+    await connection.send({ message: userMessage() })
+    await expect(nextInput).resolves.toMatchObject({
+      value: { type: 'user', session_id: '374c8467-e787-4c67-b890-a3d91b50dba6' }
     })
     void connection.close()
   })
@@ -1713,7 +1744,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     }
   )
 
-  it('emits resume token, chunks, and turn-complete events', async () => {
+  it('publishes a portable resume point carrying the last top-level assistant boundary', async () => {
     const queryQueue = createAsyncQueue<any>()
     const contextUsage = {
       categories: [],
@@ -1744,9 +1775,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'resume-token', token: 'resume-init' }
-    })
 
     await connection.send({ message: userMessage() })
     await expect(events.next()).resolves.toMatchObject({
@@ -1759,9 +1787,16 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
 
     queryQueue.push({
+      type: 'assistant',
+      uuid: SDK_ASSISTANT_BOUNDARY_ID,
+      parent_tool_use_id: null,
+      session_id: 'resume-init',
+      message: { id: 'assistant-request', model: 'sonnet-sdk', usage: {} }
+    })
+    queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'resume-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: {
         input_tokens: 10,
         output_tokens: 5,
@@ -1770,10 +1805,10 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     })
     await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'resume-token', token: 'resume-result' }
+      value: { type: 'chunk', chunk: { type: 'finish' } }
     })
     await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'chunk', chunk: { type: 'finish' } }
+      value: { type: 'resume-token', token: expect.stringMatching(/^cherry-agent-resume-v1:/) }
     })
     await expect(events.next()).resolves.toMatchObject({
       value: {
@@ -1900,7 +1935,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'resume-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: { input_tokens: 14, output_tokens: 11, cache_creation_input_tokens: 3, cache_read_input_tokens: 2 },
       modelUsage: {
         'sonnet-sdk': {
@@ -2204,7 +2239,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'longcat-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: {
         input_tokens: 999,
         output_tokens: 999,
@@ -2430,7 +2465,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'sparse-terminal-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: {
         input_tokens: 10,
         output_tokens: 7,
@@ -2519,7 +2554,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'background-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: { input_tokens: 8, output_tokens: 3, cache_read_input_tokens: 2, cache_creation_input_tokens: 1 }
     })
 
@@ -2566,7 +2601,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({
       type: 'result',
       subtype: 'success',
-      session_id: 'resume-result',
+      session_id: SDK_RESULT_SESSION_ID,
       usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
     })
 
@@ -2804,7 +2839,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // Open a turn so the adapter exists — retry status is turn-scoped and only forwarded below the
     // no-adapter drop.
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
-    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: 'resume-init' } })
     await connection.send({ message: userMessage() })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'chunk', chunk: { type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } } }
@@ -2848,10 +2882,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     const events = connection.events[Symbol.asyncIterator]()
 
-    // No `send()` → no adapter (prewarm / turn-less). A turn-less retry has no message to attach to and
-    // no clear boundary (init recovery only emits a resume-token), so it must be dropped, not surfaced
-    // as a stuck "retrying" state. Assert the retry produces nothing by proving the NEXT emitted event
-    // is the following commands_changed push.
+    // No `send()` → no adapter (prewarm / turn-less). A turn-less retry has no message to attach to
+    // and no completed-Turn boundary, so it must be dropped, not surfaced as a stuck "retrying"
+    // state. Assert the retry produces nothing by proving the NEXT emitted event is commands_changed.
     queryQueue.push({
       type: 'system',
       subtype: 'api_retry',
@@ -3140,7 +3173,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
-    await events.next() // resume-token
     await connection.send({ message: userMessage() })
     await events.next() // response-metadata chunk
     queryQueue.push({ type: 'stream_event', event: {}, session_id: 'resume-init' })
@@ -3264,7 +3296,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       errors: ['tool_use ids must be unique']
     })
 
-    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: 'new-session' } })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'chunk', chunk: { type: 'message-metadata' } }
     })
@@ -3303,7 +3334,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       seen.push(next.value)
     }
 
-    expect(seen).toContainEqual({ type: 'resume-token', token: 'resume-api-error' })
     expect(seen).toContainEqual(
       expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'message-metadata' }) })
     )
@@ -3347,7 +3377,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       seen.push(next.value)
     }
 
-    expect(seen).toContainEqual({ type: 'resume-token', token: 'resume-background-api-error' })
     expect(seen).toContainEqual(
       expect.objectContaining({
         type: 'error',
@@ -3372,7 +3401,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
-    await events.next()
     await connection.send({ message: userMessage() })
     await events.next()
 
@@ -3432,14 +3460,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     const events = connection.events[Symbol.asyncIterator]()
 
-    // No `send()` -> no turn open. The resume token still advances (it is session state), but no
-    // turn-complete is emitted. The warning itself now belongs to the adapter, which owns the
-    // turn flag, so it is asserted in streamAdapter.test.ts rather than here.
+    // No `send()` -> no turn open. The internal resume token advances, but no
+    // portable resume point is published without a committed turn boundary.
     queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-stray', usage: {} })
-
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'resume-token', token: 'resume-stray' }
-    })
 
     // The stream closes with no turn-complete emitted for the stray result.
     queryQueue.close()
@@ -3645,7 +3668,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(typeof steerHolder.onInjected).toBe('function')
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
-    await events.next() // resume-token
     await connection.send({ message: userMessage() })
     await events.next() // metadata chunk (init replayed on send)
 
@@ -3693,7 +3715,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     steerHolder.onInjected([{ message: userMessage() }])
 
     // Turn ends (result) with no following top-level message_start → no boundary, just a clean turn end.
-    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-result', usage: {} })
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: SDK_RESULT_SESSION_ID, usage: {} })
 
     const seen: any[] = []
     for (;;) {
@@ -3791,7 +3813,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     // Turn 1 runs to completion.
     await connection.send({ message: userMessage() })
-    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-1', usage: { output_tokens: 1 } })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: SDK_RESULT_SESSION_ID,
+      usage: { output_tokens: 1 }
+    })
     let evt = await events.next()
     while (evt.value?.type !== 'turn-complete') evt = await events.next()
 

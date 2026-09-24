@@ -82,6 +82,7 @@
   "dialog.architecture_mismatch.download": "前往官網下載",
   "dialog.architecture_mismatch.later": "稍後再說",
   "dialog.architecture_mismatch.title": "請安裝 Apple 晶片版",
+  "dialog.cherry_backup_files": "Cherry Studio Backup",
   "dialog.data_reset.cancel": "取消",
   "dialog.data_reset.confirm": "重設並重新啟動",
   "dialog.data_reset.message": "這會清除對話、助理、知識庫、檔案與設定，然後重新啟動應用程式。此操作無法復原，是否繼續？",

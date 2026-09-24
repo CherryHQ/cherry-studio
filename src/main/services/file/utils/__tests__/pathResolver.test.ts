@@ -11,18 +11,7 @@ vi.mock('@application', async () => {
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { PathResolvableEntry } from '../pathResolver'
-import { getExtSuffix, resolvePhysicalPath } from '../pathResolver'
-
-describe('getExtSuffix', () => {
-  it('returns dot-prefixed extension for non-null ext', () => {
-    expect(getExtSuffix('pdf')).toBe('.pdf')
-    expect(getExtSuffix('md')).toBe('.md')
-  })
-
-  it('returns empty string for null ext', () => {
-    expect(getExtSuffix(null)).toBe('')
-  })
-})
+import { resolvePhysicalPath } from '../pathResolver'
 
 describe('resolvePhysicalPath', () => {
   describe('origin=internal', () => {

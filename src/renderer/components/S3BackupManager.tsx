@@ -16,29 +16,34 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
-import { restoreFromS3 } from '@renderer/services/BackupService'
+import { RestoreConfirmContent } from '@renderer/components/backup'
+import { ipcApi } from '@renderer/ipc'
+import {
+  type BackupDestinationId,
+  deleteDestinationBackup,
+  listDestinationBackups,
+  prepareRestoreFromDestination
+} from '@renderer/services/backupDestination'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
-import type { S3Config } from '@shared/types/backup'
 
 interface BackupFile {
-  fileName: string
-  modifiedTime: string
+  name: string
+  modifiedAt: number
   size: number
 }
 
 interface S3BackupManagerProps {
   visible: boolean
   onClose: () => void
-  s3Config: Partial<S3Config>
-  restoreMethod?: (fileName: string) => Promise<void>
+  destination: BackupDestinationId
 }
 
 const PAGE_SIZE = 5
 
-export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S3BackupManagerProps) {
+export function S3BackupManager({ visible, onClose, destination }: S3BackupManagerProps) {
   const [backupFiles, setBackupFiles] = useState<BackupFile[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
@@ -47,34 +52,17 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
   const [currentPage, setCurrentPage] = useState(1)
   const { t } = useTranslation()
 
-  const { endpoint, region, bucket, accessKeyId, secretAccessKey } = s3Config
-
   const fetchBackupFiles = useCallback(async () => {
-    if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      toast.error(t('settings.data.s3.manager.config.incomplete'))
-      return
-    }
-
     setLoading(true)
     try {
-      const files = await window.api.backup.listS3Files({
-        ...s3Config,
-        endpoint,
-        region,
-        bucket,
-        accessKeyId,
-        secretAccessKey,
-        autoSync: false,
-        syncInterval: 0,
-        maxBackups: 0
-      })
+      const files = await listDestinationBackups(destination)
       setBackupFiles(files)
     } catch {
       toast.error(t('settings.data.s3.manager.files.fetch.error', { message: t('error.unknown') }))
     } finally {
       setLoading(false)
     }
-  }, [endpoint, region, bucket, accessKeyId, secretAccessKey, t, s3Config])
+  }, [destination, t])
 
   useEffect(() => {
     if (visible) {
@@ -96,10 +84,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
     return backupFiles.slice(start, start + PAGE_SIZE)
   }, [backupFiles, safeCurrentPage])
 
-  const currentPageKeys = useMemo(
-    () => new Set(paginatedBackupFiles.map((file) => file.fileName)),
-    [paginatedBackupFiles]
-  )
+  const currentPageKeys = useMemo(() => new Set(paginatedBackupFiles.map((file) => file.name)), [paginatedBackupFiles])
 
   const handleSelectionChange = useCallback(
     (nextSelectedRowKeys: Key[]) => {
@@ -117,11 +102,6 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       return
     }
 
-    if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      toast.error(t('settings.data.s3.manager.config.incomplete'))
-      return
-    }
-
     const confirmed = await popup.confirm({
       title: t('settings.data.s3.manager.delete.confirm.title'),
       icon: <CircleAlert />,
@@ -136,17 +116,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
     try {
       // 依次删除选中的文件
       for (const key of selectedRowKeys) {
-        await window.api.backup.deleteS3File(key.toString(), {
-          ...s3Config,
-          endpoint,
-          region,
-          bucket,
-          accessKeyId,
-          secretAccessKey,
-          autoSync: false,
-          syncInterval: 0,
-          maxBackups: 0
-        })
+        await deleteDestinationBackup(destination, key.toString())
       }
       toast.success(t('settings.data.s3.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
@@ -159,11 +129,6 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
   }
 
   const handleDeleteSingle = async (fileName: string) => {
-    if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      toast.error(t('settings.data.s3.manager.config.incomplete'))
-      return
-    }
-
     const confirmed = await popup.confirm({
       title: t('settings.data.s3.manager.delete.confirm.title'),
       icon: <CircleAlert />,
@@ -176,17 +141,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
     setDeleting(true)
     try {
-      await window.api.backup.deleteS3File(fileName, {
-        ...s3Config,
-        endpoint,
-        region,
-        bucket,
-        accessKeyId,
-        secretAccessKey,
-        autoSync: false,
-        syncInterval: 0,
-        maxBackups: 0
-      })
+      await deleteDestinationBackup(destination, fileName)
       toast.success(t('settings.data.s3.manager.delete.success.single'))
       await fetchBackupFiles()
     } catch {
@@ -197,24 +152,28 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
   }
 
   const handleRestore = async (fileName: string) => {
-    if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      toast.error(t('settings.data.s3.manager.config.incomplete'))
-      return
-    }
-
-    const confirmed = await popup.confirm({
-      title: t('settings.data.s3.restore.confirm.title'),
-      icon: <CircleAlert />,
-      content: t('settings.data.s3.restore.confirm.content'),
-      okText: t('settings.data.s3.restore.confirm.ok'),
-      cancelText: t('settings.data.s3.restore.confirm.cancel'),
-      centered: true
-    })
-    if (!confirmed) return
-
     setRestoring(true)
     try {
-      await (restoreMethod || restoreFromS3)(fileName)
+      // Confirm only after preparation, which is what rejects an unusable archive.
+      const result = await prepareRestoreFromDestination(destination, fileName)
+      if (result.status === 'canceled') return
+
+      const confirmed = await popup.confirm({
+        title: t('settings.data.backup_v2.restore.confirm_title'),
+        icon: <CircleAlert />,
+        content: <RestoreConfirmContent preview={result.preview} />,
+        okText: t('settings.data.backup_v2.restore.confirm_ok'),
+        cancelText: t('common.cancel'),
+        centered: true,
+        okButtonProps: { danger: true }
+      })
+      if (!confirmed) {
+        // An abandoned preparation stays in the journal and blocks the next restore.
+        await ipcApi.request('backup.cancel_restore')
+        return
+      }
+
+      await ipcApi.request('backup.arm_restore', { restoreId: result.preview.restoreId })
       toast.success(t('settings.data.s3.restore.success'))
       onClose() // 关闭模态框
     } catch (error) {
@@ -226,7 +185,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const columns: ColumnDef<BackupFile>[] = [
     {
-      accessorKey: 'fileName',
+      accessorKey: 'name',
       header: t('settings.data.s3.manager.columns.fileName'),
       meta: { width: 'calc(100% - 504px)', className: 'min-w-0' },
       cell: ({ getValue }) => {
@@ -239,10 +198,10 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       }
     },
     {
-      accessorKey: 'modifiedTime',
+      accessorKey: 'modifiedAt',
       header: t('settings.data.s3.manager.columns.modifiedTime'),
       meta: { width: 180 },
-      cell: ({ getValue }) => dayjs(getValue() as string).format('YYYY-MM-DD HH:mm:ss')
+      cell: ({ getValue }) => dayjs(getValue() as number).format('YYYY-MM-DD HH:mm:ss')
     },
     {
       accessorKey: 'size',
@@ -258,13 +217,10 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         const record = row.original
         return (
           <div className="flex items-center gap-1">
-            <Button variant="ghost" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>
+            <Button variant="ghost" onClick={() => handleRestore(record.name)} disabled={restoring || deleting}>
               {t('settings.data.s3.manager.restore')}
             </Button>
-            <Button
-              variant="ghost"
-              onClick={() => handleDeleteSingle(record.fileName)}
-              disabled={deleting || restoring}>
+            <Button variant="ghost" onClick={() => handleDeleteSingle(record.name)} disabled={deleting || restoring}>
               {t('settings.data.s3.manager.delete.label')}
             </Button>
           </div>
@@ -282,7 +238,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         <div className="flex flex-col gap-2">
           <div className="relative">
             <DataTable
-              rowKey="fileName"
+              rowKey="name"
               columns={columns}
               data={paginatedBackupFiles}
               selection={{

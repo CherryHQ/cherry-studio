@@ -116,9 +116,9 @@ preboot/
 │                        (if any) at the top of startApp(), after the
 │                        single-instance lock and the frozen path registry,
 │                        before v2MigrationGate reads the DB. Thin shell that
-│                        never throws — except when recovery left no live DB
-│                        at all (booting on would create a fresh empty
-│                        database), where it fails fast instead. The
+│                        returns only after recovery proves a safe live state;
+│                        unreadable or incomplete recovery evidence fails
+│                        closed rather than starting normal services. The
 │                        promotion logic lives in src/main/data/db/restore/
 │                        (same layering as v2MigrationGate → MigrationEngine).
 ├── v2MigrationGate.ts   v1→v2 migration decision gate; runs before

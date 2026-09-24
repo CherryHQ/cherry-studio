@@ -63,7 +63,6 @@ function createDeferred<T>() {
   })
   return { promise, resolve }
 }
-
 describe('ClaudeCodeWarmQueryManager', () => {
   beforeEach(() => {
     LifecycleManager.reset()

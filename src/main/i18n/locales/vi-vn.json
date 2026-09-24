@@ -82,6 +82,7 @@
   "dialog.architecture_mismatch.download": "Mở trang tải xuống",
   "dialog.architecture_mismatch.later": "Để sau",
   "dialog.architecture_mismatch.title": "Cài đặt phiên bản Apple Silicon",
+  "dialog.cherry_backup_files": "Cherry Studio Backup",
   "dialog.data_reset.cancel": "Hủy",
   "dialog.data_reset.confirm": "Đặt lại và khởi động lại",
   "dialog.data_reset.message": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở tri thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",

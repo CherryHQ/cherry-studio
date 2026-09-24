@@ -9,6 +9,7 @@ export const REFERENCE_DOMAINS: readonly string[] = [
   'ai',
   'api-gateway',
   'architecture',
+  'backup',
   'binary-manager',
   'chat',
   'command',

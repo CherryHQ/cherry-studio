@@ -82,6 +82,7 @@
   "dialog.architecture_mismatch.download": "Deschide pagina de descărcare",
   "dialog.architecture_mismatch.later": "Mai târziu",
   "dialog.architecture_mismatch.title": "Instalează versiunea Apple Silicon",
+  "dialog.cherry_backup_files": "Cherry Studio Backup",
   "dialog.data_reset.cancel": "Anulează",
   "dialog.data_reset.confirm": "Resetează și repornește",
   "dialog.data_reset.message": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",

@@ -24,7 +24,7 @@ vi.mock('@application', async () => {
     KnowledgeVectorStoreService: {
       getIndexStoreIfExists: getIndexStoreIfExistsMock
     }
-  } as Parameters<typeof mockApplicationFactory>[0])
+  })
 })
 
 vi.mock('@logger', () => ({

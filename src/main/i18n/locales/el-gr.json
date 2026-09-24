@@ -82,6 +82,7 @@
   "dialog.architecture_mismatch.download": "Μετάβαση στη σελίδα λήψης",
   "dialog.architecture_mismatch.later": "Αργότερα",
   "dialog.architecture_mismatch.title": "Εγκαταστήστε την έκδοση Apple Silicon",
+  "dialog.cherry_backup_files": "Cherry Studio Backup",
   "dialog.data_reset.cancel": "Άκυρο",
   "dialog.data_reset.confirm": "Επαναφορά και επανεκκίνηση",
   "dialog.data_reset.message": "Θα διαγραφούν οι συνομιλίες, οι βοηθοί, οι βάσεις γνώσεων, τα αρχεία και οι ρυθμίσεις και, στη συνέχεια, η εφαρμογή θα επανεκκινηθεί. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί. Θέλετε να συνεχίσετε;",

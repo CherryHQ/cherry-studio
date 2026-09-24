@@ -71,6 +71,12 @@
 | [Shared Layer Architecture (`src/shared` / `@shared`)](./references/architecture/shared-layer.md) | Defines what belongs in the @shared cross-process primitive layer, its closed top-level set, and import rules |
 | [Utility Process Architecture](./references/architecture/utility-process.md) | Architecture of the utility-process subsystem — ownership, lifecycle boundaries, build isolation, design decisions, and historical experiment evidence |
 
+### Backup
+
+| Document | Description |
+|----------|-------------|
+| [Backup & Restore Architecture (v2)](./references/backup/README.md) | Decision authority for Backup v2 — archive format, export and restore transactions, portability policy, and the IPC surface |
+
 ### Binary Manager
 
 | Document | Description |

@@ -16,7 +16,7 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentSessionRuntimeDriver } from '@main/ai/runtime/types'
 
 const { restoreJournalMock } = vi.hoisted(() => ({ restoreJournalMock: { hasPendingRestore: vi.fn(() => false) } }))
-vi.mock('@data/db/restore/restoreJournal', () => restoreJournalMock)
+vi.mock('@data/db/restore/restoreGuard', () => restoreJournalMock)
 
 const { sweepAgentOrphans } = await import('@main/ai/agents/agentOrphanSweep')
 

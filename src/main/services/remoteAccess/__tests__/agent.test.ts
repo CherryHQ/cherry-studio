@@ -54,6 +54,7 @@ const fake = vi.hoisted(() => {
     manager: {
       withDispatchLock: vi.fn(async (_topic: string, run: () => Promise<unknown>) => run()),
       whenTerminalDispatchSettled: async () => {},
+      waitForWriteResume: async () => {},
       isWriteQuiesced: false,
       send: vi.fn(),
       hasLiveStream: (topicId: string) => streams.has(topicId),

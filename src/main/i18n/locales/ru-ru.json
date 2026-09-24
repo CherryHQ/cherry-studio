@@ -82,6 +82,7 @@
   "dialog.architecture_mismatch.download": "Перейти к загрузке",
   "dialog.architecture_mismatch.later": "Позже",
   "dialog.architecture_mismatch.title": "Установите версию для Apple Silicon",
+  "dialog.cherry_backup_files": "Cherry Studio Backup",
   "dialog.data_reset.cancel": "Отмена",
   "dialog.data_reset.confirm": "Сбросить и перезапустить",
   "dialog.data_reset.message": "Будут удалены чаты, ассистенты, базы знаний, файлы и настройки, после чего приложение перезапустится. Это действие нельзя отменить. Продолжить?",

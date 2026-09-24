@@ -16,35 +16,29 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
-import { restoreFromWebdav } from '@renderer/services/BackupService'
+import { RestoreConfirmContent } from '@renderer/components/backup'
+import { ipcApi } from '@renderer/ipc'
+import {
+  type BackupDestinationId,
+  deleteDestinationBackup,
+  listDestinationBackups,
+  prepareRestoreFromDestination
+} from '@renderer/services/backupDestination'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
 
 interface BackupFile {
-  fileName: string
-  modifiedTime: string
+  name: string
+  modifiedAt: number
   size: number
 }
 
 interface WebdavBackupManagerProps {
   visible: boolean
   onClose: () => void
-  webdavConfig: {
-    webdavHost?: string
-    webdavUser?: string
-    webdavPass?: string
-    webdavPath?: string
-    webdavDisableStream?: boolean
-    allowSelfSignedTls?: boolean
-  }
-  restoreMethod?: (fileName: string) => Promise<void>
-  customLabels?: {
-    restoreConfirmTitle?: string
-    restoreConfirmContent?: string
-    invalidConfigMessage?: string
-  }
+  destination: BackupDestinationId
   /** WebDAV transport only — surfaces self-signed TLS guidance; Nutstore reuse must not pass it. */
   tlsCertificateHint?: boolean
 }
@@ -54,9 +48,7 @@ const PAGE_SIZE = 5
 export function WebdavBackupManager({
   visible,
   onClose,
-  webdavConfig,
-  restoreMethod,
-  customLabels,
+  destination,
   tlsCertificateHint = false
 }: WebdavBackupManagerProps) {
   const { t } = useTranslation()
@@ -67,23 +59,10 @@ export function WebdavBackupManager({
   const [restoring, setRestoring] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
 
-  const { webdavHost, webdavUser, webdavPass, webdavPath, allowSelfSignedTls } = webdavConfig
-
   const fetchBackupFiles = useCallback(async () => {
-    if (!webdavHost) {
-      toast.error(t('message.error.invalid.webdav'))
-      return
-    }
-
     setLoading(true)
     try {
-      const files = await window.api.backup.listWebdavFiles({
-        webdavHost,
-        webdavUser,
-        webdavPass,
-        webdavPath,
-        allowSelfSignedTls
-      })
+      const files = await listDestinationBackups(destination)
       setBackupFiles(files)
     } catch (error) {
       toast.error(
@@ -94,7 +73,7 @@ export function WebdavBackupManager({
     } finally {
       setLoading(false)
     }
-  }, [webdavHost, webdavUser, webdavPass, webdavPath, allowSelfSignedTls, tlsCertificateHint, t])
+  }, [destination, tlsCertificateHint])
 
   useEffect(() => {
     if (visible) {
@@ -116,10 +95,7 @@ export function WebdavBackupManager({
     return backupFiles.slice(start, start + PAGE_SIZE)
   }, [backupFiles, safeCurrentPage])
 
-  const currentPageKeys = useMemo(
-    () => new Set(paginatedBackupFiles.map((file) => file.fileName)),
-    [paginatedBackupFiles]
-  )
+  const currentPageKeys = useMemo(() => new Set(paginatedBackupFiles.map((file) => file.name)), [paginatedBackupFiles])
 
   const handleSelectionChange = useCallback(
     (nextSelectedRowKeys: Key[]) => {
@@ -137,11 +113,6 @@ export function WebdavBackupManager({
       return
     }
 
-    if (!webdavHost) {
-      toast.error(t('message.error.invalid.webdav'))
-      return
-    }
-
     const confirmed = await popup.confirm({
       title: t('settings.data.webdav.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
@@ -156,13 +127,7 @@ export function WebdavBackupManager({
     try {
       // 依次删除选中的文件
       for (const key of selectedRowKeys) {
-        await window.api.backup.deleteWebdavFile(key.toString(), {
-          webdavHost,
-          webdavUser,
-          webdavPass,
-          webdavPath,
-          allowSelfSignedTls
-        })
+        await deleteDestinationBackup(destination, key.toString())
       }
       toast.success(t('settings.data.webdav.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
@@ -179,11 +144,6 @@ export function WebdavBackupManager({
   }
 
   const handleDeleteSingle = async (fileName: string) => {
-    if (!webdavHost) {
-      toast.error(t('message.error.invalid.webdav'))
-      return
-    }
-
     const confirmed = await popup.confirm({
       title: t('settings.data.webdav.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
@@ -196,13 +156,7 @@ export function WebdavBackupManager({
 
     setDeleting(true)
     try {
-      await window.api.backup.deleteWebdavFile(fileName, {
-        webdavHost,
-        webdavUser,
-        webdavPass,
-        webdavPath,
-        allowSelfSignedTls
-      })
+      await deleteDestinationBackup(destination, fileName)
       toast.success(t('settings.data.webdav.backup.manager.delete.success.single'))
       await fetchBackupFiles()
     } catch (error) {
@@ -217,24 +171,28 @@ export function WebdavBackupManager({
   }
 
   const handleRestore = async (fileName: string) => {
-    if (!webdavHost) {
-      toast.error(customLabels?.invalidConfigMessage || t('message.error.invalid.webdav'))
-      return
-    }
-
-    const confirmed = await popup.confirm({
-      title: customLabels?.restoreConfirmTitle || t('settings.data.webdav.restore.confirm.title'),
-      icon: <CircleAlert />,
-      content: customLabels?.restoreConfirmContent || t('settings.data.webdav.restore.confirm.content'),
-      okText: t('common.confirm'),
-      cancelText: t('common.cancel'),
-      centered: true
-    })
-    if (!confirmed) return
-
     setRestoring(true)
     try {
-      await (restoreMethod || restoreFromWebdav)(fileName)
+      // Confirm only after preparation, which is what rejects an unusable archive.
+      const result = await prepareRestoreFromDestination(destination, fileName)
+      if (result.status === 'canceled') return
+
+      const confirmed = await popup.confirm({
+        title: t('settings.data.backup_v2.restore.confirm_title'),
+        icon: <CircleAlert />,
+        content: <RestoreConfirmContent preview={result.preview} />,
+        okText: t('settings.data.backup_v2.restore.confirm_ok'),
+        cancelText: t('common.cancel'),
+        centered: true,
+        okButtonProps: { danger: true }
+      })
+      if (!confirmed) {
+        // An abandoned preparation stays in the journal and blocks the next restore.
+        await ipcApi.request('backup.cancel_restore')
+        return
+      }
+
+      await ipcApi.request('backup.arm_restore', { restoreId: result.preview.restoreId })
       toast.success(t('settings.data.webdav.backup.manager.restore.success'))
       onClose() // 关闭模态框
     } catch (error) {
@@ -250,7 +208,7 @@ export function WebdavBackupManager({
 
   const columns: ColumnDef<BackupFile>[] = [
     {
-      accessorKey: 'fileName',
+      accessorKey: 'name',
       header: t('settings.data.webdav.backup.manager.columns.fileName'),
       meta: { width: 'calc(100% - 504px)', className: 'min-w-0' },
       cell: ({ getValue }) => {
@@ -263,10 +221,10 @@ export function WebdavBackupManager({
       }
     },
     {
-      accessorKey: 'modifiedTime',
+      accessorKey: 'modifiedAt',
       header: t('settings.data.webdav.backup.manager.columns.modifiedTime'),
       meta: { width: 180 },
-      cell: ({ getValue }) => dayjs(getValue() as string).format('YYYY-MM-DD HH:mm:ss')
+      cell: ({ getValue }) => dayjs(getValue() as number).format('YYYY-MM-DD HH:mm:ss')
     },
     {
       accessorKey: 'size',
@@ -282,13 +240,10 @@ export function WebdavBackupManager({
         const record = row.original
         return (
           <div className="flex items-center gap-1">
-            <Button variant="ghost" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>
+            <Button variant="ghost" onClick={() => handleRestore(record.name)} disabled={restoring || deleting}>
               {t('settings.data.webdav.backup.manager.restore.text')}
             </Button>
-            <Button
-              variant="ghost"
-              onClick={() => handleDeleteSingle(record.fileName)}
-              disabled={deleting || restoring}>
+            <Button variant="ghost" onClick={() => handleDeleteSingle(record.name)} disabled={deleting || restoring}>
               {t('settings.data.webdav.backup.manager.delete.text')}
             </Button>
           </div>
@@ -306,7 +261,7 @@ export function WebdavBackupManager({
         <div className="flex flex-col gap-2">
           <div className="relative">
             <DataTable
-              rowKey="fileName"
+              rowKey="name"
               columns={columns}
               data={paginatedBackupFiles}
               selection={{

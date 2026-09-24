@@ -11,7 +11,7 @@
  * The pass is fully silent (no user surface) and has no volume-based abort —
  * see spec §5.3 for why reclaiming a large legitimate candidate set is correct.
  */
-import { hasPendingRestore } from '@data/db/restore/restoreJournal'
+import { hasPendingRestore } from '@data/db/restore/restoreGuard'
 import { loggerService } from '@logger'
 import type { FileEntry } from '@shared/data/types/file'
 import type { EntryCleanupSummary } from '@shared/types/file'

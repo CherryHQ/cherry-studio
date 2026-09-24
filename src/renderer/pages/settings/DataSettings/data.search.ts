@@ -14,12 +14,6 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.data.title'
   },
   {
-    anchorId: 'data-skip-file-data',
-    titleKey: 'settings.data.backup.skip_file_data_title',
-    panel: 'data',
-    groupKey: 'settings.data.title'
-  },
-  {
     anchorId: 'data-app-data',
     titleKey: 'settings.data.app_data.label',
     panel: 'data',

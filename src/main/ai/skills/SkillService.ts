@@ -33,6 +33,7 @@ import {
   parseSkillSourceUrl
 } from '@shared/utils/skillMarketplace'
 
+import { isManagedSkillTarget } from './capturePolicy'
 import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
 import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
@@ -100,7 +101,7 @@ export class SkillService {
   }
 
   /** Enable or disable a skill for a specific agent. */
-  toggle(options: SkillToggleOptions): InstalledSkill | null {
+  async toggle(options: SkillToggleOptions): Promise<InstalledSkill | null> {
     const skill = agentGlobalSkillService.getById(options.skillId)
     if (!skill) return null
 
@@ -110,7 +111,7 @@ export class SkillService {
   }
 
   /** Enable a skill across every existing agent. Used when a new builtin skill is installed. */
-  enableForAllAgents(skillId: string): void {
+  async enableForAllAgents(skillId: string): Promise<void> {
     const agentIds = agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
 
     logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
@@ -465,7 +466,7 @@ export class SkillService {
         fs.promises.realpath(entryPath),
         fs.promises.realpath(application.getPath('feature.agents.skills'))
       ])
-      return entryRealPath === skillsRootRealPath || entryRealPath.startsWith(skillsRootRealPath + path.sep)
+      return isManagedSkillTarget(entryRealPath, skillsRootRealPath)
     } catch {
       return false
     }
@@ -598,7 +599,7 @@ export class SkillService {
     }
 
     if (isBuiltin) {
-      this.enableForAllAgents(inserted.id)
+      await this.enableForAllAgents(inserted.id)
     }
 
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName: destFolderName, source })

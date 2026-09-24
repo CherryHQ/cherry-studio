@@ -3,11 +3,11 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { DegradationDetails } from '@renderer/components/backup'
 import { ipcApi } from '@renderer/ipc'
-import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-
-import BackupPopup from './BackupPopup'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 
 type Props = PopupInjectedProps<void>
 type WizardStep = 0 | 1 | 2
@@ -62,7 +62,26 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
 
     setBackupPopupOpen(true)
     try {
-      await BackupPopup.show({ forceFullBackup: true })
+      const result = await ipcApi.request('backup.export')
+      if (result.status === 'canceled') return
+      // A degraded backup must not read as "done": this toast is what the user ticks the acknowledgement on.
+      if (result.degradations.length > 0) {
+        await popup.info({
+          title: t('settings.data.backup_v2.export.done_degraded_title'),
+          content: (
+            <DegradationDetails
+              degradations={result.degradations}
+              consequenceKey="settings.data.backup_v2.export.done_degraded"
+            />
+          ),
+          okText: t('common.close'),
+          centered: true
+        })
+      } else {
+        toast.success(t('settings.data.backup_v2.export.done'))
+      }
+    } catch (error) {
+      toast.error(getLocalizedBackupErrorMessage(error instanceof Error ? error : new Error(String(error))))
     } finally {
       setBackupPopupOpen(false)
     }

@@ -1,6 +1,33 @@
 // Runtime service API.
+export { isKnowledgeCaptureExcluded, knowledgeBaseIdFromManagedPath } from './capturePolicy'
 export { KnowledgeService } from './KnowledgeService'
-export { KnowledgeVectorStoreService } from './pipeline/vectorstore/KnowledgeVectorStoreService'
+export {
+  type KnowledgeIndexSnapshotFailure,
+  type KnowledgeIndexSnapshotResult,
+  KnowledgeVectorStoreService
+} from './pipeline/vectorstore/KnowledgeVectorStoreService'
+export { capturePortableKnowledgeIndex } from './portableIndexSnapshot'
+export {
+  collectKnowledgeIndexRequirements,
+  collectKnowledgeRequiredMaterial,
+  type KnowledgeIndexedMaterialRow,
+  type KnowledgeIndexRequirement,
+  type KnowledgeMaterialRow,
+  type KnowledgeRequiredMaterialByBase
+} from './portableProfilePolicy'
+export {
+  createKnowledgeRestoreOwnerSummary,
+  knowledgeBaseIdsRequiringRebuild,
+  type KnowledgeRestoreOwnerProgress,
+  type KnowledgeRestoreOwnerSummary,
+  type KnowledgeRestoreProgress,
+  type KnowledgeRestoreProgressRead,
+  type KnowledgeRestoreSummary,
+  type KnowledgeRestoreSummaryRead,
+  readKnowledgeRestoreProgress,
+  readKnowledgeRestoreSummary,
+  withKnowledgeRestoreProgress
+} from './restorePolicy'
 
 // Index & material rebuild surface — the knowledge-owned primitives the indexing runtime and the
 // v1→v2 migrators (data/migration/v2) build a base's materials + vector index from. The index
