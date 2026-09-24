@@ -236,7 +236,7 @@ describe('agentHandlers', () => {
     it('delegates DELETE and returns undefined on success', async () => {
       deleteAgentMock.mockReturnValueOnce({ deleted: true })
 
-      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
 
       expect(listSessionIdsByAgentMock).toHaveBeenCalledWith(AGENT_ID)
       expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
@@ -251,7 +251,7 @@ describe('agentHandlers', () => {
       listSessionIdsByAgentMock.mockReturnValueOnce(['session-1', 'session-2'])
       closeSessionMock.mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined)
 
-      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
 
       expect(pauseRuntimeTurnMock).toHaveBeenCalledTimes(2)
       expect(pauseRuntimeTurnMock).toHaveBeenCalledWith('agent-session:session-1', 'target-agent-deleted')
@@ -267,7 +267,7 @@ describe('agentHandlers', () => {
         throw new Error('runtime unavailable')
       })
 
-      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
 
       expect(result).toBeUndefined()
       expect(warnMock).toHaveBeenCalledWith('Agent runtime cleanup failed after row deletion', {
@@ -280,7 +280,7 @@ describe('agentHandlers', () => {
       agentExistsMock.mockReturnValueOnce(false)
 
       await expect(
-        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
       expect(deleteAgentMock).not.toHaveBeenCalled()
     })
