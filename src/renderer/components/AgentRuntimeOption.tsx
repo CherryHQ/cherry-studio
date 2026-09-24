@@ -27,11 +27,13 @@ import type { AgentType } from '@shared/data/types/agent'
  * here means the two never drift into looking like different decisions.
  */
 
+const UarIcon: IconComponent = (props) => <Bot {...props} />
+
 const RUNTIME_ICONS = {
   'claude-code': ClaudeCode,
   pi: PiCli,
   dsh: Deepseek,
-  uar: Bot
+  uar: UarIcon
 } satisfies Record<AgentType, IconComponent>
 
 const COMPACT_RUNTIME_ICON_CLASS: Record<AgentType, string> = {

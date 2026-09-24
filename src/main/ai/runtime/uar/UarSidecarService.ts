@@ -263,12 +263,13 @@ export class UarSidecarService extends BaseService {
     if (body.agui?.profile !== 'uar.agui/1' || body.agui.profile_revision !== 1) {
       throw new Error('UAR sidecar AG-UI profile is incompatible (requires uar.agui/1 revision 1)')
     }
-    if (!Array.isArray(body.capabilities) || !body.capabilities.every((value) => typeof value === 'string')) {
+    const capabilities = body.capabilities
+    if (!Array.isArray(capabilities) || !capabilities.every((value) => typeof value === 'string')) {
       throw new Error('UAR sidecar capability response is invalid')
     }
-    const missing = REQUIRED_CAPABILITIES.filter((capability) => !body.capabilities!.includes(capability))
+    const missing = REQUIRED_CAPABILITIES.filter((capability) => !capabilities.includes(capability))
     if (missing.length) throw new Error(`UAR sidecar is missing required capabilities: ${missing.join(', ')}`)
-    return { uarVersion: body.uar_version, capabilities: body.capabilities as string[] }
+    return { uarVersion: body.uar_version, capabilities: capabilities as string[] }
   }
 
   private async resolveExecutable(): Promise<string> {
