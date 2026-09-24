@@ -19,6 +19,7 @@ import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentLifecycleService')
 const RETRY_AGENT_SESSION_ARCHIVE = Symbol('retry-agent-session-archive')
+const RECONCILIATION_RETRY_MS = 30_000
 
 export class AgentSessionArchiveBusyError extends Error {
   constructor(readonly sessionIds: string[]) {
@@ -42,13 +43,15 @@ export class AgentLifecycleService extends BaseService {
   private readonly ingressHolds = new Set<symbol>()
   private readonly inFlight = new Map<Promise<unknown>, string>()
   private isShuttingDown = false
+  private reconciliationRetry: Disposable | undefined
 
   protected override onInit(): void {
     this.isShuttingDown = false
+    this.reconciliationRetry = undefined
   }
 
   protected override onReady(): void {
-    application.get('DbService').withWriteTx((tx) => this.reconcileSchedulesTx(tx))
+    this.reconcileSchedules(false)
   }
 
   protected override async onStop(): Promise<void> {
@@ -147,11 +150,7 @@ export class AgentLifecycleService extends BaseService {
   }
 
   reconcile() {
-    return this.runOperation('reconcile-agent-schedules', () => {
-      const ids = application.get('DbService').withWriteTx((tx) => this.reconcileSchedulesTx(tx))
-      this.syncSchedules(ids)
-      return ids.length
-    })
+    return this.runOperation('reconcile-agent-schedules', () => this.reconcileSchedules(true))
   }
 
   sweepOrphans(signal?: AbortSignal) {
@@ -238,6 +237,32 @@ export class AgentLifecycleService extends BaseService {
   private syncSchedules(ids: string[]): void {
     for (const id of ids) application.get('JobManager').syncJobScheduleTimerById(id)
     agentTaskService.notifyReadModelChange(ids, 'membership')
+  }
+
+  private reconcileSchedules(syncTimers: boolean): number {
+    let ids: string[]
+    try {
+      ids = application.get('DbService').withWriteTx((tx) => this.reconcileSchedulesTx(tx))
+    } catch (error) {
+      this.reconciliationRetry ??= this.registerInterval(async () => {
+        if (this.isShuttingDown || this.ingressHolds.size > 0 || application.get('AiStreamManager').isWriteQuiesced)
+          return
+        try {
+          await this.runOperation('retry-agent-schedules', () => this.reconcileSchedules(syncTimers))
+        } catch (retryError) {
+          logger.warn('Agent schedule reconciliation retry failed', { error: retryError })
+        }
+      }, RECONCILIATION_RETRY_MS)
+      throw error
+    }
+    this.reconciliationRetry?.dispose()
+    this.reconciliationRetry = undefined
+    agentTaskService.notifyReadModelChange(ids, 'membership')
+    const jobs = application.get('JobManager')
+    if (syncTimers || jobs.hasStartedRecovery) {
+      for (const id of ids) jobs.syncJobScheduleTimerById(id)
+    }
+    return ids.length
   }
 
   private reconcileSchedulesTx(tx: DbOrTx): string[] {

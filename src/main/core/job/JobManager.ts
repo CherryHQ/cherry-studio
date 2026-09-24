@@ -15,7 +15,7 @@ import {
 } from '@main/core/lifecycle'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { isTerminalStatus, JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
+import { isTerminalStatus, JOB_ERROR_CODES, triggersEqual } from '@shared/data/api/schemas/jobs'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
@@ -52,6 +52,7 @@ const GC_INTERVAL_MS = 60 * 60 * 1000 // 1h
 const GC_TERMINAL_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 const GC_KEEP_PER_SCHEDULE = 100
 const DELAYED_PROMOTION_INTERVAL_MS = 5 * 60 * 1000 // 5min
+const SCHEDULE_ADMISSION_RETRY_MS = 30_000
 
 /**
  * Wall-clock "quiet window" between `onAllReady` firing and JobManager actually
@@ -83,6 +84,12 @@ class JobHandlerTimeoutError extends Error {
     super('JobHandlerTimeout')
     this.name = 'JobHandlerTimeoutError'
   }
+}
+
+type ScheduleFire = {
+  source: 'natural' | 'catch-up' | 'manual'
+  scheduledAt?: number
+  trigger?: Trigger
 }
 
 interface FinishedResolver {
@@ -159,6 +166,7 @@ export class JobManager extends BaseService {
    */
   private readonly inFlightExecuted = new Map<string, Promise<void>>()
   private readonly scheduleDisposables = new Map<string, Disposable>()
+  private readonly deferredScheduleFires = new Map<string, ScheduleFire>()
   private readonly globalMaxConcurrency = DEFAULT_GLOBAL_MAX_CONCURRENCY
   /**
    * Set when a dispatch is blocked solely by the global concurrency cap. On the
@@ -269,6 +277,11 @@ export class JobManager extends BaseService {
     return this.pauseHolds.size > 0 || this.releaseBarrierHeld
   }
 
+  /** Whether deferred recovery has passed its startup quiet window. */
+  get hasStartedRecovery(): boolean {
+    return this._recoveryDone !== undefined
+  }
+
   // ---------------- Lifecycle ----------------
 
   protected override onInit(): void {
@@ -276,15 +289,8 @@ export class JobManager extends BaseService {
   }
 
   protected override async onReady(): Promise<void> {
-    // GC + delayed-promotion ticks live here because they only operate on
-    // jobs already in the DB and never invoke business handlers. Anything
-    // that depends on a registered handler (startup recovery, schedule
-    // arming, dispatching) is deferred to `onAllReady` so business services
-    // have had their own `onInit` window to call `registerHandler`.
-    // Both ticks are autonomous writes — gated in the callback body while a
-    // pause hold is live (`registerInterval` has no per-callback pause hook).
-    // Skipped passes need no bookkeeping: the DB rows are the truth source
-    // and the release compensation runs promoteDelayedDue + dispatchAll.
+    // Maintenance timers respect pause holds; deferred-fire retries exist only after an actual fire was blocked.
+    // Initial recovery and schedule arming still belong to onAllReady.
     this.registerInterval(() => {
       if (this.isAutonomySuspended) return
       this.runGC()
@@ -297,6 +303,21 @@ export class JobManager extends BaseService {
         this.dispatchAll()
       }
     }, DELAYED_PROMOTION_INTERVAL_MS)
+    this.registerInterval(() => {
+      if (this.isAutonomySuspended || this._isShuttingDown || this.recoveryFlowInFlight) return
+      for (const [id, fire] of [...this.deferredScheduleFires]) {
+        try {
+          const current = jobScheduleService.getById(id)
+          if (!current?.enabled || (fire.trigger && !triggersEqual(current.trigger, fire.trigger))) {
+            this.deferredScheduleFires.delete(id)
+            continue
+          }
+          this.fireSchedule(id, fire)
+        } catch (error) {
+          logger.warn('Deferred schedule fire failed', { scheduleId: id, error })
+        }
+      }
+    }, SCHEDULE_ADMISSION_RETRY_MS)
   }
 
   /**
@@ -525,6 +546,7 @@ export class JobManager extends BaseService {
       disposable.dispose()
     }
     this.scheduleDisposables.clear()
+    this.deferredScheduleFires.clear()
 
     if (inFlight.length === 0) {
       logger.info('JobManager.onStop: no in-flight jobs')
@@ -1324,6 +1346,10 @@ export class JobManager extends BaseService {
    */
   syncJobScheduleTimerById(id: string): void {
     const snapshot = jobScheduleService.getById(id)
+    const deferred = this.deferredScheduleFires.get(id)
+    if (deferred && (!snapshot?.enabled || (deferred.trigger && !triggersEqual(snapshot.trigger, deferred.trigger)))) {
+      this.deferredScheduleFires.delete(id)
+    }
     if (snapshot?.enabled) {
       try {
         this.armSchedule(snapshot)
@@ -1393,52 +1419,12 @@ export class JobManager extends BaseService {
   }
 
   /**
-   * Fire a schedule immediately (extra one-shot — does not affect the natural
-   * fire calendar). For cron triggers calls croner's `.trigger()` (the armed
-   * callback handles `markFired`). For interval / once triggers or when the
-   * SchedulerService entry is missing (e.g. not yet re-armed after restart),
-   * enqueues directly using `jobInputTemplate` and writes only `lastRun` so
-   * the extra manual fire does not move the automatic calendar.
-   *
-   * Exception to the "natural fire calendar" clause: manually firing an
-   * overdue never-fired `once` schedule writes `lastRun >= trigger.at`, which
-   * the spent-once guard in `armSchedule` treats as the one-shot's fire —
-   * startup recovery will not re-arm it for a make-up run.
-   *
-   * @param id - Schedule row id
-   * @returns `true` if fired; `false` if no schedule exists for `id`
+   * Enqueue an extra run without advancing the automatic calendar.
+   * An overdue, never-fired once schedule is consumed by a successful manual run.
+   * @returns Whether a job was persisted; a denied manual request is not retried.
    */
   async triggerJobScheduleNowById(id: string): Promise<boolean> {
-    const schedule = jobScheduleService.getById(id)
-    if (!schedule) return false
-    // While paused, force the fallback: croner's .trigger() bypasses its own
-    // pause AND the armed callback's gate suppresses the enqueue — the cron
-    // path would return true having persisted nothing, silently dropping an
-    // explicit request (pause-window callers include an AI turn settling
-    // through cherryAutonomyTools). The fallback row lands `pending` at rest
-    // and dispatches on release; `true` keeps meaning "row persisted".
-    const triggered = this.isAutonomySuspended
-      ? false
-      : await application.get('SchedulerService').triggerNow(`schedule:${id}`)
-    if (triggered) return true
-    // Fallback path (non-cron OR cron not currently armed in this process).
-    this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
-      scheduleId: schedule.id
-    })
-    try {
-      const firedAt = Date.now()
-      if (schedule.trigger.kind === 'once' && firedAt >= schedule.trigger.at) {
-        jobScheduleService.markFired(schedule.id, firedAt, null)
-      } else {
-        jobScheduleService.setLastRun(schedule.id, firedAt)
-      }
-    } catch (err) {
-      logger.warn('Failed to persist manual schedule fire — schedule state may be stale', {
-        scheduleId: schedule.id,
-        err: (err as Error).message
-      })
-    }
-    return true
+    return this.fireSchedule(id, { source: 'manual' })
   }
 
   /**
@@ -1452,6 +1438,7 @@ export class JobManager extends BaseService {
    * @returns `true` if the row existed and was deleted; `false` if not found
    */
   async unregisterJobScheduleById(id: string): Promise<boolean> {
+    this.deferredScheduleFires.delete(id)
     const disp = this.scheduleDisposables.get(id)
     if (disp) {
       disp.dispose()
@@ -2077,23 +2064,68 @@ export class JobManager extends BaseService {
 
   // ---------------- Schedule arming + catch-up ----------------
 
-  /**
-   * Wire a `jobScheduleTable` row into SchedulerService so each fire enqueues
-   * a new Job. On every fire `markFired` updates `lastRun` and `nextRun` —
-   * those columns drive overdue detection on next startup. A pre-existing
-   * disposable for the same id is disposed first (e.g. when a schedule is
-   * re-enabled).
-   *
-   * `markFired` runs unconditionally in a finally block so a deterministic
-   * enqueue failure (`JOB_PAYLOAD_TOO_LARGE`, unregistered type, DB
-   * constraint) cannot leave `nextRun` stuck null and form an infinite
-   * "always overdue → catch-up enqueue → fails again" loop after restart.
-   * The error log keeps `{ code, stack }` so Sentry can bucket distinct
-   * failure modes instead of flattening to one opaque string.
-   *
-   * A spent `once` schedule (its natural fire already happened) is never
-   * re-armed — see the guard below.
-   */
+  private deferScheduleFire(id: string, fire: ScheduleFire): false {
+    if (fire.source !== 'manual' && !this.deferredScheduleFires.has(id)) {
+      this.deferredScheduleFires.set(id, fire)
+    }
+    return false
+  }
+
+  private fireSchedule(id: string, fire: ScheduleFire): boolean {
+    let schedule: JobScheduleSnapshot | null
+    try {
+      schedule = jobScheduleService.getById(id)
+    } catch (error) {
+      logger.warn('Failed to read schedule for admission', { scheduleId: id, error })
+      return this.deferScheduleFire(id, fire)
+    }
+    if (!schedule || (!schedule.enabled && fire.source !== 'manual')) {
+      this.deferredScheduleFires.delete(id)
+      return false
+    }
+    const handler = this.handlers.get(schedule.type)
+    let allowed = true
+    try {
+      allowed = handler?.canSchedule?.(schedule.jobInputTemplate) ?? true
+    } catch (error) {
+      allowed = false
+      logger.warn('Schedule admission failed', { scheduleId: id, error })
+    }
+    if (!allowed) {
+      return this.deferScheduleFire(id, { ...fire, trigger: schedule.trigger })
+    }
+
+    // Admission and enqueue stay synchronous so a business mutation cannot interleave.
+    let enqueued = false
+    try {
+      this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
+        scheduleId: id,
+        scheduledAt: fire.scheduledAt
+      })
+      enqueued = true
+      this.deferredScheduleFires.delete(id)
+      return true
+    } finally {
+      // Admitted natural fires retain consumption on enqueue errors, preventing endless invalid-payload replay.
+      if (fire.source === 'natural' || (enqueued && fire.source === 'manual')) {
+        this.deferredScheduleFires.delete(id)
+        try {
+          const now = Date.now()
+          if (fire.source === 'manual' && (schedule.trigger.kind !== 'once' || now < schedule.trigger.at)) {
+            jobScheduleService.setLastRun(id, now)
+          } else {
+            const firedAt = schedule.trigger.kind === 'once' ? Math.max(now, schedule.trigger.at) : now
+            const nextRun =
+              schedule.trigger.kind === 'once' ? null : application.get('SchedulerService').getNextRun(`schedule:${id}`)
+            jobScheduleService.markFired(id, firedAt, nextRun?.getTime() ?? null)
+          }
+        } catch (error) {
+          logger.warn('Failed to persist schedule fire', { scheduleId: id, error })
+        }
+      }
+    }
+  }
+
   private armSchedule(schedule: JobScheduleSnapshot): void {
     if (!schedule.enabled) return
     // Dispose any prior registration BEFORE the spent-once guard below: an
@@ -2143,43 +2175,14 @@ export class JobManager extends BaseService {
         if (trigger.kind === 'once') this.suppressedOnceScheduleIds.add(schedule.id)
         return
       }
-      // The registration owns timing only. Execution configuration remains
-      // DB-backed so prompt/workspace/timeout edits take effect on the next
-      // fire without re-arming (which would reset an interval's cadence).
-      const currentSchedule = jobScheduleService.getById(schedule.id)
-      if (!currentSchedule?.enabled) return
-
-      const firedAt = Date.now()
       try {
-        this.enqueue(currentSchedule.type as JobType, currentSchedule.jobInputTemplate as never, {
-          scheduleId: currentSchedule.id
-        })
-      } catch (err) {
-        const e = err as Error & { code?: string }
-        logger.error('Schedule fire failed', {
+        this.fireSchedule(schedule.id, { source: 'natural', trigger: schedule.trigger })
+      } catch (error) {
+        logger.error('Schedule fire failed', error as Error, {
           operation: 'job.schedule.fire',
-          scheduleId: currentSchedule.id,
-          type: currentSchedule.type,
-          code: e.code,
-          message: e.message,
-          stack: e.stack
+          scheduleId: schedule.id,
+          type: schedule.type
         })
-      } finally {
-        try {
-          const nextRun = scheduler.getNextRun(scheduleKey)
-          // Persist a once fire at no earlier than its `at`: the once timer
-          // elapses on the monotonic clock while `firedAt` reads the wall
-          // clock, so a natural fire can observe firedAt === at - 1 (see
-          // promoteDueAtFire). Unclamped, the spent-once guard above would
-          // see lastRun < at and replay the one-shot on the next startup.
-          const persistedFiredAt = trigger.kind === 'once' ? Math.max(firedAt, trigger.at) : firedAt
-          jobScheduleService.markFired(schedule.id, persistedFiredAt, nextRun?.getTime() ?? null)
-        } catch (markErr) {
-          logger.warn('markFired failed — nextRun may be stale', {
-            scheduleId: schedule.id,
-            err: (markErr as Error).message
-          })
-        }
       }
     })
     this.scheduleDisposables.set(schedule.id, disp)
@@ -2320,11 +2323,9 @@ export class JobManager extends BaseService {
       }
       if (action.shouldEnqueue) {
         const scheduledAt = nowMs + action.enqueueDelayMs
-        this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
-          scheduleId: schedule.id,
-          scheduledAt
-        })
-        logger.info('Catch-up enqueued', { scheduleId: schedule.id, type: schedule.type, scheduledAt })
+        if (this.fireSchedule(schedule.id, { source: 'catch-up', scheduledAt, trigger: schedule.trigger })) {
+          logger.info('Catch-up enqueued', { scheduleId: schedule.id, type: schedule.type, scheduledAt })
+        }
       }
     }
     return schedules.length

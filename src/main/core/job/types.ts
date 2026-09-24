@@ -88,6 +88,12 @@ export interface JobHandler<TPayload = unknown> {
   defaultTimeoutMs?: number
   /** Grace period to wait for handler to react to AbortSignal after cancel. Defaults to 30000ms. */
   cancelTimeoutMs?: number
+  /**
+   * Optional synchronous, read-only admission check for schedule-generated jobs.
+   * False or a thrown error defers automatic fires; manual requests return false without retrying.
+   * Direct enqueue/enqueueTx calls are unaffected. Only synchronous domain reads are allowed; no writes or asynchronous work.
+   */
+  canSchedule?(input: TPayload): boolean
   /** Execute one job attempt. Throw to fail; reject with AbortError to cancel. */
   execute(ctx: JobContext<TPayload>): Promise<unknown>
   /**

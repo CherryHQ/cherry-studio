@@ -91,6 +91,29 @@ Anti-pattern: `while (true)` (cannot be cancelled), `await sleep(N)` without sig
 
 Generic metadata is not a substitute for a domain relationship. A stable reference to an entity owned by another domain must be maintained through lifecycle APIs owned by that entity's service, with database constraints when the relationship topology permits. When constraints would create circular foreign keys, follow the application-level [soft-reference pattern](../data/database-patterns.md#circular-foreign-key-references) instead. For example, the non-circular `agent.task` sticky-session relationship uses the constrained `agent_session.taskScheduleId` relation maintained by `AgentSessionService`, not a session id in schedule metadata.
 
+## Schedule admission (`canSchedule`)
+
+`canSchedule?(input: TPayload): boolean` is an optional synchronous, read-only
+check before a schedule creates a job. Keep domain validity rules in the handler;
+JobManager knows only the verdict. The check may read stored domain state but
+must not mutate it, call another lifecycle service, or perform asynchronous work.
+Direct `enqueue` / `enqueueTx` calls are unaffected.
+
+Natural fires, startup catch-up and manual schedule triggers all re-read the
+current schedule and check admission immediately before enqueueing. Returning
+`false` or throwing creates no job and does not consume the schedule's fire.
+Automatic fires are retried every 30 seconds while autonomous work is enabled;
+multiple blocked occurrences of one schedule coalesce into one pending retry.
+Deleting, disabling or replacing the trigger discards that retry. Template
+updates take effect on the next attempt. An unconsumed once schedule remains
+recoverable after process restart; recurring schedules keep their existing
+restart catch-up policy.
+
+A blocked manual trigger returns `false` and creates no background retry request.
+A successful manual trigger remains an extra run that preserves the automatic
+calendar. Admission does not guarantee that domain state remains valid until a
+queued job executes; handlers still validate their execution inputs.
+
 ## Enqueue observer (`onEnqueued`)
 
 `onEnqueued?(snapshot: Readonly<JobSnapshot>): void` is a synchronous observer
