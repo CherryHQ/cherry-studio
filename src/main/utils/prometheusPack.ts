@@ -4,13 +4,32 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { copyDirectoryRecursive } from '@main/utils/fileOperations'
+import { pathExists } from '@main/utils/legacyFile'
 
 import { toAsarUnpackedPath } from './asar'
 
 const logger = loggerService.withContext('prometheusPack')
 
 /** Complete runnable payload: skills load these adjacent scripts and references on demand. */
-export const PACK_ENTRIES = ['scripts', 'lib', 'rules', 'skills', 'references', 'agents', 'templates', 'hooks', 'docker', 'commands', 'shared', 'docs', 'schemas', 'assets', 'config', '.agents', 'node_modules'] as const
+export const PACK_ENTRIES = [
+  'scripts',
+  'lib',
+  'rules',
+  'skills',
+  'references',
+  'agents',
+  'templates',
+  'hooks',
+  'docker',
+  'commands',
+  'shared',
+  'docs',
+  'schemas',
+  'assets',
+  'config',
+  '.agents',
+  'node_modules'
+] as const
 
 /** Single files, copied alongside the directories above. */
 const PACK_FILES = ['package.json', 'versions.toml', 'release-manifest.json'] as const
@@ -49,12 +68,17 @@ export async function installPrometheusPack(): Promise<void> {
     }
 
     for (const entry of PACK_ENTRIES) {
-      const from = path.join(source, entry)
+      // Packaged builds ship node_modules as pack_modules; a dev source tree keeps node_modules.
+      const bundled =
+        entry === 'node_modules' && (await pathExists(path.join(source, 'pack_modules'))) ? 'pack_modules' : entry
+      const from = path.join(source, bundled)
       const to = path.join(destination, entry)
       try {
         await fs.access(from)
       } catch {
-        logger.warn('Prometheus pack entry is missing from the bundle', { entry })
+        logger[entry === 'node_modules' ? 'error' : 'warn']('Prometheus pack entry is missing from the bundle', {
+          entry
+        })
         continue
       }
       // Removed first so a file deleted upstream does not linger and keep being executed.
