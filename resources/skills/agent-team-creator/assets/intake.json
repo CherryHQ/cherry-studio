@@ -1,0 +1,11 @@
+{
+  "id": "checkout-team",
+  "outcome": "Implement an accessible checkout with verified payment error handling",
+  "complexity": "complex",
+  "areas": ["code", "design", "security", "docs"],
+  "deliverables": ["Checkout implementation", "Integration evidence", "Operator documentation"],
+  "budget": "balanced",
+  "review": true,
+  "harness": "codex",
+  "scope": "project"
+}

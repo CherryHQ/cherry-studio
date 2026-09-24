@@ -1,6 +1,6 @@
 ---
 name: kbd-spec
-description: Use to run the Spec stage of the KBD lifecycle (between Analyze and Plan) — turn an assessment and analysis into concrete, ordered changes (native-kbd spec.md + tasks.json + verification.md, or OpenSpec proposals).
+description: Use to run the Spec stage of the KBD lifecycle (between Analyze and Plan) — turn an assessment and analysis into concrete, ordered OpenSpec changes for KBD task execution.
 ---
 
 # /kbd-spec
@@ -13,13 +13,15 @@ Converts `assessment.md` (and `analysis.json` / `library-candidates.json` when
 the Analyze stage ran) into concrete change specs that the Plan stage will
 order and the Execute stage will drive one task per turn:
 
-- **native-kbd backend** (default): writes
-  `.kbd-orchestrator/changes/<change-id>/{spec.md, tasks.json, verification.md}`.
-- **openspec backend**: emits `/opsx:new <change-id>` per change, producing
-  `openspec/changes/<change-id>/{proposal.md, tasks.md}`.
+This repository uses **OpenSpec**, pinned by `project.json.specBackend`.
+Create `openspec/changes/<change-id>/` with proposal, design, delta specs, and
+explicit tasks as required by the project schema. Execute those tasks through
+`kbd-apply`; do not substitute a native change when OpenSpec is unavailable.
 
-Backend is resolved the same way `kbd-apply` resolves it
-(`project.json.specBackend` → openspec → native-kbd).
+The reusable backend library also supports existing native-kbd changes, but
+that portability capability does not override this repository’s OpenSpec
+policy. Detection honors the explicit pin first, then change-local evidence,
+then repository evidence; an empty result is not a native-kbd default.
 
 ## Progress Signals (MANDATORY)
 
@@ -42,35 +44,27 @@ Never guess. Emit to plain response text — no tool call needed.
 
 1. **Confirm the active phase** — from argument or
    `.kbd-orchestrator/current-waypoint.json`.
-2. **Stage gate** — `stageGate('spec', { cwd })` from `lib/kbd/stage-gate.mjs`
-   (requires the assess handoff; `analyze` is optional, so the gate walks back
-   across an absent analyze handoff automatically).
+2. **Stage gate** — call `stageGate('spec', { cwd })` from
+   `lib/kbd/stage-gate.mjs` and stop unless its returned `status` is zero
+   (requires assess; an absent optional analyze handoff is walked back).
 3. **Read inputs** — `assessment.md`; `analysis.json` /
    `library-candidates.json` if Analyze ran (adopt/adapt candidates become
    "reuse this library" tasks, not "build it" tasks).
-4. **Resolve backend** — `kbd-apply`'s detect semantics.
-5. **Write change specs** — native-kbd files or `/opsx:new` per change, with a
-   declared `scope:` and explicit task list each.
+4. **Confirm backend** — `kbd-apply` must resolve the pinned OpenSpec backend;
+   repair missing CLI/setup prerequisites instead of silently changing backends.
+5. **Write OpenSpec changes** — use the project’s OpenSpec creation workflow,
+   with declared scope and an explicit task list for each change.
 6. **Adversarial vet** — when `adversarial-review` is installed and
    `--skip-adversarial-review` was not passed, run it in artifact mode against
    the whole change set (every change named in the spec handoff, not one at a
    time — a spec is only coherent against its siblings; cross-change failures
-   like a `tasks.json` `scope` that omits a file its tasks edit, or two changes
+   like a declared scope that omits a file its tasks edit, or two changes
    editing the same file with no ordering, are invisible when reviewed in
-   isolation). CRITICAL findings → revise the affected `spec.md` /
-   `tasks.json` / `verification.md` and re-vet (max 2 rounds, then accept with
+   isolation). CRITICAL findings → revise the affected OpenSpec proposal,
+   design, delta specs, or tasks and re-vet (max 2 rounds, then accept with
    an "Unresolved review findings" section appended). WARNING findings → carry
    into the stage handoff.
 7. **Write handoff** — see "Stage gate & handoff" below.
-
-> **Note on the ZeeSpec coverage gate.** The upstream version of this skill
-> gates spec-writing on a `.zeespec/<subject>/` coverage verdict (GO /
-> CAUTION / NO-GO) when that directory exists. This port omits that gate: it
-> is documented upstream as inactive whenever no `.zeespec/` directory is
-> present, and none of this project's own skills create one, so the omission
-> is behavior-preserving here. If `zeespec-interrogator`-style coverage
-> tracking is ever added to this project, reintroduce the gate at this point
-> in the flow — after reading inputs, before writing change specs.
 
 ## Hook integration
 
