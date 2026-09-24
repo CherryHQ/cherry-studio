@@ -307,5 +307,4 @@ describe('AutoBackupService', () => {
     service.acknowledgeNotification(failure.type, failure.id)
     expect(service.getStateSnapshot().pendingNotifications).toEqual([])
   })
-
 })

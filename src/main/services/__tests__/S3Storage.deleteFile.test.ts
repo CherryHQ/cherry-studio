@@ -1,4 +1,3 @@
-import type { S3Config } from '@shared/types/backup'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }))
@@ -26,7 +25,7 @@ function storage(root: string) {
     secretAccessKey: 'secret',
     bucket: 'my-bucket',
     root
-  } as S3Config)
+  })
 }
 
 describe('S3Storage.deleteFile', () => {

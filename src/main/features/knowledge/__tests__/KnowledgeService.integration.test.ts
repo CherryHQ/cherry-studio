@@ -42,7 +42,7 @@ vi.mock('@application', async () => {
       deleteStore: deleteStoreMock,
       getIndexStoreIfExists: vi.fn()
     }
-  } as Parameters<typeof mockApplicationFactory>[0])
+  })
 })
 
 vi.mock('@logger', () => ({

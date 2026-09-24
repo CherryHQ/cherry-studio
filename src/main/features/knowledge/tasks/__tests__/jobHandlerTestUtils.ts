@@ -113,7 +113,7 @@ vi.mock('@application', async () => {
       getIndexStore: getIndexStoreMock,
       getIndexStoreIfExists: getIndexStoreIfExistsMock
     }
-  } as Parameters<typeof mockApplicationFactory>[0])
+  })
 })
 
 vi.mock('@logger', () => ({
