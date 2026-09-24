@@ -5,6 +5,24 @@ import path from 'node:path'
 import fs from 'fs-extra'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }))
+
+vi.mock('@aws-sdk/client-s3', () => {
+  class Command {
+    constructor(public input: unknown) {}
+  }
+  return {
+    S3Client: class {
+      send = sendMock
+    },
+    DeleteObjectCommand: Command,
+    GetObjectCommand: Command,
+    HeadBucketCommand: Command,
+    ListObjectsV2Command: Command,
+    PutObjectCommand: Command
+  }
+})
+
 import { BackupCancelledError } from '../../errors'
 import { createTransport } from '../destinationTransport'
 
@@ -53,5 +71,59 @@ describe('local destination transport', () => {
       BackupCancelledError
     )
     expect(await fs.pathExists(dir)).toBe(false)
+  })
+})
+
+describe('S3 destination transport', () => {
+  let root: string
+  let archive: string
+
+  beforeEach(async () => {
+    sendMock.mockReset()
+    root = await mkdtemp(path.join(tmpdir(), 'cs-s3-transport-'))
+    archive = path.join(root, 'staged.cherrybackup')
+    await writeFile(archive, 'new bytes')
+  })
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+
+  const transport = () =>
+    createTransport({
+      kind: 's3',
+      endpoint: 'https://s3.example.com',
+      region: 'us-east-1',
+      bucket: 'my-bucket',
+      accessKeyId: 'id',
+      secretAccessKey: 'secret',
+      root: 'backups',
+      maxBackups: 0
+    } as never)
+
+  // Download and remove address a name directly under the root; a nested key
+  // listed by its basename would point them at a different object.
+  it('lists only archives directly under the root', async () => {
+    sendMock.mockResolvedValueOnce({
+      Contents: [
+        { Key: 'backups/a.zip', Size: 1 },
+        { Key: 'backups/laptop/b.zip', Size: 2 }
+      ]
+    })
+
+    expect((await transport().list()).map((archive) => archive.name)).toEqual(['a.zip'])
+  })
+
+  // A cancelled upload must stop the request, not run out its retries first.
+  it('aborts an upload in flight and reports it as cancelled', async () => {
+    const controller = new AbortController()
+    sendMock.mockImplementation((_command, options: { abortSignal?: AbortSignal }) => {
+      controller.abort()
+      return Promise.reject(Object.assign(new Error('aborted'), { name: 'AbortError', seen: options.abortSignal }))
+    })
+
+    await expect(transport().upload(archive, 'a.zip', controller.signal)).rejects.toBeInstanceOf(BackupCancelledError)
+    expect(sendMock).toHaveBeenCalledOnce()
+    expect(sendMock.mock.calls[0][1]?.abortSignal).toBe(controller.signal)
   })
 })

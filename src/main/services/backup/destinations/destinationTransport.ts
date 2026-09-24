@@ -103,7 +103,13 @@ function s3Transport(destination: Extract<ResolvedDestination, { kind: 's3' }>):
   return {
     async upload(localPath, name, signal) {
       throwIfCancelled(signal)
-      await client.putFile(name, localPath)
+      try {
+        await client.putFile(name, localPath, signal)
+      } catch (error) {
+        // The SDK's abort error, reported as the cancellation it is.
+        throwIfCancelled(signal)
+        throw error
+      }
       throwIfCancelled(signal)
     },
 
@@ -113,11 +119,15 @@ function s3Transport(destination: Extract<ResolvedDestination, { kind: 's3' }>):
 
     async list() {
       const objects = await client.listFiles()
-      return objects.map((object) => ({
-        name: path.posix.basename(object.key),
-        modifiedAt: object.lastModified ? new Date(object.lastModified).getTime() : 0,
-        size: object.size
-      }))
+      // Only objects directly under the root: download and remove address a
+      // name there, so a nested key would resolve to a different object.
+      return objects
+        .filter((object) => !object.key.includes('/'))
+        .map((object) => ({
+          name: object.key,
+          modifiedAt: object.lastModified ? new Date(object.lastModified).getTime() : 0,
+          size: object.size
+        }))
     },
 
     async remove(name) {

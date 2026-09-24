@@ -183,7 +183,7 @@ export default class S3Storage {
    * retry would replay an exhausted body and silently write a truncated object —
    * which is why the retry lives here instead.
    */
-  async putFile(key: string, filePath: string): Promise<void> {
+  async putFile(key: string, filePath: string, signal?: AbortSignal): Promise<void> {
     const { size } = await fs.stat(filePath)
     if (size > SINGLE_PUT_MAX_BYTES) {
       throw new Error(`backup archive is ${size} bytes; a single S3 upload cannot exceed ${SINGLE_PUT_MAX_BYTES}`)
@@ -192,6 +192,7 @@ export default class S3Storage {
 
     let lastError: unknown
     for (let attempt = 1; attempt <= PUT_MAX_ATTEMPTS; attempt++) {
+      signal?.throwIfAborted()
       try {
         await this.client.send(
           new PutObjectCommand({
@@ -200,10 +201,12 @@ export default class S3Storage {
             Body: fs.createReadStream(filePath),
             ContentLength: size,
             ContentType: contentType
-          })
+          }),
+          { abortSignal: signal }
         )
         return
       } catch (error) {
+        if (signal?.aborted) throw error
         lastError = error
         logger.warn(`[S3Storage] Upload attempt ${attempt}/${PUT_MAX_ATTEMPTS} failed`, error as Error)
       }
