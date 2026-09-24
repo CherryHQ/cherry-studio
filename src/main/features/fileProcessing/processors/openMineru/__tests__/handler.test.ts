@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileInfo } from '@shared/types/file'
@@ -20,7 +20,11 @@ const file = { path: '/document.pdf', name: 'document', ext: 'pdf' } as FileInfo
 const state = { protocol: 'v1', apiHost: 'http://127.0.0.1:8000', providerTaskId: 'job-1' }
 const health = { status: 'ok', version: '4.0.6', features: { sources: ['file_id'], output_formats: ['markdown'] } }
 
-beforeEach(() => fetchMock.mockReset())
+beforeEach(() => {
+  vi.stubGlobal('fetch', fetchMock)
+  fetchMock.mockReset()
+})
+afterAll(() => vi.unstubAllGlobals())
 
 describe('Open MinerU task preparation and recovery', () => {
   it('chooses the legacy background job for a healthy old service', async () => {

@@ -1,10 +1,11 @@
 import { openAsBlob } from 'node:fs'
 
 import { net } from 'electron'
+import { Agent } from 'undici'
 import type * as z from 'zod'
 
 import { t } from '@main/i18n'
-import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { resolveRemoteFetchUrl, sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { FileInfo } from '@shared/types/file'
 
 import { V1CompletedUploadSchema, V1JobSchema, V1UploadSchema } from './schemas'
@@ -32,16 +33,17 @@ export async function startV1Parse(
       headers.set('Authorization', `Bearer ${connection.apiKey}`)
     }
     const body = await openAsBlob(file.path)
-    const response = await net.fetch(uploadUrl, {
-      method: upload.upload_method,
-      headers,
-      body,
-      redirect: 'manual',
-      credentials: 'omit',
-      signal
-    })
-    await response.body?.cancel()
-    assertSuccessful(response)
+    await withTransferResponse(
+      connection,
+      uploadUrl,
+      {
+        method: upload.upload_method,
+        headers,
+        body,
+        signal
+      },
+      async (response) => assertSuccessful(response)
+    )
 
     const completed = await requestJson(
       connection,
@@ -79,30 +81,29 @@ export async function downloadV1Markdown(
   let url = `${connection.apiHost}/v1/files/${encodeURIComponent(fileId)}/content`
   let maySendKey = true
   for (let redirects = 0; redirects <= 5; redirects++) {
-    const response = await net.fetch(url, {
-      headers: maySendKey && connection.apiKey ? { Authorization: `Bearer ${connection.apiKey}` } : undefined,
-      redirect: 'manual',
-      credentials: 'omit',
-      signal
-    })
-    if ([301, 302, 303, 307, 308].includes(response.status)) {
-      const location = response.headers.get('location')
-      await response.body?.cancel()
-      if (!location) break
-      url = resolveTransferUrl(location, url, connection.apiHost)
-      maySendKey = maySendKey && new URL(url).origin === new URL(connection.apiHost).origin
-      continue
-    }
-    if (!response.ok) {
-      await response.body?.cancel()
-      assertSuccessful(response)
-    }
-    const contentType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase()
-    if (!contentType || !['text/plain', 'text/markdown', 'application/octet-stream'].includes(contentType)) {
-      await response.body?.cancel()
-      throw new Error(t('file_processing.errors.open_mineru_invalid_response'))
-    }
-    return response.text()
+    const result = await withTransferResponse(
+      connection,
+      url,
+      {
+        headers: new Headers(maySendKey && connection.apiKey ? { Authorization: `Bearer ${connection.apiKey}` } : {}),
+        signal
+      },
+      async (response) => {
+        if ([301, 302, 303, 307, 308].includes(response.status)) {
+          return { location: response.headers.get('location') }
+        }
+        assertSuccessful(response)
+        const contentType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase()
+        if (!contentType || !['text/plain', 'text/markdown', 'application/octet-stream'].includes(contentType)) {
+          throw new Error(t('file_processing.errors.open_mineru_invalid_response'))
+        }
+        return { markdown: await response.text() }
+      }
+    )
+    if (result.markdown !== undefined) return result.markdown
+    if (!result.location) break
+    url = resolveTransferUrl(result.location, url, connection.apiHost)
+    maySendKey = maySendKey && new URL(url).origin === new URL(connection.apiHost).origin
   }
   throw new Error(t('file_processing.errors.open_mineru_invalid_response'))
 }
@@ -145,5 +146,33 @@ function resolveTransferUrl(value: string, base: string, apiHost: string): strin
     return sanitizeRemoteUrl(new URL(value, base).href, apiHost)
   } catch {
     throw new Error(t('file_processing.errors.open_mineru_invalid_response'))
+  }
+}
+
+async function withTransferResponse<T>(
+  connection: OpenMineruConnection,
+  url: string,
+  init: { method?: 'PUT'; headers: Headers; body?: Blob; signal?: AbortSignal },
+  consume: (response: Response) => Promise<T>
+): Promise<T> {
+  const target = await resolveRemoteFetchUrl(url, {
+    signal: init.signal,
+    allowPrivateNetwork: new URL(url).origin === new URL(connection.apiHost).origin
+  })
+  const dispatcher = new Agent({
+    connect: {
+      lookup(_hostname, options, callback) {
+        if (options.all) callback(null, [target.address])
+        else callback(null, target.address.address, target.address.family)
+      }
+    }
+  })
+  let response: Response | undefined
+  try {
+    response = await fetch(target.url, { ...init, redirect: 'manual', ...{ dispatcher } })
+    return await consume(response)
+  } finally {
+    if (response?.body && !response.body.locked) await response.body.cancel().catch(() => {})
+    await dispatcher.destroy()
   }
 }

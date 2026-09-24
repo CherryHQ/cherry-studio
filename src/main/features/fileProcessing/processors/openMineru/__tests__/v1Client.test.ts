@@ -6,7 +6,23 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 import type { FileInfo } from '@shared/types/file'
 
-const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }))
+const { fetchMock, lookupMock, agents } = vi.hoisted(() => ({
+  fetchMock: vi.fn(),
+  lookupMock: vi.fn(),
+  agents: [] as Array<{ options: any; destroyed: boolean }>
+}))
+vi.mock('node:dns/promises', () => ({ lookup: lookupMock }))
+vi.mock('undici', () => ({
+  Agent: class {
+    destroyed = false
+    constructor(public options: any) {
+      agents.push(this)
+    }
+    async destroy() {
+      this.destroyed = true
+    }
+  }
+}))
 vi.mock('electron', () => ({ net: { fetch: fetchMock }, app: { getLocale: () => 'en-US' } }))
 
 import { downloadV1Markdown, getV1ParseJob, startV1Parse } from '../v1Client'
@@ -23,8 +39,16 @@ beforeAll(async () => {
   await fs.writeFile(filePath, 'pdf-data')
   file = { path: filePath, name: 'document', ext: 'pdf', size: 8, mime: 'application/pdf' } as FileInfo
 })
-afterAll(async () => fs.rm(dir, { recursive: true, force: true }))
-beforeEach(() => fetchMock.mockReset())
+afterAll(async () => {
+  vi.unstubAllGlobals()
+  await fs.rm(dir, { recursive: true, force: true })
+})
+beforeEach(() => {
+  vi.stubGlobal('fetch', fetchMock)
+  fetchMock.mockReset()
+  lookupMock.mockReset().mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+  agents.length = 0
+})
 
 describe('MinerU V1 upload and parse', () => {
   it.each([
@@ -159,5 +183,95 @@ describe('MinerU V1 result download', () => {
   it('rejects a response belonging to a different parse job', async () => {
     fetchMock.mockResolvedValueOnce(Response.json({ ...queued, job_id: 'another-job' }))
     await expect(getV1ParseJob(connection, 'job-1')).rejects.toThrow()
+  })
+})
+
+describe('MinerU V1 transfer safety', () => {
+  it('blocks an upload hostname resolving to a private address before sending document bytes', async () => {
+    lookupMock.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        id: 'upload-1',
+        status: 'pending',
+        upload_url: 'https://storage.example.com/upload',
+        upload_method: 'PUT'
+      })
+    )
+    await expect(startV1Parse(connection, file)).rejects.toThrow('DNS resolved to local or private address')
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([`${connection.apiHost}/v1/uploads`])
+    expect(agents).toHaveLength(0)
+  })
+
+  it('blocks a download redirect resolving to a private address', async () => {
+    lookupMock.mockResolvedValue([{ address: '10.0.0.1', family: 4 }])
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, { status: 302, headers: { location: 'https://cdn.example.com/md' } })
+    )
+    await expect(downloadV1Markdown(connection, 'output-1')).rejects.toThrow('DNS resolved to local or private address')
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([`${connection.apiHost}/v1/files/output-1/content`])
+  })
+
+  it('pins upload connections to the validated DNS answer while preserving the TLS hostname', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        id: 'upload-1',
+        status: 'pending',
+        upload_url: 'https://storage.example.com/upload',
+        upload_method: 'PUT'
+      })
+    )
+    fetchMock.mockImplementationOnce(async (url, init) => {
+      expect(url).toBe('https://storage.example.com/upload')
+      lookupMock.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
+      const lookup = init.dispatcher.options.connect.lookup
+      expect(
+        await new Promise((resolve) =>
+          lookup('storage.example.com', {}, (_error: unknown, address: string, family: number) =>
+            resolve({ address, family })
+          )
+        )
+      ).toEqual({ address: '93.184.216.34', family: 4 })
+      expect(
+        await new Promise((resolve) =>
+          lookup('storage.example.com', { all: true }, (_error: unknown, addresses: unknown) => resolve(addresses))
+        )
+      ).toEqual([{ address: '93.184.216.34', family: 4 }])
+      expect(await init.body.text()).toBe('pdf-data')
+      return new Response(null)
+    })
+    fetchMock.mockResolvedValueOnce(Response.json(completedUpload))
+    fetchMock.mockResolvedValueOnce(Response.json(queued))
+    expect(await startV1Parse(connection, file)).toBe('job-1')
+    expect(lookupMock).toHaveBeenCalledTimes(1)
+    expect(agents.every((agent) => agent.destroyed)).toBe(true)
+  })
+
+  it('revalidates DNS on each cross-origin download hop and releases failed transfers', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, { status: 302, headers: { location: 'https://cdn.example.com/first' } })
+    )
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: '/second' } }))
+    lookupMock
+      .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
+      .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
+      .mockResolvedValueOnce([{ address: '192.168.1.1', family: 4 }])
+    await expect(downloadV1Markdown(connection, 'output-1')).rejects.toThrow('DNS resolved to local or private address')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(agents.every((agent) => agent.destroyed)).toBe(true)
+  })
+
+  it('destroys the pinned dispatcher when a transfer aborts before receiving headers', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, { status: 302, headers: { location: 'https://cdn.example.com/md' } })
+    )
+    fetchMock.mockRejectedValueOnce(new DOMException('aborted', 'AbortError'))
+    await expect(downloadV1Markdown(connection, 'output-1')).rejects.toThrow('aborted')
+    expect(agents.every((agent) => agent.destroyed)).toBe(true)
+  })
+
+  it('still permits the explicitly configured local server', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('# local result'))
+    expect(await downloadV1Markdown({ apiHost: 'http://127.0.0.1:18000' }, 'output-1')).toBe('# local result')
+    expect(lookupMock).not.toHaveBeenCalled()
   })
 })
