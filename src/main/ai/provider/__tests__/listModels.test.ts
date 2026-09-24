@@ -1,8 +1,8 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
-import type * as CustomFetchModule from '@main/ai/utils/customFetch'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CustomFetchModule from '@main/ai/utils/customFetch'
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
