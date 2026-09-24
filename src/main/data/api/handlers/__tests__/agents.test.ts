@@ -6,6 +6,7 @@ const {
   listAgentsMock,
   getAgentMock,
   updateAgentMock,
+  deleteAgentMock,
   reorderMock,
   reorderBatchMock,
   listAllTasksMock,
@@ -18,6 +19,7 @@ const {
   listAgentsMock: vi.fn(),
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
+  deleteAgentMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   listAllTasksMock: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock('@data/services/AgentService', () => ({
     listAgents: listAgentsMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
+    deleteAgent: deleteAgentMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -199,17 +202,17 @@ describe('agentHandlers', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('delegates DELETE to AgentLifecycleService and returns undefined on success', async () => {
-      archiveAgentMock.mockResolvedValueOnce({ deleted: true })
+    it('delegates DELETE to agentService and returns undefined on success', async () => {
+      deleteAgentMock.mockReturnValueOnce({ deleted: true })
 
       const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
 
-      expect(archiveAgentMock).toHaveBeenCalledWith(AGENT_ID, { archiveSessions: false })
+      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
       expect(result).toBeUndefined()
     })
 
-    it('throws notFound when AgentLifecycleService reports a missing agent', async () => {
-      archiveAgentMock.mockResolvedValueOnce({ deleted: false })
+    it('throws notFound when agentService reports a missing agent', async () => {
+      deleteAgentMock.mockReturnValueOnce({ deleted: false })
 
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })
