@@ -69,7 +69,12 @@ export function useResourceCatalogController(
   const { t } = useTranslation()
   const { onLaunchSkill, onOpenSkill } = options
   const [search, setSearch] = useState('')
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
+  // The library travels with the group id: a switch must not read it as a group of the other
+  // library (derived null) nor keep it afterwards (render-phase reset — an effect is a render late).
+  const [groupFilter, setGroupFilter] = useState<{ library: string; groupId: string | null }>({
+    library: resourceType,
+    groupId: null
+  })
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
   const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateWizardKind | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -86,6 +91,14 @@ export function useResourceCatalogController(
   // Agents share the group-management surface; groups are per-entityType rows.
   const groupEntityType: 'assistant' | 'agent' = resourceType === 'agent' ? 'agent' : 'assistant'
   const isGroupedLibrary = isAssistantLibrary || resourceType === 'agent'
+  const activeGroupId = groupFilter.library === resourceType ? groupFilter.groupId : null
+  if (groupFilter.library !== resourceType) {
+    setGroupFilter({ library: resourceType, groupId: null })
+  }
+  const setActiveGroupId = useCallback(
+    (groupId: string | null) => setGroupFilter({ library: resourceType, groupId }),
+    [resourceType]
+  )
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
 
@@ -101,10 +114,6 @@ export function useResourceCatalogController(
     search,
     sort: 'name'
   })
-
-  useEffect(() => {
-    setActiveGroupId(null)
-  }, [resourceType])
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
   const { createAgent } = useAgentMutations()
