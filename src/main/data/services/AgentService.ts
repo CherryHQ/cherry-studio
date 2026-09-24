@@ -824,10 +824,10 @@ export class AgentService {
       const deleted = this.deleteAgentStateTx(tx, id, options)
       if (!deleted.deleted || options.permanent) return deleted
 
-      const taskScheduleIds = agentTaskService.setOwnerStateTx(tx, id, 'trashed', Date.now())
+      const { scheduleIds } = agentTaskService.setOwnerStateTx(tx, id, 'trashed', Date.now())
       return {
         ...deleted,
-        taskScheduleIds: [...new Set([...deleted.taskScheduleIds, ...taskScheduleIds])]
+        taskScheduleIds: [...new Set([...deleted.taskScheduleIds, ...scheduleIds])]
       }
     })
     this.notifyDeleted(id, impact)
