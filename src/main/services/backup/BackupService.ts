@@ -5,7 +5,7 @@ import type { JournalDegradation, PromotionStepV2, RestoreJournalV2State } from 
 import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { BackupArchiveNameSchema, type BackupDestinationId } from '@shared/ipc/schemas/backup'
+import { BackupArchiveNameSchema, type BackupDestinationId, type BackupProgressStage } from '@shared/ipc/schemas/backup'
 
 import { archiveName, pruneToLimit, sanitizeArchiveName } from './destinations/archiveRotation'
 import { resolveDestination } from './destinations/destinationConfig'
@@ -13,6 +13,7 @@ import { createTransport, type RemoteArchive } from './destinations/destinationT
 import { ArchiveAdmissionError, BackupBusyError, BackupCancelledError, renderUntrustedName } from './errors'
 import { exportArchive, type ExportArchiveResult } from './export/exportArchive'
 import { createOwnedScratch, sweepStaleExportOperations } from './export/exportOperation'
+import type { BackupStageReporter } from './progress'
 import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } from './restore/acknowledgeRestore'
 import { runPostPromotionWork } from './restore/postPromotion'
 import {
@@ -246,9 +247,9 @@ export class BackupService extends BaseService {
    * overwrites a prior backup.
    */
   public export(outPath: string): Promise<ExportArchiveResult> {
-    return this.runExclusive('export', async (signal) => {
+    return this.runExclusive('export', async (signal, reportStage) => {
       await this.startExportCleanup()
-      return exportArchive({ outPath, signal })
+      return exportArchive({ outPath, signal, reportStage })
     })
   }
 
@@ -271,7 +272,7 @@ export class BackupService extends BaseService {
     const destination = await resolveDestination(id)
     const transport = createTransport(destination)
 
-    return this.runExclusive('export', async (signal) => {
+    return this.runExclusive('export', async (signal, reportStage) => {
       await this.startExportCleanup()
       // A name the user typed is kept, but it opts out of rotation: only the
       // generated convention identifies an archive as this device's.
@@ -283,7 +284,8 @@ export class BackupService extends BaseService {
       await ensureDir(tempRoot)
       const scratch = await createOwnedScratch(tempRoot, name)
       try {
-        const result = await exportArchive({ outPath: scratch.filePath, signal })
+        const result = await exportArchive({ outPath: scratch.filePath, signal, reportStage })
+        reportStage('uploading')
         await transport.upload(result.outPath, name, signal)
         // Only now. Pruning first is how a limit of 1 turned a failed upload into
         // a user with no backups at all.
@@ -300,7 +302,9 @@ export class BackupService extends BaseService {
    * state; {@link armRestore} is what commits to it.
    */
   public prepareRestore(archivePath: string): Promise<RestorePreview> {
-    return this.runExclusive('prepare-restore', (signal) => prepareRestore({ archivePath, signal }))
+    return this.runExclusive('prepare-restore', (signal, reportStage) =>
+      prepareRestore({ archivePath, signal, reportStage })
+    )
   }
 
   /**
@@ -313,13 +317,13 @@ export class BackupService extends BaseService {
     assertArchiveName(name)
     const transport = createTransport(await resolveDestination(id))
 
-    return this.runExclusive('prepare-restore', async (signal) => {
+    return this.runExclusive('prepare-restore', async (signal, reportStage) => {
       const tempRoot = application.getPath('feature.backup.temp')
       await ensureDir(tempRoot)
       const scratch = await createOwnedScratch(tempRoot, name)
       try {
         await transport.download(name, scratch.filePath, signal)
-        return await prepareRestore({ archivePath: scratch.filePath, signal })
+        return await prepareRestore({ archivePath: scratch.filePath, signal, reportStage })
       } finally {
         await scratch.dispose()
       }
@@ -453,10 +457,15 @@ export class BackupService extends BaseService {
    * `work` receives the signal that {@link cancelOperation} aborts. It is created
    * here so the claim and the abort handle have exactly the same lifetime: a
    * cancellation can never reach the operation that replaced the one it targeted.
+   *
+   * It also receives the stage reporter, for the same reason: this is the one
+   * place that knows which operation is running, so the pipeline below only has
+   * to name the stage it entered. Reporting is best-effort — a window that
+   * closed mid-export must not fail the export — so the emit is swallowed.
    */
   public async runExclusive<T>(
     operation: BackupOperation,
-    work: (signal: AbortSignal) => Promise<T>,
+    work: (signal: AbortSignal, reportStage: BackupStageReporter) => Promise<T>,
     options: { readonly cancellable?: boolean } = {}
   ): Promise<T> {
     if (this.shuttingDown) throw new BackupCancelledError('backup service is shutting down')
@@ -475,10 +484,23 @@ export class BackupService extends BaseService {
     }
     this.inFlight = claim
     try {
-      return await work(controller.signal)
+      return await work(controller.signal, (stage) => this.reportStage(operation, stage))
     } finally {
       if (this.inFlight === claim) this.inFlight = null
       markSettled()
+    }
+  }
+
+  /**
+   * Push one stage boundary to every window. Best-effort by contract: progress
+   * is a label, and the request's own resolution is what reports the outcome,
+   * so a broadcast that throws must not surface as an export failure.
+   */
+  private reportStage(operation: BackupOperation, stage: BackupProgressStage): void {
+    try {
+      application.get('IpcApiService').broadcast('backup.progress', { operation, stage })
+    } catch (error) {
+      logger.warn('Could not broadcast backup progress', error as Error, { operation, stage })
     }
   }
 
