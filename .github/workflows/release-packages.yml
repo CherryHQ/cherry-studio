@@ -65,10 +65,10 @@ jobs:
           pnpm --filter '@cherrystudio/remote-*' test
 
       - name: Create Release Pull Request or Publish to npm
-        id: changesets
         uses: changesets/action@v1
         with:
           publish: pnpm changeset:publish
+          createGithubReleases: false
           version: pnpm changeset:version
           commit: "chore: version packages"
           title: "chore: version packages"
@@ -76,13 +76,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish Summary
-        if: steps.changesets.outputs.published == 'true'
-        run: |
-          echo "## Published Packages" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The following packages were published:" >> $GITHUB_STEP_SUMMARY
-          echo "$PUBLISHED_PACKAGES" >> $GITHUB_STEP_SUMMARY
-        env:
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}

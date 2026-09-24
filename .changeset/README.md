@@ -80,6 +80,8 @@ Multiple PRs with changesets can merge before a release — the Version Packages
 
 When a maintainer decides it's time to release, they **merge the Version Packages PR**. This triggers the workflow again, and since there are no more pending changesets, the action runs `pnpm changeset:publish` to publish the updated packages to npm.
 
+Package publishing writes to npm only. It does not create Git tags or GitHub Releases; GitHub Releases are reserved for the desktop client. Both `pnpm changeset:publish` and `pnpm packages:release` follow this policy. Published package details are recorded in the workflow logs.
+
 **In short**: changesets accumulate automatically; you control when to release by merging the Version Packages PR.
 
 ## Learn more
