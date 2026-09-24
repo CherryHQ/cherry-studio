@@ -30,6 +30,8 @@ const MermaidPreview = ({
    */
   const renderMermaid = useCallback(
     async (content: string, container: HTMLDivElement) => {
+      const renderBackgroundColor = mermaid.mermaidAPI.getConfig().themeVariables?.background
+
       // 验证语法，提前抛出异常
       await mermaid.parse(content)
 
@@ -47,13 +49,13 @@ const MermaidPreview = ({
 
       try {
         const { svg } = await mermaid.render(diagramId, content, measureEl)
-        setPreviewBackgroundColor(mermaid.mermaidAPI.getConfig().themeVariables?.background)
 
         // 避免不可见时产生 undefined 和 NaN
         const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
 
         // 有问题可以回退到 innerHTML
         renderSvgInShadowHost(fixedSvg, container)
+        setPreviewBackgroundColor(renderBackgroundColor)
         // container.innerHTML = fixedSvg
       } finally {
         document.body.removeChild(measureEl)

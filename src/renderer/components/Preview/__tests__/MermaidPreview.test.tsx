@@ -145,6 +145,52 @@ describe('MermaidPreview', () => {
     expect(mocks.useImageTools.mock.lastCall?.[1]).toMatchObject({ previewBackgroundColor: background })
   })
 
+  it('keeps the preview background paired with a render that finishes after a theme change', async () => {
+    let background = 'white'
+    mocks.mermaid.mermaidAPI.getConfig.mockImplementation(() => ({ themeVariables: { background } }))
+
+    const pendingRenders: Array<(result: { svg: string }) => void> = []
+    mocks.mermaid.render.mockImplementation(() => new Promise((resolve) => pendingRenders.push(resolve)))
+
+    const { rerender } = render(<MermaidPreview>{content}</MermaidPreview>)
+    const container = mocks.containerRef.current!
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({ width: 640 } as DOMRect)
+
+    let lightRender: Promise<void>
+    await act(async () => {
+      lightRender = mocks.renderFunction!(content, container)
+      await Promise.resolve()
+    })
+
+    background = '#333'
+    mocks.useMermaid.mockReturnValue({
+      mermaid: mocks.mermaid,
+      isLoading: false,
+      error: null,
+      forceRenderKey: 1
+    })
+    rerender(<MermaidPreview>{content}</MermaidPreview>)
+
+    let darkRender: Promise<void>
+    await act(async () => {
+      darkRender = mocks.renderFunction!(content, container)
+      await Promise.resolve()
+      pendingRenders[1]({ svg: '<svg data-theme="dark" />' })
+      await darkRender
+    })
+
+    expect(mocks.renderSvgInShadowHost.mock.lastCall?.[0]).toBe('<svg data-theme="dark" />')
+    expect(mocks.useImageTools.mock.lastCall?.[1]).toMatchObject({ previewBackgroundColor: '#333' })
+
+    await act(async () => {
+      pendingRenders[0]({ svg: '<svg data-theme="light" />' })
+      await lightRender
+    })
+
+    expect(mocks.renderSvgInShadowHost.mock.lastCall?.[0]).toBe('<svg data-theme="light" />')
+    expect(mocks.useImageTools.mock.lastCall?.[1]).toMatchObject({ previewBackgroundColor: 'white' })
+  })
+
   it('surfaces Mermaid initialization state ahead of render state', () => {
     mocks.useMermaid.mockReturnValue({
       mermaid: mocks.mermaid,
