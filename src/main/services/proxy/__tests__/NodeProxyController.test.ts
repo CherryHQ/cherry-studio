@@ -1,4 +1,5 @@
 import { createServer, type Server } from 'node:http'
+import net from 'node:net'
 
 import { EnvHttpProxyAgent, fetch as undiciFetch } from 'undici'
 import { describe, expect, it } from 'vitest'
@@ -98,11 +99,22 @@ describe('NodeProxyController', () => {
       response.setHeader('content-type', 'application/json')
       response.end(JSON.stringify({ source: 'local' }))
     })
-    const proxyRequests: string[] = []
-    const proxyServer = createServer((request, response) => {
-      proxyRequests.push(request.url ?? '')
-      response.setHeader('content-type', 'application/json')
-      response.end(JSON.stringify({ source: 'proxy' }))
+    const tunnels: string[] = []
+    const proxyServer = createServer((_request, response) => {
+      response.writeHead(404).end()
+    })
+    // With `<-loopback>` even loopback requests arrive as CONNECT tunnels; pipe them to the
+    // target so the request completes and the tunnel itself is the proof of proxying.
+    proxyServer.on('connect', (request, clientSocket, head) => {
+      tunnels.push(request.url ?? '')
+      const [host, port] = (request.url ?? '').split(':')
+      const target = net.connect(Number(port), host, () => {
+        clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
+        if (head?.length) target.write(head)
+        target.pipe(clientSocket)
+        clientSocket.pipe(target)
+      })
+      target.on('error', () => clientSocket.end('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n'))
     })
     const [localPort, proxyPort] = await Promise.all([listen(localServer), listen(proxyServer)])
     const controller = new NodeProxyController()
@@ -130,9 +142,9 @@ describe('NodeProxyController', () => {
       })
       expect(process.env.NO_PROXY ?? '').not.toContain('localhost')
 
-      const response = await fetch(`http://127.0.0.1:${localPort}/models`, { signal: AbortSignal.timeout(2000) })
-      expect(await response.json()).toEqual({ source: 'proxy' })
-      expect(proxyRequests.some((url) => url.includes('/models'))).toBe(true)
+      const response = await fetch(`http://127.0.0.1:${localPort}/models`, { signal: AbortSignal.timeout(5000) })
+      expect(await response.json()).toEqual({ source: 'local' })
+      expect(tunnels).toContain(`127.0.0.1:${localPort}`)
     } finally {
       await controller.configure({})
       for (const key of proxyEnvKeys) {
