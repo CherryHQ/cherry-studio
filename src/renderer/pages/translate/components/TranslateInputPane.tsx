@@ -1,6 +1,6 @@
 import { Check, Copy, LoaderCircle, X } from 'lucide-react'
 import type { KeyboardEvent, Ref } from 'react'
-import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Scrollbar } from '@cherrystudio/ui'
@@ -10,9 +10,14 @@ import uploadPdfIcon from '@renderer/assets/images/translate/upload-pdf.svg'
 import uploadPptIcon from '@renderer/assets/images/translate/upload-ppt.svg'
 import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
+import DictationControls from '@renderer/components/DictationControls'
 import { useDrag } from '@renderer/hooks/useDrag'
+import { voiceTargetManager } from '@renderer/services/voice'
+import type { VoiceReplaceRange } from '@renderer/services/voice'
 
 import IconButton from './IconButton'
+
+const TARGET_ID = 'translate-page-source'
 
 type Props = {
   ref?: Ref<HTMLDivElement>
@@ -49,6 +54,36 @@ const TranslateInputPane = ({
 }: Props) => {
   const { t } = useTranslation()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (disabled) return
+    return voiceTargetManager.bind({
+      targetId: TARGET_ID,
+      owner: window,
+      sourceEntityId: 'translate-page-source',
+      captureReplaceRange: () => {
+        const textarea = textareaRef.current
+        return textarea && !textarea.disabled ? { from: textarea.selectionStart, to: textarea.selectionEnd } : null
+      },
+      replaceRange: (range: VoiceReplaceRange, insertedText: string) => {
+        const textarea = textareaRef.current
+        if (
+          !textarea ||
+          textarea.disabled ||
+          !Number.isInteger(range.from) ||
+          !Number.isInteger(range.to) ||
+          range.from < 0 ||
+          range.to < range.from ||
+          range.to > textarea.value.length
+        )
+          return false
+        textarea.setRangeText(insertedText, range.from, range.to, 'end')
+        onTextChange(textarea.value)
+        textarea.focus()
+        return true
+      }
+    })
+  }, [disabled, onTextChange])
 
   const {
     isDragging,
@@ -87,6 +122,8 @@ const TranslateInputPane = ({
             onChange={(e) => onTextChange(e.target.value)}
             onKeyDown={onKeyDown}
             onPaste={onPaste}
+            onFocus={() => voiceTargetManager.markCurrent(TARGET_ID)}
+            onPointerDown={() => voiceTargetManager.markCurrent(TARGET_ID)}
             disabled={disabled}
             spellCheck={false}
             placeholder={t('translate.input.placeholder')}
@@ -126,6 +163,18 @@ const TranslateInputPane = ({
             <X size={14} className="lucide-custom" />
             <span>{t('common.clear')}</span>
           </button>
+          <div className="ml-auto">
+            <DictationControls
+              targetId={TARGET_ID}
+              disabled={disabled}
+              focusInput={() => textareaRef.current?.focus()}
+            />
+          </div>
+        </div>
+      )}
+      {(!text || disabled) && (
+        <div className="flex shrink-0 justify-end px-3 py-3">
+          <DictationControls targetId={TARGET_ID} disabled={disabled} focusInput={() => textareaRef.current?.focus()} />
         </div>
       )}
       {isDragging && (

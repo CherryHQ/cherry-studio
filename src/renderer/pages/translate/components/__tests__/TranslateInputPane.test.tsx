@@ -1,5 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 
 import TranslateInputPane from '../TranslateInputPane'
 
@@ -130,5 +133,52 @@ describe('TranslateInputPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
 
     expect(props.onCancelOcr).toHaveBeenCalledTimes(1)
+  })
+
+  it('binds only after text interaction and replaces the live selection without submitting translation', () => {
+    const onTranslate = vi.fn()
+    const Harness = () => {
+      const [text, setText] = useState('first selection')
+      return <TranslateInputPane {...baseProps()} text={text} onTextChange={setText} onKeyDown={onTranslate} />
+    }
+    render(<Harness />)
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+
+    expect(voiceTargetManager.captureCurrent()?.targetId).not.toBe('translate-page-source')
+    fireEvent.focus(textarea)
+    const binding = voiceTargetManager.captureCurrent()
+    expect(binding?.targetId).toBe('translate-page-source')
+
+    fireEvent.change(textarea, { target: { value: 'updated selection' } })
+    textarea.setSelectionRange(8, 17)
+    expect(voiceTargetManager.insert(binding!, 'spoken')).toBe('inserted')
+    expect(textarea).toHaveValue('updated spoken')
+    expect(textarea.selectionStart).toBe(14)
+    expect(textarea.selectionEnd).toBe(14)
+    expect(onTranslate).not.toHaveBeenCalled()
+  })
+
+  it('does not start dictation when the source is disabled or never focused', () => {
+    const start = vi.spyOn(dictationService, 'startScoped')
+    const view = render(<TranslateInputPane {...baseProps()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.dictation.title' }))
+    expect(start).not.toHaveBeenCalled()
+
+    view.rerender(<TranslateInputPane {...baseProps()} disabled />)
+    expect(screen.getByRole('button', { name: 'chat.input.dictation.title' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.dictation.title' }))
+    expect(start).not.toHaveBeenCalled()
+    start.mockRestore()
+  })
+
+  it('sends a late transcript to recovery after the textarea unmounts', () => {
+    const view = render(<TranslateInputPane {...baseProps()} />)
+    fireEvent.focus(screen.getByRole('textbox'))
+    const binding = voiceTargetManager.captureCurrent()
+    expect(binding).not.toBeNull()
+
+    view.unmount()
+
+    expect(voiceTargetManager.insert(binding!, 'late transcript')).toBe('unavailable')
   })
 })
