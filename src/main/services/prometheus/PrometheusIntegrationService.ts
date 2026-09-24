@@ -111,6 +111,9 @@ export class PrometheusIntegrationService extends BaseService {
     }
     const uarBinary = (await application.get('BinaryManager').getToolSnapshots(['uar-sidecar']))['uar-sidecar']
     const runningUar = application.get('UarSidecarService').status()
+    const uarBinaryOverride = process.env.THE_BOSS_UAR_SIDECAR_PATH?.trim()
+    const uarBinaryPath =
+      uarBinaryOverride || (uarBinary.availability.source === 'none' ? undefined : uarBinary.availability.path)
     const appliedUar = runningUar?.storage ?? (await readAppliedUarStorage())
     return {
       config: document.config,
@@ -135,11 +138,11 @@ export class PrometheusIntegrationService extends BaseService {
       inventory,
       serviceDiscovery: this.serviceDiscovery,
       uar: {
-        state: uarBinary.availability.source === 'none' ? 'unavailable' : runningUar ? 'running' : 'stopped',
-        ...(uarBinary.availability.source === 'none'
+        state: runningUar ? 'running' : uarBinaryPath ? 'stopped' : 'unavailable',
+        ...(!uarBinaryPath
           ? {}
           : {
-              binary: uarBinary.availability.path,
+              binary: uarBinaryPath,
               ...('version' in uarBinary.availability && uarBinary.availability.version
                 ? { binaryVersion: uarBinary.availability.version }
                 : {})

@@ -321,7 +321,7 @@ export class UarSidecarService extends BaseService {
     }
     const missing = REQUIRED_CAPABILITIES.filter((capability) => !capabilities.includes(capability))
     if (missing.length) throw new Error(`UAR sidecar is missing required capabilities: ${missing.join(', ')}`)
-    return { uarVersion: body.uar_version, capabilities: capabilities as string[] }
+    return { uarVersion: body.uar_version, capabilities: capabilities }
   }
 
   private async resolveExecutable(): Promise<string> {

@@ -108,7 +108,7 @@ export async function runManagedServiceAction(
     )
   if (action === 'status') return run('status')
   if (!['start', 'restart'].includes(action)) {
-    const results = []
+    const results: string[] = []
     const targets = action === 'stop' ? [...managed].reverse() : managed
     for (const service of targets)
       results.push(
@@ -157,7 +157,7 @@ export async function runManagedServiceAction(
       }
     )
   }
-  const results = []
+  const results: string[] = []
   if (config.services.memory.ownership === 'managed') results.push(await run('up', 'surreal-memory'))
   if (config.services.liter.ownership === 'managed') results.push(await run('up', 'liter-llm'))
   return results.join('\n')
