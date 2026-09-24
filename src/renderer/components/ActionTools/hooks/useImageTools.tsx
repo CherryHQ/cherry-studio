@@ -20,12 +20,13 @@ export const useImageTools = (
   options: {
     prefix: string
     imgSelector: string
+    previewBackgroundColor?: string
     enableDrag?: boolean
     enableWheelZoom?: boolean
   }
 ) => {
   const transformRef = useRef({ scale: 1, x: 0, y: 0 }) // 管理变换状态
-  const { imgSelector, prefix, enableDrag, enableWheelZoom } = options
+  const { imgSelector, prefix, previewBackgroundColor, enableDrag, enableWheelZoom } = options
   const { t } = useTranslation()
   const { theme } = useTheme()
 
@@ -269,15 +270,21 @@ export const useImageTools = (
 
       // Preserve SVG-authored CSS backgrounds before the preview clone leaves its document.
       imgElement.style.backgroundColor = getComputedStyle(liveElement).backgroundColor
+      const hostBackgroundColor = containerRef.current
+        ? getComputedStyle(containerRef.current).backgroundColor
+        : undefined
       await ImagePreviewService.show(imgElement, {
         format: 'svg',
-        backgroundColor: containerRef.current ? getComputedStyle(containerRef.current).backgroundColor : undefined
+        backgroundColor:
+          !hostBackgroundColor || hostBackgroundColor === 'transparent' || hostBackgroundColor === 'rgba(0, 0, 0, 0)'
+            ? (previewBackgroundColor ?? hostBackgroundColor)
+            : hostBackgroundColor
       })
     } catch (error) {
       logger.error('Dialog preview failed:', error as Error)
       toast.error(t('message.dialog.failed'))
     }
-  }, [containerRef, getCleanImgElement, getImgElement, t])
+  }, [containerRef, getCleanImgElement, getImgElement, previewBackgroundColor, t])
 
   // 获取当前变换状态
   const getCurrentTransform = useCallback(() => {

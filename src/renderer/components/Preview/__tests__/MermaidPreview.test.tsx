@@ -9,9 +9,11 @@ type RenderOptions = { shouldRender?: () => boolean }
 const mocks = vi.hoisted(() => ({
   mermaid: {
     parse: vi.fn(),
-    render: vi.fn()
+    render: vi.fn(),
+    mermaidAPI: { getConfig: vi.fn() }
   },
   useMermaid: vi.fn(),
+  useImageTools: vi.fn(),
   useDebouncedRender: vi.fn(),
   renderSvgInShadowHost: vi.fn(),
   renderFunction: undefined as RenderFunction | undefined,
@@ -61,7 +63,10 @@ vi.mock('../utils', () => ({
 }))
 
 vi.mock('@renderer/components/ActionTools', () => ({
-  useImageTools: () => mocks.imageActions
+  useImageTools: (...args: unknown[]) => {
+    mocks.useImageTools(...args)
+    return mocks.imageActions
+  }
 }))
 
 vi.mock('@renderer/components/icons/LoadingIcon', () => ({
@@ -92,6 +97,7 @@ describe('MermaidPreview', () => {
     mocks.mermaid.render.mockResolvedValue({
       svg: '<svg><g transform="translate(undefined, NaN)">diagram</g></svg>'
     })
+    mocks.mermaid.mermaidAPI.getConfig.mockReturnValue({ themeVariables: { background: 'white' } })
 
     vi.stubGlobal(
       'MutationObserver',
@@ -121,6 +127,22 @@ describe('MermaidPreview', () => {
       container
     )
     expect(document.body).not.toContainElement(measureElement)
+  })
+
+  it.each([
+    ['light', 'white'],
+    ['dark', '#333']
+  ])('uses the rendered Mermaid %s theme background for the preview', async (_theme, background) => {
+    mocks.mermaid.mermaidAPI.getConfig.mockReturnValue({ themeVariables: { background } })
+    render(<MermaidPreview>{content}</MermaidPreview>)
+    const container = mocks.containerRef.current!
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({ width: 640 } as DOMRect)
+
+    await act(async () => {
+      await mocks.renderFunction?.(content, container)
+    })
+
+    expect(mocks.useImageTools.mock.lastCall?.[1]).toMatchObject({ previewBackgroundColor: background })
   })
 
   it('surfaces Mermaid initialization state ahead of render state', () => {

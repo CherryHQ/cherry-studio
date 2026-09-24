@@ -22,6 +22,7 @@ const MermaidPreview = ({
   const { mermaid, isLoading: isLoadingMermaid, error: mermaidError, forceRenderKey } = useMermaid()
   const diagramId = useRef<string>(`mermaid-${nanoid(6)}`).current
   const [isVisible, setIsVisible] = useState(true)
+  const [previewBackgroundColor, setPreviewBackgroundColor] = useState<string>()
 
   /**
    * 定义渲染函数，在临时容器中测量，在 shadow dom 中渲染。
@@ -46,6 +47,7 @@ const MermaidPreview = ({
 
       try {
         const { svg } = await mermaid.render(diagramId, content, measureEl)
+        setPreviewBackgroundColor(mermaid.mermaidAPI.getConfig().themeVariables?.background)
 
         // 避免不可见时产生 undefined 和 NaN
         const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
@@ -130,6 +132,7 @@ const MermaidPreview = ({
       enableToolbar={enableToolbar}
       ref={ref}
       imageRef={containerRef}
+      previewBackgroundColor={previewBackgroundColor}
       source="mermaid">
       <ShadowTransparentContainer
         ref={containerRef}

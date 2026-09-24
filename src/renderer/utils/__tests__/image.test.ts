@@ -1158,14 +1158,9 @@ describe('utils/image', () => {
       document.documentElement.classList.remove('image-preview-dark')
     })
 
-    // Serialized CSS must resolve without document variables and force the preview canvas alpha to one.
-    it.each([
-      ['light', 'rgb(from rgb(255, 255, 255) r g b / 1)'],
-      ['dark', 'rgb(from oklch(0.209 0 0 / 0.55) r g b / 1)']
-    ])('gives a detached %s diagram an opaque canvas from the live theme', async (theme, expected) => {
+    it.each(['light', 'dark'])('keeps a detached transparent SVG transparent in %s mode', async (theme) => {
       document.documentElement.classList.toggle('image-preview-dark', theme === 'dark')
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-      svg.style.backgroundColor = 'transparent'
       svg.innerHTML = '<path d="M10 50 H190" stroke="#333" />'
       const original = svg.outerHTML
 
@@ -1173,7 +1168,8 @@ describe('utils/image', () => {
 
       const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
         .documentElement as unknown as SVGElement
-      expect(previewSvg.style.backgroundColor).toBe(expected)
+      expect(previewSvg.style.backgroundColor).toBe('')
+      expect(previewSvg.outerHTML).not.toContain('background-color')
       expect(previewSvg.querySelector('path')?.getAttribute('stroke')).toBe('#333')
       expect(svg.outerHTML).toBe(original)
     })
@@ -1192,7 +1188,7 @@ describe('utils/image', () => {
       try {
         expect(getComputedStyle(svg).backgroundColor).toBe('rgb(255, 255, 240)')
 
-        await imageInputToPreviewUrl(svg, { format: 'svg' })
+        await imageInputToPreviewUrl(svg, { format: 'svg', backgroundColor: 'black' })
 
         const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
           .documentElement as unknown as SVGElement
@@ -1212,7 +1208,11 @@ describe('utils/image', () => {
 
       const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
         .documentElement as unknown as SVGElement
-      expect(previewSvg.style.backgroundColor).toBe('rgb(from rgb(255, 255, 255) r g b / 1)')
+      const probe = document.createElement('div')
+      probe.style.backgroundColor = previewSvg.style.backgroundColor
+      document.body.append(probe)
+      expect(getComputedStyle(probe).backgroundColor).toBe('rgb(255, 255, 255)')
+      probe.remove()
     })
 
     it('preserves an authored SVG background and its painted background shapes', async () => {
@@ -1221,7 +1221,7 @@ describe('utils/image', () => {
       svg.style.backgroundColor = 'ivory'
       svg.innerHTML = '<rect width="200" height="100" fill="pink" />'
 
-      await imageInputToPreviewUrl(svg, { format: 'svg' })
+      await imageInputToPreviewUrl(svg, { format: 'svg', backgroundColor: 'black' })
 
       const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml')
         .documentElement as unknown as SVGElement

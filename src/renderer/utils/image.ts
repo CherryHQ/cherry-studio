@@ -935,12 +935,8 @@ const createStandaloneSvgPreview = (
   const clone = svgElement.cloneNode(true) as SVGElement
   clone.style.backgroundColor = computedBackgroundColor || clone.style.backgroundColor
   const isTransparent = (color: string | undefined) => !color || color === 'transparent' || color === 'rgba(0, 0, 0, 0)'
-  if (isTransparent(clone.style.backgroundColor)) {
-    const canvas = isTransparent(backgroundColor)
-      ? getComputedStyle(document.body).getPropertyValue('--background').trim()
-      : backgroundColor
-    // The input can be detached, and the live theme's canvas can itself be translucent.
-    clone.style.backgroundColor = `rgb(from ${canvas} r g b / 1)`
+  if (isTransparent(clone.style.backgroundColor) && backgroundColor && !isTransparent(backgroundColor)) {
+    clone.style.backgroundColor = backgroundColor
   }
   if (
     hasPositiveIntrinsicSvgLength(clone.getAttribute('width')) ||

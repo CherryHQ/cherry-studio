@@ -247,7 +247,13 @@ describe('useImageTools', () => {
   it.each(['white', 'transparent'])('opens a clean SVG with its %s inline canvas', async (backgroundColor) => {
     const { container, svg, containerRef } = createImageFixture()
     container.style.backgroundColor = backgroundColor
-    const { result } = renderHook(() => useImageTools(containerRef, { prefix: 'diagram', imgSelector: 'svg' }))
+    const { result } = renderHook(() =>
+      useImageTools(containerRef, {
+        prefix: 'diagram',
+        imgSelector: 'svg',
+        previewBackgroundColor: backgroundColor === 'white' ? '#333' : undefined
+      })
+    )
     svg.style.transform = 'translate(20px, 10px) scale(2)'
 
     await act(() => result.current.dialog())
@@ -259,6 +265,27 @@ describe('useImageTools', () => {
       format: 'svg',
       backgroundColor: backgroundColor === 'white' ? 'rgb(255, 255, 255)' : 'rgba(0, 0, 0, 0)'
     })
+  })
+
+  it.each([
+    ['light', 'white'],
+    ['dark', '#333']
+  ])('passes the Mermaid %s preview canvas when the host is transparent', async (_theme, backgroundColor) => {
+    const { containerRef } = createImageFixture()
+    const { result } = renderHook(() =>
+      useImageTools(containerRef, { prefix: 'mermaid', imgSelector: 'svg', previewBackgroundColor: backgroundColor })
+    )
+
+    await act(() => result.current.dialog())
+
+    const [, previewOptions] = mocks.showImagePreview.mock.lastCall as [SVGElement, { backgroundColor: string }]
+    const probe = document.createElement('div')
+    probe.style.backgroundColor = previewOptions.backgroundColor
+    document.body.append(probe)
+    expect(getComputedStyle(probe).backgroundColor).toBe(
+      backgroundColor === '#333' ? 'rgb(51, 51, 51)' : 'rgb(255, 255, 255)'
+    )
+    probe.remove()
   })
 
   it('preserves a live SVG background supplied by a stylesheet when detaching the preview', async () => {
