@@ -858,7 +858,7 @@ describe('AgentJobsService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
-      expect(await lifecycle.deleteActiveAgentPermanently(AGENT_ID, false)).toMatchObject({ deleted: true })
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(2)
 
       expect(jobScheduleService.getById(own.id)).toBeNull()
       expect(jobScheduleService.getById(malformed.id)).toBeNull()
@@ -984,7 +984,7 @@ describe('AgentJobsService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
-      expect(await lifecycle.deleteActiveAgentPermanently(AGENT_ID, false)).toMatchObject({ deleted: true })
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
 
       expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
     })
@@ -1017,7 +1017,7 @@ describe('AgentJobsService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
-      expect(await lifecycle.deleteActiveAgentPermanently(AGENT_ID, false)).toMatchObject({ deleted: true })
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
 
       expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
     })
@@ -1049,7 +1049,7 @@ describe('AgentJobsService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
-      expect(await lifecycle.deleteActiveAgentPermanently(AGENT_ID, false)).toMatchObject({ deleted: true })
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
 
       expect(
         dbh.db
@@ -1091,7 +1091,7 @@ describe('AgentJobsService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
-      expect(await lifecycle.deleteActiveAgentPermanently(AGENT_ID, false)).toMatchObject({ deleted: true })
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
 
       // The schedule goes, but the referenced workspace row AND its session stay.
       expect(
@@ -1143,7 +1143,7 @@ describe('AgentJobsService', () => {
         workspace: { type: 'user', workspaceId: 'ws-hb-shared' }
       })
 
-      expect(await lifecycle.deleteActiveAgentPermanently(AGENT_ID, false)).toMatchObject({ deleted: true })
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
 
       expect(
         dbh.db
@@ -1191,7 +1191,7 @@ describe('AgentJobsService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
-      expect(await lifecycle.deleteActiveAgentPermanently(AGENT_ID, false)).toMatchObject({ deleted: true })
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
 
       expect(
         dbh.db

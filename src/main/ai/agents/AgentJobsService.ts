@@ -34,6 +34,7 @@ import { readHeartbeatDocument, writeHeartbeatDocument } from './heartbeatDocume
 import {
   type HeartbeatSyncOutcome,
   isReservedHeartbeatScheduleName,
+  reclaimHeartbeatWorkspacesTx,
   repairHeartbeatSchedules,
   syncHeartbeatSchedule
 } from './heartbeatSchedule'
@@ -132,6 +133,7 @@ export class AgentJobsService extends BaseService {
           return undefined
         }
         if (agentService.getLifecycleState(agentId) === 'missing') {
+          await this.deleteSchedulesForAgent(agentId)
           return 'skipped-missing-agent' as const
         }
         return syncHeartbeatSchedule(agentId, signal, rows)
@@ -396,6 +398,25 @@ export class AgentJobsService extends BaseService {
       logger.info('Task deleted', { taskId, agentId })
     }
     return deleted
+  }
+
+  /**
+   * Delete every `agent.task` schedule owned by `agentId` — the schedule-side
+   * half of agent deletion. Historical jobs keep their rows with `scheduleId`
+   * set NULL (`ON DELETE SET NULL`, same as `deleteTask`).
+   *
+   * @returns How many schedule rows were removed.
+   */
+  async deleteSchedulesForAgent(agentId: string): Promise<number> {
+    this.heartbeatAbort.signal.throwIfAborted()
+    const ids = application.get('DbService').withWriteTx((tx) => {
+      const { scheduleIds, deletedSchedules } = agentTaskService.setOwnerStateTx(tx, agentId, 'missing', Date.now())
+      reclaimHeartbeatWorkspacesTx(tx, deletedSchedules)
+      return scheduleIds
+    })
+    for (const id of ids) application.get('JobManager').syncJobScheduleTimerById(id)
+    agentTaskService.notifyReadModelChange(ids, 'membership')
+    return ids.length
   }
 
   readHeartbeatDocument(agentId: string): Promise<HeartbeatDocument> {

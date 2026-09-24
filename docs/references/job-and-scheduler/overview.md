@@ -125,7 +125,7 @@ await createSnapshot()
 
 **Blocked while paused** (autonomous writes): dispatch claims (entry check + post-mutex re-check), schedule fire callbacks (crons are additionally paused at the croner layer so `limit` quotas survive the window), GC / delayed-promotion ticks, delayed/retry promotion fires, and new startup-recovery steps — a started step (one schedule's `onMissed` + catch-up enqueue, atomic) runs to completion and is awaited by drain.
 
-**Allowed while paused** (request-driven): `enqueue` / `enqueueTx` (rows land at rest and the snapshot captures them), `cancel` / `cancelMany`, schedule mutations, and `triggerJobScheduleNow*` — uses direct enqueue after handler schedule admission (an accepted row lands `pending` and preserves the automatic calendar; `true` means "row persisted").
+**Allowed while paused** (request-driven): `enqueue` / `enqueueTx` (rows land at rest and the snapshot captures them), `cancel` / `cancelMany`, schedule mutations, and `triggerJobScheduleNow*` — forced onto its direct-enqueue fallback (row lands `pending` and only `lastRun` changes; `true` still means "row persisted").
 
 Missed cron fires are skipped, not caught up (croner semantics). A suppressed `once` fire is re-armed on release from the recorded id set — exactly once; never rebuild by scanning "enabled ∧ missing scheduler entry", which also matches historical completed one-shots.
 
