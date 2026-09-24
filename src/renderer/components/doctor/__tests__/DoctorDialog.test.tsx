@@ -31,6 +31,11 @@ vi.mock('@renderer/components/feedback/DiagnosticUploadPanel', () => ({
   }
 }))
 
+vi.mock('@renderer/components/feedback/DiagnosticHistoryDialog', () => ({
+  DiagnosticHistoryDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="Diagnostic history" /> : null
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
@@ -120,6 +125,15 @@ describe('DoctorDialog', () => {
     expect(mocks.requestReportClose).toHaveBeenCalledOnce()
     expect(mocks.controller.setPanel).toHaveBeenCalledWith('checks')
     expect(resolve).not.toHaveBeenCalled()
+  })
+
+  it('opens diagnostic history from the report title', async () => {
+    const user = userEvent.setup()
+    render(<DoctorDialog initialPanel="report" open resolve={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.about.feedback.history.title' }))
+
+    expect(screen.getByRole('dialog', { name: 'Diagnostic history', hidden: true })).toBeInTheDocument()
   })
 
   it('blocks button, overlay, and Escape dismissal while an operation is active', async () => {

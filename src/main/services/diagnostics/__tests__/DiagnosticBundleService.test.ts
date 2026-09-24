@@ -3,6 +3,7 @@ import { access, link, mkdir, mkdtemp, readdir, readFile, rm, symlink, utimes, w
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { ZipArchive } from 'archiver'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,6 +32,7 @@ const electronMocks = vi.hoisted(() => ({
 }))
 
 const uploadMocks = vi.hoisted(() => ({
+  fetchStatus: vi.fn(),
   upload: vi.fn()
 }))
 
@@ -107,6 +109,13 @@ function jsonlBytes(...entities: unknown[]): number {
 
 const REPORT_ID = 'opaque-report-id'
 const RETRY_REPORT_ID = 'opaque-retry-report-id'
+const uploadedResult = (reportId: string) => ({
+  reportId,
+  reportUrl: `https://api.cherry-ai.com/diagnostics/${reportId}`,
+  processingStatus: null,
+  historySaved: true,
+  status: 'uploaded'
+})
 const UPLOAD_INPUT = {
   description: '  Line one\nLine two  ',
   includeChatRecords: false,
@@ -170,6 +179,7 @@ describe('DiagnosticBundleService', () => {
     })
     vi.mocked(application.get).mockImplementation((name: string) => {
       if (name === 'PreferenceService') return preferenceService as never
+      if (name === 'DbService') return MockMainDbServiceExport.dbService as never
       if (name === 'WindowManager') return { getWindow: () => parentWindow } as never
       throw new Error(`Unexpected service: ${name}`)
     })
@@ -756,10 +766,23 @@ describe('DiagnosticBundleService', () => {
 
     const result = await service.uploadBundle(UPLOAD_INPUT)
 
-    expect(result).toEqual({ reportId: REPORT_ID, status: 'uploaded' })
+    expect(result).toEqual(uploadedResult(REPORT_ID))
     expect(uploadedManifest?.privacy).toMatchObject({ uploadedAutomatically: true })
     expect(await readdir(appTempDir)).toEqual([])
     expect(await readdir(downloadsDir)).toEqual([])
+  })
+
+  it('keeps the confirmed upload result when saving local history fails', async () => {
+    MockMainDbServiceExport.dbService.getDb.mockImplementationOnce(() => {
+      throw new Error('SQLite unavailable')
+    })
+    const service = new DiagnosticBundleService()
+
+    await expect(service.uploadBundle(UPLOAD_INPUT)).resolves.toEqual({
+      ...uploadedResult(REPORT_ID),
+      historySaved: false
+    })
+    expect(uploadMocks.upload).toHaveBeenCalledOnce()
   })
 
   it('retains a failed upload in app temp without writing to Downloads', async () => {
@@ -829,7 +852,7 @@ describe('DiagnosticBundleService', () => {
       reason: 'rate_limited',
       status: 'submission_failed'
     })
-    expect(retried).toEqual({ reportId: RETRY_REPORT_ID, status: 'uploaded' })
+    expect(retried).toEqual(uploadedResult(RETRY_REPORT_ID))
     expect(uploadMocks.upload).toHaveBeenNthCalledWith(1, {
       description: 'Line one\r\nLine two',
       fileName: first.fileName,
@@ -919,8 +942,7 @@ describe('DiagnosticBundleService', () => {
     expect(await readdir(appTempDir)).toEqual([])
 
     await expect(service.retryUpload({ bundleId: failed.bundleId })).resolves.toEqual({
-      reportId: RETRY_REPORT_ID,
-      status: 'uploaded'
+      ...uploadedResult(RETRY_REPORT_ID)
     })
     expect(uploadMocks.upload).toHaveBeenNthCalledWith(2, {
       description: 'Line one\r\nLine two',
@@ -954,8 +976,7 @@ describe('DiagnosticBundleService', () => {
       status: 'saved'
     })
     await expect(service.retryUpload({ bundleId: failed.bundleId })).resolves.toEqual({
-      reportId: RETRY_REPORT_ID,
-      status: 'uploaded'
+      ...uploadedResult(RETRY_REPORT_ID)
     })
     expect(uploadMocks.upload).toHaveBeenNthCalledWith(2, {
       description: 'Line one\r\nLine two',
