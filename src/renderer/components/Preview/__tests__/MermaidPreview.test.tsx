@@ -145,6 +145,28 @@ describe('MermaidPreview', () => {
     expect(mocks.useImageTools.mock.lastCall?.[1]).toMatchObject({ previewBackgroundColor: background })
   })
 
+  it('uses a diagram theme directive for the SVG preview canvas', async () => {
+    const directedContent = '%%{init: {"theme": "dark"}}%%\nflowchart LR\n  A --> B'
+    let background = 'white'
+    mocks.mermaid.mermaidAPI.getConfig.mockImplementation(() => ({ themeVariables: { background } }))
+    mocks.mermaid.parse.mockImplementation(async () => {
+      background = '#333'
+      return true
+    })
+    mocks.mermaid.render.mockResolvedValue({ svg: '<svg data-theme="dark" />' })
+
+    render(<MermaidPreview>{directedContent}</MermaidPreview>)
+    const container = mocks.containerRef.current!
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({ width: 640 } as DOMRect)
+
+    await act(async () => {
+      await mocks.renderFunction?.(directedContent, container)
+    })
+
+    expect(mocks.renderSvgInShadowHost.mock.lastCall?.[0]).toBe('<svg data-theme="dark" />')
+    expect(mocks.useImageTools.mock.lastCall?.[1]).toMatchObject({ previewBackgroundColor: '#333' })
+  })
+
   it('keeps the preview background paired with a render that finishes after a theme change', async () => {
     let background = 'white'
     mocks.mermaid.mermaidAPI.getConfig.mockImplementation(() => ({ themeVariables: { background } }))

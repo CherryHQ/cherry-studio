@@ -30,10 +30,9 @@ const MermaidPreview = ({
    */
   const renderMermaid = useCallback(
     async (content: string, container: HTMLDivElement) => {
-      const renderBackgroundColor = mermaid.mermaidAPI.getConfig().themeVariables?.background
-
       // 验证语法，提前抛出异常
       await mermaid.parse(content)
+      const renderBackgroundColor = mermaid.mermaidAPI.getConfig().themeVariables?.background
 
       // 获取容器宽度
       const { width } = container.getBoundingClientRect()
