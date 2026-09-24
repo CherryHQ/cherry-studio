@@ -1,8 +1,22 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import type * as fsPromises from 'node:fs/promises'
+import type { realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const fsMocks = vi.hoisted(() => ({
+  realpath: vi.fn(),
+  originalRealpath: undefined as typeof realpath | undefined
+}))
+
+vi.mock('node:fs/promises', async () => {
+  const actual = await vi.importActual<typeof fsPromises>('node:fs/promises')
+  fsMocks.originalRealpath = actual.realpath
+  fsMocks.realpath.mockImplementation((...args: Parameters<typeof actual.realpath>) => actual.realpath(...args))
+  return { ...actual, realpath: fsMocks.realpath }
+})
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -10,13 +24,15 @@ vi.mock('@application', async () => {
 })
 
 const { application } = await import('@application')
-const { assertOutsideManagedStorageMutation } = await import('../managedStorageGuard')
+const { assertOutsideManagedStorageMutation, resolveOutsideManagedStorageMutation } =
+  await import('../managedStorageGuard')
 
 describe('assertOutsideManagedStorageMutation', () => {
   let root: string
   let managedRoot: string
 
   beforeEach(async () => {
+    fsMocks.realpath.mockImplementation((...args: Parameters<typeof realpath>) => fsMocks.originalRealpath!(...args))
     root = await mkdtemp(path.join(tmpdir(), 'cherry-managed-storage-guard-'))
     managedRoot = path.join(root, 'Data', 'Files')
     await mkdir(managedRoot, { recursive: true })
@@ -77,5 +93,46 @@ describe('assertOutsideManagedStorageMutation', () => {
         path.join(exportDir, 'result.pdf')
       )
     ).resolves.toBeUndefined()
+  })
+
+  it('returns the physical path for a target below an external directory link', async () => {
+    const notes = path.join(root, 'Notes')
+    const link = path.join(root, 'RedirectedNotes')
+    await mkdir(notes)
+    await symlink(notes, link, process.platform === 'win32' ? 'junction' : 'dir')
+
+    await expect(resolveOutsideManagedStorageMutation(path.join(link, 'future.md'))).resolves.toBe(
+      path.join(notes, 'future.md')
+    )
+  })
+
+  it('allows an existing temp file when resolving that file would report EISDIR', async () => {
+    const tempFile = path.join(root, 'RedirectedTemp', 'screenshot.png')
+    await mkdir(path.dirname(tempFile), { recursive: true })
+    await writeFile(tempFile, 'image')
+
+    fsMocks.realpath.mockImplementation(async (target, options) => {
+      if (path.resolve(String(target)) === tempFile) {
+        throw Object.assign(new Error('realpath failed for a regular file'), { code: 'EISDIR' })
+      }
+      return fsMocks.originalRealpath!(target, options)
+    })
+
+    await expect(assertOutsideManagedStorageMutation(tempFile)).resolves.toBeUndefined()
+  })
+
+  it('allows a new temp file when its existing directory reports EISDIR from realpath', async () => {
+    const tempDir = path.join(root, 'RedirectedTemp')
+    const tempFile = path.join(tempDir, 'screenshot.png')
+    await mkdir(tempDir)
+
+    fsMocks.realpath.mockImplementation(async (target, options) => {
+      if (path.resolve(String(target)) === tempDir) {
+        throw Object.assign(new Error('realpath failed for a redirected directory'), { code: 'EISDIR' })
+      }
+      return fsMocks.originalRealpath!(target, options)
+    })
+
+    await expect(assertOutsideManagedStorageMutation(tempFile)).resolves.toBeUndefined()
   })
 })

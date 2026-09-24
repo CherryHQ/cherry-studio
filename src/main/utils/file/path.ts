@@ -75,42 +75,58 @@ export function isOutsidePath(relativePath: string): boolean {
  * Resolve `target` through symlinks for a containment check.
  *
  * A missing target resolves through its nearest existing ancestor with the missing suffix
- * re-appended, so a file that is about to be created can still be checked. Returns `undefined`
- * when the location is ambiguous: a dangling symlink at the target or at a missing ancestor, an
- * error other than `ENOENT`, or a missing target when `allowMissing` is false. Callers must treat
- * `undefined` as outside.
+ * re-appended, so a file that is about to be created can still be checked. Ordinary files and
+ * directories fall back to their physical parent when Windows reports `EISDIR` for `realpath`.
+ * Returns `undefined` when the location is ambiguous or cannot be resolved safely. Callers must
+ * treat `undefined` as outside.
  */
 export async function canonicalizePathForContainment(
   target: string,
   { allowMissing }: { allowMissing: boolean }
 ): Promise<string | undefined> {
-  try {
-    return await realpath(target)
-  } catch (error) {
-    if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    try {
-      await lstat(target)
-      return undefined
-    } catch (statError) {
-      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    }
-  }
+  const resolved = path.resolve(target)
+  let probe = resolved
 
-  let parent = path.dirname(target)
-  while (true) {
+  for (;;) {
+    let stats: Awaited<ReturnType<typeof lstat>>
+
     try {
-      return path.resolve(await realpath(parent), path.relative(parent, target))
+      stats = await lstat(probe)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      if (probe === resolved && !allowMissing) return undefined
+
+      const parent = path.dirname(probe)
+      if (parent === probe) return undefined
+      probe = parent
+      continue
+    }
+
+    if (stats.isSymbolicLink()) {
       try {
-        await lstat(parent)
+        const physical = await realpath(probe)
+        return path.resolve(physical, path.relative(probe, resolved))
+      } catch {
         return undefined
-      } catch (statError) {
-        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
       }
-      const next = path.dirname(parent)
-      if (next === parent) return undefined
-      parent = next
+    }
+
+    if (!stats.isDirectory()) {
+      const parent = path.dirname(probe)
+      const physicalParent = await canonicalizePathForContainment(parent, { allowMissing: false })
+      return physicalParent ? path.resolve(physicalParent, path.relative(parent, resolved)) : undefined
+    }
+
+    try {
+      const physical = await realpath(probe)
+      return path.resolve(physical, path.relative(probe, resolved))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EISDIR') return undefined
+
+      const parent = path.dirname(probe)
+      if (parent === probe) return undefined
+      const physicalParent = await canonicalizePathForContainment(parent, { allowMissing: false })
+      return physicalParent ? path.resolve(physicalParent, path.relative(parent, resolved)) : undefined
     }
   }
 }
