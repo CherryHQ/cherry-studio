@@ -19,7 +19,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: tMock })
 }))
 
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: requestMock } }))
+// `useIpcOn` feeds the progress dialog. These cases assert the settings surface,
+// not the dialog, so the subscription is inert here.
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: requestMock }, useIpcOn: () => {} }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
@@ -784,6 +786,22 @@ describe('BackupV2Settings', () => {
         expect(screen.getByRole('button', { name: 'settings.general.restore.button' })).toBeDisabled()
       }
     )
+
+    it('holds the dialog stop button on "Stopping…" until the operation unwinds', async () => {
+      const stalled = stall('backup.export')
+      await renderSettings()
+      click(EXPORT_BUTTON)
+      await waitFor(() => expect(screen.getByText('settings.data.backup_v2.progress.stop')).toBeInTheDocument())
+
+      click('settings.data.backup_v2.progress.stop')
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'settings.data.backup_v2.progress.cancelling' })).toBeDisabled()
+      )
+      stalled.finish({ status: 'canceled' })
+      await waitFor(() => expect(screen.getByRole('button', { name: EXPORT_BUTTON })).toBeEnabled())
+      expect(screen.queryByText('settings.data.backup_v2.progress.cancelling')).not.toBeInTheDocument()
+    })
 
     it('reports a cancelled operation with silence, not a success or a failure', async () => {
       const stalled = stall('backup.export')

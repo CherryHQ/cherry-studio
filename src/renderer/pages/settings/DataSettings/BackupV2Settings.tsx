@@ -33,6 +33,8 @@ import type {
 } from '@shared/ipc/schemas/backup'
 import type { OutputFor } from '@shared/ipc/types'
 
+import BackupProgressDialog from './BackupProgressDialog'
+
 /**
  * Backup v2 — export and restore (docs/references/backup/README.md).
  *
@@ -238,6 +240,7 @@ const BackupV2Settings: FC = () => {
   const [status, setStatus] = useState<BackupStatus | null>(null)
   const [preview, setPreview] = useState<RestorePreview | null>(null)
   const [running, setRunning] = useState<Running | null>(null)
+  const [cancelling, setCancelling] = useState(false)
   const activeOperation = running
     ? running.kind === 'export'
       ? 'export'
@@ -365,13 +368,20 @@ const BackupV2Settings: FC = () => {
    * stopped, and that arrives on its own when the operation unwinds.
    */
   const handleCancelOperation = useCallback(async () => {
+    setCancelling(true)
     try {
       await ipcApi.request('backup.cancel_operation')
       await refresh()
     } catch (error) {
+      setCancelling(false)
       await reportFailure(error)
     }
   }, [refresh, reportFailure])
+
+  // The abort only asks; "Stopping…" holds until the operation actually unwinds.
+  useEffect(() => {
+    if (activeOperation == null) setCancelling(false)
+  }, [activeOperation])
 
   const handleExport = () =>
     run({ kind: 'export' }, async () => {
@@ -463,6 +473,14 @@ const BackupV2Settings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
+      {/* Only the two operations the user waits on report progress; arm and
+          rollback relaunch immediately and have nothing to show. */}
+      <BackupProgressDialog
+        open={activeOperation === 'export' || activeOperation === 'prepare-restore'}
+        operation={activeOperation === 'export' || activeOperation === 'prepare-restore' ? activeOperation : null}
+        onCancel={handleCancelOperation}
+        cancelling={cancelling}
+      />
       <SettingTitle>{t('settings.data.title')}</SettingTitle>
       <SettingDivider />
 
