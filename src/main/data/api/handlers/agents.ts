@@ -6,8 +6,12 @@
  * to the appropriate service method.
  */
 
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
+import { loggerService } from '@logger'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -73,6 +77,30 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const agent = agentService.updateAgent(params.agentId, parsed.data)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
+    },
+
+    DELETE: async ({ params }) => {
+      if (!agentService.agentExists(params.agentId)) {
+        throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      }
+      const sessionIds = agentSessionService.listIdsByAgent(params.agentId)
+      const syncResult = agentService.deleteAgent(params.agentId, { deleteSessions: false })
+      if (!syncResult.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      try {
+        const manager = application.get('AiStreamManager')
+        for (const sessionId of sessionIds) {
+          manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
+        }
+        await Promise.allSettled(
+          sessionIds.map((sessionId) => application.get('AgentSessionRuntimeService').closeSession(sessionId))
+        )
+      } catch (error) {
+        loggerService.withContext('DataApi:agents').warn('Agent runtime cleanup failed after row deletion', {
+          agentId: params.agentId,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+      return undefined
     }
   },
 
