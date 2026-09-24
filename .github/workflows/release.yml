@@ -1,9 +1,28 @@
 name: Release
-run-name: Release build ${{ inputs.platform }} ${{ github.ref_name }} @ ${{ github.sha }}
+run-name: ${{ inputs.mode == 'sync-only' && format('GitCode sync {0} from run {1}', inputs.tag, inputs.run_id) || format('Release build {0} {1} @ {2}', inputs.platform, github.ref_name, github.sha) }}
 
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "Release build or sync an existing published release"
+        type: choice
+        default: release
+        options: [release, sync-only]
+      tag:
+        description: "Published release tag (required for sync-only)"
+        type: string
+      run_id:
+        description: "Original all-platform release run ID (required for sync-only)"
+        type: string
+      dry_run:
+        description: "Preview sync-only without GitCode writes or notifications"
+        type: boolean
+        default: false
+      clean:
+        description: "Clean signing runner node_modules before build"
+        type: boolean
+        default: false
       platform:
         description: "Build platform"
         required: true
@@ -19,10 +38,6 @@ on:
         required: false
         type: string
 
-concurrency:
-  group: release-state
-  cancel-in-progress: false
-
 permissions:
   actions: read
   contents: read
@@ -31,7 +46,10 @@ permissions:
 jobs:
   prepare:
     name: Prepare release ref
-    if: github.repository == 'CherryHQ/cherry-studio'
+    concurrency:
+      group: release-state
+      cancel-in-progress: false
+    if: github.repository == 'CherryHQ/cherry-studio' && inputs.mode != 'sync-only'
     runs-on: ubuntu-latest
     outputs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
@@ -137,7 +155,7 @@ jobs:
   release:
     name: Build ${{ matrix.edition }} (${{ matrix.os }})
     needs: prepare
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'windows-latest' && fromJSON('["self-hosted", "windows-signing"]') || matrix.os }}
     permissions:
       contents: read
 
@@ -185,6 +203,15 @@ jobs:
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-
+
+      - name: Clean signing runner dependencies
+        if: matrix.os == 'windows-latest' && inputs.clean
+        shell: bash
+        run: rm -rf node_modules
+
+      - name: Clean build output
+        shell: bash
+        run: rm -rf dist
 
       - name: Install Dependencies
         run: pnpm install
@@ -238,6 +265,10 @@ jobs:
           pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }}
         env:
           ELECTRON_BUILDER_7Z_FILTER: BCJ
+          WIN_SIGN: true
+          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
+          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
+          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
@@ -260,6 +291,32 @@ jobs:
           CHANNEL="$(node -p "require('./scripts/release/edition').getReleaseChannel(require('./package.json').version, '${{ matrix.edition }}')")"
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
 
+      - name: Upload CN x64 installer
+        if: matrix.edition == 'cn'
+        uses: actions/upload-artifact@v7
+        with:
+          path: |
+            dist/Cherry-Studio-CN-*-x64-setup.exe
+            dist/Cherry-Studio-CN-*-x64.dmg
+            dist/Cherry-Studio-CN-*-x64.AppImage
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+      - name: Upload CN arm64 installer
+        if: matrix.edition == 'cn'
+        uses: actions/upload-artifact@v7
+        with:
+          path: |
+            dist/Cherry-Studio-CN-*-arm64-setup.exe
+            dist/Cherry-Studio-CN-*-arm64.dmg
+            dist/Cherry-Studio-CN-*-arm64.AppImage
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
       - name: Stage Windows release artifacts
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v7
@@ -271,6 +328,7 @@ jobs:
             dist/${{ steps.release-channel.outputs.channel }}*.yml
             dist/*.blockmap
           if-no-files-found: error
+          overwrite: true
           compression-level: 0
 
       - name: Stage macOS release artifacts
@@ -284,6 +342,7 @@ jobs:
             dist/${{ steps.release-channel.outputs.channel }}*.yml
             dist/*.blockmap
           if-no-files-found: error
+          overwrite: true
           compression-level: 0
 
       - name: Stage Linux release artifacts
@@ -300,6 +359,7 @@ jobs:
             dist/${{ steps.release-channel.outputs.channel }}*.yml
             dist/*.blockmap
           if-no-files-found: error
+          overwrite: true
           compression-level: 0
 
       - name: Stage stable release history
@@ -309,9 +369,61 @@ jobs:
           name: release-${{ needs.prepare.outputs.tag }}-history
           path: resources/cherry-studio/release-history.json
           if-no-files-found: error
+          overwrite: true
+
+  downloads:
+    name: CN installer downloads
+    needs: [prepare, release]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Summarize CN installers
+        uses: actions/github-script@v8
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        with:
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo,
+              run_id: context.runId,
+              per_page: 100
+            });
+            const version = process.env.RELEASE_TAG.slice(1);
+            const prefix = `Cherry-Studio-CN-${version}-`;
+            const platforms = { win: 'Windows', mac: 'macOS', linux: 'Linux' };
+            const rows = [];
+            for (const artifact of artifacts.sort((a, b) => a.name.localeCompare(b.name))) {
+              if (artifact.expired || !artifact.name.startsWith(prefix)) continue;
+              const match = /^(win|mac|linux)-(x64|arm64)(?:-setup\.exe|\.dmg|\.AppImage)$/.exec(artifact.name.slice(prefix.length));
+              if (!match) continue;
+              const [, platform, arch] = match;
+              const size = `${(artifact.size_in_bytes / 1024 / 1024).toFixed(1)} MiB`;
+              const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts/${artifact.id}`;
+              rows.push(`| ${platforms[platform]} | ${arch} | ${version} | ${size} | [Download](${url}) |`);
+            }
+            const lines = [
+              '## CN installer downloads',
+              '',
+              'Sign in to GitHub to download an individual installer without an extra ZIP archive. Downloads are retained for 7 days.',
+              '',
+              'Only available uploads from this run are listed; check the build jobs for failures. Global installers are available in the GitHub draft release.',
+              ''
+            ];
+            if (rows.length) {
+              lines.push('| Platform | Architecture | Version | Size | Download |',
+                '| --- | --- | --- | --- | --- |', ...rows);
+            } else {
+              lines.push('No CN installers are available. Check the build jobs for details.');
+            }
+            await core.summary.addRaw(lines.join('\n') + '\n').write();
 
   finalize-build:
     name: Update draft release
+    concurrency:
+      group: release-state
+      cancel-in-progress: false
     needs: [prepare, release]
     runs-on: ubuntu-latest
     permissions:
@@ -325,28 +437,51 @@ jobs:
           persist-credentials: false
           ref: ${{ github.sha }}
 
-      - name: Download existing draft artifacts
-        if: github.event.inputs.platform != 'all'
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install release script dependencies
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/release-tools" --ignore-scripts --no-audit --no-fund yaml@2.8.2 semver@7.7.1
+          echo "NODE_PATH=$RUNNER_TEMP/release-tools/node_modules" >> "$GITHUB_ENV"
+
+      - name: Resolve same-SHA baseline archive
+        if: inputs.platform != 'all'
+        id: baseline
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
-        run: gh release download "$TAG" --dir existing-release-artifacts
+          RELEASE_SHA: ${{ github.sha }}
+        run: node scripts/release/release-artifact-source.js baseline
+
+      - name: Download baseline archive
+        if: inputs.platform != 'all'
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ steps.baseline.outputs.artifact-id }}
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.baseline.outputs.run-id }}
+          path: baseline-release-artifacts
+          merge-multiple: true
 
       - name: Download selected release artifacts
         uses: actions/download-artifact@v8
         with:
           pattern: release-${{ needs.prepare.outputs.tag }}-*
           path: selected-release-artifacts
-          merge-multiple: true
 
       - name: Assemble complete release artifacts
-        shell: bash
-        run: |
-          mkdir release-artifacts
-          if [ -d existing-release-artifacts ]; then
-            cp -R existing-release-artifacts/. release-artifacts/
-          fi
-          cp -R selected-release-artifacts/. release-artifacts/
+        env:
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_SHA: ${{ github.sha }}
+          SOURCE_RUN_ID: ${{ github.run_id }}
+          PLATFORM: ${{ inputs.platform }}
+        run: node scripts/release/release-artifacts.js assemble release-bundle github-release-artifacts
 
       - name: Revalidate current release head
         shell: bash
@@ -357,8 +492,17 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-          BRANCH_SHA="$BRANCH_SHA" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
-            node scripts/release/validate-release-state.js build-completion
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          RELEASE="$(jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty' <<< "$RELEASE_PAGES")"
+          REMOTE_TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
+          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" PLATFORM="${{ inputs.platform }}" \
+          REMOTE_TAG_SHA="$REMOTE_TAG_SHA" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+            node scripts/release/validate-release-state.js build-start
+          if [ -n "$RELEASE" ]; then
+            while IFS= read -r asset_id; do
+              gh api --method DELETE "repos/$REPO/releases/assets/$asset_id"
+            done < <(jq -r '.assets[] | select((.name | startswith("Cherry-Studio-CN-")) or (.name | test("-cn([.-]|$)"))) | .id' <<< "$RELEASE")
+          fi
 
       - name: Prepare release body
         shell: bash
@@ -380,7 +524,7 @@ jobs:
         with:
           allowUpdates: true
           artifactErrorsFailBuild: true
-          artifacts: "release-artifacts/*"
+          artifacts: "github-release-artifacts/*"
           bodyFile: ${{ runner.temp }}/release-body.md
           commit: ${{ github.sha }}
           draft: true
@@ -522,3 +666,377 @@ jobs:
             echo "Draft release $TAG has no release notes" >&2
             exit 1
           fi
+
+      - name: Preserve complete dual-edition archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-bundle-${{ needs.prepare.outputs.tag }}
+          path: release-bundle/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+          overwrite: true
+
+  cleanup-artifacts:
+    name: Remove intermediate release artifacts
+    needs: [prepare, finalize-build]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete staged artifacts after archive upload
+        uses: actions/github-script@v8
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        with:
+          script: |
+            const tag = process.env.RELEASE_TAG;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo,
+              run_id: context.runId,
+              per_page: 100
+            });
+            if (!artifacts.some(artifact => artifact.name === `release-bundle-${tag}` && !artifact.expired)) {
+              throw new Error('Complete release archive is missing; keeping intermediate artifacts.');
+            }
+            const stagedNames = new Set([`release-${tag}-history`]);
+            for (const platform of ['windows-latest', 'macos-latest', 'ubuntu-latest']) {
+              for (const edition of ['global', 'cn']) {
+                stagedNames.add(`release-${tag}-${platform}-${edition}`);
+              }
+            }
+            for (const artifact of artifacts) {
+              if (!stagedNames.has(artifact.name)) continue;
+              await github.rest.actions.deleteArtifact({ ...context.repo, artifact_id: artifact.id });
+            }
+
+  approve:
+    name: Approve production release
+    needs: [prepare, release, finalize-build]
+    if: inputs.platform == 'all'
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - name: Record approval
+        run: echo "Approved release build ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+  publish:
+    name: Publish approved release
+    needs: [prepare, release, finalize-build, approve]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-state
+      cancel-in-progress: false
+    steps:
+      - name: Check out trusted publication code without credentials
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install release script dependencies
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/release-tools" --ignore-scripts --no-audit --no-fund yaml@2.8.2 semver@7.7.1
+          echo "NODE_PATH=$RUNNER_TEMP/release-tools/node_modules" >> "$GITHUB_ENV"
+
+      - name: Download approved archive
+        uses: actions/download-artifact@v8
+        with:
+          name: release-bundle-${{ needs.prepare.outputs.tag }}
+          path: release-bundle
+
+      - name: Verify draft matches approved archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_SHA: ${{ github.sha }}
+          SOURCE_RUN_ID: ${{ github.run_id }}
+        run: |
+          node scripts/release/release-artifacts.js verify-github release-bundle
+
+      - name: Validate and publish current draft
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+          BUILD_RUN_ID: ${{ github.run_id }}
+          BUILD_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+          RELEASE_JOB_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          git fetch origin "refs/heads/main:refs/remotes/origin/main"
+
+          collect_pending_hotfixes() {
+            local main_sha="$1" fork_point hotfix_prs pending merge_sha pr_json
+            fork_point="$(git merge-base "$BUILD_SHA" "$main_sha")"
+            hotfix_prs="$(gh pr list --repo "$REPO" --base main --state merged --limit 1000 --json labels,mergeCommit,title,url)"
+            pending=""
+
+            while IFS= read -r pr_json; do
+              if ! jq -e '
+                (.title | test("^hotfix(\\([a-z0-9]+(-[a-z0-9]+)*\\))?: \\S")) or
+                any(.labels[]; .name == "hotfix")
+              ' <<< "$pr_json" >/dev/null; then
+                continue
+              fi
+              merge_sha="$(jq -r '.mergeCommit.oid // ""' <<< "$pr_json")"
+              if [ -z "$merge_sha" ] || [ "$merge_sha" = "$fork_point" ]; then
+                continue
+              fi
+              if ! git merge-base --is-ancestor "$fork_point" "$merge_sha" || \
+                 ! git merge-base --is-ancestor "$merge_sha" "$main_sha"; then
+                continue
+              fi
+              if ! jq -e --arg label "backported/$TAG" 'any(.labels[]; .name == $label)' <<< "$pr_json" >/dev/null; then
+                pending+="${pending:+$'\n'}$(jq -r '.url' <<< "$pr_json")"
+              fi
+            done < <(jq -c '.[]' <<< "$hotfix_prs")
+
+            printf '%s' "$pending"
+          }
+
+          TAG="${BRANCH#release/}"
+          HOTFIX_CUTOFF_SHA="$(git rev-parse origin/main)"
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          RELEASE="$(jq -c --arg tag "$TAG" '
+            [.[][] | select(.tag_name == $tag)] |
+            .[0] // empty
+          ' <<< "$RELEASE_PAGES")"
+          RELEASE_ID="$(jq -r '.id // empty' <<< "$RELEASE")"
+          TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
+          PENDING_HOTFIXES="$(collect_pending_hotfixes "$HOTFIX_CUTOFF_SHA")"
+          EXPECTED_BUILD="Release build all $BRANCH @ $BUILD_SHA"
+          BUILD_RUN="$(gh api "repos/$REPO/actions/runs/$BUILD_RUN_ID")"
+
+          if [ "$(jq -r '.head_repository.full_name' <<< "$BUILD_RUN")" != "$REPO" ] || \
+             [ "$(jq -r '.head_branch' <<< "$BUILD_RUN")" != "$BRANCH" ]; then
+            echo "The approved build no longer identifies the expected repository and release branch" >&2
+            exit 1
+          fi
+
+          BRANCH_SHA="$BRANCH_SHA" \
+          BUILD_RUN_JSON="$BUILD_RUN" \
+          EXPECTED_BUILD_TITLE="$EXPECTED_BUILD" \
+          OPEN_RELEASE_PULL_REQUESTS="$OPEN_RELEASE_PRS" \
+          PENDING_HOTFIXES="$PENDING_HOTFIXES" \
+          RELEASE_JSON="$RELEASE" \
+          TAG="$TAG" \
+          TAG_SHA="$TAG_SHA" \
+          WORKFLOW_SHA="$BUILD_SHA" \
+            node scripts/release/validate-release-state.js publish
+
+          PRERELEASE="$(jq -r '.prerelease' <<< "$RELEASE")"
+          if [ "$PRERELEASE" = "true" ]; then
+            MAKE_LATEST="false"
+          else
+            MAKE_LATEST="true"
+          fi
+          # PATCH without tag_name resets a draft to untagged-<sha>
+          jq -n \
+            --arg makeLatest "$MAKE_LATEST" \
+            --arg tag "$TAG" \
+            --argjson prerelease "$PRERELEASE" \
+            '{tag_name: $tag, draft: false, prerelease: $prerelease, make_latest: $makeLatest}' \
+            > "$RUNNER_TEMP/publish-release.json"
+
+          echo "Publishing $TAG with hotfix cutoff $HOTFIX_CUTOFF_SHA"
+          PUBLISHED="$(gh api --method PATCH "repos/$REPO/releases/$RELEASE_ID" \
+            --input "$RUNNER_TEMP/publish-release.json")"
+          if [ "$(jq -r '.draft' <<< "$PUBLISHED")" != "false" ] || \
+             [ "$(jq -r '.tag_name' <<< "$PUBLISHED")" != "$TAG" ]; then
+            echo "Release $TAG was not published from $BUILD_SHA" >&2
+            exit 1
+          fi
+          if [ "$PRERELEASE" = "false" ] && \
+             [ "$(gh api "repos/$REPO/releases/latest" --jq '.id')" != "$RELEASE_ID" ]; then
+            echo "Stable release $TAG was not marked latest" >&2
+            exit 1
+          fi
+
+  sync-to-gitcode:
+    name: Sync both editions to GitCode
+    needs: [prepare, publish]
+    if: >-
+      !cancelled() && github.repository == 'CherryHQ/cherry-studio' &&
+      (needs.publish.result == 'success' || inputs.mode == 'sync-only')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: gitcode-sync-${{ inputs.mode == 'sync-only' && inputs.tag || needs.prepare.outputs.tag }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.mode == 'sync-only' && inputs.tag || needs.prepare.outputs.tag }}
+      SOURCE_RUN_ID: ${{ inputs.mode == 'sync-only' && inputs.run_id || github.run_id }}
+    steps:
+      - name: Check out workflow scripts
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install release script dependencies
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/release-tools" --ignore-scripts --no-audit --no-fund yaml@2.8.2 semver@7.7.1
+          echo "NODE_PATH=$RUNNER_TEMP/release-tools/node_modules" >> "$GITHUB_ENV"
+
+      - name: Resolve published release archive
+        id: source
+        run: node scripts/release/release-artifact-source.js sync
+
+      - name: Download complete archive
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ steps.source.outputs.artifact-id }}
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.source.outputs.run-id }}
+          path: release-bundle
+          merge-multiple: true
+
+      - name: Verify Global assets and stage both editions
+        env:
+          RELEASE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          node scripts/release/release-artifacts.js sync release-bundle release-assets
+
+      - name: Sync GitCode release
+        shell: bash
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+          GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
+          GITCODE_REPO: ${{ vars.GITCODE_REPO }}
+          GITCODE_API_URL: ${{ vars.GITCODE_API_URL }}
+          DRY_RUN: ${{ inputs.mode == 'sync-only' && inputs.dry_run }}
+          LANG: C.UTF-8
+          LC_ALL: C.UTF-8
+        run: bash scripts/release/sync-gitcode.sh
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [prepare, release, sync-to-gitcode]
+    if: >-
+      always() && !(inputs.mode == 'sync-only' && inputs.dry_run) &&
+      (needs.release.result == 'failure' || needs.release.result == 'cancelled' ||
+       needs.sync-to-gitcode.result == 'failure' || needs.sync-to-gitcode.result == 'cancelled')
+    steps:
+      - name: Send failure notification to Feishu
+        shell: bash
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+          TAG_NAME: ${{ inputs.mode == 'sync-only' && inputs.tag || needs.prepare.outputs.tag }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BUILD_RESULT: ${{ needs.release.result }}
+          SYNC_RESULT: ${{ needs.sync-to-gitcode.result }}
+        run: |
+          if [ "$BUILD_RESULT" = "cancelled" ] || [ "$SYNC_RESULT" = "cancelled" ]; then
+            STATUS_TEXT="已取消"
+            COLOR="orange"
+          else
+            STATUS_TEXT="失败"
+            COLOR="red"
+          fi
+
+          if [ "$BUILD_RESULT" = "failure" ] || [ "$BUILD_RESULT" = "cancelled" ]; then
+            STAGE="发布构建"
+          else
+            STAGE="同步"
+          fi
+
+          TITLE="GitCode ${STAGE}${STATUS_TEXT}"
+          DESCRIPTION=$(printf "**标签:** %s\n\n**阶段:** %s\n\n**状态:** %s\n\n**工作流:** [查看详情](%s)" "${TAG_NAME:-unknown}" "$STAGE" "$STATUS_TEXT" "$RUN_URL")
+          export TITLE DESCRIPTION COLOR
+
+          node <<'NODE'
+          const crypto = require('node:crypto')
+          const https = require('node:https')
+
+          const webhookUrl = process.env.FEISHU_WEBHOOK_URL
+          const secret = process.env.FEISHU_WEBHOOK_SECRET
+          const title = process.env.TITLE
+          const description = process.env.DESCRIPTION
+          const color = process.env.COLOR
+
+          if (!webhookUrl) {
+            throw new Error('FEISHU_WEBHOOK_URL environment variable is required')
+          }
+          if (!secret) {
+            throw new Error('FEISHU_WEBHOOK_SECRET environment variable is required')
+          }
+
+          const timestamp = Math.floor(Date.now() / 1000)
+          const sign = crypto.createHmac('sha256', `${timestamp}\n${secret}`).digest('base64')
+          const payload = JSON.stringify({
+            timestamp: timestamp.toString(),
+            sign,
+            msg_type: 'interactive',
+            card: {
+              elements: [
+                {
+                  tag: 'div',
+                  text: {
+                    tag: 'lark_md',
+                    content: description
+                  }
+                }
+              ],
+              header: {
+                template: color,
+                title: {
+                  tag: 'plain_text',
+                  content: title
+                }
+              }
+            }
+          })
+
+          const url = new URL(webhookUrl)
+          const req = https.request(
+            {
+              hostname: url.hostname,
+              path: url.pathname + url.search,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(payload)
+              }
+            },
+            (res) => {
+              let data = ''
+              res.on('data', (chunk) => {
+                data += chunk.toString()
+              })
+              res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                  console.log('Notification sent successfully!')
+                } else {
+                  console.error(`Feishu API error: ${res.statusCode} - ${data}`)
+                  process.exit(1)
+                }
+              })
+            }
+          )
+
+          req.on('error', (error) => {
+            console.error(error)
+            process.exit(1)
+          })
+          req.write(payload)
+          req.end()
+          NODE

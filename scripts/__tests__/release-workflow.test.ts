@@ -685,12 +685,15 @@ describe('release publication state', () => {
   const workflowSha = 'a'.repeat(40)
   const expectedBuildTitle = `Release build all release/v1.2.0 @ ${workflowSha}`
   const successfulBuild = {
-    conclusion: 'success',
+    conclusion: null,
     display_title: expectedBuildTitle,
     event: 'workflow_dispatch',
     head_sha: workflowSha,
-    status: 'completed'
+    status: 'in_progress'
   }
+  const successfulJobs = Object.fromEntries(
+    ['prepare', 'release', 'finalize-build', 'approve'].map((job) => [job, { result: 'success' }])
+  )
   const draftRelease = {
     assets: [{ id: 1 }],
     body: 'Release notes',
@@ -760,6 +763,7 @@ describe('release publication state', () => {
         branchSha: workflowSha,
         buildRun: successfulBuild,
         expectedBuildTitle,
+        jobResults: successfulJobs,
         openReleasePullRequests: '',
         pendingHotfixes: '',
         release: draftRelease,
@@ -873,26 +877,6 @@ describe('release publication state', () => {
       'No successful all-platform Release build exists'
     ],
     [
-      'an incomplete build',
-      draftRelease,
-      workflowSha,
-      workflowSha,
-      '',
-      '',
-      { ...successfulBuild, status: 'in_progress' },
-      'No successful all-platform Release build exists'
-    ],
-    [
-      'a failed build',
-      draftRelease,
-      workflowSha,
-      workflowSha,
-      '',
-      '',
-      { ...successfulBuild, conclusion: 'failure' },
-      'No successful all-platform Release build exists'
-    ],
-    [
       'a draft without artifacts',
       { ...draftRelease, assets: [] },
       workflowSha,
@@ -920,6 +904,7 @@ describe('release publication state', () => {
           branchSha,
           buildRun,
           expectedBuildTitle,
+          jobResults: successfulJobs,
           openReleasePullRequests,
           pendingHotfixes,
           release,
@@ -930,6 +915,25 @@ describe('release publication state', () => {
       ).toThrow(expectedError)
     }
   )
+
+  it.each(['prepare', 'release', 'finalize-build', 'approve'])('requires successful %s before publication', (job) => {
+    for (const result of ['failure', 'cancelled', 'skipped', undefined]) {
+      expect(() =>
+        validatePublishState({
+          branchSha: workflowSha,
+          buildRun: successfulBuild,
+          expectedBuildTitle,
+          jobResults: { ...successfulJobs, [job]: { result } },
+          openReleasePullRequests: '',
+          pendingHotfixes: '',
+          release: draftRelease,
+          tag: 'v1.2.0',
+          tagSha: workflowSha,
+          workflowSha
+        })
+      ).toThrow('No successful all-platform Release build exists')
+    }
+  })
 
   it('allows all-platform draft movement but restricts single-platform retries to the existing tag', () => {
     expect(() =>
@@ -1094,17 +1098,18 @@ describe('release workflow gates', () => {
   })
 
   it('requires environment approval before validating and publishing the exact build', () => {
-    const releaseWorkflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
-    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'publish-release.yml'), 'utf8'))
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
     const publishSteps = workflow.jobs.publish.steps
     const publishStep = publishSteps.find(
       (step: { name?: string }) => step.name === 'Validate and publish current draft'
     )
 
-    expect(releaseWorkflow.on.workflow_dispatch.inputs).not.toHaveProperty('operation')
-    expect(releaseWorkflow.jobs).not.toHaveProperty('publish-release')
+    expect(workflow).not.toHaveProperty('concurrency')
+    expect(workflow.jobs.approve.needs).toEqual(['prepare', 'release', 'finalize-build'])
+    expect(workflow.jobs.approve.if).toBe("inputs.platform == 'all'")
     expect(workflow.jobs.approve.environment).toBe('release')
-    expect(workflow.jobs.publish.needs).toBe('approve')
+    expect(workflow.jobs.publish.needs).toEqual(['prepare', 'release', 'finalize-build', 'approve'])
+    expect(publishStep.env.RELEASE_JOB_RESULTS).toBe('${{ toJSON(needs) }}')
     expect(workflow.jobs.publish.concurrency.group).toBe('release-state')
     expect(workflow.jobs.approve).not.toHaveProperty('concurrency')
     expect(workflow.jobs.publish.steps[0].with.ref).toBe('${{ github.workflow_sha }}')
@@ -1421,7 +1426,6 @@ describe('release workflow gates', () => {
       'post-release.yml',
       'prepare-release.yml',
       'preview-release.yml',
-      'publish-release.yml',
       'release.yml'
     ]) {
       expect(workflow).toContain(`- '.github/workflows/${workflowName}'`)
