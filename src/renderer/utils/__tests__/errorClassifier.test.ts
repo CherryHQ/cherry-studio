@@ -444,6 +444,18 @@ describe('classifyError', () => {
     expect(result.category).toBe('mcp')
   })
 
+  it('keeps an MCP service-unavailable error navigable to MCP settings', () => {
+    const result = classifyError(makeError({ message: 'MCP error: service unavailable' }))
+    expect(result.category).toBe('mcp')
+    expect(result.navTarget).toBe('/settings/mcp/servers')
+  })
+
+  it('keeps an OCR service-unavailable error eligible for reporting', () => {
+    const result = classifyError(makeError({ message: 'OCR service unavailable' }))
+    expect(result.category).toBe('ocr')
+    expect(result.navTarget).toBeNull()
+  })
+
   it('does not match plain "mcp" without qualifier', () => {
     const result = classifyError(makeError({ message: 'something mcp related' }))
     expect(result.category).not.toBe('mcp')

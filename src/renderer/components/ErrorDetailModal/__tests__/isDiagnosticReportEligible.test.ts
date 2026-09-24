@@ -36,4 +36,9 @@ describe('isDiagnosticReportEligible', () => {
   ] as const)('keeps %s errors eligible', (_category, overrides) => {
     expect(isDiagnosticReportEligible(makeError(overrides))).toBe(true)
   })
+
+  it('keeps MCP and OCR service-unavailable errors eligible', () => {
+    expect(isDiagnosticReportEligible(makeError({ message: 'MCP error: service unavailable' }))).toBe(true)
+    expect(isDiagnosticReportEligible(makeError({ message: 'OCR service unavailable' }))).toBe(true)
+  })
 })

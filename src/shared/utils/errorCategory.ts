@@ -219,15 +219,8 @@ export function classifyErrorCategory({ text, status, finishReason, source }: Er
     !isClaudeCodeSpawnFailure &&
     (source !== 'claude-code' || hasUpstreamUnavailableContext)
 
-  // Server errors (5xx / overloaded)
-  if (
-    isHttpServerError ||
-    msg.includes('overloaded') ||
-    msg.includes('overload') ||
-    msg.includes('service unavailable') ||
-    msg.includes('internal server error') ||
-    isExplicitTemporaryUnavailable
-  ) {
+  // A structured HTTP status outranks all message-only feature and transport signals.
+  if (isHttpServerError) {
     return 'server'
   }
 
@@ -238,6 +231,17 @@ export function classifyErrorCategory({ text, status, finishReason, source }: Er
 
   if (msg.includes('ocr') || msg.includes('recognition failed') || msg.includes('engine not initialized')) {
     return 'ocr'
+  }
+
+  // Server errors (overloaded / unavailable text without a structured status).
+  if (
+    msg.includes('overloaded') ||
+    msg.includes('overload') ||
+    msg.includes('service unavailable') ||
+    msg.includes('internal server error') ||
+    isExplicitTemporaryUnavailable
+  ) {
+    return 'server'
   }
 
   // Require a transport-failure phrase instead of matching every mention of streaming.

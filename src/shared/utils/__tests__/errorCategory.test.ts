@@ -80,6 +80,14 @@ describe('classifyErrorCategory server failures', () => {
     expect(classifyErrorCategory({ text: 'temporarily unavailable' })).not.toBe('server')
   })
 
+  it('keeps MCP service-unavailable errors in the MCP category', () => {
+    expect(classifyErrorCategory({ text: 'MCP error: service unavailable' })).toBe('mcp')
+  })
+
+  it('keeps OCR service-unavailable errors in the OCR category', () => {
+    expect(classifyErrorCategory({ text: 'OCR service unavailable' })).toBe('ocr')
+  })
+
   it('does not treat a Claude Code spawn failure as an upstream server error', () => {
     expect(
       classifyErrorCategory({ text: 'Failed to spawn Claude Code process: Service temporarily unavailable' })
