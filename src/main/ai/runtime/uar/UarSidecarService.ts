@@ -32,6 +32,8 @@ export interface UarSidecarEndpoint {
   capabilities: readonly string[]
 }
 
+export type UarSidecarStatus = UarSidecarEndpoint & { state: 'running' }
+
 type RunningSidecar = UarSidecarEndpoint & {
   child: ChildProcess
   launchToken: string
@@ -64,6 +66,33 @@ export class UarSidecarService extends BaseService {
 
   async ensureReady(): Promise<UarSidecarEndpoint> {
     const running = await this.ensureRunning()
+    return {
+      baseUrl: running.baseUrl,
+      generation: running.generation,
+      uarVersion: running.uarVersion,
+      capabilities: running.capabilities
+    }
+  }
+
+  status(): UarSidecarStatus | undefined {
+    const running = this.running
+    if (!running || !this.isAlive(running.child)) return undefined
+    return {
+      state: 'running',
+      baseUrl: running.baseUrl,
+      generation: running.generation,
+      uarVersion: running.uarVersion,
+      capabilities: running.capabilities
+    }
+  }
+
+  async restart(): Promise<UarSidecarEndpoint> {
+    const running = await this.operation.runExclusive(async () => {
+      await this.stopOwnedProcess()
+      const next = await this.startOwnedProcess()
+      this.running = next
+      return next
+    })
     return {
       baseUrl: running.baseUrl,
       generation: running.generation,
@@ -134,6 +163,8 @@ export class UarSidecarService extends BaseService {
       UAR_SIDECAR: '1',
       UAR_PERSISTENCE__PROVIDER: 'surreal',
       UAR_PERSISTENCE__DATABASE_URL: `surrealkv://${path.resolve(dataRoot, 'runtime.db').replaceAll('\\', '/')}`,
+      UAR_BUILTIN_SKILLS_DIR: path.join(application.getPath('feature.prometheus.pack.runtime'), 'skills'),
+      UAR_LOAD_IMPORTED_SKILLS: 'true',
       UAR_NATIVE_TOOLS__FILE_TOOLS_ENABLED: 'false',
       UAR_NATIVE_TOOLS__WEB_FETCH_ENABLED: 'false',
       UAR_NATIVE_TOOLS__TERMINAL_EXEC_ENABLED: 'false'

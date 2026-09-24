@@ -12,6 +12,7 @@
  */
 
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
+import { RUN_PACK_SCRIPT_TOOL_NAME, RUN_PROMETHEUS_TOOL_NAME } from '@main/ai/mcp/servers/skills'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
@@ -106,6 +107,8 @@ const BUILTIN_TOOL_POLICIES = {
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
   searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
   installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'runtime'),
+  runPrometheus: tool(CHERRY_MCP_SERVER.SKILLS, RUN_PROMETHEUS_TOOL_NAME, 'required'),
+  runPackScript: tool(CHERRY_MCP_SERVER.SKILLS, RUN_PACK_SCRIPT_TOOL_NAME, 'required'),
   // A stdio install launches an arbitrary local command with the caller's env, so this asks per call
   // like cli_install rather than deferring to the runtime's permission mode.
   installMcpServer: tool(CHERRY_MCP_SERVER.MCP_MANAGER, 'install_mcp_server', 'required'),

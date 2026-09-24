@@ -111,7 +111,10 @@ export function buildAgentMcpServers(
     instance: new AgentMemoryServer(agent.id, agentDataPath).mcpServer
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
-    servers.skills = { name: CHERRY_MCP_SERVER.SKILLS, instance: new SkillsServer(agent.id).mcpServer }
+    servers.skills = {
+      name: CHERRY_MCP_SERVER.SKILLS,
+      instance: new SkillsServer(agent.id, session.workspace.path).mcpServer
+    }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.MCP_MANAGER)) {
     servers['mcp-manager'] = {

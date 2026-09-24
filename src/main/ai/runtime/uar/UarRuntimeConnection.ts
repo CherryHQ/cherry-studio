@@ -17,6 +17,7 @@ import {
 } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { warmMcpToolCatalogs } from '@main/ai/runtime/pi/piMcpToolAdapter'
+import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
@@ -166,10 +167,10 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
     const { agent } = await application.get('PrometheusIntegrationService').resolveSession(session, storedAgent)
     const provider = this.resolveProvider(this.input.modelId)
     const coldSession = this.attachedGeneration !== sidecar.generation
-    const bridge = await this.createMcpBridge(session, agent)
+    const [bridge, skillIds] = await Promise.all([this.createMcpBridge(session, agent), this.resolveSkillIds(agent.id)])
     try {
       const body = {
-        artifact: this.buildArtifact(agent, this.input.modelId, provider.credential, bridge.servers),
+        artifact: this.buildArtifact(agent, this.input.modelId, provider.credential, bridge.servers, skillIds),
         input: this.buildInput(input),
         session_id: this.input.sessionId,
         run_credentials: [provider.credential],
@@ -332,7 +333,8 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
     agent: NonNullable<ReturnType<typeof agentService.getAgent>>,
     uniqueModelId: AgentRuntimeConnectInput['modelId'],
     credential: UarRunCredential,
-    mcpServers: readonly UarRunMcpServer[]
+    mcpServers: readonly UarRunMcpServer[],
+    skillIds: readonly string[]
   ): UarAgentArtifact {
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
     const model = modelService.getByKey(providerId, modelId)
@@ -357,7 +359,7 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
           max_concurrent: 1,
           execution_mode: 'direct'
         },
-        skills: { prefer: [], max_active: 0 }
+        skills: { prefer: [...skillIds], max_active: 3 }
       },
       schemas: { inputs: null, outputs: null, state: null },
       prompt: {
@@ -418,6 +420,14 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
     return buildUarHostHistory(chronological, excludeMessageId)
   }
 
+  private async resolveSkillIds(agentId: string): Promise<string[]> {
+    const skills = await skillService.list({ agentId })
+    return skills
+      .filter((skill) => skill.isEnabled && skill.source === 'builtin')
+      .map((skill) => `builtin::${skill.name}`)
+      .sort()
+  }
+
   private mapReasoningEffort(): 'none' | 'low' | 'medium' | 'high' | 'max' | undefined {
     switch (this.input.reasoningEffort) {
       case 'none':
@@ -448,6 +458,7 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
     const { agent } = await application.get('PrometheusIntegrationService').resolveSession(session, storedAgent)
     const linkedChannel = resolveLinkedNotifyChannel(session.id, agent.id)
     const mcpServers = (agent.mcps ?? []).map((idOrName) => mcpServerService.findByIdOrName(idOrName) ?? idOrName)
+    const skillIds = await this.resolveSkillIds(agent.id)
     return createHash('sha256')
       .update(
         JSON.stringify([
@@ -459,6 +470,7 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
           reasoningEffort ?? 'default',
           session.workspace,
           mcpServers,
+          skillIds,
           linkedChannel,
           application.get('PreferenceService').get('app.browser.agent_control.enabled'),
           [...(this.input.knowledgeBaseIds ?? [])].sort()

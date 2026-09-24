@@ -1,15 +1,49 @@
+import path from 'node:path'
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { net } from 'electron'
+import * as z from 'zod'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
+import { readSecrets } from '@main/services/prometheus/integrationConfig'
+import { runIntegrationProcess } from '@main/services/prometheus/integrationProcess'
 import { buildGithubSkillResult, searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
 
 const logger = loggerService.withContext('McpServer:Skills')
 
 const REQUEST_TIMEOUT_MS = 15_000
+export const RUN_PROMETHEUS_TOOL_NAME = 'run_prometheus'
+export const RUN_PACK_SCRIPT_TOOL_NAME = 'run_pack_script'
+
+const commandArguments = z
+  .array(
+    z
+      .string()
+      .max(1_024)
+      .refine((value) => !value.includes('\0'))
+  )
+  .max(128)
+  .default([])
+const runPrometheusInput = z.object({ argv: commandArguments }).strict()
+const runPackScriptInput = z
+  .object({
+    script: z
+      .string()
+      .regex(/^[A-Za-z0-9_./-]+\.mjs$/)
+      .max(240),
+    argv: commandArguments
+  })
+  .strict()
+
+function toInputSchema(schema: z.ZodType): Tool['inputSchema'] {
+  const json = z.toJSONSchema(schema) as Record<string, unknown>
+  delete json.$schema
+  return json as Tool['inputSchema']
+}
 
 const SEARCH_TOOL: Tool = {
   name: 'search_skills',
@@ -44,24 +78,41 @@ const INSTALL_TOOL: Tool = {
   }
 }
 
+const RUN_PROMETHEUS_TOOL: Tool = {
+  name: RUN_PROMETHEUS_TOOL_NAME,
+  description:
+    'Run the packaged Prometheus CLI in this conversation workspace. Use this when an active skill names a `prometheus ...` command. Pass each argument as one argv item. The host shows the command for approval before execution.',
+  inputSchema: toInputSchema(runPrometheusInput)
+}
+
+const RUN_PACK_SCRIPT_TOOL: Tool = {
+  name: RUN_PACK_SCRIPT_TOOL_NAME,
+  description:
+    'Run one packaged prometheus-skills-mini script in this conversation workspace. Use this when an active skill names `boss-mini <script.mjs> ...`. The script must be inside the installed pack and the host shows it for approval before execution.',
+  inputSchema: toInputSchema(runPackScriptInput)
+}
+
 /**
  * MCP server exposing skill discovery + install to any agent.
  *
- * Only two deterministic actions: `search_skills` (read-only marketplace search) and
+ * The deterministic actions are `search_skills` (read-only marketplace search),
  * `install_skill` (clone-and-install exactly one skill into Cherry's managed library via
  * `SkillService.install`). Search reuses the shared `normalizeClaudePlugins` so the install source
  * is built from the real repo directory, never the display name — the model passes that opaque
  * string straight back to install_skill, so it can't pick the wrong skill. Authoring is intentionally
  * NOT here — the skill-creator skill writes files into `$CHERRY_STUDIO_SKILLS_DIR` and
- * `SkillService.reconcileSkills` catalogs them. Install goes through the main process so a weak model
- * only needs one tool call, not a correct multi-step shell sequence.
+ * `SkillService.reconcileSkills` catalogs them. The two packaged-command tools are fixed host
+ * launchers for commands named by installed skills; they remain subject to the host approval policy.
  */
 class SkillsServer {
   public mcpServer: McpServer
   private agentId: string
   private readonly issuedInstallSources = new Set<string>()
 
-  constructor(agentId: string) {
+  constructor(
+    agentId: string,
+    private readonly workspacePath?: string
+  ) {
     this.agentId = agentId
     this.mcpServer = new McpServer(
       {
@@ -79,10 +130,10 @@ class SkillsServer {
 
   private setupHandlers() {
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [SEARCH_TOOL, INSTALL_TOOL]
+      tools: [SEARCH_TOOL, INSTALL_TOOL, RUN_PROMETHEUS_TOOL, RUN_PACK_SCRIPT_TOOL]
     }))
 
-    this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const toolName = request.params.name
       const args = (request.params.arguments ?? {}) as Record<string, string | undefined>
 
@@ -92,6 +143,10 @@ class SkillsServer {
             return await this.searchSkills(args)
           case 'install_skill':
             return await this.installSkill(args)
+          case RUN_PROMETHEUS_TOOL_NAME:
+            return await this.runPrometheus(request.params.arguments, extra.signal)
+          case RUN_PACK_SCRIPT_TOOL_NAME:
+            return await this.runPackScript(request.params.arguments, extra.signal)
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
         }
@@ -104,6 +159,28 @@ class SkillsServer {
         }
       }
     })
+  }
+
+  private async runPrometheus(input: unknown, signal: AbortSignal) {
+    const { argv } = runPrometheusInput.parse(input ?? {})
+    return this.runPackCommand('prometheus', argv, signal)
+  }
+
+  private async runPackScript(input: unknown, signal: AbortSignal) {
+    const { script, argv } = runPackScriptInput.parse(input ?? {})
+    const runner = path.join(application.getPath('feature.prometheus.commands'), 'mini-runner.cjs')
+    return this.runPackCommand('node', [runner, script, ...argv], signal)
+  }
+
+  private async runPackCommand(command: string, argv: string[], signal: AbortSignal) {
+    if (!this.workspacePath) throw new Error('A workspace is required to run packaged skill commands')
+    const secrets = Object.values(await readSecrets()).filter((value): value is string => Boolean(value))
+    const output = await runIntegrationProcess(command, argv, {
+      cwd: this.workspacePath,
+      signal,
+      secrets
+    })
+    return { content: [{ type: 'text' as const, text: output || 'Command completed successfully.' }] }
   }
 
   private async searchSkills(args: Record<string, string | undefined>) {
