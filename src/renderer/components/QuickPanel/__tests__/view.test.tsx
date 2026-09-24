@@ -624,6 +624,75 @@ describe('QuickPanelView', () => {
     expect(deleteTriggerRange).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { name: 'the full draft', initialText: 'abc', afterInput: 'abcX' },
+    { name: 'a range before a suffix', initialText: 'abc tail', afterInput: 'abcX tail' }
+  ])('preserves $name after the selection collapses and input resumes', async ({ initialText, afterInput }) => {
+    const listeners = new Set<Parameters<NonNullable<QuickPanelInputAdapter['subscribeInput']>>[0]>()
+    let text = initialText
+    let cursorOffset = 0
+    let selectionEndOffset = 3
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+      selectionEndOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      getSelectionEndOffset: () => selectionEndOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn(),
+      subscribeInput: (listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      }
+    }
+    const captureDispatch = vi.fn()
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'action', label: 'Action', icon: 'a' }]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Action')
+
+    const right = createKeyDownEvent('ArrowRight')
+    act(() => {
+      window.dispatchEvent(right.event)
+    })
+    expect(right.preventDefault).not.toHaveBeenCalled()
+    expect(right.stopPropagation).not.toHaveBeenCalled()
+
+    // Apply the editor's default ArrowRight behavior: collapse the selection at its end.
+    cursorOffset = 3
+    selectionEndOffset = 3
+    text = afterInput
+    cursorOffset = 4
+    selectionEndOffset = 4
+    act(() => {
+      listeners.forEach((listener) => listener({ cause: 'user-input' }))
+    })
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Escape').event)
+    })
+
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+    expect(text).toBe(afterInput)
+  })
+
   it('clears a button-triggered search before opening a child menu panel', async () => {
     const captureDispatch = vi.fn()
     const childAction = vi.fn()

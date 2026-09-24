@@ -141,6 +141,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const queryAnchorRef = useRef<number | undefined>(undefined)
   const leftoverSuffixRef = useRef('')
   const consumableSearchQueryRef = useRef('')
+  const openingSelectionRef = useRef<{ text: string; from: number; to: number } | undefined>(undefined)
   const inputTriggerConsumedRef = useRef(false)
   const inputQueryConsumedRef = useRef(false)
   const prevPanelGenerationRef = useRef<number | undefined>(undefined)
@@ -248,6 +249,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       queryAnchorRef.current = undefined
       leftoverSuffixRef.current = ''
       consumableSearchQueryRef.current = ''
+      openingSelectionRef.current = undefined
       inputTriggerConsumedRef.current = false
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = undefined
@@ -501,6 +503,18 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     const text = inputAdapter.getText()
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    const selectionEndOffset = inputAdapter.getSelectionEndOffset?.() ?? cursorOffset
+    const openingSelection = openingSelectionRef.current
+    if (
+      openingSelection &&
+      (text !== openingSelection.text ||
+        cursorOffset !== openingSelection.from ||
+        selectionEndOffset !== openingSelection.to)
+    ) {
+      inputQueryConsumedRef.current = true
+      closePanel('input_session_invalid')
+      return
+    }
     const shouldRequireInputTrigger = ctx.triggerInfo?.type === 'input' && inputTriggerSymbol !== undefined
 
     if (cursorOffset < queryAnchor) {
@@ -569,6 +583,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     if (!inputAdapter) {
       queryAnchorRef.current = undefined
       leftoverSuffixRef.current = ''
+      openingSelectionRef.current = undefined
       setInputSearchText('')
       return
     }
@@ -587,6 +602,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     queryAnchorRef.current = queryAnchor
+    openingSelectionRef.current =
+      isTrackedInputPanel && ctx.consumeQueryOnDismiss && ctx.triggerInfo?.type === 'button' && hasSelectedText
+        ? { text, from: cursorOffset, to: selectionEndOffset }
+        : undefined
     leftoverSuffixRef.current =
       ctx.consumeQueryOnDismiss && ctx.triggerInfo?.type === 'button' ? text.slice(selectionEndOffset) : ''
     if (!isTrackedInputPanel) {
@@ -676,6 +695,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       queryAnchorRef.current = undefined
       leftoverSuffixRef.current = ''
       consumableSearchQueryRef.current = ''
+      openingSelectionRef.current = undefined
       inputTriggerConsumedRef.current = false
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = undefined
