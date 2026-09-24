@@ -68,6 +68,7 @@ import {
   usesPiGateway
 } from './modelInjection'
 import { createPiCodeModeTools } from './piCodeMode'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
 import {
   capturePiConnectionSnapshot,
   type PiConnectionSnapshot,
@@ -296,7 +297,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
       const shellPath = resolvePiShellPath()
-      const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
+      const settingsManager = pi.SettingsManager.inMemory(
+        { ...(shellPath ? { shellPath } : {}), compaction: resolvePiCompactionSettings(model) },
+        { projectTrusted: true }
+      )
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
 
