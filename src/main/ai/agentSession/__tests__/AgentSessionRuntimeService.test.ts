@@ -3946,6 +3946,72 @@ describe('AgentSessionRuntimeService', () => {
         expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledTimes(messageIds.length)
       })
 
+      it('never deletes a newer copy held while a sweep lands an older one', async () => {
+        const service = await closeWithUnwritableFlows()
+        const newer = { sessionId: 'session-1', messageId: 'assistant-1', parts: partsOf('newer'), events: [] }
+        // The newer hold lands between the sweep reading the old copy and removing it.
+        vi.mocked(rm).mockImplementationOnce(async (target, options) => {
+          await (service as any).holdOrphanedMessagePartsWrite(newer)
+          return realFs.rm(target, options)
+        })
+
+        await (service as any).flushOrphanedMessagePartsWrites()
+        await (service as any).flushOrphanedMessagePartsWrites()
+
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          partsOf('newer'),
+          []
+        )
+      })
+
+      it('lands only the newest held copy of a message', async () => {
+        const service = await closeWithUnwritableFlows()
+        await (service as any).holdOrphanedMessagePartsWrite({
+          sessionId: 'session-1',
+          messageId: 'assistant-1',
+          parts: partsOf('newer'),
+          events: []
+        })
+
+        await (service as any).flushOrphanedMessagePartsWrites()
+
+        // Replaying the replaced copy would briefly roll the row back to older output.
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledTimes(1)
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          partsOf('newer'),
+          []
+        )
+      })
+
+      it('keeps a held copy whose older copies could not be removed', async () => {
+        const service = await closeWithUnwritableFlows()
+        vi.mocked(rm).mockRejectedValueOnce(new Error('EBUSY'))
+
+        await (service as any).holdOrphanedMessagePartsWrite({
+          sessionId: 'session-1',
+          messageId: 'assistant-1',
+          parts: partsOf('newer'),
+          events: []
+        })
+        await (service as any).flushOrphanedMessagePartsWrites()
+
+        // The new copy reached the disk, so nothing was dropped and it still has the last word.
+        expect(mockMainLoggerService.error).not.toHaveBeenCalledWith(
+          'Dropped detached flow message parts that neither the database nor the disk accepted',
+          expect.anything()
+        )
+        expect(mocks.replaceMessagePartsWithWorkflowCheckpoints).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          partsOf('newer'),
+          []
+        )
+      })
+
       it('retries a held write on the next sweep while the database still refuses it', async () => {
         const service = await closeWithUnwritableFlows()
         mocks.replaceMessagePartsWithWorkflowCheckpoints.mockImplementationOnce(() => {
@@ -4059,14 +4125,17 @@ describe('AgentSessionRuntimeService', () => {
           expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith('session-1', 'assistant-1', event)
         })
 
-        it('releases a held checkpoint whose message row is gone', async () => {
+        it('releases a held checkpoint whose message row is gone, overlay included', async () => {
           const service = await closeWithUnwritableCheckpoint()
+          mocks.cacheSetShared(OVERLAY_KEY, partsOf('assistant-1'))
           mocks.checkpointWorkflowTaskEvent.mockReturnValue(false)
 
           await (service as any).flushOrphanedMessagePartsWrites()
           await (service as any).flushOrphanedMessagePartsWrites()
 
           expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+          // An overlay left behind would keep showing a message that no longer exists.
+          expect(mocks.cacheGetShared(OVERLAY_KEY)).toBeUndefined()
         })
       })
     })

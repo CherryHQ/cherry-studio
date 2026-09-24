@@ -299,7 +299,10 @@ type OrphanedWorkflowCheckpoint = {
   event: AgentTaskEventPartData
 }
 
-const ORPHANED_WORKFLOW_CHECKPOINT_SUFFIX = '.checkpoint.json'
+const ORPHANED_PARTS_WRITE_PREFIX = 'parts.'
+const ORPHANED_WORKFLOW_CHECKPOINT_PREFIX = 'checkpoint.'
+
+const encodeOrphanedFileSegment = (value: string) => encodeURIComponent(value).replaceAll('.', '%2E')
 
 type TaskEventsPublishState = {
   events: AgentSessionTaskEvents
@@ -3101,11 +3104,35 @@ export class AgentSessionRuntimeService extends BaseService {
     pending.timer.unref?.()
   }
 
+  /**
+   * Writes a held copy under a fresh time-ordered name, then drops the older copies for the same key. A sweep
+   * only removes the file it read, so a copy written while it lands an older one survives to the next sweep.
+   */
+  private async holdOrphanedFile(key: string, value: unknown): Promise<void> {
+    const name = `${key}.${uuidv7()}.json`
+    await atomicWriteFile(
+      AbsoluteFilePathSchema.parse(application.getPath('feature.agents.orphaned_message_parts', name)),
+      JSON.stringify(value)
+    )
+    try {
+      const superseded = (await readdir(application.getPath('feature.agents.orphaned_message_parts'))).filter(
+        (other) => other.startsWith(`${key}.`) && other < name
+      )
+      await Promise.all(
+        superseded.map((other) =>
+          rm(application.getPath('feature.agents.orphaned_message_parts', other), { force: true })
+        )
+      )
+    } catch (error) {
+      // The new copy is already held; an older one left behind only lands before it on the next sweep.
+      logger.warn('Failed to drop superseded held copies', { key, error })
+    }
+  }
+
   /** Keeps a write no row accepted on disk until a sweep lands it; a later hold for the message replaces it. */
   private async holdOrphanedMessagePartsWrite(write: OrphanedMessagePartsWrite): Promise<void> {
-    const file = application.getPath('feature.agents.orphaned_message_parts', `${write.messageId}.json`)
     try {
-      await atomicWriteFile(AbsoluteFilePathSchema.parse(file), JSON.stringify(write))
+      await this.holdOrphanedFile(`${ORPHANED_PARTS_WRITE_PREFIX}${encodeOrphanedFileSegment(write.messageId)}`, write)
     } catch (error) {
       logger.error('Dropped detached flow message parts that neither the database nor the disk accepted', {
         sessionId: write.sessionId,
@@ -3116,10 +3143,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async holdOrphanedWorkflowCheckpoint(taskId: string, held: OrphanedWorkflowCheckpoint): Promise<void> {
-    const name = `${encodeURIComponent(held.messageId)}.${encodeURIComponent(taskId)}${ORPHANED_WORKFLOW_CHECKPOINT_SUFFIX}`
-    const file = application.getPath('feature.agents.orphaned_message_parts', name)
+    const key = `${ORPHANED_WORKFLOW_CHECKPOINT_PREFIX}${encodeOrphanedFileSegment(held.messageId)}.${encodeOrphanedFileSegment(taskId)}`
     try {
-      await atomicWriteFile(AbsoluteFilePathSchema.parse(file), JSON.stringify(held))
+      await this.holdOrphanedFile(key, held)
     } catch (error) {
       logger.error('Dropped workflow statistics that neither the database nor the disk accepted', {
         sessionId: held.sessionId,
@@ -3140,19 +3166,24 @@ export class AgentSessionRuntimeService extends BaseService {
       logger.warn('Failed to list held detached flow message parts', { error })
       return
     }
-    for (const name of names) {
+    // Time-ordered names land the older copies of a key first, so the newest one has the last word.
+    for (const name of names.sort()) {
       if (!name.endsWith('.json')) continue
       const file = application.getPath('feature.agents.orphaned_message_parts', name)
       try {
-        if (name.endsWith(ORPHANED_WORKFLOW_CHECKPOINT_SUFFIX)) {
+        if (name.startsWith(ORPHANED_WORKFLOW_CHECKPOINT_PREFIX)) {
           const held = JSON.parse(await readFile(file, 'utf8')) as OrphanedWorkflowCheckpoint
           // False means the row is gone, so the checkpoint is released like a parts write for a missing row.
-          if (agentSessionMessageService.checkpointWorkflowTaskEvent(held.sessionId, held.messageId, held.event)) {
-            this.refreshHeldFlowPartsOverlay(held.sessionId, held.messageId)
-          }
+          const merged = agentSessionMessageService.checkpointWorkflowTaskEvent(
+            held.sessionId,
+            held.messageId,
+            held.event
+          )
+          this.syncHeldFlowPartsOverlay(held.sessionId, held.messageId, merged)
           await rm(file, { force: true })
           continue
         }
+        if (!name.startsWith(ORPHANED_PARTS_WRITE_PREFIX)) continue
         const write = JSON.parse(await readFile(file, 'utf8')) as OrphanedMessagePartsWrite
         const saved = agentSessionMessageService.replaceMessagePartsWithWorkflowCheckpoints(
           write.sessionId,
@@ -3175,10 +3206,14 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  /** A held checkpoint merged into the row, so a live overlay seeded by the closed entry must follow it. */
-  private refreshHeldFlowPartsOverlay(sessionId: string, messageId: string): void {
+  /** A live overlay seeded by the closed entry must follow the row a held checkpoint merged into, or go with it. */
+  private syncHeldFlowPartsOverlay(sessionId: string, messageId: string, rowExists: boolean): void {
     const cache = application.get('CacheService')
     const cacheKey = AGENT_SESSION_FLOW_PARTS_CACHE_KEY(sessionId, messageId)
+    if (!rowExists) {
+      cache.deleteShared(cacheKey)
+      return
+    }
     if (!cache.hasShared(cacheKey)) return
     const parts = agentSessionMessageService.getSessionMessage(sessionId, messageId).data.parts
     if (parts) cache.setShared(cacheKey, parts, BACKGROUND_FLOW_HANDOFF_TTL_MS)
