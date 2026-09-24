@@ -1304,6 +1304,8 @@ describe('ProviderModelMigrator', () => {
       expect(result.success).toBe(true)
       const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'voyageai::rerank-2'))
       expect(modelRow.capabilities).toEqual([])
+      // Explicit v1 selections must be pinned so registry healing cannot resurrect them.
+      expect(modelRow.capabilitiesExplicit).toBe(true)
     })
 
     it('normalizes Jina rerank endpoint metadata for opaque NewAPI model ids', async () => {
@@ -1355,6 +1357,53 @@ describe('ProviderModelMigrator', () => {
         .where(eq(userModelTable.id, 'new-api::opaque-model-id'))
       expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK])
       expect(modelRow.capabilities).toEqual([])
+    })
+
+    it('does not pin capabilities for rows without an explicit v1 selection', async () => {
+      registryFixtures.providers = [{ id: 'voyageai', name: 'Voyage AI', endpointConfigs: {} }]
+      registryFixtures.models.set('rerank-2', {
+        id: 'rerank-2',
+        name: 'Rerank 2',
+        capabilities: [MODEL_CAPABILITY.RERANK]
+      })
+      const migrationContext = createContext(dbh.db, {
+        llm: { providers: [makeProvider('voyageai', [{ id: 'rerank-2' }])] }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'voyageai::rerank-2'))
+      // No isUserSelected provenance: the row stays healable from the registry.
+      expect(modelRow.capabilities).toBeNull()
+      expect(modelRow.capabilitiesExplicit).toBe(false)
+    })
+
+    it('pins an explicit v1 selection for models with no registry match', async () => {
+      registryFixtures.providers = [{ id: 'voyageai', name: 'Voyage AI', endpointConfigs: {} }]
+      // No models entry for 'private-model' — the unmatched early-return path.
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('voyageai', [
+              { id: 'private-model', capabilities: [{ type: 'rerank', isUserSelected: false }] }
+            ])
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'voyageai::private-model'))
+      expect(modelRow.capabilities).toEqual([])
+      // A later registry pickup must heal over only non-explicit rows.
+      expect(modelRow.capabilitiesExplicit).toBe(true)
     })
 
     it('does not infer rerank from a secondary Jina endpoint', async () => {
