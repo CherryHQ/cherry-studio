@@ -1,6 +1,22 @@
-import { CreditCard, LogIn, LogOut, Monitor, Moon, RotateCcw, Settings, Sun, SunMoon } from 'lucide-react'
+import {
+  Camera,
+  Check,
+  CreditCard,
+  ImageUp,
+  LogIn,
+  LogOut,
+  Monitor,
+  Moon,
+  Pencil,
+  RotateCcw,
+  Settings,
+  Smile,
+  Sun,
+  SunMoon,
+  X
+} from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -10,8 +26,13 @@ import {
   ColFlex,
   ConfirmDialog,
   EmojiAvatar,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   RowFlex,
-  SegmentedControl
+  SegmentedControl,
+  Tooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
@@ -20,17 +41,36 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
+import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
+import { EmojiPicker } from './EmojiPicker'
+
+type AvatarPopoverView = 'menu' | 'emoji'
 type SubscriptionLookup = { status: 'loading' } | { status: 'ready'; planName: string | null } | { status: 'error' }
 
-export function UserAccountPanel({ active = true, onRequestClose }: { active?: boolean; onRequestClose?: () => void }) {
-  const [userName] = usePreference('app.user.name')
+export function UserAccountPanel({
+  active = true,
+  onEditingUserNameChange,
+  onRequestClose
+}: {
+  active?: boolean
+  onEditingUserNameChange?: (editing: boolean) => void
+  onRequestClose?: () => void
+}) {
+  const [userName, setUserName] = usePreference('app.user.name')
+  const [isEditingUserName, setIsEditingUserName] = useState(false)
+  const [isSavingUserName, setIsSavingUserName] = useState(false)
+  const [userNameDraft, setUserNameDraft] = useState(userName)
+  const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false)
+  const [avatarPopoverView, setAvatarPopoverView] = useState<AvatarPopoverView>('menu')
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [subscriptionLookup, setSubscriptionLookup] = useState<SubscriptionLookup>({ status: 'loading' })
   const [planRequestVersion, setPlanRequestVersion] = useState(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { t } = useTranslation()
   const avatar = useAvatar()
   const { settedTheme, setTheme } = useTheme()
@@ -66,6 +106,69 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
       cancelled = true
     }
   }, [active, cloudStatus?.displayName, isCloudSignedIn, isGlobalEdition, planRequestVersion])
+
+  const startEditingUserName = () => {
+    setUserNameDraft(userName)
+    setIsEditingUserName(true)
+    onEditingUserNameChange?.(true)
+  }
+
+  const cancelEditingUserName = () => {
+    setUserNameDraft(userName)
+    setIsEditingUserName(false)
+    onEditingUserNameChange?.(false)
+  }
+
+  const saveUserName = async () => {
+    const nextUserName = userNameDraft.trim()
+    setIsSavingUserName(true)
+    try {
+      await setUserName(nextUserName)
+      setIsEditingUserName(false)
+      onEditingUserNameChange?.(false)
+    } catch (error: any) {
+      toast.error(error.message)
+    } finally {
+      setIsSavingUserName(false)
+    }
+  }
+
+  const handleEmojiClick = async (emoji: string) => {
+    try {
+      await ipcApi.request('profile.set_avatar', { kind: 'emoji', emoji })
+      setAvatarPopoverOpen(false)
+      setAvatarPopoverView('menu')
+    } catch (error: any) {
+      toast.error(error.message)
+    }
+  }
+
+  const handleResetAvatar = async () => {
+    try {
+      await ipcApi.request('profile.set_avatar', { kind: 'default' })
+      setAvatarPopoverOpen(false)
+      setAvatarPopoverView('menu')
+    } catch (error: any) {
+      toast.error(error.message)
+    }
+  }
+
+  const handleUploadAvatar = async (file: File) => {
+    const sizeError = checkEntityImageSize(file)
+    if (sizeError) {
+      toast.error(sizeError)
+      return
+    }
+
+    try {
+      const data = await prepareEntityImageBytes(file)
+      await ipcApi.request('profile.set_avatar', { kind: 'image', data })
+      setAvatarPopoverOpen(false)
+      setAvatarPopoverView('menu')
+    } catch (error: any) {
+      toast.error(error.message)
+    }
+  }
 
   const handleOpenAccountDetails = () => {
     onRequestClose?.()
@@ -175,35 +278,175 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
   return (
     <ColFlex className="w-56 p-1.5">
       <ColFlex className="pb-1">
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={t('settings.general.user_name.label')}
-          className="h-auto min-h-9 w-full items-center justify-start gap-2 px-2 py-1 text-left"
-          onClick={handleOpenAccountDetails}
-          size="sm">
-          {isEmoji(avatar) ? (
-            <EmojiAvatar size={28} fontSize={14} className="shrink-0">
-              {avatar}
-            </EmojiAvatar>
-          ) : (
-            <Avatar className="size-7 shrink-0 rounded-full">
-              <AvatarImage src={avatar} className="object-cover" />
-            </Avatar>
-          )}
-          <ColFlex className="min-w-0 flex-1 gap-0">
-            <span
-              role={useCloudSubtitleAsTitle ? cloudSubtitleRole : undefined}
-              className="truncate font-medium text-[13px] text-foreground leading-[18px]">
-              {userName || (useCloudSubtitleAsTitle ? cloudSubtitle : t('settings.general.user_name.placeholder'))}
-            </span>
-            {!useCloudSubtitleAsTitle && cloudSubtitle ? (
-              <span role={cloudSubtitleRole} className="truncate text-muted-foreground text-xs leading-4">
-                {cloudSubtitle}
+        {isGlobalEdition ? (
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label={t('settings.general.user_name.label')}
+            className="h-auto min-h-9 w-full items-center justify-start gap-2 px-2 py-1 text-left"
+            onClick={handleOpenAccountDetails}
+            size="sm">
+            {isEmoji(avatar) ? (
+              <EmojiAvatar size={28} fontSize={14} className="shrink-0">
+                {avatar}
+              </EmojiAvatar>
+            ) : (
+              <Avatar className="size-7 shrink-0 rounded-full">
+                <AvatarImage src={avatar} className="object-cover" />
+              </Avatar>
+            )}
+            <ColFlex className="min-w-0 flex-1 gap-0">
+              <span
+                role={useCloudSubtitleAsTitle ? cloudSubtitleRole : undefined}
+                className="truncate font-medium text-[13px] text-foreground leading-[18px]">
+                {userName || (useCloudSubtitleAsTitle ? cloudSubtitle : t('settings.general.user_name.placeholder'))}
               </span>
-            ) : null}
-          </ColFlex>
-        </Button>
+              {!useCloudSubtitleAsTitle && cloudSubtitle ? (
+                <span role={cloudSubtitleRole} className="truncate text-muted-foreground text-xs leading-4">
+                  {cloudSubtitle}
+                </span>
+              ) : null}
+            </ColFlex>
+          </Button>
+        ) : (
+          <RowFlex className="min-h-9 items-center gap-2 px-2 py-1">
+            <Popover
+              open={avatarPopoverOpen}
+              onOpenChange={(visible) => {
+                setAvatarPopoverOpen(visible)
+                if (!visible) setAvatarPopoverView('menu')
+              }}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-label={t('common.avatar')}
+                  className="group relative size-7 min-h-7 shrink-0 rounded-full p-0 text-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent">
+                  {isEmoji(avatar) ? (
+                    <EmojiAvatar size={28} fontSize={14}>
+                      {avatar}
+                    </EmojiAvatar>
+                  ) : (
+                    <Avatar className="size-7 rounded-full">
+                      <AvatarImage src={avatar} className="object-cover" />
+                    </Avatar>
+                  )}
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-background/70 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <Camera className="size-3.5" aria-hidden />
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="z-[90] w-auto p-2" align="start" sideOffset={6}>
+                {avatarPopoverView === 'emoji' ? (
+                  <EmojiPicker onEmojiClick={handleEmojiClick} />
+                ) : (
+                  <ColFlex className="w-40 gap-1">
+                    <input
+                      ref={fileInputRef}
+                      className="hidden"
+                      type="file"
+                      accept="image/png, image/jpeg, image/gif, image/webp"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        event.target.value = ''
+                        if (file) void handleUploadAvatar(file)
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start"
+                      onClick={() => fileInputRef.current?.click()}>
+                      <ImageUp aria-hidden />
+                      {t('settings.general.image_upload')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start"
+                      onClick={() => setAvatarPopoverView('emoji')}>
+                      <Smile aria-hidden />
+                      {t('settings.general.emoji_picker')}
+                    </Button>
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => void handleResetAvatar()}>
+                      <RotateCcw aria-hidden />
+                      {t('settings.general.avatar.reset')}
+                    </Button>
+                  </ColFlex>
+                )}
+              </PopoverContent>
+            </Popover>
+            {isEditingUserName ? (
+              <RowFlex className="min-w-0 flex-1 items-center gap-1">
+                <Input
+                  autoFocus
+                  aria-label={t('settings.general.user_name.label')}
+                  placeholder={t('settings.general.user_name.placeholder')}
+                  value={userNameDraft}
+                  onChange={(event) => setUserNameDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                      event.preventDefault()
+                      void saveUserName()
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      cancelEditingUserName()
+                    }
+                  }}
+                  className="h-8 min-w-0 flex-1"
+                  maxLength={30}
+                  disabled={isSavingUserName}
+                />
+                <Tooltip content={t('common.save')}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('common.save')}
+                    loading={isSavingUserName}
+                    onClick={() => void saveUserName()}>
+                    {!isSavingUserName ? <Check aria-hidden /> : null}
+                  </Button>
+                </Tooltip>
+                <Tooltip content={t('common.cancel')}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('common.cancel')}
+                    disabled={isSavingUserName}
+                    onClick={cancelEditingUserName}>
+                    <X aria-hidden />
+                  </Button>
+                </Tooltip>
+              </RowFlex>
+            ) : (
+              <Button
+                type="button"
+                aria-label={t('settings.general.user_name.label')}
+                className="h-auto min-w-0 flex-1 justify-start px-0.5 py-0 text-left"
+                onClick={startEditingUserName}
+                size="sm"
+                variant="ghost">
+                <ColFlex className="min-w-0 flex-1 gap-0">
+                  <RowFlex className="min-w-0 items-center gap-1">
+                    <span
+                      role={useCloudSubtitleAsTitle ? cloudSubtitleRole : undefined}
+                      className="truncate font-medium text-[13px] text-foreground leading-[18px]">
+                      {userName || cloudSubtitle}
+                    </span>
+                    <Pencil className="!text-muted-foreground size-3 shrink-0" aria-hidden />
+                  </RowFlex>
+                  {!useCloudSubtitleAsTitle && cloudSubtitle ? (
+                    <span role={cloudSubtitleRole} className="truncate text-muted-foreground text-xs leading-4">
+                      {cloudSubtitle}
+                    </span>
+                  ) : null}
+                </ColFlex>
+              </Button>
+            )}
+          </RowFlex>
+        )}
       </ColFlex>
       <ColFlex className="border-border-subtle gap-0.5 border-t pt-1">
         {isGlobalEdition ? (
