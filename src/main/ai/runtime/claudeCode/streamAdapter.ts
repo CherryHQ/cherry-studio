@@ -614,10 +614,11 @@ function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] 
       return 'in_progress'
     case 'completed':
       return 'completed'
+    // `task_updated` reports a user stop as `killed`; its notification calls the same stop `stopped`.
     case 'stopped':
+    case 'killed':
       return 'stopped'
     case 'failed':
-    case 'killed':
       return 'error'
     default:
       return undefined

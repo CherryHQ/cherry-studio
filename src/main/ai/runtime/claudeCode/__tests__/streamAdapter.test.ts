@@ -1737,6 +1737,25 @@ describe('ClaudeCodeStreamAdapter', () => {
     ])
   })
 
+  it('shows a task the user stopped as stopped, not failed', () => {
+    const { adapter, parts } = createAdapter()
+
+    // The SDK patches a stopped task to `killed` before its `stopped` notification; the first
+    // terminal edge wins, so `killed` alone decides whether the row reads as stopped or failed.
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_updated',
+      session_id: 'sdk-task',
+      uuid: 'task-killed-uuid',
+      task_id: 'task-1',
+      patch: { status: 'killed', end_time: 1_700_000_000_000 }
+    } as any)
+
+    expect(parts).toEqual([
+      expect.objectContaining({ data: expect.objectContaining({ taskId: 'task-1', status: 'stopped' }) })
+    ])
+  })
+
   it('maps text content block deltas', () => {
     const { adapter, parts } = createAdapter()
 
