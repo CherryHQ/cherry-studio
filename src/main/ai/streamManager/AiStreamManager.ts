@@ -29,7 +29,8 @@ import type {
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
-  AiStreamOpenResponse
+  AiStreamOpenResponse,
+  WriteQuiesceOperation
 } from '@shared/ai/transport'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -348,7 +349,7 @@ export class AiStreamManager extends BaseService {
   private readonly startingNextChatTopicIds = new Set<string>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
-  private readonly pauseHolds = new Set<symbol>()
+  private readonly pauseHolds = new Map<symbol, WriteQuiesceOperation>()
   /** Gate-admitted dispatches still inside `prepareDispatch → send`. Registered before the
    *  first async admission gap can yield to pause/drain, then removed after stream handoff. */
   private readonly inFlightDispatches = new Map<Promise<AiStreamOpenResponse>, string>()
@@ -429,7 +430,9 @@ export class AiStreamManager extends BaseService {
       if (this.isWriteQuiesced && req.trigger !== 'steer-continuation') {
         return {
           mode: 'blocked' as const,
-          reason: 'paused' as const
+          reason: 'paused' as const,
+          // Keep the notice stable until the oldest live hold is released.
+          operation: this.pauseHolds.values().next().value!
         }
       }
       const admission = dispatchStreamRequest(this, subscriber, req)
@@ -470,15 +473,15 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Pause new-turn admission: `dispatch()` returns `{mode:'blocked', reason:'paused'}` and
+   * Pause new-turn admission: `dispatch()` returns `{mode:'blocked', reason:'paused', operation}` and
    * `startAgentSessionRun` throws while any hold is live; queued steer continuations are
    * suppressed (not consumed). In-flight streams keep running until drained. There is
    * deliberately NO resume(): dispose your own hold; the last disposal re-kicks suppressed
    * continuations. A dropped hold fails closed (paused until relaunch).
    */
-  pause(reason?: string): Disposable {
+  pause(operation: WriteQuiesceOperation, reason?: string): Disposable {
     const token = Symbol(reason ?? 'ai-stream-manager-pause')
-    this.pauseHolds.add(token)
+    this.pauseHolds.set(token, operation)
     logger.info('AiStreamManager paused', { reason: reason ?? null, holds: this.pauseHolds.size })
     return {
       dispose: () => {

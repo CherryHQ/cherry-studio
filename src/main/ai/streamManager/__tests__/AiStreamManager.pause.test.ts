@@ -20,6 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type { WriteQuiesceOperation } from '@shared/ai/transport'
 
 import type { ActiveStream, AiStreamManagerConfig, StreamListener } from '../types'
 
@@ -81,7 +82,7 @@ type ManagerInstance = InstanceType<typeof AiStreamManager>
 
 /** White-box view of the private quiesce/steer state (house idiom, see JobManager.pause.test.ts). */
 interface ManagerInternals {
-  pauseHolds: Set<symbol>
+  pauseHolds: Map<symbol, WriteQuiesceOperation>
   inFlightDispatches: Map<Promise<unknown>, string>
   suppressedChatContinuationTopicIds: Set<string>
   inFlightChatContinuations: Map<string, Promise<void>>
@@ -204,12 +205,38 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
   // -------------------------------------------------------------------------
 
   describe('blocked surface while paused', () => {
-    it('blocks dispatch — resolves {mode:"blocked", reason:"paused"} without reaching dispatchStreamRequest', async () => {
-      mgr.pause('test: restore')
+    it.each(['backup', 'restore'] as const)(
+      'blocks dispatch with the %s operation before any writes',
+      async (operation) => {
+        mgr.pause(operation, 'test: operation')
 
-      const res = await mgr.dispatch(fakeSubscriber, openReq('t'))
-      expect(res).toEqual({ mode: 'blocked', reason: 'paused' })
-      expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+        const res = await mgr.dispatch(fakeSubscriber, openReq('t'))
+        expect(res).toEqual({ mode: 'blocked', reason: 'paused', operation })
+        expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each([
+      ['backup', 'restore'],
+      ['restore', 'backup']
+    ] as const)('reports the oldest live hold: %s before %s', async (firstOperation, secondOperation) => {
+      const first = mgr.pause(firstOperation, 'test: first hold')
+      const second = mgr.pause(secondOperation, 'test: second hold')
+
+      await expect(mgr.dispatch(fakeSubscriber, openReq('t'))).resolves.toEqual({
+        mode: 'blocked',
+        reason: 'paused',
+        operation: firstOperation
+      })
+
+      first.dispose()
+      first.dispose()
+      await expect(mgr.dispatch(fakeSubscriber, openReq('t'))).resolves.toEqual({
+        mode: 'blocked',
+        reason: 'paused',
+        operation: secondOperation
+      })
+      second.dispose()
     })
 
     it('re-checks the pause flag under the per-topic lock — a dispatch queued behind a live one is still rejected', async () => {
@@ -220,7 +247,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
       expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
 
       // Pause lands while B is parked — the post-mutex re-check must reject it.
-      mgr.pause('test: mutex race')
+      mgr.pause('restore', 'test: mutex race')
       dispatchResolvers[0]()
       await flush()
 
@@ -230,7 +257,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     })
 
     it('exempts steer-continuation dispatches — a grandfathered launch still reaches dispatchStreamRequest', async () => {
-      mgr.pause('test: exemption')
+      mgr.pause('restore', 'test: exemption')
 
       const p = mgr.dispatch(fakeSubscriber, steerReq('t', 'u1'))
       await flush()
@@ -242,7 +269,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     })
 
     it('suppresses a paused startNextChatTurn without consuming the queue head', async () => {
-      mgr.pause('test: suppression')
+      mgr.pause('restore', 'test: suppression')
       internals(mgr).pendingSteers.set('t', [{ userMessageId: 'u1' }, { userMessageId: 'u2' }])
 
       await internals(mgr).startNextChatTurn('t')
@@ -254,7 +281,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     })
 
     it('rejects a paused startAgentSessionRun before prepareDispatch writes any rows', async () => {
-      mgr.pause('test: agent-session gate')
+      mgr.pause('restore', 'test: agent-session gate')
 
       await expect(
         startAgentSessionRun({ sessionId: 's1', userParts: [], listeners: [streamListener('l1')] })
@@ -269,7 +296,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
 
   describe('drainInFlight', () => {
     it('returns a clean verdict when nothing is in flight', async () => {
-      const hold = mgr.pause('test: clean drain')
+      const hold = mgr.pause('restore', 'test: clean drain')
 
       await expect(mgr.drainInFlight({ timeoutMs: 200 })).resolves.toEqual({ stragglerIds: [] })
 
@@ -284,7 +311,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     it('waits for a live persistence-bearing stream to settle', async () => {
       const loop = makeDeferred()
       seedFakeStream(mgr, 't', { listenerKey: 'persistence:x', loopPromise: loop.promise })
-      const hold = mgr.pause('test: stream drain')
+      const hold = mgr.pause('restore', 'test: stream drain')
 
       const drain = trackSettled(mgr.drainInFlight({ timeoutMs: 5000 }))
       await flush()
@@ -316,7 +343,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
       expect(validateSessionMock).toHaveBeenCalledOnce()
       expect(internals(mgr).inFlightDispatches.size).toBe(1)
 
-      const hold = mgr.pause('test: validateSession race')
+      const hold = mgr.pause('restore', 'test: validateSession race')
       const drain = trackSettled(mgr.drainInFlight({ timeoutMs: 5000 }))
       await flush()
       expect(drain.isSettled()).toBe(false)
@@ -341,7 +368,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
       // with it excluded the drain returns clean immediately, well inside the short timeout.
       const never = makeDeferred()
       seedFakeStream(mgr, 'translate-1', { listenerKey: 'renderer:1', loopPromise: never.promise })
-      const hold = mgr.pause('test: prompt excluded')
+      const hold = mgr.pause('restore', 'test: prompt excluded')
 
       await expect(mgr.drainInFlight({ timeoutMs: 50 })).resolves.toEqual({ stragglerIds: [] })
 
@@ -355,7 +382,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
         listenerKey: 'persistence:x',
         loopPromise: loop.promise
       })
-      const hold = mgr.pause('test: straggler')
+      const hold = mgr.pause('restore', 'test: straggler')
 
       const verdict = await mgr.drainInFlight({ timeoutMs: 30 })
       expect(verdict.stragglerIds).toEqual(['t'])
@@ -374,7 +401,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     it('awaits the detached topic-naming write registry', async () => {
       const write = makeDeferred()
       namingWrites.set('topic:t', write.promise)
-      const hold = mgr.pause('test: naming drain')
+      const hold = mgr.pause('restore', 'test: naming drain')
 
       const drain = trackSettled(mgr.drainInFlight({ timeoutMs: 5000 }))
       await flush()
@@ -395,7 +422,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
       void loop.promise.then(() => {
         namingWrites.set('topic:t', naming.promise)
       })
-      const hold = mgr.pause('test: fixed point')
+      const hold = mgr.pause('restore', 'test: fixed point')
 
       const drain = trackSettled(mgr.drainInFlight({ timeoutMs: 5000 }))
       await flush()
@@ -419,8 +446,8 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
 
   describe('holds and release compensation', () => {
     it('refcounts holds — quiesced until the last hold is disposed', () => {
-      const h1 = mgr.pause('holder-1')
-      const h2 = mgr.pause('holder-2')
+      const h1 = mgr.pause('restore', 'holder-1')
+      const h2 = mgr.pause('restore', 'holder-2')
       expect(mgr.isWriteQuiesced).toBe(true)
 
       h1.dispose()
@@ -431,8 +458,8 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     })
 
     it('dispose is idempotent — double-dispose cannot release another hold', () => {
-      const h1 = mgr.pause('holder-1')
-      const h2 = mgr.pause('holder-2')
+      const h1 = mgr.pause('restore', 'holder-1')
+      const h2 = mgr.pause('restore', 'holder-2')
 
       h1.dispose()
       h1.dispose() // must not decrement h2's hold
@@ -443,7 +470,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     })
 
     it('re-kicks a suppressed steer continuation exactly once on last-hold release', async () => {
-      const hold = mgr.pause('test: release kick')
+      const hold = mgr.pause('restore', 'test: release kick')
       internals(mgr).pendingSteers.set('t', [{ userMessageId: 'u1' }])
       await internals(mgr).startNextChatTurn('t') // suppressed under the hold
       expect(internals(mgr).suppressedChatContinuationTopicIds.has('t')).toBe(true)
@@ -474,10 +501,10 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     })
 
     it('newer hold inherits the suppressed-continuation debt', async () => {
-      const hA = mgr.pause('holder-A')
+      const hA = mgr.pause('restore', 'holder-A')
       internals(mgr).pendingSteers.set('t', [{ userMessageId: 'u1' }])
       await internals(mgr).startNextChatTurn('t') // suppressed under A
-      const hB = mgr.pause('holder-B')
+      const hB = mgr.pause('restore', 'holder-B')
 
       hA.dispose()
       await flush()
@@ -501,7 +528,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     })
 
     it('fails closed — a dropped (never disposed) hold keeps admission blocked', async () => {
-      mgr.pause('test: dropped hold')
+      mgr.pause('restore', 'test: dropped hold')
       expect(mgr.isWriteQuiesced).toBe(true)
 
       const res = await mgr.dispatch(fakeSubscriber, openReq('t'))

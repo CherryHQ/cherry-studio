@@ -503,7 +503,7 @@ class AiStreamManager {
 
   // ── Write quiesce (backup restore) — see the dedicated section ────
   get isWriteQuiesced(): boolean
-  pause(reason?: string): Disposable
+  pause(operation: WriteQuiesceOperation, reason?: string): Disposable
   drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }>
   listActiveWork(): Array<{ id: string; summary: string }>
 }
@@ -615,7 +615,7 @@ the restore snapshot is staged, any main-side write to the old live DB fails the
 fingerprint re-check and wastes the whole restore attempt. Three AI-side writers carry
 the contract — `AiStreamManager`, `AgentSessionRuntimeService`, and channel intake
 (`ChannelManager` → `ChannelMessageHandler`) — each exposing
-`pause(reason?): Disposable` + `drainInFlight({ timeoutMs }) → { stragglerIds }`
+`pause(reason?): Disposable` (`AiStreamManager`: `pause(operation: WriteQuiesceOperation, reason?: string)`, where `WriteQuiesceOperation = 'backup' | 'restore'`) + `drainInFlight({ timeoutMs }) → { stragglerIds }`
 (empty = clean) + an advisory read-only `listActiveWork()`.
 
 BackupManager delegates Agent-specific participants to `AgentLifecycleService`; its
@@ -648,7 +648,7 @@ AiStreamManager specifics:
 
 | Rule | Detail |
 |---|---|
-| Gate = dispatch admission | Checked inside the `withDispatchLock` callback (post-mutex re-check), BEFORE `prepareDispatch` writes the user/pending-assistant rows. `dispatch()` returns `{ mode: 'blocked', reason: 'paused' }`; `startAgentSessionRun` throws. Unlike JobManager, the AI gate rejects by design — a new turn is an execution start, not data at rest. |
+| Gate = dispatch admission | Checked inside the `withDispatchLock` callback (post-mutex re-check), BEFORE `prepareDispatch` writes the user/pending-assistant rows. `dispatch()` returns `{ mode: 'blocked', reason: 'paused', operation: WriteQuiesceOperation }`; `startAgentSessionRun` throws. Unlike JobManager, the AI gate rejects by design — a new turn is an execution start, not data at rest. |
 | Steer continuations suppressed, not rejected | `startNextChatTurn` returns before consuming the steer queue and records the topic; the last hold's disposal re-kicks it. The `steer-continuation` trigger is exempt from the `dispatch()` gate (it only originates from the gated `startNextChatTurn`; a grandfathered launch is drained via `inFlightChatContinuations`). |
 | Not gated | `send()` / `startRuntimeTurn()` (a continuation past its upstream gate must reach them), `streamPrompt()` (renderer-driven callers are covered by the restore UI block; chunks-only prompt streams write nothing), and `AiService.embedMany` (never routes through this manager) — knowledge indexing keeps working while quiesced. |
 | Drain wait-set | Gate-admitted `dispatchStreamRequest` promises until `manager.send()` hands them off to the stream registry; this covers async `prepareDispatch` work such as agent-session `validateSession()`. Then executions of streams carrying a `persistence:*` listener — listener-derived, not lifecycle-derived; chunks-only prompt streams (API gateway and translate) are excluded. Plus in-flight steer-continuation launches and `TopicNamingService.inFlightWrites()` — the summary renames are spawned detached (`void backend.afterPersist(...)`), so a loopPromise settles before their DB write lands; the registry closes that gap. The set can grow while draining (an admission opens a stream, a settling loop spawns a naming write, or a grandfathered continuation opens a stream), so the drain is a fixed point over promise identities, bounded by `timeoutMs`. |

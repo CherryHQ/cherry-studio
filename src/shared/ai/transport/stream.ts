@@ -298,6 +298,8 @@ export type AiStreamAttachResponse =
   | ({ status: 'paused' } & AiStreamAttachTerminal)
   | { status: 'error'; error?: SerializedError }
 
+export type WriteQuiesceOperation = 'backup' | 'restore'
+
 /** Result of an open attempt. */
 export type AiStreamOpenResponse =
   | {
@@ -328,6 +330,7 @@ export type AiStreamOpenResponse =
     }
   | {
       mode: 'blocked'
-      /** Main-side write quiesce (backup restore in progress). Renderer maps this reason to i18n. */
+      /** Main-side write quiesce during backup or restore. Renderer maps the operation to i18n. */
       reason: 'paused'
+      operation: WriteQuiesceOperation
     }
