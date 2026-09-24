@@ -163,10 +163,12 @@ own their provider transport. Claude Code implements turn-level fallback in
   preference applies. The fallback is turn-scoped; a fresh turn reconciles
   against the agent's primary model.
 
-Limitations: one fallback attempt per turn; no
-capability gating (a fallback is picked purely by id, so a non-vision fallback
-can receive image parts); the assistant row keeps the primary model's `modelId`
-stamp — the transcript notice carries the model that actually answered.
+Limitations: one fallback attempt per turn; fallback *selection* is not
+capability-gated (a fallback is picked purely by id), though the replayed
+message is materialized for the fallback model's own capabilities, so a
+non-vision fallback receives OCR text or a readable path instead of native
+image parts; the assistant row keeps the primary model's `modelId` stamp — the
+transcript notice carries the model that actually answered.
 
 ### Embeddings & Rerank — no ai-retry
 
