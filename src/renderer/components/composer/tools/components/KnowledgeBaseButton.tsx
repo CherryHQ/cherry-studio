@@ -131,7 +131,9 @@ const useKnowledgeBaseToolController = ({
         const nextSelectedBases = configuredBasesRef.current.filter((candidate) => nextSelectedIds.has(candidate.id))
         selectedBasesRef.current = nextSelectedBases
         onSelectRef.current(nextSelectedBases)
-        closeKnowledgeBasePanelOnNextInput({ context, inputAdapter })
+        if (context.symbol === ComposerPanelSymbol.KnowledgeBase) {
+          closeKnowledgeBasePanelOnNextInput({ context, inputAdapter })
+        }
       }
     }))
   }, [closeKnowledgeBasePanelOnNextInput, configuredBases, language, selectedBaseIds])
