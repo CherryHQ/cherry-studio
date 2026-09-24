@@ -34,10 +34,18 @@ export interface AgentSessionMessageBackendOptions {
 export class AgentSessionMessageBackend implements PersistenceBackend {
   readonly kind = 'agents-db'
   readonly canPersistEmptyTerminal = true
-  readonly canPersistEmptySuccessTerminal = true
+  readonly emptySuccessError = {
+    name: 'AgentRuntimeError',
+    message: 'Agent runtime completion produced no response content.',
+    stack: null,
+    code: 'EMPTY_AGENT_COMPLETION',
+    stage: 'runtime-completion'
+  } as const
+  readonly emptySuccessMessageId: string
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 
   constructor(private readonly opts: AgentSessionMessageBackendOptions) {
+    this.emptySuccessMessageId = opts.assistantMessageId
     this.afterPersist = opts.afterPersist
   }
 

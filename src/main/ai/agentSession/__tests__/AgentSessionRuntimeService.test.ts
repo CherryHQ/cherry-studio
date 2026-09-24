@@ -5778,7 +5778,7 @@ describe('AgentSessionRuntimeService', () => {
     await persistenceListener(handle).onDone({
       status: 'success',
       isTopicDone: true,
-      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'done' }] }
     })
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
@@ -5789,7 +5789,7 @@ describe('AgentSessionRuntimeService', () => {
           id: 'assistant-1',
           role: 'assistant',
           status: 'success',
-          data: { parts: [] },
+          data: { parts: [{ type: 'text', text: 'done' }] },
           modelId: 'claude-code::claude-sonnet-4-5'
         }
       },
