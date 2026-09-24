@@ -77,20 +77,51 @@ export interface StartDetachedBackgroundTaskInput {
   onExit?: (task: CompletedBackgroundTask) => void
 }
 
-/** Pure spawn-option factory so the detach contract is assertable without spawning. */
-export function buildDetachedBackgroundTaskSpawnOptions(cwd: string, stdoutFd: number, stderrFd: number): SpawnOptions {
-  return {
+/**
+ * Windows detach and log capture cannot share one shell hop: a `DETACHED_PROCESS` `cmd.exe`
+ * never hands its stdio to the processes it starts, while an attached task dies with the app.
+ * Running the command from a detached Node process keeps the shell ordinary, so both hold.
+ * The command travels as `argv[1]` so a long one cannot overflow the Windows environment block.
+ */
+export const WINDOWS_DETACHED_TASK_RUNNER = [
+  `const { spawn } = require('node:child_process')`,
+  `const env = { ...process.env }`,
+  `delete env.ELECTRON_RUN_AS_NODE`,
+  `const task = spawn(process.argv[1], { shell: true, stdio: 'inherit', env })`,
+  `task.on('error', () => process.exit(1))`,
+  `task.on('exit', (code) => process.exit(code ?? 1))`
+].join(';')
+
+export interface DetachedBackgroundTaskSpawn {
+  file: string
+  args: string[]
+  options: SpawnOptions
+}
+
+/** Pure spawn factory so the detach contract is assertable without spawning. */
+export function buildDetachedBackgroundTaskSpawn(
+  command: string,
+  cwd: string,
+  stdoutFd: number,
+  stderrFd: number
+): DetachedBackgroundTaskSpawn {
+  const options: SpawnOptions = {
     cwd,
-    // POSIX: setsid so `kill(-pid)` reaches the whole tree. Windows needs no flag to outlive this
-    // process, and DETACHED_PROCESS stops cmd from wiring the log redirection below (empty log,
-    // reproduced on a Windows runner: identical spawn with detached:false captures the output).
-    detached: process.platform !== 'win32',
-    shell: true,
+    // POSIX needs setsid so `kill(-pid)` reaches the whole tree; on Windows the flag itself is
+    // what keeps the task running once Cherry Studio exits.
+    detached: true,
     windowsHide: true,
-    // Windows cmd owns its file redirection (see startDetachedBackgroundTask); inherited numeric
-    // file descriptors can silently lose detached child output there. POSIX shares the log fd.
-    stdio: process.platform === 'win32' ? ['ignore', 'ignore', 'ignore'] : ['ignore', stdoutFd, stderrFd]
+    // stdin closed, stdout and stderr both point at the task log fd.
+    stdio: ['ignore', stdoutFd, stderrFd]
   }
+  if (process.platform === 'win32') {
+    return {
+      file: process.execPath,
+      args: ['-e', WINDOWS_DETACHED_TASK_RUNNER, command],
+      options: { ...options, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }
+    }
+  }
+  return { file: command, args: [], options: { ...options, shell: true } }
 }
 
 /** `kill(pid, 0)` liveness probe; EPERM means the pid exists but is not ours. */
@@ -118,12 +149,9 @@ export async function startDetachedBackgroundTask(
   const startedAt = new Date().toISOString()
 
   const logHandle = await open(logFile, 'a', 0o600)
-  if (process.platform === 'win32') await logHandle.close()
   try {
-    // cmd.exe reopens the log itself, so the detached process keeps a valid output handle even
-    // after Cherry Studio exits. Windows paths cannot contain a double quote.
-    const spawnCommand = process.platform === 'win32' ? `${command} 1>>"${logFile}" 2>>&1` : command
-    const child = spawn(spawnCommand, buildDetachedBackgroundTaskSpawnOptions(input.cwd, logHandle.fd, logHandle.fd))
+    const target = buildDetachedBackgroundTaskSpawn(command, input.cwd, logHandle.fd, logHandle.fd)
+    const child = spawn(target.file, target.args, target.options)
     child.unref()
 
     const record: BackgroundTaskRecord = {
@@ -155,8 +183,8 @@ export async function startDetachedBackgroundTask(
       logger.warn('Detached background task failed to spawn', { taskId: id, error })
       finalize('failed', null, null)
     })
-    // Wait for stdio to close before publishing completion: on Windows, `exit` can fire
-    // before the detached process's final log bytes become readable.
+    // 'close' rather than 'exit': it waits for the task's stdio to drain, so the final log
+    // bytes are readable by the time completion is published.
     child.on('close', (code, signal) => finalize(code === 0 ? 'completed' : 'failed', code, signal))
 
     // Synchronously, so an immediately-exiting task cannot finalize before the
@@ -183,8 +211,8 @@ export async function startDetachedBackgroundTask(
     logger.info('Detached background task started', { taskId: id, pid: record.pid })
     return record
   } finally {
-    // POSIX child holds its own dup of this fd; Windows closed it before cmd reopened the log.
-    if (process.platform !== 'win32') await logHandle.close()
+    // The child holds its own dup of this fd, so ours can go as soon as it exists.
+    await logHandle.close()
   }
 }
 
