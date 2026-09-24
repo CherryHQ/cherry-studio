@@ -46,6 +46,20 @@ the merge (or commit) that fixed it.
 - **Lessons:** <new rule added to the playbook, or "none">
 ```
 
+## 2026-09-24 — upstream main (merge/upstream-2026-09-24)
+
+- **Taken:** 34 upstream commits, up to `upstream/main`.
+- **Conflicts:** `src/renderer/i18n/locales/zh-cn.json` — took upstream's Chinese
+  `backup.error.newer_version` / `backup.error.operation_busy` over the fork's English
+  placeholders, with Cherry Studio → The Boss.
+- **Rebranded:** the `backup.error.newer_version` product name above.
+- **Left as upstream:** 2 Cherry lines in test/e2e files.
+- **Version:** stays 2.2.0; upstream's `package.json` is 2.1.2 and taking it would sit
+  below the fork's shipped 2.1.3.
+- **Gate:** `pnpm typecheck` ✓, `pnpm i18n:check` ✓ (after `pnpm i18n:sync` re-sorted the
+  auto-merged catalogs).
+- **Lessons:** none.
+
 ## 2026-09-22 — assistant rename (follow-up, no upstream commits)
 
 - **Rebranded:** default assistant name (`DEFAULT_ASSISTANT_NAME`, zh `Boss 助手`),

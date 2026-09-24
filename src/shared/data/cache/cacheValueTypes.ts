@@ -176,6 +176,13 @@ export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
   shouldValidateSkills?: boolean
 }
 
+/** Unsubmitted AskUserQuestion answers, keyed per question index. Survives composer remounts. */
+export interface CacheAskUserQuestionDraft {
+  selectedAnswers: Record<number, string[]>
+  customAnswers: Record<number, string>
+  currentIndex: number
+}
+
 export type ExternalOpenTargetPreferences = Record<string, string>
 
 export type CachePaintingGenerationState = {
