@@ -13,6 +13,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isWin } from '@main/core/platform'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
+import { uarCapabilitiesResponseSchema, type UarAdministrationCapabilities } from '@shared/types/prometheusIntegration'
 
 import { type AppliedUarStorage, readAppliedUarStorage, writeAppliedUarStorage } from './uarStorageProfile'
 
@@ -33,6 +34,7 @@ export interface UarSidecarEndpoint {
   generation: number
   uarVersion: string
   capabilities: readonly string[]
+  administration: UarAdministrationCapabilities
   storage: Omit<AppliedUarStorage, 'password'>
 }
 
@@ -42,12 +44,6 @@ type RunningSidecar = Omit<UarSidecarEndpoint, 'storage'> & {
   child: ChildProcess
   launchToken: string
   storage: AppliedUarStorage
-}
-
-type CapabilitiesResponse = {
-  uar_version?: unknown
-  agui?: { profile?: unknown; profile_revision?: unknown }
-  capabilities?: unknown
 }
 
 @Injectable('UarSidecarService')
@@ -76,6 +72,7 @@ export class UarSidecarService extends BaseService {
       generation: running.generation,
       uarVersion: running.uarVersion,
       capabilities: running.capabilities,
+      administration: running.administration,
       storage: this.storageStatus(running.storage)
     }
   }
@@ -89,6 +86,7 @@ export class UarSidecarService extends BaseService {
       generation: running.generation,
       uarVersion: running.uarVersion,
       capabilities: running.capabilities,
+      administration: running.administration,
       storage: this.storageStatus(running.storage)
     }
   }
@@ -105,6 +103,7 @@ export class UarSidecarService extends BaseService {
       generation: running.generation,
       uarVersion: running.uarVersion,
       capabilities: running.capabilities,
+      administration: running.administration,
       storage: this.storageStatus(running.storage)
     }
   }
@@ -135,6 +134,7 @@ export class UarSidecarService extends BaseService {
       generation: running.generation,
       uarVersion: running.uarVersion,
       capabilities: running.capabilities,
+      administration: running.administration,
       storage: this.storageStatus(running.storage)
     }
   }
@@ -242,6 +242,7 @@ export class UarSidecarService extends BaseService {
         generation,
         uarVersion: capabilities.uarVersion,
         capabilities: capabilities.capabilities,
+        administration: capabilities.administration,
         storage
       }
       child.once('exit', (code, signal) => {
@@ -310,18 +311,14 @@ export class UarSidecarService extends BaseService {
       signal: AbortSignal.timeout(5_000)
     })
     if (!response.ok) throw new Error(`UAR sidecar capability check failed with HTTP ${response.status}`)
-    const body = (await response.json()) as CapabilitiesResponse
-    if (typeof body.uar_version !== 'string') throw new Error('UAR sidecar did not report a version')
-    if (body.agui?.profile !== 'uar.agui/1' || body.agui.profile_revision !== 1) {
-      throw new Error('UAR sidecar AG-UI profile is incompatible (requires uar.agui/1 revision 1)')
-    }
+    const body = uarCapabilitiesResponseSchema.parse(await response.json())
     const capabilities = body.capabilities
     if (!Array.isArray(capabilities) || !capabilities.every((value) => typeof value === 'string')) {
       throw new Error('UAR sidecar capability response is invalid')
     }
     const missing = REQUIRED_CAPABILITIES.filter((capability) => !capabilities.includes(capability))
     if (missing.length) throw new Error(`UAR sidecar is missing required capabilities: ${missing.join(', ')}`)
-    return { uarVersion: body.uar_version, capabilities: capabilities }
+    return { uarVersion: body.uar_version, capabilities, administration: body.administration }
   }
 
   private async resolveExecutable(): Promise<string> {

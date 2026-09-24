@@ -8,6 +8,7 @@ import {
   type IntegrationOperation,
   type IntegrationSnapshot
 } from '@shared/types/prometheusIntegration'
+import type { UarAdministrationSnapshot } from '@shared/types/prometheusIntegration'
 
 import { defineRoute } from '../define'
 
@@ -33,6 +34,10 @@ export const prometheusRequestSchemas = {
     output: z.custom<IntegrationOperation>()
   }),
   'prometheus.integration.cancel': defineRoute({ input: z.object({ id: z.uuid() }).strict(), output: z.void() }),
+  'prometheus.uar.admin.snapshot': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<UarAdministrationSnapshot>()
+  }),
   'prometheus.doctor.run': defineRoute({
     input: z.object({}).strict(),
     output: z.custom<PrometheusDoctorReport>()

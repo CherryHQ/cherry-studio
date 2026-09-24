@@ -159,6 +159,49 @@ const secretMutationSchema = z.discriminatedUnion('operation', [
 ])
 export const secretPatchSchema = z.partialRecord(z.enum(secretNames), secretMutationSchema)
 export type IntegrationSecretPatch = z.infer<typeof secretPatchSchema>
+
+const uarAdministrationGroupSchema = z.enum(['runtime', 'agents', 'experience', 'administration'])
+const uarAdministrationScopeSchema = z.enum(['public', 'admin', 'owner', 'host'])
+const uarAdministrationApplySchema = z.enum(['read', 'live', 'next_turn', 'restart', 'host_controlled', 'unavailable'])
+const uarAdministrationAvailabilitySchema = z.enum(['available', 'host_controlled', 'feature_gated', 'retired'])
+const uarAdministrationMethodSchema = z.object({
+  id: z.string().min(1),
+  method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'ANY']),
+  path: z.string().startsWith('/'),
+  scope: uarAdministrationScopeSchema,
+  apply: uarAdministrationApplySchema
+})
+const uarAdministrationSurfaceSchema = z.object({
+  id: z.string().min(1),
+  group: uarAdministrationGroupSchema,
+  availability: uarAdministrationAvailabilitySchema,
+  methods: z.array(uarAdministrationMethodSchema)
+})
+export const uarAdministrationCapabilitiesSchema = z.object({
+  schema_version: z.literal(1),
+  scopes: z.tuple([z.literal('public'), z.literal('admin'), z.literal('owner'), z.literal('host')]),
+  surfaces: z.array(uarAdministrationSurfaceSchema)
+})
+export const uarCapabilitiesResponseSchema = z.object({
+  uar_version: z.string().min(1),
+  agui: z.object({ profile: z.literal('uar.agui/1'), profile_revision: z.literal(1) }),
+  capabilities: z.array(z.string()),
+  administration: uarAdministrationCapabilitiesSchema
+})
+export type UarAdministrationCapabilities = z.infer<typeof uarAdministrationCapabilitiesSchema>
+export type UarAdministrationMethod = z.infer<typeof uarAdministrationMethodSchema>
+export type UarAdministrationSurface = z.infer<typeof uarAdministrationSurfaceSchema>
+export type UarAdministrationScope = z.infer<typeof uarAdministrationScopeSchema>
+export type UarAdministrationSnapshot = {
+  schemaVersion: 1
+  uarVersion: string
+  generation: number
+  surfaces: Array<
+    Omit<UarAdministrationSurface, 'methods'> & {
+      methods: Array<UarAdministrationMethod & { adapter: 'available' | 'unavailable' }>
+    }
+  >
+}
 export const integrationActionSchema = z.enum([
   'pull',
   'start',

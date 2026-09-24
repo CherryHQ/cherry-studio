@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { readUarAdministrationSnapshot } from '@main/ai/runtime/uar'
 import { StaleIntegrationRevisionError } from '@main/services/prometheus/integrationErrors'
 import { applyPrometheusFix, runPrometheusDoctor } from '@main/services/prometheus/prometheusDoctor'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -25,6 +26,7 @@ export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas>
   'prometheus.integration.start': async ({ action, workspacePath }) =>
     application.get('PrometheusIntegrationService').start(action, workspacePath),
   'prometheus.integration.cancel': async ({ id }) => application.get('PrometheusIntegrationService').cancel(id),
+  'prometheus.uar.admin.snapshot': async () => readUarAdministrationSnapshot(),
   'prometheus.doctor.run': async () => runPrometheusDoctor(),
   'prometheus.doctor.fix': async ({ fixId }) => applyPrometheusFix(fixId),
   'prometheus.skills.push': async () => application.get('PrometheusSkillPushService').push(),
