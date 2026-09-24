@@ -38,7 +38,8 @@ describe('backgroundTasks', () => {
   describe('buildDetachedBackgroundTaskSpawnOptions', () => {
     it('detaches the child into its own session with the log fds wired to stdio', () => {
       const options = buildDetachedBackgroundTaskSpawnOptions('/workspace', 7, 7)
-      expect(options.detached).toBe(true)
+      // Windows stays attached on purpose: DETACHED_PROCESS keeps cmd from writing the task log.
+      expect(options.detached).toBe(process.platform !== 'win32')
       expect(options.shell).toBe(true)
       expect(options.windowsHide).toBe(true)
       expect(options.cwd).toBe('/workspace')

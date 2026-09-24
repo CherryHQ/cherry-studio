@@ -81,9 +81,10 @@ export interface StartDetachedBackgroundTaskInput {
 export function buildDetachedBackgroundTaskSpawnOptions(cwd: string, stdoutFd: number, stderrFd: number): SpawnOptions {
   return {
     cwd,
-    // libuv makes the child a session leader (setsid) on POSIX and gives it a
-    // new process group on Windows, so it outlives this app and the CLI.
-    detached: true,
+    // POSIX: setsid so `kill(-pid)` reaches the whole tree. Windows needs no flag to outlive this
+    // process, and DETACHED_PROCESS stops cmd from wiring the log redirection below (empty log,
+    // reproduced on a Windows runner: identical spawn with detached:false captures the output).
+    detached: process.platform !== 'win32',
     shell: true,
     windowsHide: true,
     // Windows cmd owns its file redirection (see startDetachedBackgroundTask); inherited numeric
