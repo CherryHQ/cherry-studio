@@ -156,6 +156,8 @@ const UAR_ADMIN_METHOD_ALLOWLIST = new Set<string>([
   'a2ui.messages.submit\u0000POST\u0000/api/uar/runs/{id}/a2ui/messages\u0000owner\u0000live',
   'a2ui.actions.submit\u0000POST\u0000/api/uar/runs/{id}/a2ui/actions\u0000owner\u0000live',
   'runs.create\u0000POST\u0000/api/uar/runs\u0000owner\u0000live',
+  'runs.list\u0000GET\u0000/api/uar/runs\u0000owner\u0000read',
+  'runs.read\u0000GET\u0000/api/uar/runs/{id}\u0000owner\u0000read',
   'runs.stream\u0000GET\u0000/api/uar/runs/{id}/stream\u0000owner\u0000live',
   'runs.cancel\u0000POST\u0000/api/uar/runs/{id}/cancel\u0000owner\u0000live',
   'runs.approve\u0000POST\u0000/api/uar/runs/{id}/tool-approval\u0000owner\u0000live',

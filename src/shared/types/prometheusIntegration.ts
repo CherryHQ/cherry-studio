@@ -216,6 +216,131 @@ export type UarAuthorityDiagnosticResult = {
   diagnostics: IntegrationDiagnostic[]
 }
 
+export type UarAdministrationOwner = {
+  sessionId: string
+  sessionName: string
+  agentId: string
+  agentName: string
+}
+
+export type UarRunInspection = {
+  runId: string
+  ownerSessionId: string
+  agentId: string
+  conversationId?: string
+  status: 'pending' | 'running' | 'paused' | 'done' | 'error' | 'cancelled'
+  agentRevision?: string
+  effectiveModel?: unknown
+  presentationSelection?: unknown
+}
+
+export type UarKnowledgeBaseInspection = {
+  ownerSessionId: string
+  id: string
+  name: string
+  description?: string
+  documentCount: number
+  embeddingProvider: string
+  embeddingModel: string
+  updatedAt: string
+  documents: Array<{
+    id: string
+    filename: string
+    status: string
+    chunkCount: number
+    error?: string
+  }>
+}
+
+export type UarMemoryInspection = {
+  id: string
+  content: string
+  scope: string
+  userId?: string
+  agentId?: string
+  sessionId?: string
+  importance?: number
+  createdAt?: string
+}
+
+export type UarOperationalSnapshot = {
+  schemaVersion: 1
+  generation: number
+  owners: UarAdministrationOwner[]
+  runs: UarRunInspection[]
+  knowledgeBases: UarKnowledgeBaseInspection[]
+  memory: { enabled: boolean; total: number; items: UarMemoryInspection[] }
+  tools: {
+    total: number
+    names: string[]
+    mcpServers: Array<{ name: string; status: string; toolCount: number }>
+    hostControlled: boolean
+  }
+  security: {
+    governance: 'enabled' | 'disabled' | 'unavailable'
+    credentialProvidersBySession: Record<string, string[]>
+  }
+  protocols: {
+    a2a: 'available' | 'unavailable'
+    acp: 'available' | 'unavailable'
+    federatedAgents: Array<{ id: string; name: string; baseUrl: string; capabilities: string[] }>
+    federatedSkills: number
+  }
+  failures: Array<{ surface: string; message: string }>
+}
+
+export type UarRunDetailSnapshot = {
+  schemaVersion: 1
+  generation: number
+  run: UarRunInspection
+  checkpoints: Array<{
+    id: string
+    nodeId: string
+    iteration: number
+    createdAt: string
+    completeness: 'complete' | 'incomplete_legacy'
+  }>
+  context: {
+    agentConfig?: unknown
+    effectiveConfig?: unknown
+    contextStats?: unknown
+    promptCaching?: unknown
+    conversationPolicy?: unknown
+  }
+}
+
+export const uarKnowledgeCreateSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    name: z.string().trim().min(1).max(160),
+    description: z.string().trim().max(1000).optional()
+  })
+  .strict()
+
+export const uarKnowledgeSearchSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    knowledgeBaseId: z.string().min(1),
+    query: z.string().trim().min(1).max(4000)
+  })
+  .strict()
+
+export type UarKnowledgeSearchResult = {
+  content: string
+  score: number
+  documentId?: string
+}
+
+export type UarKnowledgeUploadResult = {
+  cancelled: boolean
+  filename?: string
+  snapshot: UarOperationalSnapshot
+}
+
+export const uarMemoryCreateSchema = z
+  .object({ content: z.string().trim().min(1).max(32_000), userId: z.string().trim().optional() })
+  .strict()
+
 export const uarSettingsNamespaceSchema = z.enum([
   'server',
   'security',

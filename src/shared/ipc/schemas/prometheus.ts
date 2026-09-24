@@ -13,6 +13,9 @@ import {
   uarFederatedAgentSaveSchema,
   uarPresentationSaveSchema,
   uarPresentationSelectionSchema,
+  uarKnowledgeCreateSchema,
+  uarKnowledgeSearchSchema,
+  uarMemoryCreateSchema,
   uarProviderMutationSchema,
   uarSkillToggleSchema,
   type IntegrationOperation,
@@ -25,7 +28,11 @@ import {
   type UarCompilerResult,
   type UarAuthorityDiagnosticResult,
   type UarModelSourceSnapshot,
+  type UarKnowledgeSearchResult,
+  type UarKnowledgeUploadResult,
+  type UarOperationalSnapshot,
   type UarPresentationAdministrationSnapshot,
+  type UarRunDetailSnapshot,
   type UarSettingsSnapshot,
   type UarSettingsUpdateResult
 } from '@shared/types/prometheusIntegration'
@@ -61,6 +68,56 @@ export const prometheusRequestSchemas = {
   'prometheus.uar.admin.diagnose_authority': defineRoute({
     input: z.object({}).strict(),
     output: z.custom<UarAuthorityDiagnosticResult>()
+  }),
+  'prometheus.uar.operations.read': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<UarOperationalSnapshot>()
+  }),
+  'prometheus.uar.runs.read': defineRoute({
+    input: z.object({ runId: z.string().min(1).max(256) }).strict(),
+    output: z.custom<UarRunDetailSnapshot>()
+  }),
+  'prometheus.uar.runs.cancel': defineRoute({
+    input: z.object({ runId: z.string().min(1).max(256) }).strict(),
+    output: z.custom<UarRunDetailSnapshot>()
+  }),
+  'prometheus.uar.runs.save_policy': defineRoute({
+    input: z.object({ runId: z.string().min(1).max(256), policy: z.record(z.string(), z.unknown()) }).strict(),
+    output: z.custom<UarRunDetailSnapshot>()
+  }),
+  'prometheus.uar.runs.reset_policy': defineRoute({
+    input: z.object({ runId: z.string().min(1).max(256) }).strict(),
+    output: z.custom<UarRunDetailSnapshot>()
+  }),
+  'prometheus.uar.knowledge.create': defineRoute({
+    input: uarKnowledgeCreateSchema,
+    output: z.custom<UarOperationalSnapshot>()
+  }),
+  'prometheus.uar.knowledge.delete': defineRoute({
+    input: z.object({ sessionId: z.string().min(1), knowledgeBaseId: z.string().min(1) }).strict(),
+    output: z.custom<UarOperationalSnapshot>()
+  }),
+  'prometheus.uar.knowledge.search': defineRoute({
+    input: uarKnowledgeSearchSchema,
+    output: z.custom<UarKnowledgeSearchResult[]>()
+  }),
+  'prometheus.uar.knowledge.upload': defineRoute({
+    input: z.object({ sessionId: z.string().min(1), knowledgeBaseId: z.string().min(1) }).strict(),
+    output: z.custom<UarKnowledgeUploadResult>()
+  }),
+  'prometheus.uar.knowledge.delete_document': defineRoute({
+    input: z
+      .object({ sessionId: z.string().min(1), knowledgeBaseId: z.string().min(1), documentId: z.string().min(1) })
+      .strict(),
+    output: z.custom<UarOperationalSnapshot>()
+  }),
+  'prometheus.uar.memory.create': defineRoute({
+    input: uarMemoryCreateSchema,
+    output: z.custom<UarOperationalSnapshot>()
+  }),
+  'prometheus.uar.memory.delete': defineRoute({
+    input: z.object({ id: z.string().min(1).max(512) }).strict(),
+    output: z.custom<UarOperationalSnapshot>()
   }),
   'prometheus.uar.catalog.read': defineRoute({
     input: z.object({}).strict(),

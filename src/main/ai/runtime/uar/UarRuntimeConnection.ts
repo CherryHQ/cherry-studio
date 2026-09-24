@@ -35,6 +35,7 @@ import { UarAguiAdapter } from './UarAguiAdapter'
 import { buildUarHostHistory, type UarHistoryMessage } from './uarHostHistory'
 import { createUarHostMcpBridge, type UarHostMcpBridge } from './UarHostMcpBridge'
 import { resolveUarModelAssignment, type ResolvedUarModelAssignment } from './uarModelAssignments'
+import { uarPrincipalForSession } from './uarPrincipal'
 import { toUarToolName } from './uarToolNames'
 
 const HISTORY_PAGE_SIZE = 200
@@ -93,9 +94,7 @@ export class UarRuntimeConnection implements AgentRuntimeConnection {
   }
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
-    this.principal = `boss.${createHash('sha256')
-      .update(`${application.getPath('app.userdata')}\0${input.sessionId}`)
-      .digest('hex')}`
+    this.principal = uarPrincipalForSession(input.sessionId)
   }
 
   async start(): Promise<this> {

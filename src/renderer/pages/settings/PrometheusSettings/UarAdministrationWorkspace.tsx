@@ -20,6 +20,7 @@ import type { UarAdministrationSnapshot } from '@shared/types/prometheusIntegrat
 
 import { UarAgentsPanel } from './UarAgentsPanel'
 import { UarCompilerPanel } from './UarCompilerPanel'
+import { UarOperationalPanel } from './UarOperationalPanel'
 import { UarPresentationsPanel } from './UarPresentationsPanel'
 import { UarProvidersModelsPanel } from './UarProvidersModelsPanel'
 import { UarRuntimeSettingsPanel } from './UarRuntimeSettingsPanel'
@@ -238,6 +239,11 @@ export function UarAdministrationWorkspace({ overview }: { overview: ReactNode }
             <UarSkillsPanel />
           ) : selectedId === 'presentations' ? (
             <UarPresentationsPanel />
+          ) : ['runs', 'knowledge', 'tools', 'security', 'protocols'].includes(selectedId) ? (
+            <>
+              <UarOperationalPanel surface={selectedId as 'runs' | 'knowledge' | 'tools' | 'security' | 'protocols'} />
+              {selected && <MethodCoverage surface={selected} />}
+            </>
           ) : selected ? (
             <CapabilitySurface surface={selected} />
           ) : (
