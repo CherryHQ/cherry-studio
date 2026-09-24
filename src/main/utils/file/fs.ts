@@ -291,19 +291,22 @@ async function bestEffortUnlinkTmp(tmp: string, target: string): Promise<void> {
  * would persist indefinitely. The target file is never partially written —
  * callers either see the previous content or the new content.
  *
- * `options.mode` applies to the tmp file at open(2), so secret-bearing content
- * is never on disk under a looser mode; the rename carries the mode to the
- * target, replacing whatever mode a pre-existing target had.
+ * `options.mode` applies to the tmp file at open(2). `finalMode` preserves a
+ * pre-existing target's mode while keeping the temporary file private.
  */
-/** Shared option shape of the atomic-write family; see `atomicWriteFile` for the mode contract. */
 type AtomicWriteModeOptions = { mode?: number }
+type AtomicWriteFileOptions = AtomicWriteModeOptions & { finalMode?: number }
 
+/**
+ * `mode` applies while creating the temporary file. `finalMode`, when set,
+ * applies immediately before the temporary file replaces the target.
+ */
 export async function atomicWriteFile(
   target: AbsoluteFilePath,
   data: string | Uint8Array,
-  options?: AtomicWriteModeOptions
+  options?: AtomicWriteFileOptions
 ): Promise<void> {
-  const prepared = await prepareAtomicWrite(target, data, options)
+  const prepared = await prepareAtomicWriteInternal(target, data, options, options?.finalMode)
   await prepared.commit()
 }
 
@@ -395,7 +398,8 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
     readonly target: AbsoluteFilePath,
     private readonly tmp: string,
     readonly size: number,
-    readonly contentHash: ContentHash
+    readonly contentHash: ContentHash,
+    private readonly finalMode?: number
   ) {}
 
   get state(): PreparedAtomicWriteState {
@@ -437,6 +441,10 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
         await fd.sync()
         const s = await fd.stat()
         version = { mtime: Math.floor(s.mtimeMs), size: s.size }
+        if (this.finalMode !== undefined) {
+          await fd.chmod(this.finalMode)
+          await fd.sync()
+        }
       } finally {
         await fd.close()
       }
@@ -460,14 +468,15 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
   }
 }
 
-/** Prepare an in-memory payload without replacing `target` yet. */
-export async function prepareAtomicWrite(
+async function prepareAtomicWriteInternal(
   target: AbsoluteFilePath,
   data: string | Uint8Array,
-  options?: AtomicWriteModeOptions
+  options?: AtomicWriteModeOptions,
+  finalMode?: number
 ): Promise<PreparedAtomicWrite> {
   const tmp = tmpNameFor(target)
-  const tmpHandle = await fsOpen(tmp, 'w', options?.mode)
+  const tmpMode = options?.mode ?? (finalMode === undefined ? undefined : 0o600)
+  const tmpHandle = await fsOpen(tmp, 'w', tmpMode)
   const bytes = typeof data === 'string' ? Buffer.from(data) : data
   try {
     try {
@@ -482,7 +491,16 @@ export async function prepareAtomicWrite(
     await bestEffortUnlinkTmp(tmp, target)
     throw err
   }
-  return new PreparedAtomicWriteImpl(target, tmp, bytes.byteLength, createContentHasherDigest(bytes))
+  return new PreparedAtomicWriteImpl(target, tmp, bytes.byteLength, createContentHasherDigest(bytes), finalMode)
+}
+
+/** Prepare an in-memory payload without replacing `target` yet. */
+export function prepareAtomicWrite(
+  target: AbsoluteFilePath,
+  data: string | Uint8Array,
+  options?: AtomicWriteModeOptions
+): Promise<PreparedAtomicWrite> {
+  return prepareAtomicWriteInternal(target, data, options)
 }
 
 function createContentHasherDigest(bytes: Uint8Array): ContentHash {
@@ -600,9 +618,8 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
 /**
  * Create an `AtomicWriteStream` that buffers to a tmp file and atomically
  * commits onto `target` on `.end()`. `options.mode` follows the
- * `atomicWriteFile` contract: applied to the tmp file at open(2) and carried
- * to the target by the rename. See `AtomicWriteStream` JSDoc for the full
- * lifecycle contract.
+ * `atomicWriteFile` contract: applied to the tmp file at open(2). See
+ * `AtomicWriteStream` JSDoc for the full lifecycle contract.
  */
 export function createAtomicWriteStream(target: AbsoluteFilePath, options?: AtomicWriteModeOptions): AtomicWriteStream {
   return createPreparedAtomicWriteStream(
@@ -618,8 +635,7 @@ export function createAtomicWriteStream(target: AbsoluteFilePath, options?: Atom
  * Create a stream whose tmp file is handed to `onPrepared` after fsync.
  * The stream emits `finish` only after that callback resolves.
  * `options.mode` follows the `atomicWriteFile` contract: applied to the tmp
- * file at open(2), and `prepared.commit()`'s rename carries it onto the
- * target, replacing whatever mode a pre-existing target had.
+ * file at open(2), and carried onto the target by the rename.
  */
 export function createPreparedAtomicWriteStream(
   target: AbsoluteFilePath,

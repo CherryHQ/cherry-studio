@@ -1,9 +1,22 @@
 import * as fs from 'fs'
+import type * as fsPromises from 'node:fs/promises'
 import * as os from 'os'
 import * as path from 'path'
 
 import { dialog, shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const fsMocks = vi.hoisted(() => ({
+  realpath: vi.fn(),
+  originalRealpath: undefined as typeof fsPromises.realpath | undefined
+}))
+
+vi.mock('node:fs/promises', async () => {
+  const actual = await vi.importActual<typeof fsPromises>('node:fs/promises')
+  fsMocks.originalRealpath = actual.realpath
+  fsMocks.realpath.mockImplementation((...args: Parameters<typeof actual.realpath>) => actual.realpath(...args))
+  return { ...actual, realpath: fsMocks.realpath }
+})
 
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
 // dialog title it produces is irrelevant to these contracts, so stub it to the key.
@@ -13,9 +26,51 @@ import { fileStorage } from '../FileStorage'
 
 const event = {} as Electron.IpcMainInvokeEvent
 
+function createTempPathSwapFixture() {
+  const physicalRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-physical-temp-'))
+  const replacementRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-replacement-temp-'))
+  const redirectedRoot = `${physicalRoot}-redirected`
+  const physicalDir = path.join(physicalRoot, 'CherryStudio')
+  const replacementDir = path.join(replacementRoot, 'CherryStudio')
+  const redirectedDir = path.join(redirectedRoot, 'CherryStudio')
+  const redirectedFile = path.join(redirectedDir, 'screenshot.png')
+  const physicalFile = path.join(physicalDir, 'screenshot.png')
+  const replacementFile = path.join(replacementDir, 'screenshot.png')
+
+  fs.mkdirSync(physicalDir)
+  fs.mkdirSync(replacementDir)
+  fs.symlinkSync(physicalRoot, redirectedRoot, process.platform === 'win32' ? 'junction' : 'dir')
+  fsMocks.realpath.mockImplementation(async (target, options) => {
+    if (path.resolve(String(target)) === redirectedDir) {
+      throw Object.assign(new Error('realpath returned EISDIR'), { code: 'EISDIR' })
+    }
+    if (path.resolve(String(target)) === redirectedRoot) {
+      const physicalPath = await fsMocks.originalRealpath!(target, options)
+      fs.rmSync(redirectedRoot, { force: true, recursive: true })
+      fs.symlinkSync(replacementRoot, redirectedRoot, process.platform === 'win32' ? 'junction' : 'dir')
+      return physicalPath
+    }
+    return fsMocks.originalRealpath!(target, options)
+  })
+
+  return {
+    redirectedFile,
+    physicalFile,
+    replacementFile,
+    cleanup: () => {
+      fs.rmSync(redirectedRoot, { force: true, recursive: true })
+      fs.rmSync(physicalRoot, { recursive: true, force: true })
+      fs.rmSync(replacementRoot, { recursive: true, force: true })
+    }
+  }
+}
+
 describe('FileStorage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    fsMocks.realpath.mockImplementation((...args: Parameters<typeof fsPromises.realpath>) =>
+      fsMocks.originalRealpath!(...args)
+    )
   })
 
   afterEach(() => {
@@ -31,6 +86,19 @@ describe('FileStorage', () => {
     it('returns null when the dialog resolves without a file path', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' })
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
+    })
+
+    it('writes to the checked physical path if a redirected temp path changes during validation', async () => {
+      const fixture = createTempPathSwapFixture()
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: fixture.redirectedFile })
+
+      try {
+        await expect(fileStorage.save(event, 'screenshot.png', 'content')).resolves.toBe(fixture.redirectedFile)
+        expect(fs.readFileSync(fixture.physicalFile, 'utf-8')).toBe('content')
+        expect(fs.existsSync(fixture.replacementFile)).toBe(false)
+      } finally {
+        fixture.cleanup()
+      }
     })
   })
 
@@ -76,6 +144,31 @@ describe('FileStorage', () => {
       await fileStorage.writeFile(event, tmpFile, 'content')
       expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('content')
     })
+
+    it('writes a first-time temp file when its directory realpath reports EISDIR', async () => {
+      const fixture = createTempPathSwapFixture()
+
+      try {
+        await fileStorage.writeFile(event, fixture.redirectedFile, new Uint8Array([1, 2, 3]))
+        expect(fs.readFileSync(fixture.physicalFile)).toEqual(Buffer.from([1, 2, 3]))
+        expect(fs.existsSync(fixture.replacementFile)).toBe(false)
+      } finally {
+        fixture.cleanup()
+      }
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'preserves restrictive permissions when replacing an existing file',
+      async () => {
+        fs.writeFileSync(tmpFile, 'private', { mode: 0o600 })
+        fs.chmodSync(tmpFile, 0o600)
+
+        await fileStorage.writeFile(event, tmpFile, 'updated')
+
+        expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('updated')
+        expect(fs.statSync(tmpFile).mode & 0o777).toBe(0o600)
+      }
+    )
   })
 
   describe('deleteExternalFile', () => {
@@ -99,13 +192,13 @@ describe('FileStorage', () => {
       expect(shell.trashItem).toHaveBeenCalledWith(tmpFile)
     })
 
-    it('normalizes Windows paths without relying on the test host platform', async () => {
+    it('resolves the normalized Windows path before moving it to trash', async () => {
       vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
       vi.spyOn(fs, 'existsSync').mockReturnValue(true)
 
       await fileStorage.deleteExternalFile(event, 'C:/Users/test/Notes/note.md')
 
-      expect(shell.trashItem).toHaveBeenCalledWith('C:\\Users\\test\\Notes\\note.md')
+      expect(shell.trashItem).toHaveBeenCalledWith(path.resolve('C:\\Users\\test\\Notes\\note.md'))
     })
 
     it('does not invoke the trash API for an empty path', async () => {
@@ -184,6 +277,20 @@ describe('FileStorage', () => {
         expect(fs.readFileSync(tmpFile).equals(Buffer.from('fake-png-bytes'))).toBe(true)
       } finally {
         fs.rmSync(tmpFile, { force: true })
+      }
+    })
+
+    it('writes to the checked physical path if a redirected temp path changes during validation', async () => {
+      const fixture = createTempPathSwapFixture()
+      const payload = Buffer.from('fake-png-bytes').toString('base64')
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: fixture.redirectedFile })
+
+      try {
+        await expect(fileStorage.saveImage(event, 'screenshot', `data:image/png;base64,${payload}`)).resolves.toBe(true)
+        expect(fs.readFileSync(fixture.physicalFile)).toEqual(Buffer.from('fake-png-bytes'))
+        expect(fs.existsSync(fixture.replacementFile)).toBe(false)
+      } finally {
+        fixture.cleanup()
       }
     })
   })

@@ -75,14 +75,14 @@ export function isOutsidePath(relativePath: string): boolean {
  * Resolve `target` through symlinks for a containment check.
  *
  * A missing target resolves through its nearest existing ancestor with the missing suffix
- * re-appended, so a file that is about to be created can still be checked. Ordinary files and
- * directories fall back to their physical parent when Windows reports `EISDIR` for `realpath`.
- * Returns `undefined` when the location is ambiguous or cannot be resolved safely. Callers must
- * treat `undefined` as outside.
+ * re-appended, so a file that is about to be created can still be checked. When explicitly
+ * enabled, ordinary files and directories fall back to their physical parent if `realpath`
+ * reports `EISDIR`. All other resolution errors remain ambiguous. Callers must treat `undefined`
+ * as outside.
  */
 export async function canonicalizePathForContainment(
   target: string,
-  { allowMissing }: { allowMissing: boolean }
+  { allowMissing, allowEisdirFallback = false }: { allowMissing: boolean; allowEisdirFallback?: boolean }
 ): Promise<string | undefined> {
   const resolved = path.resolve(target)
   let probe = resolved
@@ -111,21 +111,21 @@ export async function canonicalizePathForContainment(
       }
     }
 
-    if (!stats.isDirectory()) {
-      const parent = path.dirname(probe)
-      const physicalParent = await canonicalizePathForContainment(parent, { allowMissing: false })
-      return physicalParent ? path.resolve(physicalParent, path.relative(parent, resolved)) : undefined
-    }
-
     try {
       const physical = await realpath(probe)
       return path.resolve(physical, path.relative(probe, resolved))
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EISDIR') return undefined
+      if (
+        !allowEisdirFallback ||
+        (error as NodeJS.ErrnoException).code !== 'EISDIR' ||
+        (!stats.isFile() && !stats.isDirectory())
+      ) {
+        return undefined
+      }
 
       const parent = path.dirname(probe)
       if (parent === probe) return undefined
-      const physicalParent = await canonicalizePathForContainment(parent, { allowMissing: false })
+      const physicalParent = await canonicalizePathForContainment(parent, { allowMissing: false, allowEisdirFallback })
       return physicalParent ? path.resolve(physicalParent, path.relative(parent, resolved)) : undefined
     }
   }

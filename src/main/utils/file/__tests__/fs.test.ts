@@ -458,6 +458,17 @@ describe('atomicWriteFile', () => {
     expect((await fsStatPromise(target)).mode & 0o777).toBe(0o600)
   })
 
+  it('applies finalMode after writing the temporary file', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'final-mode.txt') as AbsoluteFilePath
+    await writeFile(target, 'old', { mode: 0o600 })
+
+    await atomicWriteFile(target, 'new', { mode: 0o600, finalMode: 0o400 })
+
+    expect(await readFile(target, 'utf-8')).toBe('new')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o400)
+  })
+
   it('tightens a pre-existing looser target mode on overwrite', async () => {
     if (process.platform === 'win32') return
     const target = path.join(tmp, 'was-open.txt') as AbsoluteFilePath

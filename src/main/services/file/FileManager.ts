@@ -190,7 +190,7 @@ import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy
 import { safeOpen } from './system'
 import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { ensureContentMetadataGeneration } from './tasks/contentMetadataGeneration'
-import { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
+import { resolveOutsideManagedStorageEntryMutations } from './utils/managedStorageGuard'
 import { buildPhysicalFileMetadata } from './utils/metadata'
 import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
@@ -888,8 +888,8 @@ export class FileManager extends BaseService implements IFileManager {
         handle,
         (entryId) => this.permanentDelete(entryId),
         async (path) => {
-          await assertOutsideManagedStorageMutation(path)
-          await fsRemove(path)
+          const [safePath] = await resolveOutsideManagedStorageEntryMutations(path)
+          await fsRemove(safePath)
         }
       )
     })

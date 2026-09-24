@@ -1,11 +1,12 @@
 import { application } from '@application'
 import {
-  assertOutsideManagedStorageMutation,
   ContentCommittedMetadataPendingError,
   dispatchHandle,
   getMetadataByPath,
   readByPath,
   readChunkByPath,
+  resolveOutsideManagedStorageEntryMutations,
+  resolveOutsideManagedStorageMutation,
   safeOpen,
   showInFolder as showPathInFolder,
   writeIfUnchangedByPath
@@ -65,8 +66,8 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
         handle as FileHandle,
         (entryId) => fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash),
         async (path) => {
-          await assertOutsideManagedStorageMutation(path)
-          return writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
+          const safePath = await resolveOutsideManagedStorageMutation(path)
+          return writeIfUnchangedByPath(safePath, data, expectedVersion, expectedContentHash)
         }
       )
     } catch (error) {
@@ -142,8 +143,8 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.copy': async ({ sourcePath, destPath }, { senderId }) => {
     // Side-effecting route: refuse trusted-but-unmanaged senders (ipc-overview.md §Caller Identity).
     if (senderId == null) throw new Error('file.copy requires a managed window sender')
-    await assertOutsideManagedStorageMutation(destPath)
-    await copyNew(sourcePath, destPath)
+    const [safeDestPath] = await resolveOutsideManagedStorageEntryMutations(destPath)
+    await copyNew(sourcePath, safeDestPath)
   },
   'file.open': async (handle) => {
     const fileManager = application.get('FileManager')

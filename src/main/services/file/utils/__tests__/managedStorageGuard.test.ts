@@ -24,10 +24,10 @@ vi.mock('@application', async () => {
 })
 
 const { application } = await import('@application')
-const { assertOutsideManagedStorageMutation, resolveOutsideManagedStorageMutation } =
+const { resolveOutsideManagedStorageEntryMutations, resolveOutsideManagedStorageMutation } =
   await import('../managedStorageGuard')
 
-describe('assertOutsideManagedStorageMutation', () => {
+describe('managed storage mutation path resolution', () => {
   let root: string
   let managedRoot: string
 
@@ -48,23 +48,23 @@ describe('assertOutsideManagedStorageMutation', () => {
   })
 
   it('rejects the managed root, descendants, and ancestor directories', async () => {
-    await expect(assertOutsideManagedStorageMutation(managedRoot)).rejects.toThrow(/overlaps FileManager-owned/)
-    await expect(assertOutsideManagedStorageMutation(path.join(managedRoot, 'entry.bin'))).rejects.toThrow(
+    await expect(resolveOutsideManagedStorageMutation(managedRoot)).rejects.toThrow(/overlaps FileManager-owned/)
+    await expect(resolveOutsideManagedStorageMutation(path.join(managedRoot, 'entry.bin'))).rejects.toThrow(
       /overlaps FileManager-owned/
     )
-    await expect(assertOutsideManagedStorageMutation(path.dirname(managedRoot))).rejects.toThrow(
+    await expect(resolveOutsideManagedStorageMutation(path.dirname(managedRoot))).rejects.toThrow(
       /overlaps FileManager-owned/
     )
   })
 
   it('rejects either side of a move when one path overlaps managed storage', async () => {
     const outside = path.join(root, 'Notes', 'note.md')
-    await expect(assertOutsideManagedStorageMutation(outside, path.join(managedRoot, 'entry.md'))).rejects.toThrow(
-      /overlaps FileManager-owned/
-    )
-    await expect(assertOutsideManagedStorageMutation(path.join(managedRoot, 'entry.md'), outside)).rejects.toThrow(
-      /overlaps FileManager-owned/
-    )
+    await expect(
+      resolveOutsideManagedStorageEntryMutations(outside, path.join(managedRoot, 'entry.md'))
+    ).rejects.toThrow(/overlaps FileManager-owned/)
+    await expect(
+      resolveOutsideManagedStorageEntryMutations(path.join(managedRoot, 'entry.md'), outside)
+    ).rejects.toThrow(/overlaps FileManager-owned/)
   })
 
   it('rejects an existing symlink and a not-yet-created child that resolve into managed storage', async () => {
@@ -73,8 +73,25 @@ describe('assertOutsideManagedStorageMutation', () => {
     const link = path.join(outside, 'managed-link')
     await symlink(managedRoot, link, process.platform === 'win32' ? 'junction' : 'dir')
 
-    await expect(assertOutsideManagedStorageMutation(link)).rejects.toThrow(/overlaps FileManager-owned/)
-    await expect(assertOutsideManagedStorageMutation(path.join(link, 'future.bin'))).rejects.toThrow(
+    await expect(resolveOutsideManagedStorageMutation(link)).rejects.toThrow(/overlaps FileManager-owned/)
+    await expect(resolveOutsideManagedStorageMutation(path.join(link, 'future.bin'))).rejects.toThrow(
+      /overlaps FileManager-owned/
+    )
+  })
+
+  it('still rejects managed storage when its realpath reports EISDIR', async () => {
+    const outside = path.join(root, 'outside')
+    const link = path.join(outside, 'managed-link')
+    await mkdir(outside)
+    await symlink(managedRoot, link, process.platform === 'win32' ? 'junction' : 'dir')
+    fsMocks.realpath.mockImplementation(async (target, options) => {
+      if (path.resolve(String(target)) === managedRoot) {
+        throw Object.assign(new Error('realpath returned EISDIR'), { code: 'EISDIR' })
+      }
+      return fsMocks.originalRealpath!(target, options)
+    })
+
+    await expect(resolveOutsideManagedStorageMutation(path.join(link, 'future.bin'))).rejects.toThrow(
       /overlaps FileManager-owned/
     )
   })
@@ -87,12 +104,16 @@ describe('assertOutsideManagedStorageMutation', () => {
     await writeFile(path.join(notes, 'existing.md'), 'note')
 
     await expect(
-      assertOutsideManagedStorageMutation(
+      resolveOutsideManagedStorageEntryMutations(
         path.join(notes, 'existing.md'),
         path.join(workspace, 'future.md'),
         path.join(exportDir, 'result.pdf')
       )
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual([
+      path.join(notes, 'existing.md'),
+      path.join(workspace, 'future.md'),
+      path.join(exportDir, 'result.pdf')
+    ])
   })
 
   it('returns the physical path for a target below an external directory link', async () => {
@@ -104,6 +125,15 @@ describe('assertOutsideManagedStorageMutation', () => {
     await expect(resolveOutsideManagedStorageMutation(path.join(link, 'future.md'))).resolves.toBe(
       path.join(notes, 'future.md')
     )
+  })
+
+  it('keeps a final symlink as the directory entry for rename and delete operations', async () => {
+    const notes = path.join(root, 'Notes')
+    const link = path.join(root, 'NotesLink')
+    await mkdir(notes)
+    await symlink(notes, link, process.platform === 'win32' ? 'junction' : 'dir')
+
+    await expect(resolveOutsideManagedStorageEntryMutations(link)).resolves.toEqual([link])
   })
 
   it('allows an existing temp file when resolving that file would report EISDIR', async () => {
@@ -118,7 +148,7 @@ describe('assertOutsideManagedStorageMutation', () => {
       return fsMocks.originalRealpath!(target, options)
     })
 
-    await expect(assertOutsideManagedStorageMutation(tempFile)).resolves.toBeUndefined()
+    await expect(resolveOutsideManagedStorageMutation(tempFile)).resolves.toBe(tempFile)
   })
 
   it('allows a new temp file when its existing directory reports EISDIR from realpath', async () => {
@@ -133,6 +163,6 @@ describe('assertOutsideManagedStorageMutation', () => {
       return fsMocks.originalRealpath!(target, options)
     })
 
-    await expect(assertOutsideManagedStorageMutation(tempFile)).resolves.toBeUndefined()
+    await expect(resolveOutsideManagedStorageMutation(tempFile)).resolves.toBe(tempFile)
   })
 })

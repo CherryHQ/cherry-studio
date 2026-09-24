@@ -1,12 +1,25 @@
-import { chmod, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import type * as fsPromises from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { canonicalizePathForContainment, canWrite, isOutsidePath, isPathInside, isSameOrInside } from '../path'
+
+const fsMocks = vi.hoisted(() => ({
+  realpath: vi.fn(),
+  originalRealpath: undefined as typeof fsPromises.realpath | undefined
+}))
+
+vi.mock('node:fs/promises', async () => {
+  const actual = await vi.importActual<typeof fsPromises>('node:fs/promises')
+  fsMocks.originalRealpath = actual.realpath
+  fsMocks.realpath.mockImplementation((...args: Parameters<typeof actual.realpath>) => actual.realpath(...args))
+  return { ...actual, realpath: fsMocks.realpath }
+})
 
 describe('canonicalizePathForContainment', () => {
   const dirLinkType = process.platform === 'win32' ? 'junction' : 'dir'
@@ -14,6 +27,7 @@ describe('canonicalizePathForContainment', () => {
   let outside: string
 
   beforeEach(async () => {
+    fsMocks.realpath.mockImplementation((...args: Parameters<typeof realpath>) => fsMocks.originalRealpath!(...args))
     root = await realpath(await mkdtemp(path.join(tmpdir(), 'cherry-containment-root-')))
     outside = await realpath(await mkdtemp(path.join(tmpdir(), 'cherry-containment-outside-')))
   })
@@ -58,6 +72,59 @@ describe('canonicalizePathForContainment', () => {
 
     await expect(
       canonicalizePathForContainment(path.join(root, 'dangling-dir', 'new.txt'), { allowMissing: true })
+    ).resolves.toBeUndefined()
+  })
+
+  it('resolves a missing target through the physical parent when enabled and realpath returns EISDIR', async () => {
+    const redirectedTemp = path.join(root, 'redirected-temp')
+    await mkdir(redirectedTemp)
+    const target = path.join(redirectedTemp, 'screenshot.png')
+
+    fsMocks.realpath.mockImplementation(async (candidate, options) => {
+      if (path.resolve(String(candidate)) === redirectedTemp) {
+        throw Object.assign(new Error('realpath returned EISDIR'), { code: 'EISDIR' })
+      }
+      return fsMocks.originalRealpath!(candidate, options)
+    })
+
+    await expect(
+      canonicalizePathForContainment(target, { allowMissing: true, allowEisdirFallback: true })
+    ).resolves.toBe(target)
+    await expect(canonicalizePathForContainment(target, { allowMissing: true })).resolves.toBeUndefined()
+  })
+
+  it('fails closed when a symlink realpath fails with an error other than EISDIR', async () => {
+    const link = path.join(root, 'inaccessible-link')
+    await symlink(outside, link, dirLinkType)
+
+    fsMocks.realpath.mockImplementation(async (candidate, options) => {
+      if (path.resolve(String(candidate)) === link) {
+        throw Object.assign(new Error('realpath denied'), { code: 'EACCES' })
+      }
+      return fsMocks.originalRealpath!(candidate, options)
+    })
+
+    await expect(
+      canonicalizePathForContainment(path.join(link, 'future.txt'), {
+        allowMissing: true,
+        allowEisdirFallback: true
+      })
+    ).resolves.toBeUndefined()
+  })
+
+  it('does not turn other directory realpath errors into a physical-parent fallback', async () => {
+    const directory = path.join(root, 'inaccessible-dir')
+    await mkdir(directory)
+
+    fsMocks.realpath.mockImplementation(async (candidate, options) => {
+      if (path.resolve(String(candidate)) === directory) {
+        throw Object.assign(new Error('realpath denied'), { code: 'EACCES' })
+      }
+      return fsMocks.originalRealpath!(candidate, options)
+    })
+
+    await expect(
+      canonicalizePathForContainment(directory, { allowMissing: true, allowEisdirFallback: true })
     ).resolves.toBeUndefined()
   })
 })
