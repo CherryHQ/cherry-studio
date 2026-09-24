@@ -1111,7 +1111,7 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
-  it('recovers scheduled session provenance from surviving jobs', () => {
+  it.each([false, true])('recovers deterministic task provenance with descending job scan: %s', (reverse) => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0025_sudden_hiroim'))
     const now = Date.now()
     sqlite
@@ -1147,6 +1147,7 @@ describe('applyMigrations over a populated database', () => {
     insertSession.run('session-from-job', 'From job', null, 'a0', now, now, now)
     insertSession.run('session-sticky', 'Sticky', 'schedule-sticky', 'a1', now, now, now)
     insertSession.run('session-unrelated', 'Unrelated', null, 'a2', now, now, now)
+    insertSession.run('session-conflict', 'Conflicting jobs', null, 'a3', now, now, now)
 
     const insertJob = sqlite.prepare(
       `INSERT INTO job
@@ -1181,10 +1182,25 @@ describe('applyMigrations over a populated database', () => {
       now
     )
     insertJob.run('job-corrupt-output', 'agent.task', 'schedule-from-job', now, '{broken', now, now)
+    const competingTaskIds = ['schedule-sticky', 'schedule-from-job']
+    for (const taskId of reverse ? competingTaskIds.toReversed() : competingTaskIds) {
+      insertJob.run(
+        `job-conflict-${taskId}`,
+        'agent.task',
+        taskId,
+        now,
+        JSON.stringify({ sessionId: 'session-conflict' }),
+        now,
+        now
+      )
+    }
+    // A different query plan must not change which historical task owns a session.
+    if (reverse) sqlite.exec('CREATE INDEX job_type_schedule_desc_idx ON job(type, schedule_id DESC)')
 
     applyMigrations(db, resolveMigrationsPath())
 
     expect(sqlite.prepare('SELECT session_id, task_id FROM agent_task_session ORDER BY session_id').all()).toEqual([
+      { session_id: 'session-conflict', task_id: 'schedule-from-job' },
       { session_id: 'session-from-job', task_id: 'schedule-from-job' },
       { session_id: 'session-sticky', task_id: 'schedule-sticky' }
     ])

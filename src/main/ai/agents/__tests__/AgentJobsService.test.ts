@@ -518,7 +518,8 @@ describe('AgentJobsService', () => {
       })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'projection' },
-        { endpoint: '/agent-sessions/:sessionId' }
+        { endpoint: '/agent-sessions/:sessionId' },
+        { endpoint: '/agent-sessions/latest' }
       ])
     })
 
@@ -861,7 +862,8 @@ describe('AgentJobsService', () => {
       expect(agentSessionService.getById(session.id).source).toBeUndefined()
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'projection' },
-        { endpoint: '/agent-sessions/:sessionId' }
+        { endpoint: '/agent-sessions/:sessionId' },
+        { endpoint: '/agent-sessions/latest' }
       ])
     })
 

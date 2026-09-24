@@ -1066,6 +1066,44 @@ describe('Sessions', () => {
     expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: false })
   })
 
+  it('keeps pinned source sessions in a single agent group with ordinary sessions', async () => {
+    const user = userEvent.setup()
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions({
+      sessions: [
+        createSession({ id: 'ordinary', name: 'Ordinary session', agentId: 'agent-a' }),
+        createSession({
+          id: 'task-pinned',
+          name: 'Pinned task run',
+          agentId: 'agent-a',
+          source: { kind: 'scheduled-task', taskId: 'task-daily', taskName: 'Daily summary' }
+        }),
+        createSession({
+          id: 'channel-pinned',
+          name: 'Pinned channel session',
+          agentId: 'agent-a',
+          source: { kind: 'channel', channelId: 'channel-ops', channelName: 'Ops bot', channelType: 'telegram' }
+        })
+      ],
+      pinIdBySessionId: new Map([
+        ['task-pinned', 'pin-task'],
+        ['channel-pinned', 'pin-channel']
+      ])
+    })
+
+    const view = render(<SessionsForTest />)
+    const group = screen.getByRole('button', { name: 'Alpha agent' })
+    expect(screen.getByText('Ordinary session')).toBeInTheDocument()
+    expect(screen.getByText('Pinned task run')).toBeInTheDocument()
+    expect(screen.getByText('Pinned channel session')).toBeInTheDocument()
+
+    await user.click(groupChevron(group))
+    view.rerender(<SessionsForTest key="collapsed-pinned-source-agent" />)
+    expect(screen.queryByText('Ordinary session')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pinned task run')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pinned channel session')).not.toBeInTheDocument()
+  })
+
   it('aggregates scheduled-task and channel sessions into collapsible source groups', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
     setupSessions({

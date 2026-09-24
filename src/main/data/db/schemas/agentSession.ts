@@ -39,6 +39,8 @@ export const agentSessionTable = sqliteTable(
   ]
 )
 
+// Historical task provenance (many sessions per task), not the one-to-one sticky reuse pointer above.
+// Deleting a task removes its grouping links, never the sessions themselves.
 export const agentTaskSessionTable = sqliteTable(
   'agent_task_session',
   {

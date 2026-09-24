@@ -21,7 +21,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
-import { getDataService } from '@data/services/dataServiceRegistry'
+import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -156,6 +156,7 @@ function attachSessionSources(tx: DbOrTx, sessions: AgentSessionEntity[]): Agent
     .where(inArray(agentChannelSessionTable.sessionId, sessionIds))
     .all()
   for (const source of channelSources) {
+    // Task provenance is the primary display source; channel binding is the fallback.
     if (sourceBySessionId.has(source.sessionId)) continue
     sourceBySessionId.set(source.sessionId, {
       kind: 'channel',
@@ -227,10 +228,15 @@ export class AgentSessionService {
   }
 
   notifySourceProjectionChange(): void {
-    notifyDataApiDataChange([
+    notifyDataApiDataChange(this.getSourceProjectionEffects())
+  }
+
+  getSourceProjectionEffects(): DataApiDataChangeEffect[] {
+    return [
       { endpoint: '/agent-sessions', kind: 'projection' },
-      { endpoint: '/agent-sessions/:sessionId' }
-    ])
+      { endpoint: '/agent-sessions/:sessionId' },
+      { endpoint: '/agent-sessions/latest' }
+    ]
   }
 
   listAddressableByCursor(query: {
@@ -1509,3 +1515,4 @@ export class AgentSessionService {
 }
 
 export const agentSessionService = new AgentSessionService()
+registerDataService('AgentSessionService', agentSessionService)

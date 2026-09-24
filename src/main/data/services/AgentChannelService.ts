@@ -10,6 +10,7 @@ import {
   type InsertAgentChannelRow as InsertChannelRow
 } from '@data/db/schemas/agentChannel'
 import type { DbOrTx } from '@data/db/types'
+import { getDataService } from '@data/services/dataServiceRegistry'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
@@ -286,7 +287,7 @@ export class AgentChannelService {
       { endpoint: '/agent-channels/:channelId', routeParams: { channelId: id }, entityIds: [id] }
     ]
     if (sessionSourcesChanged) {
-      effects.push({ endpoint: '/agent-sessions', kind: 'projection' }, { endpoint: '/agent-sessions/:sessionId' })
+      effects.push(...getDataService('AgentSessionService').getSourceProjectionEffects())
     }
     notifyDataApiDataChange(effects)
   }

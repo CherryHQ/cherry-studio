@@ -1756,7 +1756,8 @@ describe('AgentSessionService', () => {
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
       expect.arrayContaining([
         { endpoint: '/agent-sessions', kind: 'projection' },
-        { endpoint: '/agent-sessions/:sessionId' }
+        { endpoint: '/agent-sessions/:sessionId' },
+        { endpoint: '/agent-sessions/latest' }
       ])
     )
 
@@ -1770,7 +1771,8 @@ describe('AgentSessionService', () => {
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
       expect.arrayContaining([
         { endpoint: '/agent-sessions', kind: 'projection' },
-        { endpoint: '/agent-sessions/:sessionId' }
+        { endpoint: '/agent-sessions/:sessionId' },
+        { endpoint: '/agent-sessions/latest' }
       ])
     )
   })

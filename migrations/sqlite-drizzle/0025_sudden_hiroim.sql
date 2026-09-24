@@ -26,9 +26,10 @@ WITH `task_job_sessions` AS (
 		AND `job`.`schedule_id` IS NOT NULL
 )
 INSERT OR IGNORE INTO `agent_task_session` (`session_id`, `task_id`)
-SELECT DISTINCT `task_job_sessions`.`session_id`, `task_job_sessions`.`task_id`
+SELECT `task_job_sessions`.`session_id`, MIN(`task_job_sessions`.`task_id`)
 FROM `task_job_sessions`
 INNER JOIN `job_schedule` ON `job_schedule`.`id` = `task_job_sessions`.`task_id`
 INNER JOIN `agent_session` ON `agent_session`.`id` = `task_job_sessions`.`session_id`
 WHERE `job_schedule`.`type` = 'agent.task'
-	AND typeof(`task_job_sessions`.`session_id`) = 'text';
+	AND typeof(`task_job_sessions`.`session_id`) = 'text'
+GROUP BY `task_job_sessions`.`session_id`;
