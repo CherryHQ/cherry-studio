@@ -8,7 +8,8 @@ import {
   BACKGROUND_TASK_SENTINEL_EXT,
   MAX_BACKGROUND_TASK_COMMAND_LENGTH,
   type BackgroundTaskRecord,
-  buildDetachedBackgroundTaskSpawnOptions,
+  WINDOWS_DETACHED_TASK_RUNNER,
+  buildDetachedBackgroundTaskSpawn,
   getDetachedBackgroundTask,
   isPidAlive,
   listDetachedBackgroundTasks,
@@ -35,16 +36,30 @@ describe('backgroundTasks', () => {
     await rm(storageDir, { recursive: true, force: true })
   })
 
-  describe('buildDetachedBackgroundTaskSpawnOptions', () => {
+  describe('buildDetachedBackgroundTaskSpawn', () => {
     it('detaches the child into its own session with the log fds wired to stdio', () => {
-      const options = buildDetachedBackgroundTaskSpawnOptions('/workspace', 7, 7)
-      // Windows stays attached on purpose: DETACHED_PROCESS keeps cmd from writing the task log.
-      expect(options.detached).toBe(process.platform !== 'win32')
-      expect(options.shell).toBe(true)
+      const { options } = buildDetachedBackgroundTaskSpawn('echo hi', '/workspace', 7, 7)
+      expect(options.detached).toBe(true)
       expect(options.windowsHide).toBe(true)
       expect(options.cwd).toBe('/workspace')
       // stdin closed, stdout and stderr both point at the task log fd.
-      expect(options.stdio).toEqual(process.platform === 'win32' ? ['ignore', 'ignore', 'ignore'] : ['ignore', 7, 7])
+      expect(options.stdio).toEqual(['ignore', 7, 7])
+    })
+
+    it.skipIf(process.platform !== 'win32')('routes the command through the detached Node runner', () => {
+      // A detached cmd.exe drops the log fds, so the shell itself must stay attached.
+      const { file, args, options } = buildDetachedBackgroundTaskSpawn('echo hi', '/workspace', 7, 7)
+      expect(file).toBe(process.execPath)
+      expect(args).toEqual(['-e', WINDOWS_DETACHED_TASK_RUNNER, 'echo hi'])
+      expect(options.shell).toBeUndefined()
+      expect(options.env?.ELECTRON_RUN_AS_NODE).toBe('1')
+    })
+
+    it.skipIf(process.platform === 'win32')('runs the command in a shell on POSIX', () => {
+      const { file, args, options } = buildDetachedBackgroundTaskSpawn('echo hi', '/workspace', 7, 7)
+      expect(file).toBe('echo hi')
+      expect(args).toEqual([])
+      expect(options.shell).toBe(true)
     })
   })
 
