@@ -7,14 +7,20 @@ import { resolveAgentEntrySessionId, resolveAgentEntrySessionIdForAgent } from '
 export const Route = createFileRoute('/app/agents')({
   validateSearch: (search) => parseAgentRouteSearch(search),
   // Resolving before mount renders the final conversation in one pass. A sidebar
-  // `?agentId=` entry must resume that agent, not the globally last-focused session.
+  // `?agentId=` entry must resume that agent, not a leftover All Agents sessionId.
   beforeLoad: async ({ search }) => {
-    if (search.sessionId || search.intent) return
+    if (search.intent) return
     if (search.agentId) {
       const sessionId = await resolveAgentEntrySessionIdForAgent(search.agentId)
+      // Drop the entry hint once a conversation is bound so a later load cannot
+      // retarget to this agent's newest session.
       if (sessionId) throw redirect({ to: '/app/agents', search: { sessionId }, replace: true })
+      if (search.sessionId) {
+        throw redirect({ to: '/app/agents', search: { agentId: search.agentId }, replace: true })
+      }
       return
     }
+    if (search.sessionId) return
     const sessionId = await resolveAgentEntrySessionId()
     if (sessionId) throw redirect({ to: '/app/agents', search: { sessionId }, replace: true })
   },
