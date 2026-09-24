@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { exportToDestinationMock, jobManager, listRunsMock, preferences } = vi.hoisted(() => ({
+const { exportToDestinationMock, jobManager, listActiveMock, listRunsMock, preferences } = vi.hoisted(() => ({
   exportToDestinationMock: vi.fn(),
+  listActiveMock: vi.fn(),
   listRunsMock: vi.fn(),
   jobManager: {
     getJobSchedule: vi.fn(),
     registerJobSchedule: vi.fn(() => ({ id: 'schedule-1' })),
-    updateJobSchedule: vi.fn()
+    updateJobSchedule: vi.fn(),
+    cancel: vi.fn<(jobId: string, reason?: string) => Promise<unknown>>(async () => ({}))
   },
   preferences: { get: vi.fn() }
 }))
@@ -21,7 +23,9 @@ vi.mock('@application', () => ({
     }
   }
 }))
-vi.mock('@data/services/JobService', () => ({ jobService: { listRecentTerminalByScheduleId: listRunsMock } }))
+vi.mock('@data/services/JobService', () => ({
+  jobService: { listRecentTerminalByScheduleId: listRunsMock, list: listActiveMock }
+}))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
@@ -51,6 +55,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   jobManager.getJobSchedule.mockReturnValue(null)
   jobManager.registerJobSchedule.mockReturnValue({ id: 'schedule-1' })
+  listActiveMock.mockReturnValue([])
 })
 
 describe('reconcileAutoSyncSchedules', () => {
@@ -136,6 +141,24 @@ describe('reconcileAutoSyncSchedules', () => {
     reconcileAutoSyncSchedules()
 
     expect(jobManager.updateJobSchedule).toHaveBeenCalledExactlyOnceWith('schedule-1', { enabled: false })
+  })
+
+  // The run in flight read the directory or credentials the user just cleared;
+  // letting it finish would write one more archive there.
+  it("cancels the schedule's unfinished runs when the destination is turned off", () => {
+    settings()
+    onlyWebdavScheduled({
+      id: 'schedule-1',
+      enabled: true,
+      trigger: { kind: 'interval', ms: 3_600_000, anchor: 'lastRun' }
+    })
+    listActiveMock.mockImplementation(({ scheduleId }: { scheduleId: string }) =>
+      scheduleId === 'schedule-1' ? [{ id: 'job-running' }, { id: 'job-queued' }] : []
+    )
+
+    reconcileAutoSyncSchedules()
+
+    expect(jobManager.cancel.mock.calls.map(([id]) => id)).toEqual(['job-running', 'job-queued'])
   })
 
   it('says nothing about a destination that was never scheduled', () => {

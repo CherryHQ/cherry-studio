@@ -2,7 +2,7 @@ import { application } from '@application'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
-import { type JobSnapshot, triggersEqual } from '@shared/data/api/schemas/jobs'
+import { ACTIVE_JOB_STATUSES, type JobSnapshot, triggersEqual } from '@shared/data/api/schemas/jobs'
 import { BACKUP_DESTINATION_IDS, type BackupDestinationId } from '@shared/ipc/schemas/backup'
 
 import { BackupBusyError, DestinationNotConfiguredError } from './errors'
@@ -37,6 +37,8 @@ export const autoSyncJobHandler: JobHandler<{ destination: BackupDestinationId }
   recovery: 'abandon',
   defaultQueue: () => AUTO_SYNC_JOB_TYPE,
   defaultConcurrency: 1,
+  // A slow destination on a short interval would otherwise queue a run per tick.
+  skipFireWhileUnfinished: true,
   // A destination that is down stays down for a while; the next tick is a better
   // retry than three in quick succession.
   defaultRetryPolicy: { maxAttempts: 2, backoff: 'exponential', baseDelayMs: 30_000, maxDelayMs: 120_000 },
@@ -133,6 +135,16 @@ export function readAutoSyncStatus(): AutoSyncStatus[] {
   })
 }
 
+/** A run already queued or in flight read the settings the user just turned off. */
+function cancelUnfinishedRuns(scheduleId: string, destination: BackupDestinationId): void {
+  const jobManager = application.get('JobManager')
+  for (const run of jobService.list({ scheduleId, status: [...ACTIVE_JOB_STATUSES] })) {
+    void jobManager.cancel(run.id, 'automatic backup turned off').catch((error: unknown) => {
+      logger.warn('Could not cancel a scheduled backup run', error as Error, { destination, jobId: run.id })
+    })
+  }
+}
+
 /**
  * Make the schedules match the settings, for every destination.
  *
@@ -152,6 +164,7 @@ export function reconcileAutoSyncSchedules(): void {
     if (!desired.enabled) {
       if (existing?.enabled) {
         jobManager.updateJobSchedule(existing.id, { enabled: false })
+        cancelUnfinishedRuns(existing.id, destination)
         logger.info('Auto backup disabled', { destination })
       }
       continue
