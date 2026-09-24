@@ -63,5 +63,5 @@ export function resolveDefaultAsrModel(
   ) {
     return undefined
   }
-  return platform.majorVersion >= 26 ? APPLE_ASR_MODEL_ID : FUNASR_MODEL_ID
+  return platform.majorVersion >= 13 ? APPLE_ASR_MODEL_ID : undefined
 }

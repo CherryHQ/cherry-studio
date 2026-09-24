@@ -26,6 +26,20 @@ function response(value: unknown): string {
 }
 
 describe('SystemSpeechNativeClient', () => {
+  it('returns installed and supported recognition locales through the protocol', async () => {
+    const setup = await helper(
+      response({
+        ok: true,
+        value: { operation: 'list_asr_locales', result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] } }
+      })
+    )
+    const client = new SystemSpeechNativeClient(setup)
+    await expect(client.request({ operation: 'list_asr_locales' })).resolves.toEqual({
+      operation: 'list_asr_locales',
+      result: { supported: ['en-US', 'zh-CN'], installed: ['en-US'] }
+    })
+  })
+
   it('returns the transcript through the protocol without logging diagnostics', async () => {
     const setup = await helper(
       response({

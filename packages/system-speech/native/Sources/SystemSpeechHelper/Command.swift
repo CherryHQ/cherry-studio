@@ -2,6 +2,7 @@ import Foundation
 
 enum Operation: String, Codable, Sendable {
     case capabilities
+    case listAsrLocales = "list_asr_locales"
     case installAsrAssets = "install_asr_assets"
     case transcribe
     case synthesize
@@ -19,6 +20,7 @@ struct NativeRequest: Decodable, Sendable {
 
 enum ValidatedCommand: Sendable {
     case capabilities(locale: String)
+    case listAsrLocales
     case installAsrAssets(locale: String)
     case transcribe(locale: String, inputPath: String)
     case synthesize(voiceId: String, text: String, outputPath: String)
@@ -29,6 +31,8 @@ extension NativeRequest {
         switch operation {
         case .capabilities:
             return .capabilities(locale: try required(locale))
+        case .listAsrLocales:
+            return .listAsrLocales
         case .installAsrAssets:
             guard confirmDownload == true else { throw HelperError(code: .invalidRequest) }
             return .installAsrAssets(locale: try required(locale))
@@ -107,6 +111,16 @@ struct CapabilitiesResult: Encodable, Sendable {
 struct CapabilitiesSuccess: Encodable, Sendable {
     let operation = "capabilities"
     let result: CapabilitiesResult
+}
+
+struct AsrLocalesResult: Encodable, Sendable {
+    let supported: [String]
+    let installed: [String]
+}
+
+struct AsrLocalesSuccess: Encodable, Sendable {
+    let operation = "list_asr_locales"
+    let result: AsrLocalesResult
 }
 
 struct InstallAsrAssetsResult: Encodable, Sendable {

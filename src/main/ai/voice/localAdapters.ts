@@ -14,7 +14,7 @@ import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import { createAppleSpeechModel, createAppleTranscriptionModel, getAppleVoiceStatus } from './localAdapters/apple'
 import { VoiceRuntimeError } from './VoiceRuntimeError'
 
-export { installAppleAsrAsset, listLocalVoices } from './localAdapters/apple'
+export { installAppleAsrAsset, listAppleAsrLocales, listLocalVoices } from './localAdapters/apple'
 export { voiceAudioProcess } from './localAdapters/voiceAudioProcess'
 
 export interface LocalVoiceStatus {

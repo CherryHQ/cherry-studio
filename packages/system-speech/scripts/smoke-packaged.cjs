@@ -64,6 +64,12 @@ function main(argv = process.argv.slice(2)) {
   assertAllowedEntitlements(entitlements)
 
   const infoPlist = join(appPath, 'Contents', 'Info.plist')
+  const speechUsage = run(
+    '/usr/bin/plutil',
+    ['-extract', 'NSSpeechRecognitionUsageDescription', 'raw', '-o', '-', infoPlist],
+    'Packaged app is missing its speech recognition usage description'
+  ).stdout.trim()
+  if (!speechUsage) throw new Error('Packaged app has an empty speech recognition usage description')
   const executableResult = run(
     '/usr/bin/plutil',
     ['-extract', 'CFBundleExecutable', 'raw', '-o', '-', infoPlist],

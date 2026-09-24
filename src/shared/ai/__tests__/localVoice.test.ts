@@ -11,10 +11,12 @@ import {
 } from '../localVoice'
 
 describe('local voice model facts and default resolution', () => {
-  it('recommends Apple ASR only on macOS 26 and newer', () => {
+  it('recommends Apple ASR on supported macOS releases', () => {
+    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 13 })).toBe(APPLE_ASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 15 })).toBe(APPLE_ASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 26 })).toBe(APPLE_ASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 27 })).toBe(APPLE_ASR_MODEL_ID)
-    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 25 })).toBe(FUNASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 12 })).toBeUndefined()
   })
 
   it('preserves explicit selection regardless of platform availability', () => {
