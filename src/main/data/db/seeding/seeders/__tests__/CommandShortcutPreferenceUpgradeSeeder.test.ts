@@ -54,12 +54,12 @@ describe('CommandShortcutPreferenceUpgradeSeeder', () => {
     })
   })
 
-  it('marks legacy defaults uncustomized regardless of timestamps or enabled state', () => {
+  it('maps untouched legacy defaults to the current platform shortcut', () => {
     for (const [key, binding, enabled] of [
       [SIDEBAR_SHORTCUT_KEYS[0], ['Ctrl', '['], false],
       [SIDEBAR_SHORTCUT_KEYS[1], ['Command', ']'], true]
     ] as const) {
-      dbh.db.insert(preferenceTable).values({ createdAt: 100, key, updatedAt: 200, value: { binding, enabled } }).run()
+      dbh.db.insert(preferenceTable).values({ createdAt: 100, key, updatedAt: 100, value: { binding, enabled } }).run()
     }
 
     new CommandShortcutPreferenceUpgradeSeeder().run(dbh.db)
@@ -77,6 +77,37 @@ describe('CommandShortcutPreferenceUpgradeSeeder', () => {
       'CommandOrControl',
       'Alt',
       ']'
+    ])
+  })
+
+  it('keeps an explicit re-entry of the legacy Cmd+[ / Cmd+] defaults', () => {
+    for (const [key, binding] of [
+      [SIDEBAR_SHORTCUT_KEYS[0], ['CommandOrControl', '[']],
+      [SIDEBAR_SHORTCUT_KEYS[1], ['CommandOrControl', ']']]
+    ] as const) {
+      dbh.db
+        .insert(preferenceTable)
+        .values({ createdAt: 100, key, updatedAt: 250, value: { binding, enabled: true } })
+        .run()
+    }
+
+    new CommandShortcutPreferenceUpgradeSeeder().run(dbh.db)
+
+    const appSidebar = readPreference(SIDEBAR_SHORTCUT_KEYS[0]) as PreferenceShortcutType
+    const topicSidebar = readPreference(SIDEBAR_SHORTCUT_KEYS[1]) as PreferenceShortcutType
+    expect(appSidebar).toEqual({ binding: ['CommandOrControl', '['], customized: true, enabled: true })
+    expect(topicSidebar).toEqual({ binding: ['CommandOrControl', ']'], customized: true, enabled: true })
+    expect(resolveCommandShortcutPreference('app.sidebar.toggle', appSidebar, 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      '['
+    ])
+    expect(resolveCommandShortcutPreference('topic.sidebar.toggle', topicSidebar, 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      ']'
+    ])
+    expect(resolveCommandShortcutPreference('app.sidebar.toggle', appSidebar, 'win32')?.binding).toEqual([
+      'CommandOrControl',
+      '['
     ])
   })
 

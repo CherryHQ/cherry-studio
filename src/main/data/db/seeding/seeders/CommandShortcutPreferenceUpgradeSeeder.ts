@@ -27,15 +27,20 @@ export class CommandShortcutPreferenceUpgradeSeeder implements ISeeder {
   run(db: DbType): void {
     const rows = db
       .select({
+        createdAt: preferenceTable.createdAt,
         key: preferenceTable.key,
+        updatedAt: preferenceTable.updatedAt,
         value: preferenceTable.value
       })
       .from(preferenceTable)
       .where(and(eq(preferenceTable.scope, 'default'), inArray(preferenceTable.key, [...LEGACY_SIDEBAR_SHORTCUT_KEYS])))
       .all()
-    const updates = rows.flatMap(({ key, value }) => {
+    const updates = rows.flatMap(({ createdAt, key, updatedAt, value }) => {
       if (!isUnmarkedShortcutPreference(value)) return []
-      const customized = inferLegacySidebarShortcutCustomized(key, normalizeShortcutBinding(value.binding))
+      const customized = inferLegacySidebarShortcutCustomized(key, normalizeShortcutBinding(value.binding), {
+        createdAt,
+        updatedAt
+      })
       return customized === undefined ? [] : [{ customized, key, value }]
     })
 

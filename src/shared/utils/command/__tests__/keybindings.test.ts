@@ -17,6 +17,7 @@ import {
   findKeybindingConflicts,
   getCommandAccelerator,
   getCommandDefaultShortcutPreference,
+  inferLegacySidebarShortcutCustomized,
   resolveCommandByKeybinding,
   resolveCommandKeybinding,
   resolveCommandShortcutPreference
@@ -145,6 +146,51 @@ describe('command definitions', () => {
       defaultBinding: ['CommandOrControl', 'L'],
       preferenceKey: 'shortcut.topic.clear_messages'
     })
+  })
+})
+
+describe('inferLegacySidebarShortcutCustomized', () => {
+  it('treats an untouched legacy default as uncustomized', () => {
+    expect(
+      inferLegacySidebarShortcutCustomized('shortcut.app.sidebar.toggle', ['CommandOrControl', '['], {
+        createdAt: 10,
+        updatedAt: 10
+      })
+    ).toBe(false)
+    expect(
+      inferLegacySidebarShortcutCustomized('shortcut.topic.sidebar.toggle', ['Ctrl', ']'], {
+        createdAt: 10,
+        updatedAt: 10
+      })
+    ).toBe(false)
+  })
+
+  it('keeps an explicit re-entry of the same legacy default', () => {
+    expect(
+      inferLegacySidebarShortcutCustomized('shortcut.app.sidebar.toggle', ['Command', '['], {
+        createdAt: 10,
+        updatedAt: 11
+      })
+    ).toBe(true)
+    expect(
+      inferLegacySidebarShortcutCustomized('shortcut.topic.sidebar.toggle', ['CommandOrControl', ']'], {
+        createdAt: 10,
+        updatedAt: 40
+      })
+    ).toBe(true)
+  })
+
+  it('keeps a non-default legacy binding when migration timestamps are equal', () => {
+    expect(
+      inferLegacySidebarShortcutCustomized('shortcut.app.sidebar.toggle', ['CommandOrControl', 'Shift', '['], {
+        createdAt: 10,
+        updatedAt: 10
+      })
+    ).toBe(true)
+  })
+
+  it('leaves unrelated shortcuts unclassified', () => {
+    expect(inferLegacySidebarShortcutCustomized('shortcut.tab.history.back', ['Alt', 'Left'])).toBeUndefined()
   })
 })
 

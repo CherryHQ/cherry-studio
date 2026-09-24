@@ -127,10 +127,15 @@ const LEGACY_SIDEBAR_DEFAULT_BINDINGS: Record<LegacySidebarShortcutPreferenceKey
 
 export const inferLegacySidebarShortcutCustomized = (
   preferenceKey: string,
-  binding: ShortcutBinding
+  binding: ShortcutBinding,
+  timestamps?: { createdAt: number; updatedAt: number }
 ): boolean | undefined => {
   const defaults = LEGACY_SIDEBAR_DEFAULT_BINDINGS[preferenceKey as LegacySidebarShortcutPreferenceKey]
-  return defaults ? !defaults.some((candidate) => shortcutBindingMatches(binding, candidate)) : undefined
+  if (!defaults) return undefined
+  if (!defaults.some((candidate) => shortcutBindingMatches(binding, candidate))) return true
+  // A later write of the same default is an explicit re-entry. v1 migration
+  // inserts both timestamps together, so an untouched row stays uncustomized.
+  return timestamps !== undefined && timestamps.updatedAt > timestamps.createdAt
 }
 
 const getTriggerBindings = (
