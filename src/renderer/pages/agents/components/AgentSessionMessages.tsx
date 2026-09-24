@@ -39,6 +39,7 @@ type Props = {
   /** Load-all handle for the multi-select "select all" action. */
   selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
+  isAgentToolFlowActive?: MessageListActions['isAgentToolFlowActive']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
   openBrowserUrl?: MessageListActions['openBrowserUrl']
@@ -63,6 +64,7 @@ const AgentSessionMessages = ({
   loadOlder,
   selectAllPagination,
   onOpenCitationsPanel,
+  isAgentToolFlowActive,
   openAgentToolFlow,
   openArtifactFile,
   openBrowserUrl,
@@ -139,6 +141,7 @@ const AgentSessionMessages = ({
     loadOlder,
     selectAllPagination,
     openCitationsPanel: onOpenCitationsPanel,
+    isAgentToolFlowActive,
     openAgentToolFlow,
     openArtifactFile,
     openBrowserUrl,

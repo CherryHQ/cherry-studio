@@ -36,7 +36,7 @@ import MessageHeader, { AgentSessionDeliveryBadge } from './MessageHeader'
 import MessageMenuBar from './MessageMenuBar'
 
 const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
-  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100'
+  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
 interface Props {
   message: MessageListItem
@@ -123,7 +123,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
   const assistantFooterVisibilityClass = keepAssistantFooterVisible
     ? 'opacity-100'
-    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100'
+    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -278,7 +278,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       key={message.id}
       className={cn(
         classNames({
-          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
+          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200 [&_.menubar:focus-within]:opacity-100 no-hover:[&_.menubar]:opacity-100': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage,
           'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
