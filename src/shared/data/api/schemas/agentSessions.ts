@@ -78,6 +78,7 @@ export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 export const ListAgentSessionsQuerySchema = z.strictObject({
   ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   agentId: z.string().optional(),
+  workspaceId: z.string().min(1).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).optional(),
   /** `true` lists only trashed sessions; omitted/false lists active sessions. */

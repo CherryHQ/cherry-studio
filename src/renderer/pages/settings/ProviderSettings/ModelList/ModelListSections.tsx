@@ -29,6 +29,7 @@ const HealthAwareModelListItem: React.FC<HealthAwareModelListItemProps> = (props
 }
 
 interface ModelListSectionsProps {
+  scrollElement?: HTMLDivElement | null
   provider?: Provider
   isLoading: boolean
   hasNoModels: boolean
@@ -66,6 +67,7 @@ type ModelListVirtualRow =
     }
 
 const ModelListSections: React.FC<ModelListSectionsProps> = ({
+  scrollElement,
   provider,
   isLoading,
   hasNoModels,
@@ -167,6 +169,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
 
   return (
     <DynamicVirtualList
+      externalScrollElement={scrollElement}
       list={virtualRows}
       className={modelListClasses.listScroller}
       role="list"
@@ -177,7 +180,6 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
         return MODEL_LIST_MODEL_ROW_ESTIMATE
       }}
       overscan={10}
-      isSticky={(index) => virtualRows[index]?.type === 'group'}
       getItemKey={(index) => virtualRows[index]?.key ?? index}>
       {(row) => {
         if (row.type === 'separator') {
