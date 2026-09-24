@@ -237,6 +237,41 @@ describe('CherryInOauth', () => {
     expect(screen.queryByRole('button', { name: /取消|Cancel/i })).not.toBeInTheDocument()
   })
 
+  it('reports model sync failure without treating a completed login as an OAuth failure', async () => {
+    let hasSavedKey = false
+    const addApiKey = vi.fn(async () => {
+      hasSavedKey = true
+    })
+    useProviderMock.mockImplementation(() => ({
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        apiKeys: hasSavedKey ? [{ id: 'oauth-1', label: 'OAuth', isEnabled: true }] : [],
+        isEnabled: true
+      },
+      updateProvider: vi.fn().mockResolvedValue(undefined),
+      addApiKey,
+      deleteApiKey: vi.fn()
+    }))
+    oauthWithCherryInMock.mockImplementationOnce(async (setKey) => {
+      await setKey('sk-one')
+      return 'sk-one'
+    })
+    syncProviderModelsMock.mockRejectedValueOnce(new Error('model sync failed'))
+    const user = userEvent.setup()
+
+    render(<CherryInOauth providerId="cherryin" />)
+    await user.click(screen.getByRole('button', { name: /CherryIN|授权/i }))
+
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledOnce())
+    expect(await screen.findByRole('button', { name: /Logout|退出登录/i })).toBeInTheDocument()
+    expect(addApiKey).toHaveBeenCalledWith('sk-one', 'OAuth')
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringMatching(/models|模型/i))
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(initializeOfficialAssistantsMock).not.toHaveBeenCalled()
+  })
+
   it('initializes official assistants only after CherryIN model sync completes', async () => {
     let resolveModelSync: ((models: Array<{ id: string; providerId: string; isEnabled: boolean }>) => void) | undefined
     syncProviderModelsMock.mockImplementationOnce(

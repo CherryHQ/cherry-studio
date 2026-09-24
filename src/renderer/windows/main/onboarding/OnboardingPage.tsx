@@ -39,6 +39,7 @@ import { getAppEdition } from '@renderer/utils/appEdition'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, isManagedCherryProviderId } from '@shared/data/presets/cherryai'
+import { CHERRYIN_OFFICIAL_ASSISTANT_IDS } from '@shared/data/presets/cherryInOfficialAssistants'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
@@ -60,6 +61,8 @@ const ENABLE_CHERRY_ACCOUNT_LOGIN = false
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
+const OFFICIAL_ASSISTANT_IDS = new Set<string>(Object.values(CHERRYIN_OFFICIAL_ASSISTANT_IDS))
+const SEEDED_ASSISTANT_QUERY_LIMIT = OFFICIAL_ASSISTANT_IDS.size + 1
 const isOnboardingModel = (model: Model) => !isManagedCherryProviderId(model.providerId) && !isNonChatModel(model)
 const ONBOARDING_PREFERENCE_KEYS = {
   providerSetupStatus: 'app.onboarding.provider_setup.status',
@@ -163,9 +166,11 @@ export default function OnboardingPage({
   const updateSeededResourceModels = useCallback(
     async (model: Model) => {
       const assistantUpdate = dataApiService
-        .get('/assistants', { query: { limit: 2 } })
+        .get('/assistants', { query: { limit: SEEDED_ASSISTANT_QUERY_LIMIT } })
         .then(async ({ items, total }) => {
-          const assistant = total === 1 ? items[0] : undefined
+          const nonOfficialAssistants =
+            total <= SEEDED_ASSISTANT_QUERY_LIMIT ? items.filter(({ id }) => !OFFICIAL_ASSISTANT_IDS.has(id)) : []
+          const assistant = nonOfficialAssistants.length === 1 ? nonOfficialAssistants[0] : undefined
           if (assistant?.modelId === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
             await dataApiService.patch(`/assistants/${assistant.id}`, { body: { modelId: model.id } })
           }
@@ -365,7 +370,16 @@ export default function OnboardingPage({
       )
       if (loginAttemptRef.current !== attemptId) return
 
-      const cherryInModels = await syncProviderModels()
+      let cherryInModels: Model[]
+      try {
+        cherryInModels = await syncProviderModels()
+      } catch (error) {
+        if (loginAttemptRef.current !== attemptId) return
+        logger.error('Failed to sync CherryIN models after login', error as Error)
+        toast.error(t('onboarding.toast.model_sync_failed'))
+        setStep('provider')
+        return
+      }
       if (loginAttemptRef.current !== attemptId) return
 
       try {

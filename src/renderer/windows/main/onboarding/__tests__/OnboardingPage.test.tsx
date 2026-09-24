@@ -474,7 +474,6 @@ describe('OnboardingPage', () => {
       await onDefaultModelSelected?.({ id: 'openai::gpt-4o', providerId: 'openai' })
     })
 
-    expect(dataApiMocks.get).toHaveBeenCalledWith('/assistants', { query: { limit: 2 } })
     expect(dataApiMocks.get).toHaveBeenCalledWith('/agents', { query: { limit: 500, page: 1 } })
     expect(dataApiMocks.patch).toHaveBeenCalledWith('/assistants/assistant-1', {
       body: { modelId: 'openai::gpt-4o' }
@@ -487,15 +486,47 @@ describe('OnboardingPage', () => {
     })
   })
 
+  it('updates the seeded assistant after CherryIN creates official assistants', async () => {
+    const assistants = [
+      '7a65fb18-8fa8-4b71-9dcb-5b3ce319d0d1',
+      '87bf2bd5-88c9-4ea7-984f-7c75d4e70244',
+      '984168e8-805e-4b43-9018-d4bd0f4c5515',
+      'a3b811bc-bd5c-4f55-9d73-18cb53ff404f',
+      'b76d4a0f-09a7-48e9-894f-681552a9bca3',
+      'c983559a-53fb-4a83-8142-d59c794681ff'
+    ].map((id) => ({ id, modelId: 'cherryin::gpt-4o-mini' }))
+    assistants.push({ id: 'seeded-assistant', modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID })
+    dataApiMocks.get.mockImplementation(async (path: string, options?: { query?: { limit?: number } }) => {
+      if (path === '/assistants') {
+        return { items: assistants.slice(0, options?.query?.limit), total: assistants.length }
+      }
+      if (path === '/agents') return { items: [], total: 0 }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    render(<OnboardingPage />)
+
+    await openModelSelection()
+
+    const onDefaultModelSelected = modelSettingsPropsMock.mock.lastCall?.[0]?.onDefaultModelSelected
+    await act(async () => {
+      await onDefaultModelSelected?.({ id: 'openai::gpt-4o', providerId: 'openai' })
+    })
+
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/assistants/seeded-assistant', {
+      body: { modelId: 'openai::gpt-4o' }
+    })
+  })
+
   it('preserves assistant and agent models unless both replacement conditions match', async () => {
     dataApiMocks.get.mockImplementation(async (path: string) => {
       if (path === '/assistants') {
         return {
           items: [
+            { id: '7a65fb18-8fa8-4b71-9dcb-5b3ce319d0d1', modelId: 'cherryin::claude-sonnet-4-5' },
             { id: 'assistant-1', modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID },
             { id: 'assistant-2', modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }
           ],
-          total: 2
+          total: 3
         }
       }
       if (path === '/agents') {
@@ -972,6 +1003,23 @@ describe('OnboardingPage', () => {
       'Failed to initialize CherryIN official assistants',
       initializationError
     )
+  })
+
+  it('opens provider setup after login when CherryIN model sync fails', async () => {
+    oauthWithCherryInMock.mockImplementation(async (setKey: (keys: string) => Promise<void>) => {
+      await setKey('sk-one')
+      return 'sk-one'
+    })
+    syncProviderModelsMock.mockRejectedValueOnce(new Error('model sync failed'))
+
+    render(<OnboardingPage />)
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.login_cherryin/ }))
+
+    expect(await screen.findByRole('heading', { name: 'onboarding.provider_setup.title' })).toBeInTheDocument()
+    expect(addApiKeyMock).toHaveBeenCalledWith('sk-one', 'OAuth')
+    expect(toastErrorMock).toHaveBeenCalledWith('onboarding.toast.model_sync_failed')
+    expect(toastErrorMock).not.toHaveBeenCalledWith('settings.provider.oauth.error')
+    expect(dataApiMocks.post).not.toHaveBeenCalled()
   })
 
   it('returns to provider setup when CherryIN sync finds no enabled model', async () => {
