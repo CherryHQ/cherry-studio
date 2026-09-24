@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ShellEnvModule from '@main/utils/shellEnv'
+
 import type { AgentRuntimeConnectInput } from '../../types'
 
 const mocks = vi.hoisted(() => ({
@@ -97,7 +99,7 @@ vi.mock('../dshSdk', () => ({
   })
 }))
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
+  ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: mocks.getShellEnv,
   getRawShellEnv: mocks.getShellEnv
 }))
