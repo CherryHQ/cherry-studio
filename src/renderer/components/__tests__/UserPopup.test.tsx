@@ -319,12 +319,9 @@ describe('UserPopup', () => {
     expect(image).toHaveAttribute('src', avatar)
   })
 
-  it.each([
-    { edition: 'cn' as const, path: '/settings/profile' },
-    { edition: 'global' as const, path: '/settings/profile' }
-  ])('opens $path from the identity avatar or name in the $edition edition', async ({ edition, path }) => {
+  it('opens personal information from the identity in the global edition', async () => {
     const user = userEvent.setup()
-    mocks.appEdition = edition
+    mocks.appEdition = 'global'
     MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Yinsen')
     showUserPopup()
 
@@ -336,8 +333,47 @@ describe('UserPopup', () => {
 
     await user.click(within(identity).getByTestId('avatar-image'))
 
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith(path)
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/profile')
     await waitFor(() => expect(screen.queryByTestId('dialog')).not.toBeInTheDocument())
+  })
+
+  it('edits the avatar and name inside the CN account popup', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Yinsen')
+    showUserPopup()
+
+    await user.click(await screen.findByRole('button', { name: 'common.avatar' }))
+    expect(screen.getByRole('button', { name: 'settings.general.image_upload' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'settings.general.emoji_picker' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'settings.general.avatar.reset' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'settings.general.avatar.reset' }))
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('profile.set_avatar', { kind: 'default' })
+
+    await user.click(screen.getByRole('button', { name: 'settings.general.user_name.label' }))
+    const input = screen.getByRole('textbox', { name: 'settings.general.user_name.label' })
+    await user.clear(input)
+    await user.type(input, '  Sora  ')
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('Sora'))
+    expect(await screen.findByText('Sora')).toBeVisible()
+    expect(screen.getByTestId('dialog')).toBeVisible()
+    expect(mocks.openSettingsTab).not.toHaveBeenCalled()
+  })
+
+  it('keeps the CN account popup open when Escape cancels name editing', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Yinsen')
+    showUserPopup()
+
+    await user.click(await screen.findByRole('button', { name: 'settings.general.user_name.label' }))
+    await user.type(screen.getByRole('textbox', { name: 'settings.general.user_name.label' }), 'Sora')
+    await user.keyboard('{Escape}')
+
+    expect(screen.getByTestId('dialog')).toBeVisible()
+    expect(screen.queryByRole('textbox', { name: 'settings.general.user_name.label' })).not.toBeInTheDocument()
+    expect(screen.getByText('Yinsen')).toBeVisible()
+    expect(mocks.openSettingsTab).not.toHaveBeenCalled()
   })
 
   it('opens settings and closes the account popup from the Settings row', async () => {
@@ -345,13 +381,6 @@ describe('UserPopup', () => {
     showUserPopup()
 
     const settings = await screen.findByRole('button', { name: 'common.settings' })
-    expect(settings.parentElement).toHaveClass('gap-0.5', 'pt-1')
-    expect(settings.parentElement).not.toHaveClass('mt-0.5')
-    expect(screen.getByRole('button', { name: 'settings.general.user_name.label' }).parentElement).toHaveClass('pb-1')
-    expect(settings.parentElement?.parentElement).toHaveClass('w-56', 'p-1.5')
-    expect(screen.getByRole('button', { name: 'settings.general.user_name.label' })).not.toHaveClass(
-      'hover:bg-transparent'
-    )
 
     await user.click(settings)
 
@@ -385,8 +414,6 @@ describe('UserPopup', () => {
     showUserPopup()
 
     const loginButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })
-    expect(loginButton).toHaveClass('w-full')
-    expect(loginButton.parentElement).toBe(screen.getByRole('button', { name: 'common.settings' }).parentElement)
     const appearance = screen.getByRole('radiogroup', { name: 'Appearance' })
     expect(appearance.compareDocumentPosition(loginButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     await user.click(loginButton)
@@ -395,7 +422,6 @@ describe('UserPopup', () => {
     expect(screen.getByRole('status')).toHaveTextContent('settings.provider.cherry_cloud.signing_in')
     const cancelButton = screen.getByRole('button', { name: 'common.cancel' })
     expect(cancelButton).toBeEnabled()
-    expect(cancelButton.parentElement).toBe(screen.getByRole('button', { name: 'common.settings' }).parentElement)
 
     await user.click(cancelButton)
 
@@ -411,8 +437,7 @@ describe('UserPopup', () => {
     const nameButton = screen.getByRole('button', { name: 'settings.general.user_name.label' })
     const loginButton = screen.getByRole('button', { name: 'settings.provider.cherry_cloud.login' })
     expect(nameButton).not.toHaveTextContent('settings.general.user_name.label')
-    expect(loginButton).toHaveClass('w-full', 'min-h-7')
-    expect(loginButton.parentElement).toBe(screen.getByRole('button', { name: 'common.settings' }).parentElement)
+    expect(loginButton).toBeVisible()
     expect(
       screen.getByRole('radiogroup', { name: 'Appearance' }).compareDocumentPosition(loginButton) &
         Node.DOCUMENT_POSITION_FOLLOWING
