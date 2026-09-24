@@ -279,6 +279,113 @@ export type UarSettingsUpdateResult = {
     currentRevision?: string
   }>
 }
+
+export type UarAgentOrigin = {
+  kind: string
+  id: string
+  revision?: string
+}
+export type UarAgentCatalogItem = {
+  id: string
+  title: string
+  description: string
+  version: string
+  revision: string
+  origin: UarAgentOrigin
+  provider: string
+  model: string
+  fallbackModels: Array<{ provider: string; model: string }>
+  skillIds: string[]
+  definition: Record<string, unknown>
+}
+export type UarFederatedAgent = {
+  id: string
+  name: string
+  description: string
+  baseUrl: string
+  capabilities: string[]
+  updatedAt: string
+}
+export type UarSkillCatalogItem = {
+  id: string
+  title: string
+  description: string
+  version: string
+  enabled: boolean
+  origin: string
+  providerId: string
+}
+export type UarCatalogSnapshot = {
+  schemaVersion: 1
+  generation: number
+  agents: UarAgentCatalogItem[]
+  federatedAgents: UarFederatedAgent[]
+  skills: UarSkillCatalogItem[]
+  skillProvenance: {
+    loadedSkillCount: number
+    packSkillCount?: number
+    revision?: string
+    drift?: string
+  }
+}
+export const uarAgentSaveSchema = z
+  .object({
+    mode: z.enum(['create', 'replace']),
+    id: z.string().min(1).max(256),
+    expectedRevision: z.string().min(1).max(256).optional(),
+    definition: z.record(z.string(), z.unknown())
+  })
+  .strict()
+export type UarAgentSave = z.infer<typeof uarAgentSaveSchema>
+export const uarCompilerRequestSchema = z
+  .object({
+    content: z.string().min(1).max(1_000_000),
+    register: z.boolean(),
+    replace: z.boolean().default(false),
+    expectedRevision: z.string().min(1).max(256).optional()
+  })
+  .strict()
+export type UarCompilerRequest = z.infer<typeof uarCompilerRequestSchema>
+export type UarCompilerResult = {
+  registered: boolean
+  artifact?: UarAgentCatalogItem
+  descriptor: Record<string, unknown>
+  signature: string
+  report: {
+    id: string
+    agentId: string
+    version: string
+    overall: 'pass' | 'fail' | 'skip'
+    totalDurationMs: number
+    stages: Array<{
+      stage: number
+      name: string
+      outcome: 'pass' | 'fail' | 'skip'
+      durationMs: number
+      diagnostics: Array<{ level: 'error' | 'warning' | 'info'; message: string; section?: string }>
+    }>
+  }
+  verification: {
+    valid: boolean
+    agentId: string
+    contentHash: string
+    signerPublicKey: string
+  }
+}
+export const uarFederatedAgentSaveSchema = z
+  .object({
+    id: z.string().min(1).max(256).optional(),
+    name: z.string().min(1).max(256),
+    description: z.string().max(4096),
+    baseUrl: endpoint,
+    capabilities: z.array(z.string().min(1).max(256)).max(512)
+  })
+  .strict()
+export type UarFederatedAgentSave = z.infer<typeof uarFederatedAgentSaveSchema>
+export const uarAgentSkillsSchema = z
+  .object({ agentId: z.string().min(1).max(256), skillIds: z.array(z.string().min(1).max(256)).max(1024) })
+  .strict()
+export const uarSkillToggleSchema = z.object({ skillId: z.string().min(1).max(256), enabled: z.boolean() }).strict()
 export type UarModelSource = 'boss' | 'gateway' | 'uar'
 export type UarModelSourceSnapshot = {
   schemaVersion: 1

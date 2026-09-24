@@ -1,13 +1,21 @@
 import { application } from '@application'
 import {
   readUarAdministrationSnapshot,
+  compileUarAgent,
+  deleteUarAgent,
   diagnoseUarAuthority,
   deleteUarProvider,
   readUarModelSources,
   readUarSettings,
+  readUarCatalog,
+  refreshUarSkills,
+  saveUarAgent,
+  saveUarAgentSkills,
+  saveUarFederatedAgent,
   saveUarProvider,
   setDefaultUarProvider,
   testUarProvider,
+  toggleUarSkill,
   updateUarSettings
 } from '@main/ai/runtime/uar'
 import { StaleIntegrationRevisionError } from '@main/services/prometheus/integrationErrors'
@@ -38,6 +46,14 @@ export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas>
   'prometheus.integration.cancel': async ({ id }) => application.get('PrometheusIntegrationService').cancel(id),
   'prometheus.uar.admin.snapshot': async () => readUarAdministrationSnapshot(),
   'prometheus.uar.admin.diagnose_authority': async () => diagnoseUarAuthority(),
+  'prometheus.uar.catalog.read': async () => readUarCatalog(),
+  'prometheus.uar.catalog.save_agent': async (input) => saveUarAgent(input),
+  'prometheus.uar.catalog.delete_agent': async ({ id }) => deleteUarAgent(id),
+  'prometheus.uar.catalog.compile': async (input) => compileUarAgent(input),
+  'prometheus.uar.catalog.save_agent_skills': async ({ agentId, skillIds }) => saveUarAgentSkills(agentId, skillIds),
+  'prometheus.uar.catalog.toggle_skill': async ({ skillId, enabled }) => toggleUarSkill(skillId, enabled),
+  'prometheus.uar.catalog.refresh_skills': async () => refreshUarSkills(),
+  'prometheus.uar.catalog.save_federated_agent': async (input) => saveUarFederatedAgent(input),
   'prometheus.uar.settings.read': async ({ namespace }) => readUarSettings(namespace),
   'prometheus.uar.settings.update': async ({ namespace, changes }) => updateUarSettings(namespace, changes),
   'prometheus.uar.models.sources': async () => readUarModelSources(),

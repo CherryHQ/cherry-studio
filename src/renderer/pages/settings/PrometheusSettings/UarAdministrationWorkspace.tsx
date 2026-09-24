@@ -18,8 +18,11 @@ import { ipcApi } from '@renderer/ipc'
 import { getSettingDomId } from '@renderer/pages/settings/settingsSearch/types'
 import type { UarAdministrationSnapshot } from '@shared/types/prometheusIntegration'
 
+import { UarAgentsPanel } from './UarAgentsPanel'
+import { UarCompilerPanel } from './UarCompilerPanel'
 import { UarProvidersModelsPanel } from './UarProvidersModelsPanel'
 import { UarRuntimeSettingsPanel } from './UarRuntimeSettingsPanel'
+import { UarSkillsPanel } from './UarSkillsPanel'
 
 const GROUPS = ['runtime', 'agents', 'experience', 'administration'] as const
 
@@ -226,6 +229,12 @@ export function UarAdministrationWorkspace({ overview }: { overview: ReactNode }
             <UarRuntimeSettingsPanel />
           ) : selectedId === 'providers-models' ? (
             <UarProvidersModelsPanel />
+          ) : selectedId === 'agents' ? (
+            <UarAgentsPanel />
+          ) : selectedId === 'compiler' ? (
+            <UarCompilerPanel />
+          ) : selectedId === 'skills' ? (
+            <UarSkillsPanel />
           ) : selected ? (
             <CapabilitySurface surface={selected} />
           ) : (

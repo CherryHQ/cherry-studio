@@ -5,13 +5,20 @@ import {
   integrationActionSchema,
   integrationUpdateSchema,
   secretPatchSchema,
+  uarAgentSaveSchema,
+  uarAgentSkillsSchema,
+  uarCompilerRequestSchema,
+  uarFederatedAgentSaveSchema,
   uarProviderMutationSchema,
+  uarSkillToggleSchema,
   type IntegrationOperation,
   type IntegrationSnapshot
 } from '@shared/types/prometheusIntegration'
 import {
   uarSettingsNamespaceSchema,
   type UarAdministrationSnapshot,
+  type UarCatalogSnapshot,
+  type UarCompilerResult,
   type UarAuthorityDiagnosticResult,
   type UarModelSourceSnapshot,
   type UarSettingsSnapshot,
@@ -49,6 +56,38 @@ export const prometheusRequestSchemas = {
   'prometheus.uar.admin.diagnose_authority': defineRoute({
     input: z.object({}).strict(),
     output: z.custom<UarAuthorityDiagnosticResult>()
+  }),
+  'prometheus.uar.catalog.read': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<UarCatalogSnapshot>()
+  }),
+  'prometheus.uar.catalog.save_agent': defineRoute({
+    input: uarAgentSaveSchema,
+    output: z.custom<UarCatalogSnapshot>()
+  }),
+  'prometheus.uar.catalog.delete_agent': defineRoute({
+    input: z.object({ id: z.string().min(1).max(256) }).strict(),
+    output: z.custom<UarCatalogSnapshot>()
+  }),
+  'prometheus.uar.catalog.compile': defineRoute({
+    input: uarCompilerRequestSchema,
+    output: z.custom<UarCompilerResult>()
+  }),
+  'prometheus.uar.catalog.save_agent_skills': defineRoute({
+    input: uarAgentSkillsSchema,
+    output: z.custom<UarCatalogSnapshot>()
+  }),
+  'prometheus.uar.catalog.toggle_skill': defineRoute({
+    input: uarSkillToggleSchema,
+    output: z.custom<UarCatalogSnapshot>()
+  }),
+  'prometheus.uar.catalog.refresh_skills': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<UarCatalogSnapshot>()
+  }),
+  'prometheus.uar.catalog.save_federated_agent': defineRoute({
+    input: uarFederatedAgentSaveSchema,
+    output: z.custom<UarCatalogSnapshot>()
   }),
   'prometheus.uar.settings.read': defineRoute({
     input: z.object({ namespace: uarSettingsNamespaceSchema }).strict(),

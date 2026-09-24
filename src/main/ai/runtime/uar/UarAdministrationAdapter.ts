@@ -106,6 +106,7 @@ const UAR_ADMIN_METHOD_ALLOWLIST = new Set<string>([
   'compiler.specs.compile\u0000POST\u0000/api/uar/compiler/specs/{id}/compile\u0000admin\u0000read',
   'compiler.compile\u0000POST\u0000/api/uar/compiler/compile\u0000admin\u0000read',
   'compiler.register\u0000POST\u0000/api/uar/compiler/compile-and-register\u0000admin\u0000live',
+  'compiler.verify\u0000POST\u0000/api/uar/compiler/verify\u0000admin\u0000read',
   'compiler.reports.read\u0000GET\u0000/api/uar/compiler/reports/{id}\u0000admin\u0000read',
   'compiler.sessions.list\u0000GET\u0000/api/uar/compiler/sessions\u0000admin\u0000read',
   'compiler.sessions.create\u0000POST\u0000/api/uar/compiler/sessions\u0000admin\u0000live',
