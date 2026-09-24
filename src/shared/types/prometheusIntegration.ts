@@ -273,6 +273,32 @@ export type UarSettingsUpdateResult = {
     currentRevision?: string
   }>
 }
+export type UarModelSource = 'boss' | 'gateway' | 'uar'
+export type UarModelSourceSnapshot = {
+  schemaVersion: 1
+  generation: number
+  sources: Array<{
+    source: UarModelSource
+    instanceId: string
+    instanceName: string
+    connectedInstance: string
+    operational: boolean
+    error?: string
+    providers: Array<{
+      id: string
+      name: string
+      credentialConfigured: boolean
+      models: Array<{ id: string; name: string; enabled: boolean; effectiveIdentity: string }>
+    }>
+  }>
+  consumers: Array<{
+    id: 'agent-inference' | 'knowledge-embeddings' | 'vision' | 'intent-classifier' | 'mistral-ocr' | 'memory'
+    state: 'configurable' | 'local' | 'disabled' | 'unavailable'
+    effectiveIdentity?: string
+    sources: UarModelSource[]
+    detail: string
+  }>
+}
 export const integrationActionSchema = z.enum([
   'pull',
   'start',

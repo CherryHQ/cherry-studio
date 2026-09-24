@@ -48,6 +48,16 @@ export const UarCatalogLinkSchema = z.strictObject({
   catalogRevision: z.string().startsWith('sha256:')
 })
 export type UarCatalogLink = z.infer<typeof UarCatalogLinkSchema>
+export const UarModelAssignmentSchema = z.discriminatedUnion('source', [
+  z.strictObject({ source: z.literal('boss'), modelId: UniqueModelIdSchema.optional() }),
+  z.strictObject({ source: z.literal('gateway'), modelId: z.string().min(1) }),
+  z.strictObject({
+    source: z.literal('uar'),
+    providerId: z.string().min(1),
+    modelId: z.string().min(1)
+  })
+])
+export type UarModelAssignment = z.infer<typeof UarModelAssignmentSchema>
 export const AGENT_TYPES = ['claude-code', 'pi', 'dsh', 'uar'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
@@ -73,7 +83,10 @@ export const AgentConfigurationSchema = z
     builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional(),
     language: AgentLanguageSchema.nullable().optional(),
     /** Revision link to the Boss-owned definition in UAR's agent catalog. */
-    uar_catalog_link: UarCatalogLinkSchema.optional()
+    uar_catalog_link: UarCatalogLinkSchema.optional(),
+    /** Model route used when this agent executes through UAR. Missing means the
+     * active The Boss model, preserving existing agents without migration. */
+    uar_model_assignment: UarModelAssignmentSchema.optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must

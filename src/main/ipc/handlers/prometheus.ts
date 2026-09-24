@@ -1,5 +1,10 @@
 import { application } from '@application'
-import { readUarAdministrationSnapshot, readUarSettings, updateUarSettings } from '@main/ai/runtime/uar'
+import {
+  readUarAdministrationSnapshot,
+  readUarModelSources,
+  readUarSettings,
+  updateUarSettings
+} from '@main/ai/runtime/uar'
 import { StaleIntegrationRevisionError } from '@main/services/prometheus/integrationErrors'
 import { applyPrometheusFix, runPrometheusDoctor } from '@main/services/prometheus/prometheusDoctor'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -29,6 +34,7 @@ export const prometheusHandlers: IpcHandlersFor<typeof prometheusRequestSchemas>
   'prometheus.uar.admin.snapshot': async () => readUarAdministrationSnapshot(),
   'prometheus.uar.settings.read': async ({ namespace }) => readUarSettings(namespace),
   'prometheus.uar.settings.update': async ({ namespace, changes }) => updateUarSettings(namespace, changes),
+  'prometheus.uar.models.sources': async () => readUarModelSources(),
   'prometheus.doctor.run': async () => runPrometheusDoctor(),
   'prometheus.doctor.fix': async ({ fixId }) => applyPrometheusFix(fixId),
   'prometheus.skills.push': async () => application.get('PrometheusSkillPushService').push(),

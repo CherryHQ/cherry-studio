@@ -11,6 +11,7 @@ import {
 import {
   uarSettingsNamespaceSchema,
   type UarAdministrationSnapshot,
+  type UarModelSourceSnapshot,
   type UarSettingsSnapshot,
   type UarSettingsUpdateResult
 } from '@shared/types/prometheusIntegration'
@@ -69,6 +70,10 @@ export const prometheusRequestSchemas = {
       })
       .strict(),
     output: z.custom<UarSettingsUpdateResult>()
+  }),
+  'prometheus.uar.models.sources': defineRoute({
+    input: z.object({}).strict(),
+    output: z.custom<UarModelSourceSnapshot>()
   }),
   'prometheus.doctor.run': defineRoute({
     input: z.object({}).strict(),
